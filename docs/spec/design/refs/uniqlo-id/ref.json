@@ -1,0 +1,133 @@
+{
+  "capturedAt": "2026-10-15T09:26:53.287Z",
+  "viewports": {
+    "390": {
+      "url": "https://www.uniqlo.com/id/id/",
+      "width": 980,
+      "height": 2120,
+      "title": "Access Denied",
+      "headingMax": 32,
+      "type": {
+        "families": [
+          {
+            "v": "Times New Roman",
+            "c": 115
+          }
+        ],
+        "sizes": [
+          {
+            "v": "16px",
+            "c": 102
+          },
+          {
+            "v": "32px",
+            "c": 13
+          }
+        ],
+        "weights": [
+          {
+            "v": "400",
+            "c": 102
+          },
+          {
+            "v": "700",
+            "c": 13
+          }
+        ],
+        "roles": {
+          "h1": {
+            "size": "32px",
+            "weight": "700",
+            "lineHeight": "normal",
+            "letterSpacing": "normal",
+            "family": "Times New Roman",
+            "transform": "none"
+          },
+          "p": {
+            "size": "16px",
+            "weight": "400",
+            "lineHeight": "normal",
+            "letterSpacing": "normal",
+            "family": "Times New Roman",
+            "transform": "none"
+          }
+        }
+      },
+      "color": {
+        "text": [
+          {
+            "v": "rgb(0, 0, 0)",
+            "c": 115
+          }
+        ],
+        "background": []
+      },
+      "radius": [],
+      "sections": []
+    },
+    "1440": {
+      "url": "https://www.uniqlo.com/id/id/",
+      "width": 1440,
+      "height": 900,
+      "title": "Access Denied",
+      "headingMax": 32,
+      "type": {
+        "families": [
+          {
+            "v": "Times New Roman",
+            "c": 115
+          }
+        ],
+        "sizes": [
+          {
+            "v": "16px",
+            "c": 102
+          },
+          {
+            "v": "32px",
+            "c": 13
+          }
+        ],
+        "weights": [
+          {
+            "v": "400",
+            "c": 102
+          },
+          {
+            "v": "700",
+            "c": 13
+          }
+        ],
+        "roles": {
+          "h1": {
+            "size": "32px",
+            "weight": "700",
+            "lineHeight": "normal",
+            "letterSpacing": "normal",
+            "family": "Times New Roman",
+            "transform": "none"
+          },
+          "p": {
+            "size": "16px",
+            "weight": "400",
+            "lineHeight": "normal",
+            "letterSpacing": "normal",
+            "family": "Times New Roman",
+            "transform": "none"
+          }
+        }
+      },
+      "color": {
+        "text": [
+          {
+            "v": "rgb(0, 0, 0)",
+            "c": 115
+          }
+        ],
+        "background": []
+      },
+      "radius": [],
+      "sections": []
+    }
+  }
+}

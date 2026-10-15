@@ -1,0 +1,183 @@
+{
+  "capturedAt": "2026-10-15T09:44:07.766Z",
+  "viewports": {
+    "390": {
+      "url": "https://www.blibli.com/",
+      "width": 390,
+      "height": 901,
+      "title": "Just a moment...",
+      "headingMax": 0,
+      "type": {
+        "families": [
+          {
+            "v": "blibli",
+            "c": 191
+          }
+        ],
+        "sizes": [
+          {
+            "v": "16px",
+            "c": 78
+          },
+          {
+            "v": "14px",
+            "c": 73
+          },
+          {
+            "v": "18px",
+            "c": 40
+          }
+        ],
+        "weights": [
+          {
+            "v": "700",
+            "c": 118
+          },
+          {
+            "v": "500",
+            "c": 73
+          }
+        ],
+        "roles": {
+          "a": {
+            "size": "16px",
+            "weight": "700",
+            "lineHeight": "33.6px",
+            "letterSpacing": "normal",
+            "family": "blibli",
+            "transform": "none"
+          }
+        }
+      },
+      "color": {
+        "text": [
+          {
+            "v": "rgba(25, 34, 42, 0.7)",
+            "c": 121
+          },
+          {
+            "v": "rgb(25, 34, 42)",
+            "c": 40
+          },
+          {
+            "v": "rgb(0, 109, 234)",
+            "c": 30
+          }
+        ],
+        "background": []
+      },
+      "radius": [],
+      "sections": [
+        {
+          "tag": "div",
+          "y": 0,
+          "h": 57,
+          "bg": "rgb(255, 255, 255)",
+          "cols": 1,
+          "imgs": 1,
+          "heading": null
+        },
+        {
+          "tag": "div",
+          "y": 57,
+          "h": 844,
+          "bg": "rgb(255, 255, 255)",
+          "cols": 1,
+          "imgs": 1,
+          "heading": {
+            "tag": "h2",
+            "size": "24px",
+            "text": ""
+          }
+        }
+      ]
+    },
+    "1440": {
+      "url": "https://www.blibli.com/",
+      "width": 1440,
+      "height": 957,
+      "title": "Just a moment...",
+      "headingMax": 0,
+      "type": {
+        "families": [
+          {
+            "v": "blibli",
+            "c": 191
+          }
+        ],
+        "sizes": [
+          {
+            "v": "16px",
+            "c": 151
+          },
+          {
+            "v": "24px",
+            "c": 40
+          }
+        ],
+        "weights": [
+          {
+            "v": "700",
+            "c": 118
+          },
+          {
+            "v": "500",
+            "c": 73
+          }
+        ],
+        "roles": {
+          "a": {
+            "size": "16px",
+            "weight": "700",
+            "lineHeight": "33.6px",
+            "letterSpacing": "normal",
+            "family": "blibli",
+            "transform": "none"
+          }
+        }
+      },
+      "color": {
+        "text": [
+          {
+            "v": "rgba(25, 34, 42, 0.7)",
+            "c": 121
+          },
+          {
+            "v": "rgb(25, 34, 42)",
+            "c": 40
+          },
+          {
+            "v": "rgb(0, 109, 234)",
+            "c": 30
+          }
+        ],
+        "background": []
+      },
+      "radius": [],
+      "sections": [
+        {
+          "tag": "div",
+          "y": 0,
+          "h": 57,
+          "bg": "rgb(255, 255, 255)",
+          "cols": 1,
+          "imgs": 1,
+          "heading": null
+        },
+        {
+          "tag": "div",
+          "y": 57,
+          "h": 900,
+          "bg": "rgb(255, 255, 255)",
+          "cols": 1,
+          "imgs": 1,
+          "heading": {
+            "tag": "h2",
+            "size": "24px",
+            "text": ""
+          }
+        }
+      ]
+    }
+  }
+}

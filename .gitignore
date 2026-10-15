@@ -1,0 +1,20 @@
+# Credentials and private local material
+.env
+.env.*
+!.env.example
+*.pem
+*.key
+.local/
+# Dependencies, generated builds, caches and test output
+node_modules/
+.next/
+out/
+dist/
+coverage/
+playwright-report/
+test-results/
+__pycache__/
+*.py[cod]
+*.tsbuildinfo
+*.log
+.DS_Store

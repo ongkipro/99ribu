@@ -1,0 +1,484 @@
+{
+  "capturedAt": "2026-10-15T09:27:11.031Z",
+  "viewports": {
+    "390": {
+      "url": "https://www.ikea.co.id/in",
+      "width": 390,
+      "height": 11386,
+      "title": "IKEA Indonesia - Jual Perabot Rumah & Furnitur Kantor Online",
+      "headingMax": 32,
+      "type": {
+        "families": [
+          {
+            "v": "Noto IKEA",
+            "c": 2487
+          }
+        ],
+        "sizes": [
+          {
+            "v": "14px",
+            "c": 870
+          },
+          {
+            "v": "11px",
+            "c": 491
+          },
+          {
+            "v": "16px",
+            "c": 428
+          },
+          {
+            "v": "18px",
+            "c": 238
+          },
+          {
+            "v": "12px",
+            "c": 186
+          },
+          {
+            "v": "13px",
+            "c": 119
+          },
+          {
+            "v": "15px",
+            "c": 67
+          },
+          {
+            "v": "20px",
+            "c": 37
+          },
+          {
+            "v": "10px",
+            "c": 32
+          },
+          {
+            "v": "32px",
+            "c": 13
+          }
+        ],
+        "weights": [
+          {
+            "v": "400",
+            "c": 1591
+          },
+          {
+            "v": "700",
+            "c": 746
+          },
+          {
+            "v": "600",
+            "c": 150
+          }
+        ],
+        "roles": {
+          "a": {
+            "size": "32px",
+            "weight": "700",
+            "lineHeight": "32px",
+            "letterSpacing": "normal",
+            "family": "Noto IKEA",
+            "transform": "none"
+          },
+          "button": {
+            "size": "11.9px",
+            "weight": "700",
+            "lineHeight": "17.85px",
+            "letterSpacing": "normal",
+            "family": "Noto IKEA",
+            "transform": "none"
+          },
+          "h2": {
+            "size": "18px",
+            "weight": "700",
+            "lineHeight": "22.5px",
+            "letterSpacing": "-0.21px",
+            "family": "Noto IKEA",
+            "transform": "none"
+          },
+          "p": {
+            "size": "15px",
+            "weight": "400",
+            "lineHeight": "22.5px",
+            "letterSpacing": "normal",
+            "family": "Noto IKEA",
+            "transform": "none"
+          },
+          "h3": {
+            "size": "20px",
+            "weight": "700",
+            "lineHeight": "24px",
+            "letterSpacing": "normal",
+            "family": "Noto IKEA",
+            "transform": "none"
+          }
+        }
+      },
+      "color": {
+        "text": [
+          {
+            "v": "rgb(17, 17, 17)",
+            "c": 1023
+          },
+          {
+            "v": "rgb(72, 72, 72)",
+            "c": 1019
+          },
+          {
+            "v": "rgb(255, 255, 255)",
+            "c": 315
+          },
+          {
+            "v": "rgb(0, 0, 0)",
+            "c": 77
+          },
+          {
+            "v": "rgb(158, 158, 158)",
+            "c": 28
+          },
+          {
+            "v": "rgb(204, 0, 8)",
+            "c": 25
+          }
+        ],
+        "background": [
+          {
+            "v": "rgb(255, 255, 255)",
+            "c": 4958333.875
+          },
+          {
+            "v": "rgb(245, 245, 245)",
+            "c": 808840
+          },
+          {
+            "v": "rgb(238, 238, 238)",
+            "c": 630000
+          },
+          {
+            "v": "rgb(0, 0, 0)",
+            "c": 461006.25
+          },
+          {
+            "v": "rgba(0, 0, 0, 0.6)",
+            "c": 329160
+          },
+          {
+            "v": "rgb(140, 221, 255)",
+            "c": 93205.3125
+          }
+        ]
+      },
+      "radius": [
+        {
+          "v": "50%",
+          "c": 41
+        },
+        {
+          "v": "4px",
+          "c": 14
+        },
+        {
+          "v": "8px",
+          "c": 8
+        },
+        {
+          "v": "64px",
+          "c": 7
+        },
+        {
+          "v": "2px",
+          "c": 7
+        },
+        {
+          "v": "160px",
+          "c": 3
+        }
+      ],
+      "sections": [
+        {
+          "tag": "aside",
+          "y": 497,
+          "h": 844,
+          "bg": "rgb(255, 255, 255)",
+          "cols": 1,
+          "imgs": 10,
+          "heading": null
+        },
+        {
+          "tag": "header",
+          "y": 497,
+          "h": 73,
+          "bg": "rgb(255, 255, 255)",
+          "cols": 1,
+          "imgs": 2,
+          "heading": null
+        },
+        {
+          "tag": "div",
+          "y": 73,
+          "h": 9785,
+          "bg": "rgb(255, 255, 255)",
+          "cols": 1,
+          "imgs": 304,
+          "heading": {
+            "tag": "h2",
+            "size": "18px",
+            "text": "Turun harga"
+          }
+        },
+        {
+          "tag": "div",
+          "y": 9882,
+          "h": 57,
+          "bg": "rgb(255, 255, 255)",
+          "cols": 1,
+          "imgs": 0,
+          "heading": null
+        },
+        {
+          "tag": "div",
+          "y": 9963,
+          "h": 1422,
+          "bg": "rgb(245, 245, 245)",
+          "cols": 1,
+          "imgs": 5,
+          "heading": null
+        }
+      ]
+    },
+    "1440": {
+      "url": "https://www.ikea.co.id/in",
+      "width": 1440,
+      "height": 10443,
+      "title": "IKEA Indonesia - Jual Perabot Rumah & Furnitur Kantor Online",
+      "headingMax": 32,
+      "type": {
+        "families": [
+          {
+            "v": "Noto IKEA",
+            "c": 2690
+          }
+        ],
+        "sizes": [
+          {
+            "v": "14px",
+            "c": 1250
+          },
+          {
+            "v": "12px",
+            "c": 587
+          },
+          {
+            "v": "16px",
+            "c": 300
+          },
+          {
+            "v": "24px",
+            "c": 154
+          },
+          {
+            "v": "20px",
+            "c": 111
+          },
+          {
+            "v": "18px",
+            "c": 105
+          },
+          {
+            "v": "15px",
+            "c": 67
+          },
+          {
+            "v": "11px",
+            "c": 33
+          },
+          {
+            "v": "10px",
+            "c": 32
+          },
+          {
+            "v": "13px",
+            "c": 28
+          }
+        ],
+        "weights": [
+          {
+            "v": "400",
+            "c": 1694
+          },
+          {
+            "v": "700",
+            "c": 846
+          },
+          {
+            "v": "600",
+            "c": 150
+          }
+        ],
+        "roles": {
+          "a": {
+            "size": "32px",
+            "weight": "700",
+            "lineHeight": "32px",
+            "letterSpacing": "normal",
+            "family": "Noto IKEA",
+            "transform": "none"
+          },
+          "button": {
+            "size": "11.9px",
+            "weight": "700",
+            "lineHeight": "17.85px",
+            "letterSpacing": "normal",
+            "family": "Noto IKEA",
+            "transform": "none"
+          },
+          "h2": {
+            "size": "24px",
+            "weight": "700",
+            "lineHeight": "30px",
+            "letterSpacing": "-0.54px",
+            "family": "Noto IKEA",
+            "transform": "none"
+          },
+          "p": {
+            "size": "15px",
+            "weight": "400",
+            "lineHeight": "22.5px",
+            "letterSpacing": "normal",
+            "family": "Noto IKEA",
+            "transform": "none"
+          },
+          "h3": {
+            "size": "20px",
+            "weight": "700",
+            "lineHeight": "24px",
+            "letterSpacing": "normal",
+            "family": "Noto IKEA",
+            "transform": "none"
+          }
+        }
+      },
+      "color": {
+        "text": [
+          {
+            "v": "rgb(17, 17, 17)",
+            "c": 1094
+          },
+          {
+            "v": "rgb(72, 72, 72)",
+            "c": 1019
+          },
+          {
+            "v": "rgb(255, 255, 255)",
+            "c": 431
+          },
+          {
+            "v": "rgb(0, 0, 0)",
+            "c": 93
+          },
+          {
+            "v": "rgb(158, 158, 158)",
+            "c": 28
+          },
+          {
+            "v": "rgb(204, 0, 8)",
+            "c": 25
+          }
+        ],
+        "background": [
+          {
+            "v": "rgb(255, 255, 255)",
+            "c": 10045362.025390625
+          },
+          {
+            "v": "rgb(245, 245, 245)",
+            "c": 1853128.78515625
+          },
+          {
+            "v": "rgba(0, 0, 0, 0.6)",
+            "c": 1296000
+          },
+          {
+            "v": "rgb(238, 238, 238)",
+            "c": 1120000
+          },
+          {
+            "v": "rgb(0, 0, 0)",
+            "c": 1039570.638671875
+          },
+          {
+            "v": "rgb(140, 221, 255)",
+            "c": 189348.32788085938
+          }
+        ]
+      },
+      "radius": [
+        {
+          "v": "50%",
+          "c": 41
+        },
+        {
+          "v": "4px",
+          "c": 14
+        },
+        {
+          "v": "64px",
+          "c": 8
+        },
+        {
+          "v": "2px",
+          "c": 7
+        },
+        {
+          "v": "8px",
+          "c": 6
+        },
+        {
+          "v": "160px",
+          "c": 4
+        }
+      ],
+      "sections": [
+        {
+          "tag": "aside",
+          "y": 708,
+          "h": 900,
+          "bg": "rgb(255, 255, 255)",
+          "cols": 1,
+          "imgs": 10,
+          "heading": null
+        },
+        {
+          "tag": "header",
+          "y": 708,
+          "h": 176,
+          "bg": "rgb(255, 255, 255)",
+          "cols": 1,
+          "imgs": 2,
+          "heading": null
+        },
+        {
+          "tag": "div",
+          "y": 176,
+          "h": 9619,
+          "bg": "rgb(255, 255, 255)",
+          "cols": 1,
+          "imgs": 312,
+          "heading": {
+            "tag": "h2",
+            "size": "24px",
+            "text": "Turun harga"
+          }
+        },
+        {
+          "tag": "div",
+          "y": 9795,
+          "h": 648,
+          "bg": "rgb(245, 245, 245)",
+          "cols": 1,
+          "imgs": 5,
+          "heading": null
+        }
+      ]
+    }
+  }
+}

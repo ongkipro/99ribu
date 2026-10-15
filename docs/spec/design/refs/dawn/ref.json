@@ -1,0 +1,493 @@
+{
+  "capturedAt": "2026-10-15T09:43:35.004Z",
+  "viewports": {
+    "390": {
+      "url": "https://theme-dawn-demo.myshopify.com/",
+      "width": 390,
+      "height": 4264,
+      "title": "theme-dawn-demo",
+      "headingMax": 40,
+      "type": {
+        "families": [
+          {
+            "v": "Assistant",
+            "c": 1331
+          }
+        ],
+        "sizes": [
+          {
+            "v": "15px",
+            "c": 518
+          },
+          {
+            "v": "16px",
+            "c": 316
+          },
+          {
+            "v": "12px",
+            "c": 177
+          },
+          {
+            "v": "14px",
+            "c": 96
+          },
+          {
+            "v": "13px",
+            "c": 73
+          },
+          {
+            "v": "11px",
+            "c": 56
+          },
+          {
+            "v": "30px",
+            "c": 40
+          },
+          {
+            "v": "40px",
+            "c": 32
+          },
+          {
+            "v": "20px",
+            "c": 14
+          },
+          {
+            "v": "17px",
+            "c": 9
+          }
+        ],
+        "weights": [
+          {
+            "v": "400",
+            "c": 1331
+          }
+        ],
+        "roles": {
+          "a": {
+            "size": "15px",
+            "weight": "400",
+            "lineHeight": "18px",
+            "letterSpacing": "1px",
+            "family": "Assistant",
+            "transform": "none"
+          },
+          "h2": {
+            "size": "40px",
+            "weight": "400",
+            "lineHeight": "52px",
+            "letterSpacing": "0.6px",
+            "family": "Assistant",
+            "transform": "none"
+          },
+          "p": {
+            "size": "15px",
+            "weight": "400",
+            "lineHeight": "27px",
+            "letterSpacing": "0.6px",
+            "family": "Assistant",
+            "transform": "none"
+          }
+        }
+      },
+      "color": {
+        "text": [
+          {
+            "v": "rgba(18, 18, 18, 0.75)",
+            "c": 638
+          },
+          {
+            "v": "rgb(18, 18, 18)",
+            "c": 588
+          },
+          {
+            "v": "rgb(255, 255, 255)",
+            "c": 83
+          },
+          {
+            "v": "rgba(255, 255, 255, 0.75)",
+            "c": 22
+          }
+        ],
+        "background": [
+          {
+            "v": "rgb(255, 255, 255)",
+            "c": 1523569.46875
+          },
+          {
+            "v": "rgb(243, 243, 243)",
+            "c": 427716
+          },
+          {
+            "v": "rgba(18, 18, 18, 0.1)",
+            "c": 152100
+          },
+          {
+            "v": "rgba(36, 40, 51, 0)",
+            "c": 6123.21875
+          },
+          {
+            "v": "rgb(18, 18, 18)",
+            "c": 5734
+          }
+        ]
+      },
+      "radius": [
+        {
+          "v": "40px",
+          "c": 4
+        },
+        {
+          "v": "50%",
+          "c": 1
+        }
+      ],
+      "sections": [
+        {
+          "tag": "a",
+          "y": -1,
+          "h": 47,
+          "bg": "rgb(18, 18, 18)",
+          "cols": 1,
+          "imgs": 0,
+          "heading": null
+        },
+        {
+          "tag": "div",
+          "y": 39,
+          "h": 65,
+          "bg": "rgb(255, 255, 255)",
+          "cols": 1,
+          "imgs": 52,
+          "heading": {
+            "tag": "h2",
+            "size": "20px",
+            "text": "Country/region"
+          }
+        },
+        {
+          "tag": "section",
+          "y": 104,
+          "h": 390,
+          "bg": "rgb(255, 255, 255)",
+          "cols": 2,
+          "imgs": 2,
+          "heading": {
+            "tag": "h2",
+            "size": "40px",
+            "text": "Industrial design meets fashion."
+          }
+        },
+        {
+          "tag": "section",
+          "y": 494,
+          "h": 209,
+          "bg": "rgb(255, 255, 255)",
+          "cols": 1,
+          "imgs": 0,
+          "heading": {
+            "tag": "h2",
+            "size": "30px",
+            "text": "Obsessive Attention. Intelligent Effort."
+          }
+        },
+        {
+          "tag": "section",
+          "y": 703,
+          "h": 1125,
+          "bg": "rgb(255, 255, 255)",
+          "cols": 1,
+          "imgs": 16,
+          "heading": {
+            "tag": "h3",
+            "size": "17px",
+            "text": "Small Convertible Flex Bag"
+          }
+        },
+        {
+          "tag": "section",
+          "y": 1828,
+          "h": 709,
+          "bg": "rgb(255, 255, 255)",
+          "cols": 1,
+          "imgs": 7,
+          "heading": {
+            "tag": "h2",
+            "size": "20px",
+            "text": "Back in stock!"
+          }
+        },
+        {
+          "tag": "section",
+          "y": 2537,
+          "h": 212,
+          "bg": "rgb(255, 255, 255)",
+          "cols": 1,
+          "imgs": 2,
+          "heading": null
+        },
+        {
+          "tag": "section",
+          "y": 2749,
+          "h": 420,
+          "bg": "rgb(255, 255, 255)",
+          "cols": 1,
+          "imgs": 2,
+          "heading": null
+        },
+        {
+          "tag": "div",
+          "y": 3169,
+          "h": 1095,
+          "bg": "rgb(255, 255, 255)",
+          "cols": 1,
+          "imgs": 36,
+          "heading": {
+            "tag": "h2",
+            "size": "16px",
+            "text": "Quick links"
+          }
+        }
+      ]
+    },
+    "1440": {
+      "url": "https://theme-dawn-demo.myshopify.com/",
+      "width": 1440,
+      "height": 4231,
+      "title": "theme-dawn-demo",
+      "headingMax": 52,
+      "type": {
+        "families": [
+          {
+            "v": "Assistant",
+            "c": 1442
+          }
+        ],
+        "sizes": [
+          {
+            "v": "16px",
+            "c": 762
+          },
+          {
+            "v": "13px",
+            "c": 222
+          },
+          {
+            "v": "14px",
+            "c": 207
+          },
+          {
+            "v": "18px",
+            "c": 58
+          },
+          {
+            "v": "11px",
+            "c": 56
+          },
+          {
+            "v": "40px",
+            "c": 40
+          },
+          {
+            "v": "52px",
+            "c": 32
+          },
+          {
+            "v": "12px",
+            "c": 28
+          },
+          {
+            "v": "15px",
+            "c": 23
+          },
+          {
+            "v": "24px",
+            "c": 14
+          }
+        ],
+        "weights": [
+          {
+            "v": "400",
+            "c": 1442
+          }
+        ],
+        "roles": {
+          "a": {
+            "size": "15px",
+            "weight": "400",
+            "lineHeight": "18px",
+            "letterSpacing": "1px",
+            "family": "Assistant",
+            "transform": "none"
+          },
+          "h2": {
+            "size": "52px",
+            "weight": "400",
+            "lineHeight": "67.6px",
+            "letterSpacing": "0.6px",
+            "family": "Assistant",
+            "transform": "none"
+          },
+          "p": {
+            "size": "16px",
+            "weight": "400",
+            "lineHeight": "28.8px",
+            "letterSpacing": "0.6px",
+            "family": "Assistant",
+            "transform": "none"
+          }
+        }
+      },
+      "color": {
+        "text": [
+          {
+            "v": "rgba(18, 18, 18, 0.75)",
+            "c": 743
+          },
+          {
+            "v": "rgb(18, 18, 18)",
+            "c": 594
+          },
+          {
+            "v": "rgb(255, 255, 255)",
+            "c": 83
+          },
+          {
+            "v": "rgba(255, 255, 255, 0.75)",
+            "c": 22
+          }
+        ],
+        "background": [
+          {
+            "v": "rgb(255, 255, 255)",
+            "c": 5002605
+          },
+          {
+            "v": "rgb(243, 243, 243)",
+            "c": 1433741.9298095703
+          },
+          {
+            "v": "rgba(18, 18, 18, 0.1)",
+            "c": 1036800
+          }
+        ]
+      },
+      "radius": [
+        {
+          "v": "40px",
+          "c": 4
+        },
+        {
+          "v": "50%",
+          "c": 1
+        }
+      ],
+      "sections": [
+        {
+          "tag": "a",
+          "y": -1,
+          "h": 47,
+          "bg": "rgb(18, 18, 18)",
+          "cols": 1,
+          "imgs": 0,
+          "heading": null
+        },
+        {
+          "tag": "div",
+          "y": 39,
+          "h": 85,
+          "bg": "rgb(255, 255, 255)",
+          "cols": 1,
+          "imgs": 52,
+          "heading": {
+            "tag": "h2",
+            "size": "24px",
+            "text": "Country/region"
+          }
+        },
+        {
+          "tag": "section",
+          "y": 124,
+          "h": 720,
+          "bg": "rgb(255, 255, 255)",
+          "cols": 3,
+          "imgs": 2,
+          "heading": {
+            "tag": "h2",
+            "size": "52px",
+            "text": "Industrial design meets fashion."
+          }
+        },
+        {
+          "tag": "section",
+          "y": 844,
+          "h": 141,
+          "bg": "rgb(255, 255, 255)",
+          "cols": 1,
+          "imgs": 0,
+          "heading": {
+            "tag": "h2",
+            "size": "40px",
+            "text": "Obsessive Attention. Intelligent Effort."
+          }
+        },
+        {
+          "tag": "section",
+          "y": 985,
+          "h": 790,
+          "bg": "rgb(255, 255, 255)",
+          "cols": 1,
+          "imgs": 16,
+          "heading": {
+            "tag": "h3",
+            "size": "18px",
+            "text": "Small Convertible Flex Bag"
+          }
+        },
+        {
+          "tag": "section",
+          "y": 1775,
+          "h": 1003,
+          "bg": "rgb(255, 255, 255)",
+          "cols": 1,
+          "imgs": 7,
+          "heading": {
+            "tag": "h2",
+            "size": "24px",
+            "text": "Back in stock!"
+          }
+        },
+        {
+          "tag": "section",
+          "y": 2778,
+          "h": 552,
+          "bg": "rgb(255, 255, 255)",
+          "cols": 1,
+          "imgs": 2,
+          "heading": null
+        },
+        {
+          "tag": "section",
+          "y": 3330,
+          "h": 243,
+          "bg": "rgb(255, 255, 255)",
+          "cols": 1,
+          "imgs": 2,
+          "heading": null
+        },
+        {
+          "tag": "div",
+          "y": 3573,
+          "h": 657,
+          "bg": "rgb(255, 255, 255)",
+          "cols": 1,
+          "imgs": 36,
+          "heading": {
+            "tag": "h2",
+            "size": "18px",
+            "text": "Quick links"
+          }
+        }
+      ]
+    }
+  }
+}

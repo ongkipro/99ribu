@@ -1,0 +1,1109 @@
+{
+  "capturedAt": "2026-10-15T17:29:37.408Z",
+  "viewports": {
+    "390": {
+      "url": "https://batiknusantara.tokophi.id/",
+      "width": 390,
+      "height": 9080,
+      "title": "Belanja Online - Batik Nusantara",
+      "headingMax": 40,
+      "type": {
+        "families": [
+          {
+            "v": "Inter",
+            "c": 3025
+          },
+          {
+            "v": "Playfair Display",
+            "c": 588
+          }
+        ],
+        "sizes": [
+          {
+            "v": "15px",
+            "c": 872
+          },
+          {
+            "v": "14px",
+            "c": 813
+          },
+          {
+            "v": "16px",
+            "c": 543
+          },
+          {
+            "v": "12px",
+            "c": 443
+          },
+          {
+            "v": "30px",
+            "c": 196
+          },
+          {
+            "v": "18px",
+            "c": 186
+          },
+          {
+            "v": "10.4px",
+            "c": 127
+          },
+          {
+            "v": "15.2px",
+            "c": 119
+          },
+          {
+            "v": "24px",
+            "c": 112
+          },
+          {
+            "v": "40px",
+            "c": 79
+          }
+        ],
+        "weights": [
+          {
+            "v": "600",
+            "c": 1875
+          },
+          {
+            "v": "400",
+            "c": 1404
+          },
+          {
+            "v": "500",
+            "c": 298
+          },
+          {
+            "v": "700",
+            "c": 36
+          }
+        ],
+        "roles": {
+          "a": {
+            "size": "14px",
+            "weight": "600",
+            "lineHeight": "20px",
+            "letterSpacing": "normal",
+            "family": "Inter",
+            "transform": "none"
+          },
+          "button": {
+            "size": "25.6px",
+            "weight": "400",
+            "lineHeight": "32px",
+            "letterSpacing": "normal",
+            "family": "Inter",
+            "transform": "none"
+          },
+          "p": {
+            "size": "11.2px",
+            "weight": "600",
+            "lineHeight": "16.8px",
+            "letterSpacing": "1.568px",
+            "family": "Inter",
+            "transform": "uppercase"
+          },
+          "h1": {
+            "size": "40px",
+            "weight": "600",
+            "lineHeight": "41.2px",
+            "letterSpacing": "-1px",
+            "family": "Playfair Display",
+            "transform": "none"
+          },
+          "h2": {
+            "size": "24px",
+            "weight": "600",
+            "lineHeight": "32px",
+            "letterSpacing": "normal",
+            "family": "Playfair Display",
+            "transform": "none"
+          },
+          "h3": {
+            "size": "15px",
+            "weight": "600",
+            "lineHeight": "21.75px",
+            "letterSpacing": "normal",
+            "family": "Inter",
+            "transform": "none"
+          }
+        }
+      },
+      "color": {
+        "text": [
+          {
+            "v": "rgb(43, 35, 36)",
+            "c": 1693
+          },
+          {
+            "v": "rgb(115, 102, 103)",
+            "c": 705
+          },
+          {
+            "v": "rgb(255, 255, 255)",
+            "c": 302
+          },
+          {
+            "v": "oklab(0.999994 0.0000455678 0.0000200868 / 0.85)",
+            "c": 261
+          },
+          {
+            "v": "oklab(0.975109 0.00263444 0.00634849 / 0.7)",
+            "c": 160
+          },
+          {
+            "v": "oklab(0.975109 0.00263444 0.00634849 / 0.75)",
+            "c": 153
+          }
+        ],
+        "background": [
+          {
+            "v": "rgb(249, 220, 223)",
+            "c": 1001125.8488769531
+          },
+          {
+            "v": "rgb(252, 242, 243)",
+            "c": 871848.875
+          },
+          {
+            "v": "rgb(250, 246, 242)",
+            "c": 815880
+          },
+          {
+            "v": "rgb(43, 35, 36)",
+            "c": 644261.71875
+          },
+          {
+            "v": "rgb(255, 255, 255)",
+            "c": 39051.1875
+          },
+          {
+            "v": "color(srgb 0.980392 0.964706 0.94902 / 0.92)",
+            "c": 30030
+          }
+        ]
+      },
+      "radius": [
+        {
+          "v": "3.35544e+07px",
+          "c": 49
+        },
+        {
+          "v": "6px",
+          "c": 28
+        },
+        {
+          "v": "8px",
+          "c": 10
+        },
+        {
+          "v": "4px",
+          "c": 10
+        },
+        {
+          "v": "12px",
+          "c": 2
+        },
+        {
+          "v": "24px",
+          "c": 1
+        }
+      ],
+      "sections": [
+        {
+          "tag": "header",
+          "y": 2658,
+          "h": 77,
+          "bg": "color(srgb 0.980392 0.964706 0.94902 / 0.92)",
+          "cols": 2,
+          "imgs": 8,
+          "heading": null
+        },
+        {
+          "tag": "section",
+          "y": 0,
+          "h": 844,
+          "bg": "rgb(43, 35, 36)",
+          "cols": 1,
+          "imgs": 18,
+          "heading": {
+            "tag": "h1",
+            "size": "40px",
+            "text": "Batik Modern untuk Hari-Harimu"
+          }
+        },
+        {
+          "tag": "section",
+          "y": 844,
+          "h": 467,
+          "bg": "rgb(250, 246, 242)",
+          "cols": 1,
+          "imgs": 12,
+          "heading": null
+        },
+        {
+          "tag": "section",
+          "y": 1311,
+          "h": 972,
+          "bg": "rgb(250, 246, 242)",
+          "cols": 2,
+          "imgs": 12,
+          "heading": {
+            "tag": "h2",
+            "size": "24px",
+            "text": "Belanja per Koleksi"
+          }
+        },
+        {
+          "tag": "section",
+          "y": 2283,
+          "h": 808,
+          "bg": "rgb(250, 246, 242)",
+          "cols": 1,
+          "imgs": 2,
+          "heading": {
+            "tag": "h2",
+            "size": "30px",
+            "text": "Gaya yang Menemani Setiap Langkah"
+          }
+        },
+        {
+          "tag": "section",
+          "y": 3090,
+          "h": 472,
+          "bg": "rgb(250, 246, 242)",
+          "cols": 1,
+          "imgs": 0,
+          "heading": {
+            "tag": "h2",
+            "size": "30px",
+            "text": "Setiap helai kami rancang untuk perempuan Indonesi"
+          }
+        },
+        {
+          "tag": "section",
+          "y": 3562,
+          "h": 894,
+          "bg": "rgb(250, 246, 242)",
+          "cols": 2,
+          "imgs": 4,
+          "heading": {
+            "tag": "h2",
+            "size": "24px",
+            "text": "Paling Dicari"
+          }
+        },
+        {
+          "tag": "section",
+          "y": 4456,
+          "h": 1655,
+          "bg": "rgb(250, 246, 242)",
+          "cols": 2,
+          "imgs": 8,
+          "heading": {
+            "tag": "h2",
+            "size": "24px",
+            "text": "Produk Terbaru"
+          }
+        },
+        {
+          "tag": "section",
+          "y": 6111,
+          "h": 503,
+          "bg": "rgb(250, 246, 242)",
+          "cols": 1,
+          "imgs": 1,
+          "heading": {
+            "tag": "h2",
+            "size": "30px",
+            "text": "Lookbook"
+          }
+        },
+        {
+          "tag": "section",
+          "y": 6613,
+          "h": 1375,
+          "bg": "rgb(250, 246, 242)",
+          "cols": 2,
+          "imgs": 4,
+          "heading": {
+            "tag": "h2",
+            "size": "24px",
+            "text": "Dari Jurnal"
+          }
+        },
+        {
+          "tag": "section",
+          "y": 8084,
+          "h": 249,
+          "bg": "rgb(252, 242, 243)",
+          "cols": 1,
+          "imgs": 1,
+          "heading": {
+            "tag": "h2",
+            "size": "24px",
+            "text": "Belanja koleksi lengkap Batik Nusantara."
+          }
+        },
+        {
+          "tag": "footer",
+          "y": 8333,
+          "h": 747,
+          "bg": "rgb(43, 35, 36)",
+          "cols": 1,
+          "imgs": 12,
+          "heading": {
+            "tag": "h2",
+            "size": "11.2px",
+            "text": "Menu"
+          }
+        },
+        {
+          "tag": "div",
+          "y": 3430,
+          "h": 56,
+          "bg": "rgb(250, 246, 242)",
+          "cols": 1,
+          "imgs": 3,
+          "heading": null
+        }
+      ]
+    },
+    "768": {
+      "url": "https://batiknusantara.tokophi.id/",
+      "width": 768,
+      "height": 8484,
+      "title": "Belanja Online - Batik Nusantara",
+      "headingMax": 64,
+      "type": {
+        "families": [
+          {
+            "v": "Inter",
+            "c": 3025
+          },
+          {
+            "v": "Playfair Display",
+            "c": 588
+          }
+        ],
+        "sizes": [
+          {
+            "v": "15px",
+            "c": 872
+          },
+          {
+            "v": "14px",
+            "c": 813
+          },
+          {
+            "v": "12px",
+            "c": 443
+          },
+          {
+            "v": "18px",
+            "c": 406
+          },
+          {
+            "v": "16px",
+            "c": 282
+          },
+          {
+            "v": "48px",
+            "c": 155
+          },
+          {
+            "v": "10.4px",
+            "c": 127
+          },
+          {
+            "v": "15.2px",
+            "c": 119
+          },
+          {
+            "v": "30px",
+            "c": 97
+          },
+          {
+            "v": "20px",
+            "c": 82
+          }
+        ],
+        "weights": [
+          {
+            "v": "600",
+            "c": 1875
+          },
+          {
+            "v": "400",
+            "c": 1404
+          },
+          {
+            "v": "500",
+            "c": 298
+          },
+          {
+            "v": "700",
+            "c": 36
+          }
+        ],
+        "roles": {
+          "a": {
+            "size": "14px",
+            "weight": "600",
+            "lineHeight": "20px",
+            "letterSpacing": "normal",
+            "family": "Inter",
+            "transform": "none"
+          },
+          "button": {
+            "size": "25.6px",
+            "weight": "400",
+            "lineHeight": "32px",
+            "letterSpacing": "normal",
+            "family": "Inter",
+            "transform": "none"
+          },
+          "p": {
+            "size": "11.2px",
+            "weight": "600",
+            "lineHeight": "16.8px",
+            "letterSpacing": "1.568px",
+            "family": "Inter",
+            "transform": "uppercase"
+          },
+          "h1": {
+            "size": "64px",
+            "weight": "600",
+            "lineHeight": "65.92px",
+            "letterSpacing": "-1.6px",
+            "family": "Playfair Display",
+            "transform": "none"
+          },
+          "h2": {
+            "size": "30px",
+            "weight": "600",
+            "lineHeight": "36px",
+            "letterSpacing": "normal",
+            "family": "Playfair Display",
+            "transform": "none"
+          },
+          "h3": {
+            "size": "15px",
+            "weight": "600",
+            "lineHeight": "21.75px",
+            "letterSpacing": "normal",
+            "family": "Inter",
+            "transform": "none"
+          }
+        }
+      },
+      "color": {
+        "text": [
+          {
+            "v": "rgb(43, 35, 36)",
+            "c": 1693
+          },
+          {
+            "v": "rgb(115, 102, 103)",
+            "c": 705
+          },
+          {
+            "v": "rgb(255, 255, 255)",
+            "c": 302
+          },
+          {
+            "v": "oklab(0.999994 0.0000455678 0.0000200868 / 0.85)",
+            "c": 261
+          },
+          {
+            "v": "oklab(0.975109 0.00263444 0.00634849 / 0.7)",
+            "c": 160
+          },
+          {
+            "v": "oklab(0.975109 0.00263444 0.00634849 / 0.75)",
+            "c": 153
+          }
+        ],
+        "background": [
+          {
+            "v": "rgb(249, 220, 223)",
+            "c": 1764757
+          },
+          {
+            "v": "rgb(250, 246, 242)",
+            "c": 1174496
+          },
+          {
+            "v": "rgb(43, 35, 36)",
+            "c": 1156936.875
+          },
+          {
+            "v": "rgb(252, 242, 243)",
+            "c": 1138136.583984375
+          },
+          {
+            "v": "color(srgb 0.980392 0.964706 0.94902 / 0.92)",
+            "c": 59136
+          },
+          {
+            "v": "oklab(0.265667 0.0121152 0.00201657 / 0.3)",
+            "c": 56064
+          }
+        ]
+      },
+      "radius": [
+        {
+          "v": "3.35544e+07px",
+          "c": 49
+        },
+        {
+          "v": "6px",
+          "c": 28
+        },
+        {
+          "v": "8px",
+          "c": 10
+        },
+        {
+          "v": "4px",
+          "c": 10
+        },
+        {
+          "v": "12px",
+          "c": 2
+        },
+        {
+          "v": "24px",
+          "c": 1
+        }
+      ],
+      "sections": [
+        {
+          "tag": "header",
+          "y": 261,
+          "h": 77,
+          "bg": "color(srgb 0.980392 0.964706 0.94902 / 0.92)",
+          "cols": 1,
+          "imgs": 8,
+          "heading": null
+        },
+        {
+          "tag": "section",
+          "y": 0,
+          "h": 900,
+          "bg": "rgb(43, 35, 36)",
+          "cols": 1,
+          "imgs": 18,
+          "heading": {
+            "tag": "h1",
+            "size": "64px",
+            "text": "Batik Modern untuk Hari-Harimu"
+          }
+        },
+        {
+          "tag": "section",
+          "y": 900,
+          "h": 540,
+          "bg": "rgb(250, 246, 242)",
+          "cols": 1,
+          "imgs": 12,
+          "heading": null
+        },
+        {
+          "tag": "section",
+          "y": 1440,
+          "h": 1196,
+          "bg": "rgb(250, 246, 242)",
+          "cols": 2,
+          "imgs": 12,
+          "heading": {
+            "tag": "h2",
+            "size": "30px",
+            "text": "Belanja per Koleksi"
+          }
+        },
+        {
+          "tag": "section",
+          "y": 2636,
+          "h": 635,
+          "bg": "rgb(250, 246, 242)",
+          "cols": 2,
+          "imgs": 2,
+          "heading": {
+            "tag": "h2",
+            "size": "36px",
+            "text": "Gaya yang Menemani Setiap Langkah"
+          }
+        },
+        {
+          "tag": "section",
+          "y": 3271,
+          "h": 591,
+          "bg": "rgb(250, 246, 242)",
+          "cols": 1,
+          "imgs": 0,
+          "heading": {
+            "tag": "h2",
+            "size": "48px",
+            "text": "Setiap helai kami rancang untuk perempuan Indonesi"
+          }
+        },
+        {
+          "tag": "section",
+          "y": 3862,
+          "h": 1070,
+          "bg": "rgb(250, 246, 242)",
+          "cols": 3,
+          "imgs": 4,
+          "heading": {
+            "tag": "h2",
+            "size": "30px",
+            "text": "Paling Dicari"
+          }
+        },
+        {
+          "tag": "section",
+          "y": 4932,
+          "h": 1568,
+          "bg": "rgb(250, 246, 242)",
+          "cols": 3,
+          "imgs": 8,
+          "heading": {
+            "tag": "h2",
+            "size": "30px",
+            "text": "Produk Terbaru"
+          }
+        },
+        {
+          "tag": "section",
+          "y": 6499,
+          "h": 587,
+          "bg": "rgb(250, 246, 242)",
+          "cols": 1,
+          "imgs": 1,
+          "heading": {
+            "tag": "h2",
+            "size": "36px",
+            "text": "Lookbook"
+          }
+        },
+        {
+          "tag": "section",
+          "y": 7086,
+          "h": 522,
+          "bg": "rgb(250, 246, 242)",
+          "cols": 3,
+          "imgs": 4,
+          "heading": {
+            "tag": "h2",
+            "size": "30px",
+            "text": "Dari Jurnal"
+          }
+        },
+        {
+          "tag": "section",
+          "y": 7704,
+          "h": 204,
+          "bg": "rgb(252, 242, 243)",
+          "cols": 2,
+          "imgs": 1,
+          "heading": {
+            "tag": "h2",
+            "size": "30px",
+            "text": "Belanja koleksi lengkap Batik Nusantara."
+          }
+        },
+        {
+          "tag": "footer",
+          "y": 7908,
+          "h": 576,
+          "bg": "rgb(43, 35, 36)",
+          "cols": 2,
+          "imgs": 12,
+          "heading": {
+            "tag": "h2",
+            "size": "11.2px",
+            "text": "Menu"
+          }
+        },
+        {
+          "tag": "div",
+          "y": 1085,
+          "h": 56,
+          "bg": "rgb(250, 246, 242)",
+          "cols": 1,
+          "imgs": 3,
+          "heading": null
+        }
+      ]
+    },
+    "1440": {
+      "url": "https://batiknusantara.tokophi.id/",
+      "width": 1440,
+      "height": 7409,
+      "title": "Belanja Online - Batik Nusantara",
+      "headingMax": 76,
+      "type": {
+        "families": [
+          {
+            "v": "Inter",
+            "c": 2871
+          },
+          {
+            "v": "Playfair Display",
+            "c": 588
+          }
+        ],
+        "sizes": [
+          {
+            "v": "15px",
+            "c": 872
+          },
+          {
+            "v": "14px",
+            "c": 806
+          },
+          {
+            "v": "18px",
+            "c": 406
+          },
+          {
+            "v": "12px",
+            "c": 379
+          },
+          {
+            "v": "16px",
+            "c": 282
+          },
+          {
+            "v": "48px",
+            "c": 155
+          },
+          {
+            "v": "10.4px",
+            "c": 127
+          },
+          {
+            "v": "15.2px",
+            "c": 119
+          },
+          {
+            "v": "30px",
+            "c": 97
+          },
+          {
+            "v": "76px",
+            "c": 79
+          }
+        ],
+        "weights": [
+          {
+            "v": "600",
+            "c": 1853
+          },
+          {
+            "v": "400",
+            "c": 1306
+          },
+          {
+            "v": "500",
+            "c": 264
+          },
+          {
+            "v": "700",
+            "c": 36
+          }
+        ],
+        "roles": {
+          "a": {
+            "size": "14px",
+            "weight": "600",
+            "lineHeight": "20px",
+            "letterSpacing": "normal",
+            "family": "Inter",
+            "transform": "none"
+          },
+          "button": {
+            "size": "14px",
+            "weight": "400",
+            "lineHeight": "20px",
+            "letterSpacing": "normal",
+            "family": "Inter",
+            "transform": "none"
+          },
+          "h1": {
+            "size": "76px",
+            "weight": "600",
+            "lineHeight": "78.28px",
+            "letterSpacing": "-1.9px",
+            "family": "Playfair Display",
+            "transform": "none"
+          },
+          "p": {
+            "size": "18px",
+            "weight": "400",
+            "lineHeight": "29.25px",
+            "letterSpacing": "normal",
+            "family": "Inter",
+            "transform": "none"
+          },
+          "h2": {
+            "size": "30px",
+            "weight": "600",
+            "lineHeight": "36px",
+            "letterSpacing": "normal",
+            "family": "Playfair Display",
+            "transform": "none"
+          },
+          "h3": {
+            "size": "15px",
+            "weight": "600",
+            "lineHeight": "21.75px",
+            "letterSpacing": "normal",
+            "family": "Inter",
+            "transform": "none"
+          }
+        }
+      },
+      "color": {
+        "text": [
+          {
+            "v": "rgb(43, 35, 36)",
+            "c": 1582
+          },
+          {
+            "v": "rgb(115, 102, 103)",
+            "c": 669
+          },
+          {
+            "v": "rgb(255, 255, 255)",
+            "c": 302
+          },
+          {
+            "v": "oklab(0.999994 0.0000455678 0.0000200868 / 0.85)",
+            "c": 261
+          },
+          {
+            "v": "oklab(0.975109 0.00263444 0.00634849 / 0.7)",
+            "c": 160
+          },
+          {
+            "v": "oklab(0.975109 0.00263444 0.00634849 / 0.75)",
+            "c": 153
+          }
+        ],
+        "background": [
+          {
+            "v": "rgb(249, 220, 223)",
+            "c": 2099728
+          },
+          {
+            "v": "rgb(252, 242, 243)",
+            "c": 1886385.0559082031
+          },
+          {
+            "v": "rgb(43, 35, 36)",
+            "c": 1839240
+          },
+          {
+            "v": "rgb(250, 246, 242)",
+            "c": 851220
+          },
+          {
+            "v": "oklab(0.265667 0.0121152 0.00201657 / 0.3)",
+            "c": 134640
+          },
+          {
+            "v": "color(srgb 0.980392 0.964706 0.94902 / 0.92)",
+            "c": 110880
+          }
+        ]
+      },
+      "radius": [
+        {
+          "v": "3.35544e+07px",
+          "c": 45
+        },
+        {
+          "v": "6px",
+          "c": 28
+        },
+        {
+          "v": "4px",
+          "c": 10
+        },
+        {
+          "v": "8px",
+          "c": 6
+        },
+        {
+          "v": "12px",
+          "c": 2
+        },
+        {
+          "v": "24px",
+          "c": 1
+        }
+      ],
+      "sections": [
+        {
+          "tag": "header",
+          "y": 218,
+          "h": 77,
+          "bg": "color(srgb 0.980392 0.964706 0.94902 / 0.92)",
+          "cols": 1,
+          "imgs": 8,
+          "heading": null
+        },
+        {
+          "tag": "section",
+          "y": 0,
+          "h": 900,
+          "bg": "rgb(43, 35, 36)",
+          "cols": 1,
+          "imgs": 18,
+          "heading": {
+            "tag": "h1",
+            "size": "76px",
+            "text": "Batik Modern untuk Hari-Harimu"
+          }
+        },
+        {
+          "tag": "section",
+          "y": 900,
+          "h": 470,
+          "bg": "rgb(250, 246, 242)",
+          "cols": 1,
+          "imgs": 12,
+          "heading": null
+        },
+        {
+          "tag": "section",
+          "y": 1370,
+          "h": 748,
+          "bg": "rgb(250, 246, 242)",
+          "cols": 3,
+          "imgs": 12,
+          "heading": {
+            "tag": "h2",
+            "size": "30px",
+            "text": "Belanja per Koleksi"
+          }
+        },
+        {
+          "tag": "section",
+          "y": 2118,
+          "h": 624,
+          "bg": "rgb(250, 246, 242)",
+          "cols": 2,
+          "imgs": 2,
+          "heading": {
+            "tag": "h2",
+            "size": "36px",
+            "text": "Gaya yang Menemani Setiap Langkah"
+          }
+        },
+        {
+          "tag": "section",
+          "y": 2742,
+          "h": 591,
+          "bg": "rgb(250, 246, 242)",
+          "cols": 1,
+          "imgs": 0,
+          "heading": {
+            "tag": "h2",
+            "size": "48px",
+            "text": "Setiap helai kami rancang untuk perempuan Indonesi"
+          }
+        },
+        {
+          "tag": "section",
+          "y": 3333,
+          "h": 708,
+          "bg": "rgb(250, 246, 242)",
+          "cols": 4,
+          "imgs": 4,
+          "heading": {
+            "tag": "h2",
+            "size": "30px",
+            "text": "Paling Dicari"
+          }
+        },
+        {
+          "tag": "section",
+          "y": 4041,
+          "h": 1272,
+          "bg": "rgb(250, 246, 242)",
+          "cols": 4,
+          "imgs": 8,
+          "heading": {
+            "tag": "h2",
+            "size": "30px",
+            "text": "Produk Terbaru"
+          }
+        },
+        {
+          "tag": "section",
+          "y": 5313,
+          "h": 806,
+          "bg": "rgb(250, 246, 242)",
+          "cols": 1,
+          "imgs": 1,
+          "heading": {
+            "tag": "h2",
+            "size": "36px",
+            "text": "Lookbook"
+          }
+        },
+        {
+          "tag": "section",
+          "y": 6119,
+          "h": 636,
+          "bg": "rgb(250, 246, 242)",
+          "cols": 3,
+          "imgs": 4,
+          "heading": {
+            "tag": "h2",
+            "size": "30px",
+            "text": "Dari Jurnal"
+          }
+        },
+        {
+          "tag": "section",
+          "y": 6851,
+          "h": 181,
+          "bg": "rgb(252, 242, 243)",
+          "cols": 2,
+          "imgs": 1,
+          "heading": {
+            "tag": "h2",
+            "size": "30px",
+            "text": "Belanja koleksi lengkap Batik Nusantara."
+          }
+        },
+        {
+          "tag": "footer",
+          "y": 7032,
+          "h": 377,
+          "bg": "rgb(43, 35, 36)",
+          "cols": 4,
+          "imgs": 12,
+          "heading": {
+            "tag": "h2",
+            "size": "11.2px",
+            "text": "Menu"
+          }
+        },
+        {
+          "tag": "div",
+          "y": 1042,
+          "h": 56,
+          "bg": "rgb(250, 246, 242)",
+          "cols": 1,
+          "imgs": 3,
+          "heading": null
+        }
+      ]
+    }
+  }
+}

@@ -1,0 +1,663 @@
+{
+  "capturedAt": "2026-10-15T17:15:05.282Z",
+  "viewports": {
+    "390": {
+      "url": "https://tokophi.com/checkout",
+      "width": 390,
+      "height": 1434,
+      "title": "Halaman tidak ditemukan - TokoΦ",
+      "headingMax": 30.4,
+      "type": {
+        "families": [
+          {
+            "v": "ui-sans-serif",
+            "c": 717
+          },
+          {
+            "v": "ui-monospace",
+            "c": 38
+          },
+          {
+            "v": "Source Serif 4",
+            "c": 22
+          }
+        ],
+        "sizes": [
+          {
+            "v": "15px",
+            "c": 490
+          },
+          {
+            "v": "16.14px",
+            "c": 110
+          },
+          {
+            "v": "13px",
+            "c": 68
+          },
+          {
+            "v": "14px",
+            "c": 30
+          },
+          {
+            "v": "30.4px",
+            "c": 22
+          },
+          {
+            "v": "12.75px",
+            "c": 19
+          },
+          {
+            "v": "12.8px",
+            "c": 19
+          },
+          {
+            "v": "19px",
+            "c": 10
+          },
+          {
+            "v": "16px",
+            "c": 9
+          }
+        ],
+        "weights": [
+          {
+            "v": "400",
+            "c": 574
+          },
+          {
+            "v": "550",
+            "c": 91
+          },
+          {
+            "v": "600",
+            "c": 82
+          },
+          {
+            "v": "700",
+            "c": 19
+          },
+          {
+            "v": "650",
+            "c": 11
+          }
+        ],
+        "roles": {
+          "a": {
+            "size": "14px",
+            "weight": "650",
+            "lineHeight": "21px",
+            "letterSpacing": "normal",
+            "family": "ui-sans-serif",
+            "transform": "none"
+          },
+          "h1": {
+            "size": "30.4px",
+            "weight": "600",
+            "lineHeight": "34.048px",
+            "letterSpacing": "-0.5472px",
+            "family": "Source Serif 4",
+            "transform": "none"
+          },
+          "p": {
+            "size": "16.14px",
+            "weight": "400",
+            "lineHeight": "27.1152px",
+            "letterSpacing": "normal",
+            "family": "ui-sans-serif",
+            "transform": "none"
+          }
+        }
+      },
+      "color": {
+        "text": [
+          {
+            "v": "rgb(87, 92, 124)",
+            "c": 246
+          },
+          {
+            "v": "rgb(185, 190, 222)",
+            "c": 213
+          },
+          {
+            "v": "rgb(231, 233, 251)",
+            "c": 91
+          },
+          {
+            "v": "rgb(255, 255, 255)",
+            "c": 71
+          },
+          {
+            "v": "rgb(146, 152, 196)",
+            "c": 68
+          },
+          {
+            "v": "rgb(20, 21, 42)",
+            "c": 50
+          }
+        ],
+        "background": [
+          {
+            "v": "rgb(20, 21, 42)",
+            "c": 336704.0625
+          },
+          {
+            "v": "rgb(79, 70, 229)",
+            "c": 36650
+          },
+          {
+            "v": "color(srgb 0.984314 0.984314 0.996078 / 0.95)",
+            "c": 23790
+          },
+          {
+            "v": "rgb(255, 255, 255)",
+            "c": 16100
+          }
+        ]
+      },
+      "radius": [
+        {
+          "v": "12px",
+          "c": 5
+        },
+        {
+          "v": "8px",
+          "c": 2
+        },
+        {
+          "v": "5.6px",
+          "c": 1
+        }
+      ],
+      "sections": [
+        {
+          "tag": "header",
+          "y": 0,
+          "h": 61,
+          "bg": "color(srgb 0.984314 0.984314 0.996078 / 0.95)",
+          "cols": 2,
+          "imgs": 2,
+          "heading": null
+        },
+        {
+          "tag": "p",
+          "y": 168,
+          "h": 81,
+          "bg": "rgb(251, 251, 254)",
+          "cols": 1,
+          "imgs": 0,
+          "heading": null
+        },
+        {
+          "tag": "div",
+          "y": 277,
+          "h": 104,
+          "bg": "rgb(251, 251, 254)",
+          "cols": 1,
+          "imgs": 0,
+          "heading": null
+        },
+        {
+          "tag": "p",
+          "y": 393,
+          "h": 101,
+          "bg": "rgb(251, 251, 254)",
+          "cols": 1,
+          "imgs": 0,
+          "heading": null
+        },
+        {
+          "tag": "footer",
+          "y": 571,
+          "h": 863,
+          "bg": "rgb(20, 21, 42)",
+          "cols": 2,
+          "imgs": 0,
+          "heading": null
+        }
+      ]
+    },
+    "768": {
+      "url": "https://tokophi.com/checkout",
+      "width": 768,
+      "height": 1105,
+      "title": "Halaman tidak ditemukan - TokoΦ",
+      "headingMax": 36.224,
+      "type": {
+        "families": [
+          {
+            "v": "ui-sans-serif",
+            "c": 717
+          },
+          {
+            "v": "ui-monospace",
+            "c": 38
+          },
+          {
+            "v": "Source Serif 4",
+            "c": 22
+          }
+        ],
+        "sizes": [
+          {
+            "v": "15px",
+            "c": 490
+          },
+          {
+            "v": "16.896px",
+            "c": 110
+          },
+          {
+            "v": "13px",
+            "c": 68
+          },
+          {
+            "v": "14px",
+            "c": 30
+          },
+          {
+            "v": "36.224px",
+            "c": 22
+          },
+          {
+            "v": "12.75px",
+            "c": 19
+          },
+          {
+            "v": "12.8px",
+            "c": 19
+          },
+          {
+            "v": "19px",
+            "c": 10
+          },
+          {
+            "v": "16px",
+            "c": 9
+          }
+        ],
+        "weights": [
+          {
+            "v": "400",
+            "c": 574
+          },
+          {
+            "v": "550",
+            "c": 91
+          },
+          {
+            "v": "600",
+            "c": 82
+          },
+          {
+            "v": "700",
+            "c": 19
+          },
+          {
+            "v": "650",
+            "c": 11
+          }
+        ],
+        "roles": {
+          "a": {
+            "size": "14px",
+            "weight": "650",
+            "lineHeight": "21px",
+            "letterSpacing": "normal",
+            "family": "ui-sans-serif",
+            "transform": "none"
+          },
+          "h1": {
+            "size": "36.224px",
+            "weight": "600",
+            "lineHeight": "40.5709px",
+            "letterSpacing": "-0.652032px",
+            "family": "Source Serif 4",
+            "transform": "none"
+          },
+          "p": {
+            "size": "16.896px",
+            "weight": "400",
+            "lineHeight": "28.3853px",
+            "letterSpacing": "normal",
+            "family": "ui-sans-serif",
+            "transform": "none"
+          }
+        }
+      },
+      "color": {
+        "text": [
+          {
+            "v": "rgb(87, 92, 124)",
+            "c": 246
+          },
+          {
+            "v": "rgb(185, 190, 222)",
+            "c": 213
+          },
+          {
+            "v": "rgb(231, 233, 251)",
+            "c": 91
+          },
+          {
+            "v": "rgb(255, 255, 255)",
+            "c": 71
+          },
+          {
+            "v": "rgb(146, 152, 196)",
+            "c": 68
+          },
+          {
+            "v": "rgb(20, 21, 42)",
+            "c": 50
+          }
+        ],
+        "background": [
+          {
+            "v": "rgb(20, 21, 42)",
+            "c": 496044
+          },
+          {
+            "v": "color(srgb 0.984314 0.984314 0.996078 / 0.95)",
+            "c": 46848
+          },
+          {
+            "v": "rgb(79, 70, 229)",
+            "c": 16832.40625
+          },
+          {
+            "v": "rgb(255, 255, 255)",
+            "c": 7193.96875
+          }
+        ]
+      },
+      "radius": [
+        {
+          "v": "12px",
+          "c": 5
+        },
+        {
+          "v": "8px",
+          "c": 2
+        },
+        {
+          "v": "5.6px",
+          "c": 1
+        }
+      ],
+      "sections": [
+        {
+          "tag": "header",
+          "y": 0,
+          "h": 61,
+          "bg": "color(srgb 0.984314 0.984314 0.996078 / 0.95)",
+          "cols": 2,
+          "imgs": 2,
+          "heading": null
+        },
+        {
+          "tag": "h1",
+          "y": 126,
+          "h": 41,
+          "bg": "rgb(251, 251, 254)",
+          "cols": 1,
+          "imgs": 0,
+          "heading": null
+        },
+        {
+          "tag": "p",
+          "y": 178,
+          "h": 57,
+          "bg": "rgb(251, 251, 254)",
+          "cols": 1,
+          "imgs": 0,
+          "heading": null
+        },
+        {
+          "tag": "div",
+          "y": 263,
+          "h": 46,
+          "bg": "rgb(251, 251, 254)",
+          "cols": 2,
+          "imgs": 0,
+          "heading": null
+        },
+        {
+          "tag": "p",
+          "y": 321,
+          "h": 50,
+          "bg": "rgb(251, 251, 254)",
+          "cols": 1,
+          "imgs": 0,
+          "heading": null
+        },
+        {
+          "tag": "footer",
+          "y": 459,
+          "h": 646,
+          "bg": "rgb(20, 21, 42)",
+          "cols": 3,
+          "imgs": 0,
+          "heading": null
+        }
+      ]
+    },
+    "1440": {
+      "url": "https://tokophi.com/checkout",
+      "width": 1440,
+      "height": 938,
+      "title": "Halaman tidak ditemukan - TokoΦ",
+      "headingMax": 44,
+      "type": {
+        "families": [
+          {
+            "v": "ui-sans-serif",
+            "c": 757
+          },
+          {
+            "v": "ui-monospace",
+            "c": 38
+          },
+          {
+            "v": "Source Serif 4",
+            "c": 22
+          }
+        ],
+        "sizes": [
+          {
+            "v": "15px",
+            "c": 490
+          },
+          {
+            "v": "17px",
+            "c": 110
+          },
+          {
+            "v": "13px",
+            "c": 68
+          },
+          {
+            "v": "14.4px",
+            "c": 49
+          },
+          {
+            "v": "14px",
+            "c": 30
+          },
+          {
+            "v": "44px",
+            "c": 22
+          },
+          {
+            "v": "12.75px",
+            "c": 19
+          },
+          {
+            "v": "12.8px",
+            "c": 19
+          },
+          {
+            "v": "19px",
+            "c": 10
+          }
+        ],
+        "weights": [
+          {
+            "v": "400",
+            "c": 565
+          },
+          {
+            "v": "550",
+            "c": 140
+          },
+          {
+            "v": "600",
+            "c": 82
+          },
+          {
+            "v": "700",
+            "c": 19
+          },
+          {
+            "v": "650",
+            "c": 11
+          }
+        ],
+        "roles": {
+          "a": {
+            "size": "14.4px",
+            "weight": "550",
+            "lineHeight": "21.6px",
+            "letterSpacing": "normal",
+            "family": "ui-sans-serif",
+            "transform": "none"
+          },
+          "h1": {
+            "size": "44px",
+            "weight": "600",
+            "lineHeight": "49.28px",
+            "letterSpacing": "-0.792px",
+            "family": "Source Serif 4",
+            "transform": "none"
+          },
+          "p": {
+            "size": "17px",
+            "weight": "400",
+            "lineHeight": "28.56px",
+            "letterSpacing": "normal",
+            "family": "ui-sans-serif",
+            "transform": "none"
+          }
+        }
+      },
+      "color": {
+        "text": [
+          {
+            "v": "rgb(87, 92, 124)",
+            "c": 295
+          },
+          {
+            "v": "rgb(185, 190, 222)",
+            "c": 213
+          },
+          {
+            "v": "rgb(231, 233, 251)",
+            "c": 91
+          },
+          {
+            "v": "rgb(255, 255, 255)",
+            "c": 71
+          },
+          {
+            "v": "rgb(146, 152, 196)",
+            "c": 68
+          },
+          {
+            "v": "rgb(20, 21, 42)",
+            "c": 41
+          }
+        ],
+        "background": [
+          {
+            "v": "rgb(20, 21, 42)",
+            "c": 651600
+          },
+          {
+            "v": "color(srgb 0.984314 0.984314 0.996078 / 0.95)",
+            "c": 87840
+          }
+        ]
+      },
+      "radius": [
+        {
+          "v": "12px",
+          "c": 5
+        },
+        {
+          "v": "8px",
+          "c": 1
+        },
+        {
+          "v": "5.6px",
+          "c": 1
+        }
+      ],
+      "sections": [
+        {
+          "tag": "header",
+          "y": 0,
+          "h": 61,
+          "bg": "color(srgb 0.984314 0.984314 0.996078 / 0.95)",
+          "cols": 2,
+          "imgs": 2,
+          "heading": null
+        },
+        {
+          "tag": "h1",
+          "y": 126,
+          "h": 49,
+          "bg": "rgb(251, 251, 254)",
+          "cols": 1,
+          "imgs": 0,
+          "heading": null
+        },
+        {
+          "tag": "p",
+          "y": 187,
+          "h": 57,
+          "bg": "rgb(251, 251, 254)",
+          "cols": 1,
+          "imgs": 0,
+          "heading": null
+        },
+        {
+          "tag": "div",
+          "y": 272,
+          "h": 46,
+          "bg": "rgb(251, 251, 254)",
+          "cols": 2,
+          "imgs": 0,
+          "heading": null
+        },
+        {
+          "tag": "p",
+          "y": 330,
+          "h": 50,
+          "bg": "rgb(251, 251, 254)",
+          "cols": 1,
+          "imgs": 0,
+          "heading": null
+        },
+        {
+          "tag": "footer",
+          "y": 485,
+          "h": 453,
+          "bg": "rgb(20, 21, 42)",
+          "cols": 2,
+          "imgs": 0,
+          "heading": null
+        }
+      ]
+    }
+  }
+}

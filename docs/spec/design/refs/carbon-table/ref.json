@@ -1,0 +1,470 @@
+{
+  "capturedAt": "2026-10-15T09:26:53.295Z",
+  "viewports": {
+    "390": {
+      "url": "https://www.carbondesignsystem.com/building-blocks/core/components/data-table/guidelines",
+      "width": 390,
+      "height": 25421,
+      "title": "Data table | Carbon Design System",
+      "headingMax": 32.7955,
+      "type": {
+        "families": [
+          {
+            "v": "IBM Plex Sans",
+            "c": 15947
+          },
+          {
+            "v": "IBM Plex Mono",
+            "c": 86
+          },
+          {
+            "v": "IBM Plex Serif",
+            "c": 10
+          }
+        ],
+        "sizes": [
+          {
+            "v": "16px",
+            "c": 12047
+          },
+          {
+            "v": "14px",
+            "c": 3377
+          },
+          {
+            "v": "20px",
+            "c": 471
+          },
+          {
+            "v": "28.2823px",
+            "c": 88
+          },
+          {
+            "v": "12px",
+            "c": 42
+          },
+          {
+            "v": "32.7955px",
+            "c": 10
+          },
+          {
+            "v": "32px",
+            "c": 8
+          }
+        ],
+        "weights": [
+          {
+            "v": "400",
+            "c": 15503
+          },
+          {
+            "v": "600",
+            "c": 493
+          },
+          {
+            "v": "500",
+            "c": 37
+          },
+          {
+            "v": "300",
+            "c": 10
+          }
+        ],
+        "roles": {
+          "p": {
+            "size": "20px",
+            "weight": "400",
+            "lineHeight": "28px",
+            "letterSpacing": "normal",
+            "family": "IBM Plex Sans",
+            "transform": "none"
+          },
+          "a": {
+            "size": "14px",
+            "weight": "400",
+            "lineHeight": "18.0001px",
+            "letterSpacing": "0.16px",
+            "family": "IBM Plex Sans",
+            "transform": "none"
+          },
+          "h2": {
+            "size": "28.2823px",
+            "weight": "400",
+            "lineHeight": "36.3631px",
+            "letterSpacing": "normal",
+            "family": "IBM Plex Sans",
+            "transform": "none"
+          },
+          "h3": {
+            "size": "20px",
+            "weight": "400",
+            "lineHeight": "28px",
+            "letterSpacing": "normal",
+            "family": "IBM Plex Sans",
+            "transform": "none"
+          },
+          "h4": {
+            "size": "16px",
+            "weight": "600",
+            "lineHeight": "24px",
+            "letterSpacing": "normal",
+            "family": "IBM Plex Sans",
+            "transform": "none"
+          }
+        }
+      },
+      "color": {
+        "text": [
+          {
+            "v": "rgb(22, 22, 22)",
+            "c": 15015
+          },
+          {
+            "v": "rgb(82, 82, 82)",
+            "c": 578
+          },
+          {
+            "v": "rgb(15, 98, 254)",
+            "c": 305
+          },
+          {
+            "v": "rgb(244, 244, 244)",
+            "c": 139
+          },
+          {
+            "v": "rgb(0, 83, 154)",
+            "c": 6
+          }
+        ],
+        "background": [
+          {
+            "v": "rgb(244, 244, 244)",
+            "c": 10137568.25
+          },
+          {
+            "v": "rgb(255, 255, 255)",
+            "c": 4318476.5625
+          },
+          {
+            "v": "rgb(22, 22, 22)",
+            "c": 243317.34375
+          },
+          {
+            "v": "rgb(237, 245, 255)",
+            "c": 53820
+          },
+          {
+            "v": "rgb(224, 224, 224)",
+            "c": 13414.40625
+          },
+          {
+            "v": "rgba(141, 141, 141, 0.2)",
+            "c": 10240
+          }
+        ]
+      },
+      "radius": [
+        {
+          "v": "4px",
+          "c": 6
+        },
+        {
+          "v": "16px",
+          "c": 1
+        }
+      ],
+      "sections": [
+        {
+          "tag": "div",
+          "y": 64,
+          "h": 461,
+          "bg": "rgb(244, 244, 244)",
+          "cols": 1,
+          "imgs": 4,
+          "heading": {
+            "tag": "h1",
+            "size": "32.7955px",
+            "text": "Data table"
+          }
+        },
+        {
+          "tag": "div",
+          "y": 525,
+          "h": 64,
+          "bg": "rgb(244, 244, 244)",
+          "cols": 1,
+          "imgs": 0,
+          "heading": null
+        },
+        {
+          "tag": "nav",
+          "y": 589,
+          "h": 42,
+          "bg": "rgb(244, 244, 244)",
+          "cols": 1,
+          "imgs": 6,
+          "heading": null
+        },
+        {
+          "tag": "div",
+          "y": 801,
+          "h": 43,
+          "bg": "rgb(244, 244, 244)",
+          "cols": 1,
+          "imgs": 1,
+          "heading": null
+        },
+        {
+          "tag": "article",
+          "y": 631,
+          "h": 24007,
+          "bg": "rgb(244, 244, 244)",
+          "cols": 1,
+          "imgs": 125,
+          "heading": {
+            "tag": "h2",
+            "size": "28.2823px",
+            "text": "Live Demo"
+          }
+        },
+        {
+          "tag": "div",
+          "y": 24797,
+          "h": 624,
+          "bg": "rgb(22, 22, 22)",
+          "cols": 1,
+          "imgs": 1,
+          "heading": null
+        }
+      ]
+    },
+    "1440": {
+      "url": "https://www.carbondesignsystem.com/building-blocks/core/components/data-table/guidelines",
+      "width": 1440,
+      "height": 30063,
+      "title": "Data table | Carbon Design System",
+      "headingMax": 53.6471,
+      "type": {
+        "families": [
+          {
+            "v": "IBM Plex Sans",
+            "c": 16076
+          },
+          {
+            "v": "IBM Plex Mono",
+            "c": 86
+          },
+          {
+            "v": "IBM Plex Serif",
+            "c": 10
+          }
+        ],
+        "sizes": [
+          {
+            "v": "16px",
+            "c": 12047
+          },
+          {
+            "v": "14px",
+            "c": 3499
+          },
+          {
+            "v": "21.8824px",
+            "c": 471
+          },
+          {
+            "v": "32px",
+            "c": 96
+          },
+          {
+            "v": "12px",
+            "c": 49
+          },
+          {
+            "v": "53.6471px",
+            "c": 10
+          }
+        ],
+        "weights": [
+          {
+            "v": "400",
+            "c": 15613
+          },
+          {
+            "v": "600",
+            "c": 512
+          },
+          {
+            "v": "500",
+            "c": 37
+          },
+          {
+            "v": "300",
+            "c": 10
+          }
+        ],
+        "roles": {
+          "p": {
+            "size": "21.8824px",
+            "weight": "400",
+            "lineHeight": "30.6353px",
+            "letterSpacing": "normal",
+            "family": "IBM Plex Sans",
+            "transform": "none"
+          },
+          "a": {
+            "size": "14px",
+            "weight": "400",
+            "lineHeight": "18.0001px",
+            "letterSpacing": "0.16px",
+            "family": "IBM Plex Sans",
+            "transform": "none"
+          },
+          "h2": {
+            "size": "32px",
+            "weight": "400",
+            "lineHeight": "40px",
+            "letterSpacing": "normal",
+            "family": "IBM Plex Sans",
+            "transform": "none"
+          },
+          "h3": {
+            "size": "21.8824px",
+            "weight": "400",
+            "lineHeight": "30.6353px",
+            "letterSpacing": "normal",
+            "family": "IBM Plex Sans",
+            "transform": "none"
+          },
+          "h4": {
+            "size": "16px",
+            "weight": "600",
+            "lineHeight": "24px",
+            "letterSpacing": "normal",
+            "family": "IBM Plex Sans",
+            "transform": "none"
+          },
+          "button": {
+            "size": "14px",
+            "weight": "400",
+            "lineHeight": "18.0001px",
+            "letterSpacing": "0.16px",
+            "family": "IBM Plex Sans",
+            "transform": "none"
+          }
+        }
+      },
+      "color": {
+        "text": [
+          {
+            "v": "rgb(22, 22, 22)",
+            "c": 15026
+          },
+          {
+            "v": "rgb(82, 82, 82)",
+            "c": 662
+          },
+          {
+            "v": "rgb(15, 98, 254)",
+            "c": 329
+          },
+          {
+            "v": "rgb(244, 244, 244)",
+            "c": 139
+          },
+          {
+            "v": "rgb(255, 255, 255)",
+            "c": 10
+          },
+          {
+            "v": "rgb(0, 83, 154)",
+            "c": 6
+          }
+        ],
+        "background": [
+          {
+            "v": "rgb(244, 244, 244)",
+            "c": 43290292.5
+          },
+          {
+            "v": "rgb(255, 255, 255)",
+            "c": 14057439.595703125
+          },
+          {
+            "v": "rgb(22, 22, 22)",
+            "c": 601920
+          },
+          {
+            "v": "rgb(237, 245, 255)",
+            "c": 58503.375
+          }
+        ]
+      },
+      "radius": [
+        {
+          "v": "4px",
+          "c": 6
+        },
+        {
+          "v": "16px",
+          "c": 1
+        }
+      ],
+      "sections": [
+        {
+          "tag": "div",
+          "y": 64,
+          "h": 541,
+          "bg": "rgb(244, 244, 244)",
+          "cols": 1,
+          "imgs": 4,
+          "heading": {
+            "tag": "h1",
+            "size": "53.6471px",
+            "text": "Data table"
+          }
+        },
+        {
+          "tag": "div",
+          "y": 605,
+          "h": 64,
+          "bg": "rgb(244, 244, 244)",
+          "cols": 1,
+          "imgs": 0,
+          "heading": null
+        },
+        {
+          "tag": "nav",
+          "y": 669,
+          "h": 42,
+          "bg": "rgb(244, 244, 244)",
+          "cols": 1,
+          "imgs": 6,
+          "heading": null
+        },
+        {
+          "tag": "article",
+          "y": 711,
+          "h": 28774,
+          "bg": "rgb(244, 244, 244)",
+          "cols": 2,
+          "imgs": 124,
+          "heading": {
+            "tag": "h2",
+            "size": "32px",
+            "text": "Live Demo"
+          }
+        },
+        {
+          "tag": "div",
+          "y": 29645,
+          "h": 418,
+          "bg": "rgb(22, 22, 22)",
+          "cols": 1,
+          "imgs": 1,
+          "heading": null
+        }
+      ]
+    }
+  }
+}

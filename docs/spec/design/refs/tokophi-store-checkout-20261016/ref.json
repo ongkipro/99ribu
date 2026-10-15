@@ -1,0 +1,495 @@
+{
+  "capturedAt": "2026-10-15T17:28:39.623Z",
+  "viewports": {
+    "390": {
+      "url": "https://batiknusantara.tokophi.id/checkout",
+      "width": 390,
+      "height": 844,
+      "title": "Checkout - Batik Nusantara",
+      "headingMax": 20,
+      "type": {
+        "families": [
+          {
+            "v": "Inter",
+            "c": 176
+          }
+        ],
+        "sizes": [
+          {
+            "v": "16px",
+            "c": 65
+          },
+          {
+            "v": "20px",
+            "c": 39
+          },
+          {
+            "v": "14px",
+            "c": 36
+          },
+          {
+            "v": "12px",
+            "c": 33
+          },
+          {
+            "v": "18px",
+            "c": 3
+          }
+        ],
+        "weights": [
+          {
+            "v": "400",
+            "c": 98
+          },
+          {
+            "v": "600",
+            "c": 55
+          },
+          {
+            "v": "500",
+            "c": 23
+          }
+        ],
+        "roles": {
+          "h1": {
+            "size": "16px",
+            "weight": "400",
+            "lineHeight": "24px",
+            "letterSpacing": "normal",
+            "family": "Inter",
+            "transform": "none"
+          },
+          "h2": {
+            "size": "20px",
+            "weight": "600",
+            "lineHeight": "28px",
+            "letterSpacing": "normal",
+            "family": "Inter",
+            "transform": "none"
+          },
+          "p": {
+            "size": "16px",
+            "weight": "400",
+            "lineHeight": "24px",
+            "letterSpacing": "normal",
+            "family": "Inter",
+            "transform": "none"
+          },
+          "a": {
+            "size": "14px",
+            "weight": "600",
+            "lineHeight": "20px",
+            "letterSpacing": "normal",
+            "family": "Inter",
+            "transform": "none"
+          }
+        }
+      },
+      "color": {
+        "text": [
+          {
+            "v": "rgb(107, 114, 128)",
+            "c": 72
+          },
+          {
+            "v": "rgb(38, 34, 35)",
+            "c": 68
+          },
+          {
+            "v": "rgb(37, 99, 235)",
+            "c": 23
+          },
+          {
+            "v": "rgb(255, 255, 255)",
+            "c": 13
+          }
+        ],
+        "background": [
+          {
+            "v": "rgb(255, 255, 255)",
+            "c": 422370
+          },
+          {
+            "v": "rgb(245, 245, 245)",
+            "c": 23790
+          },
+          {
+            "v": "rgb(37, 99, 235)",
+            "c": 5514.375
+          }
+        ]
+      },
+      "radius": [
+        {
+          "v": "6px",
+          "c": 2
+        },
+        {
+          "v": "8px",
+          "c": 2
+        }
+      ],
+      "sections": [
+        {
+          "tag": "header",
+          "y": 0,
+          "h": 65,
+          "bg": "rgb(255, 255, 255)",
+          "cols": 1,
+          "imgs": 1,
+          "heading": null
+        },
+        {
+          "tag": "div",
+          "y": 65,
+          "h": 507,
+          "bg": "rgb(255, 255, 255)",
+          "cols": 1,
+          "imgs": 11,
+          "heading": {
+            "tag": "h2",
+            "size": "16px",
+            "text": "Ringkasan Pesanan"
+          }
+        },
+        {
+          "tag": "footer",
+          "y": 572,
+          "h": 65,
+          "bg": "rgb(255, 255, 255)",
+          "cols": 1,
+          "imgs": 0,
+          "heading": null
+        }
+      ]
+    },
+    "768": {
+      "url": "https://batiknusantara.tokophi.id/checkout",
+      "width": 768,
+      "height": 900,
+      "title": "Checkout - Batik Nusantara",
+      "headingMax": 20,
+      "type": {
+        "families": [
+          {
+            "v": "Inter",
+            "c": 185
+          }
+        ],
+        "sizes": [
+          {
+            "v": "16px",
+            "c": 65
+          },
+          {
+            "v": "14px",
+            "c": 45
+          },
+          {
+            "v": "12px",
+            "c": 33
+          },
+          {
+            "v": "20px",
+            "c": 24
+          },
+          {
+            "v": "24px",
+            "c": 15
+          },
+          {
+            "v": "18px",
+            "c": 3
+          }
+        ],
+        "weights": [
+          {
+            "v": "400",
+            "c": 98
+          },
+          {
+            "v": "600",
+            "c": 55
+          },
+          {
+            "v": "500",
+            "c": 32
+          }
+        ],
+        "roles": {
+          "h1": {
+            "size": "16px",
+            "weight": "400",
+            "lineHeight": "24px",
+            "letterSpacing": "normal",
+            "family": "Inter",
+            "transform": "none"
+          },
+          "h2": {
+            "size": "20px",
+            "weight": "600",
+            "lineHeight": "28px",
+            "letterSpacing": "normal",
+            "family": "Inter",
+            "transform": "none"
+          },
+          "p": {
+            "size": "16px",
+            "weight": "400",
+            "lineHeight": "24px",
+            "letterSpacing": "normal",
+            "family": "Inter",
+            "transform": "none"
+          },
+          "a": {
+            "size": "14px",
+            "weight": "600",
+            "lineHeight": "20px",
+            "letterSpacing": "normal",
+            "family": "Inter",
+            "transform": "none"
+          }
+        }
+      },
+      "color": {
+        "text": [
+          {
+            "v": "rgb(107, 114, 128)",
+            "c": 81
+          },
+          {
+            "v": "rgb(38, 34, 35)",
+            "c": 68
+          },
+          {
+            "v": "rgb(37, 99, 235)",
+            "c": 23
+          },
+          {
+            "v": "rgb(255, 255, 255)",
+            "c": 13
+          }
+        ],
+        "background": [
+          {
+            "v": "rgb(255, 255, 255)",
+            "c": 831744
+          },
+          {
+            "v": "rgb(245, 245, 245)",
+            "c": 46848
+          }
+        ]
+      },
+      "radius": [
+        {
+          "v": "6px",
+          "c": 2
+        },
+        {
+          "v": "8px",
+          "c": 2
+        }
+      ],
+      "sections": [
+        {
+          "tag": "header",
+          "y": 0,
+          "h": 65,
+          "bg": "rgb(255, 255, 255)",
+          "cols": 2,
+          "imgs": 1,
+          "heading": null
+        },
+        {
+          "tag": "div",
+          "y": 65,
+          "h": 507,
+          "bg": "rgb(255, 255, 255)",
+          "cols": 1,
+          "imgs": 11,
+          "heading": {
+            "tag": "h2",
+            "size": "16px",
+            "text": "Ringkasan Pesanan"
+          }
+        },
+        {
+          "tag": "footer",
+          "y": 572,
+          "h": 65,
+          "bg": "rgb(255, 255, 255)",
+          "cols": 1,
+          "imgs": 0,
+          "heading": null
+        }
+      ]
+    },
+    "1440": {
+      "url": "https://batiknusantara.tokophi.id/checkout",
+      "width": 1440,
+      "height": 958,
+      "title": "Checkout - Batik Nusantara",
+      "headingMax": 20,
+      "type": {
+        "families": [
+          {
+            "v": "Inter",
+            "c": 236
+          }
+        ],
+        "sizes": [
+          {
+            "v": "16px",
+            "c": 87
+          },
+          {
+            "v": "14px",
+            "c": 74
+          },
+          {
+            "v": "12px",
+            "c": 33
+          },
+          {
+            "v": "20px",
+            "c": 24
+          },
+          {
+            "v": "24px",
+            "c": 18
+          }
+        ],
+        "weights": [
+          {
+            "v": "400",
+            "c": 131
+          },
+          {
+            "v": "600",
+            "c": 72
+          },
+          {
+            "v": "500",
+            "c": 33
+          }
+        ],
+        "roles": {
+          "h2": {
+            "size": "16px",
+            "weight": "600",
+            "lineHeight": "24px",
+            "letterSpacing": "normal",
+            "family": "Inter",
+            "transform": "none"
+          },
+          "button": {
+            "size": "14px",
+            "weight": "500",
+            "lineHeight": "20px",
+            "letterSpacing": "normal",
+            "family": "Inter",
+            "transform": "none"
+          },
+          "h1": {
+            "size": "16px",
+            "weight": "400",
+            "lineHeight": "24px",
+            "letterSpacing": "normal",
+            "family": "Inter",
+            "transform": "none"
+          },
+          "p": {
+            "size": "16px",
+            "weight": "400",
+            "lineHeight": "24px",
+            "letterSpacing": "normal",
+            "family": "Inter",
+            "transform": "none"
+          },
+          "a": {
+            "size": "14px",
+            "weight": "600",
+            "lineHeight": "20px",
+            "letterSpacing": "normal",
+            "family": "Inter",
+            "transform": "none"
+          }
+        }
+      },
+      "color": {
+        "text": [
+          {
+            "v": "rgb(107, 114, 128)",
+            "c": 114
+          },
+          {
+            "v": "rgb(38, 34, 35)",
+            "c": 101
+          },
+          {
+            "v": "rgb(255, 255, 255)",
+            "c": 13
+          },
+          {
+            "v": "rgb(37, 99, 235)",
+            "c": 8
+          }
+        ],
+        "background": [
+          {
+            "v": "rgb(255, 255, 255)",
+            "c": 1876320
+          },
+          {
+            "v": "rgb(245, 245, 245)",
+            "c": 397440
+          }
+        ]
+      },
+      "radius": [
+        {
+          "v": "8px",
+          "c": 4
+        },
+        {
+          "v": "6px",
+          "c": 2
+        }
+      ],
+      "sections": [
+        {
+          "tag": "header",
+          "y": 0,
+          "h": 65,
+          "bg": "rgb(255, 255, 255)",
+          "cols": 2,
+          "imgs": 1,
+          "heading": null
+        },
+        {
+          "tag": "div",
+          "y": 65,
+          "h": 828,
+          "bg": "rgb(255, 255, 255)",
+          "cols": 2,
+          "imgs": 11,
+          "heading": {
+            "tag": "h2",
+            "size": "16px",
+            "text": "Ringkasan Pesanan"
+          }
+        },
+        {
+          "tag": "footer",
+          "y": 893,
+          "h": 65,
+          "bg": "rgb(255, 255, 255)",
+          "cols": 1,
+          "imgs": 0,
+          "heading": null
+        }
+      ]
+    }
+  }
+}

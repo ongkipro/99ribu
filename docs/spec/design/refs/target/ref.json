@@ -1,0 +1,395 @@
+{
+  "capturedAt": "2026-10-15T09:44:19.860Z",
+  "viewports": {
+    "390": {
+      "url": "https://www.target.com/",
+      "width": 390,
+      "height": 1953,
+      "title": "Target : Expect More. Pay Less.",
+      "headingMax": 29,
+      "type": {
+        "families": [
+          {
+            "v": "Helvetica for Target",
+            "c": 1239
+          }
+        ],
+        "sizes": [
+          {
+            "v": "16px",
+            "c": 620
+          },
+          {
+            "v": "12px",
+            "c": 279
+          },
+          {
+            "v": "14px",
+            "c": 212
+          },
+          {
+            "v": "19px",
+            "c": 39
+          },
+          {
+            "v": "13px",
+            "c": 30
+          },
+          {
+            "v": "29px",
+            "c": 27
+          },
+          {
+            "v": "18px",
+            "c": 26
+          },
+          {
+            "v": "23px",
+            "c": 6
+          }
+        ],
+        "weights": [
+          {
+            "v": "400",
+            "c": 1065
+          },
+          {
+            "v": "700",
+            "c": 174
+          }
+        ],
+        "roles": {
+          "a": {
+            "size": "16px",
+            "weight": "400",
+            "lineHeight": "22.856px",
+            "letterSpacing": "normal",
+            "family": "Helvetica for Target",
+            "transform": "none"
+          },
+          "h2": {
+            "size": "16px",
+            "weight": "700",
+            "lineHeight": "22.4px",
+            "letterSpacing": "normal",
+            "family": "Helvetica for Target",
+            "transform": "none"
+          },
+          "button": {
+            "size": "16px",
+            "weight": "700",
+            "lineHeight": "22.4px",
+            "letterSpacing": "normal",
+            "family": "Helvetica for Target",
+            "transform": "none"
+          },
+          "h1": {
+            "size": "29px",
+            "weight": "700",
+            "lineHeight": "36.25px",
+            "letterSpacing": "normal",
+            "family": "Helvetica for Target",
+            "transform": "none"
+          },
+          "p": {
+            "size": "14px",
+            "weight": "400",
+            "lineHeight": "19.6px",
+            "letterSpacing": "normal",
+            "family": "Helvetica for Target",
+            "transform": "none"
+          },
+          "h3": {
+            "size": "19px",
+            "weight": "700",
+            "lineHeight": "23.75px",
+            "letterSpacing": "normal",
+            "family": "Helvetica for Target",
+            "transform": "none"
+          }
+        }
+      },
+      "color": {
+        "text": [
+          {
+            "v": "rgb(51, 51, 51)",
+            "c": 827
+          },
+          {
+            "v": "rgb(255, 255, 255)",
+            "c": 208
+          },
+          {
+            "v": "rgb(102, 102, 102)",
+            "c": 204
+          }
+        ],
+        "background": [
+          {
+            "v": "rgb(255, 255, 255)",
+            "c": 495299.875
+          },
+          {
+            "v": "rgb(51, 51, 51)",
+            "c": 71760
+          },
+          {
+            "v": "rgb(204, 0, 0)",
+            "c": 35758.125
+          },
+          {
+            "v": "rgb(247, 247, 247)",
+            "c": 15752
+          }
+        ]
+      },
+      "radius": [
+        {
+          "v": "999px",
+          "c": 6
+        },
+        {
+          "v": "12px",
+          "c": 1
+        },
+        {
+          "v": "8px",
+          "c": 1
+        }
+      ],
+      "sections": [
+        {
+          "tag": "div",
+          "y": 0,
+          "h": 1953,
+          "bg": "rgb(255, 255, 255)",
+          "cols": 1,
+          "imgs": 74,
+          "heading": {
+            "tag": "h2",
+            "size": "16px",
+            "text": "Sign in for the best experience"
+          }
+        },
+        {
+          "tag": "iframe",
+          "y": 0,
+          "h": 844,
+          "bg": "rgb(255, 255, 255)",
+          "cols": 1,
+          "imgs": 0,
+          "heading": null
+        }
+      ]
+    },
+    "1440": {
+      "url": "https://www.target.com/",
+      "width": 1440,
+      "height": 7266,
+      "title": "Target : Expect More. Pay Less.",
+      "headingMax": 38,
+      "type": {
+        "families": [
+          {
+            "v": "Helvetica for Target",
+            "c": 3171
+          }
+        ],
+        "sizes": [
+          {
+            "v": "16px",
+            "c": 836
+          },
+          {
+            "v": "12px",
+            "c": 816
+          },
+          {
+            "v": "14px",
+            "c": 348
+          },
+          {
+            "v": "19px",
+            "c": 265
+          },
+          {
+            "v": "18px",
+            "c": 247
+          },
+          {
+            "v": "20px",
+            "c": 164
+          },
+          {
+            "v": "21px",
+            "c": 99
+          },
+          {
+            "v": "38px",
+            "c": 93
+          },
+          {
+            "v": "19.55px",
+            "c": 79
+          },
+          {
+            "v": "29px",
+            "c": 74
+          }
+        ],
+        "weights": [
+          {
+            "v": "400",
+            "c": 2231
+          },
+          {
+            "v": "700",
+            "c": 940
+          }
+        ],
+        "roles": {
+          "a": {
+            "size": "16px",
+            "weight": "400",
+            "lineHeight": "22.856px",
+            "letterSpacing": "normal",
+            "family": "Helvetica for Target",
+            "transform": "none"
+          },
+          "button": {
+            "size": "16px",
+            "weight": "400",
+            "lineHeight": "22.856px",
+            "letterSpacing": "normal",
+            "family": "Helvetica for Target",
+            "transform": "none"
+          },
+          "h2": {
+            "size": "16px",
+            "weight": "700",
+            "lineHeight": "22.4px",
+            "letterSpacing": "normal",
+            "family": "Helvetica for Target",
+            "transform": "none"
+          },
+          "h1": {
+            "size": "29px",
+            "weight": "700",
+            "lineHeight": "36.25px",
+            "letterSpacing": "normal",
+            "family": "Helvetica for Target",
+            "transform": "none"
+          },
+          "p": {
+            "size": "12px",
+            "weight": "400",
+            "lineHeight": "16.8px",
+            "letterSpacing": "normal",
+            "family": "Helvetica for Target",
+            "transform": "none"
+          },
+          "h3": {
+            "size": "19px",
+            "weight": "700",
+            "lineHeight": "23.75px",
+            "letterSpacing": "normal",
+            "family": "Helvetica for Target",
+            "transform": "none"
+          }
+        }
+      },
+      "color": {
+        "text": [
+          {
+            "v": "rgb(51, 51, 51)",
+            "c": 1798
+          },
+          {
+            "v": "rgb(255, 255, 255)",
+            "c": 1059
+          },
+          {
+            "v": "rgb(102, 102, 102)",
+            "c": 180
+          },
+          {
+            "v": "rgb(204, 0, 0)",
+            "c": 128
+          },
+          {
+            "v": "rgba(0, 0, 0, 0)",
+            "c": 6
+          }
+        ],
+        "background": [
+          {
+            "v": "rgb(255, 255, 255)",
+            "c": 2530155.59375
+          },
+          {
+            "v": "rgb(250, 240, 230)",
+            "c": 2403435
+          },
+          {
+            "v": "rgb(241, 224, 203)",
+            "c": 1432837.5
+          },
+          {
+            "v": "rgb(28, 28, 28)",
+            "c": 914400
+          },
+          {
+            "v": "rgb(247, 247, 247)",
+            "c": 785030.8125
+          },
+          {
+            "v": "rgb(204, 0, 0)",
+            "c": 745106.25
+          }
+        ]
+      },
+      "radius": [
+        {
+          "v": "12px",
+          "c": 23
+        },
+        {
+          "v": "999px",
+          "c": 10
+        },
+        {
+          "v": "8px",
+          "c": 5
+        },
+        {
+          "v": "50%",
+          "c": 2
+        }
+      ],
+      "sections": [
+        {
+          "tag": "div",
+          "y": 0,
+          "h": 7266,
+          "bg": "rgb(255, 255, 255)",
+          "cols": 1,
+          "imgs": 110,
+          "heading": {
+            "tag": "h2",
+            "size": "16px",
+            "text": "Sign in for the best experience"
+          }
+        },
+        {
+          "tag": "iframe",
+          "y": 0,
+          "h": 900,
+          "bg": "rgb(255, 255, 255)",
+          "cols": 1,
+          "imgs": 0,
+          "heading": null
+        }
+      ]
+    }
+  }
+}
