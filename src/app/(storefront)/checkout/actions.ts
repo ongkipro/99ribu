@@ -7,8 +7,9 @@ import {getLocalAuth} from '../../../modules/access/auth';
 import {AccessError} from '../../../modules/access/policy';
 import {storefrontRequest} from '../../../modules/storefront/browser';
 import {checkoutFormInput,checkoutUnavailableView,initialCheckoutIntent,initialCheckoutState,mutateCheckout,readCheckout,type CheckoutState} from '../../../modules/storefront/checkout';
-import {checkoutIssuedCookies,checkoutOrderPath,checkoutPaymentInput,initialCheckoutPayment,prepareCheckoutPayment,recoverCheckoutOrder,type CheckoutPaymentState} from '../../../modules/storefront/checkout-order';
-import {captureCheckoutMilestones} from '../../../modules/storefront/checkout-signals';
+import {checkoutOrderPath,checkoutPaymentInput,initialCheckoutPayment,prepareCheckoutPayment,recoverCheckoutOrder,type CheckoutPaymentState} from '../../../modules/storefront/checkout-order';
+import {allOrderIssuedCookies,orderReceiptPath,prepareOrderReceiptPayment} from '../../../modules/orders/receipt';
+import {captureCheckoutMilestones,captureReceiptViewed} from '../../../modules/storefront/checkout-signals';
 import {clearCheckoutDraft,writeCheckoutDraft} from '../../../modules/storefront/checkout-draft';
 
 export async function saveCheckoutDraft(data:FormData){
@@ -22,8 +23,15 @@ export async function observeCheckoutEntry(cart:string,version:number){
  await captureCheckoutMilestones(await storefrontRequest('POST','/checkout'),getLocalAuth(),{cart,version,stage:'started'});
 }
 
+export async function observeReceiptView(orderId:string){
+ try{
+  const path=orderReceiptPath(orderId);
+  await captureReceiptViewed(await storefrontRequest('POST',path),getLocalAuth(),orderId);
+ }catch{}
+}
+
 async function writeOrderCookies(orderId:string,issued:string[]){
- const values=await checkoutIssuedCookies(getLocalAuth(),orderId,issued),store=await cookies();
+ const values=await allOrderIssuedCookies(getLocalAuth(),orderId,issued),store=await cookies();
  for(const {name,value,...options} of values)store.set(name,value,options);
 }
 
@@ -82,4 +90,20 @@ export async function recoverPaymentAccess(_previous:CheckoutPaymentState,data:F
  try{recovered=await recoverCheckoutOrder(await storefrontRequest('POST',checkoutOrderPath(input.order)),getLocalAuth(),input.order);await writeOrderCookies(recovered.order.id,recovered.cookies);}
  catch(error){return {...initial,phase:'error',message:'Akses pesanan belum dapat dipulihkan melalui sesi ini. Periksa sesi belanja yang digunakan saat memesan.',code:error instanceof AccessError?error.code:'SERVICE_UNAVAILABLE',blocked:error instanceof AccessError&&[401,403,404].includes(error.status)};}
  redirect(checkoutOrderPath(recovered.order.id));
+}
+
+export async function prepareReceiptPayment(_previous:CheckoutPaymentState,data:FormData):Promise<CheckoutPaymentState>{
+ let input:ReturnType<typeof checkoutPaymentInput>;try{input=checkoutPaymentInput(data);}catch{return {phase:'error',order:'',key:'',message:'Muat ulang halaman tanda terima sebelum mencoba lagi.',code:'INVALID_INPUT',blocked:true};}
+ const path=orderReceiptPath(input.order),state=await prepareOrderReceiptPayment(await storefrontRequest('POST',path),getLocalAuth(),input);
+ if(state.phase!=='unknown'||state.blocked)revalidatePath(path);
+ if(state.phase==='success')redirect(path);
+ return state;
+}
+
+export async function recoverReceiptAccess(_previous:CheckoutPaymentState,data:FormData):Promise<CheckoutPaymentState>{
+ let input:ReturnType<typeof checkoutPaymentInput>;try{input=checkoutPaymentInput(data);}catch{return {phase:'error',order:'',key:'',message:'Buka kembali halaman melalui sesi belanja Anda.',code:'INVALID_INPUT',blocked:true};}
+ const initial=initialCheckoutPayment(input.order);let recovered:Awaited<ReturnType<typeof recoverCheckoutOrder>>;
+ try{recovered=await recoverCheckoutOrder(await storefrontRequest('POST',orderReceiptPath(input.order)),getLocalAuth(),input.order);await writeOrderCookies(recovered.order.id,recovered.cookies);}
+ catch(error){return {...initial,phase:'error',message:'Akses pesanan belum dapat dipulihkan melalui sesi ini. Periksa sesi belanja yang digunakan saat memesan.',code:error instanceof AccessError?error.code:'SERVICE_UNAVAILABLE',blocked:error instanceof AccessError&&[401,403,404].includes(error.status)};}
+ redirect(orderReceiptPath(recovered.order.id));
 }

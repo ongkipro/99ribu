@@ -1,5 +1,11 @@
 # Build log — Serba 99ribu
 
+## 2026-10-20 — S27 private receipt and returning order-status slice (`T-32-S27`, `PR-24`, `R3`)
+
+Implemented `/orders/[orderId]` (`src/modules/orders/receipt.ts`, `src/app/(storefront)/orders/[orderId]/page.tsx`, `src/components/storefront/order-receipt.tsx`), checkout-to-receipt redirect/access-cookie handoff and receipt Server Actions (`src/app/(storefront)/checkout/actions.ts`, `src/modules/storefront/checkout.ts`, `src/modules/storefront/checkout-signals.ts`), and `--case=T-32` runner registration (`scripts/check-tests.ts`, `tests/integration/storefront-order-receipt.test.ts`, `tests/browser/storefront-order-receipt.test.ts`). Verified server-side guest session and `receipt_access`/`order_access` capability scope, confirmed-purchase stock/promotion retention before quote deadlines (`src/modules/checkout/expiry.ts` exercised by `tests/integration/storefront-order-receipt.test.ts`), zero duplicate order/attempt/`Purchase` emission on reload or revisit, and full TY1–TY8 responsive composition across `390/768/1024/1440` plus `320px/200%` text reflow and no-JS.
+
+Current build `JNOqIXXXob_-4ypmlAvn7` passes `lint`, `typecheck`, `openapi-contract`, `runner-contract`, `T-32-integration` (`2/2`), `T-31-integration` (`11/11`), `build`, `T-32-browser` (`3/3`, 20 screenshots in `docs/spec/design/renders/s27/JNOqIXXXob_-4ypmlAvn7/`), canonical `visual-review.py` round 3 (`Verdict: PASS` in `design/review.md` on 20 screenshots + 8 S08/S26 references), and `design-gate.py` (`PASS: 0 failing check(s)`, exit 0).
+
 ## 2026-10-20 — S26 build41 preflight REVISE and F1/F2 correction
 
 Actual separate layer1 simulation on build41 returned REVISE/exit1 without spending canonical18; root log17/report and declared source/context/images unchanged. Report SHA02721aa8…bab19a identified remaining gross/net labels and mismatched pending action/stale no-JS success notice, confirmed by parent renders. Exact107-object pre-correction snapshot SHA2eb6e82b…f8431 retains original bytes. All P3 remain untouched.

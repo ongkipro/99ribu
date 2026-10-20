@@ -115,7 +115,7 @@ async function callCheckout(request:Request,identity:LocalAuth,path:string,metho
 export async function assertCheckoutTransport(request:Request,identity:LocalAuth){
  assertOrigin(request);
  if(['authorization','x-cart-token','x-order-token'].some(name=>request.headers.has(name)))throw new AccessError(401,'UNSUPPORTED_AUTH_TRANSPORT');
- const p=await prefix(identity);for(const name of ['session_token','commerce_guest','cart_access','order_access','checkout_access'])cookie(request,`${p}.${name}`);return p;
+ const p=await prefix(identity);for(const name of ['session_token','commerce_guest','cart_access','order_access','checkout_access','receipt_access'])cookie(request,`${p}.${name}`);return p;
 }
 export async function readCheckout(request:Request,identity:LocalAuth,dispatch:typeof handleCheckout=handleCheckout):Promise<CheckoutView>{
  try{await assertCheckoutTransport(request,identity);}

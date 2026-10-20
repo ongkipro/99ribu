@@ -3,10 +3,12 @@ import {capturedPurpose} from '../advertising/events.ts';
 import {recordFunnel} from '../advertising/funnel.ts';
 import {authorizeCart,commerceActor,cookie,lockActor,mac,prefix} from '../checkout/access.ts';
 import {assertCartOpen,cartLines} from '../checkout/carts.ts';
+import {authorizeOrder} from '../checkout/orders.ts';
 import {assertQuoteCurrent,ownedQuote} from '../checkout/quotes.ts';
 import {readVisitor} from '../consent/context.ts';
 import {currentConsent} from '../consent/receipts.ts';
 import {assertCheckoutTransport,readCheckout} from './checkout.ts';
+import {orderReceiptRequest} from '../orders/receipt.ts';
 
 const milestones={started:['checkout_started'],contact:['contact_validated','address_validated'],shipping:['shipping_selected','payment_method_selected']} as const;
 export type CheckoutMilestone={cart:string;version:number;stage:keyof typeof milestones;quote?:string};
@@ -42,4 +44,24 @@ export async function captureCheckoutMilestones(request:Request,identity:LocalAu
    }
   });
  }catch{console.error(JSON.stringify({event:'optional_signal_capture_failed',code:'SIGNAL_CAPTURE_UNAVAILABLE'}));}
+}
+
+export async function captureReceiptViewed(request:Request,identity:LocalAuth,orderId:string):Promise<{status:'method_not_allowed'|'visitor_not_ready'|'consent_not_granted'|'recorded'|'duplicate'|'unavailable'}>{
+ try{
+  if(request.method!=='POST')return {status:'method_not_allowed'};
+  const scoped=await orderReceiptRequest(request,identity,orderId);
+  if(!cookie(scoped,`${await prefix(identity)}.visitor`))return {status:'visitor_not_ready'};
+  const actor=await commerceActor(scoped,identity);
+  return await identity.sql.begin(async tx=>{
+   if(actor)await lockActor(tx,actor);
+   const order=await authorizeOrder(tx,scoped,identity,actor,orderId);
+   const visitor=await readVisitor(tx,scoped,identity,actor,false);if(!visitor)return {status:'visitor_not_ready' as const};
+   const consent=await currentConsent(tx,visitor);if(!consent||!capturedPurpose(consent))return {status:'consent_not_granted' as const};
+   const key=await mac(identity,'receipt-milestone',[visitor.id,consent.id,order.id,'receipt_viewed']);
+   if((await tx`select id from app.funnel_intake where visitor_id=${visitor.id} and client_event_id=${key}`).length)return {status:'duplicate' as const};
+   const [clock]=await tx`select clock_timestamp()::text now`;
+   await recordFunnel(tx,scoped,identity,actor,{client_event_id:key,name:'receipt_viewed',occurred_at:new Date(clock.now).toISOString(),consent_receipt_id:consent.id,product_id:null,variant_id:null,cart_id:null,order_id:order.id});
+   return {status:'recorded' as const};
+  });
+ }catch{console.error(JSON.stringify({event:'optional_signal_capture_failed',code:'SIGNAL_CAPTURE_UNAVAILABLE'}));return {status:'unavailable'};}
 }

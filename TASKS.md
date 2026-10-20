@@ -613,7 +613,7 @@ When T-14/T-17 contracts are prototyped and T-25 or other frontend tasks impleme
 
 
 ### T-31 — Implement responsive dedicated checkout
-- **Status:** S26 IMPLEMENTING C3 RUN-20261019T180526Z-628997c1. Canonical17 REVISE/log17; build41 layer1 REVISE, F1/F2 corrected. Current42 e54G_i1yjfJDmhuKVI5r1 lint/typegen/type/build/diff0, native11/browser25/cart16 PASS; separate R18b bounded four-source/two-doc APPROVE/all63 verified. Fresh64/199/4refs packetSHA1665e43c…8d9dd frozen; new layer1 simulation plus requested T2/conductor verified GO pending before unspent18. Design-gate/final full29 union/ledger pending. No S27 before CLOSED PASS and conductor commit.
+- **Status:** S26 accepted PASS (`RUN-20261019T180526Z-628997c1`, build `GnGzXP9Rxjma9lhVY1dRq`, canonical20 PASS, design-gate 0, independent R3b APPROVE, committed at `54e6b8c`). Downstream assembled-localhost/device acceptance remains open.
 - **Primary requirement:** PR-4
 - **Constraints:** DATA-1, IAM-1, SEC-1, PRIV-1, BILL-1, API-1, UX-1, UI-1, OBS-1
 - **Risk Level:** R3
@@ -634,7 +634,7 @@ When T-14/T-17 contracts are prototyped and T-25 or other frontend tasks impleme
 
 
 ### T-32 — Implement private thank-you and ongoing order-status experience
-- **Status:** Planned; not started.
+- **Status:** S27 core receipt and returning status checkpoint (`RUN-20261020T025333Z-f57e1df3`, build `JNOqIXXXob_-4ypmlAvn7`): `lint`, `typecheck`, `openapi-contract`, `runner-contract`, `T-32-integration` (`2/2`), `T-31-integration` (`11/11`), `build`, `T-32-browser` (`3/3`, 20 renders), canonical `visual-review.py` round 3 PASS (`design/review.md`), and `design-gate.py` (`PASS: 0 failing check(s)`, exit 0). R3 boundary review pending; S48 owns later returns/chat/split-COD completion.
 - **Primary requirement:** PR-24
 - **Constraints:** DATA-1, IAM-1, SEC-1, PRIV-1, BILL-1, API-1, UX-1, UI-1, OBS-1
 - **Risk Level:** R3
@@ -650,8 +650,8 @@ When T-14/T-17 contracts are prototyped and T-25 or other frontend tasks impleme
 
 ### TEST-32 — Implement private thank-you and ongoing order-status experience acceptance
 - Target: PR-24
-- Ref: npm run test:browser -- --case=T-32 (prospective repository script; create during implementation)
-- Expected: Execute all TY1–TY8 and document 17 thank-you scenarios: pending/paid/failed/expired/unknown prepaid, COD accepted/partial collected, independent parcel/refund and guest recovery. Test390/768/1024/1440,320reflow,200percenttext, keyboard and mobile browser. Reload/Back/blocked tags/no returning buyer never duplicate or suppress backend Purchase; denied access leaks no receipt. Record independent rendered evidence. No runtime result exists yet.
+- Ref: `npm run test:integration -- --case=T-32` and `npm run test:browser -- --case=T-32` (implemented in S27; S48 completes full returns/chat/split-COD integration)
+- Expected: Execute all TY1–TY8 and document 17 thank-you scenarios: pending/paid/failed/expired/unknown prepaid, COD accepted/partial collected, independent parcel/refund and guest recovery. Test390/768/1024/1440,320reflow,200percenttext, keyboard and mobile browser. Reload/Back/blocked tags/no returning buyer never duplicate or suppress backend Purchase; denied access leaks no receipt. Record independent rendered evidence. S27 integration (`2/2`) and browser (`3/3`, 20 renders, canonical visual review round 3 PASS, `design-gate` 0) pass on build `JNOqIXXXob_-4ypmlAvn7`.
 
 
 ### T-33 — Implement responsive storefront discovery, cart and journey continuity

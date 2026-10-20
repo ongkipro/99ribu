@@ -35,12 +35,15 @@ export async function checkFiles(files: readonly string[]) {
 }
 
 if (import.meta.main) {
-  const [mode, selector, ...extra] = process.argv.slice(2);
-  if (!["integration", "browser"].includes(mode) || !["--case=foundation", "--case=PR-1", "--case=PR-2", "--case=PR-11", "--case=PR-3", "--case=PR-4", "--case=PR-5", "--case=PR-6", "--case=PR-7", "--case=T-26", "--case=T-31", "--case=S29-candidate", "--case=S30-candidate", "--case=S31-candidate", "--case=PR-17", "--case=PR-12", "--case=PR-13", "--case=PR-18", "--case=PR-19", "--case=seed-foundation", "--case=seed-commerce", "--case=PR-16", "--case=PR-20"].includes(selector) || extra.length || (mode === "browser" && ["--case=seed-foundation", "--case=PR-16", "--case=PR-3", "--case=S29-candidate", "--case=S30-candidate", "--case=S31-candidate"].includes(selector))) {
-    console.error("Use check-tests.ts integration|browser --case=foundation|--case=PR-1|--case=PR-2|--case=PR-4|--case=PR-5|--case=PR-6|--case=PR-7|--case=T-26|--case=T-31|--case=PR-11|--case=PR-12|--case=PR-13|--case=PR-17|--case=PR-18|--case=PR-19|--case=PR-20|--case=seed-commerce; integration also supports --case=seed-foundation|--case=PR-16|--case=PR-3|--case=S29-candidate|--case=S30-candidate|--case=S31-candidate (unapplied rollback-only proofs, not full parent acceptance). PR-5 proves S24/S28 prepaid and COD; T-26 proves S25/S28 first-party canonical signals. Unknown, missing and extra selectors are refused.");
+  const raw = process.argv.slice(2);
+  const [mode, selector, ...extra] = raw.length === 1 && raw[0] === "--case=T-32" ? ["integration", "--case=T-32"] : raw;
+  if (!["integration", "browser"].includes(mode) || !["--case=foundation", "--case=PR-1", "--case=PR-2", "--case=PR-11", "--case=PR-3", "--case=PR-4", "--case=PR-5", "--case=PR-6", "--case=PR-7", "--case=T-26", "--case=T-31", "--case=T-32", "--case=S29-candidate", "--case=S30-candidate", "--case=S31-candidate", "--case=PR-17", "--case=PR-12", "--case=PR-13", "--case=PR-18", "--case=PR-19", "--case=seed-foundation", "--case=seed-commerce", "--case=PR-16", "--case=PR-20"].includes(selector) || extra.length || (mode === "browser" && ["--case=seed-foundation", "--case=PR-16", "--case=PR-3", "--case=S29-candidate", "--case=S30-candidate", "--case=S31-candidate"].includes(selector))) {
+    console.error("Use check-tests.ts integration|browser --case=foundation|--case=PR-1|--case=PR-2|--case=PR-4|--case=PR-5|--case=PR-6|--case=PR-7|--case=T-26|--case=T-31|--case=T-32|--case=PR-11|--case=PR-12|--case=PR-13|--case=PR-17|--case=PR-18|--case=PR-19|--case=PR-20|--case=seed-commerce; integration also supports --case=seed-foundation|--case=PR-16|--case=PR-3|--case=S29-candidate|--case=S30-candidate|--case=S31-candidate (unapplied rollback-only proofs, not full parent acceptance). PR-5 proves S24/S28 prepaid and COD; T-26 proves S25/S28 first-party canonical signals. Unknown, missing and extra selectors are refused.");
     process.exitCode = 1;
   } else {
-    const files = selector === "--case=T-31"
+    const files = selector === "--case=T-32"
+      ? mode === 'integration' ? ['tests/integration/storefront-order-receipt.test.ts'] : ['tests/browser/storefront-order-receipt.test.ts']
+      : selector === "--case=T-31"
       ? mode === 'integration' ? ['tests/integration/storefront-checkout-contract.test.ts','tests/integration/storefront-checkout-runtime.test.ts','tests/integration/storefront-checkout-payment.test.ts','tests/integration/storefront-checkout-signals.test.ts','tests/integration/storefront-checkout-draft.test.ts'] : ['tests/browser/storefront-checkout.test.ts']
       : selector === "--case=S31-candidate"
       ? ["tests/integration/return-candidate.test.ts"]
