@@ -1,5 +1,7 @@
+import type {Metadata} from 'next';
 import Link from 'next/link';
 import {redirect} from 'next/navigation';
+import {cache} from 'react';
 import {Shell} from '../../../../components/storefront/shell';
 import {Media,rupiah,contentName,isSampleProduct} from '../../../../components/storefront/products';
 import {Icon} from '../../../../components/storefront/icon';
@@ -10,12 +12,25 @@ import {matchingVariant,publicProduct,publicCategory} from '../../../../modules/
 import {initialCartIntent,initialCartMutation} from '../../../../modules/storefront/cart';
 import {currentBrowserCart} from '../../../../modules/storefront/browser';
 import {productHref,publicReturnPath} from '../../../../modules/storefront/navigation';
+import {feedItem} from '../../../../modules/catalog/feed';
+import {readLocalConfig} from '../../../../config/local';
 
+type Props={params:Promise<{id:string}>;searchParams:Promise<Record<string,string|string[]|undefined>>};
+const uuid=/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+const load=cache((id:string)=>getLocalAuth().sql.begin(async tx=>{const product=await publicProduct(tx,id);return {product,category:product?await publicCategory(tx,product.category_id):null};}));
 export const dynamic='force-dynamic';
-export default async function Product({params,searchParams}:{params:Promise<{id:string}>;searchParams:Promise<Record<string,string|string[]|undefined>>}){
+// Page metadata reuses the local feed item so title, canonical offer link and media
+// match the export exactly; root noindex stays until a live indexing gate exists.
+export async function generateMetadata({params,searchParams}:Props):Promise<Metadata>{
+ const {id}=await params;if(!uuid.test(id))return {};const {product}=await load(id);if(!product)return {};
+ const requested=(await searchParams).offer,offer=product.variants.find(v=>v.id===requested)??matchingVariant(product);if(!offer)return {title:product.name};
+ const {item}=feedItem(readLocalConfig(process.env).origin,product,offer);
+ return {title:item.title,description:item.description,alternates:{canonical:item.link},openGraph:{type:'website',url:item.link,title:item.title,description:item.description,...(item.image_link?{images:[item.image_link]}:{})}};
+}
+export default async function Product({params,searchParams}:Props){
  const {id}=await params;
- if(!/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(id))redirect('/404');
- const {product,category}=await getLocalAuth().sql.begin(async tx=>{const product=await publicProduct(tx,id);return {product,category:product?await publicCategory(tx,product.category_id):null};});if(!product)redirect('/404');
+ if(!uuid.test(id))redirect('/404');
+ const {product,category}=await load(id);if(!product)redirect('/404');
  const query=await searchParams,requested=query.offer,from=publicReturnPath(query.from);
  const invalid=requested!==undefined&&(typeof requested!=='string'||!product.variants.some(v=>v.id===requested));
  const offer=invalid?null:requested?product.variants.find(v=>v.id===requested):matchingVariant(product);
