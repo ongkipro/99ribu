@@ -1,0 +1,5 @@
+COMMAND ['npm', 'run', 'test:browser', '--', '--case=T-31']
+npm notice run 99ribu@0.1.0 test:browser
+npm notice run node --env-file=.env.example scripts/check-tests.ts browser --case=T-31
+{"ok":true,"files":1,"passed":25,"failed":0,"incomplete":0,"empty":0}
+ACTUAL_EXIT=0

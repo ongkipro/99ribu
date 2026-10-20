@@ -1,0 +1,17 @@
+{
+  "reviewerExit": 0,
+  "manifestSha256": "267f3cf8965560b4610d1729569f82c3aa48d0d567954eecd94f885f16453235",
+  "reportSha256": "491ae6b91f73d6ca6fcf3d85abfca2416a1517325a697a2b6c568f417036d21b",
+  "fingerprintMismatches": 0,
+  "digests": {
+    "source": "19af79b9ccb40c0c21d9d42b40f3dcc73a768fa7d1af6859c3b1cac161481e56",
+    "context": "2e9a0fb2e94831bb86069550612565b8768f38c9f9cfa7bb06a92a89d291530c",
+    "protected": "fa0ba479cab6e756b935039b712814cd55ff5d635b4868cb52166627c58e5e9c"
+  },
+  "counts": {
+    "source": 29,
+    "context": 6,
+    "protected": 14
+  },
+  "sourceOnly": true
+}

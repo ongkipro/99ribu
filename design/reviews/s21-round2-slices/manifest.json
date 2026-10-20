@@ -1,0 +1,242 @@
+[
+  {
+    "original": "design/review-slices/69ce9ad898fe0316-390-top-01.png",
+    "archive": "design/reviews/s21-round2-slices/69ce9ad898fe0316-390-top-01.png",
+    "sha256": "6206a3137903da00d6b17e2042039ec8e1e9120cd6be8b9d15635a2a2b755cb8"
+  },
+  {
+    "original": "design/review-slices/5562894edf2e1b87-invalid-filter-390-01.png",
+    "archive": "design/reviews/s21-round2-slices/5562894edf2e1b87-invalid-filter-390-01.png",
+    "sha256": "28311960386fa661df0714d53793d36c3cde81da512f850378a2407124176d77"
+  },
+  {
+    "original": "design/review-slices/15b3cfce979bfc7f-product-preview-detail-390-01.png",
+    "archive": "design/reviews/s21-round2-slices/15b3cfce979bfc7f-product-preview-detail-390-01.png",
+    "sha256": "549f1e47adb1bee1e0e0bbe8d66e1ee2d4ee9faf6d0d3531d33d8bc0706d84c3"
+  },
+  {
+    "original": "design/review-slices/1f01ca90c857c043-home-1440-02.png",
+    "archive": "design/reviews/s21-round2-slices/1f01ca90c857c043-home-1440-02.png",
+    "sha256": "bc484b2a4bb0ffb08f87a9a5f3a7252e3ad4015c50838345e48a723c6e7a07f2"
+  },
+  {
+    "original": "design/review-slices/7ce26dc78f26c6bd-product-preview-1440-01.png",
+    "archive": "design/reviews/s21-round2-slices/7ce26dc78f26c6bd-product-preview-1440-01.png",
+    "sha256": "1ec488eb580cb9141439d0d4aa588e0502b2abbd3196a712e98db9d2ae2e46b5"
+  },
+  {
+    "original": "design/review-slices/4c6887508a215f49-search-390-02.png",
+    "archive": "design/reviews/s21-round2-slices/4c6887508a215f49-search-390-02.png",
+    "sha256": "ba60553af26c5b27b2f7da50bb7f23e8b08241f491877fb9705bd2f0ca1f1618"
+  },
+  {
+    "original": "design/review-slices/fab92fc411a88b2c-text-200-320-08.png",
+    "archive": "design/reviews/s21-round2-slices/fab92fc411a88b2c-text-200-320-08.png",
+    "sha256": "e0cab51885d38159565d1bf8246eb79cb60469a3eb925685db9ed7af1fa775b7"
+  },
+  {
+    "original": "design/review-slices/ed2d87d1329f46bc-category-390-01.png",
+    "archive": "design/reviews/s21-round2-slices/ed2d87d1329f46bc-category-390-01.png",
+    "sha256": "6594afba8e887e72dc13f03b79d5cd04ad74606e017fcb29c88d356e94c1bb6a"
+  },
+  {
+    "original": "design/review-slices/11946f9e7fad1ec5-390-01.png",
+    "archive": "design/reviews/s21-round2-slices/11946f9e7fad1ec5-390-01.png",
+    "sha256": "1b5ded2d321e57ce319e78812407a099e354a2d5d78117ffa0afb964d8557961"
+  },
+  {
+    "original": "design/review-slices/fab92fc411a88b2c-text-200-320-01.png",
+    "archive": "design/reviews/s21-round2-slices/fab92fc411a88b2c-text-200-320-01.png",
+    "sha256": "32849d72e3e21934f5991b223c3a12e87830eabee749121e59f064c98b91ff39"
+  },
+  {
+    "original": "design/review-slices/15b3cfce979bfc7f-product-preview-detail-390-02.png",
+    "archive": "design/reviews/s21-round2-slices/15b3cfce979bfc7f-product-preview-detail-390-02.png",
+    "sha256": "34945bd0a1faf41fe2f5e8f95a7f4a9d70238442b94344ae7e730a082d2ede71"
+  },
+  {
+    "original": "design/review-slices/4950df039266550a-empty-390-01.png",
+    "archive": "design/reviews/s21-round2-slices/4950df039266550a-empty-390-01.png",
+    "sha256": "8e49ac9abde8ee44c7dfcf2125a7e4017b9acac44e350534aba1c9e57cd86577"
+  },
+  {
+    "original": "design/review-slices/b99cfd526a164619-not-found-390-01.png",
+    "archive": "design/reviews/s21-round2-slices/b99cfd526a164619-not-found-390-01.png",
+    "sha256": "91e86e1e361f5ea1a030082c04060b608591bf31eab7b64bd39ba426fce2c831"
+  },
+  {
+    "original": "design/review-slices/fab92fc411a88b2c-text-200-320-03.png",
+    "archive": "design/reviews/s21-round2-slices/fab92fc411a88b2c-text-200-320-03.png",
+    "sha256": "16231bf0fa9c164562c659e530791153727ff337faf88df65288095630309a17"
+  },
+  {
+    "original": "design/review-slices/5f2ded39ca80159e-cart-pending-1440-01.png",
+    "archive": "design/reviews/s21-round2-slices/5f2ded39ca80159e-cart-pending-1440-01.png",
+    "sha256": "5fb43406596f80372db15dd3b36780b8963e9f8da83204ef1ec49e6afbb4b454"
+  },
+  {
+    "original": "design/review-slices/435d1979f967e7cf-departments-1440-01.png",
+    "archive": "design/reviews/s21-round2-slices/435d1979f967e7cf-departments-1440-01.png",
+    "sha256": "e7e7bb31d496f079b2453442541bff9581e2278cf4326472dd259a06c5e75d93"
+  },
+  {
+    "original": "design/review-slices/fab92fc411a88b2c-text-200-320-02.png",
+    "archive": "design/reviews/s21-round2-slices/fab92fc411a88b2c-text-200-320-02.png",
+    "sha256": "23725c7a5fc7f368d363fdefeeafc925e6c5e7ed6afe94f89d0e0a283e771cc9"
+  },
+  {
+    "original": "design/review-slices/7947aebba856c46c-home-390-03.png",
+    "archive": "design/reviews/s21-round2-slices/7947aebba856c46c-home-390-03.png",
+    "sha256": "e992350a0f5135a32c4af1f24cc846e1c5e2c205397169a731db4e44b8267c80"
+  },
+  {
+    "original": "design/review-slices/470eb8aeac2de531-departments-390-01.png",
+    "archive": "design/reviews/s21-round2-slices/470eb8aeac2de531-departments-390-01.png",
+    "sha256": "d1879d3051d1dd2e6c134e893760fec92dad2233a0aa15e96df70fc23db5d79c"
+  },
+  {
+    "original": "design/review-slices/05e9170ac3db54dc-product-preview-390-02.png",
+    "archive": "design/reviews/s21-round2-slices/05e9170ac3db54dc-product-preview-390-02.png",
+    "sha256": "425aa4635b898312eff06f79ba0792586f145e8acf1dc73a2df34db01798df73"
+  },
+  {
+    "original": "design/review-slices/7947aebba856c46c-home-390-01.png",
+    "archive": "design/reviews/s21-round2-slices/7947aebba856c46c-home-390-01.png",
+    "sha256": "2da480393eae66289b496b8bff9afd376663a4bf1335b3022fc0aa27532987e3"
+  },
+  {
+    "original": "design/review-slices/0add1e76041640ac-cart-pending-390-02.png",
+    "archive": "design/reviews/s21-round2-slices/0add1e76041640ac-cart-pending-390-02.png",
+    "sha256": "cb2bca830624f625e55d1dda3f327afd2374673b4745b284297ba2d5f356e3a5"
+  },
+  {
+    "original": "design/review-slices/1f01ca90c857c043-home-1440-01.png",
+    "archive": "design/reviews/s21-round2-slices/1f01ca90c857c043-home-1440-01.png",
+    "sha256": "44b5250ac4483c0a85d7c2dd2608ee04b915094291e122b637a7cd4ba35dde8d"
+  },
+  {
+    "original": "design/review-slices/fab92fc411a88b2c-text-200-320-06.png",
+    "archive": "design/reviews/s21-round2-slices/fab92fc411a88b2c-text-200-320-06.png",
+    "sha256": "4ae5bc9659a358506c18914f5b1b83a229ac47882b43a14ce6037de4bd482df0"
+  },
+  {
+    "original": "design/review-slices/0add1e76041640ac-cart-pending-390-01.png",
+    "archive": "design/reviews/s21-round2-slices/0add1e76041640ac-cart-pending-390-01.png",
+    "sha256": "7755335f26067620eb81628d57868a23aa447eea38f4bc1e15d306cbdd322c2f"
+  },
+  {
+    "original": "design/review-slices/d2c65ec9176a3e84-account-pending-1440-01.png",
+    "archive": "design/reviews/s21-round2-slices/d2c65ec9176a3e84-account-pending-1440-01.png",
+    "sha256": "54684c8df78652f3eb33200b0e73299dd0a7ba639a68ea40c78e2e98a65ddfe5"
+  },
+  {
+    "original": "design/review-slices/5562894edf2e1b87-invalid-filter-390-02.png",
+    "archive": "design/reviews/s21-round2-slices/5562894edf2e1b87-invalid-filter-390-02.png",
+    "sha256": "34945bd0a1faf41fe2f5e8f95a7f4a9d70238442b94344ae7e730a082d2ede71"
+  },
+  {
+    "original": "design/review-slices/69ce9ad898fe0316-390-top-02.png",
+    "archive": "design/reviews/s21-round2-slices/69ce9ad898fe0316-390-top-02.png",
+    "sha256": "9e26b08e6c07d2a11cac3dfc373984aec3b97646d90e1be3b0bc31cbaecefcb8"
+  },
+  {
+    "original": "design/review-slices/1bb629830cef0c3e-help-1440-01.png",
+    "archive": "design/reviews/s21-round2-slices/1bb629830cef0c3e-help-1440-01.png",
+    "sha256": "43a7f18e5f50b0d0b524eb465c6e92faaf1bbde84563f460c36469752d11874d"
+  },
+  {
+    "original": "design/review-slices/7947aebba856c46c-home-390-02.png",
+    "archive": "design/reviews/s21-round2-slices/7947aebba856c46c-home-390-02.png",
+    "sha256": "ef254a25ba97d242a1d5c6170f5f9ca2b3a6e230bf5f5d8c9dc0e1fa9c939f5d"
+  },
+  {
+    "original": "design/review-slices/fab92fc411a88b2c-text-200-320-05.png",
+    "archive": "design/reviews/s21-round2-slices/fab92fc411a88b2c-text-200-320-05.png",
+    "sha256": "a4ccc4583ed0d1035a94000c1641e4cfebf0cb7aca0c408299018dc98e8c5740"
+  },
+  {
+    "original": "design/review-slices/aaccc28f84eb001b-1440-top-01.png",
+    "archive": "design/reviews/s21-round2-slices/aaccc28f84eb001b-1440-top-01.png",
+    "sha256": "9e1f5e8eb365c8062a4287e6fb16511587fcaefefbcae9038f616557a1f8bbcb"
+  },
+  {
+    "original": "design/review-slices/fab92fc411a88b2c-text-200-320-04.png",
+    "archive": "design/reviews/s21-round2-slices/fab92fc411a88b2c-text-200-320-04.png",
+    "sha256": "0a5aa1a44044f538721d783f5958912cd9a34e6ec253e02ca78129f1d11d8588"
+  },
+  {
+    "original": "design/review-slices/cda922824602cc7d-account-pending-390-02.png",
+    "archive": "design/reviews/s21-round2-slices/cda922824602cc7d-account-pending-390-02.png",
+    "sha256": "31fee69bc7f03cf5baae15760460709d33885b31967ff233010ffec7d0de64c6"
+  },
+  {
+    "original": "design/review-slices/836dd4b3a458d4e3-help-390-01.png",
+    "archive": "design/reviews/s21-round2-slices/836dd4b3a458d4e3-help-390-01.png",
+    "sha256": "365ffd5ce120c28aee0c96fd20f149ae833b5b64f66f73623b58bba5c689543e"
+  },
+  {
+    "original": "design/review-slices/41d1a7df0857e660-search-1440-01.png",
+    "archive": "design/reviews/s21-round2-slices/41d1a7df0857e660-search-1440-01.png",
+    "sha256": "54762f66af567e71842413e81c01669f85ead6b60a3d7f4283d3b52f12ee0a99"
+  },
+  {
+    "original": "design/review-slices/b99cfd526a164619-not-found-390-02.png",
+    "archive": "design/reviews/s21-round2-slices/b99cfd526a164619-not-found-390-02.png",
+    "sha256": "34945bd0a1faf41fe2f5e8f95a7f4a9d70238442b94344ae7e730a082d2ede71"
+  },
+  {
+    "original": "design/review-slices/05e9170ac3db54dc-product-preview-390-01.png",
+    "archive": "design/reviews/s21-round2-slices/05e9170ac3db54dc-product-preview-390-01.png",
+    "sha256": "ac3e06d9636d1d650c4455fbd8f95605dfa4b6c6d21fe99e40ebf181ea347a3c"
+  },
+  {
+    "original": "design/review-slices/273be8500ecb1c28-category-1440-01.png",
+    "archive": "design/reviews/s21-round2-slices/273be8500ecb1c28-category-1440-01.png",
+    "sha256": "861a949179b98b8fa62127ffdc7ec796e13c4682c424cd1f2f7770f1698f4f78"
+  },
+  {
+    "original": "design/review-slices/836dd4b3a458d4e3-help-390-02.png",
+    "archive": "design/reviews/s21-round2-slices/836dd4b3a458d4e3-help-390-02.png",
+    "sha256": "9b787bc5ee914b24d2a48fb38b6ed1077c9505475ee602965dc68dd7790d08ad"
+  },
+  {
+    "original": "design/review-slices/08480b80baa42099-not-found-1440-01.png",
+    "archive": "design/reviews/s21-round2-slices/08480b80baa42099-not-found-1440-01.png",
+    "sha256": "eb885ec273df18cab42483cb983c1fe1ac6f09f119fa11a069359ac58ca02dad"
+  },
+  {
+    "original": "design/review-slices/cda922824602cc7d-account-pending-390-01.png",
+    "archive": "design/reviews/s21-round2-slices/cda922824602cc7d-account-pending-390-01.png",
+    "sha256": "5fce41f515a3bc9de2b3b979e46e053e36b4ad4814a930d5c9a8b601afb2ef99"
+  },
+  {
+    "original": "design/review-slices/ed2d87d1329f46bc-category-390-02.png",
+    "archive": "design/reviews/s21-round2-slices/ed2d87d1329f46bc-category-390-02.png",
+    "sha256": "7cee0b67f3ebf006e41824a4320a12a940ad801d470867a3d6cc3ffa485db188"
+  },
+  {
+    "original": "design/review-slices/4c6887508a215f49-search-390-01.png",
+    "archive": "design/reviews/s21-round2-slices/4c6887508a215f49-search-390-01.png",
+    "sha256": "3da523e5723dcab3bb134e03eaf611769bdcd819fa02169804f4164a703ca6ef"
+  },
+  {
+    "original": "design/review-slices/ee576f953289514a-1440-top-01.png",
+    "archive": "design/reviews/s21-round2-slices/ee576f953289514a-1440-top-01.png",
+    "sha256": "f5ebef8641ea8646d7171e91d119923927639edb1922bc4a714b6a9ffc35dd4b"
+  },
+  {
+    "original": "design/review-slices/470eb8aeac2de531-departments-390-02.png",
+    "archive": "design/reviews/s21-round2-slices/470eb8aeac2de531-departments-390-02.png",
+    "sha256": "34945bd0a1faf41fe2f5e8f95a7f4a9d70238442b94344ae7e730a082d2ede71"
+  },
+  {
+    "original": "design/review-slices/fab92fc411a88b2c-text-200-320-07.png",
+    "archive": "design/reviews/s21-round2-slices/fab92fc411a88b2c-text-200-320-07.png",
+    "sha256": "52129909a79df4feed856191aac4ceade9956c45f8b6519a4e1359e33359e63d"
+  },
+  {
+    "original": "design/review-slices/4950df039266550a-empty-390-02.png",
+    "archive": "design/reviews/s21-round2-slices/4950df039266550a-empty-390-02.png",
+    "sha256": "f3fb7924bd9c066b5043cb1b1b6f144f0fb9c283790cfc7e461dd5898ac4748d"
+  }
+]

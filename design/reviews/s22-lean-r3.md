@@ -1,0 +1,9 @@
+# S22 lean review — source Back correction
+
+Author: codex-root (builder; no independent correctness or visual verdict). Scope: current24-source union and the Back delta against the immutable r2 snapshot. Caller search confirms ProductLink serves the real grid/cart links, TaskBack serves the focused PDP shell, and the pure public URL constructor/validator also serves PDP permalink and its native form. Current native24 and built browser24 pass.
+
+Native Link/router history and native GET forms provide navigation, scroll and progressive behavior. The small public history marker is needed to distinguish our own same-tab entry from copied/new-tab links; its retained entry handles the actual Server Action history replacement caught by the14/15 FAIL. Removing it would lose exact native Back/scroll or send direct entries through an unrelated history. Parent URLs retain only allowed public catalog fields and anchors; no backend validator, authorization, cart truth, storage layer, custom history stack, dependency or root provider was copied/introduced. The two leaf client components retain server-rendered links/children and are bounded by dynamic storefront routes. Native option selection remains explicit server GET; no new client option state or navigation event bus is added. Trust-boundary and real no-JS/new-tab/post-add/reload/keyboard tests are necessary behavior proof.
+
+Lean already. Ship.
+
+Compatibility follow-up: the existing native URLSearchParams.toString() replaces size detection directly; no helper, polyfill, dependency or additional state is needed. The existing Back regression removes that one browser API and proves actual RED-to-GREEN in the full24-case matrix. No further defensible deletion finding. Complete source-r3 APPROVE and owner rounds10–14 are recorded; final current-union R3 must review this two-file follow-up and fresh canonical visual evidence.

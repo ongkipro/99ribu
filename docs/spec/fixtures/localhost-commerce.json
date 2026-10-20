@@ -71,29 +71,29 @@
   "warehouses": [
     {
       "id": "fixture-malang",
-      "name": "SYNTHETIC Malang warehouse",
+      "name": "Gudang contoh Malang",
       "timezone": "Asia/Jakarta"
     },
     {
       "id": "fixture-pontianak",
-      "name": "SYNTHETIC Pontianak warehouse",
+      "name": "Gudang contoh Pontianak",
       "timezone": "Asia/Jakarta"
     }
   ],
   "stock_items": [
     {
       "id": "fixture-shirt",
-      "name": "SYNTHETIC shirt",
+      "name": "Kaos contoh",
       "hpp_idr": 30000
     },
     {
       "id": "fixture-bag",
-      "name": "SYNTHETIC bag",
+      "name": "Tas contoh",
       "hpp_idr": null
     },
     {
       "id": "fixture-cream",
-      "name": "SYNTHETIC cream",
+      "name": "Krim contoh",
       "hpp_idr": 18000
     }
   ],

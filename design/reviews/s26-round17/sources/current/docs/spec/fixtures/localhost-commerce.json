@@ -1,0 +1,538 @@
+{
+  "format": 1,
+  "purpose": "Synthetic localhost seed/scenario contract; not a database dump or implemented simulator",
+  "environment": "local",
+  "synthetic": true,
+  "real_external_effects": false,
+  "clock": "2026-10-15T03:00:00Z",
+  "currency": "IDR",
+  "users": [
+    {
+      "id": "fixture-owner",
+      "roles": [
+        "owner"
+      ],
+      "email": "owner@example.test"
+    },
+    {
+      "id": "fixture-ecommerce",
+      "roles": [
+        "ecommerce_admin"
+      ],
+      "email": "ecommerce@example.test"
+    },
+    {
+      "id": "fixture-warehouse",
+      "roles": [
+        "warehouse"
+      ],
+      "warehouse_ids": [
+        "fixture-malang"
+      ],
+      "email": "warehouse@example.test"
+    },
+    {
+      "id": "fixture-cs",
+      "roles": [
+        "customer_service"
+      ],
+      "email": "cs@example.test"
+    },
+    {
+      "id": "fixture-finance",
+      "roles": [
+        "finance"
+      ],
+      "email": "finance@example.test"
+    },
+    {
+      "id": "fixture-buyer-a",
+      "roles": [
+        "buyer"
+      ],
+      "email": "buyer-a@example.test"
+    },
+    {
+      "id": "fixture-buyer-b",
+      "roles": [
+        "buyer"
+      ],
+      "email": "buyer-b@example.test"
+    },
+    {
+      "id": "fixture-affiliate",
+      "roles": [
+        "buyer",
+        "affiliate"
+      ],
+      "email": "affiliate@example.test"
+    }
+  ],
+  "warehouses": [
+    {
+      "id": "fixture-malang",
+      "name": "Gudang contoh Malang",
+      "timezone": "Asia/Jakarta"
+    },
+    {
+      "id": "fixture-pontianak",
+      "name": "Gudang contoh Pontianak",
+      "timezone": "Asia/Jakarta"
+    }
+  ],
+  "stock_items": [
+    {
+      "id": "fixture-shirt",
+      "name": "Kaos contoh",
+      "hpp_idr": 30000
+    },
+    {
+      "id": "fixture-bag",
+      "name": "Tas contoh",
+      "hpp_idr": null
+    },
+    {
+      "id": "fixture-cream",
+      "name": "Krim contoh",
+      "hpp_idr": 18000
+    }
+  ],
+  "offers": [
+    {
+      "id": "fixture-offer-shirt",
+      "price_idr": 99000,
+      "components": [
+        {
+          "stock_item_id": "fixture-shirt",
+          "quantity": 1
+        }
+      ]
+    },
+    {
+      "id": "fixture-offer-bag",
+      "price_idr": 99000,
+      "components": [
+        {
+          "stock_item_id": "fixture-bag",
+          "quantity": 1
+        }
+      ]
+    },
+    {
+      "id": "fixture-offer-cream-pack",
+      "price_idr": 99000,
+      "components": [
+        {
+          "stock_item_id": "fixture-cream",
+          "quantity": 2
+        }
+      ]
+    },
+    {
+      "id": "fixture-offer-mixed",
+      "price_idr": 99000,
+      "components": [
+        {
+          "stock_item_id": "fixture-shirt",
+          "quantity": 1
+        },
+        {
+          "stock_item_id": "fixture-bag",
+          "quantity": 1
+        }
+      ]
+    }
+  ],
+  "inventory": [
+    {
+      "warehouse_id": "fixture-malang",
+      "stock_item_id": "fixture-shirt",
+      "on_hand": 5,
+      "reserved": 1,
+      "quarantine": 1
+    },
+    {
+      "warehouse_id": "fixture-malang",
+      "stock_item_id": "fixture-bag",
+      "on_hand": 3,
+      "reserved": 0,
+      "quarantine": 0
+    },
+    {
+      "warehouse_id": "fixture-malang",
+      "stock_item_id": "fixture-cream",
+      "on_hand": 8,
+      "reserved": 0,
+      "quarantine": 0
+    },
+    {
+      "warehouse_id": "fixture-pontianak",
+      "stock_item_id": "fixture-shirt",
+      "on_hand": 2,
+      "reserved": 0,
+      "quarantine": 0
+    },
+    {
+      "warehouse_id": "fixture-pontianak",
+      "stock_item_id": "fixture-bag",
+      "on_hand": 0,
+      "reserved": 0,
+      "quarantine": 0
+    },
+    {
+      "warehouse_id": "fixture-pontianak",
+      "stock_item_id": "fixture-cream",
+      "on_hand": 4,
+      "reserved": 0,
+      "quarantine": 0
+    }
+  ],
+  "orders": [
+    {
+      "id": "fixture-prepaid",
+      "buyer_id": "fixture-buyer-a",
+      "method": "prepaid",
+      "payment_state": "confirmed",
+      "items": [
+        {
+          "id": "fixture-prepaid-line",
+          "offer_id": "fixture-offer-cream-pack",
+          "quantity": 1
+        }
+      ],
+      "merchandise_idr": 99000,
+      "shipping_idr": 12000,
+      "shipping_subsidy_idr": 2000,
+      "buyer_total_idr": 109000,
+      "verified_payment_id": "fixture-prepaid-receipt",
+      "verified_paid_idr": 109000,
+      "refund_idr": 0,
+      "parcels": [
+        {
+          "id": "fixture-prepaid-parcel",
+          "warehouse_id": "fixture-malang",
+          "item_ids": [
+            "fixture-prepaid-line"
+          ],
+          "cod_due_idr": 0,
+          "shipment_state": "booked",
+          "awb": "TEST-NOT-FOR-SHIPPING-001"
+        }
+      ],
+      "verified_merchandise_idr": 99000
+    },
+    {
+      "id": "fixture-cod",
+      "buyer_id": "fixture-buyer-b",
+      "method": "cod",
+      "payment_state": "partial_collection",
+      "items": [
+        {
+          "id": "fixture-cod-line-a",
+          "offer_id": "fixture-offer-shirt",
+          "quantity": 1
+        },
+        {
+          "id": "fixture-cod-line-b",
+          "offer_id": "fixture-offer-cream-pack",
+          "quantity": 1
+        }
+      ],
+      "merchandise_idr": 198000,
+      "shipping_idr": 30000,
+      "shipping_subsidy_idr": 0,
+      "buyer_total_idr": 228000,
+      "verified_paid_idr": 111000,
+      "refund_idr": 0,
+      "parcels": [
+        {
+          "id": "fixture-cod-parcel-a",
+          "warehouse_id": "fixture-malang",
+          "item_ids": [
+            "fixture-cod-line-a"
+          ],
+          "cod_due_idr": 111000,
+          "collected_idr": 111000,
+          "verified_collection_id": "fixture-cod-collection-a",
+          "shipment_state": "delivered",
+          "awb": "TEST-NOT-FOR-SHIPPING-002",
+          "collected_merchandise_idr": 99000
+        },
+        {
+          "id": "fixture-cod-parcel-b",
+          "warehouse_id": "fixture-pontianak",
+          "item_ids": [
+            "fixture-cod-line-b"
+          ],
+          "cod_due_idr": 117000,
+          "collected_idr": 0,
+          "shipment_state": "returned",
+          "awb": "TEST-NOT-FOR-SHIPPING-003"
+        }
+      ],
+      "verified_merchandise_idr": 99000
+    },
+    {
+      "id": "fixture-refund",
+      "buyer_id": "fixture-buyer-a",
+      "method": "prepaid",
+      "payment_state": "confirmed",
+      "items": [
+        {
+          "id": "fixture-refund-line",
+          "offer_id": "fixture-offer-shirt",
+          "quantity": 2
+        }
+      ],
+      "merchandise_idr": 198000,
+      "shipping_idr": 0,
+      "shipping_subsidy_idr": 0,
+      "buyer_total_idr": 198000,
+      "verified_payment_id": "fixture-refund-receipt",
+      "verified_paid_idr": 198000,
+      "refund_idr": 99000,
+      "parcels": [
+        {
+          "id": "fixture-refund-parcel",
+          "warehouse_id": "fixture-malang",
+          "item_ids": [
+            "fixture-refund-line"
+          ],
+          "cod_due_idr": 0,
+          "shipment_state": "delivered",
+          "awb": "TEST-NOT-FOR-SHIPPING-004"
+        }
+      ],
+      "verified_merchandise_idr": 198000
+    }
+  ],
+  "purchase_events": [
+    {
+      "id": "fixture-purchase-prepaid",
+      "order_id": "fixture-prepaid",
+      "economic_receipt_id": "fixture-prepaid-receipt",
+      "merchandise_value_idr": 99000,
+      "allocations": [
+        {
+          "order_item_id": "fixture-prepaid-line",
+          "quantity": 1,
+          "merchandise_value_idr": 99000
+        }
+      ]
+    },
+    {
+      "id": "fixture-purchase-cod-a",
+      "order_id": "fixture-cod",
+      "economic_receipt_id": "fixture-cod-collection-a",
+      "merchandise_value_idr": 99000,
+      "allocations": [
+        {
+          "order_item_id": "fixture-cod-line-a",
+          "quantity": 1,
+          "merchandise_value_idr": 99000
+        }
+      ]
+    },
+    {
+      "id": "fixture-purchase-before-refund",
+      "order_id": "fixture-refund",
+      "economic_receipt_id": "fixture-refund-receipt",
+      "merchandise_value_idr": 198000,
+      "allocations": [
+        {
+          "order_item_id": "fixture-refund-line",
+          "quantity": 2,
+          "merchandise_value_idr": 198000
+        }
+      ]
+    }
+  ],
+  "refund_adjustments": [
+    {
+      "id": "fixture-refund-adjustment",
+      "purchase_event_id": "fixture-purchase-before-refund",
+      "refunded_merchandise_idr": 99000,
+      "retained_value_idr": 99000
+    }
+  ],
+  "finance_transactions": [
+    {
+      "id": "fixture-transaction-prepaid",
+      "postings": [
+        {
+          "account": "payment_clearing",
+          "debit_idr": 109000,
+          "credit_idr": 0
+        },
+        {
+          "account": "merchandise_revenue",
+          "debit_idr": 0,
+          "credit_idr": 99000
+        },
+        {
+          "account": "buyer_shipping_component",
+          "debit_idr": 0,
+          "credit_idr": 10000
+        }
+      ]
+    },
+    {
+      "id": "fixture-transaction-refund",
+      "postings": [
+        {
+          "account": "merchandise_refund",
+          "debit_idr": 99000,
+          "credit_idr": 0
+        },
+        {
+          "account": "refund_clearing",
+          "debit_idr": 0,
+          "credit_idr": 99000
+        }
+      ]
+    }
+  ],
+  "simulations": [
+    {
+      "case": "prepaid-success-duplicate",
+      "adapter": "payment",
+      "sequence": [
+        "pending",
+        "confirmed",
+        "same_confirmation_replayed"
+      ],
+      "expected": "Exactly one economic receipt and Purchase; reload returns the same order and payment attempt."
+    },
+    {
+      "case": "payment-timeout-after-commit",
+      "adapter": "payment",
+      "sequence": [
+        "provider_effect_committed",
+        "response_timeout",
+        "status_lookup_confirmed"
+      ],
+      "expected": "Look up the original operation identity; no second charge."
+    },
+    {
+      "case": "late-payment-stock-loss",
+      "adapter": "payment",
+      "sequence": [
+        "expired_reservation",
+        "stock_unavailable",
+        "late_confirmation"
+      ],
+      "expected": "Reconcile the original receipt; reacquire stock or execute a guarded refund without silent fulfillment."
+    },
+    {
+      "case": "split-cod-refusal",
+      "adapter": "shipping",
+      "sequence": [
+        "parcel_a_collected",
+        "parcel_b_refused",
+        "settlement_later"
+      ],
+      "expected": "One IDR99000 merchandise purchase; refusal and later company settlement create no new Purchase."
+    },
+    {
+      "case": "last-component-race",
+      "adapter": "inventory",
+      "sequence": [
+        "two_offers_share_last_unit",
+        "simultaneous_reservations"
+      ],
+      "expected": "Real PostgreSQL race test permits exactly one reservation without overselling."
+    },
+    {
+      "case": "label-funding-pending",
+      "adapter": "shipping",
+      "sequence": [
+        "shipping_funding_unpaid",
+        "no_valid_awb"
+      ],
+      "expected": "Printing is blocked with a reason; no blank PDF or new booking."
+    },
+    {
+      "case": "label-expired-reprint",
+      "adapter": "label",
+      "sequence": [
+        "artifact_ready",
+        "download_expired",
+        "safe_retrieval",
+        "reprint"
+      ],
+      "expected": "Reuse the same active AWB; no charge or handover; TEST watermark remains."
+    },
+    {
+      "case": "ads-consent-denied",
+      "adapter": "advertising",
+      "sequence": [
+        "choice_denied",
+        "verified_receipt"
+      ],
+      "expected": "Internal money truth is preserved; every vendor dispatch is suppressed."
+    },
+    {
+      "case": "ads-delivery-timeout",
+      "adapter": "advertising",
+      "sequence": [
+        "eligible",
+        "accepted_response_lost",
+        "retry_same_id"
+      ],
+      "expected": "One internal purchase instance; same retry identity; simulated acceptance is not attribution."
+    },
+    {
+      "case": "chat-unknown-send",
+      "adapter": "chat",
+      "sequence": [
+        "durable_commit",
+        "response_lost",
+        "same_message_retry",
+        "reconnect"
+      ],
+      "expected": "One durable public message; scoped history and no staff-note leakage."
+    },
+    {
+      "case": "shared-device-and-guest-link",
+      "adapter": "identity",
+      "sequence": [
+        "buyer_a_logout",
+        "buyer_b_login",
+        "cross_order_link_attempt"
+      ],
+      "expected": "No private draft or history leakage; unauthorized guest-order linking is denied."
+    },
+    {
+      "case": "replacement-affiliate-hold",
+      "adapter": "affiliate",
+      "sequence": [
+        "original_received",
+        "one_quantity_replaced",
+        "replacement_received",
+        "advance_clock"
+      ],
+      "expected": "Only affected quantity H+10 resets; inclusive IDR99000 threshold; no automatic external transfer."
+    },
+    {
+      "case": "worker-crash-catchup",
+      "adapter": "jobs",
+      "sequence": [
+        "event_committed",
+        "worker_stopped",
+        "worker_restart"
+      ],
+      "expected": "Durable catch-up preserves original identities; the order remains available."
+    },
+    {
+      "case": "holiday-calendar-boundaries",
+      "adapter": "clock",
+      "sequence": [
+        "explicit_test_policy",
+        "synthetic_closure",
+        "advance_clock"
+      ],
+      "expected": "Explicit test-only cutoff/Sunday rules and synthetic closures; not an authoritative national calendar."
+    }
+  ],
+  "inventory_snapshot_basis": "Illustrative current inventory; historical order snapshots do not represent current reservations."
+}

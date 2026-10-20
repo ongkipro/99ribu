@@ -1,0 +1,54 @@
+COMMAND ['node', '--env-file=.env.example', '--test', '--test-name-pattern=discarded committed order reply|empty checkout and unavailable private order', 'tests/browser/storefront-checkout.test.ts']
+✖ discarded committed order reply requires explicit exact retry and returns the original private order (11528.156488ms)
+✖ empty checkout and unavailable private order expose task recovery without private details (6112.220138ms)
+ℹ tests 2
+ℹ suites 0
+ℹ pass 0
+ℹ fail 2
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 19519.128903
+
+✖ failing tests:
+
+test at tests/browser/storefront-checkout.test.ts:189:1
+✖ discarded committed order reply requires explicit exact retry and returns the original private order (11528.156488ms)
+  Error: expect(locator).toBeVisible() failed
+  
+  Locator: locator('#checkout-help').getByText('Bagaimana jika hasil pembuatan pesanan belum diketahui?', { exact: true })
+  Expected: visible
+  Timeout: 5000ms
+  Error: element(s) not found
+  
+  Call log:
+    - Expect "toBeVisible" locator('#checkout-help').getByText('Bagaimana jika hasil pembuatan pesanan belum diketahui?', { exact: true }) with timeout 5000ms
+    - waiting for locator('#checkout-help').getByText('Bagaimana jika hasil pembuatan pesanan belum diketahui?', { exact: true })
+  
+      at captureRawStack (/home/ongki/Projects/.worktrees/99ribu-foundation/node_modules/playwright-core/lib/coreBundle.js:9282:17)
+      at callMatcherAsStep (/home/ongki/Projects/.worktrees/99ribu-foundation/node_modules/playwright/lib/matchers/expect.js:13316:57)
+      at Object.toBeVisible (/home/ongki/Projects/.worktrees/99ribu-foundation/node_modules/playwright/lib/matchers/expect.js:13308:23)
+      at TestContext.<anonymous> (/home/ongki/Projects/.worktrees/99ribu-foundation/tests/browser/storefront-checkout.test.ts:196:552) {
+    matcherResult: { message: `expect(locator).toBeVisible() failed\n\nLocator: locator('#checkout-help').getByText('Bagaimana jika hasil pembuatan pesanan belum diketahui?', { exact: true })\nExpected: visible\nTimeout: 5000ms\nError: element(s) not found\n\nCall log:\n  - Expect "toBeVisible" locator('#checkout-help').getByText('Bagaimana jika hasil pembuatan pesanan belum diketahui?', { exact: true }) with timeout 5000ms\n  - waiting for locator('#checkout-help').getByText('Bagaimana jika hasil pembuatan pesanan belum diketahui?', { exact: true })\n`, pass: false, actual: undefined, name: 'toBeVisible', expected: 'visible', log: [ `  - Expect "toBeVisible" locator('#checkout-help').getByText('Bagaimana jika hasil pembuatan pesanan belum diketahui?', { exact: true }) with timeout 5000ms`, "  - waiting for locator('#checkout-help').getByText('Bagaimana jika hasil pembuatan pesanan belum diketahui?', { exact: true })" ], timeout: 5000, ariaSnapshot: '- link "Lewati ke konten":\n  - /url: "#main"\n- text: Data contoh. Pesanan dan pengiriman simulasi.\n- button "Periksa wilayah pengiriman"\n- banner:\n  - button "Keranjang"\n  - button "99ribu, beranda": 99ribu\n  - link "Bantuan":\n    - /url: "#checkout-help"\n- main:\n  - heading "Hasil tindakan belum diketahui" [level=1]\n  - complementary "Ringkasan pesanan":\n    - group:\n      - text: Lihat ringkasan Perhitungan tersimpan\n      - strong: Rp210.000\n  - alert:\n    - paragraph: Balasan belum diterima. Periksa hasil dengan permintaan yang sama.\n  - button "Periksa hasil tindakan"\n  - region "Bantuan checkout":\n    - heading "Bantuan checkout" [level=2]\n    - group: Mengapa akses perlu diperiksa?\n    - group: Bagaimana jika hasil pengiriman pesanan belum diketahui?\n- contentinfo:\n  - paragraph: Satu pilihan lengkap Rp99.000. Ongkir mengikuti paket dan tujuan yang dipilih.\n  - navigation "Kebijakan belanja":\n    - link "Pengiriman dan pengembalian (tab baru)":\n      - /url: /help#returns\n    - link "Privasi (tab baru)":\n      - /url: /help#privacy\n- alert' }
+  }
+
+test at tests/browser/storefront-checkout.test.ts:278:1
+✖ empty checkout and unavailable private order expose task recovery without private details (6112.220138ms)
+  Error: expect(locator).toBeVisible() failed
+  
+  Locator: locator('#checkout-help').getByText('Mengapa akses perlu diperiksa?', { exact: true })
+  Expected: visible
+  Timeout: 5000ms
+  Error: element(s) not found
+  
+  Call log:
+    - Expect "toBeVisible" locator('#checkout-help').getByText('Mengapa akses perlu diperiksa?', { exact: true }) with timeout 5000ms
+    - waiting for locator('#checkout-help').getByText('Mengapa akses perlu diperiksa?', { exact: true })
+  
+      at captureRawStack (/home/ongki/Projects/.worktrees/99ribu-foundation/node_modules/playwright-core/lib/coreBundle.js:9282:17)
+      at callMatcherAsStep (/home/ongki/Projects/.worktrees/99ribu-foundation/node_modules/playwright/lib/matchers/expect.js:13316:57)
+      at Object.toBeVisible (/home/ongki/Projects/.worktrees/99ribu-foundation/node_modules/playwright/lib/matchers/expect.js:13308:23)
+      at TestContext.<anonymous> (/home/ongki/Projects/.worktrees/99ribu-foundation/tests/browser/storefront-checkout.test.ts:281:438) {
+    matcherResult: { message: `expect(locator).toBeVisible() failed\n\nLocator: locator('#checkout-help').getByText('Mengapa akses perlu diperiksa?', { exact: true })\nExpected: visible\nTimeout: 5000ms\nError: element(s) not found\n\nCall log:\n  - Expect "toBeVisible" locator('#checkout-help').getByText('Mengapa akses perlu diperiksa?', { exact: true }) with timeout 5000ms\n  - waiting for locator('#checkout-help').getByText('Mengapa akses perlu diperiksa?', { exact: true })\n`, pass: false, actual: undefined, name: 'toBeVisible', expected: 'visible', log: [ `  - Expect "toBeVisible" locator('#checkout-help').getByText('Mengapa akses perlu diperiksa?', { exact: true }) with timeout 5000ms`, "  - waiting for locator('#checkout-help').getByText('Mengapa akses perlu diperiksa?', { exact: true })" ], timeout: 5000, ariaSnapshot: '- link "Lewati ke konten":\n  - /url: "#main"\n- text: Data contoh. Pesanan dan pengiriman simulasi.\n- banner:\n  - link "Katalog":\n    - /url: /search\n  - link "99ribu, beranda":\n    - /url: /\n    - text: 99ribu\n  - link "Bantuan":\n    - /url: "#checkout-help"\n- main:\n  - heading "Akses pesanan perlu diperiksa" [level=1]\n  - paragraph: Halaman ini memerlukan sesi pemilik atau akses tamu yang sah. Nomor pesanan saja tidak membuka rincian.\n  - button "Pulihkan akses pesanan"\n  - link "Periksa sesi belanja":\n    - /url: /cart\n  - region "Bantuan pembayaran":\n    - heading "Bantuan pembayaran" [level=2]\n    - group: Bagaimana jika status pembayaran belum diketahui?\n    - group: Kapan pembayaran dianggap diterima?\n- contentinfo:\n  - paragraph: Satu pilihan lengkap Rp99.000. Ongkir mengikuti paket dan tujuan yang dipilih.\n  - navigation "Kebijakan belanja":\n    - link "Pengiriman dan pengembalian (tab baru)":\n      - /url: /help#returns\n    - link "Privasi (tab baru)":\n      - /url: /help#privacy\n- alert' }
+  }
+ACTUAL_EXIT=1

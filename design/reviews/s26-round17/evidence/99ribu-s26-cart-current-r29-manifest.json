@@ -1,0 +1,13 @@
+{
+  "buildID": "1gmFuDzySwDEiiUxgDax_",
+  "sourceDigest": "c56a562c59c8a8091924a5b3dc66b14dfc454d673d51ce8b06c941179c1c296c",
+  "cartTestSha256": "a4a67cba1207a4ad7692e473f450716d5177581a2ae68e3682722e9b5d393688",
+  "runnerSha256BeforeAfter": "995e091834cabae476c206c4fc8cb4591c9a083ffc93f9bf5a50df57a79fd1ad",
+  "beforeAfterUnchanged": true,
+  "command": [
+    "node",
+    "--env-file=.env.example",
+    "/tmp/99ribu-s26-cart-regression-r1.mjs"
+  ],
+  "exit": 0
+}

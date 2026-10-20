@@ -1,0 +1,55 @@
+{
+  "width": 320,
+  "overflow": 218,
+  "offenders": [
+    {
+      "tag": "DIV",
+      "id": "",
+      "class": "",
+      "right": 350,
+      "width": 317
+    },
+    {
+      "tag": "DD",
+      "id": "",
+      "class": "",
+      "right": 350,
+      "width": 150
+    },
+    {
+      "tag": "DIV",
+      "id": "",
+      "class": "",
+      "right": 350,
+      "width": 317
+    },
+    {
+      "tag": "DD",
+      "id": "",
+      "class": "",
+      "right": 350,
+      "width": 210
+    },
+    {
+      "tag": "LABEL",
+      "id": "",
+      "class": "",
+      "right": 538,
+      "width": 522
+    },
+    {
+      "tag": "DIV",
+      "id": "",
+      "class": "checkout-search",
+      "right": 538,
+      "width": 522
+    },
+    {
+      "tag": "INPUT",
+      "id": "checkout-query",
+      "class": "",
+      "right": 538,
+      "width": 522
+    }
+  ]
+}

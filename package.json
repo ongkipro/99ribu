@@ -1,0 +1,54 @@
+{
+  "name": "99ribu",
+  "version": "0.1.0",
+  "private": true,
+  "scripts": {
+    "dev": "node --env-file=.env.example scripts/run-local.ts dev",
+    "build": "node --env-file=.env.example scripts/run-local.ts build",
+    "start": "node --env-file=.env.example scripts/run-local.ts start",
+    "lint": "biome lint src scripts tests next.config.ts drizzle.config.ts --error-on-warnings",
+    "typecheck": "node --env-file=.env.example node_modules/next/dist/bin/next typegen && tsc --noEmit",
+    "test": "node --test tests/config.test.ts tests/launcher.test.ts tests/runner.test.ts",
+    "test:smoke": "node --test tests/smoke.test.ts",
+    "check": "npm run lint && npm run typecheck && npm test",
+    "db:up": "node --env-file=.env.example scripts/database.ts up",
+    "db:stop": "node --env-file=.env.example scripts/database.ts stop",
+    "db:status": "node --env-file=.env.example scripts/database.ts status",
+    "db:generate": "drizzle-kit generate",
+    "db:migrate": "node --env-file=.env.example scripts/migrate.ts",
+    "test:database": "node --env-file=.env.example --test tests/database.test.ts",
+    "test:storage": "node --env-file=.env.example --test tests/storage.test.ts",
+    "test:auth": "node --env-file=.env.example --test tests/auth-key.test.ts tests/auth.test.ts",
+    "test:auth:http": "node --env-file=.env.example --test tests/auth-http.test.ts",
+    "worker": "node --env-file=.env.example scripts/worker.ts local",
+    "test:worker": "node --env-file=.env.example --test tests/worker.test.ts",
+    "test:integration": "node --env-file=.env.example scripts/check-tests.ts integration",
+    "test:browser": "node --env-file=.env.example scripts/check-tests.ts browser",
+    "health": "node --env-file=.env.example scripts/check-health.ts",
+    "test:prototype": "biome lint public/prototypes docs/spec/design/prototypes --error-on-warnings && node --test docs/spec/design/prototypes/prototype.test.mjs",
+    "fixture": "node --env-file=.env.example scripts/seed.ts"
+  },
+  "dependencies": {
+    "next": "16.4.1",
+    "react": "19.3.1",
+    "react-dom": "19.3.1",
+    "drizzle-orm": "0.45.4",
+    "postgres": "3.4.9",
+    "better-auth": "1.7.10"
+  },
+  "devDependencies": {
+    "typescript": "5.9.3",
+    "@types/node": "24.19.2",
+    "@types/react": "19.3.0",
+    "@types/react-dom": "19.3.0",
+    "drizzle-kit": "0.31.11",
+    "@playwright/test": "1.64.1",
+    "@biomejs/biome": "2.5.15"
+  },
+  "type": "module",
+  "packageManager": "npm@12.2.0",
+  "engines": {
+    "node": "24.21.0",
+    "npm": "12.2.0"
+  }
+}

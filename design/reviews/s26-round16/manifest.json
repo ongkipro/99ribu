@@ -1,0 +1,1298 @@
+{
+  "content/design/review-rounds.log": {
+    "bytes": 524,
+    "sha256": "adbd2a44a0d7035d29ca5f1848faac928f49ed844f8a51b5efce4542c541be3d"
+  },
+  "content/design/review-slices/002218fb4a1e29ce-review-two-origins-cod-768-01.png": {
+    "bytes": 51614,
+    "sha256": "69b98e7d31e0d056298d7945e1d37b3f1ddd2f35859bd73c36d66f9a293ef05e"
+  },
+  "content/design/review-slices/002218fb4a1e29ce-review-two-origins-cod-768-02.png": {
+    "bytes": 57804,
+    "sha256": "dcd930d3a2fefcce43d53c1b378dd8a62161b29f5e68900ec32eaeb139394871"
+  },
+  "content/design/review-slices/002218fb4a1e29ce-review-two-origins-cod-768-03.png": {
+    "bytes": 37296,
+    "sha256": "84f57aa792d9347384b4e85a126000d816038048b4439edd545528cc6c535cbf"
+  },
+  "content/design/review-slices/0366d86d1a0bea29-contact-text-200-320-01.png": {
+    "bytes": 42826,
+    "sha256": "47d105fca2d0104cf0fb93bbbaea2172de2c716d3ba1f6c95487861c18274883"
+  },
+  "content/design/review-slices/0366d86d1a0bea29-contact-text-200-320-02.png": {
+    "bytes": 42594,
+    "sha256": "027cffc04bf51c931a7dc257bae049819070e18266c021015ae0295ff32801f4"
+  },
+  "content/design/review-slices/0366d86d1a0bea29-contact-text-200-320-03.png": {
+    "bytes": 41547,
+    "sha256": "21743c32ba2aea1b8605ed04513902f4a17c6076aa8e47e4e77c1d9ac40df6e5"
+  },
+  "content/design/review-slices/0366d86d1a0bea29-contact-text-200-320-04.png": {
+    "bytes": 41612,
+    "sha256": "d3221a8866e5c1f4d88201020174ef71556993ec4da91ce348dc582f364048f9"
+  },
+  "content/design/review-slices/0366d86d1a0bea29-contact-text-200-320-05.png": {
+    "bytes": 42376,
+    "sha256": "8eb71460e4d7472de051c29b0a00bda7e052be9542691b8b72ac3066d68438ee"
+  },
+  "content/design/review-slices/0366d86d1a0bea29-contact-text-200-320-06.png": {
+    "bytes": 39960,
+    "sha256": "4a3c3b611d311cb94fab99e69e3926a3c68d7c9603eceaa405f3c9e1cb977d11"
+  },
+  "content/design/review-slices/0366d86d1a0bea29-contact-text-200-320-07.png": {
+    "bytes": 47135,
+    "sha256": "2fef02224d52d82a99dd9f7a25d069877d221e1fd7de33213039f0363c27c8c7"
+  },
+  "content/design/review-slices/0366d86d1a0bea29-contact-text-200-320-08.png": {
+    "bytes": 2180,
+    "sha256": "a6c281a9d2036c0ff87fdcd2a4df22fb7941fbfd4aa5327d7912e3ca20fb9597"
+  },
+  "content/design/review-slices/092ad64759caada2-contact-text-200-collapsed-320-01.png": {
+    "bytes": 37770,
+    "sha256": "41338df8b745413339218ed934f10d87f3402ed87f5feb0f426898825f6cd122"
+  },
+  "content/design/review-slices/092ad64759caada2-contact-text-200-collapsed-320-02.png": {
+    "bytes": 37719,
+    "sha256": "8e175338068dd16807d40b5aaf8802acbc01bd7cc9fbfd071d5bad14ab1cc26d"
+  },
+  "content/design/review-slices/092ad64759caada2-contact-text-200-collapsed-320-03.png": {
+    "bytes": 50175,
+    "sha256": "d3956712afc7c5a5d83a6e2e461a901b627431301aebb8470a98e4ecb5acf1df"
+  },
+  "content/design/review-slices/092ad64759caada2-contact-text-200-collapsed-320-04.png": {
+    "bytes": 42466,
+    "sha256": "fc301a3df060a58b4441cdc8f3bcbda704b6c783981e78e8cdccb1eae0da9563"
+  },
+  "content/design/review-slices/092ad64759caada2-contact-text-200-collapsed-320-05.png": {
+    "bytes": 38508,
+    "sha256": "0b0ce6c34b07bb25e6a210c23d7b69b02765cd495fd745babf1893378a46592b"
+  },
+  "content/design/review-slices/092ad64759caada2-contact-text-200-collapsed-320-06.png": {
+    "bytes": 34427,
+    "sha256": "969d376b915c5d1081fb3fe98a7fb0014498ccf7942f7a4439a813f1c62ec21c"
+  },
+  "content/design/review-slices/0e045364e2a3773d-review-draft-nojs-390-01.png": {
+    "bytes": 50099,
+    "sha256": "a191f22827bbc5f8388ac1c5fa459248e9e428b71b9e5fe3da01b71eb7d9bef7"
+  },
+  "content/design/review-slices/0e045364e2a3773d-review-draft-nojs-390-02.png": {
+    "bytes": 37698,
+    "sha256": "1ded7f3897c127aabff811fe4729cc10418aa9259d6ec020b62b81bd195c3184"
+  },
+  "content/design/review-slices/0e045364e2a3773d-review-draft-nojs-390-03.png": {
+    "bytes": 15414,
+    "sha256": "c0740ce2d3a3aa386f9c8ac68432122b1358b7f075efff760e4e941e0503f753"
+  },
+  "content/design/review-slices/106235c062b3245a-shipping-subsidized-390-01.png": {
+    "bytes": 49959,
+    "sha256": "f973f7a0dfb089786014199f42d8a2b1c659ea32f7e32ae70ec969c0dd36c3f1"
+  },
+  "content/design/review-slices/106235c062b3245a-shipping-subsidized-390-02.png": {
+    "bytes": 45015,
+    "sha256": "f298419f8a40892c3368d5d615d6b6479c802da9c4d2df2fb8eddd4768bc64e9"
+  },
+  "content/design/review-slices/106235c062b3245a-shipping-subsidized-390-03.png": {
+    "bytes": 6878,
+    "sha256": "bfd3046095082cfd17961757e075b23c573aee449323c597857d05cc5604dc93"
+  },
+  "content/design/review-slices/11946f9e7fad1ec5-390-01.png": {
+    "bytes": 25014,
+    "sha256": "1b5ded2d321e57ce319e78812407a099e354a2d5d78117ffa0afb964d8557961"
+  },
+  "content/design/review-slices/147496d162660f84-payment-nojs-390-01.png": {
+    "bytes": 42497,
+    "sha256": "08145b07c30da22414657c46a3aa4c1e7e0bec595adc73ce231ddb0b86fc9579"
+  },
+  "content/design/review-slices/147496d162660f84-payment-nojs-390-02.png": {
+    "bytes": 14302,
+    "sha256": "a1172ab0035845e17981fa1c8b3f872f5180a7a8e3c63634edb866d5c6fc14b1"
+  },
+  "content/design/review-slices/2058928a29759f69-shipping-two-origins-prepaid-390-01.png": {
+    "bytes": 50348,
+    "sha256": "7da5d1cd064c0f28b2a03b8d8032afd1d70bbf7694cb66c63666fb62b852c017"
+  },
+  "content/design/review-slices/2058928a29759f69-shipping-two-origins-prepaid-390-02.png": {
+    "bytes": 54059,
+    "sha256": "487f9df75e373eeea63c0a3772c3ba2575287e8804f8fe9e3747a3235b2a26dc"
+  },
+  "content/design/review-slices/2058928a29759f69-shipping-two-origins-prepaid-390-03.png": {
+    "bytes": 27162,
+    "sha256": "e39dcc3c3cb5473d8cd7632c7c035824887a513d7388a50d05e8d2e832939898"
+  },
+  "content/design/review-slices/220c848daa1a7cd3-shipping-390-01.png": {
+    "bytes": 50206,
+    "sha256": "18e8a0eb440f642601e392eac0fe107260584256c2679f0c73776f0810914d23"
+  },
+  "content/design/review-slices/220c848daa1a7cd3-shipping-390-02.png": {
+    "bytes": 39092,
+    "sha256": "2af8b142fcc9ff2a7fa3aea0338a5f2b876471a4da40c574516a0c030f92cf98"
+  },
+  "content/design/review-slices/220c848daa1a7cd3-shipping-390-03.png": {
+    "bytes": 6168,
+    "sha256": "85c2ccef366da31144f7104432326724c133cc8153a975b589bbf9e6b66f4b9e"
+  },
+  "content/design/review-slices/26c581c0e0a26dc7-shipping-two-origins-prepaid-1440-01.png": {
+    "bytes": 150798,
+    "sha256": "dca4182ec10a07f158857728ad396151064ba8a5b0028af6f5f0f6cac1ec31c7"
+  },
+  "content/design/review-slices/26c581c0e0a26dc7-shipping-two-origins-prepaid-1440-02.png": {
+    "bytes": 25392,
+    "sha256": "83a45f929818dfbc4bdeafdfaa1b743f7c3ec61cad2f4e21e0ac2ddec1ee07fd"
+  },
+  "content/design/review-slices/2728029f88d6e943-shipping-two-origins-prepaid-768-01.png": {
+    "bytes": 54495,
+    "sha256": "623231999ccd96df1bfb43b2b293a93d3785af8e9d9720789a96fd58900ddb6b"
+  },
+  "content/design/review-slices/2728029f88d6e943-shipping-two-origins-prepaid-768-02.png": {
+    "bytes": 58762,
+    "sha256": "2eacb2b0f061589074d31add3e69a45c3a401cce216335dfafb5dfe9fdf75ea6"
+  },
+  "content/design/review-slices/2728029f88d6e943-shipping-two-origins-prepaid-768-03.png": {
+    "bytes": 23809,
+    "sha256": "294cc6a0797d56c715f524d4f7ef40f24c2efc878e63be4b7dda312dedead696"
+  },
+  "content/design/review-slices/27f142c610fb09d8-cod-unavailable-390-01.png": {
+    "bytes": 39364,
+    "sha256": "3005f4cd09cf933873892a5ee64776d24076ee6985dddd01dcdafd8869497161"
+  },
+  "content/design/review-slices/27f142c610fb09d8-cod-unavailable-390-02.png": {
+    "bytes": 41046,
+    "sha256": "147d6e404aba9638d0370e96b07a11687ad69e7e455092725dd74d3c7360a685"
+  },
+  "content/design/review-slices/27f142c610fb09d8-cod-unavailable-390-03.png": {
+    "bytes": 24286,
+    "sha256": "e99c4266914275712bead699cfb758894c2026320d4f213752f1e8ef7f6b1695"
+  },
+  "content/design/review-slices/2fd284f53c3be9f7-contact-768-01.png": {
+    "bytes": 46574,
+    "sha256": "e0e3358f8aea26eb195426855333d72c4c48e08a87b46ab5721d28eb47863a6a"
+  },
+  "content/design/review-slices/2fd284f53c3be9f7-contact-768-02.png": {
+    "bytes": 44749,
+    "sha256": "e1cd6d5ddafc96b7d0ba73142b4963acd0ac25c9ee8696119ca0f5f425e8dd72"
+  },
+  "content/design/review-slices/2fd284f53c3be9f7-contact-768-03.png": {
+    "bytes": 12544,
+    "sha256": "e481e194698127db947ab8baae7d3e48f87a691848700ad79c259c53c358c93d"
+  },
+  "content/design/review-slices/316badc00219eb11-checkout-empty-390-01.png": {
+    "bytes": 34829,
+    "sha256": "c9603624d7c6387a4ecd8fec5c8025d3645f6e167f3bf3c0ccc8c2be713e3831"
+  },
+  "content/design/review-slices/316badc00219eb11-checkout-empty-390-02.png": {
+    "bytes": 268,
+    "sha256": "942b4c8636a19873c67c863827754c58fdce388881ad1ff7800ba461974ede1c"
+  },
+  "content/design/review-slices/3945087ba2a66be5-review-two-origins-cod-1024-01.png": {
+    "bytes": 113309,
+    "sha256": "85209199449bd09e0d078f3b2159e815ccdfd84f81c6958adff2c41a92aac742"
+  },
+  "content/design/review-slices/3945087ba2a66be5-review-two-origins-cod-1024-02.png": {
+    "bytes": 60698,
+    "sha256": "b74bc10a3216d0e7473b60ba196cc848c5d5d9a737ec87dd45b7cf06ddf8e7b5"
+  },
+  "content/design/review-slices/3945087ba2a66be5-review-two-origins-cod-1024-03.png": {
+    "bytes": 6830,
+    "sha256": "204998bc9b470186d6f4ea03bacb34658ab01e7f34c9a8b0c40949db3aed09d9"
+  },
+  "content/design/review-slices/3dad1ce00ece4870-checkout-390-01.png": {
+    "bytes": 46954,
+    "sha256": "a1397e8b2c99552fb6f27df775755bf7f3eebc8cc545dc326fe36612e47b26d5"
+  },
+  "content/design/review-slices/3dad1ce00ece4870-checkout-390-02.png": {
+    "bytes": 19098,
+    "sha256": "7514592d07aa50eb9306201400f9183925e8f3931562e1de71ad6543d08e76d3"
+  },
+  "content/design/review-slices/438ff17048b13a5a-payment-expired-390-01.png": {
+    "bytes": 42628,
+    "sha256": "3779761d01773752d37aead82e8c5fa27a3cf35e12d54c59447c86bb960dff32"
+  },
+  "content/design/review-slices/438ff17048b13a5a-payment-expired-390-02.png": {
+    "bytes": 12535,
+    "sha256": "2de3f3230f580a0fcc88a547e77696017553c80f538b7218d0cddbad65be61f9"
+  },
+  "content/design/review-slices/466be7e1b6240db3-checkout-1440-01.png": {
+    "bytes": 107536,
+    "sha256": "90d66f3e4b7b8f1f81c4bb4584e964915b213cb85ac7e94201dd47832f76aa82"
+  },
+  "content/design/review-slices/4af766af6beb43da-review-subsidized-390-01.png": {
+    "bytes": 49856,
+    "sha256": "b5c03bc7b0d4162de357c20cb83ffd5698b158be1fc5c473866f4713eec58f9b"
+  },
+  "content/design/review-slices/4af766af6beb43da-review-subsidized-390-02.png": {
+    "bytes": 40529,
+    "sha256": "79796e2b12757b7bde9de2af4323fe96078ff263a46abc48695141808251eda8"
+  },
+  "content/design/review-slices/4af766af6beb43da-review-subsidized-390-03.png": {
+    "bytes": 21508,
+    "sha256": "27322c88bf1c711d01ca5ae38e920d0aaa051599cdabe4da79f0b1fb8639331e"
+  },
+  "content/design/review-slices/4bf7336fa22d15b0-payment-failed-390-01.png": {
+    "bytes": 43556,
+    "sha256": "2f977bd6fa42bedb31b4a91d9713c09d0c6189d085e9b64f668cc7493ccbe994"
+  },
+  "content/design/review-slices/4bf7336fa22d15b0-payment-failed-390-02.png": {
+    "bytes": 16722,
+    "sha256": "1a4f9bb85a08ac61ecd3d53deec2226a886054de70766935c9d33319b1b13b13"
+  },
+  "content/design/review-slices/4c5e259ae53cc7a4-review-two-origins-prepaid-1024-01.png": {
+    "bytes": 111628,
+    "sha256": "ea50a5e854467bbb0b8afe077a2ba671ed57c9f5d879af85b697419718f0eb50"
+  },
+  "content/design/review-slices/4c5e259ae53cc7a4-review-two-origins-prepaid-1024-02.png": {
+    "bytes": 61454,
+    "sha256": "9d7e5725716165edd806d8eca84f033b1f7d358c3a27d55647f07c62d1afc209"
+  },
+  "content/design/review-slices/4c5e259ae53cc7a4-review-two-origins-prepaid-1024-03.png": {
+    "bytes": 2706,
+    "sha256": "33db9b16eeb5f17d9bcfd09e19dc630e3026b1e8aa4963037c4396c1b105942c"
+  },
+  "content/design/review-slices/4e7e6647ca5d2109-shipping-service-restored-390-01.png": {
+    "bytes": 47931,
+    "sha256": "94b54aa95da3acdd3d04388610b802e5cc362d98605e578e4bdeed9e99f040e0"
+  },
+  "content/design/review-slices/4e7e6647ca5d2109-shipping-service-restored-390-02.png": {
+    "bytes": 57722,
+    "sha256": "87154038484b2f0e7d95e45738e14b62a8fea261ce61131ebd920f65e61db74b"
+  },
+  "content/design/review-slices/4e7e6647ca5d2109-shipping-service-restored-390-03.png": {
+    "bytes": 32154,
+    "sha256": "ca6df0add761ed77ad4336c86326c3578fb08064198b73b2f255dcce0b57cdcd"
+  },
+  "content/design/review-slices/4f4b4edcef463587-quote-expired-390-01.png": {
+    "bytes": 38238,
+    "sha256": "100720e05271dbabf5a3330ce69fccf0808e392983dad6e443abd0679191663c"
+  },
+  "content/design/review-slices/4f4b4edcef463587-quote-expired-390-02.png": {
+    "bytes": 41546,
+    "sha256": "055dafa54d42e6a97e172f7568c00904d818e830cf1325187502d1a4cc65dfe5"
+  },
+  "content/design/review-slices/4f4b4edcef463587-quote-expired-390-03.png": {
+    "bytes": 23878,
+    "sha256": "c1d6a997a4ab07325263e5d919a07f1ea21d04bbc09ea03e21b570d3c0476d57"
+  },
+  "content/design/review-slices/54ec5152067ad832-review-two-origins-prepaid-390-01.png": {
+    "bytes": 46312,
+    "sha256": "1448bcc2edde079558abbc24555c78960d82275126f3d467209f7e80e122150e"
+  },
+  "content/design/review-slices/54ec5152067ad832-review-two-origins-prepaid-390-02.png": {
+    "bytes": 52654,
+    "sha256": "f19da595b39a14bd2a4d3e16505278924fa757af1c612457672a5bf18c14e54f"
+  },
+  "content/design/review-slices/54ec5152067ad832-review-two-origins-prepaid-390-03.png": {
+    "bytes": 36483,
+    "sha256": "21abe7f45f7850792aea7495fd6097a80a9fd6583fd27c1899f3efd5462f8a6a"
+  },
+  "content/design/review-slices/54ec5152067ad832-review-two-origins-prepaid-390-04.png": {
+    "bytes": 187,
+    "sha256": "05b16ea06e71958c538c9f1f7712391b4c55283740fa52cdb96c27e7a83fda51"
+  },
+  "content/design/review-slices/57c96a8eadfc9a1a-shipping-return-selected-390-01.png": {
+    "bytes": 50490,
+    "sha256": "5fd3df7823b118cf98b4e2b066d33ca770810841226cfb6883f85f1201654a29"
+  },
+  "content/design/review-slices/57c96a8eadfc9a1a-shipping-return-selected-390-02.png": {
+    "bytes": 54125,
+    "sha256": "f9b1c6f104f84dab5d877491754e4562ac5968500a77022dee210b7ed75b6aa8"
+  },
+  "content/design/review-slices/57c96a8eadfc9a1a-shipping-return-selected-390-03.png": {
+    "bytes": 27162,
+    "sha256": "e39dcc3c3cb5473d8cd7632c7c035824887a513d7388a50d05e8d2e832939898"
+  },
+  "content/design/review-slices/590563872ddd6698-payment-1024-01.png": {
+    "bytes": 61525,
+    "sha256": "a9aa419c78f8f20d3a549811e2003727dded752cc31a8f3aa6a7983bdd4a7d53"
+  },
+  "content/design/review-slices/5d214c5a06ecac45-shipping-768-01.png": {
+    "bytes": 54654,
+    "sha256": "7de2af7bc4f591d9cbac729dd082bf3fdf681ac998313f3466d2098d6f15beea"
+  },
+  "content/design/review-slices/5d214c5a06ecac45-shipping-768-02.png": {
+    "bytes": 49617,
+    "sha256": "174745cfcd50d0a64e4af4d9d4b2a50b4e7e016e41832525b1a3c71e1aaee391"
+  },
+  "content/design/review-slices/5d214c5a06ecac45-shipping-768-03.png": {
+    "bytes": 2151,
+    "sha256": "97da1509b0c16f2f3bb5901c784dad4170c85f1377898cc0d958024502353abc"
+  },
+  "content/design/review-slices/5d95e056f9659d73-1440-01.png": {
+    "bytes": 44108,
+    "sha256": "5eba39906b48d72f14666938dbeec9be02cf598528f58a8f524a0c2b59df1b2f"
+  },
+  "content/design/review-slices/64566c63eb9c7781-review-pending-390-01.png": {
+    "bytes": 50111,
+    "sha256": "ac35aa623b965db8d75351d2299b17f92d8163db1408157663c227dce9f4b58f"
+  },
+  "content/design/review-slices/64566c63eb9c7781-review-pending-390-02.png": {
+    "bytes": 36195,
+    "sha256": "349c70943f856cc28a19abc80d4a63350d8920ddf991757dd79d90ec8252f10b"
+  },
+  "content/design/review-slices/64566c63eb9c7781-review-pending-390-03.png": {
+    "bytes": 16021,
+    "sha256": "5bdca5e3a98257a51b477751ab7187570dbb23f58d80d285d7309249bb857d78"
+  },
+  "content/design/review-slices/6f846c7fd5f33c4e-contact-nojs-390-01.png": {
+    "bytes": 37899,
+    "sha256": "96980fc41198027b84e689cdfe67c33db02721f60a4ca6e677bc254ca2e59368"
+  },
+  "content/design/review-slices/6f846c7fd5f33c4e-contact-nojs-390-02.png": {
+    "bytes": 39215,
+    "sha256": "9e192a132f56db5cf2a2062e850f855f63ea7df99bab18a38206f62fd24863ad"
+  },
+  "content/design/review-slices/6f846c7fd5f33c4e-contact-nojs-390-03.png": {
+    "bytes": 21460,
+    "sha256": "a9003d8f785268b074461267eb6dd6163b66bba95527f54bebdbee11e2a286b8"
+  },
+  "content/design/review-slices/7a69d08a4fd6af8b-review-390-01.png": {
+    "bytes": 50099,
+    "sha256": "a191f22827bbc5f8388ac1c5fa459248e9e428b71b9e5fe3da01b71eb7d9bef7"
+  },
+  "content/design/review-slices/7a69d08a4fd6af8b-review-390-02.png": {
+    "bytes": 37112,
+    "sha256": "359b7b2ea7f6e752dc78441febb21586664c73d9748f920b9de625106d649b19"
+  },
+  "content/design/review-slices/7a69d08a4fd6af8b-review-390-03.png": {
+    "bytes": 21315,
+    "sha256": "0543b2ab5ac6f337134a244f551d926dffe5f2afa8aa928d0a26920a16b51032"
+  },
+  "content/design/review-slices/7ba62a44891a367f-payment-390-01.png": {
+    "bytes": 42995,
+    "sha256": "c6280588d224d4b4b0ba5d2440696e7bd32f717560f02d60955b9ecac127c08a"
+  },
+  "content/design/review-slices/7ba62a44891a367f-payment-390-02.png": {
+    "bytes": 14302,
+    "sha256": "a1172ab0035845e17981fa1c8b3f872f5180a7a8e3c63634edb866d5c6fc14b1"
+  },
+  "content/design/review-slices/7bcf7a31ba7d428a-payment-instructions-390-01.png": {
+    "bytes": 44630,
+    "sha256": "edb21bdfd51b46aaa6e607e7434540d0861ddf9ecb70c3159ae52c7fa510be2d"
+  },
+  "content/design/review-slices/7bcf7a31ba7d428a-payment-instructions-390-02.png": {
+    "bytes": 17023,
+    "sha256": "e73693a426105dbe0dbf11a494f35396078af4ae46ebeaa3e376d657f859e074"
+  },
+  "content/design/review-slices/8298ba98ce5f8b91-review-1440-01.png": {
+    "bytes": 130333,
+    "sha256": "52f0349d8b60e1ed0e77731ff4baed10d93a02678a398f49bb8f0aeabf5c25fe"
+  },
+  "content/design/review-slices/8298ba98ce5f8b91-review-1440-02.png": {
+    "bytes": 17186,
+    "sha256": "f509f89a88bb5a42f43e1af6e4d6745c8d700e799a29f76dd5fc9ee8a0064917"
+  },
+  "content/design/review-slices/84d437f4147001b5-shipping-two-origins-cod-1024-01.png": {
+    "bytes": 114096,
+    "sha256": "53740e5e98094d20efb9a4f8ccc662b17303818d3ce539743a6a6eca47daf628"
+  },
+  "content/design/review-slices/84d437f4147001b5-shipping-two-origins-cod-1024-02.png": {
+    "bytes": 64072,
+    "sha256": "ebe0bf5385fa5473c90fc0b9c911a5fbe4c23a939ca5a0eebfcfa3aab28b3d37"
+  },
+  "content/design/review-slices/854dce2279ee91d6-shipping-unavailable-390-01.png": {
+    "bytes": 37735,
+    "sha256": "00bf1ae6d937c1b6ea5f2f66024f5991d8545795962eeb290edd09d3109ee773"
+  },
+  "content/design/review-slices/854dce2279ee91d6-shipping-unavailable-390-02.png": {
+    "bytes": 41066,
+    "sha256": "0ea17ea48334af7b895eef11636bfdb834cab2f88d0e3cb4c555dc78899fd492"
+  },
+  "content/design/review-slices/854dce2279ee91d6-shipping-unavailable-390-03.png": {
+    "bytes": 23998,
+    "sha256": "5973359279b89dd7cd26d48e9961861dbff9b9521cc1a8f560c24b6832c27a62"
+  },
+  "content/design/review-slices/894a04586d5f42ce-contact-390-01.png": {
+    "bytes": 38244,
+    "sha256": "84a195e37f110bcf93f54b53ce6a8d76f24c140cca416b6b9c3108c01ab0caa0"
+  },
+  "content/design/review-slices/894a04586d5f42ce-contact-390-02.png": {
+    "bytes": 41329,
+    "sha256": "9ac244d58866f404139fef4214140ef4418eff692be973c543e0e89140836af5"
+  },
+  "content/design/review-slices/894a04586d5f42ce-contact-390-03.png": {
+    "bytes": 21847,
+    "sha256": "833199faf8f5fdb9298458f029182eca4538c14015ffe4bba2112828964cabca"
+  },
+  "content/design/review-slices/8e5d30b778bae57a-contact-error-390-01.png": {
+    "bytes": 40931,
+    "sha256": "a4962ee5beaa4a0f579ca1dea730ba4729ceca6b575031cd94ea412893d4b40c"
+  },
+  "content/design/review-slices/8e5d30b778bae57a-contact-error-390-02.png": {
+    "bytes": 39195,
+    "sha256": "62ef63e6f6140635d8880631231ba152fbd90afac56efc2f3ed9679384629415"
+  },
+  "content/design/review-slices/8e5d30b778bae57a-contact-error-390-03.png": {
+    "bytes": 26248,
+    "sha256": "2d1ad95582745be9c43d51edc90d2ac0865f2cbfb4188b72f894d47883a9f2de"
+  },
+  "content/design/review-slices/905d69c4c46613ae-contact-1024-01.png": {
+    "bytes": 93233,
+    "sha256": "c27b12036990848c225be174d9478be92a4cf3280ef99f947ebca376a6e181bd"
+  },
+  "content/design/review-slices/905d69c4c46613ae-contact-1024-02.png": {
+    "bytes": 37371,
+    "sha256": "945bbf9443c38231b433bcb373221bcc94340c74e0d283e3e37b5f1dac37110d"
+  },
+  "content/design/review-slices/9cdaa67f3d84baa8-review-two-origins-cod-1440-01.png": {
+    "bytes": 146381,
+    "sha256": "89e4d0cef16187e0de1056f9511050f74d4a8ca6fe3d1cf9a10b30d6bd8bf547"
+  },
+  "content/design/review-slices/9cdaa67f3d84baa8-review-two-origins-cod-1440-02.png": {
+    "bytes": 39436,
+    "sha256": "2e7e3dab06297857b37e52134f0ec4fe2593470191933fde4608c7ef643771dc"
+  },
+  "content/design/review-slices/9ed2bcfac18b6612-shipping-two-origins-prepaid-1024-01.png": {
+    "bytes": 114674,
+    "sha256": "ac14e7f2843e13b042c3f735b0468f652d3d955b65069b29b192744dae23a3ed"
+  },
+  "content/design/review-slices/9ed2bcfac18b6612-shipping-two-origins-prepaid-1024-02.png": {
+    "bytes": 56956,
+    "sha256": "94c2e9e650c776022c01987294e6f40217d4980173444405ad66fb02723ae5a4"
+  },
+  "content/design/review-slices/aab3695108dc8cac-payment-1440-01.png": {
+    "bytes": 62938,
+    "sha256": "a51bc871a72a2f78825fe2115282f02c362373be126abc52e43898e7e5d260e7"
+  },
+  "content/design/review-slices/b8467e18054e0f6b-checkout-expired-390-01.png": {
+    "bytes": 36155,
+    "sha256": "a00d195e47a80273cab51aab5a7fee91fce68a0f9ac0efaeaa623b6cbdd26af0"
+  },
+  "content/design/review-slices/b8467e18054e0f6b-checkout-expired-390-02.png": {
+    "bytes": 268,
+    "sha256": "942b4c8636a19873c67c863827754c58fdce388881ad1ff7800ba461974ede1c"
+  },
+  "content/design/review-slices/b9504f073b5926e2-draft-scope-denied-390-01.png": {
+    "bytes": 28637,
+    "sha256": "1f2af55645b4422fa738432318e798f2c392eb466fc3c3d1a2c144060fe1dae9"
+  },
+  "content/design/review-slices/b9504f073b5926e2-draft-scope-denied-390-02.png": {
+    "bytes": 268,
+    "sha256": "942b4c8636a19873c67c863827754c58fdce388881ad1ff7800ba461974ede1c"
+  },
+  "content/design/review-slices/bde785faa5c93a15-review-two-origins-prepaid-1440-01.png": {
+    "bytes": 143528,
+    "sha256": "524e53e57444db172fd88b238e1ac2d6775f7f9780844b914004fb2185e82812"
+  },
+  "content/design/review-slices/bde785faa5c93a15-review-two-origins-prepaid-1440-02.png": {
+    "bytes": 36366,
+    "sha256": "0f6a12650fa7f90a7056c35d48c04fbf488aa7e15a77bce11744a137f17cac36"
+  },
+  "content/design/review-slices/bfde9fb2a768a8b9-shipping-two-origins-cod-1440-01.png": {
+    "bytes": 153472,
+    "sha256": "bbebc620d637e0aaaef2c9a71a62c088a209d951b85660fc6b59ac8b9dc3826d"
+  },
+  "content/design/review-slices/bfde9fb2a768a8b9-shipping-two-origins-cod-1440-02.png": {
+    "bytes": 29913,
+    "sha256": "d02ec891c1be1af4aa166346e7234bb0a84244d38d446d6901385f43354c9e3e"
+  },
+  "content/design/review-slices/c7d19d89d13e900a-review-768-01.png": {
+    "bytes": 52752,
+    "sha256": "44dc3a5c64055f41ccc07736693810e54c3620067722aa12442553c46ab3901d"
+  },
+  "content/design/review-slices/c7d19d89d13e900a-review-768-02.png": {
+    "bytes": 44752,
+    "sha256": "0a29dc05004db4992a3425d1ae649c95e6a8c6e13fcbfb6899157962f329f95f"
+  },
+  "content/design/review-slices/c7d19d89d13e900a-review-768-03.png": {
+    "bytes": 25226,
+    "sha256": "a1430a3ff8f0f3636ded29ee3923672d2f92e9b6f4c469d665d637e91cee97c6"
+  },
+  "content/design/review-slices/c8c49aca541ec2e7-payment-768-01.png": {
+    "bytes": 48485,
+    "sha256": "709108a6ff4dd458ba49a6800bdc7346cbd6dd6c46ca8050ca8c3ef3219957af"
+  },
+  "content/design/review-slices/c8c49aca541ec2e7-payment-768-02.png": {
+    "bytes": 10226,
+    "sha256": "d906384debefc0777232b9003df7011e47fc3f81bb9a05aa15aa73105f177232"
+  },
+  "content/design/review-slices/cdf7613830e0af8b-contact-1440-01.png": {
+    "bytes": 120303,
+    "sha256": "38cb8ca4b9e50a25834d8ac6c7dd4083b61282afced413f7323b16b05345569f"
+  },
+  "content/design/review-slices/cdf7613830e0af8b-contact-1440-02.png": {
+    "bytes": 12888,
+    "sha256": "bef363cad40a4279ce5d0b819a1adffa054f7f145250b976d8294e9509e83988"
+  },
+  "content/design/review-slices/ce3c662eaea7e672-review-draft-js-390-01.png": {
+    "bytes": 50099,
+    "sha256": "a191f22827bbc5f8388ac1c5fa459248e9e428b71b9e5fe3da01b71eb7d9bef7"
+  },
+  "content/design/review-slices/ce3c662eaea7e672-review-draft-js-390-02.png": {
+    "bytes": 36796,
+    "sha256": "f5771e04ef86826aee8ac14b6e901f620944969456e27aa855f43cd7ab5ebbae"
+  },
+  "content/design/review-slices/ce3c662eaea7e672-review-draft-js-390-03.png": {
+    "bytes": 17968,
+    "sha256": "ed47ca449c044702ce12806040fbe292494a282ff3642fb8dda27298ef9a37d1"
+  },
+  "content/design/review-slices/d4ff4390f555ebb1-review-two-origins-prepaid-768-01.png": {
+    "bytes": 51448,
+    "sha256": "8a8af17ddf0de3413532299091b7f79c00f80f2dbde10daf647753593063b547"
+  },
+  "content/design/review-slices/d4ff4390f555ebb1-review-two-origins-prepaid-768-02.png": {
+    "bytes": 55260,
+    "sha256": "9972b8a638fd52d48bbebfcfb3c606d1c4fa7e52dbe0ab167fafc5430ba5cf4c"
+  },
+  "content/design/review-slices/d4ff4390f555ebb1-review-two-origins-prepaid-768-03.png": {
+    "bytes": 34220,
+    "sha256": "6b1dca9f38af544e8aa569ec8e20ea2203bef34bafbecdf1e04d0fbf40141b18"
+  },
+  "content/design/review-slices/d6a386713d0ee5c6-review-two-origins-cod-390-01.png": {
+    "bytes": 48024,
+    "sha256": "01b2e8823f793d04bbd1dd948f514a2376d30f72bd877125f132f35ca7f868e2"
+  },
+  "content/design/review-slices/d6a386713d0ee5c6-review-two-origins-cod-390-02.png": {
+    "bytes": 53911,
+    "sha256": "8a0700eda08d0513f7f65a1d8ccda4b65e2eafa6a99f4a1ebf0f2b8c68cac918"
+  },
+  "content/design/review-slices/d6a386713d0ee5c6-review-two-origins-cod-390-03.png": {
+    "bytes": 36688,
+    "sha256": "a5820a71198c32b73ad093115c844e9b692738a81ad87ecc7ba7a9ad79896fc8"
+  },
+  "content/design/review-slices/d6a386713d0ee5c6-review-two-origins-cod-390-04.png": {
+    "bytes": 2509,
+    "sha256": "8b68ffa066a822192d5607ab4aa5bf5ca4a1ae865c4d7ad477a95a72d0477068"
+  },
+  "content/design/review-slices/d9b6aa2c53097fba-allocation-changed-390-01.png": {
+    "bytes": 48103,
+    "sha256": "c61998dca37260d9386ba561722665e6c619ad7adcaabd73ad7ef12fbc88625f"
+  },
+  "content/design/review-slices/d9b6aa2c53097fba-allocation-changed-390-02.png": {
+    "bytes": 31368,
+    "sha256": "66661c94a85e70b792f5e220bd126f9b61636589ba97ac08816b5eed0027bfaf"
+  },
+  "content/design/review-slices/da24aba87bacfc17-review-consented-390-01.png": {
+    "bytes": 50111,
+    "sha256": "ac35aa623b965db8d75351d2299b17f92d8163db1408157663c227dce9f4b58f"
+  },
+  "content/design/review-slices/da24aba87bacfc17-review-consented-390-02.png": {
+    "bytes": 37639,
+    "sha256": "4cc7f13621f0f04b9db8de0387a5d2b26a11822d553437e503eb96becc8b6fe0"
+  },
+  "content/design/review-slices/da24aba87bacfc17-review-consented-390-03.png": {
+    "bytes": 16125,
+    "sha256": "b9ddb5caed84bb519509336918a229c23dccc938ec65669bc2aa2b90e6bbbd29"
+  },
+  "content/design/review-slices/dda5943d38853145-payment-unknown-390-01.png": {
+    "bytes": 45533,
+    "sha256": "a80222ae8351f994ae04c63a7fce3532b400d5dc591f28b55a10b6fc2d7540d5"
+  },
+  "content/design/review-slices/dda5943d38853145-payment-unknown-390-02.png": {
+    "bytes": 16788,
+    "sha256": "32c159c2e2c54b682532ac9a6d798c6262b549bf31995f617937bbe4b0e4e38b"
+  },
+  "content/design/review-slices/e31fcdf79f1c0687-draft-conflict-390-01.png": {
+    "bytes": 44665,
+    "sha256": "5eb781e668a0deef98b6972f81c6150e89129c59d1bcb9d7d5da6813eeb6baa6"
+  },
+  "content/design/review-slices/e31fcdf79f1c0687-draft-conflict-390-02.png": {
+    "bytes": 30144,
+    "sha256": "e8d1717068818ab0ef531516b02fe3b67c905faa4d9b02a4669c13dc534aee1c"
+  },
+  "content/design/review-slices/e31fcdf79f1c0687-draft-conflict-390-03.png": {
+    "bytes": 26240,
+    "sha256": "2d5cd2593700af2573e8b6cba928bf1d969f19f66ecc383e057bb8cc884edef9"
+  },
+  "content/design/review-slices/e3d00492abff68a9-shipping-1440-01.png": {
+    "bytes": 133563,
+    "sha256": "1f8e8e6dcdd5892d1488b944e72d27fc7ea25f42fd5b295632afcfe001f8b894"
+  },
+  "content/design/review-slices/e59eafcc23d19e5b-shipping-1024-01.png": {
+    "bytes": 107344,
+    "sha256": "48065d0be5acd72cf24d43dc3048a035caf2db4913109b4b15660d14fe5b999a"
+  },
+  "content/design/review-slices/e59eafcc23d19e5b-shipping-1024-02.png": {
+    "bytes": 22663,
+    "sha256": "e4a28d6ee0fb80095cfebf10c56fadfafa6b21d619e279220a26326351ef0f15"
+  },
+  "content/design/review-slices/e649a461cd11fc8b-shipping-two-origins-cod-390-01.png": {
+    "bytes": 50519,
+    "sha256": "66aea48ab49267fc6f7e5b56afc43600b1e0f1f973ae8a6152ff97cdb42868a5"
+  },
+  "content/design/review-slices/e649a461cd11fc8b-shipping-two-origins-cod-390-02.png": {
+    "bytes": 54828,
+    "sha256": "f4c325f1ba105ee8080a6d32e702fabb7228f1d19897862f7a3852fa6e1b2d8d"
+  },
+  "content/design/review-slices/e649a461cd11fc8b-shipping-two-origins-cod-390-03.png": {
+    "bytes": 33498,
+    "sha256": "8a3f4574ce1aa8ac023d11699cf777a98e94e3c9ed99a1dc19e0dc643f798291"
+  },
+  "content/design/review-slices/f1ec3098b19c3044-shipping-service-changed-390-01.png": {
+    "bytes": 47931,
+    "sha256": "94b54aa95da3acdd3d04388610b802e5cc362d98605e578e4bdeed9e99f040e0"
+  },
+  "content/design/review-slices/f1ec3098b19c3044-shipping-service-changed-390-02.png": {
+    "bytes": 57722,
+    "sha256": "87154038484b2f0e7d95e45738e14b62a8fea261ce61131ebd920f65e61db74b"
+  },
+  "content/design/review-slices/f1ec3098b19c3044-shipping-service-changed-390-03.png": {
+    "bytes": 33858,
+    "sha256": "7cbc712ec4f086900805d296dca80fd15e4cfb64c04e6ccbf5979c08c1707452"
+  },
+  "content/design/review-slices/f37504b13bc3c9e3-order-unknown-390-01.png": {
+    "bytes": 36323,
+    "sha256": "af328b095738f25bc6b7d7cee1cf087a6e4b44e037a42927765e7d2d0968767d"
+  },
+  "content/design/review-slices/f37504b13bc3c9e3-order-unknown-390-02.png": {
+    "bytes": 268,
+    "sha256": "942b4c8636a19873c67c863827754c58fdce388881ad1ff7800ba461974ede1c"
+  },
+  "content/design/review-slices/f570985cffa55b77-review-1024-01.png": {
+    "bytes": 103088,
+    "sha256": "863f05692ddb2bd90f3868512df682609bb731cc39845b18f118c847b9faaa29"
+  },
+  "content/design/review-slices/f570985cffa55b77-review-1024-02.png": {
+    "bytes": 40929,
+    "sha256": "f062401122374e23566901a03067b947b75bde90d804354f818ef1bab9a25683"
+  },
+  "content/design/review-slices/f716fce9fedb7f2c-payment-denied-390-01.png": {
+    "bytes": 31397,
+    "sha256": "3ecad67f0f5e84fcd092dce05a37033781ab99548d77f81b46f02b59efb75173"
+  },
+  "content/design/review-slices/f716fce9fedb7f2c-payment-denied-390-02.png": {
+    "bytes": 268,
+    "sha256": "942b4c8636a19873c67c863827754c58fdce388881ad1ff7800ba461974ede1c"
+  },
+  "content/design/review-slices/f9bf28400f4e9543-shipping-two-origins-cod-768-01.png": {
+    "bytes": 54607,
+    "sha256": "1b6d8dbc0d07e43a10fab59cf31a869bf7e0a6a3999eb81d745966a3de66f0b8"
+  },
+  "content/design/review-slices/f9bf28400f4e9543-shipping-two-origins-cod-768-02.png": {
+    "bytes": 61347,
+    "sha256": "90f2aed052c95ef3a96e3e81bf301ddb5deac29c2c3153a2ed756d2e6c6d392e"
+  },
+  "content/design/review-slices/f9bf28400f4e9543-shipping-two-origins-cod-768-03.png": {
+    "bytes": 27913,
+    "sha256": "19b597645dcfd05368b08715ae2c07c7ff44d05b58584dae271fbf2064ab5223"
+  },
+  "content/design/review-slices/fd8d84d5b8b3ea0e-draft-conflict-nojs-390-01.png": {
+    "bytes": 42944,
+    "sha256": "acd88497a7574d080980452623d4e560c7f58c33119197fd9b3fd30e2d7ade19"
+  },
+  "content/design/review-slices/fd8d84d5b8b3ea0e-draft-conflict-nojs-390-02.png": {
+    "bytes": 39412,
+    "sha256": "31151cce76c73c9abe33211ab22317db12e6fd710c634096a75631f0b83279f7"
+  },
+  "content/design/review-slices/fd8d84d5b8b3ea0e-draft-conflict-nojs-390-03.png": {
+    "bytes": 30155,
+    "sha256": "cc1f4a45aea241d8a5b7222f35773b0808217134e1f33792ad6b4ffa24228fee"
+  },
+  "content/design/review.md": {
+    "bytes": 13620,
+    "sha256": "cf601c408cb09f3abec89f60264950a81be3c0a3f4ac95bcc01773b43b0efec3"
+  },
+  "content/design/reviews/s26-lean-r8.md": {
+    "bytes": 1568,
+    "sha256": "4758ef2fd5639cbc2b4d0915f6793beaecc87827f99d4fee5e1af729f6e33fc0"
+  },
+  "content/design/reviews/s26-preflight-r16-t2-build18.md": {
+    "bytes": 35967,
+    "sha256": "cf24e5ef92ee7036bc4a3f0619fd0d9c26d0fd9116990939640b107d7424b2ef"
+  },
+  "content/design/reviews/s26-preflight-r5.md": {
+    "bytes": 7840,
+    "sha256": "7078c699935f63678f88317cce52c3b403249683cd501e9f68894c54926216aa"
+  },
+  "content/design/reviews/s26-preflight-r6.md": {
+    "bytes": 8079,
+    "sha256": "cefdc29eb56a6a387c35ad1debad40c5b278e2ae8ff20c8815529561bdd6f37e"
+  },
+  "content/design/reviews/s26-render-evidence.md": {
+    "bytes": 9465,
+    "sha256": "f875c9fd52c06b048c831ebdbf2d795524314b7dca1df9acf00f39798dd5aea4"
+  },
+  "content/design/reviews/s26-source-r7.md": {
+    "bytes": 9911,
+    "sha256": "5ee267b4d396f72de7c68f75e04d34e40e9d208837e7db98a4d224123254b7ab"
+  },
+  "content/design/reviews/s26-source-r8.md": {
+    "bytes": 10896,
+    "sha256": "36fa019142d5ee08325c99fe13e4ad46193a54362f7b0d77b618f2c730cf8441"
+  },
+  "content/design/reviews/s26-visual-context.md": {
+    "bytes": 15305,
+    "sha256": "428918e4e01ab74fd42f6c0139e3fe23e38673a493019015e09c9e36ae7da168"
+  },
+  "content/docs/spec/design/refs/tokophi-store-checkout-20261016/1440.png": {
+    "bytes": 43381,
+    "sha256": "7fd4f3de72759aaf677b6154bb1b6b556b63f70fb1e595f237989fc02358ec3d"
+  },
+  "content/docs/spec/design/refs/tokophi-store-checkout-20261016/390.png": {
+    "bytes": 24513,
+    "sha256": "6c7ad9a40b0005fc28bf90ddc182ebdab249109e026345ab878ae08676a4556d"
+  },
+  "content/docs/spec/design/renders/s08/checkout-1440.png": {
+    "bytes": 105542,
+    "sha256": "ddce8b75f9eb050feb38c3a0fef2f7d650e673ad5df3441070f39071446fe2cc"
+  },
+  "content/docs/spec/design/renders/s08/checkout-390.png": {
+    "bytes": 64801,
+    "sha256": "eb50e7721c9d1d13ebc40f1a0697e36974ccaab8a4c4e5f5dbbaf4fac0a9f949"
+  },
+  "content/docs/spec/design/renders/s26/allocation-changed-390.png": {
+    "bytes": 77758,
+    "sha256": "1686e84c5ca39eb328af5c94eb381d5daa6888d36dc472aecbe0001e9e6eb26d"
+  },
+  "content/docs/spec/design/renders/s26/checkout-empty-390.png": {
+    "bytes": 34450,
+    "sha256": "3c77733408d1d4a3498997e1b217fa1fde286caa6ad8ee70801781469c1f7b82"
+  },
+  "content/docs/spec/design/renders/s26/checkout-expired-390.png": {
+    "bytes": 35810,
+    "sha256": "1e457a58031e522ad58ccf2916c27755118b1eb5de1a5cf200e38d4ec31e9b4e"
+  },
+  "content/docs/spec/design/renders/s26/cod-unavailable-390.png": {
+    "bytes": 102390,
+    "sha256": "8dffc6c9b5fe56e83b43ec3fd2f63709f52c85bbca3c066b997defb9254560fd"
+  },
+  "content/docs/spec/design/renders/s26/contact-1024.png": {
+    "bytes": 126638,
+    "sha256": "676e17a4fc163ae5cf7d0e5215a3e8fdf5b2f8660cf99127f94f74887b27d94f"
+  },
+  "content/docs/spec/design/renders/s26/contact-1440.png": {
+    "bytes": 129247,
+    "sha256": "42d486086f9d2b5f275d646a9cf82be025274e66442520e245dee8315f650908"
+  },
+  "content/docs/spec/design/renders/s26/contact-390.png": {
+    "bytes": 99399,
+    "sha256": "508cea888913f660b9ea850953f2dc14b68e22ff6a56a071998f9c37502aa899"
+  },
+  "content/docs/spec/design/renders/s26/contact-768.png": {
+    "bytes": 102186,
+    "sha256": "b1d0dd43a18046e6a4b913b6311e4ed86d8f6fcc7f45a8113f16e9c72bf54360"
+  },
+  "content/docs/spec/design/renders/s26/contact-error-390.png": {
+    "bytes": 101283,
+    "sha256": "7209174a31fb506821ca828dd2b3f3a1f91aa6141ad77c05ed0fa70a19ea2460"
+  },
+  "content/docs/spec/design/renders/s26/contact-nojs-390.png": {
+    "bytes": 96617,
+    "sha256": "9f7f4fb37248d976911debf43b8a6ccea62591a412639da194b08228346f9849"
+  },
+  "content/docs/spec/design/renders/s26/contact-text-200-320.png": {
+    "bytes": 295130,
+    "sha256": "2352c2fffbebef01bc7b36b54c46a6d3143e1e24281e8b4d6b5ee6def2b17c33"
+  },
+  "content/docs/spec/design/renders/s26/contact-text-200-collapsed-320.png": {
+    "bytes": 232493,
+    "sha256": "45381c8f3649dca1a138e9c0f58cd60b3fe55393548ad5de53ab20f16d961f81"
+  },
+  "content/docs/spec/design/renders/s26/draft-conflict-390.png": {
+    "bytes": 96855,
+    "sha256": "586a0948550c56a2cde04ca0535cc2ccaf66034492d39965d464d2d3d3a92968"
+  },
+  "content/docs/spec/design/renders/s26/draft-conflict-nojs-390.png": {
+    "bytes": 110349,
+    "sha256": "c21f9e86b5aad3e6b9b5c5c46c9d9a933ee7701857c0cc275df60d731bc6c857"
+  },
+  "content/docs/spec/design/renders/s26/draft-scope-denied-390.png": {
+    "bytes": 28431,
+    "sha256": "ec7e9706af332608cb63687470973d7ba159a04631770ce7397d37d1d5a9821f"
+  },
+  "content/docs/spec/design/renders/s26/order-unknown-390.png": {
+    "bytes": 36115,
+    "sha256": "6dbe8cd0fcd9abe838dc612bb38dc6b6a9092086b2db34c30dd7ba71895bbc50"
+  },
+  "content/docs/spec/design/renders/s26/payment-1024.png": {
+    "bytes": 60881,
+    "sha256": "f9bfa80a4a761f421f59b826a9dedb45148129547b6c35d905b099c13c03ebcd"
+  },
+  "content/docs/spec/design/renders/s26/payment-1440.png": {
+    "bytes": 62221,
+    "sha256": "11e905d6a6db775ecdaa4707faf8a1f070f1e006ae8cb84169bf8662df3f6f2b"
+  },
+  "content/docs/spec/design/renders/s26/payment-390.png": {
+    "bytes": 56101,
+    "sha256": "33538c4ca522489ed47f093dad02d253df866fe4bbfd3c874ea2f53b7aaf29e5"
+  },
+  "content/docs/spec/design/renders/s26/payment-768.png": {
+    "bytes": 58126,
+    "sha256": "4778650db071b933362e403f5c44023199c179c9b17daa2cd77cf29a1254950a"
+  },
+  "content/docs/spec/design/renders/s26/payment-denied-390.png": {
+    "bytes": 31203,
+    "sha256": "62516af6ce9979c14280374942c12135dea0c4023ec5ff741be5ca6735e89dbb"
+  },
+  "content/docs/spec/design/renders/s26/payment-expired-390.png": {
+    "bytes": 53741,
+    "sha256": "b3bfebff934756b08030e80c1cdeca08828d9163f6396e77eefa2eb369e73173"
+  },
+  "content/docs/spec/design/renders/s26/payment-failed-390.png": {
+    "bytes": 59257,
+    "sha256": "ac1601ad69d90cd72496e558a4541a50232b3e6f1798dce63c6d776a495b51a6"
+  },
+  "content/docs/spec/design/renders/s26/payment-instructions-390.png": {
+    "bytes": 60458,
+    "sha256": "d4075ae69c020e6792d57daf1a82e8a9bd9330d0402f71b2fe3b90fca6f2f9e4"
+  },
+  "content/docs/spec/design/renders/s26/payment-nojs-390.png": {
+    "bytes": 55654,
+    "sha256": "2bbf87544312476cc190b8749066026a1e6d64fa26b85f9d026b50604682c1dd"
+  },
+  "content/docs/spec/design/renders/s26/payment-unknown-390.png": {
+    "bytes": 61144,
+    "sha256": "65aa8c9af8fec22d4f898bdd65b5011c740e36b7e9bf3d3cc05f8b8c40835f77"
+  },
+  "content/docs/spec/design/renders/s26/quote-expired-390.png": {
+    "bytes": 101578,
+    "sha256": "fe1b149b559211fdbbe618676ef0e92acb1c4ee34b3a650b0e3687c353360b73"
+  },
+  "content/docs/spec/design/renders/s26/review-1024.png": {
+    "bytes": 142515,
+    "sha256": "0b02a6f902f06ab970e556eddbc58b8c778e7e7b8139eae8930bc442d74a7063"
+  },
+  "content/docs/spec/design/renders/s26/review-1440.png": {
+    "bytes": 145509,
+    "sha256": "a65fda51d84c179b149296a0a943075ffc0a85adaf0a2d58ef1c165b83337a11"
+  },
+  "content/docs/spec/design/renders/s26/review-390.png": {
+    "bytes": 105235,
+    "sha256": "df63ad43490dc79c5ba90104d304d5d6295bc189b0f610af0edd8a58765cab91"
+  },
+  "content/docs/spec/design/renders/s26/review-768.png": {
+    "bytes": 121336,
+    "sha256": "e87de3f24c2870593877ad092287493c7b5efab76250feff418c1024dbf4cc02"
+  },
+  "content/docs/spec/design/renders/s26/review-consented-390.png": {
+    "bytes": 100398,
+    "sha256": "f5628433785e12d8132d588666569fac62e51995550368f8512b2babd7a55476"
+  },
+  "content/docs/spec/design/renders/s26/review-draft-js-390.png": {
+    "bytes": 100102,
+    "sha256": "5e7e57ef52c0bf5a844d9841da01a66f23aca6550f9b42de3b6f990182c40979"
+  },
+  "content/docs/spec/design/renders/s26/review-draft-nojs-390.png": {
+    "bytes": 98517,
+    "sha256": "28945faf5aea91991dbff4ea59938226d8d8c77e8405f9c768dc10e15a56c23f"
+  },
+  "content/docs/spec/design/renders/s26/review-pending-390.png": {
+    "bytes": 98933,
+    "sha256": "0b703dadf419d867ea06addab4d34b563225fb572d104e6a1f9a94f2c7f80156"
+  },
+  "content/docs/spec/design/renders/s26/review-subsidized-390.png": {
+    "bytes": 108053,
+    "sha256": "87b5fd167aba8af3fa5eeb78ad54f90ce0d3319e92d1db0b2e4ec07550adf0fe"
+  },
+  "content/docs/spec/design/renders/s26/review-two-origins-cod-1024.png": {
+    "bytes": 178583,
+    "sha256": "ca96bb4c907d8f1d5c3a1b1a51a6a6b012dc75743ce836c4e8bede7bd52536aa"
+  },
+  "content/docs/spec/design/renders/s26/review-two-origins-cod-1440.png": {
+    "bytes": 183334,
+    "sha256": "c0e403eeb5f30da793d2702ec3d885ad3ce6214e4ca9919124e48d6df53c7de5"
+  },
+  "content/docs/spec/design/renders/s26/review-two-origins-cod-390.png": {
+    "bytes": 138084,
+    "sha256": "abc86190393ab1d2f019662a10a52d6f1f3518f26b0f97aea4a12fb21726dac5"
+  },
+  "content/docs/spec/design/renders/s26/review-two-origins-cod-768.png": {
+    "bytes": 144175,
+    "sha256": "8340a439cafb9027cc44e43e2efb28668168d81e8ab50a05802205d44bd45a1a"
+  },
+  "content/docs/spec/design/renders/s26/review-two-origins-prepaid-1024.png": {
+    "bytes": 173502,
+    "sha256": "9e5cb0ac7af920d6994334204ea72ce028f49dd21f68d320887f01cf2c28ce52"
+  },
+  "content/docs/spec/design/renders/s26/review-two-origins-prepaid-1440.png": {
+    "bytes": 177247,
+    "sha256": "e35f6007d8f03dae1abf81a7eea67ab88037ad61828d93b196acaabf433e6d2b"
+  },
+  "content/docs/spec/design/renders/s26/review-two-origins-prepaid-390.png": {
+    "bytes": 133061,
+    "sha256": "b597a65fec31e2af1796f2260394e320ec9d58129a58ce14add62c88cda32a9d"
+  },
+  "content/docs/spec/design/renders/s26/review-two-origins-prepaid-768.png": {
+    "bytes": 138347,
+    "sha256": "dd9cea890d24f5313325958c39b6f868bdc988cdfcc1e4ede3fbf4edb5d9a427"
+  },
+  "content/docs/spec/design/renders/s26/shipping-1024.png": {
+    "bytes": 128412,
+    "sha256": "c3056a9ead828d0dcf8e6c5b4a0b01b9f486e9f0109164dde2b7a219360e528a"
+  },
+  "content/docs/spec/design/renders/s26/shipping-1440.png": {
+    "bytes": 131606,
+    "sha256": "c5f62c298401e383a5742d2c46f3745c86ebca2aae476f0422f77e8ac06e3ac9"
+  },
+  "content/docs/spec/design/renders/s26/shipping-390.png": {
+    "bytes": 93874,
+    "sha256": "c11128ff07fd5aece401ebdd45232ab75ef29ead47cbcd51ae09ed016f4b38b9"
+  },
+  "content/docs/spec/design/renders/s26/shipping-768.png": {
+    "bytes": 104717,
+    "sha256": "8b9975d45284efa83b417c2e2ddf8921d054fd78b45d38bb3c11620cec446f81"
+  },
+  "content/docs/spec/design/renders/s26/shipping-return-selected-390.png": {
+    "bytes": 129044,
+    "sha256": "8083b0dacb72fa168bb75c717a0cd16edf162330e9cd94a854d2b33f414c251c"
+  },
+  "content/docs/spec/design/renders/s26/shipping-service-changed-390.png": {
+    "bytes": 135533,
+    "sha256": "92cc6acf373d5f4fcd68deb9bdcd05de045df0e7761d454cee63f1245f3b81f0"
+  },
+  "content/docs/spec/design/renders/s26/shipping-service-restored-390.png": {
+    "bytes": 133852,
+    "sha256": "241c8f3855dcd3bdb42de44b5dfc1097059275a76a0bc1f8b0b9f828eda20189"
+  },
+  "content/docs/spec/design/renders/s26/shipping-subsidized-390.png": {
+    "bytes": 100152,
+    "sha256": "58458ea6349b156780e8c516713e0a087aec87459a7643b7d3f474b92f5da34f"
+  },
+  "content/docs/spec/design/renders/s26/shipping-two-origins-cod-1024.png": {
+    "bytes": 175529,
+    "sha256": "49c8afca16a5d42315d2b6f4dd675c6eddadb2f05541319c02ae97b31ab32ec4"
+  },
+  "content/docs/spec/design/renders/s26/shipping-two-origins-cod-1440.png": {
+    "bytes": 180304,
+    "sha256": "b48ede0ad75ebba4003ed86e45303c11191e859fa3c990c76139fda72e1a1519"
+  },
+  "content/docs/spec/design/renders/s26/shipping-two-origins-cod-390.png": {
+    "bytes": 135789,
+    "sha256": "12f2399f9af1d791604b343b38f5f312376756121597887095a2cca8c4124219"
+  },
+  "content/docs/spec/design/renders/s26/shipping-two-origins-cod-768.png": {
+    "bytes": 141337,
+    "sha256": "187bde21c89e642f472f099d4df6943cc3de9bc8c1f96627f275222630c88502"
+  },
+  "content/docs/spec/design/renders/s26/shipping-two-origins-prepaid-1024.png": {
+    "bytes": 168823,
+    "sha256": "cfe332949482fef9a7679ef8215afde179a3fdbaac581e9ae78b1fb69cac4330"
+  },
+  "content/docs/spec/design/renders/s26/shipping-two-origins-prepaid-1440.png": {
+    "bytes": 172846,
+    "sha256": "f7611d3df2e41c0833ca502bf33727dbfbb422ff59df4b6b2ea801bb29b121c6"
+  },
+  "content/docs/spec/design/renders/s26/shipping-two-origins-prepaid-390.png": {
+    "bytes": 129052,
+    "sha256": "6374fba943760abea4ea53b6ba992f182496acd40d7a6d3f8f221c0c0bf50618"
+  },
+  "content/docs/spec/design/renders/s26/shipping-two-origins-prepaid-768.png": {
+    "bytes": 134978,
+    "sha256": "1e9f50cedbe2f8a9fb342fee99584b6ac09350ff949e6475e0352b3b9e8170c8"
+  },
+  "content/docs/spec/design/renders/s26/shipping-unavailable-390.png": {
+    "bytes": 100697,
+    "sha256": "79a74510092bc588f3d6c2052916ad295b85cbf84ab3b90618bf3a811dca09ba"
+  },
+  "evidence/99ribu-s26-before-round16-log.txt": {
+    "bytes": 490,
+    "sha256": "93ca37162c97152ced42d13434c9ab4b381f05ed347c9089231124630e774a37"
+  },
+  "evidence/99ribu-s26-c0-end-manifest-r1.json": {
+    "bytes": 345877,
+    "sha256": "c4568af8d899f0585b20dbe77bc1f1e655b5835286a748806229bac986272d56"
+  },
+  "evidence/99ribu-s26-help-context-red-r1.txt": {
+    "bytes": 6978,
+    "sha256": "0ba7df1f4e89c2535ee9090ee28f50bbe24924235acbb0a9009b4c1d08b130ca"
+  },
+  "evidence/99ribu-s26-preflight-r6-manifest.json": {
+    "bytes": 46335,
+    "sha256": "83bcdf6681286c448aea086d58800dbde0b826e23c3619b5d1b57922da769600"
+  },
+  "evidence/99ribu-s26-preflight-r6-verified.json": {
+    "bytes": 468,
+    "sha256": "74331f24a919caaed86f4fa351f55cc90d8e42e674a37f46dc09083263d1852e"
+  },
+  "evidence/99ribu-s26-source-review-r7-manifest.json": {
+    "bytes": 269899,
+    "sha256": "9b037071893bad367d75f1dda79c226619743e8610abfec23c36f1601583da0e"
+  },
+  "evidence/99ribu-s26-source-review-r7-parent-audit.json": {
+    "bytes": 916,
+    "sha256": "cc9e919cd6afec455aef2aef6ca92218b4b4beadc75c16b0e57b7639ba9dae1b"
+  },
+  "evidence/99ribu-s26-source-review-r7-verified.json": {
+    "bytes": 1122,
+    "sha256": "a8977a423d0e04c329174d0ef85d78528d8a5c5383369ab6d7db5ff6073d0d85"
+  },
+  "evidence/99ribu-s26-source-review-r8-manifest.json": {
+    "bytes": 323294,
+    "sha256": "674a3655c4ff11e4d77029056c2350c97c6f6e7bb7caf1e5feda248d42c9dbe3"
+  },
+  "evidence/99ribu-s26-source-review-r8-verified.json": {
+    "bytes": 1122,
+    "sha256": "cb36cf9fa6a0000a9a7f564df7bd8fca8128fbffe8e30398c20178acf9736e02"
+  },
+  "evidence/99ribu-s26-t2-r16-build18-verified.json": {
+    "bytes": 9422,
+    "sha256": "0d69bc0de6951711b7cbfe8e9bb9d7f52083da06caf5250356fef135c4307dd7"
+  },
+  "evidence/99ribu-s26-visual-round16-r2-receipt.json": {
+    "bytes": 1038,
+    "sha256": "bdb5ab812f577aede0e1589e2dc14417785953ec752b29e25787af310d948ba0"
+  },
+  "sources/approved-r7/scripts/check-tests.ts": {
+    "bytes": 12975,
+    "sha256": "d5e835a6474128834d93c49ff16d08a4c6ef1c66ecee936dec4d0cee59d951b5"
+  },
+  "sources/approved-r7/src/app/(storefront)/cart/page.tsx": {
+    "bytes": 6436,
+    "sha256": "970016bcbf97fff619e343d35c94b6fed5cff692606bc15c262bde8279d9e28c"
+  },
+  "sources/approved-r7/src/app/(storefront)/checkout/actions.ts": {
+    "bytes": 6940,
+    "sha256": "0e79aabe18d017f7490d808ffba684b39634a95e76f4b5564e2a14d112f6ee1e"
+  },
+  "sources/approved-r7/src/app/(storefront)/checkout/order/[orderId]/page.tsx": {
+    "bytes": 5709,
+    "sha256": "f1a923a3985a0aa9e17c822e143167624c73b9118a93868f9ccb21b769274644"
+  },
+  "sources/approved-r7/src/app/(storefront)/checkout/page.tsx": {
+    "bytes": 1950,
+    "sha256": "9295d211b2d3f512e3d78618c505ab295c1e4a5ad0a8a6d03dd784ebc56ef1d0"
+  },
+  "sources/approved-r7/src/app/(storefront)/help/page.tsx": {
+    "bytes": 1137,
+    "sha256": "c889c468bcc2c39d9041d4ef21f8ab42639e199146c85a71f4afc58224ee14c8"
+  },
+  "sources/approved-r7/src/app/globals.css": {
+    "bytes": 37948,
+    "sha256": "633022c88f1ad20866c72cb84a6a0a243f54da8bf728e843bc2a3e173997a4fb"
+  },
+  "sources/approved-r7/src/components/storefront/cart-forms.tsx": {
+    "bytes": 9548,
+    "sha256": "a073d907a5af268193c5d6dba6222f65c08700548a82f99ea9970f31c4b646c9"
+  },
+  "sources/approved-r7/src/components/storefront/checkout-exit.tsx": {
+    "bytes": 510,
+    "sha256": "08bbf0c611054263d7716b3faa2ce3af36aaf58a941c3ebca53066f7bb85dea4"
+  },
+  "sources/approved-r7/src/components/storefront/checkout-forms.tsx": {
+    "bytes": 29782,
+    "sha256": "9b9406627256b68d6d971af34bb5c39b5553cc0c11c9f2aa2aae950c60a20505"
+  },
+  "sources/approved-r7/src/components/storefront/checkout-frame.tsx": {
+    "bytes": 3201,
+    "sha256": "53dba6fa07bf9ba316df08554ece1890baf815ea680558b7f4cb81eab5c3ecce"
+  },
+  "sources/approved-r7/src/modules/shipping/address.ts": {
+    "bytes": 4042,
+    "sha256": "819d1fdd4d512f3a12aeae31963834605b781363bcf1f25fdbd626f1bb6cb5a0"
+  },
+  "sources/approved-r7/src/modules/storefront/browser.ts": {
+    "bytes": 1771,
+    "sha256": "4d74f303906afbfa8dae833557dbd2be711c221244ab1b411b7a43b664c9048d"
+  },
+  "sources/approved-r7/src/modules/storefront/checkout-draft.ts": {
+    "bytes": 11111,
+    "sha256": "7f7410ef7781949d45ed6fc47497e2cf5f1ccab62bda8449ba019a582c02269c"
+  },
+  "sources/approved-r7/src/modules/storefront/checkout-order.ts": {
+    "bytes": 8937,
+    "sha256": "d6a65a124d3d3359467374319aa606f54cf6dc07f7e34934a505147331452357"
+  },
+  "sources/approved-r7/src/modules/storefront/checkout-signals.ts": {
+    "bytes": 3277,
+    "sha256": "5688caf5abc7159576ed5c1dbf6451dcef8c0aa3317364b01e5bce3703302ac3"
+  },
+  "sources/approved-r7/src/modules/storefront/checkout.ts": {
+    "bytes": 23028,
+    "sha256": "f11e081b392ac1e276c90835531152a1b3c338ffda5761c7520e645bd7dec8a8"
+  },
+  "sources/approved-r7/tests/browser/storefront-cart.test.ts": {
+    "bytes": 50550,
+    "sha256": "a4a67cba1207a4ad7692e473f450716d5177581a2ae68e3682722e9b5d393688"
+  },
+  "sources/approved-r7/tests/browser/storefront-checkout.test.ts": {
+    "bytes": 47930,
+    "sha256": "e09aa9e352d127ad723ee24ae628360453fbafe38178c0dd9893d4c096be1f98"
+  },
+  "sources/approved-r7/tests/integration/storefront-checkout-contract.test.ts": {
+    "bytes": 4430,
+    "sha256": "367123fe5036392e07a4926b62dc40cd33b71f8e190a093b0e948143024f6148"
+  },
+  "sources/approved-r7/tests/integration/storefront-checkout-draft.test.ts": {
+    "bytes": 9649,
+    "sha256": "60ceaa9124393df9296ca2aafd6edd94046ecf4879c890f2772b9cd717579f80"
+  },
+  "sources/approved-r7/tests/integration/storefront-checkout-payment.test.ts": {
+    "bytes": 8005,
+    "sha256": "f2ed880650189e400b5648123ff7824a7dd4e5fd9d56a54465c07ec2e27528dc"
+  },
+  "sources/approved-r7/tests/integration/storefront-checkout-runtime.test.ts": {
+    "bytes": 13663,
+    "sha256": "93dad833ec0f1cbbe62e1288f7e131771d49c6f25a920d3c1aef1a1b85188c7f"
+  },
+  "sources/approved-r7/tests/integration/storefront-checkout-signals.test.ts": {
+    "bytes": 4990,
+    "sha256": "15b8889716cd3bbce221282b26b8775c08c22fe28ad4f553c8912287bbd4f6d7"
+  },
+  "sources/current/scripts/check-tests.ts": {
+    "bytes": 12975,
+    "sha256": "d5e835a6474128834d93c49ff16d08a4c6ef1c66ecee936dec4d0cee59d951b5"
+  },
+  "sources/current/src/app/(storefront)/cart/page.tsx": {
+    "bytes": 6436,
+    "sha256": "970016bcbf97fff619e343d35c94b6fed5cff692606bc15c262bde8279d9e28c"
+  },
+  "sources/current/src/app/(storefront)/checkout/actions.ts": {
+    "bytes": 6940,
+    "sha256": "0e79aabe18d017f7490d808ffba684b39634a95e76f4b5564e2a14d112f6ee1e"
+  },
+  "sources/current/src/app/(storefront)/checkout/order/[orderId]/page.tsx": {
+    "bytes": 5743,
+    "sha256": "93d7a61d1164018e4b43f88bd5eab1b40800c0e71adb4cbbc6279b9f0a0a0fe6"
+  },
+  "sources/current/src/app/(storefront)/checkout/page.tsx": {
+    "bytes": 1950,
+    "sha256": "9295d211b2d3f512e3d78618c505ab295c1e4a5ad0a8a6d03dd784ebc56ef1d0"
+  },
+  "sources/current/src/app/(storefront)/help/page.tsx": {
+    "bytes": 1137,
+    "sha256": "c889c468bcc2c39d9041d4ef21f8ab42639e199146c85a71f4afc58224ee14c8"
+  },
+  "sources/current/src/app/globals.css": {
+    "bytes": 37948,
+    "sha256": "633022c88f1ad20866c72cb84a6a0a243f54da8bf728e843bc2a3e173997a4fb"
+  },
+  "sources/current/src/components/storefront/cart-forms.tsx": {
+    "bytes": 9548,
+    "sha256": "a073d907a5af268193c5d6dba6222f65c08700548a82f99ea9970f31c4b646c9"
+  },
+  "sources/current/src/components/storefront/checkout-exit.tsx": {
+    "bytes": 510,
+    "sha256": "08bbf0c611054263d7716b3faa2ce3af36aaf58a941c3ebca53066f7bb85dea4"
+  },
+  "sources/current/src/components/storefront/checkout-forms.tsx": {
+    "bytes": 29779,
+    "sha256": "3a689a0fad109387d1e54022cfc3a7d18b8c7aec9428a1ef4f21e101930f9634"
+  },
+  "sources/current/src/components/storefront/checkout-frame.tsx": {
+    "bytes": 3279,
+    "sha256": "fc5092db37120aaf54815b628bec45f2bb1fdf8b8316e92d44af62f068ad58f9"
+  },
+  "sources/current/src/modules/shipping/address.ts": {
+    "bytes": 4042,
+    "sha256": "819d1fdd4d512f3a12aeae31963834605b781363bcf1f25fdbd626f1bb6cb5a0"
+  },
+  "sources/current/src/modules/storefront/browser.ts": {
+    "bytes": 1771,
+    "sha256": "4d74f303906afbfa8dae833557dbd2be711c221244ab1b411b7a43b664c9048d"
+  },
+  "sources/current/src/modules/storefront/checkout-draft.ts": {
+    "bytes": 11111,
+    "sha256": "7f7410ef7781949d45ed6fc47497e2cf5f1ccab62bda8449ba019a582c02269c"
+  },
+  "sources/current/src/modules/storefront/checkout-order.ts": {
+    "bytes": 8937,
+    "sha256": "d6a65a124d3d3359467374319aa606f54cf6dc07f7e34934a505147331452357"
+  },
+  "sources/current/src/modules/storefront/checkout-signals.ts": {
+    "bytes": 3277,
+    "sha256": "5688caf5abc7159576ed5c1dbf6451dcef8c0aa3317364b01e5bce3703302ac3"
+  },
+  "sources/current/src/modules/storefront/checkout.ts": {
+    "bytes": 23028,
+    "sha256": "f11e081b392ac1e276c90835531152a1b3c338ffda5761c7520e645bd7dec8a8"
+  },
+  "sources/current/tests/browser/storefront-cart.test.ts": {
+    "bytes": 50550,
+    "sha256": "a4a67cba1207a4ad7692e473f450716d5177581a2ae68e3682722e9b5d393688"
+  },
+  "sources/current/tests/browser/storefront-checkout.test.ts": {
+    "bytes": 48448,
+    "sha256": "08e93227063900a68f93751beddda825636956c7277336d994bab0d367b61e8f"
+  },
+  "sources/current/tests/integration/storefront-checkout-contract.test.ts": {
+    "bytes": 4430,
+    "sha256": "367123fe5036392e07a4926b62dc40cd33b71f8e190a093b0e948143024f6148"
+  },
+  "sources/current/tests/integration/storefront-checkout-draft.test.ts": {
+    "bytes": 9649,
+    "sha256": "60ceaa9124393df9296ca2aafd6edd94046ecf4879c890f2772b9cd717579f80"
+  },
+  "sources/current/tests/integration/storefront-checkout-payment.test.ts": {
+    "bytes": 8005,
+    "sha256": "f2ed880650189e400b5648123ff7824a7dd4e5fd9d56a54465c07ec2e27528dc"
+  },
+  "sources/current/tests/integration/storefront-checkout-runtime.test.ts": {
+    "bytes": 13663,
+    "sha256": "93dad833ec0f1cbbe62e1288f7e131771d49c6f25a920d3c1aef1a1b85188c7f"
+  },
+  "sources/current/tests/integration/storefront-checkout-signals.test.ts": {
+    "bytes": 4990,
+    "sha256": "15b8889716cd3bbce221282b26b8775c08c22fe28ad4f553c8912287bbd4f6d7"
+  },
+  "sources/original/scripts/check-tests.ts": {
+    "bytes": 12921,
+    "sha256": "c79eaf0551647d3cc4f68bb90814735305a77692ccee0799f6ab8aca4adca05d"
+  },
+  "sources/original/src/app/(storefront)/cart/page.tsx": {
+    "bytes": 6225,
+    "sha256": "2721e849d0812310d555d53cb44b077c1c8c9397f16d346a8978f680080f262e"
+  },
+  "sources/original/src/app/(storefront)/checkout/actions.ts": {
+    "bytes": 4411,
+    "sha256": "5aaf35326deb71eee9c6a346e73f0d556c0419f2f3abd61165f5bd6fcc8a0e5b"
+  },
+  "sources/original/src/app/(storefront)/checkout/order/[orderId]/page.tsx": {
+    "bytes": 5426,
+    "sha256": "ffdf1b7309498b55706150fd05ee3cf656aa655c4f65658140a41c41e97d9821"
+  },
+  "sources/original/src/app/(storefront)/checkout/page.tsx": {
+    "bytes": 1873,
+    "sha256": "54ca673b73ec97a73866d90ef02b5706c89ae0fede9c0128ecef96e6d95bea33"
+  },
+  "sources/original/src/app/(storefront)/help/page.tsx": {
+    "bytes": 1137,
+    "sha256": "c889c468bcc2c39d9041d4ef21f8ab42639e199146c85a71f4afc58224ee14c8"
+  },
+  "sources/original/src/app/globals.css": {
+    "bytes": 36610,
+    "sha256": "1d22a667ba3b20f421aa9d224e3e2f883686c204d447910903b19abb5352d096"
+  },
+  "sources/original/src/components/storefront/cart-forms.tsx": {
+    "bytes": 9548,
+    "sha256": "a073d907a5af268193c5d6dba6222f65c08700548a82f99ea9970f31c4b646c9"
+  },
+  "sources/original/src/components/storefront/checkout-forms.tsx": {
+    "bytes": 22757,
+    "sha256": "d8c7489c80f81075831e4c23e7f85fe3bb5bec5aa7e9827214037c2f76c955f2"
+  },
+  "sources/original/src/components/storefront/checkout-frame.tsx": {
+    "bytes": 2084,
+    "sha256": "a536cdde07e8811fff3495042a704e0debc260c512bb8104f12f8b94688c58cd"
+  },
+  "sources/original/src/modules/shipping/address.ts": {
+    "bytes": 4042,
+    "sha256": "819d1fdd4d512f3a12aeae31963834605b781363bcf1f25fdbd626f1bb6cb5a0"
+  },
+  "sources/original/src/modules/storefront/browser.ts": {
+    "bytes": 1771,
+    "sha256": "4d74f303906afbfa8dae833557dbd2be711c221244ab1b411b7a43b664c9048d"
+  },
+  "sources/original/src/modules/storefront/checkout-order.ts": {
+    "bytes": 8937,
+    "sha256": "d6a65a124d3d3359467374319aa606f54cf6dc07f7e34934a505147331452357"
+  },
+  "sources/original/src/modules/storefront/checkout-signals.ts": {
+    "bytes": 3277,
+    "sha256": "5688caf5abc7159576ed5c1dbf6451dcef8c0aa3317364b01e5bce3703302ac3"
+  },
+  "sources/original/src/modules/storefront/checkout.ts": {
+    "bytes": 21071,
+    "sha256": "cb4446474222d87c8c445cfae6ded3bcf5ab78139fa57451a03cf0bd3761861d"
+  },
+  "sources/original/tests/browser/storefront-cart.test.ts": {
+    "bytes": 49428,
+    "sha256": "d5bb76f4ae9252c6c98457478a6874d714d9cce6ca1df71032e59c1e058c8ced"
+  },
+  "sources/original/tests/browser/storefront-checkout.test.ts": {
+    "bytes": 26540,
+    "sha256": "a5676641820982c5cabcc5ea5cdc4d9d76e9330a8c48bb9fae72b86b07d2a64d"
+  },
+  "sources/original/tests/integration/storefront-checkout-contract.test.ts": {
+    "bytes": 4430,
+    "sha256": "367123fe5036392e07a4926b62dc40cd33b71f8e190a093b0e948143024f6148"
+  },
+  "sources/original/tests/integration/storefront-checkout-payment.test.ts": {
+    "bytes": 8005,
+    "sha256": "f2ed880650189e400b5648123ff7824a7dd4e5fd9d56a54465c07ec2e27528dc"
+  },
+  "sources/original/tests/integration/storefront-checkout-runtime.test.ts": {
+    "bytes": 13663,
+    "sha256": "93dad833ec0f1cbbe62e1288f7e131771d49c6f25a920d3c1aef1a1b85188c7f"
+  },
+  "sources/original/tests/integration/storefront-checkout-signals.test.ts": {
+    "bytes": 4990,
+    "sha256": "15b8889716cd3bbce221282b26b8775c08c22fe28ad4f553c8912287bbd4f6d7"
+  }
+}

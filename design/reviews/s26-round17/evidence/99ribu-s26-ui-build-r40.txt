@@ -1,0 +1,341 @@
+COMMAND ['npm', 'run', 'lint']
+npm notice run 99ribu@0.1.0 lint
+npm notice run biome lint src scripts tests next.config.ts drizzle.config.ts --error-on-warnings
+tests/browser/storefront-cart.test.ts:123:21 lint/style/useTemplate  FIXABLE  ━━━━━━━━━━━━━━━━━━━━━━
+
+  i Template literals are preferred over string concatenation.
+  
+    121 │   const draft=await readCatalogRevision(identity.sql,product.id),variant=draft.variants.find(v=>v.id===product.offer_id);assert.ok(variant);
+    122 │   const path=`/product/${product.id}?offer=${product.offer_id}`;await f.page.goto(origin+path);const...
+  > 123 │   await f.page.goto(origin+'/cart');const staleUpdate=f.page.locator('.cart-mutation').filter({has:f.page.locator('input[name=kind][value=update]')});await staleUpdate.getByRole('spinbutton').fill('2');
+        │                     ^^^^^^^^^^^^^^
+    124 │   const principal=await getPrincipal(command(),identity),publication=await readPublicationState(identity,principal,product.id);assert.ok(publication.current);
+    125 │   const otherQuantity=nextQuantity===1?2:1,extra=draft.variants.find(v=>!v.retired&&v.sku.startsWith...
+  
+  i Unsafe fix: Use a template literal.
+  
+    121 121 │     const draft=await readCatalogRevision(identity.sql,product.id),variant=draft.variants.find(v=>v.id===product.offer_id);assert.ok(variant);
+    122 122 │   ...0].quantity,nextQuantity=originalQuantity===1?2:1;
+    123     │ - ··await·f.page.goto(origin+'/cart');const·staleUpdate=f.page.locator('.cart-mutation').filter({has:f.page.locator('input[name=kind][value=update]')});await·staleUpdate.getByRole('spinbutton').fill('2');
+        123 │ + ··await·f.page.goto(`${origin}/cart`);const·staleUpdate=f.page.locator('.cart-mutation').filter({has:f.page.locator('input[name=kind][value=update]')});await·staleUpdate.getByRole('spinbutton').fill('2');
+    124 124 │     const principal=await getPrincipal(command(),identity),publication=await readPublicationState(identity,principal,product.id);assert.ok(publication.current);
+    125 125 │   ...y})),...(variant.image?{image:variant.image}:{})};
+  
+
+tests/browser/storefront-cart.test.ts:141:253 lint/style/useTemplate  FIXABLE  ━━━━━━━━━━━━━━━━━━━━━
+
+  i Template literals are preferred over string concatenation.
+  
+    139 │   await f.page.goto(origin+path);await expect(f.page.getByText('Stok pilihan belum tersedia',{exact:true})).toBeVisible();await expect(f.page.getByRole('button',{name:'Tambah ke keranjang',exact:true})).toBeDisabled();await capture(f.page,'pdp-unavailable-390');
+    140 │   while(quarantined.length){const position=quarantined[0];await move(position.id,'release_quarantine',position.quantity);quarantined.shift();}
+  > 141 │   await f.page.goto(`${origin}/product/${product.id}?offer=${alternate.id}`);await f.page.getByRole('button',{name:'Tambah ke keranjang',exact:true}).click();await expect(f.page.locator('.cart-feedback')).toContainText('ditambahkan');await f.page.goto(origin+'/cart');
+        │                                                                                                                                                                                                                                                             ^^^^^^^^^^^^^^
+    142 │   const retiredLine=f.page.locator('.cart-line').filter({has:f.page.locator(`input[name=variant][value="${alternate.id}"]`)}),retiredForm=retiredLine.locator('.cart-mutation').filter({has:f.page.locator('input[name=kind][value=update]')});await retiredForm.getByRole('spinbutton').fill('2');
+    143 │   const versionPage=await f.context.newPage();await versionPage.goto(origin+'/cart');
+  
+  i Unsafe fix: Use a template literal.
+  
+    139 139 │     await f.page.goto(origin+path);await expect(f.page.getByText('Stok pilihan belum tersedia',{exact:true})).toBeVisible();await expect(f.page.getByRole('button',{name:'Tambah ke keranjang',exact:true})).toBeDisabled();await capture(f.page,'pdp-unavailable-390');
+    140 140 │     while(quarantined.length){const position=quarantined[0];await move(position.id,'release_quarantine',position.quantity);quarantined.shift();}
+    141     │ - ··await·f.page.goto(`${origin}/product/${product.id}?offer=${alternate.id}`);await·f.page.getByRole('button',{name:'Tambah·ke·keranjang',exact:true}).click();await·expect(f.page.locator('.cart-feedback')).toContainText('ditambahkan');await·f.page.goto(origin+'/cart');
+        141 │ + ··await·f.page.goto(`${origin}/product/${product.id}?offer=${alternate.id}`);await·f.page.getByRole('button',{name:'Tambah·ke·keranjang',exact:true}).click();await·expect(f.page.locator('.cart-feedback')).toContainText('ditambahkan');await·f.page.goto(`${origin}/cart`);
+    142 142 │     const retiredLine=f.page.locator('.cart-line').filter({has:f.page.locator(`input[name=variant][value="${alternate.id}"]`)}),retiredForm=retiredLine.locator('.cart-mutation').filter({has:f.page.locator('input[name=kind][value=update]')});await retiredForm.getByRole('spinbutton').fill('2');
+    143 143 │     const versionPage=await f.context.newPage();await versionPage.goto(origin+'/cart');
+  
+
+tests/browser/storefront-cart.test.ts:143:70 lint/style/useTemplate  FIXABLE  ━━━━━━━━━━━━━━━━━━━━━━
+
+  i Template literals are preferred over string concatenation.
+  
+    141 │   await f.page.goto(`${origin}/product/${product.id}?offer=${alternate.id}`);await f.page.getByRole('button',{name:'Tambah ke keranjang',exact:true}).click();await expect(f.page.locator('.cart-feedback')).toContainText('ditambahkan');await f.page.goto(origin+'/cart');
+    142 │   const retiredLine=f.page.locator('.cart-line').filter({has:f.page.locator(`input[name=variant][value="${alternate.id}"]`)}),retiredForm=retiredLine.locator('.cart-mutation').filter({has:f.page.locator('input[name=kind][value=update]')});await retiredForm.getByRole('spinbutton').fill('2');
+  > 143 │   const versionPage=await f.context.newPage();await versionPage.goto(origin+'/cart');
+        │                                                                      ^^^^^^^^^^^^^^
+    144 │   const versionLine=versionPage.locator('.cart-line').filter({has:versionPage.locator(`input[name=variant][value="${alternate.id}"]`)}),versionForm=versionLine.locator('.cart-mutation').filter({has:versionPage.locator('input[name=kind][value=update]')});await versionForm.getByRole('spinbutton').fill('2');
+    145 │   const primary=f.page.locator('.cart-line').filter({has:f.page.locator(`input[name=variant][value="...
+  
+  i Unsafe fix: Use a template literal.
+  
+    141 141 │     await f.page.goto(`${origin}/product/${product.id}?offer=${alternate.id}`);await f.page.getByRole('button',{name:'Tambah ke keranjang',exact:true}).click();await expect(f.page.locator('.cart-feedback')).toContainText('ditambahkan');await f.page.goto(origin+'/cart');
+    142 142 │     const retiredLine=f.page.locator('.cart-line').filter({has:f.page.locator(`input[name=variant][value="${alternate.id}"]`)}),retiredForm=retiredLine.locator('.cart-mutation').filter({has:f.page.locator('input[name=kind][value=update]')});await retiredForm.getByRole('spinbutton').fill('2');
+    143     │ - ··const·versionPage=await·f.context.newPage();await·versionPage.goto(origin+'/cart');
+        143 │ + ··const·versionPage=await·f.context.newPage();await·versionPage.goto(`${origin}/cart`);
+    144 144 │     const versionLine=versionPage.locator('.cart-line').filter({has:versionPage.locator(`input[name=variant][value="${alternate.id}"]`)}),versionForm=versionLine.locator('.cart-mutation').filter({has:versionPage.locator('input[name=kind][value=update]')});await versionForm.getByRole('spinbutton').fill('2');
+    145 145 │   ...=>line.variant_id===product.offer_id).quantity,2);
+  
+
+tests/browser/storefront-cart.test.ts:166:217 lint/style/useTemplate  FIXABLE  ━━━━━━━━━━━━━━━━━━━━━
+
+  i Template literals are preferred over string concatenation.
+  
+    164 │   const empty=await start();try{
+    165 │    const client=new CommerceClient(identity),body={lines:[]},key=randomUUID();assert.equal((await cl...
+  > 166 │ ...00)+1,clock.version);await empty.page.goto(origin+'/cart');await expect(empty.page.getByRole('headin...
+        │                                               ^^^^^^^^^^^^^^
+    167 │   }finally{await close(empty);}
+    168 │   const client=new CommerceClient(identity),body={lines:[{variant_id:product.offer_id,quantity:1,expected_publication_id:product.publication_id}]},key=randomUUID();assert.equal((await client.call('/api/v1/carts',body,{key})).response.status,401);
+  
+  i Unsafe fix: Use a template literal.
+  
+    164 164 │     const empty=await start();try{
+    165 165 │   ...nly:true,sameSite:'Lax' as const,secure:false})));
+    166     │ - ...00)+1,clock.version);await·empty.page.goto(origin+'/cart');await·expect(empty.page.getByRole('headin...
+        166 │ + ...))/1000)+1,clock.version);await·empty.page.goto(`${origin}/cart`);await·expect(empty.page.getByRole(...
+    167 167 │     }finally{await close(empty);}
+    168 168 │     const client=new CommerceClient(identity),body={lines:[{variant_id:product.offer_id,quantity:1,expected_publication_id:product.publication_id}]},key=randomUUID();assert.equal((await client.call('/api/v1/carts',body,{key})).response.status,401);
+  
+
+tests/browser/storefront-cart.test.ts:220:64 lint/style/useTemplate  FIXABLE  ━━━━━━━━━━━━━━━━━━━━━━
+
+  i Template literals are preferred over string concatenation.
+  
+    218 │   await a.getByRole('spinbutton').fill('1');const second=hold();await a.getByRole('button').click();...
+    219 │   cart=await current(f.page);assert.equal(cart.lines.find((l:{product_id:string})=>l.product_id===p....
+  > 220 │   const otherTab=await f.context.newPage();await otherTab.goto(origin+'/cart');await otherTab.locator('.cart-line').filter({has:otherTab.locator(`a[href^="/product/${other.id}?offer="]`)}).getByRole('button',{name:/^Hapus /}).click();await expect(otherTab.locator('.cart-feedback')).toContainText('dihapus');
+        │                                                                ^^^^^^^^^^^^^^
+    221 │   await b.getByRole('button').click();await expect(f.page.locator('.cart-feedback')).toContainText('halaman lain');await expect(f.page.locator('.cart-feedback')).toHaveAttribute('role','alert');await expect(b).toHaveCount(0);assert.equal((await current(f.page)).lines.length,1);await otherTab.close();assert.deepEqual(f.errors,[]);
+    222 │  }finally{for(const release of releases)release();await Promise.allSettled(completed);await close(f);}
+  
+  i Unsafe fix: Use a template literal.
+  
+    218 218 │   ...xpect(b.getByRole('spinbutton')).toHaveValue('3');
+    219 219 │   ...xpect(b.getByRole('spinbutton')).toHaveValue('3');
+    220     │ - ··const·otherTab=await·f.context.newPage();await·otherTab.goto(origin+'/cart');await·otherTab.locator('.cart-line').filter({has:otherTab.locator(`a[href^="/product/${other.id}?offer="]`)}).getByRole('button',{name:/^Hapus·/}).click();await·expect(otherTab.locator('.cart-feedback')).toContainText('dihapus');
+        220 │ + ··const·otherTab=await·f.context.newPage();await·otherTab.goto(`${origin}/cart`);await·otherTab.locator('.cart-line').filter({has:otherTab.locator(`a[href^="/product/${other.id}?offer="]`)}).getByRole('button',{name:/^Hapus·/}).click();await·expect(otherTab.locator('.cart-feedback')).toContainText('dihapus');
+    221 221 │     await b.getByRole('button').click();await expect(f.page.locator('.cart-feedback')).toContainText('halaman lain');await expect(f.page.locator('.cart-feedback')).toHaveAttribute('role','alert');await expect(b).toHaveCount(0);assert.equal((await current(f.page)).lines.length,1);await otherTab.close();assert.deepEqual(f.errors,[]);
+    222 222 │    }finally{for(const release of releases)release();await Promise.allSettled(completed);await close(f);}
+  
+
+tests/browser/storefront.test.ts:22:52 lint/style/useTemplate  FIXABLE  ━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+  i Template literals are preferred over string concatenation.
+  
+    20 │    await expect(help).toHaveAttribute('href','/help#returns');
+    21 │    if(path.startsWith('/category/')){await page.evaluate(()=>document.fonts.ready);await page.screenshot({path:'docs/spec/design/renders/s21/not-found-nojs-390.png'});}
+  > 22 │    await help.click();await expect(page).toHaveURL(origin+'/help#returns');
+       │                                                    ^^^^^^^^^^^^^^^^^^^^^^
+    23 │    await expect(page.getByRole('heading',{name:'Pengembalian',exact:true})).toBeVisible();
+    24 │   }
+  
+  i Unsafe fix: Use a template literal.
+  
+    20 20 │      await expect(help).toHaveAttribute('href','/help#returns');
+    21 21 │      if(path.startsWith('/category/')){await page.evaluate(()=>document.fonts.ready);await page.screenshot({path:'docs/spec/design/renders/s21/not-found-nojs-390.png'});}
+    22    │ - ···await·help.click();await·expect(page).toHaveURL(origin+'/help#returns');
+       22 │ + ···await·help.click();await·expect(page).toHaveURL(`${origin}/help#returns`);
+    23 23 │      await expect(page.getByRole('heading',{name:'Pengembalian',exact:true})).toBeVisible();
+    24 24 │     }
+  
+
+tests/integration/exception-policy.test.ts:74:26 lint/style/useTemplate  FIXABLE  ━━━━━━━━━━━━━━━━━━
+
+  i Template literals are preferred over string concatenation.
+  
+    73 │ test('reasons reject hidden controls and no mutation accepts a stale-shaped revision',()=>{
+  > 74 │  for(const unsafe of ['',reason+'\u202e',reason+'\u0001','x'.repeat(501)]){
+       │                          ^^^^^^^^^^^^^^^
+    75 │   assert.throws(()=>stockDiscrepancyRequest({...report,reason:unsafe}),{code:'INVALID_INPUT'});
+    76 │   assert.throws(()=>exceptionDecisionRequest({expected_version:1,decision:'keep_waiting',reason:unsafe}),{code:'INVALID_INPUT'});
+  
+  i Unsafe fix: Use a template literal.
+  
+    72 72 │   
+    73 73 │   test('reasons reject hidden controls and no mutation accepts a stale-shaped revision',()=>{
+    74    │ - ·for(const·unsafe·of·['',reason+'\u202e',reason+'\u0001','x'.repeat(501)]){
+       74 │ + ·for(const·unsafe·of·['',`${reason}\u202e`,reason+'\u0001','x'.repeat(501)]){
+    75 75 │     assert.throws(()=>stockDiscrepancyRequest({...report,reason:unsafe}),{code:'INVALID_INPUT'});
+    76 76 │     assert.throws(()=>exceptionDecisionRequest({expected_version:1,decision:'keep_waiting',reason:unsafe}),{code:'INVALID_INPUT'});
+  
+
+tests/integration/exception-policy.test.ts:74:42 lint/style/useTemplate  FIXABLE  ━━━━━━━━━━━━━━━━━━
+
+  i Template literals are preferred over string concatenation.
+  
+    73 │ test('reasons reject hidden controls and no mutation accepts a stale-shaped revision',()=>{
+  > 74 │  for(const unsafe of ['',reason+'\u202e',reason+'\u0001','x'.repeat(501)]){
+       │                                          ^^^^^^^^^^^^^^^
+    75 │   assert.throws(()=>stockDiscrepancyRequest({...report,reason:unsafe}),{code:'INVALID_INPUT'});
+    76 │   assert.throws(()=>exceptionDecisionRequest({expected_version:1,decision:'keep_waiting',reason:unsafe}),{code:'INVALID_INPUT'});
+  
+  i Unsafe fix: Use a template literal.
+  
+    72 72 │   
+    73 73 │   test('reasons reject hidden controls and no mutation accepts a stale-shaped revision',()=>{
+    74    │ - ·for(const·unsafe·of·['',reason+'\u202e',reason+'\u0001','x'.repeat(501)]){
+       74 │ + ·for(const·unsafe·of·['',reason+'\u202e',`${reason}\u0001`,'x'.repeat(501)]){
+    75 75 │     assert.throws(()=>stockDiscrepancyRequest({...report,reason:unsafe}),{code:'INVALID_INPUT'});
+    76 76 │     assert.throws(()=>exceptionDecisionRequest({expected_version:1,decision:'keep_waiting',reason:unsafe}),{code:'INVALID_INPUT'});
+  
+
+tests/integration/storefront-purchase.test.ts:46:162 lint/style/useTemplate  FIXABLE  ━━━━━━━━━━━━━━
+
+  i Template literals are preferred over string concatenation.
+  
+    44 │  assert.equal(publicReturnPath('/search?q=Kaos&x-order-token=secret&utm_campaign=sample#private-draft'),'/search?q=Kaos');
+    45 │  const href=new URL(productHref(category,category,source),'http://localhost');assert.equal(href.pathname,`/product/${category}`);assert.equal(href.searchParams.get('offer'),category);assert.equal(href.searchParams.get('from'),source);
+  > 46 │  for(const value of [undefined,null,[],['/search'],'https://outside.invalid/search','//outside.invalid/search','/\\outside.invalid/search','javascript:alert(1)','/api/v1/orders/'+category,'/search?q=a%0Ab','/search?q=\u202e','/search?q='+'x'.repeat(16384)])assert.equal(publicReturnPath(value),null);
+       │                                                                                                                                                                  ^^^^^^^^^^^^^^^^^^^^^^^^^^
+    47 │  assert.equal(new URL(productHref(category,category,'//outside.invalid/'),'http://localhost').searchParams.has('from'),false);
+    48 │ });
+  
+  i Unsafe fix: Use a template literal.
+  
+    44 44 │    assert.equal(publicReturnPath('/search?q=Kaos&x-order-token=secret&utm_campaign=sample#private-draft'),'/search?q=Kaos');
+    45 45 │    const href=new URL(productHref(category,category,source),'http://localhost');assert.equal(href.pathname,`/product/${category}`);assert.equal(href.searchParams.get('offer'),category);assert.equal(href.searchParams.get('from'),source);
+    46    │ - ·for(const·value·of·[undefined,null,[],['/search'],'https://outside.invalid/search','//outside.invalid/search','/\\outside.invalid/search','javascript:alert(1)','/api/v1/orders/'+category,'/search?q=a%0Ab','/search?q=\u202e','/search?q='+'x'.repeat(16384)])assert.equal(publicReturnPath(value),null);
+       46 │ + ·for(const·value·of·[undefined,null,[],['/search'],'https://outside.invalid/search','//outside.invalid/search','/\\outside.invalid/search','javascript:alert(1)',`/api/v1/orders/${category}`,'/search?q=a%0Ab','/search?q=\u202e','/search?q='+'x'.repeat(16384)])assert.equal(publicReturnPath(value),null);
+    47 47 │    assert.equal(new URL(productHref(category,category,'//outside.invalid/'),'http://localhost').searchParams.has('from'),false);
+    48 48 │   });
+  
+
+tests/integration/storefront-purchase.test.ts:46:226 lint/style/useTemplate  FIXABLE  ━━━━━━━━━━━━━━
+
+  i Template literals are preferred over string concatenation.
+  
+    44 │  assert.equal(publicReturnPath('/search?q=Kaos&x-order-token=secret&utm_campaign=sample#private-draft'),'/search?q=Kaos');
+    45 │  const href=new URL(productHref(category,category,source),'http://localhost');assert.equal(href.pathname,`/product/${category}`);assert.equal(href.searchParams.get('offer'),category);assert.equal(href.searchParams.get('from'),source);
+  > 46 │  for(const value of [undefined,null,[],['/search'],'https://outside.invalid/search','//outside.invalid/search','/\\outside.invalid/search','javascript:alert(1)','/api/v1/orders/'+category,'/search?q=a%0Ab','/search?q=\u202e','/search?q='+'x'.repeat(16384)])assert.equal(publicReturnPath(value),null);
+       │                                                                                                                                                                                                                                  ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    47 │  assert.equal(new URL(productHref(category,category,'//outside.invalid/'),'http://localhost').searchParams.has('from'),false);
+    48 │ });
+  
+  i Unsafe fix: Use a template literal.
+  
+    44 44 │    assert.equal(publicReturnPath('/search?q=Kaos&x-order-token=secret&utm_campaign=sample#private-draft'),'/search?q=Kaos');
+    45 45 │    const href=new URL(productHref(category,category,source),'http://localhost');assert.equal(href.pathname,`/product/${category}`);assert.equal(href.searchParams.get('offer'),category);assert.equal(href.searchParams.get('from'),source);
+    46    │ - ·for(const·value·of·[undefined,null,[],['/search'],'https://outside.invalid/search','//outside.invalid/search','/\\outside.invalid/search','javascript:alert(1)','/api/v1/orders/'+category,'/search?q=a%0Ab','/search?q=\u202e','/search?q='+'x'.repeat(16384)])assert.equal(publicReturnPath(value),null);
+       46 │ + ·for(const·value·of·[undefined,null,[],['/search'],'https://outside.invalid/search','//outside.invalid/search','/\\outside.invalid/search','javascript:alert(1)','/api/v1/orders/'+category,'/search?q=a%0Ab','/search?q=\u202e',`/search?q=${'x'.repeat(16384)}`])assert.equal(publicReturnPath(value),null);
+    47 47 │    assert.equal(new URL(productHref(category,category,'//outside.invalid/'),'http://localhost').searchParams.has('from'),false);
+    48 48 │   });
+  
+
+Checked 454 files in 461ms. No fixes applied.
+Found 10 infos.
+EXIT 0
+COMMAND ['npm', 'run', 'typecheck']
+npm notice run 99ribu@0.1.0 typecheck
+npm notice run node --env-file=.env.example node_modules/next/dist/bin/next typegen && tsc --noEmit
+Generating route types...
+✓ Types generated successfully
+EXIT 0
+COMMAND ['npm', 'run', 'build']
+npm notice run 99ribu@0.1.0 build
+npm notice run node --env-file=.env.example scripts/run-local.ts build
+▲ Next.js 16.4.1 (Turbopack)
+✓ Running next.config.ts took 25ms
+
+  Creating an optimized production build ...
+✓ Compiled successfully in 1809ms
+  Running TypeScript ...
+  Finished TypeScript in 4.9s ...
+  Collecting page data using 7 workers ...
+  Generating static pages using 7 workers (0/6) ...
+  Generating static pages using 7 workers (1/6) 
+  Generating static pages using 7 workers (2/6) 
+  Generating static pages using 7 workers (4/6) 
+✓ Generating static pages using 7 workers (6/6) in 228ms
+  Finalizing page optimization ...
+
+Route (app)
+┌ ƒ /
+├ ƒ /_not-found
+├ ƒ /account
+├ ƒ /api/auth/[...all]
+├ ƒ /api/health
+├ ƒ /api/v1/admin/affiliates/[affiliateId]/rates
+├ ƒ /api/v1/admin/categories
+├ ƒ /api/v1/admin/fulfillments
+├ ƒ /api/v1/admin/fulfillments/[fulfillmentId]
+├ ƒ /api/v1/admin/fulfillments/[fulfillmentId]/handover
+├ ƒ /api/v1/admin/fulfillments/[fulfillmentId]/packing
+├ ƒ /api/v1/admin/fulfillments/[fulfillmentId]/preparations
+├ ƒ /api/v1/admin/fulfillments/[fulfillmentId]/reschedules
+├ ƒ /api/v1/admin/inventory
+├ ƒ /api/v1/admin/inventory/lots
+├ ƒ /api/v1/admin/inventory/movements
+├ ƒ /api/v1/admin/inventory/positions
+├ ƒ /api/v1/admin/inventory/transfers
+├ ƒ /api/v1/admin/inventory/transfers/[transferId]
+├ ƒ /api/v1/admin/inventory/transfers/[transferId]/cancellations
+├ ƒ /api/v1/admin/inventory/transfers/[transferId]/dispatches
+├ ƒ /api/v1/admin/inventory/transfers/[transferId]/receipts
+├ ƒ /api/v1/admin/offers/[offerId]/cost-assumption-versions
+├ ƒ /api/v1/admin/orders
+├ ƒ /api/v1/admin/orders/[orderId]
+├ ƒ /api/v1/admin/policy-versions
+├ ƒ /api/v1/admin/products
+├ ƒ /api/v1/admin/products/[productId]
+├ ƒ /api/v1/admin/products/[productId]/contribution-reviews
+├ ƒ /api/v1/admin/products/[productId]/publications
+├ ƒ /api/v1/admin/reconciliation
+├ ƒ /api/v1/admin/reconciliation/[itemId]
+├ ƒ /api/v1/admin/reconciliation/[itemId]/decisions
+├ ƒ /api/v1/admin/reconciliation/[itemId]/matches/[matchId]
+├ ƒ /api/v1/admin/refunds
+├ ƒ /api/v1/admin/refunds/[refundId]
+├ ƒ /api/v1/admin/refunds/[refundId]/reconciliations
+├ ƒ /api/v1/admin/replacements/[replacementId]
+├ ƒ /api/v1/admin/replacements/[replacementId]/bookings
+├ ƒ /api/v1/admin/replacements/[replacementId]/handover
+├ ƒ /api/v1/admin/replacements/[replacementId]/preparations
+├ ƒ /api/v1/admin/replacements/[replacementId]/reservations
+├ ƒ /api/v1/admin/returns
+├ ƒ /api/v1/admin/returns/[returnId]
+├ ƒ /api/v1/admin/returns/[returnId]/decisions
+├ ƒ /api/v1/admin/returns/[returnId]/inspections
+├ ƒ /api/v1/admin/returns/[returnId]/replacements
+├ ƒ /api/v1/admin/role-grants
+├ ƒ /api/v1/admin/settlements/[sourceId]
+├ ƒ /api/v1/admin/shipments
+├ ƒ /api/v1/admin/shipments/[shipmentId]
+├ ƒ /api/v1/admin/shipping-promotions
+├ ƒ /api/v1/admin/shipping-promotions/[promotionId]
+├ ƒ /api/v1/admin/shipping-promotions/[promotionId]/versions
+├ ƒ /api/v1/admin/stock-items
+├ ƒ /api/v1/admin/stock-items/[stockItemId]/cost-versions
+├ ƒ /api/v1/admin/warehouses
+├ ƒ /api/v1/carts
+├ ƒ /api/v1/carts/[cartId]
+├ ƒ /api/v1/carts/[cartId]/lines
+├ ƒ /api/v1/carts/[cartId]/lines/[lineId]
+├ ƒ /api/v1/carts/current
+├ ƒ /api/v1/categories
+├ ƒ /api/v1/checkout/quotes
+├ ƒ /api/v1/checkout/quotes/[quoteId]
+├ ƒ /api/v1/checkout/quotes/[quoteId]/selection
+├ ƒ /api/v1/consent/receipt
+├ ƒ /api/v1/destinations
+├ ƒ /api/v1/funnel/events
+├ ƒ /api/v1/me
+├ ƒ /api/v1/me/reauthentication-proofs
+├ ƒ /api/v1/orders
+├ ƒ /api/v1/orders/[orderId]
+├ ƒ /api/v1/orders/[orderId]/cod-collections
+├ ƒ /api/v1/orders/[orderId]/funnel/events
+├ ƒ /api/v1/orders/[orderId]/payment-attempts
+├ ƒ /api/v1/orders/[orderId]/payment-attempts/[attemptId]
+├ ƒ /api/v1/orders/[orderId]/refunds/[refundId]
+├ ƒ /api/v1/orders/[orderId]/refunds/[refundId]/destinations
+├ ƒ /api/v1/orders/[orderId]/returns
+├ ƒ /api/v1/orders/[orderId]/returns/[returnId]
+├ ƒ /api/v1/orders/[orderId]/returns/eligibility
+├ ƒ /api/v1/products
+├ ƒ /api/v1/products/[productId]
+├ ƒ /api/v1/visitor-sessions
+├ ƒ /cart
+├ ƒ /categories
+├ ƒ /category/[slug]
+├ ƒ /checkout
+├ ƒ /checkout/order/[orderId]
+├ ƒ /help
+├ ƒ /product/[id]
+└ ƒ /search
+
+
+ƒ  (Dynamic)  server-rendered on demand
+
+EXIT 0
+COMMAND ['git', 'diff', '--check']
+EXIT 0
+PASS exact build inputs 271 SHA256 before/after identical; BUILD_ID=1gmFuDzySwDEiiUxgDax_; receipt=/tmp/99ribu-s26-ui-build-r40-manifest.json
+FINAL_EXIT 0

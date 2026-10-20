@@ -1,0 +1,174 @@
+{
+  "version": "7",
+  "dialect": "postgresql",
+  "entries": [
+    {
+      "idx": 0,
+      "version": "7",
+      "when": 1792090968708,
+      "tag": "0000_initialize_app",
+      "breakpoints": true
+    },
+    {
+      "idx": 1,
+      "version": "7",
+      "when": 1792091132106,
+      "tag": "0001_register_app_schema",
+      "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "7",
+      "when": 1792091561218,
+      "tag": "0002_auth_foundation",
+      "breakpoints": true
+    },
+    {
+      "idx": 3,
+      "version": "7",
+      "when": 1792092178263,
+      "tag": "0003_local_outbox",
+      "breakpoints": true
+    },
+    {
+      "idx": 4,
+      "version": "7",
+      "when": 1792092383249,
+      "tag": "0004_preserve_delivered_inbox",
+      "breakpoints": true
+    },
+    {
+      "idx": 5,
+      "version": "7",
+      "when": 1792095431671,
+      "tag": "0005_access_mfa",
+      "breakpoints": true
+    },
+    {
+      "idx": 6,
+      "version": "7",
+      "when": 1792101712606,
+      "tag": "0006_local_fixture_harness",
+      "breakpoints": true
+    },
+    {
+      "idx": 7,
+      "version": "7",
+      "when": 1792102291867,
+      "tag": "0007_durable_job_leases",
+      "breakpoints": true
+    },
+    {
+      "idx": 8,
+      "version": "7",
+      "when": 1792104335000,
+      "tag": "0008_versioned_policies",
+      "breakpoints": true
+    },
+    {
+      "idx": 9,
+      "version": "7",
+      "when": 1792107362747,
+      "tag": "0009_immutable_catalog_drafts",
+      "breakpoints": true
+    },
+    {
+      "idx": 10,
+      "version": "7",
+      "when": 1792109731786,
+      "tag": "0010_physical_inventory",
+      "breakpoints": true
+    },
+    {
+      "idx": 11,
+      "version": "7",
+      "when": 1792114045983,
+      "tag": "0011_prospective_costs_and_publication",
+      "breakpoints": true
+    },
+    {
+      "idx": 12,
+      "version": "7",
+      "when": 1792118878536,
+      "tag": "0012_shipping_promotion_budget",
+      "breakpoints": true
+    },
+    {
+      "idx": 13,
+      "version": "7",
+      "when": 1792126589660,
+      "tag": "0013_checkout_orders",
+      "breakpoints": true
+    },
+    {
+      "idx": 14,
+      "version": "7",
+      "when": 1792140904731,
+      "tag": "0014_immutable_finance",
+      "breakpoints": true
+    },
+    {
+      "idx": 15,
+      "version": "7",
+      "when": 1792141519881,
+      "tag": "0015_order_history_timestamps",
+      "breakpoints": true
+    },
+    {
+      "idx": 16,
+      "version": "7",
+      "when": 1792145248954,
+      "tag": "0016_prepaid_payments",
+      "breakpoints": true
+    },
+    {
+      "idx": 17,
+      "version": "7",
+      "when": 1792148860859,
+      "tag": "0017_canonical_signals",
+      "breakpoints": true
+    },
+    {
+      "idx": 18,
+      "version": "7",
+      "when": 1792153928389,
+      "tag": "0018_cod_collections",
+      "breakpoints": true
+    },
+    {
+      "idx": 19,
+      "version": "7",
+      "when": 1792159889564,
+      "tag": "0019_fulfillment_deadlines",
+      "breakpoints": true
+    },
+    {
+      "idx": 20,
+      "version": "7",
+      "when": 1792169371145,
+      "tag": "0020_settlement_reconciliation",
+      "breakpoints": true
+    },
+    {
+      "idx": 21,
+      "version": "7",
+      "when": 1792344062243,
+      "tag": "0021_returns_refunds",
+      "breakpoints": true
+    },
+    {
+      "idx": 22,
+      "version": "7",
+      "when": 1792352040308,
+      "tag": "0022_replacement_lineage",
+      "breakpoints": true
+    },
+    {
+      "idx": 23,
+      "version": "7",
+      "when": 1792371550203,
+      "tag": "0023_commerce_exceptions",
+      "breakpoints": true
+    }
+  ]
+}

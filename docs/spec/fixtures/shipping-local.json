@@ -1,0 +1,15 @@
+{
+  "version": "local-shipping-v1",
+  "source": "TEST-ONLY",
+  "destinations": [
+    {"id":"test-malang","label":"Contoh tujuan Malang","province":"Jawa Timur","city":"Malang","district":"Kecamatan Contoh A","subdistrict":"Kelurahan Contoh A","postal_code":"00001"},
+    {"id":"test-pontianak","label":"Contoh tujuan Pontianak","province":"Kalimantan Barat","city":"Pontianak","district":"Kecamatan Contoh B","subdistrict":"Kelurahan Contoh B","postal_code":"00002"},
+    {"id":"test-prepaid-only","label":"Contoh tujuan prabayar","province":"Provinsi Contoh","city":"Kota Contoh","district":"Kecamatan Contoh C","subdistrict":"Kelurahan Contoh C","postal_code":"00003"},
+    {"id":"test-no-route","label":"Contoh tujuan tanpa layanan","province":"Provinsi Contoh","city":"Kota Contoh","district":"Kecamatan Contoh D","subdistrict":"Kelurahan Contoh D","postal_code":"00004"}
+  ],
+  "package_policy":{"kind":"upright-stack-v1","maximum_weight_grams":20000,"maximum_dimension_mm":1000,"volumetric_divisor_mm3_per_gram":6000},
+  "services":[
+    {"id":"test-economy","name":"Ekonomi simulasi","supports_cod":false,"local_base_idr":8000,"cross_base_idr":23000,"step_idr":4000},
+    {"id":"test-regular","name":"Reguler simulasi","supports_cod":true,"local_base_idr":10000,"cross_base_idr":25000,"step_idr":5000}
+  ]
+}

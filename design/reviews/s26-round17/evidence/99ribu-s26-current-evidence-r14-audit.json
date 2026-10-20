@@ -1,0 +1,20 @@
+{
+  "buildID": "1gmFuDzySwDEiiUxgDax_",
+  "source29": 29,
+  "buildInputs": 271,
+  "native": 11,
+  "browser": 25,
+  "cart": 16,
+  "failed": 0,
+  "incomplete": 0,
+  "empty": 0,
+  "currentDecodedRenders": 64,
+  "servedScriptCount": 11,
+  "currentSourceDigest": "19af79b9ccb40c0c21d9d42b40f3dcc73a768fa7d1af6859c3b1cac161481e56",
+  "renderManifestSha256": "9fe646200754d1449a3cab6cf68b2d307e483f00a8e2404f8ca68ca5789f7a5c",
+  "auditsCompletedExecutionOnly": true,
+  "allPrior315RenderBytesUnchanged": true,
+  "typecheckExit": 0,
+  "cartRunnerSha256BeforeAfter": "995e091834cabae476c206c4fc8cb4591c9a083ffc93f9bf5a50df57a79fd1ad",
+  "canonicalLogRounds": 16
+}

@@ -1,0 +1,12 @@
+{
+  "ok": true,
+  "verdict": "GO",
+  "manifestSha256": "09929513e4eabd72ed6e40ba3756adb117e07b58bf31556d8d87f988e0b39123",
+  "reportSha256": "a94d0fc073402fdf6fa3dc251f9fcc41869c487f8f9a7c7542836636d1516e71",
+  "fingerprintMismatches": 0,
+  "inspectedSlices": 163,
+  "renders": 59,
+  "references": 4,
+  "canonicalRoundsConsumed": 0,
+  "parentSemanticAuditRequired": true
+}

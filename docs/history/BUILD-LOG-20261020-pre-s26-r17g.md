@@ -1,0 +1,15 @@
+# Build log — Serba 99ribu
+
+Verbatim history under docs/history: BUILD-LOG-20261020-pre-s26-c2.md, pre-s26-r12.md, pre-s26-r17d.md and pre-s26-r17f.md (same prefix). STATUS owns workflow; TASKS is the sole queue.
+
+## 2026-10-20 — S26 compact native allocation correction
+
+Owner personally verified build34 NO-GO for the verbose chooser. Exact105 source/render/context objects are preserved; the raw simulation's older iFK/203 header is retained without claiming a current image binding. Compact per-parcel origin/offer-option quantity/service/fee rows replace repeated included-content and alternate-service prose. Two initial choices retain issued/pending; native details holds the rest. Full private grouping data, real native IDs, always-present parcel inputs, backend pricing/stock and money/Purchase authority stay intact.
+
+Payment header/main/footer align to40rem; Help summaries use hanging SVG/text labels and native radios inherit text sizing with44px labels. Detailed parcel/COD/review content stays intact. Batas pembayaran is persisted native local order expiry, inherited by the local payment attempt;30minutes is local policy, not live-provider data or a fresh UI promise. Native/browser equality/display assertions and a source trace verify that boundary.
+
+Actual bounded R17e separate Claude APPROVE checks all82 fingerprints/four digests and exact105 snapshot. Its completed build38 proof-r12 native11/5/browser25/1/cart16/1 PASS and exact96-object approved source/render/context snapshot remain historical evidence. It does not approve later source changes.
+
+Parent investigated the review's arrow-order P3. Actual full-cycle RED on build38 shows repeated wrong native choice IDs. The two-file correction traverses stable logical native order by dispatching real radio click/change, preserving autosave and focus after remount. Build39 lint/typegen/typecheck/build/diff0 binds271 app inputs and exact29 including test files across all checks. Focused3 GREEN proves full forward/back cycles/focus, hidden choice and JS/no-JS Enter/revert. Actual full proof13 native11/5/browser25/1/cart16/1 PASS and64 fresh decoded renders now bind current39. Separate Claude R17f bounded2 APPROVE, parent-verifies all78/four groups/exact96 snapshot/27 unchanged/full patch and current matrix; reportSHAcdfacb4e…cfdea7. Current200 canonical-method slices and fresh critique are ready; renewed verified preflight, actual canonical/design-gate and final current-union proof remain required.
+
+All failures remain: current35/37 lint, browser41 24PASS1FAIL/positional hidden-locator RED and exact85-object source/partial PNG snapshot, plus the real keyboard RED. Earlier no-JS revert P2/RED1, disclosure diagnostics, lint/type/stock/Enter failures and exact snapshots remain in history/ledger. Stable-ID selection corrected a test; the arrow-cycle failure required a production fix. No force, skips, timeouts/assertions removed, native-validation waiver, global worker drain, canonical17, S27 or Git/live action.

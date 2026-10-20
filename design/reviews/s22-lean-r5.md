@@ -1,0 +1,12 @@
+# S22 lean review — round11 corrections
+
+Author: codex-root (builder; no independent correctness or visual verdict). Reviewed the changed pages/forms/picker/shell/media caller/CSS and guarded browser fixture against the actual source-r5 snapshot. Native writer/schema/pins remain unchanged.
+
+One native option becomes a static fact; invalid selection retains explicit native GET recovery. Multi-option native radios remain explicit, with real guarded published one-/two-unit offers, keyboard/no-JS source continuity and authored-description evidence. Only the exact repeated sample price-basis sentence is omitted; custom descriptions remain. The real new offer requires its own guarded empty cost assumptions; existing HPP/cost history is preserved. The prior UNKNOWN_PACKAGING_IDR failure is retained, not bypassed.
+
+Initial stock guidance and matching publication review reference now use the existing form's notice/error association. Retaining the native error code alongside its existing per-form unresolved outcome avoids duplicate guidance after another line changes; no persisted cart state is copied. Hidden approval quantity, exact unknown/bootstrap intent priority and current native writer stay unchanged. Closed records render static data; activeLines is empty when no mutation forms are displayed, preserving a real expired-write rejection announcement. Native DOM focus/scroll proves the actual approval target above the existing bar. Shared badge/error tokens and a maximum secondary action width replace surface-specific count styling and oversized controls without a new component layer.
+
+No new dependency, helper service, client history stack, cart store, provider claim or financial authority is justified. No further defensible deletion finding. Current native/browser/build proof and actual independent engineering/visual/final gates remain required.
+
+
+Source-r6 P2 correction: derive reviewable from actual current product+offer+publication change before passing the existing warning ID, approval label or hidden quantity mode. The DOM target then exists whenever its association suppresses duplicate copy. Missing/retired offers retain their visible error/input association and removal path; no new state or helper is needed. A guarded stale extra-offer retirement scenario reproduces the missing alert on r22 and retains original quantity/history. Existing fixture quarantines are released exactly before retirement; original primary offer stays live and retired extra history is retained for repeatability.

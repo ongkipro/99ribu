@@ -202,3 +202,65 @@ Every required filtered run must prove a nonzero intended test count and identif
 
 
 Local identity configuration must use one recorded canonical loopback origin (scheme, host and port) consistently across web, browser tests and auth callbacks. Do not alternate localhost and127.0.0.1 while assuming their cookies are shared. Test actual installed Better Auth cookie/origin behavior in the production build; if the chosen secure transport needs local TLS, verify and document that local setup. Never relax production trusted origins, session validation or CSRF globally to make a local test pass.
+
+
+## S01–S02 implementation record — 2026-10-16
+
+The canonical repository foundation now uses the separately inspected `create-next-app@16.4.1` API template, exact direct dependencies and a lockfile. See root README for the actual command/version registry. The local launcher and Next config enforce the canonical `http://127.0.0.1:3099` listener/profile; config tests reject absent/live/mixed modes, provider settings and non-isolated database URLs. PostgreSQL 18.6 is selected for S03, with loopback port 5499 and isolated local/test database names; its runtime/migration proof remains pending. Lifecycle install scripts are disabled; Node's built-in runner exercises the configuration/startup boundary. No application UI, login, domain transaction or worker acceptance follows from this bootstrap.
+
+The owner additionally confirmed SVG-only functional iconography and concise, specific product copy without emoji/emoticon decoration or AI filler. The design-system contract owns this rule; AGENTS carries it into future implementation slices.
+
+
+S03 refinement — the planned local TCP database port was superseded before use by a private Unix-socket profile on this POSIX host. Docker network_mode none, no published ports, owner-only parent/socket permissions and separate database/application roles isolate the synthetic data without creating or reading credentials. The official image's3775 socket directory remains behind a0700 parent and its socket is0700. Same-user/root isolation and production credential policy are not claimed. Root README owns exact start/migrate/stop commands and the pinned image digest remains in compose.yaml.
+
+
+## S11 implemented local identity/clock harness
+
+Root README registers the executable fixture command and integration-only seed-foundation selector. Apply additive migration0006 to isolated local/test databases; existing migrations0000–0005 are unchanged. Seed creates only its explicitly named synthetic identity/warehouse dataset, preserves rerun state and provides no reset/import/live mode. Concurrent first runs serialize. Private credentials/factors/URLs are neither printed nor stored in execution artifacts. Recover seeded accounts through real auth and durable local delivery; rendered recovery remains its frontend slice.
+
+Clock advancement is per namespace, positive, bounded to366 days per call and compare-and-set versioned. It never changes the OS clock or real session, MFA or recovery-token expiry. A copied namespace or clock does not grant application access. Domain scenario consumers must explicitly bind the trusted local namespace clock. The S11 integration suite proves real PostgreSQL identity/rerun/concurrency, auth/MFA, worker delivery, inbox isolation, clock conflict/reconnect and invalid target/reset refusal. This checkpoint does not claim the fourteen later provider/business scenarios or full localhost acceptance.
+
+
+## S12 implemented worker claim/recovery primitives
+
+Root README registers the integration-only PR-16 primitive checkpoint. Additive migration0007 enlarges the existing outbox status constraint and adds lease/dispatch/attempt/receipt fields; no history or business row is removed. Existing atomic notification worker tests remain required. Leased outside-transaction calls use30-second ownership tokens and a25-second abortable deadline. Unstarted expiry may requeue within the finite cap; started expiry or a thrown/malformed/timeout response becomes unknown. Reconciliation claims the original identity and delays unresolved lookups30 seconds. Only verified no-effect/final result settles it; failed dead letters retain their row.
+
+Controlled test workers use real independent PostgreSQL connections/processes and committed barriers before SIGKILL, without sleep-based race assumptions or host-clock changes. Tests inspect effect/receipt counts, lease fencing, restart, no redispatch after a committed unknown effect, safe backoff and exhausted attempts. No live provider protocol or automatic bank transfer is inferred. Domain handler registration, issued receipt verification and full PR-16 economic invariants remain later consuming proof.
+
+
+## S13 policy/version and contract-tool checkpoint
+
+Apply reviewed additive migration0008 to both isolated databases. Historical policy versions reject update/delete; stream scope is immutable and head revision requires its appended version. Reproducible tests preserve history and archive only their own calendar warehouses. Root README owns PR-20 integration/browser commands and hash-pinned local format-tool setup. Source remains unchanged after final code checks; fresh document-sensitive traceability binds the final review surface.
+
+S13 proofs include owner/MFA and all-role denial, two-owner conflict, request/response contracts, old immutable version lookup, TEST-ONLY calendar/purpose/warehouse binding and proof expiry during an observed database lock wait. They do not substitute for future actual order/commission/payout snapshot checks or production calendar approval. Sunday/cutoff and authoritative holiday activation retain their prior production gate. No external dispatch, secrets or remote deployment is involved.
+
+## S15 inventory worker/migration checkpoint
+
+Migration0010 is applied to both isolated local/test databases and immutable; any corrective SQL requires a new migration. Apply it before starting the inventory-aware worker because its selector references actual reservation/fixture tables. Database-only expiry processes a locked outbox row, releases the exact hold and records completion in one transaction. Its recoverable savepoint checks deferred inventory constraints before completing. Database timeout/deadlock/lock failures retry with capped1–60 second backoff and a finite max_attempts; malformed/state-invalid work becomes a retained failed row. No external provider is called.
+
+Explicit fixture-clock deadlines may override a future wall schedule only when last_error is null; a retry delay always takes precedence. Not-yet-due work reschedules without consuming attempts. Tests launch actual workers and a shared production-processor crash fixture, kill only their controlled child after effect/completion but before commit, then prove one committed release after restart. A real100ms PostgreSQL timeout proves rollback, backoff and the attempt cap while another connection holds the actual stock row. No host clock, authentication clock or OS service is changed.
+
+## S16 applied costs/publication checkpoint
+
+Migration0011 is applied to both isolated databases and immutable. Candidate/applied rollback-only proof exercises exact source/version/completeness/arithmetic/history/sealing and owner exception restrictions. It adds six tables without rewriting earlier migrations. Current app schema has42 tables. The registered PR-19 selector executes9 native tests across4 files and one built Chromium flow; required empty/skipped/TODO and missing dependencies still fail.
+
+Actual core proofs use PostgreSQL locks and real cookie/MFA/grant replacement for concurrent cost/publication reviewers, revoked finance permission and warehouse-scoped publication recovery. Browser proof includes actual unknown-cost transition and product-bound owner reauthentication through the built handlers. Synthetic browser auth bucket cleanup is limited to the isolated loopback profile; production rate controls remain enabled. Public storefront/admin visual work is not changed here. Final bound independent R3 review is required before S16 acceptance; no remote deployment/provider compatibility is inferred.
+
+
+## S17 implemented boundary
+
+S17 additive0012_shipping_promotion_budget.sql and its snapshot were probed rollback-only before isolated local/test apply. Applied0000–0012 remain immutable;51 actual tables each. Worker promotion expiry uses the actual shared transaction/savepoint/completion path, scenario-aware due selection with retry-backoff preservation and finite dead letters. S63 must detect failed expiry jobs with active holds and provide explicit operator recovery; ordinary live release remains unauthorized.
+
+
+## S18 host seed runtime
+
+No migration is introduced; immutable0000–0012 remain51 actual tables per isolated target. fixture commerce is a developer-host command using repository auth acceptance helpers, not a container startup hook or public route. Its temporary synthetic verified/MFA operator is removed after the run, with generated private material confined to memory. It never resets existing credentials/roles/clock. Dedicated transaction advisory locking outside the domain pool plus unique natural identities allows rerun after partial domain commits; an expired initial stock hold is preserved, not extended. Missing current policy or unknown cost leaves draft/blocker metadata. Actual localhost commerce-demo, native7 and built SVG browser1 are required evidence; historical fixture money/provider events remain input-only until owned domain scenarios execute.
+
+Seed CLI does not reset shared loopback auth rate limits. SIGINT/SIGTERM abort and clean up the exact temporary operator; real auth sessions retain normal refreshable Better Auth7-day expiry. SIGKILL/host failure can leave a namespace-tagged synthetic account and active session until normal expiry or explicit scoped revocation, requiring S63 inspection/recovery. The actual client10s statement timeout bounds advisory lock waits; no permanent domain-pool reservation is used. Native proof includes six simultaneous blocked callers, preserved sign-in limit, and SIGTERM while a verified/MFA operator waits on the namespace lock.
+
+
+## S20 acceptance and additive migration boundary
+
+Review candidate0013 before applying to isolated test/local PostgreSQL;0000–0012 remain byte-for-byte immutable. Rollback-only SQL probes must reject partial/seal failures, changed history, foreign quote/fulfillment/lot links, invalid money and unapplied transitions. Real HTTP/domain/browser checks cover normal wall time plus explicit host scenario clocks, guest bootstrap, current account/context/capability isolation, revoked/expired/wrong-purpose/mixed credentials, version/publication/rate/promotion/stock conflicts and duplicate/concurrent/unknown-result submit recovery. No credential-bearing HAR/trace/log artifacts.
+
+Built localhost browser evidence establishes transport behavior; checkout UI belongs to S26 and storefront S21/S22. Rate phase has a bounded total acceptance deadline with each request using the remaining budget. Recipient/address input rejects control and bidi-format characters before later shipping labels. Worker crash/rollback/racing expiry must conserve both holds and order event/job effects. Independent actual R3 review binds the final surface before S20 acceptance. No live provider, payment, DNS, release or remote deployment is authorized.

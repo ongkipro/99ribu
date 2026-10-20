@@ -1,15 +1,18 @@
 #!/usr/bin/env python3
-"""Check draft contract structure and synthetic schema scenarios, never live APIs.
+"""Check contract structure, implementation inventory and synthetic schema scenarios.
 Requires the already available PyYAML and jsonschema packages.
 """
 from pathlib import Path
 import copy
 import json
 import re
+import sys
 import yaml
-from jsonschema import Draft202012Validator, FormatChecker
+from jsonschema import Draft202012Validator
 
 ROOT = Path(__file__).resolve().parents[1]
+sys.path.insert(0, str(ROOT.parents[1] / 'tests/contract'))
+from schema_formats import FORMATS
 spec = yaml.safe_load((ROOT / 'openapi.yaml').read_text())
 checks = 0
 
@@ -37,6 +40,7 @@ def walk(node):
             walk(item)
 
 walk(spec)
+implemented = {}
 operation_ids = set()
 operations = []
 for path, methods in spec['paths'].items():
@@ -44,7 +48,40 @@ for path, methods in spec['paths'].items():
         operations.append((path, method, operation))
         check(operation['operationId'] not in operation_ids, 'unique operationId')
         operation_ids.add(operation['operationId'])
-        check(operation.get('x-contract-status') == 'proposal', 'new routes are explicitly proposed')
+        status = operation.get('x-contract-status')
+        check(status in ('proposal', 'implemented-local'), 'operation implementation status is explicit')
+        check(operation.get('x-domain-owner') in spec['x-operation-owners'], 'operation has registered domain ownership')
+        if status == 'implemented-local':
+            route = operation.get('x-implementation')
+            check(route == 'src/app/api/v1' + re.sub(r'\{([^}]+)\}', r'[\1]', path) + '/route.ts', 'implemented route maps exactly to its adapter')
+            check((ROOT.parents[1] / route).is_file(), 'implemented adapter exists')
+            implemented[(path, method)] = route
+            group = spec['x-proof-groups'].get(operation.get('x-proof-group'))
+            check(group is not None, 'implemented operation has registered contract proof group')
+            for lane in ('integration', 'browser'):
+                check((ROOT.parents[1] / group[lane]).is_file(), 'proof group owns a real test entry')
+            if operation.get('x-proof-group') == 'checkout':
+                scoped = [{'sessionCookie': []}, {'commerceGuest': [], 'cartCookie': []}, {'commerceGuest': [], 'cartAccess': []}]
+                expected = [] if path == '/destinations' else [{'sessionCookie': []}, {'commerceGuest': []}, {}] if path == '/carts' else scoped[:2] if path == '/carts/current' else [{'sessionCookie': []}, {'commerceGuest': [], 'orderCookie': []}, {'orderAccess': []}] if path == '/orders/{orderId}' else scoped
+                check(operation['security'] == expected, 'checkout has exact issued scoped transports')
+            elif operation.get('x-proof-group') in ('payments', 'cod'):
+                check(operation['security'] == [{'sessionCookie': []}, {'commerceGuest': [], 'orderCookie': []}, {'orderAccess': []}], 'payment attempts retain exact issued order transports')
+            elif operation.get('x-proof-group') == 'advertising':
+                visitor = {'visitorSession': []}
+                expected = [] if path == '/visitor-sessions' else [{'sessionCookie': [], **visitor}, {'commerceGuest': [], 'orderCookie': [], **visitor}, {'orderAccess': [], **visitor}] if path == '/orders/{orderId}/funnel/events' else [visitor, {'sessionCookie': [], **visitor}]
+                if path == '/funnel/events':
+                    expected += [{'commerceGuest': [], 'cartCookie': [], **visitor}, {'commerceGuest': [], 'cartAccess': [], **visitor}, {'orderAccess': [], **visitor}]
+                check(operation['security'] == expected, 'signals retain exact purpose and conditional resource authority')
+            elif operation.get('x-proof-group') == 'returns':
+                expected = [{'sessionCookie': []}, {'commerceGuest': [], 'orderCookie': []}] if path.startswith('/orders/') else [{'sessionCookie': []}]
+                check(operation['security'] == expected, 'returns retain exact current cookie-only buyer/staff authority')
+            elif operation.get('x-proof-group') == 'storefront':
+                check(operation['security'] == [], 'public storefront read never requires a session')
+            else:
+                check(operation['security'] == [{'sessionCookie': []}], 'admin/access retains only implemented session cookie transport')
+            check('503' in operation['responses'], 'dependency failure is documented')
+        else:
+            check('x-implementation' not in operation, 'proposal does not claim executable adapter')
         check('security' in operation, 'security is explicit per operation')
         params = [resolve(x['$ref']) if '$ref' in x else x for x in operation.get('parameters', [])]
         check({x['name'] for x in params if x['in'] == 'path'} == set(re.findall(r'\{([^}]+)\}', path)), 'path parameters match template')
@@ -60,7 +97,18 @@ for path, methods in spec['paths'].items():
             check(all(x and not ({'cartAccess', 'orderAccess'} & set(x)) for x in operation['security']), 'guest capability cannot authorize account history')
 check(not any('withdraw' in x.lower() for x in spec['paths']), 'no manual affiliate withdrawal route')
 check(all(not any(word in path for word in ('virgo', 'mengantar', '/webhooks')) for path in spec['paths']), 'unverified vendor/webhook contract is not fabricated')
-check(all('localhost' in s['url'] for s in spec['servers']), 'no deployed API host claimed')
+check([s['url'] for s in spec['servers']] == ['http://127.0.0.1:3099/api/v1'], 'fixed actual loopback origin, no deployed API host claimed')
+actual_routes = set()
+for route in (ROOT.parents[1] / 'src/app/api/v1').rglob('route.ts'):
+    path = '/' + re.sub(r'\[([^]]+)\]', r'{\1}', str(route.parent.relative_to(ROOT.parents[1] / 'src/app/api/v1')))
+    for method in re.findall(r'export\s+(?:async\s+)?function\s+(GET|POST|PUT|PATCH|DELETE)\b', route.read_text()):
+        actual_routes.add((path, method.lower()))
+check(actual_routes == set(implemented), 'every versioned adapter has exact implemented contract ownership')
+check(spec['components']['securitySchemes']['sessionCookie']['name'] == '99ribu-local.session_token', 'actual local cookie name')
+for name in ('bearerAuth', 'supportSession'):
+    check(spec['components']['securitySchemes'][name]['x-transport-status'] == 'proposal-unissued', 'unsupported transports never claim issuance')
+check(spec['components']['securitySchemes']['visitorSession']['name'] == '99ribu-local.visitor', 'actual purpose-only visitor cookie name')
+check(spec['components']['securitySchemes']['visitorSession']['x-transport-status'] == 'implemented-local', 'visitor issuance has real local authority')
 
 # Convert internal component refs to one JSON Schema document for example checks.
 def remap(node):
@@ -72,26 +120,75 @@ def remap(node):
 
 def valid(name, instance, expected=True):
     schema = {'$ref': '#/$defs/' + name, '$defs': remap(spec['components']['schemas'])}
-    validator = Draft202012Validator(schema, format_checker=FormatChecker())
+    validator = Draft202012Validator(schema, format_checker=FORMATS)
     result = validator.is_valid(instance)
     check(result == expected, f'{name} synthetic example expected valid={expected}')
 
-valid('CartLineInput', {'variant_id': 'synthetic-variant', 'quantity': 1})
+valid('CartLineInput', {'variant_id': 'synthetic-variant', 'quantity': 1, 'expected_publication_id': 'synthetic-publication'})
 valid('CartLineInput', {'variant_id': 'synthetic-variant', 'quantity': 0}, False)
 valid('CartLineInput', {'variant_id': 'synthetic-variant', 'quantity': 1, 'price': 1}, False)
 valid('CartLineUpdate', {'quantity': 1}, False)
 valid('CartLineUpdate', {'quantity': 1, 'expected_version': 2})
 valid('OrderCreate', {'quote_id': 'synthetic-quote', 'affiliate_id': 'forged'}, False)
-valid('ReturnItemInput', {'order_item_id': 'synthetic-item', 'quantity': 1, 'reason': 'defective'}, False)
-valid('ReturnItemInput', {'order_item_id': 'synthetic-item', 'delivered_fulfillment_item_id': 'synthetic-delivery', 'quantity': 1, 'reason': 'defective'})
+return_unit = {'order_item_id': '00000000-0000-4000-8000-000000000001', 'delivered_fulfillment_item_id': '00000000-0000-4000-8000-000000000002', 'quantity': 1, 'reason': 'defective'}
+valid('ReturnItemInput', {key: value for key, value in return_unit.items() if key != 'delivered_fulfillment_item_id'}, False)
+valid('ReturnItemInput', return_unit)
+valid('ReturnItemInput', {**return_unit, 'quantity': 2}, False)
+valid('ReturnItemInput', {**return_unit, 'delivered_fulfillment_item_id': 'synthetic-delivery'}, False)
+for reason in ['wrong_item', 'damaged', 'defective', 'not_as_described', 'incomplete', 'expired', 'broken_mandatory_seal']:
+    valid('ReturnItemInput', {**return_unit, 'reason': reason})
+valid('ReturnCreate', {'items': [return_unit], 'requested_resolution': 'refund', 'evidence_ids': ['00000000-0000-4000-8000-000000000003']}, False)
+return_goods = {'expected_balance_id': return_unit['delivered_fulfillment_item_id'], 'quantity': 1, 'identity_confirmed': False}
+return_inspection = {'expected_version': 1, 'result': 'record_goods', 'reason': 'SYNTHETIC physical intake', 'items': [{'return_item_id': return_unit['order_item_id'], 'goods': [return_goods]}]}
+valid('ReturnInspection', return_inspection)
+valid('ReturnInspection', {key: value for key, value in return_inspection.items() if key != 'items'}, False)
+valid('ReturnGoodsInput', {**return_goods, 'on_hand_delta': 1}, False)
+valid('ReturnActionResult', {'case_id': return_unit['order_item_id'], 'version': 1, 'status': 'awaiting_goods'})
+valid('ReturnActionResult', {'case_id': return_unit['order_item_id'], 'version': 1, 'status': 'awaiting_goods', 'refund_amount': {'amount': 99000, 'currency': 'IDR'}}, False)
+replacement_create = {'return_item_ids': [return_unit['order_item_id']], 'warehouse_id': return_unit['delivered_fulfillment_item_id'], 'expected_version': 2, 'reason': 'Approved complete original offer'}
+valid('ReplacementCreate', replacement_create)
+valid('ReplacementCreate', {**replacement_create, 'return_item_ids': [return_unit['order_item_id']] * 2}, False)
+for field, value in [('buyer_shipping', 0), ('cod_due', 0), ('status', 'delivered'), ('occurred_at', '2026-10-19T00:00:00.000Z'), ('components', [])]:
+    valid('ReplacementCreate', {**replacement_create, field: value}, False)
+valid('ReplacementAction', {'expected_version': 2, 'reason': 'Retry complete reserve'})
+valid('ReplacementHandover', {'expected_version': 6, 'reason': 'Actual carrier handover'}, False)
+valid('ReplacementHandover', {'expected_version': 6, 'reason': 'Actual carrier handover', 'handover_reference': 'SYNTHETIC-CARRIER-1'})
+replacement = {'id': return_unit['order_item_id'], 'case_id': return_unit['order_item_id'], 'version': 2, 'case_version': 3, 'warehouse_id': return_unit['order_item_id'], 'status': 'awaiting_stock', 'buyer_shipping': 0, 'cod_due': 0, 'booking_id': None, 'prepared_at': None, 'waybill_issued_at': None, 'tracking_number': None, 'handover_at': None, 'packing_due_at': None, 'created_at': '2026-10-19T00:00:00.000Z', 'items': [{'id': return_unit['order_item_id'], 'return_item_id': return_unit['order_item_id'], 'order_item_id': return_unit['order_item_id'], 'quantity': 1, 'original_fulfillment_item_id': return_unit['delivered_fulfillment_item_id'], 'replacement_of': return_unit['delivered_fulfillment_item_id'], 'generation': 1}]}
+valid('Replacement', replacement)
+valid('Replacement', {**replacement, 'cod_due': 99000}, False)
+valid('Replacement', {**replacement, 'recipient_name': 'SYNTHETIC hidden contact'}, False)
+refund_queue = {'return_case_id': return_unit['order_item_id'], 'expected_version': 2, 'reason': 'Approved original received complete offer', 'reauthentication_proof': 'SYNTHETIC-NOT-ISSUED'}
+valid('RefundInput', refund_queue)
+for field in ['expected_version', 'reason', 'reauthentication_proof']:
+    valid('RefundInput', {key: value for key, value in refund_queue.items() if key != field}, False)
+for extra in [{'amount': 99000}, {'paid': True}, {'recipient': 'synthetic'}]:
+    valid('RefundInput', {**refund_queue, **extra}, False)
+refund_recovery = {'action': 'reconcile', 'expected_version': 3, 'reason': 'Read original committed bank result', 'reauthentication_proof': 'SYNTHETIC-NOT-ISSUED'}
+valid('RefundReconciliationInput', refund_recovery)
+valid('RefundReconciliationInput', {**refund_recovery, 'action': 'retry'})
+valid('RefundReconciliationInput', {**refund_recovery, 'status': 'succeeded'}, False)
+valid('RefundReconciliationInput', {**refund_recovery, 'action': 'force_paid'}, False)
+refund_destination = {'destination_source_id': return_unit['order_item_id'], 'expected_version': 1}
+valid('RefundDestinationInput', refund_destination)
+valid('RefundDestinationInput', {**refund_destination, 'bank_account': 'synthetic'}, False)
+refund_result = {'id': return_unit['order_item_id'], 'order_id': return_unit['order_item_id'], 'return_case_id': return_unit['order_item_id'], 'version': 1, 'amount': 99000, 'status': 'awaiting_destination', 'created_at': '2026-10-19T00:00:00.000Z'}
+valid('Refund', refund_result)
+valid('Refund', {**refund_result, 'amount': {'amount': 99000, 'currency': 'IDR'}}, False)
+valid('Refund', {key: value for key, value in refund_result.items() if key != 'version'}, False)
 valid('Money', -1, False)
 valid('Money', 1.5, False)
 valid('Money', 99000)
+valid('DateTime', '2030-01-01T00:00:00Z')
+valid('DateTime', '2026-02-30T00:00:00.000Z', False)
+valid('DateTime', '2030-01-01T25:00:00Z', False)
+check(not FORMATS.conforms('https://example.com/a space', 'uri'), 'URI format is active')
+check(not FORMATS.conforms('a space', 'uri-reference'), 'URI-reference format is active')
 valid('PayoutReconcileInput', {'reason': 'Synthetic verification', 'status': 'succeeded'}, False)
 
 option = {'id': 'synthetic-service', 'courier_name': 'Synthetic carrier', 'service_name': 'Synthetic service', 'shipping_amount': 10000, 'supports_cod': True}
 package = {'id': 'synthetic-package', 'origin_city': 'Synthetic city', 'lines': [{'cart_line_id': 'synthetic-line', 'variant_id': 'synthetic-variant', 'quantity': 1}], 'options': [option], 'selected_option_id': 'synthetic-service', 'merchandise_amount': 99000, 'shipping_amount': 10000, 'subsidy_amount': 0, 'buyer_shipping_amount': 10000}
 quote = {'id': 'synthetic-quote', 'cart_id': 'synthetic-cart', 'cart_version': 1, 'expires_at': '2030-01-01T00:00:00Z', 'payment_method': 'cod', 'packages': [package], 'merchandise_total': 99000, 'shipping_total': 10000, 'subsidy_total': 0, 'buyer_total': 109000, 'currency': 'IDR', 'available_payment_methods': [{'id': 'synthetic-cod', 'label': 'Synthetic COD', 'kind': 'cod', 'action_kind': 'none'}]}
+quote.update({'address': {'recipient_name': 'Synthetic recipient', 'phone': '+6281200000000', 'address_line': 'Synthetic street', 'destination_id': 'test-malang', 'postal_code': '00001', 'province': 'Synthetic province', 'city': 'Synthetic city', 'district': 'Synthetic district', 'subdistrict': 'Synthetic subdistrict', 'destination_version': 'local-shipping-v1', 'source': 'TEST-ONLY'}, 'contact': {'phone': '+6281200000000', 'email': None}, 'source': 'TEST-ONLY', 'selected_allocation_id': 'synthetic-plan', 'allocation_options': [{'id': 'synthetic-plan', 'shipping_total': 10000, 'package_count': 1, 'origins': ['Synthetic city']}]})
 valid('Quote', quote, False)  # COD collect amount cannot be absent.
 quote['packages'][0]['cod_collect_amount'] = 109000
 valid('Quote', quote)
@@ -122,6 +219,18 @@ valid('ManualTransferVerificationInput', {'expected_version': 2, 'transfer_claim
 valid('PayoutEvidenceInput', {'file_name': 'synthetic.pdf', 'media_type': 'application/pdf', 'size_bytes': 10485761}, False)
 check('stock_item_id' in spec['components']['schemas']['StockBalance']['required'], 'physical inventory belongs to component stock item')
 check('waybill_issued_at' in spec['components']['schemas']['Fulfillment']['properties'], 'waybill issuance distinguished from buyer receipt')
+# Original booking cancellation is produced by the carrier callback and is
+# exposed by both existing private response projections. It is not a refund.
+for name in ('Fulfillment', 'AdminShipment'):
+    booking = Draft202012Validator(spec['components']['schemas'][name]['properties']['booking_status'])
+    for state in ('queued', 'acknowledged', 'issued', 'failed', 'cancelled', None):
+        check(booking.is_valid(state), f'{name} accepts produced original booking state {state}')
+    check(not booking.is_valid('refunded'), f'{name} keeps money outcome out of carrier booking state')
+for name in ('Shipment', 'AdminShipment'):
+    parcel_state = Draft202012Validator(spec['components']['schemas'][name]['properties']['status'])
+    for state in ('booking_cancellation_pending', 'booking_cancelled', 'booking_pending', 'booked', 'packed'):
+        check(parcel_state.is_valid(state), f'{name} distinguishes actual current carrier state {state}')
+    check(not parcel_state.is_valid('refunded'), f'{name} keeps carrier cancellation separate from money')
 check(spec['paths']['/admin/payouts/{payoutId}/manual-transfer-verifications']['post']['x-allowed-roles'] == ['owner', 'finance'], 'manual payment evidence restricted to finance')
 # Financial controls: unknown HPP cannot become a complete zero-margin report.
 cost = {'unit_cost': None, 'source': 'Awaiting supplier cost', 'reason': 'Initial setup', 'effective_from': '2030-01-01T00:00:00Z', 'expected_version': 0}
@@ -386,6 +495,16 @@ check(spec['paths']['/support/conversation-searches']['post']['responses']['200'
 # Receipt snapshots cannot depend on subsequently edited catalog/address-book data.
 purchased_item = {'id': 'item-1', 'variant_id': 'variant-1', 'catalog_id': 'catalog-1', 'name': 'Original listing', 'variant_label': 'Original multipack', 'offer_kind': 'multipack', 'contents': [{'stock_item_id': 'component-1', 'name': 'Original component', 'quantity': 2}], 'quantity': 1, 'unit_price': 99000, 'subtotal': 99000, 'returned_quantity': 0}
 valid('OrderItem', purchased_item)
+valid('OrderItem', dict(purchased_item, cancelled_quantity=0))
+valid('OrderItem', dict(purchased_item, cancelled_quantity=1))
+for invalid_cancelled_quantity in [-1, 0.5, '1', True]:
+    valid('OrderItem', dict(purchased_item, cancelled_quantity=invalid_cancelled_quantity), False)
+shipment_unit = {'order_item_id': 'item-1', 'fulfillment_item_id': 'unit-1', 'quantity': 1}
+valid('ShipmentLine', dict(shipment_unit, cancelled=False))
+valid('ShipmentLine', dict(shipment_unit, cancelled=True))
+valid('ShipmentLine', dict(shipment_unit, cancelled='true'), False)
+check(spec['components']['schemas']['OrderItem']['properties']['cancelled_quantity']['readOnly'] is True, 'original cancellation count is a server-derived response fact')
+check(spec['components']['schemas']['ShipmentLine']['properties']['cancelled']['readOnly'] is True, 'occurrence cancellation is a server-derived response fact')
 valid('OrderItem', {k:v for k,v in purchased_item.items() if k != 'contents'}, False)
 valid('OrderItem', dict(purchased_item, unit_price=198000), False)
 valid('OrderItem', dict(purchased_item, offer_kind='unit'), False)
@@ -409,7 +528,7 @@ check(spec['components']['schemas']['ReceiptShipToSnapshot']['readOnly'] is True
 valid('ReceiptShipToSnapshot', dict(ship_to, phone_masked='+6281200000000'), False)
 
 # Explicit catalog draft changes preserve stable identities and never charge components.
-new_offer = {'sku': 'SYNTHETIC-NEW', 'label': 'Two-piece offer', 'attributes': [], 'weight_grams': 100, 'length_mm': 10, 'width_mm': 10, 'height_mm': 10, 'default_warehouse_id': 'warehouse-1', 'offer_kind': 'multipack', 'contents': [{'stock_item_id': 'component-1', 'name': 'Component', 'quantity': 2}]}
+new_offer = {'sku': 'SYNTHETIC-NEW', 'label': 'Two-piece offer', 'attributes': [], 'weight_grams': 100, 'length_mm': 10, 'width_mm': 10, 'height_mm': 10, 'default_warehouse_id': '10000000-0000-4000-8000-000000000001', 'offer_kind': 'multipack', 'contents': [{'stock_item_id': '10000000-0000-4000-8000-000000000002', 'name': 'Component', 'quantity': 2}]}
 offer_update = {k:v for k,v in new_offer.items() if k != 'sku'}
 valid('OfferDraftInput', new_offer)
 valid('OfferUpdateInput', offer_update)
@@ -420,21 +539,152 @@ valid('OfferUpdateInput', dict(offer_update, on_hand=100), False)
 valid('OfferUpdateInput', dict(offer_update, offer_kind='unit'), False)
 valid('OfferUpdateInput', dict(offer_update, weight_grams=0), False)
 valid('OfferDraftChange', {'operation': 'create', 'create': new_offer})
-valid('OfferDraftChange', {'operation': 'update', 'variant_id': 'variant-1', 'update': offer_update})
-valid('OfferDraftChange', {'operation': 'retire', 'variant_id': 'variant-1'})
-valid('OfferDraftChange', {'operation': 'delete', 'variant_id': 'variant-1'}, False)
+valid('OfferDraftChange', {'operation': 'update', 'variant_id': '10000000-0000-4000-8000-000000000003', 'update': offer_update})
+valid('OfferDraftChange', {'operation': 'retire', 'variant_id': '10000000-0000-4000-8000-000000000003'})
+valid('OfferDraftChange', {'operation': 'delete', 'variant_id': '10000000-0000-4000-8000-000000000003'}, False)
 valid('OfferDraftChange', {'operation': 'create', 'variant_id': 'reused-id', 'create': new_offer}, False)
 valid('OfferDraftChange', {'operation': 'update', 'update': offer_update}, False)
-valid('OfferDraftChange', {'operation': 'retire', 'variant_id': 'variant-1', 'update': offer_update}, False)
-product_edit = {'reason': 'Correct future offer contents', 'expected_version': 1, 'variant_changes': [{'operation': 'update', 'variant_id': 'variant-1', 'update': offer_update}]}
+valid('OfferDraftChange', {'operation': 'retire', 'variant_id': '10000000-0000-4000-8000-000000000003', 'update': offer_update}, False)
+product_edit = {'reason': 'Correct future offer contents', 'expected_version': 1, 'variant_changes': [{'operation': 'update', 'variant_id': '10000000-0000-4000-8000-000000000003', 'update': offer_update}]}
 valid('ProductPatch', product_edit)
 valid('ProductPatch', dict(product_edit, expected_version=0), False)
 valid('ProductPatch', {'reason': 'No edit', 'expected_version': 1}, False)
 valid('ProductPatch', dict(product_edit, variant_changes=[]), False)
-valid('ProductPatch', dict(product_edit, variant_changes=[{'operation': 'retire', 'variant_id': 'variant-1'}] * 2), False)
+valid('ProductPatch', dict(product_edit, variant_changes=[{'operation': 'retire', 'variant_id': '10000000-0000-4000-8000-000000000003'}] * 2), False)
 check(any(p.get('$ref') == '#/components/parameters/IdempotencyKey' for p in spec['paths']['/admin/products/{productId}']['patch']['parameters']), 'new offer edits have durable retry identity in addition to optimistic version')
 check(spec['paths']['/admin/products/{productId}']['get']['x-allowed-roles'] == ['owner', 'ecommerce_admin'], 'private draft recovery restricted to catalog roles')
 check('version' in spec['components']['schemas']['Product']['required'], 'catalog draft version is discoverable for optimistic edit/publication')
 
 # Arithmetic, actual authorization and idempotent side effects need later domain/runtime tests.
-print(f'PASS planning contract: {len(spec["paths"])} paths, {len(operations)} operations, {len(spec["components"]["schemas"])} schemas; {checks} structural/schema assertions. No endpoint or provider executed.')
+
+# Implemented shipping configuration uses exact IDR and lifetime budget counters.
+promotion = {'expected_version': 0, 'name': 'Synthetic subsidy', 'active': True,
+    'starts_at': '2030-01-01T00:00:00.000Z', 'ends_at': '2030-02-01T00:00:00.000Z',
+    'kind': 'percentage', 'value': 5000, 'maximum_per_order': 10000, 'minimum_merchandise': 99000,
+    'budget': 100000, 'per_buyer_limit': 2, 'payment_methods': ['prepaid', 'cod'],
+    'region_ids': ['malang'], 'service_ids': ['regular'], 'stacking': 'allowed', 'priority': 10, 'reason': 'Synthetic config'}
+valid('PromotionInput', promotion)
+for patch in [{'value': 10001}, {'budget': -1}, {'value': 1.5}, {'budget': 9007199254740992},
+              {'payment_methods': ['prepaid', 'prepaid']}, {'region_ids': ['bad / id']}, {'clock_namespace': 'client'}]:
+    valid('PromotionInput', dict(promotion, **patch), False)
+check('spent_amount' not in spec['components']['schemas']['Promotion']['properties'], 'campaign commitment never claims posted expense')
+for path in ['/admin/shipping-promotions', '/admin/shipping-promotions/{promotionId}', '/admin/shipping-promotions/{promotionId}/versions']:
+    for operation in spec['paths'][path].values():
+        check(operation['x-proof-group'] == 'promotions' and operation['x-contract-status'] == 'implemented-local', 'promotion wire proof is explicit')
+        check(operation['x-allowed-roles'] == ['owner', 'ecommerce_admin'], 'company promotion delegation is explicit')
+
+# S30's five candidate finance operations share closed source/matching contracts.
+settlement_id = '00000000-0000-0000-0000-000000000001'
+settlement_claim = {'receivable_transaction_id': settlement_id, 'gross_amount': 11}
+settlement_decision = {'action': 'match', 'expected_version': 1, 'expected_match_id': None,
+                       'source_reference': settlement_id, 'reason': 'Synthetic reconciliation',
+                       'allocations': [settlement_claim], 'reauthentication_proof': 'SYNTHETIC-NOT-ISSUED'}
+valid('ReconcileInput', settlement_decision)
+valid('ReconcileInput', dict(settlement_decision, allocations=[settlement_claim] * 100))
+for patch in [{'expected_match_id': 'not-uuid'}, {'source_reference': 'not-uuid'}, {'expected_version': 0},
+              {'expected_version': 2147483648}, {'allocations': []}, {'allocations': [settlement_claim] * 101},
+              {'allocations': [dict(settlement_claim, gross_amount=1.5)]},
+              {'allocations': [dict(settlement_claim, gross_amount=9007199254740992)]},
+              {'allocations': [dict(settlement_claim, reopens_allocation_id='not-uuid')]},
+              {'reason': ''}, {'reason': 'x' * 501}, {'company_cash_received': True}, {'raw_postings': []}]:
+    valid('ReconcileInput', dict(settlement_decision, **patch), False)
+valid('ReconcileInput', {k: v for k, v in settlement_decision.items() if k != 'expected_match_id'}, False)
+for action in ['unmatch', 'escalate']:
+    valid('ReconcileInput', dict(settlement_decision, action=action, allocations=[]))
+    valid('ReconcileInput', dict(settlement_decision, action=action), False)
+valid('SettlementStatementTotals', {'gross_amount': None, 'carrier_fee': None, 'provider_fee': None})
+valid('SettlementStatementTotals', {'gross_amount': 11, 'carrier_fee': 0, 'provider_fee': 2})
+valid('SettlementStatementTotals', {'gross_amount': 0, 'carrier_fee': 0, 'provider_fee': 0}, False)
+valid('SettlementStatementTotals', {'gross_amount': 11, 'carrier_fee': -1, 'provider_fee': 0}, False)
+valid('StaffReauthenticationInput', {'password': 'SYNTHETIC', 'action': 'finance.reconcile', 'subject_id': settlement_id})
+valid('StaffReauthenticationInput', {'password': 'SYNTHETIC', 'action': 'finance.reconcile', 'subject_id': 'not-uuid'}, False)
+valid('StaffReauthenticationInput', {'password': 'SYNTHETIC', 'action': 'finance.refund', 'subject_id': settlement_id})
+valid('StaffReauthenticationInput', {'password': 'SYNTHETIC', 'action': 'finance.refund', 'subject_id': 'not-uuid'}, False)
+for name in ['ReconciliationItem', 'SettlementMatch', 'SettlementAllocation', 'SettlementSourceDetail']:
+    check(spec['components']['schemas'][name]['additionalProperties'] is False, 'finance DTO is closed')
+    check(not {'signature', 'password', 'clock_namespace', 'request_hash'} & set(spec['components']['schemas'][name]['properties']), 'finance DTO excludes private credentials/source signatures')
+check(spec['paths']['/admin/reconciliation/{itemId}/decisions']['post']['x-request-body-limit-bytes'] == 32768,
+      '100-allocation finance body has a bounded32KiB limit')
+
+settlement_history = {'id': settlement_id, 'version': 2, 'kind': 'match', 'status': 'matched',
+                      'source_kind': 'operation', 'source_id': settlement_id,
+                      'actor_id': 'opaque-auth-actor_01', 'source_reference': settlement_id,
+                      'match_id': settlement_id, 'fee_transaction_id': None,
+                      'applied_fee_source_reference': settlement_id, 'problem_code': None,
+                      'reason': 'Synthetic finance decision',
+                      'occurred_at': '2026-10-16T12:00:00.000Z', 'recorded_at': '2026-10-16T12:00:01.000Z'}
+valid('SettlementHistoryEvent', settlement_history)
+valid('SettlementHistoryEvent', dict(settlement_history, actor_id=None, source_kind='provider'))
+valid('SettlementHistoryEvent', dict(settlement_history, actor_id=123), False)
+
+# S33 contract canaries protect financial input and physical identity boundaries;
+# no proposal becomes mounted/runtime evidence through these schema checks.
+recovery_uuid = '00000000-0000-4000-8000-000000000033'
+recovery_proof = {'expected_version': 1, 'reason': 'SYNTHETIC original-source compensation', 'reauthentication_proof': 'synthetic-proof'}
+valid('QueueRecoveryRefundInput', recovery_proof)
+valid('QueueRecoveryRefundInput', {**recovery_proof, 'amount': 99000}, False)
+valid('QueueRecoveryRefundInput', {**recovery_proof, 'paid': True}, False)
+valid('QueueRecoveryRefundInput', {**recovery_proof, 'expected_version': 0}, False)
+recovery_choice = {'exception_id': recovery_uuid, 'expected_version': 1, 'action': 'accept_proposal', 'proposal_id': recovery_uuid}
+valid('BuyerRecoveryActionInput', recovery_choice)
+valid('BuyerRecoveryActionInput', {**recovery_choice, 'destination_source_id': recovery_uuid}, False)
+valid('BuyerRecoveryActionInput', {**recovery_choice, 'bank_account': 'SYNTHETIC unverified text'}, False)
+recovery_destination = {'exception_id': recovery_uuid, 'expected_version': 1, 'action': 'accept_destination', 'refund_id': recovery_uuid, 'destination_source_id': recovery_uuid}
+valid('BuyerRecoveryActionInput', recovery_destination)
+valid('BuyerRecoveryActionInput', {**recovery_destination, 'proposal_id': recovery_uuid}, False)
+recovery_intake = {'exception_unit_id': recovery_uuid, 'stock_item_id': recovery_uuid, 'expected_balance_id': recovery_uuid, 'quantity': 1, 'identity_confirmed': True}
+valid('ExceptionIntakeLine', recovery_intake)
+valid('ExceptionIntakeLine', {**recovery_intake, 'identity_confirmed': False}, False)
+valid('ExceptionIntakeLine', {**recovery_intake, 'identity_confirmed': False, 'stock_item_id': None, 'expected_balance_id': None})
+valid('ExceptionIntakeLine', {**recovery_intake, 'stock_item_id': None}, False)
+for name in ['CommerceException', 'CommerceExceptionUnit', 'BuyerRecoveryCase', 'BuyerRecoveryRefund']:
+    check(spec['components']['schemas'][name]['additionalProperties'] is False, 'recovery projections are closed')
+    check(not {'buyer_total', 'bank_account', 'signature', 'reauthentication_proof', 'source_transaction_id'} & set(spec['components']['schemas'][name]['properties']), 'operational/buyer recovery excludes whole-order/internal financial data')
+recovery_operations = [(path, op) for path, methods in spec['paths'].items() for op in methods.values() if path.startswith('/admin/commerce-exceptions') or path == '/orders/{orderId}/recovery-actions']
+check(len(recovery_operations) == 10, 'S33 owns its complete ten-operation contract')
+for path, op in recovery_operations:
+    check(op['x-primary-requirement'] == 'PR-21', 'exception operations trace to accepted PR21')
+    expected_security = [{'sessionCookie': []}] if path.startswith('/admin/') else [{'sessionCookie': []}, {'commerceGuest': [], 'orderCookie': []}]
+    check(op['security'] == expected_security, 'exception operations use issued cookie authority only')
+
+recovery_component = {'balance_id': recovery_uuid, 'stock_item_id': recovery_uuid, 'expected_balance_version': 0, 'missing_quantity': 1}
+valid('StockDiscrepancyComponentInput', recovery_component)
+valid('StockDiscrepancyComponentInput', {**recovery_component, 'missing_quantity': 0})
+valid('StockDiscrepancyComponentInput', {**recovery_component, 'missing_quantity': 2000000})
+valid('StockDiscrepancyComponentInput', {**recovery_component, 'missing_quantity': 2147483647})
+valid('StockDiscrepancyComponentInput', {**recovery_component, 'missing_quantity': 2147483648}, False)
+valid('StockDiscrepancyComponentInput', {**recovery_component, 'missing_quantity': -1}, False)
+valid('StockDiscrepancyComponentInput', {**recovery_component, 'on_hand': 100}, False)
+recovery_report = {'fulfillment_id': recovery_uuid, 'fulfillment_item_ids': [recovery_uuid], 'expected_version': 1, 'reason': 'SYNTHETIC observed shortage', 'observed_components': [recovery_component]}
+valid('StockDiscrepancyInput', recovery_report)
+valid('StockDiscrepancyInput', {**recovery_report, 'reinspection': None})
+valid('StockDiscrepancyInput', {**recovery_report, 'reinspection': {'exception_id': recovery_uuid, 'expected_version': 4}})
+valid('StockDiscrepancyInput', {**recovery_report, 'reinspection': {'exception_id': recovery_uuid}}, False)
+valid('StockDiscrepancyInput', {**recovery_report, 'reinspection': {'exception_id': recovery_uuid, 'expected_version': 0}}, False)
+valid('StockDiscrepancyInput', {**recovery_report, 'reinspection': {'exception_id': recovery_uuid, 'expected_version': 4, 'resolved': True}}, False)
+valid('StockDiscrepancyInput', {k: v for k, v in recovery_report.items() if k != 'observed_components'}, False)
+valid('RecoveryRefundBatch', {'exception_id': recovery_uuid, 'version': 1, 'refunds': []}, False)
+check('refunds' in spec['components']['schemas']['BuyerRecoveryCase']['required'] and 'refund' not in spec['components']['schemas']['BuyerRecoveryCase']['properties'], 'buyer recovery can represent multiple original-source refunds truthfully')
+check(spec['paths']['/admin/commerce-exceptions/{exceptionId}/refunds']['post']['responses']['201']['content']['application/json']['schema'] == {'$ref': '#/components/schemas/RecoveryRefundBatch'}, 'finance queue returns an atomic group of original-source obligations')
+
+for path in ['/admin/commerce-exceptions', '/admin/commerce-exceptions/{exceptionId}/intakes']:
+    check(spec['paths'][path]['post']['x-request-body-limit-bytes'] == 131072, 'bounded128KiB supports complete stock-component/intake reports')
+check(spec['components']['schemas']['StockDiscrepancyInput']['properties']['fulfillment_item_ids']['maxItems'] == 100, 'complete-unit report bound matches physical source and adjustment capacities')
+
+cancelled_cod = {'id': recovery_uuid, 'status': 'cancelled', 'amount_due': 0, 'merchandise_amount': 0, 'buyer_shipping_amount': 0, 'collected_at': None, 'receipt_id': None}
+valid('CodCollectionParcel', cancelled_cod)
+valid('CodCollectionParcel', {**cancelled_cod, 'amount_due': 99000}, False)
+valid('CodCollectionParcel', {**cancelled_cod, 'receipt_id': recovery_uuid}, False)
+valid('CodCollectionParcel', {**cancelled_cod, 'status': 'reconciliation'})
+valid('CodCollectionParcel', {**cancelled_cod, 'status': 'due'}, False)
+valid('CodCollectionParcel', {**cancelled_cod, 'status': 'refused'}, False)
+valid('CodCollectionParcel', {**cancelled_cod, 'status': 'collected', 'amount_due': 109000, 'merchandise_amount': 99000, 'buyer_shipping_amount': 10000, 'collected_at': '2026-10-19T00:00:00.000Z', 'receipt_id': recovery_uuid})
+
+replacement_occurrence = {'id': recovery_uuid, 'return_item_id': recovery_uuid, 'order_item_id': recovery_uuid, 'quantity': 1, 'original_fulfillment_item_id': recovery_uuid, 'replacement_of': recovery_uuid, 'generation': 1}
+valid('ReplacementItem', replacement_occurrence)
+for retired in [True, False]:
+    valid('ReplacementItem', {**replacement_occurrence, 'cancelled': retired})
+valid('ReplacementItem', {**replacement_occurrence, 'cancelled': 'true'}, False)
+check(spec['components']['schemas']['ReplacementItem']['properties']['cancelled'].get('readOnly') is True, 'replacement cancellation is a server-owned physical occurrence fact')
+
+print(f'PASS contract structure: {len(spec["paths"])} paths, {len(operations)} operations, {len(spec["components"]["schemas"])} schemas; {checks} structural/schema assertions. No endpoint or provider executed.')

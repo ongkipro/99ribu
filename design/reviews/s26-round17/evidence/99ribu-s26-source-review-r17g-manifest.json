@@ -1,0 +1,278 @@
+{
+  "head": "8b17eee844ba9715581959fc0821af25ce1b99ef",
+  "changed": [
+    "src/app/globals.css",
+    "src/components/storefront/checkout-forms.tsx",
+    "tests/browser/storefront-checkout.test.ts"
+  ],
+  "source": {
+    "docs/spec/fixtures/localhost-commerce.json": {
+      "sha256": "71377acaf52751cef6883a2953c5147d1fe86d970429ffec4d3da831f38c270c",
+      "bytes": 13460,
+      "mode": 436
+    },
+    "docs/spec/fixtures/shipping-local.json": {
+      "sha256": "93a2deef5cbfceb06b8dc0a11690719ea89e8abbb3773470f6cc3193238cc4fe",
+      "bytes": 1315,
+      "mode": 436
+    },
+    "scripts/check-tests.ts": {
+      "sha256": "d5e835a6474128834d93c49ff16d08a4c6ef1c66ecee936dec4d0cee59d951b5",
+      "bytes": 12975,
+      "mode": 436
+    },
+    "src/app/(storefront)/cart/page.tsx": {
+      "sha256": "970016bcbf97fff619e343d35c94b6fed5cff692606bc15c262bde8279d9e28c",
+      "bytes": 6436,
+      "mode": 436
+    },
+    "src/app/(storefront)/checkout/actions.ts": {
+      "sha256": "0e79aabe18d017f7490d808ffba684b39634a95e76f4b5564e2a14d112f6ee1e",
+      "bytes": 6940,
+      "mode": 436
+    },
+    "src/app/(storefront)/checkout/order/[orderId]/page.tsx": {
+      "sha256": "27a8600842f0b1ccecbf3258ddefc63ceb31c49c144029e0ef07ce77678f9933",
+      "bytes": 5957,
+      "mode": 436
+    },
+    "src/app/(storefront)/checkout/page.tsx": {
+      "sha256": "0ab00e201bbd9d01390c2eb863545d4a77a80ce2b6c64b2618903819059939e5",
+      "bytes": 1983,
+      "mode": 436
+    },
+    "src/app/(storefront)/help/page.tsx": {
+      "sha256": "c889c468bcc2c39d9041d4ef21f8ab42639e199146c85a71f4afc58224ee14c8",
+      "bytes": 1137,
+      "mode": 436
+    },
+    "src/app/globals.css": {
+      "sha256": "c2f66f65815a37552fa0388533942bac986807a40ce6341673140ca12373d04b",
+      "bytes": 41086,
+      "mode": 436
+    },
+    "src/components/storefront/cart-forms.tsx": {
+      "sha256": "a073d907a5af268193c5d6dba6222f65c08700548a82f99ea9970f31c4b646c9",
+      "bytes": 9548,
+      "mode": 436
+    },
+    "src/components/storefront/checkout-exit.tsx": {
+      "sha256": "08bbf0c611054263d7716b3faa2ce3af36aaf58a941c3ebca53066f7bb85dea4",
+      "bytes": 510,
+      "mode": 436
+    },
+    "src/components/storefront/checkout-forms.tsx": {
+      "sha256": "f712f1bb2eb116a3c56b4012939e1a551ef50432b0e6909728212113725cb181",
+      "bytes": 36260,
+      "mode": 436
+    },
+    "src/components/storefront/checkout-frame.tsx": {
+      "sha256": "02dd5f1063c208b1003ccc1f3d47e0492a3a1f5bea933e83bb7178b7e7b95290",
+      "bytes": 3826,
+      "mode": 436
+    },
+    "src/modules/local/commerce.ts": {
+      "sha256": "febf268b9a09aa8508cdeec739958f6075992d578924c5cdac14c86fe72d3151",
+      "bytes": 12477,
+      "mode": 436
+    },
+    "src/modules/shipping/address.ts": {
+      "sha256": "6f0814c3c64043c58c17acb20d5382d61d0ba8062d82213b47d3a6f7880e08e8",
+      "bytes": 4039,
+      "mode": 436
+    },
+    "src/modules/shipping/rates.ts": {
+      "sha256": "b5ea4d36f111b7f2efbb6ee4ae71e2e257797d59cd620fc40039bab665bac023",
+      "bytes": 4428,
+      "mode": 436
+    },
+    "src/modules/storefront/browser.ts": {
+      "sha256": "4d74f303906afbfa8dae833557dbd2be711c221244ab1b411b7a43b664c9048d",
+      "bytes": 1771,
+      "mode": 436
+    },
+    "src/modules/storefront/checkout-draft.ts": {
+      "sha256": "7f7410ef7781949d45ed6fc47497e2cf5f1ccab62bda8449ba019a582c02269c",
+      "bytes": 11111,
+      "mode": 436
+    },
+    "src/modules/storefront/checkout-order.ts": {
+      "sha256": "d6a65a124d3d3359467374319aa606f54cf6dc07f7e34934a505147331452357",
+      "bytes": 8937,
+      "mode": 436
+    },
+    "src/modules/storefront/checkout-signals.ts": {
+      "sha256": "5688caf5abc7159576ed5c1dbf6451dcef8c0aa3317364b01e5bce3703302ac3",
+      "bytes": 3277,
+      "mode": 436
+    },
+    "src/modules/storefront/checkout.ts": {
+      "sha256": "52a92ecdd20a517aeb06a26454da95f15d97be172da2f210849c002860e9577e",
+      "bytes": 26760,
+      "mode": 436
+    },
+    "tests/browser/storefront-cart.test.ts": {
+      "sha256": "a4a67cba1207a4ad7692e473f450716d5177581a2ae68e3682722e9b5d393688",
+      "bytes": 50550,
+      "mode": 436
+    },
+    "tests/browser/storefront-checkout.test.ts": {
+      "sha256": "0ea27656d587e519d625d3c782bb395293015d34bc0a6223b9ef1ee474efb19a",
+      "bytes": 71455,
+      "mode": 436
+    },
+    "tests/integration/storefront-checkout-contract.test.ts": {
+      "sha256": "7495654a8746cbf10a69b53d05d353183fff412a11f89c0cc2a9c3f1c9d06302",
+      "bytes": 5814,
+      "mode": 436
+    },
+    "tests/integration/storefront-checkout-draft.test.ts": {
+      "sha256": "60ceaa9124393df9296ca2aafd6edd94046ecf4879c890f2772b9cd717579f80",
+      "bytes": 9649,
+      "mode": 436
+    },
+    "tests/integration/storefront-checkout-payment.test.ts": {
+      "sha256": "d5021d260727d903666b363ed0bc4cc0e2599a9e42a21f4693b62054e7f492c6",
+      "bytes": 8549,
+      "mode": 436
+    },
+    "tests/integration/storefront-checkout-runtime.test.ts": {
+      "sha256": "eea6ac7281ed22d729ebc05f64689716163efe4175e5f2859ac17529fbad165b",
+      "bytes": 18921,
+      "mode": 436
+    },
+    "tests/integration/storefront-checkout-signals.test.ts": {
+      "sha256": "15b8889716cd3bbce221282b26b8775c08c22fe28ad4f553c8912287bbd4f6d7",
+      "bytes": 4990,
+      "mode": 436
+    },
+    "tsconfig.json": {
+      "sha256": "beddd455da6a6eaf50296490cdfa2f4db08188fd0f89a2f274282eb93b083d0d",
+      "bytes": 780,
+      "mode": 436
+    }
+  },
+  "context": {
+    "AGENTS.md": {
+      "sha256": "c6754b39c500d064619ee198b7977b5111f848a6c501fe304d01444e2a7d7dac",
+      "bytes": 24192,
+      "mode": 436
+    },
+    "docs/spec/17-UX-FLOWS-SCREEN-CONTRACTS.md": {
+      "sha256": "aedc0f468eac9aa1cd1ca447e84ab52b65fbbc6bdb0bc53710a241ac98b5f3fb",
+      "bytes": 170500,
+      "mode": 436
+    },
+    "design/reviews/s26-lean-r17g.md": {
+      "sha256": "7fe6bc2a578961ebe78c7d093db0605c41f464b696e052d501c8c26806a72fd1",
+      "bytes": 773,
+      "mode": 436
+    },
+    "/tmp/99ribu-s26-source-review-r17g.patch": {
+      "sha256": "11a318fa8ff177bb23b5071a665b120dfaf5911f6f5e489e00411a1620f440d2",
+      "bytes": 17228,
+      "mode": 436
+    },
+    "/tmp/99ribu-s26-r17f-nogo-build39/manifest.json": {
+      "sha256": "ff625d9765ce2ff2437088fd37d986b16851149578f695e331fd63cccf873332",
+      "bytes": 17286,
+      "mode": 436
+    },
+    "/tmp/99ribu-s26-source-review-r17f.txt": {
+      "sha256": "cdfacb4e5adeed0ca170aa8ffdcf350683ad7b0dd4b645df857dc2587ccfdea7",
+      "bytes": 7355,
+      "mode": 436
+    }
+  },
+  "protected": {
+    "AGENTS.md": {
+      "kind": "file",
+      "bytes": 24192,
+      "mode": 436,
+      "sha256": "c6754b39c500d064619ee198b7977b5111f848a6c501fe304d01444e2a7d7dac"
+    },
+    "design/review-rounds.log": {
+      "kind": "file",
+      "bytes": 524,
+      "mode": 436,
+      "sha256": "adbd2a44a0d7035d29ca5f1848faac928f49ed844f8a51b5efce4542c541be3d"
+    },
+    "design/review.md": {
+      "kind": "file",
+      "bytes": 13620,
+      "mode": 436,
+      "sha256": "cf601c408cb09f3abec89f60264950a81be3c0a3f4ac95bcc01773b43b0efec3"
+    },
+    "design/reviews/s26-round15/manifest.json": {
+      "kind": "file",
+      "bytes": 43557,
+      "mode": 436,
+      "sha256": "77ece3fcffb656cdbe97a9dd6583407979049ed1c348821fe38b7c64c095e82d"
+    },
+    "design/reviews/s26-round16/manifest.json": {
+      "kind": "file",
+      "bytes": 58322,
+      "mode": 436,
+      "sha256": "3296d439dad53e2f38abe794db8dc28084644a07a60d8e8eab17a31e9196e6cf"
+    },
+    "docs/spec/openapi.yaml": {
+      "kind": "file",
+      "bytes": 786560,
+      "mode": 436,
+      "sha256": "e2004124a94e60b1d10b3ad8228b05e3f896364ccefa3c73f0a93087460ea2d9"
+    },
+    "migrations/0023_commerce_exceptions.sql": {
+      "kind": "file",
+      "bytes": 524260,
+      "mode": 436,
+      "sha256": "ca52af7b8775166857e76dc9ed026718e77ffa5fddef5b72bcaeac76bcef54dc"
+    },
+    "migrations/meta/0023_snapshot.json": {
+      "kind": "file",
+      "bytes": 649516,
+      "mode": 436,
+      "sha256": "8c804babce8ad5516cc032d81eff473f44e080e2c5c2258383c6ab090084d264"
+    },
+    "migrations/meta/_journal.json": {
+      "kind": "file",
+      "bytes": 3606,
+      "mode": 436,
+      "sha256": "8fbc1b868ffad620bfa299c2c87d1fac9d013d6a378880504c198570522fa9ee"
+    },
+    "next.config.ts": {
+      "kind": "file",
+      "bytes": 521,
+      "mode": 436,
+      "sha256": "848b291e18ddd1ff019b91b6094303cd5fc5a371f490529dfe998a3f9cff7620"
+    },
+    "package-lock.json": {
+      "kind": "file",
+      "bytes": 102968,
+      "mode": 436,
+      "sha256": "7ca58ca082e787be33a75dd4af23251e589fa6724a9cb396bf46bc3716af96c0"
+    },
+    "package.json": {
+      "kind": "file",
+      "bytes": 2539,
+      "mode": 436,
+      "sha256": "72d85448f62cfd6af2469713b0caa1121ca7f16ea3646fc09c85bbe9d3f4fe65"
+    },
+    "tests/integration/storefront-offer-selection.test.ts": {
+      "kind": "file",
+      "bytes": 5803,
+      "mode": 436,
+      "sha256": "f4536148da30daee621d22d1aaafd344b85ae77028f34ca402ceb7b8b27e4a34"
+    },
+    "tsconfig.json": {
+      "kind": "file",
+      "bytes": 780,
+      "mode": 436,
+      "sha256": "beddd455da6a6eaf50296490cdfa2f4db08188fd0f89a2f274282eb93b083d0d"
+    }
+  },
+  "digests": {
+    "source": "19af79b9ccb40c0c21d9d42b40f3dcc73a768fa7d1af6859c3b1cac161481e56",
+    "context": "2e9a0fb2e94831bb86069550612565b8768f38c9f9cfa7bb06a92a89d291530c",
+    "protected": "fa0ba479cab6e756b935039b712814cd55ff5d635b4868cb52166627c58e5e9c"
+  }
+}

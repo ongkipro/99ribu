@@ -1,0 +1,11 @@
+COMMAND ['npm', 'run', 'test:integration', '--', '--case=T-31']
+npm notice run 99ribu@0.1.0 test:integration
+npm notice run node --env-file=.env.example scripts/check-tests.ts integration --case=T-31
+{"ok":true,"files":5,"passed":11,"failed":0,"incomplete":0,"empty":0}
+ACTUAL_EXIT=0
+COMMAND ['python3', '/tmp/99ribu-s26-browser-r44.py']
+S26 registered browser exit=0; raw=/tmp/99ribu-s26-browser-r44.txt; receipt=/tmp/99ribu-s26-browser-r44-manifest.json
+ACTUAL_EXIT=0
+COMMAND ['python3', '/tmp/99ribu-s26-cart-current-r29.py']
+Current built predecessor cart exit=0; raw=/tmp/99ribu-s26-cart-current-r29.txt
+ACTUAL_EXIT=0

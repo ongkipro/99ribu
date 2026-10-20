@@ -1,0 +1,62 @@
+{
+  "exit": 0,
+  "commands": [
+    {
+      "args": [
+        "npm",
+        "run",
+        "test:integration",
+        "--",
+        "--case=T-31"
+      ],
+      "exit": 0
+    },
+    {
+      "args": [
+        "python3",
+        "/tmp/99ribu-s26-browser-r44.py"
+      ],
+      "exit": 0
+    },
+    {
+      "args": [
+        "python3",
+        "/tmp/99ribu-s26-cart-current-r29.py"
+      ],
+      "exit": 0
+    }
+  ],
+  "source29AndTestsBeforeAfter": {
+    "docs/spec/fixtures/localhost-commerce.json": "71377acaf52751cef6883a2953c5147d1fe86d970429ffec4d3da831f38c270c",
+    "docs/spec/fixtures/shipping-local.json": "93a2deef5cbfceb06b8dc0a11690719ea89e8abbb3773470f6cc3193238cc4fe",
+    "scripts/check-tests.ts": "d5e835a6474128834d93c49ff16d08a4c6ef1c66ecee936dec4d0cee59d951b5",
+    "src/app/(storefront)/cart/page.tsx": "970016bcbf97fff619e343d35c94b6fed5cff692606bc15c262bde8279d9e28c",
+    "src/app/(storefront)/checkout/actions.ts": "0e79aabe18d017f7490d808ffba684b39634a95e76f4b5564e2a14d112f6ee1e",
+    "src/app/(storefront)/checkout/order/[orderId]/page.tsx": "27a8600842f0b1ccecbf3258ddefc63ceb31c49c144029e0ef07ce77678f9933",
+    "src/app/(storefront)/checkout/page.tsx": "0ab00e201bbd9d01390c2eb863545d4a77a80ce2b6c64b2618903819059939e5",
+    "src/app/(storefront)/help/page.tsx": "c889c468bcc2c39d9041d4ef21f8ab42639e199146c85a71f4afc58224ee14c8",
+    "src/app/globals.css": "c2f66f65815a37552fa0388533942bac986807a40ce6341673140ca12373d04b",
+    "src/components/storefront/cart-forms.tsx": "a073d907a5af268193c5d6dba6222f65c08700548a82f99ea9970f31c4b646c9",
+    "src/components/storefront/checkout-exit.tsx": "08bbf0c611054263d7716b3faa2ce3af36aaf58a941c3ebca53066f7bb85dea4",
+    "src/components/storefront/checkout-forms.tsx": "f712f1bb2eb116a3c56b4012939e1a551ef50432b0e6909728212113725cb181",
+    "src/components/storefront/checkout-frame.tsx": "02dd5f1063c208b1003ccc1f3d47e0492a3a1f5bea933e83bb7178b7e7b95290",
+    "src/modules/local/commerce.ts": "febf268b9a09aa8508cdeec739958f6075992d578924c5cdac14c86fe72d3151",
+    "src/modules/shipping/address.ts": "6f0814c3c64043c58c17acb20d5382d61d0ba8062d82213b47d3a6f7880e08e8",
+    "src/modules/shipping/rates.ts": "b5ea4d36f111b7f2efbb6ee4ae71e2e257797d59cd620fc40039bab665bac023",
+    "src/modules/storefront/browser.ts": "4d74f303906afbfa8dae833557dbd2be711c221244ab1b411b7a43b664c9048d",
+    "src/modules/storefront/checkout-draft.ts": "7f7410ef7781949d45ed6fc47497e2cf5f1ccab62bda8449ba019a582c02269c",
+    "src/modules/storefront/checkout-order.ts": "d6a65a124d3d3359467374319aa606f54cf6dc07f7e34934a505147331452357",
+    "src/modules/storefront/checkout-signals.ts": "5688caf5abc7159576ed5c1dbf6451dcef8c0aa3317364b01e5bce3703302ac3",
+    "src/modules/storefront/checkout.ts": "52a92ecdd20a517aeb06a26454da95f15d97be172da2f210849c002860e9577e",
+    "tests/browser/storefront-cart.test.ts": "a4a67cba1207a4ad7692e473f450716d5177581a2ae68e3682722e9b5d393688",
+    "tests/browser/storefront-checkout.test.ts": "0ea27656d587e519d625d3c782bb395293015d34bc0a6223b9ef1ee474efb19a",
+    "tests/integration/storefront-checkout-contract.test.ts": "7495654a8746cbf10a69b53d05d353183fff412a11f89c0cc2a9c3f1c9d06302",
+    "tests/integration/storefront-checkout-draft.test.ts": "60ceaa9124393df9296ca2aafd6edd94046ecf4879c890f2772b9cd717579f80",
+    "tests/integration/storefront-checkout-payment.test.ts": "d5021d260727d903666b363ed0bc4cc0e2599a9e42a21f4693b62054e7f492c6",
+    "tests/integration/storefront-checkout-runtime.test.ts": "eea6ac7281ed22d729ebc05f64689716163efe4175e5f2859ac17529fbad165b",
+    "tests/integration/storefront-checkout-signals.test.ts": "15b8889716cd3bbce221282b26b8775c08c22fe28ad4f553c8912287bbd4f6d7",
+    "tsconfig.json": "beddd455da6a6eaf50296490cdfa2f4db08188fd0f89a2f274282eb93b083d0d"
+  },
+  "buildID": "1gmFuDzySwDEiiUxgDax_",
+  "buildInputCount": 271
+}

@@ -1,0 +1,20 @@
+{
+  "canonicalExit": 1,
+  "ownerCeiling": 19,
+  "beforeRounds": 15,
+  "afterRounds": 16,
+  "codeManifestSha256": "674a3655c4ff11e4d77029056c2350c97c6f6e7bb7caf1e5feda248d42c9dbe3",
+  "codeReportSha256": "36fa019142d5ee08325c99fe13e4ad46193a54362f7b0d77b618f2c730cf8441",
+  "sourceDigest": "712177541d8dd8651cd97000879157022268975f11384c8c2da729dad2fffce3",
+  "buildID": "JTWoU4uvVCLdJ9-JkDTH9",
+  "renders": 61,
+  "references": 4,
+  "canonicalUnchanged": {
+    "/data/ai/codex/skills/design-taste/scripts/visual-review.py": "aedb3d0146897a0af8cdf0a2e6791639e1cc2b64c5f78e7a114e87734d67dc6b",
+    "/data/ai/codex/skills/design-taste/references/visual-review.md": "f87a408c9a45afbc7d141541fe9606912c73940a71937381c346aa4bc509e3ee",
+    "/data/ai/codex/skills/design-taste/scripts/design-gate.py": "4ab289f7a78df53e3646accc1643043544a4a97778ec1ead920e3fdec4b846e9"
+  },
+  "allPriorArchivesUnchanged": true,
+  "allReviewedSourceAndImagesUnchanged": true,
+  "designSha256": "428918e4e01ab74fd42f6c0139e3fe23e38673a493019015e09c9e36ae7da168"
+}

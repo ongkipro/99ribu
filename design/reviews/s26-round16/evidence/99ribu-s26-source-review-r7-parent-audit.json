@@ -1,0 +1,15 @@
+{
+  "reportSha256": "5ee267b4d396f72de7c68f75e04d34e40e9d208837e7db98a4d224123254b7ab",
+  "manifestSha256": "9b037071893bad367d75f1dda79c226619743e8610abfec23c36f1601583da0e",
+  "parentReadFullActualReport": true,
+  "currentFull24EngineeringVerdict": "APPROVE",
+  "noVerifiedP1P2": true,
+  "readCoverage": "Actual reviewer full24; targeted native/contracts; remaining context/evidence hash-only",
+  "original85SnapshotHashing": "parent manifest builder verified all85; independent reviewer verified aggregate manifest only",
+  "clericalCorrection": "F5 file line is checkout/order/[orderId]/page.tsx:20\u201322, not121\u2013122; actual native failed title/shared alert source confirms the finding closure",
+  "p3Retained": [
+    "Header exits are blocked during conflict; explicit reload/winner/local values remain safe",
+    "Per-write directory scan ceiling remains S65"
+  ],
+  "noVisualOrFinalAcceptance": true
+}

@@ -1,0 +1,27 @@
+{
+  "ok": true,
+  "manifest": "/tmp/99ribu-s26-source-review-r8-manifest.json",
+  "manifestSha256": "674a3655c4ff11e4d77029056c2350c97c6f6e7bb7caf1e5feda248d42c9dbe3",
+  "head": "8b17eee844ba9715581959fc0821af25ce1b99ef",
+  "counts": {
+    "source": 24,
+    "context": 72,
+    "currentUnion": 679,
+    "artifacts": 239,
+    "protected": 12,
+    "evidence": 396
+  },
+  "digests": {
+    "source": "712177541d8dd8651cd97000879157022268975f11384c8c2da729dad2fffce3",
+    "context": "e24338e8adeccf8296b3952254d4b7ba04fbb9f7a057020cdd91923b4cd70144",
+    "currentUnion": "fa6d3143ca431ca916dd52211ef7ced17b0ac104e4dbb199da8ac372fa085b83",
+    "artifacts": "a4bb6cc7365b67120a2fec095a13eed779626eef99591075206aa745a11f8343",
+    "protected": "0166d98cd1fe62b9d892a0ea2b77a21e1bf4a3554014c527f6ea55ba4857689b",
+    "evidence": "918cfcfcc3eeddc0a5dcf723e55a71ccf6a05f8adfe75b4e94234823d21ffb8a"
+  },
+  "report": "/tmp/99ribu-s26-source-review-r8.txt",
+  "reportSha256": "36fa019142d5ee08325c99fe13e4ad46193a54362f7b0d77b618f2c730cf8441",
+  "fingerprintMismatches": 0,
+  "parentSemanticAuditRequired": true,
+  "sourceOnly": true
+}

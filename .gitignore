@@ -18,3 +18,7 @@ __pycache__/
 *.tsbuildinfo
 *.log
 .DS_Store
+
+# Framework-generated declaration
+next-env.d.ts
+.vercel/

@@ -1,0 +1,29 @@
+{
+	"font": {
+		"release": "https://github.com/rsms/inter/releases/tag/v4.1",
+		"file": "public/fonts/inter-4.1/InterVariable.woff2",
+		"sha256": "693b77d4f32ee9b8bfc995589b5fad5e99adf2832738661f5402f9978429a8e3",
+		"license": "public/fonts/inter-4.1/LICENSE.txt"
+	},
+	"icons": {
+		"repository": "https://github.com/lucide-icons/lucide",
+		"commit": "7b0196e249ca09ca27c584c497aca9a8cab8a7f5",
+		"names": [
+			"house",
+			"search",
+			"shopping-bag",
+			"user-round",
+			"chevron-left",
+			"sliders-horizontal",
+			"message-circle",
+			"x",
+			"plus",
+			"minus",
+			"menu",
+			"arrow-right",
+			"package",
+			"grid-2x2"
+		],
+		"license": "public/prototypes/LICENSE-icons.txt"
+	}
+}

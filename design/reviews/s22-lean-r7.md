@@ -1,0 +1,13 @@
+# S22 lean review — round13 corrections
+
+Author: codex-root, builder; no independent correctness/visual verdict. Compared five changed paths with the source-r9 snapshot and traced CartForm callers, existing reviewId, closed notice and browser capture helpers.
+
+Existing valid reviewId distinguishes the consequential publication approval; add stays filled, routine update outlined, remove neutral text/icon. Quiet styling excludes disabled controls, preserving native disabled feedback. No new prop/state/component or mutation branch. Expired recovery is an existing local search link under the same non-submitted closed notice; navigating creates no cart. A decorative separator clarifies the two existing parent links. Stock and search SVG rules use relative units and shared low-specificity CSS without changing type scales or focus targets.
+
+The actual pending response remains held while its existing form is centered and captured above the real navigation, then released through the same finally-protected fixture. The actual loaded-font heading gets a native 100% crop; 1x/2x diagnostics verify eleven contiguous characters, normal tracking/zero word spacing and Inter600/20. No font dependency or per-page spacing override is added to compensate for a perceived glyph gap. Native quantity/replay/auth/retirement semantics stay byte-identical.
+
+No defensible further deletion or dependency finding. Fresh build/native/browser, separate source-r10 and final authorized canonical14 remain required. Preserve round13 report/count discrepancy (80 claimed,81 slices provided) without converting its REVISE into acceptance.
+
+Actual decoded expired capture exposed a shared selector collision after r27 green tests. Scope the existing feedback/warning text-link rule with :not(.button), retaining its specificity via :where, so global button foreground remains authoritative. This avoids a one-off button color override. Actual RED compares rendered foreground/background and retains the blank-label PNG; current browser coverage must prove the new navigation action readable as well as accessible.
+
+Source-r10 nonblocking contract follow-up: guard the closed warning CTA by real line presence, suppress the closed header shortcut and omit the record prefix when no records exist. Existing empty-state navigation remains the sole primary. Real native createCart with empty lines, normal cookie replay and the existing private owned clock reproduces two actual recovery links before the fix; no test clock enters the browser or new cart writer. Same scenario retains filled expiry and deliberate-new-add proof. No new component/state/helper or style change.

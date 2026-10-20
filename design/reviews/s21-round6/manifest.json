@@ -1,0 +1,326 @@
+{
+  "design-context.md": {
+    "bytes": 96996,
+    "sha256": "e92e6e100499c2a82c6c1031046d9261bc9fb6f895a8b18435b687f29751fd47"
+  },
+  "renders/account-pending-1440.png": {
+    "bytes": 48588,
+    "sha256": "0659e4103a8abffbed30b33827602cc0dd950dc048e28cf85c1ff4b875c6f716"
+  },
+  "renders/account-pending-390.png": {
+    "bytes": 44014,
+    "sha256": "9fc9312728a8e9661d79233e3421c66396b2ce5c30a6c36ce0cd670524f247a8"
+  },
+  "renders/cart-pending-1440.png": {
+    "bytes": 50680,
+    "sha256": "1098946685dc99eb92941aed20fadd1e5b6109e6d976904ca7a3f0741812f557"
+  },
+  "renders/cart-pending-390.png": {
+    "bytes": 45997,
+    "sha256": "90512f8bce4f13d9465d9e9cd962df45c032d0810d75047fbee5bc6d6a888b35"
+  },
+  "renders/category-1440.png": {
+    "bytes": 83235,
+    "sha256": "b4f6418da168ba8e0ef0f9750db28804ff73cb5e47e0d8ac1fa23248828379b2"
+  },
+  "renders/category-320.png": {
+    "bytes": 55489,
+    "sha256": "6af1a953793274b67e4b41a57c5ed86d6349bd3517cd3ebf1485807ad4d47462"
+  },
+  "renders/category-390.png": {
+    "bytes": 54926,
+    "sha256": "b93c7546a683285b38155035a4b76cb7fe03c2f4ee24343417542a6b681f205b"
+  },
+  "renders/category-768.png": {
+    "bytes": 73266,
+    "sha256": "75c80e7976f27a20cc3c982e2a871360b7e796cc346af5a98e372b97f23dea07"
+  },
+  "renders/departments-1440.png": {
+    "bytes": 57015,
+    "sha256": "d31f0dd673e94ee9227e6e071cf562af0d98a0e6005e47c282fc9408bd8e54d5"
+  },
+  "renders/departments-390.png": {
+    "bytes": 45860,
+    "sha256": "7dac9083a6e062b92169c89251e0264d1beec2f068f55dbac26ea966ae94e0c5"
+  },
+  "renders/empty-390.png": {
+    "bytes": 48097,
+    "sha256": "d60cc87c0589646f3bf5131ac4f060c202d4cf6574fe70ebc79f028518a4db6a"
+  },
+  "renders/help-1440.png": {
+    "bytes": 89709,
+    "sha256": "add858b1d9d39d80b61ed321b12b2c1e872f63b2e881718dd9fb772193d93d56"
+  },
+  "renders/help-390.png": {
+    "bytes": 90841,
+    "sha256": "59e0b2a88aa1ce568a025f4292f89daa4e9ffb0b0262090a5a46568cbc01d8b8"
+  },
+  "renders/home-1440.png": {
+    "bytes": 148887,
+    "sha256": "c1f8124e8e6f74ef344192a15e00a02b9eae626f8509477c1ab1b500118c4bc9"
+  },
+  "renders/home-320.png": {
+    "bytes": 141546,
+    "sha256": "306ce453919732a0df57fc1acbc6a7e0841318e26e454e0dc6543e8f68d43d8a"
+  },
+  "renders/home-390.png": {
+    "bytes": 140734,
+    "sha256": "54555464a912586845c1799f595b608b141a66717d9d1b70cb9473ff59b98fcc"
+  },
+  "renders/home-768.png": {
+    "bytes": 155982,
+    "sha256": "34ec00b789d7fefabfca8deddcc2be9f5c9ef80d4142e13b2b798509167c0169"
+  },
+  "renders/invalid-filter-390.png": {
+    "bytes": 45225,
+    "sha256": "51201b85fac84e79fa70c788c6e3f6a048c9052660bf748fb2ead32e879b3ba2"
+  },
+  "renders/macro-home-1440.png": {
+    "bytes": 127318,
+    "sha256": "4455f95c3370dfb939ed559baf4524670a451adcb37a34e0c5f619a604a32b93"
+  },
+  "renders/macro-home-390.png": {
+    "bytes": 112203,
+    "sha256": "08a8341fdd29c089f2b5d407c15a1c8c060095c2813bb48313d2531553d35ad5"
+  },
+  "renders/not-found-1440.png": {
+    "bytes": 48785,
+    "sha256": "4366c1f70b96997ed589c86816e9d2fc9cf886df9877dae728a4d7b80f4f8305"
+  },
+  "renders/not-found-390.png": {
+    "bytes": 42843,
+    "sha256": "972086275887fc88303c2fd3a551df21e04b8bbd6baa1cadfcd765aaf6edc8f2"
+  },
+  "renders/product-preview-1440.png": {
+    "bytes": 67927,
+    "sha256": "c8551667aedaa758bef1d6594e0785fb2ed802a7cfe3f5f7ad6ec61a7d531bdd"
+  },
+  "renders/product-preview-390.png": {
+    "bytes": 57900,
+    "sha256": "9cc97228ffbea8088709d5ed6211d3ea56524d9d9211046e714c1a55f5d96ff3"
+  },
+  "renders/product-preview-detail-390.png": {
+    "bytes": 48547,
+    "sha256": "172f6f08dca65fccee04ede4e2c9a1ef37f4ccd2e2bce2a003c703fbd69d9887"
+  },
+  "renders/search-1440.png": {
+    "bytes": 79803,
+    "sha256": "0d9606b32f4d6c5d9a8e21b8de3dcc1b347c79d2f5066fd1ccb946daa4123d07"
+  },
+  "renders/search-320.png": {
+    "bytes": 58230,
+    "sha256": "35b137dd40e30a51f2dd87870500f4289873d68e498fcb580de3ee82a4f56cf6"
+  },
+  "renders/search-390.png": {
+    "bytes": 58401,
+    "sha256": "e8ccad568f2883a48ce057096bb549921b1a74fa0945bc2ed69cd05cd2372da2"
+  },
+  "renders/search-768.png": {
+    "bytes": 73558,
+    "sha256": "cfd42cfe4b3a8aacefc6e08c1216b65abce8e3c2771394948dbbca0141546246"
+  },
+  "renders/text-200-320.png": {
+    "bytes": 364583,
+    "sha256": "af16b33d9620b9762e5e4da5926ab2287e23e29392051874e34a873dce367b35"
+  },
+  "review-rounds.log": {
+    "bytes": 193,
+    "sha256": "dcec6cdc7e02bbf22219ae10ffea105aafad9774944a16cfabe76430391184cb"
+  },
+  "review.md": {
+    "bytes": 7674,
+    "sha256": "20d9372c749a13d9a4766075e08024cf874619094aa57e97ac347c87aa048c6e"
+  },
+  "slices/05e9170ac3db54dc-product-preview-390-01.png": {
+    "bytes": 31978,
+    "sha256": "78a897ab77379d9fb063565acbcc55f28a507a8dfedd6c7594178c0dca81e819"
+  },
+  "slices/05e9170ac3db54dc-product-preview-390-02.png": {
+    "bytes": 27483,
+    "sha256": "f98ff4fed2152724b25689e3a96a0db272867b3c88e08a26c310d498e417b98c"
+  },
+  "slices/08480b80baa42099-not-found-1440-01.png": {
+    "bytes": 49845,
+    "sha256": "48a94b7a5d14cf8ffde2ec6a27b2d997a3dc4fb27314d097f060691fcfa8f21b"
+  },
+  "slices/0add1e76041640ac-cart-pending-390-01.png": {
+    "bytes": 41400,
+    "sha256": "f48927162f47f3c6dc7b7fb59ade70528bc22dc42b58740c2b89d9e431bfe9cf"
+  },
+  "slices/0add1e76041640ac-cart-pending-390-02.png": {
+    "bytes": 5159,
+    "sha256": "0272ead1c0052f7c47473ed65fec5df3a44c42244638b12b43592576ba8457f2"
+  },
+  "slices/11946f9e7fad1ec5-390-01.png": {
+    "bytes": 25014,
+    "sha256": "1b5ded2d321e57ce319e78812407a099e354a2d5d78117ffa0afb964d8557961"
+  },
+  "slices/15b3cfce979bfc7f-product-preview-detail-390-01.png": {
+    "bytes": 44079,
+    "sha256": "2e424dd4635ca505f3cec71c1ba48b7a452a6da94bf896302106248690ca2825"
+  },
+  "slices/15b3cfce979bfc7f-product-preview-detail-390-02.png": {
+    "bytes": 4881,
+    "sha256": "6f700a33133f3f7a1bafeca75ac51b246be57c0bec4762fa212fce9328a35aac"
+  },
+  "slices/1bb629830cef0c3e-help-1440-01.png": {
+    "bytes": 90491,
+    "sha256": "4c818cb0aab4a5c3b5e0083b5f35662a1104d65f74986b4d0688cecf51d37098"
+  },
+  "slices/1f01ca90c857c043-home-1440-01.png": {
+    "bytes": 130268,
+    "sha256": "d31f2f1a967ce9dd3604da3ffeee3d6d54d2bcc3e5dd778b33fbfbbaf663eed8"
+  },
+  "slices/1f01ca90c857c043-home-1440-02.png": {
+    "bytes": 20745,
+    "sha256": "2c8c3e5ee82ddcdd2d71c118c013936762bb5e04e3469b682ade4242bf2b1656"
+  },
+  "slices/273be8500ecb1c28-category-1440-01.png": {
+    "bytes": 84174,
+    "sha256": "7ed757ccabdcf6fc00b053a128667417f830973d87d30c47e275746d54bad526"
+  },
+  "slices/41d1a7df0857e660-search-1440-01.png": {
+    "bytes": 80652,
+    "sha256": "060f78d9694dfdace1f5977468ac98f4d58d41a1be2491511e48af9bb1a7ba47"
+  },
+  "slices/435d1979f967e7cf-departments-1440-01.png": {
+    "bytes": 57845,
+    "sha256": "f07bf8b3d173ab817f18b423011d53d45154213c8ed518a4eefdd86ab44a6b77"
+  },
+  "slices/470eb8aeac2de531-departments-390-01.png": {
+    "bytes": 40474,
+    "sha256": "edec448d2e959d2010a1d92bdff0424ea44bef0dcaa09ac106494f1b0cb23c2e"
+  },
+  "slices/470eb8aeac2de531-departments-390-02.png": {
+    "bytes": 5970,
+    "sha256": "c3795aa5e8f9aa1d85ea3b5765ec28490c03e453704e9a237ad45464f194eee4"
+  },
+  "slices/4950df039266550a-empty-390-01.png": {
+    "bytes": 42579,
+    "sha256": "c5580ee47c363f53e81460e4574a4361ff776e0ad0f6228e6fd171706ee9d7a7"
+  },
+  "slices/4950df039266550a-empty-390-02.png": {
+    "bytes": 6428,
+    "sha256": "88872c09be405ea10b18f73e7a752f60d16657dcb170b78504f26e5a42c9965f"
+  },
+  "slices/4c6887508a215f49-search-390-01.png": {
+    "bytes": 40297,
+    "sha256": "11f65d852068852c2535f312916ec53184842ceb5fdba52c517308caaaff08b2"
+  },
+  "slices/4c6887508a215f49-search-390-02.png": {
+    "bytes": 19242,
+    "sha256": "0569f4ae241dfa720495a40bd38e4d53ca5c803fd00dcd9716dc5ff293519d74"
+  },
+  "slices/5562894edf2e1b87-invalid-filter-390-01.png": {
+    "bytes": 41079,
+    "sha256": "97532ceb57aa158ae41d33eb03784799ea15d1581fc42ba789bae0a909ed24e1"
+  },
+  "slices/5562894edf2e1b87-invalid-filter-390-02.png": {
+    "bytes": 4881,
+    "sha256": "6f700a33133f3f7a1bafeca75ac51b246be57c0bec4762fa212fce9328a35aac"
+  },
+  "slices/5f2ded39ca80159e-cart-pending-1440-01.png": {
+    "bytes": 51617,
+    "sha256": "36c706a10303b7f1b2c4a1d22af4e6e4a2df8e6f86cf4b35c475ae5d17e24fa3"
+  },
+  "slices/69ce9ad898fe0316-390-top-01.png": {
+    "bytes": 190063,
+    "sha256": "6206a3137903da00d6b17e2042039ec8e1e9120cd6be8b9d15635a2a2b755cb8"
+  },
+  "slices/69ce9ad898fe0316-390-top-02.png": {
+    "bytes": 94109,
+    "sha256": "9e26b08e6c07d2a11cac3dfc373984aec3b97646d90e1be3b0bc31cbaecefcb8"
+  },
+  "slices/7947aebba856c46c-home-390-01.png": {
+    "bytes": 45145,
+    "sha256": "3617dd2aebd2ab7e009aa8ebd775dc14513623a49c2b51dbccf89d567550cfec"
+  },
+  "slices/7947aebba856c46c-home-390-02.png": {
+    "bytes": 48477,
+    "sha256": "78985980d93bce00546add74b4059786f63445e9d83fe3308ed7e434d9989007"
+  },
+  "slices/7947aebba856c46c-home-390-03.png": {
+    "bytes": 46947,
+    "sha256": "b6857e8f591ee9cb0a359ab36fd3075428ff81f118f06fc1a485e8a9e038a901"
+  },
+  "slices/7ce26dc78f26c6bd-product-preview-1440-01.png": {
+    "bytes": 69206,
+    "sha256": "30048822bddf381d514e1b871e334e9a45fb76f1cea6112ebc971dbc093245a5"
+  },
+  "slices/836dd4b3a458d4e3-help-390-01.png": {
+    "bytes": 67459,
+    "sha256": "248729a3b573771f1a1f5f28839ceb82232990c67f3a3c2a75bd4239cacc5482"
+  },
+  "slices/836dd4b3a458d4e3-help-390-02.png": {
+    "bytes": 25415,
+    "sha256": "1f7dd78d7bcc069b3c0594e55eec3a1b69e108e723b71221410e7e9b2184c2ce"
+  },
+  "slices/aaccc28f84eb001b-1440-top-01.png": {
+    "bytes": 124013,
+    "sha256": "9e1f5e8eb365c8062a4287e6fb16511587fcaefefbcae9038f616557a1f8bbcb"
+  },
+  "slices/b99cfd526a164619-not-found-390-01.png": {
+    "bytes": 38670,
+    "sha256": "490b9009dea8af4f5dcab3b7788664f72daf2abf37cd0d062ea14001b2519659"
+  },
+  "slices/b99cfd526a164619-not-found-390-02.png": {
+    "bytes": 4881,
+    "sha256": "6f700a33133f3f7a1bafeca75ac51b246be57c0bec4762fa212fce9328a35aac"
+  },
+  "slices/cda922824602cc7d-account-pending-390-01.png": {
+    "bytes": 39654,
+    "sha256": "ac51f86bbb86c73445a32f0db2092a78c5e4b0831703f8e01871757d24d31395"
+  },
+  "slices/cda922824602cc7d-account-pending-390-02.png": {
+    "bytes": 4996,
+    "sha256": "6f24a261ab7d39f5111e3d18633d7993f8d017919a3f97c52cd4212c39e2a15c"
+  },
+  "slices/d2c65ec9176a3e84-account-pending-1440-01.png": {
+    "bytes": 49651,
+    "sha256": "de2b785367d2491d7eb95f5bff2388a58c5a99ee56ac054b6022418000876312"
+  },
+  "slices/ed2d87d1329f46bc-category-390-01.png": {
+    "bytes": 40626,
+    "sha256": "41cf9e1b44e63e7b5d9398c24c0c6afc9a3e8e3785c6da10a5eda28ea4293bf9"
+  },
+  "slices/ed2d87d1329f46bc-category-390-02.png": {
+    "bytes": 14633,
+    "sha256": "be1674ce6cbad32e691d1bb253f9de45ff324c941122353247197797f4c79527"
+  },
+  "slices/ee576f953289514a-1440-top-01.png": {
+    "bytes": 913732,
+    "sha256": "f5ebef8641ea8646d7171e91d119923927639edb1922bc4a714b6a9ffc35dd4b"
+  },
+  "slices/fab92fc411a88b2c-text-200-320-01.png": {
+    "bytes": 49736,
+    "sha256": "6a8de26cffbb6affd73e73caaddfad03c1ca499f4f9f1e8af6ceea95ae44400d"
+  },
+  "slices/fab92fc411a88b2c-text-200-320-02.png": {
+    "bytes": 47039,
+    "sha256": "85fa19ebd6ca16c4c5cfc2c39f1eab79cd9d0295503ec5b81bb1d0982d5a43c9"
+  },
+  "slices/fab92fc411a88b2c-text-200-320-03.png": {
+    "bytes": 39485,
+    "sha256": "ac6f1776cd82f5864366b85e312518a637e687eb8c6e2daca47f2997850beffc"
+  },
+  "slices/fab92fc411a88b2c-text-200-320-04.png": {
+    "bytes": 47549,
+    "sha256": "4fee714ac0150c38f84f6096a7c7c13554a0368c9bcf0ccf81a3128784b109ac"
+  },
+  "slices/fab92fc411a88b2c-text-200-320-05.png": {
+    "bytes": 43155,
+    "sha256": "2c2ba280a6e6c1fe63e0493168192ec8d8f7dee3f6fb9b91c95d6160ec8649b4"
+  },
+  "slices/fab92fc411a88b2c-text-200-320-06.png": {
+    "bytes": 51569,
+    "sha256": "7aa11a0adc074e23d75ca9cd936ce78db2dc575ce3ae1d3e228afe598ac35748"
+  },
+  "slices/fab92fc411a88b2c-text-200-320-07.png": {
+    "bytes": 53688,
+    "sha256": "77b1ab4e12888c879c060575667de8e3c0a42f2066e133faacb277597e85daf8"
+  },
+  "slices/fab92fc411a88b2c-text-200-320-08.png": {
+    "bytes": 36030,
+    "sha256": "69e5ebbb997b3e673425a6cd5c1f2537e37aad2e06d8beb76467248fa99b35b2"
+  }
+}

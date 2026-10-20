@@ -1,0 +1,25 @@
+{
+  "ok": true,
+  "manifest": "/tmp/99ribu-s26-source-review-r6-manifest.json",
+  "manifestSha256": "e3c4a6c0eb135256fb0a63d0a687f618a037e52e5868c888103f5ed33b138f04",
+  "head": "8b17eee844ba9715581959fc0821af25ce1b99ef",
+  "counts": {
+    "source": 24,
+    "context": 65,
+    "currentUnion": 142,
+    "protected": 7,
+    "evidence": 142
+  },
+  "digests": {
+    "source": "db520eb4b95623c190f54b2eba0797e92c88fa7678e4623ce57e00b71b70d2e1",
+    "context": "b16990169240bc4dd008b74c5ce789f888b782d815c838b8004d729acca210fd",
+    "currentUnion": "cb328381c9b29c69ba63ced0a3f4e6575fed88685331764fc8d69c04d477754b",
+    "protected": "481f017b30b1c63fc33020a20acdbe2f8bde818f95ef54fac534aba18fce40c5",
+    "evidence": "70b19f4430e26559f94b8d1bdb8b80e66d2160ade46946f2aae61476e0a03d2e"
+  },
+  "report": "/tmp/99ribu-s26-source-review-r6.txt",
+  "reportSha256": "b74ce1a960f752c60ed8a6b2e7220a5aa9338ff805f8e015a140cefc7db78b83",
+  "fingerprintMismatches": 0,
+  "engineeringReportRequiresParentSemanticAudit": true,
+  "noVisualOrFinalAcceptance": true
+}

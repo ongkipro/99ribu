@@ -1,0 +1,29 @@
+<!doctype html>
+<html lang="id">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <meta name="robots" content="noindex, nofollow">
+  <meta name="author" content="99ribu">
+  <meta name="publisher" content="99ribu">
+  <meta name="description" content="Prototipe lokal pengalaman belanja, checkout, pesanan, afiliasi, chat, dan gudang 99ribu. Seluruh isi merupakan data contoh untuk peninjauan desain.">
+  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self'; font-src 'self'; img-src 'self'; connect-src 'none'; form-action 'none'; base-uri 'none'">
+  <title>Prototipe Belanja dan Operasional dengan Data Contoh - 99ribu</title>
+  <link rel="preload" href="/fonts/inter-4.1/InterVariable.woff2" as="font" type="font/woff2" crossorigin>
+  <link rel="stylesheet" href="./prototype.css">
+  <script type="module" src="./prototype.mjs"></script>
+</head>
+<body>
+  <a class="skip" href="#main">Lewati ke isi</a>
+  <div class="prototype-note"><span>Prototipe · data contoh</span><button id="views-open" type="button">Pilih layar</button></div>
+  <div id="app"></div>
+  <dialog id="views" aria-labelledby="views-title">
+    <div class="dialog-heading"><h2 id="views-title">Layar prototipe</h2><button type="button" data-close="views">Tutup</button></div>
+    <nav aria-label="Layar prototipe" id="view-links"></nav>
+    <p class="muted">Tidak ada pesanan, pesan, atau pembayaran yang diproses di sini.</p>
+  </dialog>
+  <dialog id="preview" aria-labelledby="preview-title"><div class="dialog-heading"><h2 id="preview-title">Pratinjau</h2><button type="button" data-close="preview">Tutup</button></div><div id="preview-content"></div></dialog>
+  <p id="announcement" class="sr-only" role="status" aria-live="polite"></p>
+  <noscript><main><h1>Prototipe 99ribu</h1><p>Pratinjau interaktif ini memerlukan JavaScript. Halaman ini tidak menerima pesanan.</p></main></noscript>
+</body>
+</html>

@@ -1,0 +1,55 @@
+import assert from 'node:assert/strict';
+import {randomUUID} from 'node:crypto';
+import test from 'node:test';
+import {runOneJob} from '../../src/jobs/worker.ts';
+import {handleAccess} from '../../src/modules/access/routes.ts';
+import {commerceActor} from '../../src/modules/checkout/access.ts';
+import {projectOrder} from '../../src/modules/checkout/orders.ts';
+import {listOrderHistory,readOrderHistory} from '../../src/modules/finance/history.ts';
+import {createReturn,decideReturn} from '../../src/modules/returns/cases.ts';
+import {inspectReturn} from '../../src/modules/returns/inspection.ts';
+import {ingestParcelReceiptSource,simulateParcelReceipt} from '../../src/modules/returns/receipt-source.ts';
+import {recoverRefund} from '../../src/modules/returns/refund-recovery.ts';
+import {createRefundDestinationSource,ingestRefundSourceEvent,simulateRefundOutcome} from '../../src/modules/returns/refund-source.ts';
+import {acceptRefundDestination,projectBuyerRefund,queueRefund} from '../../src/modules/returns/refunds.ts';
+import {refundAdapter} from '../../src/modules/returns/worker.ts';
+import {returnFixture} from './return-fixture.ts';
+
+test('order/history projections distinguish first per-unit receipt, physical intake, retained obligation and confirmed cash without rewriting collection',async()=>{
+ const f=await returnFixture('cod'),sql=f.identity.sql;
+ try{
+  const [originalOrder]=await sql`select status,payment_status,revision,merchandise_amount,shipping_amount,subsidy_amount,buyer_total from app.commerce_order where id=${f.order.id}`;
+  const purchases=async()=>JSON.stringify(await sql`select id,receipt_id,occurred_at,merchandise_amount,payload from app.commerce_event where order_id=${f.order.id} and name='Purchase' order by id`),originalPurchases=await purchases();
+  const parcel=f.parcels.find(row=>f.units.filter(unit=>unit.shipment_id===row.shipment_id).length>1);assert.ok(parcel);const units=f.units.filter(unit=>unit.shipment_id===parcel.shipment_id),unit=units[0],booking=f.bookings.find(row=>row.fulfillment_id===parcel.id);assert.ok(booking);
+  const run=async(jobId:string)=>{assert.equal(await runOneJob(sql,{'refund.create':refundAdapter(sql,'test')},jobId),true);assert.equal((await sql`select status from app.outbox_job where id=${jobId}`)[0].status,'completed');};
+  const receive=async(selected:readonly string[])=>{const source=await simulateParcelReceipt(sql,'test',{reference:randomUUID(),booking_id:booking.id,unit_ids:[...selected]});await run(await ingestParcelReceiptSource(sql,source));return source;};
+  const project=()=>sql.begin(tx=>projectOrder(tx,f.order.id));
+  const first=await receive([unit.id]);let view=await project(),shipment=view.shipments.find(row=>row.id===parcel.shipment_id);assert.ok(shipment);assert.equal(shipment.status,'partially_delivered');assert.equal(shipment.received_quantity,1);assert.equal('delivered_at' in shipment,false);assert.equal(view.items.reduce((n,row)=>n+row.received_quantity,0),1);
+  await sql`update app.local_fixture_namespace set clock=clock+interval '60 seconds',revision=revision+1 where name=${f.namespace}`;
+  await receive([unit.id]);assert.equal(new Date((await sql`select received_at from app.buyer_receipt where fulfillment_item_id=${unit.id}`)[0].received_at).toISOString(),first.occurred_at);
+  const last=await receive(units.slice(1).map(row=>row.id));view=await project();shipment=view.shipments.find(row=>row.id===parcel.shipment_id);assert.ok(shipment);assert.equal(shipment.status,'delivered');assert.equal(shipment.received_quantity,units.length);assert.equal(shipment.delivered_at,last.occurred_at);
+  assert.equal(view.shipments.find(row=>row.id!==parcel.shipment_id)?.status,'handed_over');assert.equal(view.refund_total,0);assert.equal(view.pending_refund_total,0);
+  const buyer=await commerceActor(f.client.request('/api/v1/carts'),f.identity);assert.ok(buyer);
+  const input={items:[{order_item_id:unit.order_item_id,delivered_fulfillment_item_id:unit.id,quantity:1,reason:'damaged',details:'SYNTHETIC independently tracked physical return'}],requested_resolution:'refund'},created=await createReturn(f.client.request(`/api/v1/orders/${f.order.id}/returns`,input),f.identity,buyer,f.order.id,input) as {id:string};
+  const decision={decision:'approve_refund',expected_version:1,requires_goods:false,reason:'SYNTHETIC explicit original company-fault return waiver'},decisionRequest=f.owner.browser.request(`/api/v1/admin/returns/${created.id}/decisions`,decision);decisionRequest.headers.set('idempotency-key',randomUUID());await decideReturn(decisionRequest,f.identity,f.principal,created.id,decision);
+  const proof=async(subjectId:string)=>{const request=f.finance.browser.request('/api/v1/me/reauthentication-proofs',{password:f.finance.password,action:'finance.refund',subject_id:subjectId});request.headers.set('idempotency-key',randomUUID());const response=await handleAccess(request,f.identity);assert.equal(response.status,201);return (await response.json()).proof as string;};
+  const queue={return_case_id:created.id,expected_version:2,reason:'SYNTHETIC original obligation distinct from cash',reauthentication_proof:await proof(created.id)},request=f.finance.browser.request('/api/v1/admin/refunds',queue);request.headers.set('idempotency-key',randomUUID());
+  let refund=await queueRefund(request,f.identity,f.financePrincipal,queue) as {id:string;version:number;amount:number;status:string};
+  view=await project();assert.equal(view.refund_total,0);assert.equal(view.pending_refund_total,refund.amount);assert.equal(view.items.find(row=>row.id===unit.order_item_id)?.return_pending_quantity,1);assert.equal(view.items.find(row=>row.id===unit.order_item_id)?.returned_quantity,0);
+  const destination=await createRefundDestinationSource(sql,'test',refund.id),accepted={destination_source_id:destination.id,expected_version:refund.version};await acceptRefundDestination(f.client.request(`/api/v1/orders/${f.order.id}/refunds/${refund.id}/destinations`,accepted),f.identity,buyer,f.order.id,refund.id,accepted);
+  await run((await sql`select current_job_id from app.refund where id=${refund.id}`)[0].current_job_id);await run(await ingestRefundSourceEvent(sql,await simulateRefundOutcome(sql,'test',refund.id,'failed')));
+  view=await project();assert.equal(view.refund_total,0);assert.equal(view.pending_refund_total,refund.amount);assert.equal(view.items.find(row=>row.id===unit.order_item_id)?.refunded_quantity,0);
+  refund=await sql.begin(tx=>projectBuyerRefund(tx,refund.id));const retry={action:'retry',expected_version:refund.version,reason:'SYNTHETIC retry only after signed zero-money rejection',reauthentication_proof:await proof(refund.id)},retryRequest=f.finance.browser.request(`/api/v1/admin/refunds/${refund.id}/reconciliations`,retry);retryRequest.headers.set('idempotency-key',randomUUID());await recoverRefund(retryRequest,f.identity,f.financePrincipal,refund.id,retry);
+  await run((await sql`select current_job_id from app.refund where id=${refund.id}`)[0].current_job_id);await run(await ingestRefundSourceEvent(sql,await simulateRefundOutcome(sql,'test',refund.id,'succeeded')));
+  view=await project();assert.equal(view.refund_total,refund.amount);assert.equal(view.pending_refund_total,0);assert.equal(view.items.find(row=>row.id===unit.order_item_id)?.refunded_quantity,1);assert.equal(view.items.find(row=>row.id===unit.order_item_id)?.return_pending_quantity,0);assert.equal(view.items.find(row=>row.id===unit.order_item_id)?.returned_quantity,0,'A waived return is not a physical stock intake');
+  const [caseHead]=await sql`select revision from app.return_case where id=${created.id}`,[returnItem]=await sql`select id from app.return_item where case_id=${created.id}`,[component]=await sql`select balance_id,quantity from app.fulfillment_component_allocation where fulfillment_item_id=${unit.id} order by balance_id limit 1`,[before]=await sql`select on_hand,reserved,quarantined from app.inventory_balance where id=${component.balance_id}`;
+  const intake={expected_version:caseHead.revision,result:'record_goods',reason:'SYNTHETIC late physical-only original lot intake',items:[{return_item_id:returnItem.id,goods:[{expected_balance_id:component.balance_id,quantity:component.quantity,identity_confirmed:true}]}]},intakeRequest=f.owner.browser.request(`/api/v1/admin/returns/${created.id}/inspections`,intake);intakeRequest.headers.set('idempotency-key',randomUUID());await inspectReturn(intakeRequest,f.identity,f.principal,created.id,intake);
+  view=await project();assert.equal(view.items.find(row=>row.id===unit.order_item_id)?.returned_quantity,1);assert.equal(view.refund_total,refund.amount);assert.equal((await sql`select count(*)::int n from app.finance_transaction where order_id=${f.order.id} and kind='refund_cash'`)[0].n,1);
+  const [after]=await sql`select on_hand,reserved,quarantined from app.inventory_balance where id=${component.balance_id}`;assert.equal(after.on_hand-before.on_hand,component.quantity);assert.equal(after.quarantined-before.quarantined,component.quantity);assert.equal(after.on_hand-after.reserved-after.quarantined,before.on_hand-before.reserved-before.quarantined);
+  assert.deepEqual((await sql`select status,payment_status,revision,merchandise_amount,shipping_amount,subsidy_amount,buyer_total from app.commerce_order where id=${f.order.id}`)[0],originalOrder);assert.equal(view.version,originalOrder.revision);assert.equal(view.payment_status,originalOrder.payment_status);assert.equal(await purchases(),originalPurchases);
+  const listed=await listOrderHistory(f.identity,f.principal,new URL(`http://127.0.0.1:3099/api/v1/admin/orders?reference=${f.order.number}&return_status=resolved`));assert.equal(listed.data.length,1);assert.equal(listed.data[0].id,f.order.id);
+  const history=await readOrderHistory(f.identity,f.principal,f.order.id,new URL('http://127.0.0.1:3099/api/v1/admin/orders?history_limit=100'));
+  assert.equal(history.history.filter(row=>row.kind==='fulfillment'&&row.status==='buyer_received').length,2,'Duplicate source reception never creates a second physical anchor');assert.ok(history.history.some(row=>row.kind==='return'&&row.status==='resolved'));assert.ok(history.history.some(row=>row.kind==='refund'&&row.status==='failed'));assert.ok(history.history.some(row=>row.kind==='refund'&&row.status==='succeeded'));
+  for(const field of ['signature','proof_digest','reason','clock_namespace','request_hash','recipient'])assert.equal(JSON.stringify(history.history).includes(`"${field}"`),false);
+ }finally{await f.close();}
+});

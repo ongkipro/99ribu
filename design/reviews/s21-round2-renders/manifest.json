@@ -1,0 +1,112 @@
+[
+  {
+    "source": "docs/spec/design/renders/s21/account-pending-1440.png",
+    "archive": "design/reviews/s21-round2-renders/account-pending-1440.png",
+    "sha256": "ab9e532ee0e1f4027f038994df155f8971240ee0f6dc3983823202ec809494bf"
+  },
+  {
+    "source": "docs/spec/design/renders/s21/account-pending-390.png",
+    "archive": "design/reviews/s21-round2-renders/account-pending-390.png",
+    "sha256": "684ecc8b65d8c02742b38bf9c407ce1e53d1172e78a498ca9031ffb6787e77ae"
+  },
+  {
+    "source": "docs/spec/design/renders/s21/cart-pending-1440.png",
+    "archive": "design/reviews/s21-round2-renders/cart-pending-1440.png",
+    "sha256": "41a305bfe517c0df94487af1c67c2a244af1c135f26c3b2ce0a5c56deaf08812"
+  },
+  {
+    "source": "docs/spec/design/renders/s21/cart-pending-390.png",
+    "archive": "design/reviews/s21-round2-renders/cart-pending-390.png",
+    "sha256": "5881c98fe491e174176e9e12a907b9d634bdff02e08f19e827b428d1a19efb68"
+  },
+  {
+    "source": "docs/spec/design/renders/s21/category-1440.png",
+    "archive": "design/reviews/s21-round2-renders/category-1440.png",
+    "sha256": "d9a291ee49023d1a10c93b197c51dccb4d9a9a670996ba579e73530d1f59e0cb"
+  },
+  {
+    "source": "docs/spec/design/renders/s21/category-390.png",
+    "archive": "design/reviews/s21-round2-renders/category-390.png",
+    "sha256": "cc7c6bba9486fb6001c3188faebef8a67effba6becacc0b98ff41d81dd76684f"
+  },
+  {
+    "source": "docs/spec/design/renders/s21/departments-1440.png",
+    "archive": "design/reviews/s21-round2-renders/departments-1440.png",
+    "sha256": "84c6368653aa7a14b23bb4d0ce200c9c4ded5ad75fb233aac4e48eb6d16bbe01"
+  },
+  {
+    "source": "docs/spec/design/renders/s21/departments-390.png",
+    "archive": "design/reviews/s21-round2-renders/departments-390.png",
+    "sha256": "8c7fffcfd45c133bbe5133b34f9682ffbb6da8b85edf55a75cb6fb0d3d9990c4"
+  },
+  {
+    "source": "docs/spec/design/renders/s21/empty-390.png",
+    "archive": "design/reviews/s21-round2-renders/empty-390.png",
+    "sha256": "448f81de5a95979c7ee50837a424af846763beabef0c1ab9bf695eb0bbd5ca53"
+  },
+  {
+    "source": "docs/spec/design/renders/s21/help-1440.png",
+    "archive": "design/reviews/s21-round2-renders/help-1440.png",
+    "sha256": "536576d338a55a44cde292df7ead764a4a6051ca273b3617b43ddecdf2a9ade5"
+  },
+  {
+    "source": "docs/spec/design/renders/s21/help-390.png",
+    "archive": "design/reviews/s21-round2-renders/help-390.png",
+    "sha256": "3d1ce65ca7eb352d4418d55fb08388079610326f43d92dd5be96d8c66b53b771"
+  },
+  {
+    "source": "docs/spec/design/renders/s21/home-1440.png",
+    "archive": "design/reviews/s21-round2-renders/home-1440.png",
+    "sha256": "0025acf69404644b17473028d523b989aa02ffafac8c0a802ef8ca28aaa45332"
+  },
+  {
+    "source": "docs/spec/design/renders/s21/home-390.png",
+    "archive": "design/reviews/s21-round2-renders/home-390.png",
+    "sha256": "959f2f3b19a937b788566945577a83922f4f8c1093b78ce1ea1ceb4675c290f0"
+  },
+  {
+    "source": "docs/spec/design/renders/s21/invalid-filter-390.png",
+    "archive": "design/reviews/s21-round2-renders/invalid-filter-390.png",
+    "sha256": "4dfd04d24d4dcc5667e32b1828bc465ba72d0eb3ef75021697ec3f582ba93111"
+  },
+  {
+    "source": "docs/spec/design/renders/s21/not-found-1440.png",
+    "archive": "design/reviews/s21-round2-renders/not-found-1440.png",
+    "sha256": "e57bae2b256f85f641b5e7e608da09a871a446b24b668250aa39457871fa2113"
+  },
+  {
+    "source": "docs/spec/design/renders/s21/not-found-390.png",
+    "archive": "design/reviews/s21-round2-renders/not-found-390.png",
+    "sha256": "6aa3c1e69235b20b8c05f7ca9828529c204e4c60462d46a636224f6a4c947a75"
+  },
+  {
+    "source": "docs/spec/design/renders/s21/product-preview-1440.png",
+    "archive": "design/reviews/s21-round2-renders/product-preview-1440.png",
+    "sha256": "69b5957055c769952ad7eeb6a325c4e6c8f20b5dadbe36511c55e420712ada5f"
+  },
+  {
+    "source": "docs/spec/design/renders/s21/product-preview-390.png",
+    "archive": "design/reviews/s21-round2-renders/product-preview-390.png",
+    "sha256": "26c03e85393854631e3ccc5b7ca4d9dd9bcf88e9395078f0641c3f934b669353"
+  },
+  {
+    "source": "docs/spec/design/renders/s21/product-preview-detail-390.png",
+    "archive": "design/reviews/s21-round2-renders/product-preview-detail-390.png",
+    "sha256": "bef03bc89ec60a5d7e348d830a3fc79a5e4dbe7ee63ae049bbfb5011140044f2"
+  },
+  {
+    "source": "docs/spec/design/renders/s21/search-1440.png",
+    "archive": "design/reviews/s21-round2-renders/search-1440.png",
+    "sha256": "d9e23aa406f288060d3283ced37fb70308ca84c4b42e665956dbc66913c70eb6"
+  },
+  {
+    "source": "docs/spec/design/renders/s21/search-390.png",
+    "archive": "design/reviews/s21-round2-renders/search-390.png",
+    "sha256": "7bef38e7d1c0dd634566c2e056ae63ee27bc16c224d59bbbe83a7a309b990c13"
+  },
+  {
+    "source": "docs/spec/design/renders/s21/text-200-320.png",
+    "archive": "design/reviews/s21-round2-renders/text-200-320.png",
+    "sha256": "09a7aa7598893164dd7bf9868fc4526e8e7eeb81d01704a4dffa5b5b5c115cf7"
+  }
+]

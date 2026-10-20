@@ -2,7 +2,7 @@
 
 Owner: Paduka Ongki. Updated: 2026-10-16.
 
-Current target: complete application behavior on localhost, including a production build served locally with a separate worker. Auth, PostgreSQL, stock/money transactions, chat and UI must be real; only external payment/shipping/ads/notification effects are simulated. Application implementation has not started. This repository pack is the canonical planning handoff, not a running store or production acceptance. Documentation was promoted on 2026-10-16; root STATUS records actual progress.
+Current target: complete application behavior on localhost, including a production build served locally with a separate worker. Auth, PostgreSQL, stock/money transactions, chat and UI must be real; only external payment/shipping/ads/notification effects are simulated. Application foundation work has started; root STATUS owns implemented and verified checkpoints. This repository pack is the canonical planning handoff, not a running store or production acceptance. Documentation was promoted on 2026-10-16; root STATUS records actual progress.
 
 ## Start here
 
@@ -67,7 +67,7 @@ These retained templates were adopted at repository root on 2026-10-16. Their co
 | [RELEASE.md](handoff/root/RELEASE.md) | Local artifact/acceptance/restore boundary and separate external release gates |
 | [OBSERVABILITY.md](handoff/root/OBSERVABILITY.md) | Actual configured health, backlog, reconciliation and recovery probes |
 
-The promotion reconciled these templates at root, retained one root decision index, relocated all six ADRs to `docs/adr/`, and repaired Markdown links. See [promotion manifest](promotion-manifest.json) for the original inventory and reconciliation hashes. `.delivery/` remains tool-written. S01 is partial because the native application scaffold has not run.
+The promotion reconciled these templates at root, retained one root decision index, relocated all six ADRs to `docs/adr/`, and repaired Markdown links. See [promotion manifest](promotion-manifest.json) for the original inventory and reconciliation hashes. `.delivery/` remains tool-written. The native scaffold has now run; root STATUS owns S01–S02 checkpoint review and completion.
 
 ## Canonical specifications
 
@@ -127,4 +127,4 @@ The Python OAS checker uses the already available YAML/JSON-schema environment; 
 
 ## Remaining gates
 
-The next implementation slice is the remaining native-scaffold portion of S01; documentation promotion is complete. Within foundation, pin supported versions, settle the supported identity/recovery transport, verify actual worktree/bootstrap behavior and execute real commands. Owner Sunday/cutoff policy, merchant-issued interfaces, real advertising destinations/consent activation, physical label acceptance, tax/privacy operational decisions and remote hosting/recovery remain their named later gates. The complete local simulator milestone can proceed without live-provider credentials, while accurately recording those limits.
+Documentation promotion is complete; consult root STATUS for the next implementation slice. Within foundation, pin supported versions, settle the supported identity/recovery transport, verify actual worktree/bootstrap behavior and execute real commands. Owner Sunday/cutoff policy, merchant-issued interfaces, real advertising destinations/consent activation, physical label acceptance, tax/privacy operational decisions and remote hosting/recovery remain their named later gates. The complete local simulator milestone can proceed without live-provider credentials, while accurately recording those limits.

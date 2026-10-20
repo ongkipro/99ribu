@@ -1,40 +1,47 @@
 # Status — Serba 99ribu
 
-Adopted at repository root on 2026-10-16. Documents are canonical here; application implementation and localhost acceptance remain pending.
-
-Updated: 2026-10-16
-Status: Documentation promoted and validated; application not initialized
+Updated: 2026-10-20
+Status: S26 accepted (RUN-20261019T180526Z-628997c1 PASS, build GnGzXP9Rxjma9lhVY1dRq, canonical20 PASS, design-gate 0, independent R3b APPROVE); boundary commit next, then S27
 State: PLANNED
-Local-Acceptance: NOT_RUN
+Local-Acceptance: INCOMPLETE
 Review-Risk: R3
-Independent-Review: PENDING
-Primary-Worker: UNSET
-Independent-Reviewer: UNSET
-Independent-Review-Head: UNSET
+Primary-Worker: claude-code (supervising Claude Code session, claude-opus-5-5/anthropic, effort unexposed) since 2026-10-20 ~05:40 local; WORKER HANDOFF from codex-root, stopped by its OpenAI usage limit until 2026-10-26 10:25 local; hand back at the next checkpoint after reset
+Independent-Review: R18b bounded four-source/two-document APPROVE/all63 verified; final full29 union R3 pending
+Independent-Reviewer: Actual separate Claude Code/claude-opus-5-5 R18b; provider/effort unexposed
+Independent-Review-Head: 8b17eee844ba9715581959fc0821af25ce1b99ef; source29 digest3684edb90afd452ed2daf8c5c7fcade4181f71102e1946f846fb71fea9abd4c0
 
-## Current state
+## Current work and resumable next action
 
-The authorized target is complete localhost delivery with real PostgreSQL/auth/domain/worker behavior and simulated external effects. Planning checks do not establish application acceptance. No repository application implementation, database migration, auth test, browser journey or local production-mode run is recorded here.
+- Active C3 RUN-20261019T180526Z-628997c1 / T-31-S26-C3 / PR-4 / R3 / storefront.checkout. Foundation HEAD8b17eee remains unchanged. Native Codex exact route is unavailable. STATUS owns the handoff; TASKS is the sole queue and .delivery is tool-written evidence. No parallel handoff/backlog is created.
+- Current build42 `e54G_i1yjfJDmhuKVI5r1` passed actual lint/typegen/typecheck/optimized build/diff0. Receipt `/tmp/99ribu-s26-ui-build-r42-manifest.json` binds271 app/config/public/fixture inputs and all29 source/test bytes before/after. Old build41 proof/approval/preflight is historical after the current correction.
+- F1/F2-only delta versus exact107-object build41 snapshot: four source/test files (checkout-forms.tsx, globals.css, checkout/order/[orderId]/page.tsx, storefront-checkout.test.ts) plus README/ARCHITECTURE explanations. Every gross fee uses Tarif, net buyer fee retains Ongkir. Native checked-state CSS chooses the actual primary/warning text in JS/no-JS and hides only stale success step notices. Errors/conflict/unknown outcomes, financial handlers, prices/subsidies/stock/plans/IDs/grouping and P3 remain unchanged. Test coverage extends existing scenarios, including accessible action names and a real no-JS success notice that remains in DOM but hides after changed services.
+- Completed proof-r16 actual native11/5, browser-r46 twenty-five/1, cart-r31 sixteen/1 PASS,0fail/incomplete/empty; receipt `/tmp/99ribu-s26-current-proof-r16.json`. Current-evidence-r16-audit verifies29/271,11 served scripts, exact cart runner and64 decoded images. No current behavioral check remains live. Local build42 server still serves127.0.0.1:3099 via plain `npm run start`.
+- Actual separate R18b bounded engineering APPROVE, noP1/P2: `design/reviews/s26-source-r18b.md`; manifestSHA3db93d8dee27fc58a9709bbfd4150bcd0b8da4357ba350b5f42c6b9988a6fd07. Parent verifies source29/context14/protected14/actual baseline6, all63; full six-file delta and exact107-object build41 snapshot,25 unchanged sources hash-only. Raw report's inline manifest typo is explicitly corrected; actual hash independently verified. Parent audits completed11/25/16. Reported no writes, not a broad arbitrary-filesystem assertion. This is not final full29 R3.
+- Current64 render index and visual context now point only to build42. Manifest `/tmp/99ribu-s26-round18-render-manifest-r2.json` SHA89daf9f39c14e8f6e1d13ed269052fcb4f52a51de81013ca0980e8d476867dda; all315 older PNGs plus build40's64 and build41's64 remain unchanged. Packet `/tmp/99ribu-s26-r18-preflight-inputs-r2/manifest.json` SHA1665e43c717af825b6352b577a05103ac1c2925586ea7b170420941de998d9dd binds64 renders/199 slices/4refs, current source review/proof and contextSHA3b2787a109edb2f45b9c8010fb5424f9765bef167a65fd7f25fdef49d3d1c18a. Builder personally inspected sampled pending JS/no-JS390, subsidy review390, payment390, review1440 and320/200percent rows; no all64 inspection claim.
+- New guard `/tmp/99ribu-s26-canonical18-r18b.py --check-frozen` actually PASS;15 archives/1966 objects, prior443 PNGs, applied46/journal24/S33 STOP unchanged. Default NOT invoked; requires actual supervising-verified GO receipt `/tmp/99ribu-s26-r18b-supervising-verified-go.json` with exact relay and both report hashes. Old18-r18a wrapper/input packet d432733d… is historical and must NEVER run on current42. Canonical18 is still unspent; rounds18–19 remain authorized under the standing preflight gate.
+- Next verified action: keep source/build/renders/context frozen while owned fresh layer1 simulation `/tmp/99ribu-s26-r18-t1b-simulation-r1.py` runs. Report `/tmp/99ribu-sim-s26-r18-t1b/design/review.md`, raw `/tmp/99ribu-s26-r18-t1b-simulation-r1.txt`, receipt `-receipt.json`; do not duplicate a live/exclusive wrapper. It is scratch-only, not a repo round. Read actual terminal result and verify its receipt; then obtain T2 coverage plus conductor personal inspection/GO on THIS packet. Updated request sent; prior build41 request superseded. No GO18 inferred from acknowledgment or live process.
+- T1 remains sole active writer; conductor is authorized to take over lane A if T1 stops due quota and must record transfer before writing. No transfer/commit/finish claimed. To resume, inspect the simulation process/receipt before invoking anything. Current visual/gate/full29/final boundary closure remains pending; do not start S27.
 
-## Active work and resume
+## Visual gate and immutable evidence
 
-- Active slice: S01 partial (document promotion only); native application scaffold and runtime evidence remain pending.
-- Active ledger run: none recorded here.
-- Git baseline: documentation-only repository; resolve current HEAD and inspect status before the next slice.
-- Completed local checkpoints: none; when populated, list slice IDs with links to actual ledger/check evidence.
-- Parent tasks with pending external acceptance: retain their exact gate and owner; local checkpoint PASS does not close them.
-- Last executable application check: none.
-- Resume state: PLANNED.
-- Next action: resume S01 at the pinned native generator in an isolated feature worktree. Preserve the already-promoted contracts, then continue S02 runtime/dependency pinning. Do not repeat promotion or consult the retained staging copy.
+- Canonical17 actually ran once after exact owner GO on build40, returned REVISE/exit1 and appended17. It confirmed the prior three owner fixes but raised gross/net fee terminology. Root design/review.md and review-rounds.log retain that actual verdict/log17. Archive design/reviews/s26-round17 has344 objects/SHA4acf4c2defd0fe93eb72d9bccbe60f1e5d62206e545201af80fdc2196488b432. No canonical18 invocation; authorized18–19 remain. Never reset history, spend20, edit global scripts/rubric/cap or reuse17 GO for18.
+- The root-owned build41 layer1 simulation completed REVISE/exit1; NOT a canonical round. `/tmp/99ribu-sim-s26-r18-t1/design/review.md` SHA02721aa84c409ed5b235758b1ad10d09fe668cbb769d0123a26502d552bab19a. Parent confirmed F1 gross/net labels and F2 action/stale-success defects on real renders. All61 declared fingerprints/root log17/68 copied image bytes remained unchanged during simulation. It also disclosed a scratch plan write; no broad read-only-filesystem claim. Repo verbatim report/triage: design/reviews/s26-preflight-layer1-r18a*.md. The process is terminal, do not duplicate it.
+- Exact build41 pre-correction snapshot `/tmp/99ribu-s26-r18a-layer1-revise-build41`,107 objects, manifestSHA2eb6e82b46f1103ead56b1a7eb0296b03c624434e2a86c30c0e98a992c2f8431. Build41 fn4mc5lbQ8Q1sCs2Yh835 native11/browser25/cart16 PASS and R18a bounded two-source/two-doc APPROVE/all61 verified remain historical evidence only. Frozen64 renders/199 slices/4refs, packetSHAd432733d6b8e85529f985bc4639885ae16d8354cd37416cd263c1e05b58c7c72, manifest0f236ce2…328b0. Prior315 plus build40's64 and build41's64 PNG bytes must stay unchanged.
+- Full original/C1/C2/C3 code membership is29, verified from four ledger boundaries. Final-union integrity preparation previously passed: original85, preserved C1 849/936 (87 historically missing remain explicitly missing), corrected C1 current24 and C2 snapshot13. `/tmp/99ribu-s26-final-union-preparation-r1.json` and current-union-membership-r1/r2 are historical hashes after this patch; membership remains29. Refresh final current source/doc snapshot and actual full29 independent R3 after canonical PASS/design-gate0. Hash-only coverage never counts as a full source review.
+- Completion sequence: actual current checks/bounded review -> fresh exact renders -> verified two-layer GO -> unchanged canonical18 (or19 only if needed) PASS -> design-gate exit0 with `PASS: 0 failing check(s)` -> final current original/C1/C2/C3 full29 R3 -> final boundary review/finish PASS. Old FAIL events remain truthful; record actual finding closure without pretending17 passed. check-boundary alone does not resolve verification FAILs.
 
-## Gates
+## Owner sequencing and limits
 
-Local commands/versions, PostgreSQL setup, selected auth identity/recovery transport and runtime/browser evidence remain unverified. Implement safe external simulators without claiming merchant or advertising account compatibility. Live activation, carrier print/scanner approval and remote release remain separate gates; absence of those credentials does not block local simulated work.
+- Owner decision (2026-10-20 ~07:55 local, Paduka Ongki): canonical19 PASSED, then the separate final R3 review required two P2 corrections that change rendered UI (destination option 'Kecamatan, Kota'; per-parcel rows with selected service level restored on every allocation option per the build34 correction). Rounds 20-21 authorized as re-verification; still REVISE after 21 returns to the owner.
+- Owner decision (2026-10-20 ~06:50 local, Paduka Ongki, to the handed-over claude-code worker): after canonical18 REVISE and two split simulation pairs, do ONE more allocation-chooser iteration (unselected options collapse to title + difference, difference emphasised), run two simulations, then spend canonical19 regardless of their verdict; still REVISE after round 19 returns to the owner.
+- After S26 CLOSED PASS say `S26 boundary ready` and STOP. Conductor commits feat/foundation-s01-s02 without push; S27 starts on new HEAD. Lanes B/C/D start afterward in isolated worktrees/ledger runs. Prebuilt S56..59 patches belong to lane D. S27 verified prep map remains queued. No Git/live action by T1.
+- Carried P3/layout nits remain unimplemented. Native cart projection has no frozen thumbnail (design contract10 line372 explains this); no speculative image work. Other devices/WebKit/physical-mobile/screen-reader/native support/S27/S65/S68 keep their own gates; no full-device/WCAG/live acceptance claimed. Stored local payment deadline is order expiry inherited by attempts, not live provider proof.
+- Natural Indonesian fixture labels, settled autosave, global Inter/purple/type tokens and native finance/stock contracts remain. No assertion/timeout removal, force click, skip, worker drain, validation waiver or ambiguous money retry.
 
-## Workflow and interruption
+## Failures, protected S33 and history
 
-STATUS is the sole workflow-state authority. Use the applicable verified transition sequence: `PLANNED -> READY -> IMPLEMENTING -> VERIFYING -> REVIEWING -> INTEGRATING`. Local acceptance does not imply deployed production status. Production release states require their separate release gates and authorization.
-
-S68 requires current evidence for every accepted local slice; a detached final gate or merely green build cannot complete the milestone. After S68 passes, record `Local-Acceptance: PASS` with the exact built artifact, final review and T-39 evidence; keep remote deployment state unclaimed. Record pending external acceptance separately. Any later change that invalidates local proof reopens the affected checkpoint and this acceptance field.
-
-On interruption use BLOCKED only with a concrete blocker, exact previous state and resume action. Record slice/parent requirement, owned dirty files, ledger run/evidence, latest check result and next command. Preserve existing work. R3/R4 completion requires actual separate-agent review and final boundary evidence; fill provenance from the real review rather than this template.
+- Current correction script initially stopped on a global test-replacement cardinality assertion after three source writes. Remaining test/doc edits were scoped/validated and completed before build42; this is a patch-script failure, not a behavioral RED. Initial restart `npm run start -- --hostname 127.0.0.1 --port3099` was refused by run-local.ts because extra arguments are forbidden; plain `npm run start` then started build42. Preserve both failures without weakening the runner.
+- Original S26/C1/C2 closed FAIL/incomplete; all exact manifests/reports/REDs remain. C3 declared tsconfig before editing. S21/S22 accepted; material shared changes reopen affected cart proof. Historical native/no-JS Enter/revert/stock/lint/positional-locator/build/browser failures remain in archived STATUS/BUILD-LOG.
+- S33 owner-paused C4 RUN-20261018T235927Z-e5e2309a CLOSED FAIL/incomplete. SQL0023 SHAca52af7b8775166857e76dc9ed026718e77ffa5fddef5b72bcaeac76bcef54dc,524260bytes,140 declarations/139distinct,25draft relations/snapshot165; STOP intact, uncompiled/unexecuted. Installed targets140tables/23migrations; all46 applied SQL/snapshots and original23 journal prefix immutable; source journal24 includes only unapplied0023. Consumed definition executors r13/r21/r27 never rerun. No DDL/migrate/upgrade/proof issuer/PR-21/new executor. S33 resumes after S26 boundary commit/S27.
+- No secrets/customer data/live providers/production/DNS/deploy/push/remote writes/dependencies/system installs or Git action. No reset/clean/discard. Owner backup wip/snapshot-20261020-s26/a5abac9 never moved this HEAD or established acceptance.
+- History: docs/history/*-20261020-pre-s26-r18b.md preserves the exact pre-handoff STATUS/BUILD-LOG; earlier c2/r12/r17d/r17f/r17g/canonical17/r18a archives retain prior evidence. These are history, not competing queues.

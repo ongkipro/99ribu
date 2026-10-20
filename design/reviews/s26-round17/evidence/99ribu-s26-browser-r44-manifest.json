@@ -1,0 +1,33 @@
+{
+  "buildID": "1gmFuDzySwDEiiUxgDax_",
+  "sourceDigest": "c56a562c59c8a8091924a5b3dc66b14dfc454d673d51ce8b06c941179c1c296c",
+  "sourceCount": 271,
+  "scripts": {
+    "/_next/static/chunks/2r4s4h5xul1n-.js": "e1d4feb378b6ba6cfc1f31809ecdc03b14b8e0759bbe0065de29fb6646b277a2",
+    "/_next/static/chunks/01s_f_3qlcqtb.js": "e941c350531e6a7b183634809cea8acabb9a28738fa42bb7fce0cc8ee9158dce",
+    "/_next/static/chunks/0lg7b9d_6tekw.js": "fd707f96284152b57ed2bdb0bd46add79d195a54ed8f929f8df9628b0bd86477",
+    "/_next/static/chunks/turbopack-3-ry682tkyiqk.js": "8bbb58cbfd4633c1d828c6bc37bc32abc768a149c01b1dfc4f5131fd81274551",
+    "/_next/static/chunks/0umf92h1sb77c.js": "c410d0f2543e080768fc14f73b2bd1fdf103e26956e9730390b5e41c4fb5ff8b",
+    "/_next/static/chunks/0-q83zzwgqt45.js": "3ae84dacdf2dbd4759b2de98c2e22e8f140e53c7db2f6a859ec5cbb53015e9ba",
+    "/_next/static/chunks/24ltlkc6fhen0.js": "a1328777362b2db6880bd35abcb0d79fcd972e3feec21dd4bd4418a4fd0713ab",
+    "/_next/static/chunks/0cz1d0mv5g_q7.js": "0973c1d64c88adc8e3c950410cb58b288f72118d5965b78049438deb8f2f9683",
+    "/_next/static/chunks/1x6obpmlu1_c2.js": "7c0be00bfd43494dcddc8817168e952d9900555c3e80355686a423eedd2bab22",
+    "/_next/static/chunks/1dngiv55f68u4.js": "4cf0bc2e02bbd88026e6992c07308c7a817d22940cd828ba17ba84f8916155c5",
+    "/_next/static/chunks/3cr_a8o0r38ze.js": "e33438b6db3243fa0f1ec9350c6df8a5e6fc90ee075ce3408052b6322ef98be3"
+  },
+  "beforeAfterVerified": true,
+  "testSha256BeforeAfter": "0ea27656d587e519d625d3c782bb395293015d34bc0a6223b9ef1ee474efb19a",
+  "legacy63RenderBytesUnchanged": true,
+  "frozenRk63RenderBytesUnchanged": true,
+  "frozenBuild30RenderBytesUnchanged": true,
+  "frozenBuild31RenderBytesUnchanged": true,
+  "frozenBuild34RenderBytesUnchanged": true,
+  "command": [
+    "npm",
+    "run",
+    "test:browser",
+    "--",
+    "--case=T-31"
+  ],
+  "exit": 0
+}
