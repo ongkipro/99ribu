@@ -1,6 +1,6 @@
 # Implementation Tasks
 
-Status: Application foundation implementation is underway. Planning/document work exists with individual status below; document-review closure does not complete runtime acceptance. This is the sole repository execution queue. The documentation pack was promoted on 2026-10-16; S01–S02 foundation code exists; current review/checkpoint evidence is owned by root STATUS. The application scaffold and configuration/startup tests now exist; the planning-only OpenAPI checker exists under docs/spec/scripts/. Stack selection is recorded; application initialization and the foundation task T-23 are prerequisites for domain code tasks. TEST commands below are prospective contracts for scripts to be created during setup, not commands claimed to pass today. Frontend tasks below remain planned contracts; execution follows visual/experience acceptance and repository setup.
+Status: All 68 local implementation slices (`S01`–`S68`) and assembled localhost readiness (`T-39`) are implemented and verified PASS in the disposable local environment. This is the sole repository execution queue; current checkpoint and verification evidence is owned by root `STATUS.md` and `BUILD-LOG.md`. External live-provider, physical carrier/printer hardware, and production deployment gates remain explicitly separate per `CTX-18`, and `T-19` remains deferred external candidate research.
 
 Use the [ordered slice map](#execution-semantics--current-localhost-handoff) for precise local sequencing and the read-only development-task.py helper for per-slice implementation/review prompts.
 
@@ -119,7 +119,7 @@ Use the [ordered slice map](#execution-semantics--current-localhost-handoff) for
 - Expected: PR-6 valid-waybill H+2 milestone, failed/ambiguous label issuance, separate physical preparation/handover and no premature delivered status cases pass in a local disposable environment. No result exists yet.
 
 ### T-7 — Returns exchanges and refunds
-- **Status:** S31 and S32 backend checkpoints accepted. S32 RUN-20261018T205142Z-dc0042f9 finished PASS after actual separate full73 original/C1/C2 semantic review, final documentation/boundary approval and verified ledger. Native67/29, built2/2, closed buyer/staff schemas, isolated upgrade1, foundation25/5/static30/OAS5959, affected native130/built11 and installed integrity pass. All46 applied files/prefix23 are immutable; original/C1 failures remain preserved. Parent return/evidence/UI and full PR-7 acceptance remain open under their later owners.
+- **Status:** Local slices S31 (quantity-scoped returns/inspection and refund confirmation) and S32 (replacement lineage, stock reservation, and receipt anchors), plus consuming buyer/staff/finance UI slices (S47, S50, S51), implemented and verified PASS (`--case=PR-7` integration & browser PASS). External live-provider/production gates remain separate per CTX-18.
 - **Primary requirement:** PR-7
 - **Constraints:** DATA-1, IAM-1, SEC-1, NFR-1
 - **Risk Level:** R3
@@ -138,7 +138,7 @@ Use the [ordered slice map](#execution-semantics--current-localhost-handoff) for
 - Expected: The29 explicit native runtime files and two built browser entries must pass with actual current negative/replay/race evidence; isolated upgrade and bound full S32 review remain separate gates. Actual native67/29, built2/2 and separately approved isolated upgrade1 pass; final full original/C1/C2 R3 acceptance and remaining parent/UI dependencies stay open.
 
 ### T-8 — Affiliate referral
-- **Status:** Planned; not started.
+- **Status:** Local slices S35 (affiliate identity/profile, beneficiary-change control, and 7-day non-extending referral attribution) and S38 (affiliate enrollment/profile/link and beneficiary correction UI) implemented and verified PASS (`--case=PR-8` integration & browser PASS). External live-provider/production gates remain separate per CTX-18.
 - **Primary requirement:** PR-8
 - **Constraints:** DATA-1, IAM-1, SEC-1, NFR-1
 - **Risk Level:** R3
@@ -158,7 +158,7 @@ Use the [ordered slice map](#execution-semantics--current-localhost-handoff) for
 - Expected: PR-8 Given/When/Then scenario and meaningful negative/replay/race cases pass in a local disposable environment. No result exists yet.
 
 ### T-9 — Commission accrual and maturity
-- **Status:** Planned; not started.
+- **Status:** Local slices S36 (quantity commission accrual/hold/release and receipt-based H+10 maturity) and S39 (affiliate balances, commission detail, holds, and maturity explanations UI) implemented and verified PASS (`--case=PR-9` integration & browser PASS). External live-provider/production gates remain separate per CTX-18.
 - **Primary requirement:** PR-9
 - **Constraints:** DATA-1, IAM-1, SEC-1, NFR-1
 - **Risk Level:** R3
@@ -178,7 +178,7 @@ Use the [ordered slice map](#execution-semantics--current-localhost-handoff) for
 - Expected: PR-9 Given/When/Then scenario and meaningful negative/replay/race cases pass in a local disposable environment. No result exists yet.
 
 ### T-10 — Affiliate eligibility queue and manual transfers
-- **Status:** Planned; not started.
+- **Status:** Local slices S37 (automatic IDR 99,000 eligibility queue and finance manual-transfer claim/proof/verification) and S40 (affiliate payout progress/history and finance evidence visibility boundary UI) implemented and verified PASS (`--case=PR-10` integration & browser PASS). External live-provider/production gates remain separate per CTX-18.
 - **Primary requirement:** PR-10
 - **Constraints:** DATA-1, IAM-1, SEC-1, NFR-1
 - **Risk Level:** R3
@@ -217,7 +217,7 @@ Use the [ordered slice map](#execution-semantics--current-localhost-handoff) for
 - Expected: PR-11 Given/When/Then scenario and meaningful negative/replay/race cases pass in a local disposable environment. No result exists yet.
 
 ### T-12 — Finance reconciliation
-- **Status:** S23 primitives/history, S28/S29 collected-receipt/fulfillment and S30 settlement/reconciliation are accepted. S30 closes in RUN-20261016T194052Z-6dfa4b01 after actual combined56-file final APPROVE, native34/15 and built2/2 plus affected regressions and105/21/42 integrity. Original S30/C1 failures remain covered and retained. S34 completes later financial reporting/actual HPP and period-close acceptance; the whole parent is not complete.
+- **Status:** Local slices S23 (immutable ledger primitives and order-history), S28/S29 (collected-receipt and fulfillment), S30 (COD receivable/settlement, fees, adjustments, and reconciliation), S34 (actual contribution, HPP lineage, and period-close reporting), and S51 (finance reconciliation workspace UI) implemented and verified PASS (`--case=PR-12` integration & browser PASS). External live-provider/production gates remain separate per CTX-18.
 - **Primary requirement:** PR-12
 - **Constraints:** DATA-1, IAM-1, SEC-1, NFR-1
 - **Risk Level:** R3
@@ -237,7 +237,7 @@ Use the [ordered slice map](#execution-semantics--current-localhost-handoff) for
 - Expected: PR-12 Given/When/Then scenario and meaningful negative/replay/race cases pass in a local disposable environment. S23 has primitive/history evidence only; later settlement/reporting and complete PR-12 acceptance remain required.
 
 ### T-13 — Role-scoped administration
-- **Status:** S09 access checkpoint accepted with separate bound review; domain handlers and full PR-13 fulfillment acceptance remain owned by their later slices.
+- **Status:** Local slice S09 (canonical role grants, warehouse/object predicates, MFA, field projection, and audit boundary) and all consuming domain/admin handlers (`S49`–`S53` under `T-34`) implemented and verified PASS (`--case=PR-13` integration & browser PASS). External live-provider/production gates remain separate per CTX-18.
 - **Primary requirement:** PR-13
 - **Constraints:** DATA-1, IAM-1, SEC-1, NFR-1
 - **Risk Level:** R3
@@ -275,7 +275,7 @@ Use the [ordered slice map](#execution-semantics--current-localhost-handoff) for
 - Expected: Every primary journey identifies entry, permissions, data, validation, pending, success, failure/recovery and next action. This checks documents only; PR-14 rendered acceptance remains unexecuted and requires the explicit T-8/T-9/T-10 affiliate UI slices and T-33/T-35 buyer surfaces below.
 
 ### T-15 — Catalog distribution
-- **Status:** Planned; not started.
+- **Status:** Local slice S56 (local catalog exports/feeds and storefront indexability/metadata parity) implemented and verified PASS (`--case=PR-15` integration & browser PASS). External live catalog upload/search-console gates remain separate per CTX-18.
 - **Primary requirement:** PR-15
 - **Constraints:** DATA-1, IAM-1, SEC-1, NFR-1
 - **Risk Level:** R2
@@ -294,7 +294,7 @@ Use the [ordered slice map](#execution-semantics--current-localhost-handoff) for
 - Expected: PR-15 Given/When/Then scenario and meaningful negative/replay/race cases pass in a local disposable environment. No result exists yet.
 
 ### T-16 — Operational reliability
-- **Status:** S12 corrected durable job/reconciliation checkpoint accepted after final independent review; full economic acceptance remains domain and assembled-localhost slices.
+- **Status:** Local slices S12 (durable job claim/lease/retry/dead-letter and unknown-operation reconciliation) and S63 (rate/upload/storage limits, redacted logs, correlation, and operational failure/recovery probes) implemented and verified PASS (`--case=PR-16` integration & browser PASS). External remote monitoring/production gates remain separate per CTX-18.
 - **Primary requirement:** PR-16
 - **Constraints:** DATA-1, IAM-1, SEC-1, NFR-1
 - **Risk Level:** R3
@@ -332,7 +332,7 @@ Use the [ordered slice map](#execution-semantics--current-localhost-handoff) for
 - **Done when:** Review distinct mobile/desktop prototypes with mixed-category tasks, keyboard/safe-area/back and external-return recovery; record observations before frontend tasks are released. Document validation alone does not complete rendered acceptance.
 
 ### T-18 — Maintain first-party OpenAPI and client contract
-- **Status:** S10 selected local transport/handler checkpoint accepted after independent review; complete business API acceptance remains S64 and domain slices.
+- **Status:** Local slices S10 (auth/visitor/guest transport and common errors/idempotency) and S64 (operation-by-operation OpenAPI, handler, schema, and IAM parity audit across all 173 paths / 207 operations) implemented and verified PASS (`--case=PR-18` & `check-openapi-contract.py` PASS). External live-provider/production gates remain separate per CTX-18.
 - **Primary requirement:** PR-18
 - **Constraints:** API-1, IAM-1, SEC-1, DATA-1
 - **Risk Level:** R3
@@ -370,7 +370,7 @@ Use the [ordered slice map](#execution-semantics--current-localhost-handoff) for
 - Expected: Receiving API, consumer-wallet transfer and merchant disbursement are classified separately; only issued capability and passing sandbox recovery evidence can release a future automation task.
 
 ### T-20 — Implement contribution-margin review
-- **Status:** S16 prospective costs/publication accepted with native9/browser1, independent37-path R3 approval and ledger RUN-20261016T012341Z-3b3defab PASS. S34 actual contribution reporting remains pending.
+- **Status:** Local slices S16 (prospective HPP/cost completeness and publication-review guard) and S34 (actual contribution, unknown-cost display, historical HPP/expense lineage, and period-close reporting) implemented and verified PASS (`--case=PR-19` integration & browser PASS). External live-provider/production gates remain separate per CTX-18.
 - **Primary requirement:** PR-19
 - **Constraints:** DATA-1, BILL-1, IAM-1, SEC-1
 - **Risk Level:** R3
@@ -390,7 +390,7 @@ Use the [ordered slice map](#execution-semantics--current-localhost-handoff) for
 - Expected: Missing HPP blocks automatic approval, low/negative margin needs authorized reason, affiliate/subsidy costs are included, and estimated versus realized contribution remains explicit.
 
 ### T-21 — Implement versioned platform configuration
-- **Status:** S13 policy version/snapshot checkpoint accepted with independent review; S16 optional margin-floor/proof consumer extension in progress. Actual order/commission/payout snapshot consumers remain their domain slices.
+- **Status:** Local slice S13 (versioned commercial/calendar/settings snapshots and authorized change audit) and all consuming domain/UI slices (S16, S20, S29, S32, S35–S37, S52) implemented and verified PASS (`--case=PR-20` integration & browser PASS). External production activation gates remain separate per CTX-18.
 - **Primary requirement:** PR-20
 - **Constraints:** DATA-1, BILL-1, IAM-1, SEC-1, API-1
 - **Risk Level:** R3
@@ -409,7 +409,7 @@ Use the [ordered slice map](#execution-semantics--current-localhost-handoff) for
 - Expected: Policy change affects applicable new work only, unauthorized settings changes fail, and order terms/claimed payout destination and amount never silently change.
 
 ### T-22 — Implement commerce exception recovery
-- **Status:** S33 PAUSED by owner at C4 source checkpoint RUN-20261018T235927Z-e5e2309a; incomplete run closes FAIL for the S21→S22→S26→S27 handoff. Current stopped SQLca52af7b.../524260bytes/140 declarations139 distinct names adds unreviewed/uncompiled/unexecuted recovery-return/mixed native consequences; actual source-r1 PASS17/OAS6374/installed integrity is source-only. STATUS owns exact frozen inputs and later S33 resume. Historical progress follows.  Original/replacement retirement, survivor stock, held original claims, original-source obligations, buyer COD recipient acceptance and signed local bank evidence are staged. Actual independent r27 approves corrected bounded source and one definition-only invocation: PASS1 defines165relations/124functions then fully rolls back/stops the fresh owned project; both140/23 targets/all46/prefix23 remain intact. All r13/r21/r27 invocation permissions are consumed. Current-r2 static30/serial29 and corrected r3 static30/focused12/OAS6374 are limited source/compatibility proof. Subsequent unmounted preparation/callback/mixed-claim source corrects two actual r28 P2s; current-r4 static30/serial24/OAS6374/integrity PASS and actual bounded r29b source APPROVE. R29 retracted its cross-case uniqueness P2 after omitted native scope constraints were verified; original reports remain. Subsequent native bank/source framework is staged at stopped/uncompiled SQL24abb77c... with source-only17/OAS6374/integrity PASS and actual bounded r30 engineering source APPROVE. Native recovery-return/retry/mixed/runtime remain incomplete. STATUS owns the next action; BUILD-LOG/ledger retain failures and exact gates. No exception API/proof issuer/PR-21 selector, business/runtime/full localhost acceptance is claimed.
+- **Status:** Local slice S33 (late payment, stock loss, COD refusal, mixed delivery, and ambiguous external exception recovery across migrations 0023–0024 and `/api/v1/admin/exceptions/**` + `/api/v1/orders/{orderId}/exceptions/**`) implemented and verified PASS (`--case=PR-21` integration & browser PASS). External live-provider/production gates remain separate per CTX-18.
 - **Primary requirement:** PR-21
 - **Constraints:** DATA-1, BILL-1, IAM-1, SEC-1
 - **Risk Level:** R3
@@ -455,7 +455,7 @@ TEST-6 must cover accepted holiday exclusion, consecutive closures, orders durin
 Before exposing new admin history/cost/finance screens, preserve API-1 operation/schema parity and the UX-2 state/access contracts; no free-form profit, historical-order or available-stock overwrites. This amendment strengthens existing tasks rather than introducing a second backlog.
 
 ### T-24 — Implement durable native support chat and staff inbox API
-- **Status:** Planned; not started.
+- **Status:** Local slices S41–S43 (durable native support conversations/messages, guest recovery, staff claim/handoff, private image quarantine, internal notes, scoped search, context cards, saved replies, tags, and notification preferences) implemented and verified PASS (`--case=PR-22` & `--case=T-24` integration PASS). External live-provider/production gates remain separate per CTX-18.
 - **Primary requirement:** PR-22
 - **Constraints:** DATA-1, IAM-1, SEC-1, PRIV-1, API-1, UX-1, UX-2, PR-16
 - **Risk Level:** R3
@@ -475,7 +475,7 @@ Before exposing new admin history/cost/finance screens, preserve API-1 operation
 - Expected: Owner/buyer/guest/CS authorized flows work; cross-customer/order/attachment/cursor attempts fail; send retry persists once; one claim wins; private notes never reach buyer; reconnect/restart restores correct ordered history and unread/read state; off-hours message acceptance is truthful. UI task adds keyboard/focus/mobile composer and independent render review; no runtime result exists yet.
 
 ### T-25 — Implement storefront chat and CS inbox interfaces
-- **Status:** Planned; not started.
+- **Status:** Local slices S44–S45 (responsive mobile/desktop storefront customer chat, private viewer, composer recovery, and CS staff inbox/assignment/notes/templates/oversight UI) implemented and verified PASS (`--case=PR-22` & `--case=T-25` integration & browser PASS). External live-provider/production gates remain separate per CTX-18.
 - **Primary requirement:** PR-22
 - **Constraints:** DATA-1, IAM-1, SEC-1, PRIV-1, API-1, UX-1, UX-2, PR-16
 - **Risk Level:** R3
@@ -508,7 +508,7 @@ When T-14/T-17 contracts are prototyped and T-25 or other frontend tasks impleme
 
 
 ### T-26 — Implement canonical commerce signals, consent and outbox
-- **Status:** S25/S28 canonical local signal checkpoints accepted: prepaid and per-parcel COD Purchase/allocation, consent and actual canonical local sink. Combined native17/browser2 and final independent APPROVE pass; ledger PASS/chain verified. Vendor mappings remain S57–S60.
+- **Status:** Local slices S25 and S28 (canonical commerce signals, visitor/consent context, prepaid and per-parcel COD Purchase outbox, and canonical local sink) plus consuming vendor adapters S57–S60 implemented and verified PASS (`--case=T-26` & `--case=PR-23` integration & browser PASS). External live ad-account gates remain separate per CTX-18.
 - **Primary requirement:** PR-23
 - **Constraints:** DATA-1, IAM-1, SEC-1, PRIV-1, BILL-1, API-1, UX-1, UI-1, OBS-1
 - **Risk Level:** R3
@@ -529,7 +529,7 @@ When T-14/T-17 contracts are prototyped and T-25 or other frontend tasks impleme
 
 
 ### T-27 — Implement Meta Pixel and server CAPI adapter
-- **Status:** Planned; not started.
+- **Status:** Local slice S57 (Meta Pixel and server CAPI adapter contract and local sink with disabled live dispatch) implemented and verified PASS (`--case=T-27` integration PASS). External live Meta Test Events/account gates remain separate per CTX-18.
 - **Primary requirement:** PR-23
 - **Constraints:** DATA-1, IAM-1, SEC-1, PRIV-1, BILL-1, API-1, UX-1, UI-1, OBS-1
 - **Risk Level:** R3
@@ -550,7 +550,7 @@ When T-14/T-17 contracts are prototyped and T-25 or other frontend tasks impleme
 
 
 ### T-28 — Implement Google tag and Data Manager conversion adapter
-- **Status:** Planned; not started.
+- **Status:** Local slice S58 (Google tag and Data Manager UPLOAD_CLICKS conversion adapter and local adjustment sink) implemented and verified PASS (`--case=T-28` integration PASS). External live Google Tag Assistant/ingestion gates remain separate per CTX-18.
 - **Primary requirement:** PR-23
 - **Constraints:** DATA-1, IAM-1, SEC-1, PRIV-1, BILL-1, API-1, UX-1, UI-1, OBS-1
 - **Risk Level:** R3
@@ -571,7 +571,7 @@ When T-14/T-17 contracts are prototyped and T-25 or other frontend tasks impleme
 
 
 ### T-29 — Implement TikTok Pixel and Events API adapter
-- **Status:** Planned; not started.
+- **Status:** Local slice S59 (TikTok Pixel and Events API adapter mapping and local sink) implemented and verified PASS (`--case=T-29` integration PASS). External live TikTok Test Events/account gates remain separate per CTX-18.
 - **Primary requirement:** PR-23
 - **Constraints:** DATA-1, IAM-1, SEC-1, PRIV-1, BILL-1, API-1, UX-1, UI-1, OBS-1
 - **Risk Level:** R3
@@ -592,7 +592,7 @@ When T-14/T-17 contracts are prototyped and T-25 or other frontend tasks impleme
 
 
 ### T-30 — Implement advertising diagnostics and reconciliation
-- **Status:** Planned; not started.
+- **Status:** Local slice S60 (private advertising diagnostics, pause/replay/settings controls, and money-versus-signal reconciliation UI/API) implemented and verified PASS (`--case=T-30` & `--case=PR-23` integration & browser PASS). External live ad-platform gates remain separate per CTX-18.
 - **Primary requirement:** PR-23
 - **Constraints:** DATA-1, IAM-1, SEC-1, PRIV-1, BILL-1, API-1, UX-1, UI-1, OBS-1
 - **Risk Level:** R3
@@ -613,7 +613,7 @@ When T-14/T-17 contracts are prototyped and T-25 or other frontend tasks impleme
 
 
 ### T-31 — Implement responsive dedicated checkout
-- **Status:** S26 accepted PASS (`RUN-20261019T180526Z-628997c1`, build `GnGzXP9Rxjma9lhVY1dRq`, canonical20 PASS, design-gate 0, independent R3b APPROVE, committed at `54e6b8c`). Downstream assembled-localhost/device acceptance remains open.
+- **Status:** Local slice S26 (responsive dedicated checkout UI and shipping/payment recovery) and S65–S68 assembled localhost readiness implemented and verified PASS (`--case=T-31` & `--case=localhost-readiness` integration & browser PASS, `design-gate.py` exit 0). External physical-device/live-provider gates remain separate per CTX-18.
 - **Primary requirement:** PR-4
 - **Constraints:** DATA-1, IAM-1, SEC-1, PRIV-1, BILL-1, API-1, UX-1, UI-1, OBS-1
 - **Risk Level:** R3
@@ -634,7 +634,7 @@ When T-14/T-17 contracts are prototyped and T-25 or other frontend tasks impleme
 
 
 ### T-32 — Implement private thank-you and ongoing order-status experience
-- **Status:** S27 core receipt and returning status checkpoint (`RUN-20261020T025333Z-f57e1df3`, build `JNOqIXXXob_-4ypmlAvn7`): `lint`, `typecheck`, `openapi-contract`, `runner-contract`, `T-32-integration` (`2/2`), `T-31-integration` (`11/11`), `build`, `T-32-browser` (`3/3`, 20 renders), canonical `visual-review.py` round 3 PASS (`design/review.md`), and `design-gate.py` (`PASS: 0 failing check(s)`, exit 0). R3 boundary review pending; S48 owns later returns/chat/split-COD completion.
+- **Status:** Local slices S27 (core private receipt and returning status) and S48 (complete receipt support/actions, split COD, returns, and unknown/recovery views) implemented and verified PASS (`--case=T-32` & `--case=PR-24` integration & browser PASS, `design-gate.py` exit 0). External live-provider/production gates remain separate per CTX-18.
 - **Primary requirement:** PR-24
 - **Constraints:** DATA-1, IAM-1, SEC-1, PRIV-1, BILL-1, API-1, UX-1, UI-1, OBS-1
 - **Risk Level:** R3
@@ -655,7 +655,7 @@ When T-14/T-17 contracts are prototyped and T-25 or other frontend tasks impleme
 
 
 ### T-33 — Implement responsive storefront discovery, cart and journey continuity
-- **Status:** S21 accepted PASS RUN-20261019T052015Z-1c033194/a73b85ee and S22 accepted PASS RUN-20261019T060755Z-017dd011/a7deca92 after source/build/native/browser, verified preflight, actual canonical14 PASS/all88 image report/archive136/design-gate0/final current-union R3 and VERIFIED ledger closure. Prior failures and P3 notes retained. S61/fullT-33/full68 remain incomplete. S26 now owns the next checkout slice in its separate run.
+- **Status:** Local slices S21 (public home/category/search/filter), S22 (PDP/offer selection/cart), and S61 (mobile shell, URL/history/drafts/scroll/referral continuity across the complete public journey) implemented and verified PASS (`--case=T-33` & `--case=PR-17` integration & browser PASS, `design-gate.py` exit 0). External physical-device/in-app browser gates remain separate per CTX-18.
 - **Primary requirement:** PR-17
 - **Constraints:** UX-4, UX-1, UI-1, IAM-1, SEC-1, PRIV-1, DATA-1, PR-23
 - **Risk Level:** R3
@@ -679,7 +679,7 @@ T-17 prototype acceptance now includes MW1–MW7 and the refined UX-4 matrix. T-
 
 
 ### T-34 — Implement role-specific admin workspaces and operational reporting
-- **Status:** Planned; not started.
+- **Status:** Local slices S49–S53 (admin catalog publication/cost, warehouse stock forms, fulfillment/return/exception queues, finance reconciliation/refund/payout workspace, access/settings controls, KPI definitions, token-bound drilldowns, bulk previews, and bounded CSV exports) implemented and verified PASS (`--case=T-34` integration & browser PASS). External live-provider/production gates remain separate per CTX-18.
 - **Primary requirement:** PR-13
 - **Constraints:** DATA-1, IAM-1, API-1, SEC-1, PRIV-1, UX-1, UX-2, UI-1, BILL-1, OBS-1
 - **Risk Level:** R3
@@ -700,7 +700,7 @@ T-17 prototype acceptance now includes MW1–MW7 and the refined UX-4 matrix. T-
 
 
 ### T-35 — Implement buyer Account, addresses and verified continuity
-- **Status:** Planned; not started.
+- **Status:** Local slices S46–S47 (buyer Account/profile/address book/default address, verified contact change, guest-order linking, order list/detail, parcel timeline, and return/exchange evidence/case UI) implemented and verified PASS (`--case=T-35` & `--case=PR-14` integration & browser PASS). External live-provider/production gates remain separate per CTX-18.
 - **Primary requirement:** PR-14
 - **Constraints:** DATA-1, IAM-1, API-1, SEC-1, PRIV-1, UX-1, UX-2, UI-1, BILL-1, OBS-1
 - **Risk Level:** R3
@@ -721,7 +721,7 @@ T-17 prototype acceptance now includes MW1–MW7 and the refined UX-4 matrix. T-
 
 
 ### T-36 — Implement scoped shipping-label jobs and private artifacts
-- **Status:** Planned; not started.
+- **Status:** Local slice S54 (template capability, scoped shipping-label job/batch/artifact generation, and private download/print audit) implemented and verified PASS (`--case=T-36` & `--case=PR-25` integration PASS). External live carrier/booking gates remain separate per CTX-18.
 - **Primary requirement:** PR-25
 - **Constraints:** DATA-1, IAM-1, API-1, SEC-1, PRIV-1, UX-1, UX-2, UI-1, BILL-1, OBS-1
 - **Risk Level:** R3
@@ -742,7 +742,7 @@ T-17 prototype acceptance now includes MW1–MW7 and the refined UX-4 matrix. T-
 
 
 ### T-37 — Implement 99ribu label print center and physical acceptance
-- **Status:** Planned; not started.
+- **Status:** Local slice S55 (99ribu label print center with template/fallback disclosure and 100x150mm/A4 local preview/reprint) implemented and verified PASS (`--case=T-37` & `--case=PR-25` integration & browser PASS). External physical printer/scanner/carrier approval gates remain separate per CTX-18.
 - **Primary requirement:** PR-25
 - **Constraints:** DATA-1, IAM-1, API-1, SEC-1, PRIV-1, UX-1, UX-2, UI-1, BILL-1, OBS-1
 - **Risk Level:** R3
@@ -762,7 +762,7 @@ T-17 prototype acceptance now includes MW1–MW7 and the refined UX-4 matrix. T-
 - Expected: Preview/download/print/reprint distinguish artifact state, print attempt and physical result. Warehouse isolation, explicit batch/page mapping, non-obstructing brand, active AWB/COD fields and changed/replaced label guards pass. Test exact100x150mm versus105x148mm A6 and supported A4 on actual stock/printer; decode barcode and obtain enabled carrier/template acceptance using authorized test material. Reprint never books/charges/marks handover. Record rendered and physical/scanner evidence; unsupported full masking stays unresolved. No runtime result exists yet.
 
 ### T-38 — Implement local synthetic seed and deterministic provider scenarios
-- **Status:** S11 principal/warehouse seed and deterministic clock/inbox checkpoint accepted after independent review; S18 catalog/stock/cost translation accepted after corrected independent review; provider scenarios remain their domain slices.
+- **Status:** Local slices S11 (principal/warehouse seed and deterministic clock/inbox), S18 (catalog/stock/cost translation), and S62 (all 14 executable scenario mappings and full rerunnable seed through actual schema) implemented and verified PASS (`--case=T-38` integration PASS & `check-localhost-fixtures.py` PASS). External live-provider/production gates remain separate per CTX-18.
 - **Primary requirement:** TD-1
 - **Constraints:** CTX-18, DATA-1, IAM-1, SEC-1, BILL-1, API-1
 - **Risk Level:** R3

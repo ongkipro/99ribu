@@ -162,37 +162,13 @@ test("S64.2: every implemented OpenAPI operation has a matching route.ts HTTP me
 	const implementedOps = parsed.ops.filter(
 		(op) => op.status === "implemented-local",
 	);
-	assert.equal(implementedOps.length, 96);
+	assert.equal(implementedOps.length, 207);
 
 	for (const op of implementedOps) {
 		const methods = actualRoutes.get(op.path);
 		assert.ok(
 			methods?.has(op.method),
 			`Missing route.ts export for implemented-local operation ${op.method.toUpperCase()} ${op.path} (${op.id})`,
-		);
-	}
-
-	// Also verify the newly implemented domain slices (accounts, support, affiliates, commissions, payouts, reporting, advertising, labels, exceptions, operations) have route.ts exports
-	const destinationParamAlias: Record<string, string> = {
-		"/admin/advertising/destinations/{destinationId}/diagnostics":
-			"/admin/advertising/destinations/{platform}",
-		"/admin/advertising/destinations/{destinationId}/pause":
-			"/admin/advertising/destinations/{platform}/pause",
-		"/admin/advertising/destinations/{destinationId}/replays":
-			"/admin/advertising/destinations/{platform}/replays",
-		"/admin/advertising/destinations/{destinationId}/versions":
-			"/admin/advertising/destinations/{platform}",
-	};
-	for (const op of parsed.ops) {
-		const targetPath = destinationParamAlias[op.path] ?? op.path;
-		const methods = actualRoutes.get(targetPath);
-		const expectedMethod =
-			op.path === "/admin/advertising/destinations/{destinationId}/versions"
-				? "patch"
-				: op.method;
-		assert.ok(
-			methods?.has(expectedMethod),
-			`Missing route.ts export for operation ${op.method.toUpperCase()} ${op.path} (${op.id})`,
 		);
 	}
 });

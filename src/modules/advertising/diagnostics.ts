@@ -1165,7 +1165,7 @@ export async function handleAdvertisingDiagnostics(
 			}
 		} else if (subAction === "pause" && request.method === "POST") {
 			return privateJson(
-				await setDestinationPauseState(request, identity, platform, true),
+				await setDestinationPauseState(request, identity, platform),
 			);
 		} else if (subAction === "resume" && request.method === "POST") {
 			return privateJson(
@@ -1180,10 +1180,13 @@ export async function handleAdvertisingDiagnostics(
 			return privateJson(
 				await getAdvertisingDestination(request, identity, platform),
 			);
-		} else if (subAction === "versions" && request.method === "POST") {
+		} else if (
+			subAction === "versions" &&
+			(request.method === "POST" || request.method === "PATCH")
+		) {
 			return privateJson(
 				await updateAdvertisingDestination(request, identity, platform),
-				201,
+				request.method === "POST" ? 201 : 200,
 			);
 		}
 		throw new AccessError(404, "NOT_FOUND");

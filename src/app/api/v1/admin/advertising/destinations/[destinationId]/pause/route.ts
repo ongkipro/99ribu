@@ -6,8 +6,8 @@ export const dynamic = "force-dynamic";
 
 export async function POST(
 	request: Request,
-	context: { params: Promise<{ platform: string }> },
+	context: { params: Promise<{ destinationId: string }> },
 ) {
-	const { platform } = await context.params;
-	return handleAdvertisingDiagnostics(request, getLocalAuth(), platform);
+	const { destinationId } = await context.params;
+	return handleAdvertisingDiagnostics(request, getLocalAuth(), destinationId);
 }

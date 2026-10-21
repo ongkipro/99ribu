@@ -563,9 +563,7 @@ export default function AdminWorkspacesPage() {
 	};
 
 	const handleTogglePauseDestination = async (dest: AdDestinationItem) => {
-		const endpoint = dest.paused
-			? `/api/v1/admin/advertising/destinations/${dest.platform}/resume`
-			: `/api/v1/admin/advertising/destinations/${dest.platform}/pause`;
+		const endpoint = `/api/v1/admin/advertising/destinations/${dest.platform}/pause`;
 		try {
 			const res = await fetch(endpoint, {
 				method: "POST",

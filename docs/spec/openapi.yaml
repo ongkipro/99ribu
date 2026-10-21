@@ -953,7 +953,7 @@ paths:
       tags:
       - Orders
       security: *id001
-      x-contract-status: proposal
+      x-contract-status: implemented-local
       x-domain-owner: checkout
       x-primary-requirement: PR-4
       responses:
@@ -980,11 +980,15 @@ paths:
             application/problem+json:
               schema:
                 $ref: '#/components/schemas/Problem'
+        '503':
+          $ref: '#/components/responses/Unavailable'
       x-allowed-roles:
       - buyer
       parameters:
       - $ref: '#/components/parameters/Cursor'
       - $ref: '#/components/parameters/Limit'
+      x-proof-group: accounts
+      x-implementation: src/app/api/v1/me/orders/route.ts
   /orders/{orderId}:
     get:
       operationId: getOrder
@@ -1055,7 +1059,7 @@ paths:
       - *id002
       - *id003
       - orderAccess: []
-      x-contract-status: proposal
+      x-contract-status: implemented-local
       x-domain-owner: checkout
       x-primary-requirement: PR-4
       responses:
@@ -1086,6 +1090,8 @@ paths:
             application/problem+json:
               schema:
                 $ref: '#/components/schemas/Problem'
+        '503':
+          $ref: '#/components/responses/Unavailable'
       parameters:
       - name: orderId
         in: path
@@ -1099,6 +1105,8 @@ paths:
           application/json:
             schema:
               $ref: '#/components/schemas/ReasonInput'
+      x-proof-group: order-receipt
+      x-implementation: src/app/api/v1/orders/[orderId]/cancellations/route.ts
   /orders/{orderId}/payment-attempts:
     post:
       operationId: createPaymentAttempt
@@ -1400,7 +1408,7 @@ paths:
       tags:
       - Returns
       security: *id004
-      x-contract-status: proposal
+      x-contract-status: implemented-local
       x-domain-owner: returns
       x-primary-requirement: PR-7
       responses:
@@ -1431,6 +1439,8 @@ paths:
             application/problem+json:
               schema:
                 $ref: '#/components/schemas/Problem'
+        '503':
+          $ref: '#/components/responses/Unavailable'
       parameters:
       - name: orderId
         in: path
@@ -1449,6 +1459,8 @@ paths:
           application/json:
             schema:
               $ref: '#/components/schemas/EvidenceInput'
+      x-proof-group: accounts
+      x-implementation: src/app/api/v1/orders/[orderId]/returns/[returnId]/evidence-uploads/route.ts
   /orders/{orderId}/returns/{returnId}/evidence:
     post:
       operationId: attachReturnEvidence
@@ -1458,7 +1470,7 @@ paths:
       tags:
       - Returns
       security: *id004
-      x-contract-status: proposal
+      x-contract-status: implemented-local
       x-domain-owner: returns
       x-primary-requirement: PR-7
       responses:
@@ -1489,6 +1501,8 @@ paths:
             application/problem+json:
               schema:
                 $ref: '#/components/schemas/Problem'
+        '503':
+          $ref: '#/components/responses/Unavailable'
       parameters:
       - name: orderId
         in: path
@@ -1507,6 +1521,8 @@ paths:
           application/json:
             schema:
               $ref: '#/components/schemas/EvidenceAttach'
+      x-proof-group: accounts
+      x-implementation: src/app/api/v1/orders/[orderId]/returns/[returnId]/evidence/route.ts
   /guest-order-access/challenges:
     post:
       operationId: requestGuestOrderAccess
@@ -1516,7 +1532,7 @@ paths:
       tags:
       - Identity
       security: []
-      x-contract-status: proposal
+      x-contract-status: implemented-local
       x-domain-owner: access
       x-primary-requirement: PR-13
       responses:
@@ -1541,6 +1557,8 @@ paths:
             application/problem+json:
               schema:
                 $ref: '#/components/schemas/Problem'
+        '503':
+          $ref: '#/components/responses/Unavailable'
       parameters:
       - $ref: '#/components/parameters/IdempotencyKey'
       requestBody:
@@ -1549,6 +1567,8 @@ paths:
           application/json:
             schema:
               $ref: '#/components/schemas/GuestAccessRequest'
+      x-proof-group: accounts
+      x-implementation: src/app/api/v1/guest-order-access/challenges/route.ts
   /guest-order-access/verifications:
     post:
       operationId: verifyGuestOrderAccess
@@ -1558,7 +1578,7 @@ paths:
       tags:
       - Identity
       security: []
-      x-contract-status: proposal
+      x-contract-status: implemented-local
       x-domain-owner: access
       x-primary-requirement: PR-13
       responses:
@@ -1583,6 +1603,8 @@ paths:
             application/problem+json:
               schema:
                 $ref: '#/components/schemas/Problem'
+        '503':
+          $ref: '#/components/responses/Unavailable'
       parameters:
       - $ref: '#/components/parameters/IdempotencyKey'
       requestBody:
@@ -1591,6 +1613,8 @@ paths:
           application/json:
             schema:
               $ref: '#/components/schemas/GuestAccessVerify'
+      x-proof-group: accounts
+      x-implementation: src/app/api/v1/guest-order-access/verifications/route.ts
   /referral-touches:
     post:
       operationId: recordReferralTouch
@@ -1600,7 +1624,7 @@ paths:
       tags:
       - Affiliate
       security: []
-      x-contract-status: proposal
+      x-contract-status: implemented-local
       x-domain-owner: affiliates
       x-primary-requirement: PR-8
       responses:
@@ -1625,6 +1649,8 @@ paths:
             application/problem+json:
               schema:
                 $ref: '#/components/schemas/Problem'
+        '503':
+          $ref: '#/components/responses/Unavailable'
       parameters:
       - $ref: '#/components/parameters/IdempotencyKey'
       requestBody:
@@ -1633,6 +1659,8 @@ paths:
           application/json:
             schema:
               $ref: '#/components/schemas/ReferralInput'
+      x-proof-group: affiliates
+      x-implementation: src/app/api/v1/referral-touches/route.ts
   /me/affiliate:
     post:
       operationId: joinAffiliateProgram
@@ -1642,7 +1670,7 @@ paths:
       tags:
       - Affiliate
       security: *id001
-      x-contract-status: proposal
+      x-contract-status: implemented-local
       x-domain-owner: affiliates
       x-primary-requirement: PR-8
       responses:
@@ -1673,6 +1701,8 @@ paths:
             application/problem+json:
               schema:
                 $ref: '#/components/schemas/Problem'
+        '503':
+          $ref: '#/components/responses/Unavailable'
       parameters:
       - $ref: '#/components/parameters/IdempotencyKey'
       requestBody:
@@ -1681,6 +1711,8 @@ paths:
           application/json:
             schema:
               $ref: '#/components/schemas/AffiliateJoin'
+      x-proof-group: affiliates
+      x-implementation: src/app/api/v1/me/affiliate/route.ts
     get:
       operationId: getMyAffiliateProfile
       summary: Read own affiliate profile and referral link
@@ -1689,7 +1721,7 @@ paths:
       tags:
       - Affiliate
       security: *id001
-      x-contract-status: proposal
+      x-contract-status: implemented-local
       x-domain-owner: affiliates
       x-primary-requirement: PR-8
       responses:
@@ -1716,8 +1748,12 @@ paths:
             application/problem+json:
               schema:
                 $ref: '#/components/schemas/Problem'
+        '503':
+          $ref: '#/components/responses/Unavailable'
       x-allowed-roles:
       - affiliate
+      x-proof-group: affiliates
+      x-implementation: src/app/api/v1/me/affiliate/route.ts
   /me/affiliate/balance:
     get:
       operationId: getMyCommissionBalance
@@ -1727,7 +1763,7 @@ paths:
       tags:
       - Affiliate
       security: *id001
-      x-contract-status: proposal
+      x-contract-status: implemented-local
       x-domain-owner: commissions
       x-primary-requirement: PR-9
       responses:
@@ -1754,8 +1790,12 @@ paths:
             application/problem+json:
               schema:
                 $ref: '#/components/schemas/Problem'
+        '503':
+          $ref: '#/components/responses/Unavailable'
       x-allowed-roles:
       - affiliate
+      x-proof-group: commissions
+      x-implementation: src/app/api/v1/me/affiliate/balance/route.ts
   /me/affiliate/commissions:
     get:
       operationId: listMyCommissions
@@ -1765,7 +1805,7 @@ paths:
       tags:
       - Affiliate
       security: *id001
-      x-contract-status: proposal
+      x-contract-status: implemented-local
       x-domain-owner: commissions
       x-primary-requirement: PR-9
       responses:
@@ -1792,11 +1832,15 @@ paths:
             application/problem+json:
               schema:
                 $ref: '#/components/schemas/Problem'
+        '503':
+          $ref: '#/components/responses/Unavailable'
       x-allowed-roles:
       - affiliate
       parameters:
       - $ref: '#/components/parameters/Cursor'
       - $ref: '#/components/parameters/Limit'
+      x-proof-group: commissions
+      x-implementation: src/app/api/v1/me/affiliate/commissions/route.ts
   /me/affiliate/payouts:
     get:
       operationId: listMyPayouts
@@ -1806,7 +1850,7 @@ paths:
       tags:
       - Affiliate
       security: *id001
-      x-contract-status: proposal
+      x-contract-status: implemented-local
       x-domain-owner: payouts
       x-primary-requirement: PR-10
       responses:
@@ -1833,11 +1877,15 @@ paths:
             application/problem+json:
               schema:
                 $ref: '#/components/schemas/Problem'
+        '503':
+          $ref: '#/components/responses/Unavailable'
       x-allowed-roles:
       - affiliate
       parameters:
       - $ref: '#/components/parameters/Cursor'
       - $ref: '#/components/parameters/Limit'
+      x-proof-group: payouts
+      x-implementation: src/app/api/v1/me/affiliate/payouts/route.ts
   /me/affiliate/beneficiary-changes:
     post:
       operationId: requestBeneficiaryChange
@@ -1847,7 +1895,7 @@ paths:
       tags:
       - Affiliate
       security: *id001
-      x-contract-status: proposal
+      x-contract-status: implemented-local
       x-domain-owner: payouts
       x-primary-requirement: PR-10
       responses:
@@ -1878,6 +1926,8 @@ paths:
             application/problem+json:
               schema:
                 $ref: '#/components/schemas/Problem'
+        '503':
+          $ref: '#/components/responses/Unavailable'
       x-allowed-roles:
       - affiliate
       parameters:
@@ -1888,6 +1938,8 @@ paths:
           application/json:
             schema:
               $ref: '#/components/schemas/BeneficiaryChange'
+      x-proof-group: payouts
+      x-implementation: src/app/api/v1/me/affiliate/beneficiary-changes/route.ts
   /admin/warehouses:
     get:
       operationId: listAccessibleWarehouses
@@ -3995,7 +4047,7 @@ paths:
       tags:
       - Finance
       security: *id001
-      x-contract-status: proposal
+      x-contract-status: implemented-local
       x-domain-owner: payouts
       x-primary-requirement: PR-10
       responses:
@@ -4044,6 +4096,8 @@ paths:
           application/json:
             schema:
               $ref: '#/components/schemas/PayoutReconcileInput'
+      x-proof-group: payouts
+      x-implementation: src/app/api/v1/admin/payouts/[payoutId]/reconciliations/route.ts
   /admin/role-grants:
     post:
       operationId: grantStaffRoles
@@ -4494,7 +4548,7 @@ paths:
       - *id003
       - cartAccess: []
       - orderAccess: []
-      x-contract-status: proposal
+      x-contract-status: implemented-local
       x-domain-owner: operations
       x-primary-requirement: PR-16
       responses:
@@ -4521,12 +4575,16 @@ paths:
             application/problem+json:
               schema:
                 $ref: '#/components/schemas/Problem'
+        '503':
+          $ref: '#/components/responses/Unavailable'
       parameters:
       - name: operationId
         in: path
         required: true
         schema:
           $ref: '#/components/schemas/Id'
+      x-proof-group: operations
+      x-implementation: src/app/api/v1/operations/[operationId]/route.ts
   /admin/shipments/{shipmentId}:
     get:
       operationId: getAdminShipment
@@ -4593,7 +4651,7 @@ paths:
       security:
       - sessionCookie: []
       - bearerAuth: []
-      x-contract-status: proposal
+      x-contract-status: implemented-local
       x-domain-owner: fulfillment
       x-primary-requirement: PR-6
       responses:
@@ -4627,6 +4685,8 @@ paths:
             application/problem+json:
               schema:
                 $ref: '#/components/schemas/Problem'
+        '503':
+          $ref: '#/components/responses/Unavailable'
       x-allowed-roles:
       - owner
       - ecommerce_admin
@@ -4638,6 +4698,8 @@ paths:
         schema:
           $ref: '#/components/schemas/Id'
       x-required-permission: shipping.labels.read
+      x-proof-group: labels
+      x-implementation: src/app/api/v1/admin/shipments/[shipmentId]/label/route.ts
   /orders/{orderId}/refunds/{refundId}:
     get:
       operationId: getOrderRefund
@@ -4892,7 +4954,7 @@ paths:
       security:
       - sessionCookie: []
       - bearerAuth: []
-      x-contract-status: proposal
+      x-contract-status: implemented-local
       x-domain-owner: payouts
       x-primary-requirement: PR-10
       responses:
@@ -4919,12 +4981,16 @@ paths:
             application/problem+json:
               schema:
                 $ref: '#/components/schemas/Problem'
+        '503':
+          $ref: '#/components/responses/Unavailable'
       x-allowed-roles:
       - owner
       - finance
       parameters:
       - $ref: '#/components/parameters/Cursor'
       - $ref: '#/components/parameters/Limit'
+      x-proof-group: payouts
+      x-implementation: src/app/api/v1/admin/payouts/route.ts
   /admin/payouts/{payoutId}/manual-transfer-claims:
     post:
       operationId: claimManualPayoutTransfer
@@ -4937,7 +5003,7 @@ paths:
       security:
       - sessionCookie: []
       - bearerAuth: []
-      x-contract-status: proposal
+      x-contract-status: implemented-local
       x-domain-owner: payouts
       x-primary-requirement: PR-10
       responses:
@@ -4968,6 +5034,8 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/ManualTransferClaim'
+        '503':
+          $ref: '#/components/responses/Unavailable'
       x-allowed-roles:
       - owner
       - finance
@@ -4984,6 +5052,8 @@ paths:
           application/json:
             schema:
               $ref: '#/components/schemas/ManualTransferClaimInput'
+      x-proof-group: payouts
+      x-implementation: src/app/api/v1/admin/payouts/[payoutId]/manual-transfer-claims/route.ts
   /admin/payouts/{payoutId}/evidence-uploads:
     post:
       operationId: createPayoutEvidenceUpload
@@ -4998,7 +5068,7 @@ paths:
       security:
       - sessionCookie: []
       - bearerAuth: []
-      x-contract-status: proposal
+      x-contract-status: implemented-local
       x-domain-owner: payouts
       x-primary-requirement: PR-10
       responses:
@@ -5029,6 +5099,8 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/EvidenceUpload'
+        '503':
+          $ref: '#/components/responses/Unavailable'
       x-allowed-roles:
       - owner
       - finance
@@ -5045,6 +5117,8 @@ paths:
           application/json:
             schema:
               $ref: '#/components/schemas/PayoutEvidenceInput'
+      x-proof-group: payouts
+      x-implementation: src/app/api/v1/admin/payouts/[payoutId]/evidence-uploads/route.ts
   /admin/payouts/{payoutId}/manual-transfer-verifications:
     post:
       operationId: verifyManualPayoutTransfer
@@ -5061,7 +5135,7 @@ paths:
       security:
       - sessionCookie: []
       - bearerAuth: []
-      x-contract-status: proposal
+      x-contract-status: implemented-local
       x-domain-owner: payouts
       x-primary-requirement: PR-10
       responses:
@@ -5092,6 +5166,8 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/Payout'
+        '503':
+          $ref: '#/components/responses/Unavailable'
       x-allowed-roles:
       - owner
       - finance
@@ -5108,6 +5184,8 @@ paths:
           application/json:
             schema:
               $ref: '#/components/schemas/ManualTransferVerificationInput'
+      x-proof-group: payouts
+      x-implementation: src/app/api/v1/admin/payouts/[payoutId]/manual-transfer-verifications/route.ts
   /admin/orders:
     get:
       operationId: listAdminOrderHistory
@@ -5360,7 +5438,7 @@ paths:
       security:
       - sessionCookie: []
       - bearerAuth: []
-      x-contract-status: proposal
+      x-contract-status: implemented-local
       x-domain-owner: finance
       x-primary-requirement: PR-12
       responses:
@@ -5393,6 +5471,8 @@ paths:
               schema:
                 type: string
                 const: no-store
+        '503':
+          $ref: '#/components/responses/Unavailable'
       x-allowed-roles:
       - owner
       - finance
@@ -5408,6 +5488,8 @@ paths:
           $ref: '#/components/schemas/DateTime'
         required: true
       x-required-permission: finance.summary.read
+      x-proof-group: finance-summary
+      x-implementation: src/app/api/v1/admin/finance/summary/route.ts
   /admin/stock-items/{stockItemId}/cost-versions:
     get:
       operationId: listComponentCostVersions
@@ -5557,7 +5639,7 @@ paths:
       - sessionCookie: []
       - bearerAuth: []
       - supportSession: []
-      x-contract-status: proposal
+      x-contract-status: implemented-local
       x-domain-owner: support
       x-primary-requirement: PR-22
       responses:
@@ -5592,6 +5674,8 @@ paths:
                 $ref: '#/components/schemas/Problem'
         '409':
           $ref: '#/components/responses/Conflict'
+        '503':
+          $ref: '#/components/responses/Unavailable'
       parameters:
       - $ref: '#/components/parameters/IdempotencyKey'
       - name: X-Order-Token
@@ -5609,6 +5693,8 @@ paths:
           application/json:
             schema:
               $ref: '#/components/schemas/SupportConversationCreate'
+      x-proof-group: support
+      x-implementation: src/app/api/v1/support/conversations/route.ts
     get:
       operationId: listSupportConversations
       summary: List own support conversations
@@ -5622,7 +5708,7 @@ paths:
       - sessionCookie: []
       - bearerAuth: []
       - supportSession: []
-      x-contract-status: proposal
+      x-contract-status: implemented-local
       x-domain-owner: support
       x-primary-requirement: PR-22
       responses:
@@ -5655,6 +5741,8 @@ paths:
             application/problem+json:
               schema:
                 $ref: '#/components/schemas/Problem'
+        '503':
+          $ref: '#/components/responses/Unavailable'
       parameters:
       - $ref: '#/components/parameters/Cursor'
       - $ref: '#/components/parameters/Limit'
@@ -5674,6 +5762,8 @@ paths:
           - open
           - waiting_customer
           - resolved
+      x-proof-group: support
+      x-implementation: src/app/api/v1/support/conversations/route.ts
   /support/conversations/{conversationId}:
     get:
       operationId: getSupportConversation
@@ -5688,7 +5778,7 @@ paths:
       - sessionCookie: []
       - bearerAuth: []
       - supportSession: []
-      x-contract-status: proposal
+      x-contract-status: implemented-local
       x-domain-owner: support
       x-primary-requirement: PR-22
       responses:
@@ -5721,12 +5811,16 @@ paths:
             application/problem+json:
               schema:
                 $ref: '#/components/schemas/Problem'
+        '503':
+          $ref: '#/components/responses/Unavailable'
       parameters:
       - name: conversationId
         in: path
         required: true
         schema:
           $ref: '#/components/schemas/Id'
+      x-proof-group: support
+      x-implementation: src/app/api/v1/support/conversations/[conversationId]/route.ts
   /support/conversations/{conversationId}/messages:
     get:
       operationId: listSupportMessages
@@ -5741,7 +5835,7 @@ paths:
       - sessionCookie: []
       - bearerAuth: []
       - supportSession: []
-      x-contract-status: proposal
+      x-contract-status: implemented-local
       x-domain-owner: support
       x-primary-requirement: PR-22
       responses:
@@ -5774,6 +5868,8 @@ paths:
             application/problem+json:
               schema:
                 $ref: '#/components/schemas/Problem'
+        '503':
+          $ref: '#/components/responses/Unavailable'
       parameters:
       - name: conversationId
         in: path
@@ -5789,6 +5885,8 @@ paths:
           minimum: 1
         description: Bounded authorized neighborhood for reply/search jump; does not mark messages read. Cannot
           combine with paging cursor.
+      x-proof-group: support
+      x-implementation: src/app/api/v1/support/conversations/[conversationId]/messages/route.ts
     post:
       operationId: sendSupportMessage
       summary: Commit a durable buyer message
@@ -5809,7 +5907,7 @@ paths:
       - sessionCookie: []
       - bearerAuth: []
       - supportSession: []
-      x-contract-status: proposal
+      x-contract-status: implemented-local
       x-domain-owner: support
       x-primary-requirement: PR-22
       responses:
@@ -5844,6 +5942,8 @@ paths:
                 $ref: '#/components/schemas/Problem'
         '409':
           $ref: '#/components/responses/Conflict'
+        '503':
+          $ref: '#/components/responses/Unavailable'
       parameters:
       - name: conversationId
         in: path
@@ -5865,6 +5965,8 @@ paths:
           application/json:
             schema:
               $ref: '#/components/schemas/SupportMessageInput'
+      x-proof-group: support
+      x-implementation: src/app/api/v1/support/conversations/[conversationId]/messages/route.ts
   /support/conversations/{conversationId}/read-markers:
     post:
       operationId: markSupportMessagesRead
@@ -5879,7 +5981,7 @@ paths:
       - sessionCookie: []
       - bearerAuth: []
       - supportSession: []
-      x-contract-status: proposal
+      x-contract-status: implemented-local
       x-domain-owner: support
       x-primary-requirement: PR-22
       responses:
@@ -5914,6 +6016,8 @@ paths:
                 $ref: '#/components/schemas/Problem'
         '409':
           $ref: '#/components/responses/Conflict'
+        '503':
+          $ref: '#/components/responses/Unavailable'
       parameters:
       - name: conversationId
         in: path
@@ -5927,6 +6031,8 @@ paths:
           application/json:
             schema:
               $ref: '#/components/schemas/SupportReadInput'
+      x-proof-group: support
+      x-implementation: src/app/api/v1/support/conversations/[conversationId]/read-markers/route.ts
   /support/conversations/{conversationId}/events:
     get:
       operationId: streamSupportEvents
@@ -5949,7 +6055,7 @@ paths:
       - sessionCookie: []
       - bearerAuth: []
       - supportSession: []
-      x-contract-status: proposal
+      x-contract-status: implemented-local
       x-domain-owner: support
       x-primary-requirement: PR-22
       responses:
@@ -5989,6 +6095,8 @@ paths:
                 $ref: '#/components/schemas/Problem'
         '409':
           $ref: '#/components/responses/Conflict'
+        '503':
+          $ref: '#/components/responses/Unavailable'
       parameters:
       - name: conversationId
         in: path
@@ -6006,6 +6114,8 @@ paths:
       - $ref: '#/components/parameters/Limit'
       x-event-schema:
         $ref: '#/components/schemas/SupportEvent'
+      x-proof-group: support
+      x-implementation: src/app/api/v1/support/conversations/[conversationId]/events/route.ts
   /support/conversations/{conversationId}/attachments:
     post:
       operationId: uploadSupportImage
@@ -6024,7 +6134,7 @@ paths:
       - sessionCookie: []
       - bearerAuth: []
       - supportSession: []
-      x-contract-status: proposal
+      x-contract-status: implemented-local
       x-domain-owner: support
       x-primary-requirement: PR-22
       responses:
@@ -6059,6 +6169,8 @@ paths:
                 $ref: '#/components/schemas/Problem'
         '409':
           $ref: '#/components/responses/Conflict'
+        '503':
+          $ref: '#/components/responses/Unavailable'
       parameters:
       - name: conversationId
         in: path
@@ -6087,6 +6199,8 @@ paths:
               description: One JPEG/PNG/WebP image, maximum 5 MiB enforced on actual streamed bytes before processing;
                 MIME/decoded image checks required. Never trust filename/Content-Type. Reject dangerous images with
                 400; scan asynchronously and return pending_scan until ready.
+      x-proof-group: support
+      x-implementation: src/app/api/v1/support/conversations/[conversationId]/attachments/route.ts
   /support/conversations/{conversationId}/attachments/{attachmentId}:
     get:
       operationId: getSupportImage
@@ -6107,7 +6221,7 @@ paths:
       - sessionCookie: []
       - bearerAuth: []
       - supportSession: []
-      x-contract-status: proposal
+      x-contract-status: implemented-local
       x-domain-owner: support
       x-primary-requirement: PR-22
       responses:
@@ -6152,6 +6266,8 @@ paths:
             application/problem+json:
               schema:
                 $ref: '#/components/schemas/Problem'
+        '503':
+          $ref: '#/components/responses/Unavailable'
       parameters:
       - name: conversationId
         in: path
@@ -6163,6 +6279,8 @@ paths:
         required: true
         schema:
           $ref: '#/components/schemas/Id'
+      x-proof-group: support
+      x-implementation: src/app/api/v1/support/conversations/[conversationId]/attachments/[attachmentId]/route.ts
   /admin/support/conversations:
     get:
       operationId: listSupportInbox
@@ -6176,7 +6294,7 @@ paths:
       security:
       - sessionCookie: []
       - bearerAuth: []
-      x-contract-status: proposal
+      x-contract-status: implemented-local
       x-domain-owner: support
       x-primary-requirement: PR-22
       responses:
@@ -6209,6 +6327,8 @@ paths:
             application/problem+json:
               schema:
                 $ref: '#/components/schemas/Problem'
+        '503':
+          $ref: '#/components/responses/Unavailable'
       x-allowed-roles:
       - owner
       - customer_service
@@ -6256,6 +6376,8 @@ paths:
         in: query
         schema:
           $ref: '#/components/schemas/DateTime'
+      x-proof-group: support
+      x-implementation: src/app/api/v1/admin/support/conversations/route.ts
   /admin/support/conversations/{conversationId}/claims:
     post:
       operationId: claimSupportConversation
@@ -6271,7 +6393,7 @@ paths:
       security:
       - sessionCookie: []
       - bearerAuth: []
-      x-contract-status: proposal
+      x-contract-status: implemented-local
       x-domain-owner: support
       x-primary-requirement: PR-22
       responses:
@@ -6306,6 +6428,8 @@ paths:
                 $ref: '#/components/schemas/Problem'
         '409':
           $ref: '#/components/responses/Conflict'
+        '503':
+          $ref: '#/components/responses/Unavailable'
       x-allowed-roles:
       - owner
       - customer_service
@@ -6322,6 +6446,8 @@ paths:
           application/json:
             schema:
               $ref: '#/components/schemas/SupportClaimInput'
+      x-proof-group: support
+      x-implementation: src/app/api/v1/admin/support/conversations/[conversationId]/claims/route.ts
   /admin/support/conversations/{conversationId}/assignments:
     post:
       operationId: assignSupportConversation
@@ -6337,7 +6463,7 @@ paths:
       security:
       - sessionCookie: []
       - bearerAuth: []
-      x-contract-status: proposal
+      x-contract-status: implemented-local
       x-domain-owner: support
       x-primary-requirement: PR-22
       responses:
@@ -6372,6 +6498,8 @@ paths:
                 $ref: '#/components/schemas/Problem'
         '409':
           $ref: '#/components/responses/Conflict'
+        '503':
+          $ref: '#/components/responses/Unavailable'
       x-allowed-roles:
       - owner
       - customer_service
@@ -6388,6 +6516,8 @@ paths:
           application/json:
             schema:
               $ref: '#/components/schemas/SupportAssignmentInput'
+      x-proof-group: support
+      x-implementation: src/app/api/v1/admin/support/conversations/[conversationId]/assignments/route.ts
   /admin/support/conversations/{conversationId}/status:
     post:
       operationId: setSupportConversationStatus
@@ -6403,7 +6533,7 @@ paths:
       security:
       - sessionCookie: []
       - bearerAuth: []
-      x-contract-status: proposal
+      x-contract-status: implemented-local
       x-domain-owner: support
       x-primary-requirement: PR-22
       responses:
@@ -6438,6 +6568,8 @@ paths:
                 $ref: '#/components/schemas/Problem'
         '409':
           $ref: '#/components/responses/Conflict'
+        '503':
+          $ref: '#/components/responses/Unavailable'
       x-allowed-roles:
       - owner
       - customer_service
@@ -6454,6 +6586,8 @@ paths:
           application/json:
             schema:
               $ref: '#/components/schemas/SupportStatusInput'
+      x-proof-group: support
+      x-implementation: src/app/api/v1/admin/support/conversations/[conversationId]/status/route.ts
   /admin/support/conversations/{conversationId}/messages:
     get:
       operationId: listStaffSupportMessages
@@ -6467,7 +6601,7 @@ paths:
       security:
       - sessionCookie: []
       - bearerAuth: []
-      x-contract-status: proposal
+      x-contract-status: implemented-local
       x-domain-owner: support
       x-primary-requirement: PR-22
       responses:
@@ -6500,6 +6634,8 @@ paths:
             application/problem+json:
               schema:
                 $ref: '#/components/schemas/Problem'
+        '503':
+          $ref: '#/components/responses/Unavailable'
       x-allowed-roles:
       - owner
       - customer_service
@@ -6518,6 +6654,8 @@ paths:
           minimum: 1
         description: Bounded authorized neighborhood for reply/search jump; does not mark messages read. Cannot
           combine with paging cursor.
+      x-proof-group: support
+      x-implementation: src/app/api/v1/admin/support/conversations/[conversationId]/messages/route.ts
     post:
       operationId: sendStaffSupportMessage
       summary: Commit an assigned CS reply
@@ -6537,7 +6675,7 @@ paths:
       security:
       - sessionCookie: []
       - bearerAuth: []
-      x-contract-status: proposal
+      x-contract-status: implemented-local
       x-domain-owner: support
       x-primary-requirement: PR-22
       responses:
@@ -6572,6 +6710,8 @@ paths:
                 $ref: '#/components/schemas/Problem'
         '409':
           $ref: '#/components/responses/Conflict'
+        '503':
+          $ref: '#/components/responses/Unavailable'
       x-allowed-roles:
       - owner
       - customer_service
@@ -6596,6 +6736,8 @@ paths:
           application/json:
             schema:
               $ref: '#/components/schemas/SupportMessageInput'
+      x-proof-group: support
+      x-implementation: src/app/api/v1/admin/support/conversations/[conversationId]/messages/route.ts
   /admin/support/conversations/{conversationId}/notes:
     get:
       operationId: listSupportInternalNotes
@@ -6609,7 +6751,7 @@ paths:
       security:
       - sessionCookie: []
       - bearerAuth: []
-      x-contract-status: proposal
+      x-contract-status: implemented-local
       x-domain-owner: support
       x-primary-requirement: PR-22
       responses:
@@ -6642,6 +6784,8 @@ paths:
             application/problem+json:
               schema:
                 $ref: '#/components/schemas/Problem'
+        '503':
+          $ref: '#/components/responses/Unavailable'
       x-allowed-roles:
       - owner
       - customer_service
@@ -6653,6 +6797,8 @@ paths:
           $ref: '#/components/schemas/Id'
       - $ref: '#/components/parameters/Cursor'
       - $ref: '#/components/parameters/Limit'
+      x-proof-group: support
+      x-implementation: src/app/api/v1/admin/support/conversations/[conversationId]/notes/route.ts
     post:
       operationId: addSupportInternalNote
       summary: Append a staff-only internal note
@@ -6665,7 +6811,7 @@ paths:
       security:
       - sessionCookie: []
       - bearerAuth: []
-      x-contract-status: proposal
+      x-contract-status: implemented-local
       x-domain-owner: support
       x-primary-requirement: PR-22
       responses:
@@ -6700,6 +6846,8 @@ paths:
                 $ref: '#/components/schemas/Problem'
         '409':
           $ref: '#/components/responses/Conflict'
+        '503':
+          $ref: '#/components/responses/Unavailable'
       x-allowed-roles:
       - owner
       - customer_service
@@ -6716,6 +6864,8 @@ paths:
           application/json:
             schema:
               $ref: '#/components/schemas/SupportInternalNoteInput'
+      x-proof-group: support
+      x-implementation: src/app/api/v1/admin/support/conversations/[conversationId]/notes/route.ts
   /admin/support/conversations/{conversationId}/read-markers:
     post:
       operationId: markStaffSupportMessagesRead
@@ -6729,7 +6879,7 @@ paths:
       security:
       - sessionCookie: []
       - bearerAuth: []
-      x-contract-status: proposal
+      x-contract-status: implemented-local
       x-domain-owner: support
       x-primary-requirement: PR-22
       responses:
@@ -6764,6 +6914,8 @@ paths:
                 $ref: '#/components/schemas/Problem'
         '409':
           $ref: '#/components/responses/Conflict'
+        '503':
+          $ref: '#/components/responses/Unavailable'
       x-allowed-roles:
       - owner
       - customer_service
@@ -6780,6 +6932,8 @@ paths:
           application/json:
             schema:
               $ref: '#/components/schemas/SupportReadInput'
+      x-proof-group: support
+      x-implementation: src/app/api/v1/admin/support/conversations/[conversationId]/read-markers/route.ts
   /admin/support/conversations/{conversationId}/events:
     get:
       operationId: streamStaffSupportEvents
@@ -6797,7 +6951,7 @@ paths:
       security:
       - sessionCookie: []
       - bearerAuth: []
-      x-contract-status: proposal
+      x-contract-status: implemented-local
       x-domain-owner: support
       x-primary-requirement: PR-22
       responses:
@@ -6837,6 +6991,8 @@ paths:
                 $ref: '#/components/schemas/Problem'
         '409':
           $ref: '#/components/responses/Conflict'
+        '503':
+          $ref: '#/components/responses/Unavailable'
       parameters:
       - name: conversationId
         in: path
@@ -6857,6 +7013,8 @@ paths:
       x-allowed-roles:
       - owner
       - customer_service
+      x-proof-group: support
+      x-implementation: src/app/api/v1/admin/support/conversations/[conversationId]/events/route.ts
   /visitor-sessions:
     post:
       operationId: createVisitorSession
@@ -6943,7 +7101,7 @@ paths:
       tags:
       - Identity
       security: []
-      x-contract-status: proposal
+      x-contract-status: implemented-local
       x-domain-owner: support
       x-primary-requirement: PR-22
       responses:
@@ -6978,6 +7136,8 @@ paths:
                 const: no-store
         '409':
           $ref: '#/components/responses/Conflict'
+        '503':
+          $ref: '#/components/responses/Unavailable'
       parameters:
       - $ref: '#/components/parameters/IdempotencyKey'
       requestBody:
@@ -6986,6 +7146,8 @@ paths:
           application/json:
             schema:
               $ref: '#/components/schemas/VisitorSessionInput'
+      x-proof-group: support
+      x-implementation: src/app/api/v1/guest-support-sessions/route.ts
   /support/conversations/{conversationId}/message-searches:
     post:
       operationId: searchOwnSupportMessages
@@ -7002,7 +7164,7 @@ paths:
       - sessionCookie: []
       - bearerAuth: []
       - supportSession: []
-      x-contract-status: proposal
+      x-contract-status: implemented-local
       x-domain-owner: support
       x-primary-requirement: PR-22
       responses:
@@ -7037,6 +7199,8 @@ paths:
                 const: no-store
         '409':
           $ref: '#/components/responses/Conflict'
+        '503':
+          $ref: '#/components/responses/Unavailable'
       parameters:
       - name: conversationId
         in: path
@@ -7050,6 +7214,8 @@ paths:
           application/json:
             schema:
               $ref: '#/components/schemas/SupportSearchInput'
+      x-proof-group: support
+      x-implementation: src/app/api/v1/support/conversations/[conversationId]/message-searches/route.ts
   /admin/support/conversations/{conversationId}/message-searches:
     post:
       operationId: searchStaffSupportMessages
@@ -7065,7 +7231,7 @@ paths:
       security:
       - sessionCookie: []
       - bearerAuth: []
-      x-contract-status: proposal
+      x-contract-status: implemented-local
       x-domain-owner: support
       x-primary-requirement: PR-22
       responses:
@@ -7100,6 +7266,8 @@ paths:
                 const: no-store
         '409':
           $ref: '#/components/responses/Conflict'
+        '503':
+          $ref: '#/components/responses/Unavailable'
       x-allowed-roles:
       - owner
       - customer_service
@@ -7116,6 +7284,8 @@ paths:
           application/json:
             schema:
               $ref: '#/components/schemas/SupportSearchInput'
+      x-proof-group: support
+      x-implementation: src/app/api/v1/admin/support/conversations/[conversationId]/message-searches/route.ts
   /admin/support/conversations/{conversationId}/note-searches:
     post:
       operationId: searchPrivateSupportNotes
@@ -7130,7 +7300,7 @@ paths:
       security:
       - sessionCookie: []
       - bearerAuth: []
-      x-contract-status: proposal
+      x-contract-status: implemented-local
       x-domain-owner: support
       x-primary-requirement: PR-22
       responses:
@@ -7165,6 +7335,8 @@ paths:
                 const: no-store
         '409':
           $ref: '#/components/responses/Conflict'
+        '503':
+          $ref: '#/components/responses/Unavailable'
       x-allowed-roles:
       - owner
       - customer_service
@@ -7182,6 +7354,8 @@ paths:
           application/json:
             schema:
               $ref: '#/components/schemas/SupportSearchInput'
+      x-proof-group: support
+      x-implementation: src/app/api/v1/admin/support/conversations/[conversationId]/note-searches/route.ts
   /support/conversations/{conversationId}/preferences:
     get:
       operationId: getOwnSupportPreferences
@@ -7197,7 +7371,7 @@ paths:
       - sessionCookie: []
       - bearerAuth: []
       - supportSession: []
-      x-contract-status: proposal
+      x-contract-status: implemented-local
       x-domain-owner: support
       x-primary-requirement: PR-22
       responses:
@@ -7230,12 +7404,16 @@ paths:
               schema:
                 type: string
                 const: no-store
+        '503':
+          $ref: '#/components/responses/Unavailable'
       parameters:
       - name: conversationId
         in: path
         required: true
         schema:
           $ref: '#/components/schemas/Id'
+      x-proof-group: support
+      x-implementation: src/app/api/v1/support/conversations/[conversationId]/preferences/route.ts
     post:
       operationId: setOwnSupportPreferences
       summary: Set own support preferences
@@ -7250,7 +7428,7 @@ paths:
       - sessionCookie: []
       - bearerAuth: []
       - supportSession: []
-      x-contract-status: proposal
+      x-contract-status: implemented-local
       x-domain-owner: support
       x-primary-requirement: PR-22
       responses:
@@ -7285,6 +7463,8 @@ paths:
                 const: no-store
         '409':
           $ref: '#/components/responses/Conflict'
+        '503':
+          $ref: '#/components/responses/Unavailable'
       parameters:
       - name: conversationId
         in: path
@@ -7298,6 +7478,8 @@ paths:
           application/json:
             schema:
               $ref: '#/components/schemas/SupportPreferenceInput'
+      x-proof-group: support
+      x-implementation: src/app/api/v1/support/conversations/[conversationId]/preferences/route.ts
   /admin/support/conversations/{conversationId}/classification:
     get:
       operationId: getSupportClassification
@@ -7312,7 +7494,7 @@ paths:
       security:
       - sessionCookie: []
       - bearerAuth: []
-      x-contract-status: proposal
+      x-contract-status: implemented-local
       x-domain-owner: support
       x-primary-requirement: PR-22
       responses:
@@ -7345,6 +7527,8 @@ paths:
               schema:
                 type: string
                 const: no-store
+        '503':
+          $ref: '#/components/responses/Unavailable'
       x-allowed-roles:
       - owner
       - customer_service
@@ -7355,6 +7539,8 @@ paths:
         schema:
           $ref: '#/components/schemas/Id'
       x-required-permission: support.classification.read
+      x-proof-group: support
+      x-implementation: src/app/api/v1/admin/support/conversations/[conversationId]/classification/route.ts
     post:
       operationId: setSupportClassification
       summary: Set support classification
@@ -7368,7 +7554,7 @@ paths:
       security:
       - sessionCookie: []
       - bearerAuth: []
-      x-contract-status: proposal
+      x-contract-status: implemented-local
       x-domain-owner: support
       x-primary-requirement: PR-22
       responses:
@@ -7403,6 +7589,8 @@ paths:
                 const: no-store
         '409':
           $ref: '#/components/responses/Conflict'
+        '503':
+          $ref: '#/components/responses/Unavailable'
       x-allowed-roles:
       - owner
       - customer_service
@@ -7420,6 +7608,8 @@ paths:
           application/json:
             schema:
               $ref: '#/components/schemas/SupportClassificationInput'
+      x-proof-group: support
+      x-implementation: src/app/api/v1/admin/support/conversations/[conversationId]/classification/route.ts
   /admin/support/saved-replies:
     get:
       operationId: listSupportSavedReplyDefinitions
@@ -7433,7 +7623,7 @@ paths:
       security:
       - sessionCookie: []
       - bearerAuth: []
-      x-contract-status: proposal
+      x-contract-status: implemented-local
       x-domain-owner: support
       x-primary-requirement: PR-22
       responses:
@@ -7466,6 +7656,8 @@ paths:
               schema:
                 type: string
                 const: no-store
+        '503':
+          $ref: '#/components/responses/Unavailable'
       x-allowed-roles:
       - owner
       - customer_service
@@ -7473,6 +7665,8 @@ paths:
       - $ref: '#/components/parameters/Cursor'
       - $ref: '#/components/parameters/Limit'
       x-required-permission: support.tools.read
+      x-proof-group: support
+      x-implementation: src/app/api/v1/admin/support/saved-replies/route.ts
     post:
       operationId: createSupportSavedReplyDefinition
       summary: Create support saved reply definition
@@ -7486,7 +7680,7 @@ paths:
       security:
       - sessionCookie: []
       - bearerAuth: []
-      x-contract-status: proposal
+      x-contract-status: implemented-local
       x-domain-owner: support
       x-primary-requirement: PR-22
       responses:
@@ -7521,6 +7715,8 @@ paths:
                 const: no-store
         '409':
           $ref: '#/components/responses/Conflict'
+        '503':
+          $ref: '#/components/responses/Unavailable'
       x-allowed-roles:
       - owner
       - customer_service
@@ -7533,6 +7729,8 @@ paths:
           application/json:
             schema:
               $ref: '#/components/schemas/SupportSavedReplyInput'
+      x-proof-group: support
+      x-implementation: src/app/api/v1/admin/support/saved-replies/route.ts
   /admin/support/saved-replies/{definitionId}/versions:
     post:
       operationId: appendSupportSavedReplyVersion
@@ -7547,7 +7745,7 @@ paths:
       security:
       - sessionCookie: []
       - bearerAuth: []
-      x-contract-status: proposal
+      x-contract-status: implemented-local
       x-domain-owner: support
       x-primary-requirement: PR-22
       responses:
@@ -7582,6 +7780,8 @@ paths:
                 const: no-store
         '409':
           $ref: '#/components/responses/Conflict'
+        '503':
+          $ref: '#/components/responses/Unavailable'
       x-allowed-roles:
       - owner
       - customer_service
@@ -7599,6 +7799,8 @@ paths:
           application/json:
             schema:
               $ref: '#/components/schemas/SupportSavedReplyInput'
+      x-proof-group: support
+      x-implementation: src/app/api/v1/admin/support/saved-replies/[definitionId]/versions/route.ts
   /admin/support/tags:
     get:
       operationId: listSupportTagDefinitions
@@ -7612,7 +7814,7 @@ paths:
       security:
       - sessionCookie: []
       - bearerAuth: []
-      x-contract-status: proposal
+      x-contract-status: implemented-local
       x-domain-owner: support
       x-primary-requirement: PR-22
       responses:
@@ -7645,6 +7847,8 @@ paths:
               schema:
                 type: string
                 const: no-store
+        '503':
+          $ref: '#/components/responses/Unavailable'
       x-allowed-roles:
       - owner
       - customer_service
@@ -7652,6 +7856,8 @@ paths:
       - $ref: '#/components/parameters/Cursor'
       - $ref: '#/components/parameters/Limit'
       x-required-permission: support.tools.read
+      x-proof-group: support
+      x-implementation: src/app/api/v1/admin/support/tags/route.ts
     post:
       operationId: createSupportTagDefinition
       summary: Create support tag definition
@@ -7665,7 +7871,7 @@ paths:
       security:
       - sessionCookie: []
       - bearerAuth: []
-      x-contract-status: proposal
+      x-contract-status: implemented-local
       x-domain-owner: support
       x-primary-requirement: PR-22
       responses:
@@ -7700,6 +7906,8 @@ paths:
                 const: no-store
         '409':
           $ref: '#/components/responses/Conflict'
+        '503':
+          $ref: '#/components/responses/Unavailable'
       x-allowed-roles:
       - owner
       - customer_service
@@ -7712,6 +7920,8 @@ paths:
           application/json:
             schema:
               $ref: '#/components/schemas/SupportTagInput'
+      x-proof-group: support
+      x-implementation: src/app/api/v1/admin/support/tags/route.ts
   /admin/support/tags/{definitionId}/versions:
     post:
       operationId: appendSupportTagVersion
@@ -7726,7 +7936,7 @@ paths:
       security:
       - sessionCookie: []
       - bearerAuth: []
-      x-contract-status: proposal
+      x-contract-status: implemented-local
       x-domain-owner: support
       x-primary-requirement: PR-22
       responses:
@@ -7761,6 +7971,8 @@ paths:
                 const: no-store
         '409':
           $ref: '#/components/responses/Conflict'
+        '503':
+          $ref: '#/components/responses/Unavailable'
       x-allowed-roles:
       - owner
       - customer_service
@@ -7778,6 +7990,8 @@ paths:
           application/json:
             schema:
               $ref: '#/components/schemas/SupportTagInput'
+      x-proof-group: support
+      x-implementation: src/app/api/v1/admin/support/tags/[definitionId]/versions/route.ts
   /admin/support/conversations/{conversationId}/saved-reply-previews:
     post:
       operationId: previewSavedSupportReply
@@ -7792,7 +8006,7 @@ paths:
       security:
       - sessionCookie: []
       - bearerAuth: []
-      x-contract-status: proposal
+      x-contract-status: implemented-local
       x-domain-owner: support
       x-primary-requirement: PR-22
       responses:
@@ -7827,6 +8041,8 @@ paths:
                 const: no-store
         '409':
           $ref: '#/components/responses/Conflict'
+        '503':
+          $ref: '#/components/responses/Unavailable'
       x-allowed-roles:
       - owner
       - customer_service
@@ -7843,6 +8059,8 @@ paths:
           application/json:
             schema:
               $ref: '#/components/schemas/SupportReplyPreviewInput'
+      x-proof-group: support
+      x-implementation: src/app/api/v1/admin/support/conversations/[conversationId]/saved-reply-previews/route.ts
   /me/profile:
     get:
       operationId: getBuyerProfile
@@ -7857,7 +8075,7 @@ paths:
       security:
       - sessionCookie: []
       - bearerAuth: []
-      x-contract-status: proposal
+      x-contract-status: implemented-local
       x-domain-owner: access
       x-primary-requirement: PR-13
       responses:
@@ -7890,7 +8108,11 @@ paths:
               schema:
                 type: string
                 const: no-store
+        '503':
+          $ref: '#/components/responses/Unavailable'
       parameters: []
+      x-proof-group: accounts
+      x-implementation: src/app/api/v1/me/profile/route.ts
     post:
       operationId: updateBuyerProfile
       summary: Update buyer profile
@@ -7904,7 +8126,7 @@ paths:
       security:
       - sessionCookie: []
       - bearerAuth: []
-      x-contract-status: proposal
+      x-contract-status: implemented-local
       x-domain-owner: access
       x-primary-requirement: PR-13
       responses:
@@ -7939,6 +8161,8 @@ paths:
                 const: no-store
         '409':
           $ref: '#/components/responses/Conflict'
+        '503':
+          $ref: '#/components/responses/Unavailable'
       parameters:
       - $ref: '#/components/parameters/IdempotencyKey'
       requestBody:
@@ -7947,6 +8171,8 @@ paths:
           application/json:
             schema:
               $ref: '#/components/schemas/BuyerProfileInput'
+      x-proof-group: accounts
+      x-implementation: src/app/api/v1/me/profile/route.ts
   /me/addresses:
     get:
       operationId: listBuyerAddresses
@@ -7961,7 +8187,7 @@ paths:
       security:
       - sessionCookie: []
       - bearerAuth: []
-      x-contract-status: proposal
+      x-contract-status: implemented-local
       x-domain-owner: access
       x-primary-requirement: PR-13
       responses:
@@ -7994,9 +8220,13 @@ paths:
               schema:
                 type: string
                 const: no-store
+        '503':
+          $ref: '#/components/responses/Unavailable'
       parameters:
       - $ref: '#/components/parameters/Cursor'
       - $ref: '#/components/parameters/Limit'
+      x-proof-group: accounts
+      x-implementation: src/app/api/v1/me/addresses/route.ts
     post:
       operationId: createBuyerAddress
       summary: Create buyer address
@@ -8010,7 +8240,7 @@ paths:
       security:
       - sessionCookie: []
       - bearerAuth: []
-      x-contract-status: proposal
+      x-contract-status: implemented-local
       x-domain-owner: access
       x-primary-requirement: PR-13
       responses:
@@ -8045,6 +8275,8 @@ paths:
                 const: no-store
         '409':
           $ref: '#/components/responses/Conflict'
+        '503':
+          $ref: '#/components/responses/Unavailable'
       parameters:
       - $ref: '#/components/parameters/IdempotencyKey'
       requestBody:
@@ -8053,6 +8285,8 @@ paths:
           application/json:
             schema:
               $ref: '#/components/schemas/BuyerAddressInput'
+      x-proof-group: accounts
+      x-implementation: src/app/api/v1/me/addresses/route.ts
   /me/addresses/{addressId}:
     get:
       operationId: getBuyerAddress
@@ -8067,7 +8301,7 @@ paths:
       security:
       - sessionCookie: []
       - bearerAuth: []
-      x-contract-status: proposal
+      x-contract-status: implemented-local
       x-domain-owner: access
       x-primary-requirement: PR-13
       responses:
@@ -8100,12 +8334,16 @@ paths:
               schema:
                 type: string
                 const: no-store
+        '503':
+          $ref: '#/components/responses/Unavailable'
       parameters:
       - name: addressId
         in: path
         required: true
         schema:
           $ref: '#/components/schemas/Id'
+      x-proof-group: accounts
+      x-implementation: src/app/api/v1/me/addresses/[addressId]/route.ts
     post:
       operationId: updateBuyerAddress
       summary: Update buyer address
@@ -8119,7 +8357,7 @@ paths:
       security:
       - sessionCookie: []
       - bearerAuth: []
-      x-contract-status: proposal
+      x-contract-status: implemented-local
       x-domain-owner: access
       x-primary-requirement: PR-13
       responses:
@@ -8154,6 +8392,8 @@ paths:
                 const: no-store
         '409':
           $ref: '#/components/responses/Conflict'
+        '503':
+          $ref: '#/components/responses/Unavailable'
       parameters:
       - name: addressId
         in: path
@@ -8167,6 +8407,8 @@ paths:
           application/json:
             schema:
               $ref: '#/components/schemas/BuyerAddressInput'
+      x-proof-group: accounts
+      x-implementation: src/app/api/v1/me/addresses/[addressId]/route.ts
   /me/addresses/{addressId}/deletions:
     post:
       operationId: deleteBuyerAddress
@@ -8182,7 +8424,7 @@ paths:
       security:
       - sessionCookie: []
       - bearerAuth: []
-      x-contract-status: proposal
+      x-contract-status: implemented-local
       x-domain-owner: access
       x-primary-requirement: PR-13
       responses:
@@ -8217,6 +8459,8 @@ paths:
                 const: no-store
         '409':
           $ref: '#/components/responses/Conflict'
+        '503':
+          $ref: '#/components/responses/Unavailable'
       parameters:
       - name: addressId
         in: path
@@ -8230,6 +8474,8 @@ paths:
           application/json:
             schema:
               $ref: '#/components/schemas/BuyerAddressDeleteInput'
+      x-proof-group: accounts
+      x-implementation: src/app/api/v1/me/addresses/[addressId]/deletions/route.ts
   /me/address-default:
     post:
       operationId: setBuyerAddressDefault
@@ -8244,7 +8490,7 @@ paths:
       security:
       - sessionCookie: []
       - bearerAuth: []
-      x-contract-status: proposal
+      x-contract-status: implemented-local
       x-domain-owner: access
       x-primary-requirement: PR-13
       responses:
@@ -8279,6 +8525,8 @@ paths:
                 const: no-store
         '409':
           $ref: '#/components/responses/Conflict'
+        '503':
+          $ref: '#/components/responses/Unavailable'
       parameters:
       - $ref: '#/components/parameters/IdempotencyKey'
       requestBody:
@@ -8287,6 +8535,8 @@ paths:
           application/json:
             schema:
               $ref: '#/components/schemas/BuyerAddressDefaultInput'
+      x-proof-group: accounts
+      x-implementation: src/app/api/v1/me/address-default/route.ts
   /me/contact-change-challenges:
     post:
       operationId: requestBuyerContactChange
@@ -8301,7 +8551,7 @@ paths:
       security:
       - sessionCookie: []
       - bearerAuth: []
-      x-contract-status: proposal
+      x-contract-status: implemented-local
       x-domain-owner: access
       x-primary-requirement: PR-13
       responses:
@@ -8336,6 +8586,8 @@ paths:
                 const: no-store
         '409':
           $ref: '#/components/responses/Conflict'
+        '503':
+          $ref: '#/components/responses/Unavailable'
       parameters:
       - $ref: '#/components/parameters/IdempotencyKey'
       requestBody:
@@ -8344,6 +8596,8 @@ paths:
           application/json:
             schema:
               $ref: '#/components/schemas/ContactChangeInput'
+      x-proof-group: accounts
+      x-implementation: src/app/api/v1/me/contact-change-challenges/route.ts
   /me/contact-change-challenges/{challengeId}/verifications:
     post:
       operationId: verifyBuyerContactChange
@@ -8358,7 +8612,7 @@ paths:
       security:
       - sessionCookie: []
       - bearerAuth: []
-      x-contract-status: proposal
+      x-contract-status: implemented-local
       x-domain-owner: access
       x-primary-requirement: PR-13
       responses:
@@ -8393,6 +8647,8 @@ paths:
                 const: no-store
         '409':
           $ref: '#/components/responses/Conflict'
+        '503':
+          $ref: '#/components/responses/Unavailable'
       parameters:
       - name: challengeId
         in: path
@@ -8406,6 +8662,8 @@ paths:
           application/json:
             schema:
               $ref: '#/components/schemas/ScopedChallengeVerifyInput'
+      x-proof-group: accounts
+      x-implementation: src/app/api/v1/me/contact-change-challenges/[challengeId]/verifications/route.ts
   /me/guest-order-link-challenges:
     post:
       operationId: requestGuestOrderLink
@@ -8420,7 +8678,7 @@ paths:
       security:
       - sessionCookie: []
       - bearerAuth: []
-      x-contract-status: proposal
+      x-contract-status: implemented-local
       x-domain-owner: access
       x-primary-requirement: PR-13
       responses:
@@ -8455,6 +8713,8 @@ paths:
                 const: no-store
         '409':
           $ref: '#/components/responses/Conflict'
+        '503':
+          $ref: '#/components/responses/Unavailable'
       parameters:
       - $ref: '#/components/parameters/IdempotencyKey'
       requestBody:
@@ -8463,6 +8723,8 @@ paths:
           application/json:
             schema:
               $ref: '#/components/schemas/GuestOrderLinkInput'
+      x-proof-group: accounts
+      x-implementation: src/app/api/v1/me/guest-order-link-challenges/route.ts
   /me/guest-order-link-challenges/{challengeId}/verifications:
     post:
       operationId: verifyGuestOrderLink
@@ -8477,7 +8739,7 @@ paths:
       security:
       - sessionCookie: []
       - bearerAuth: []
-      x-contract-status: proposal
+      x-contract-status: implemented-local
       x-domain-owner: access
       x-primary-requirement: PR-13
       responses:
@@ -8512,6 +8774,8 @@ paths:
                 const: no-store
         '409':
           $ref: '#/components/responses/Conflict'
+        '503':
+          $ref: '#/components/responses/Unavailable'
       parameters:
       - name: challengeId
         in: path
@@ -8525,6 +8789,8 @@ paths:
           application/json:
             schema:
               $ref: '#/components/schemas/ScopedChallengeVerifyInput'
+      x-proof-group: accounts
+      x-implementation: src/app/api/v1/me/guest-order-link-challenges/[challengeId]/verifications/route.ts
   /support/recovery-challenges:
     post:
       operationId: requestSupportSessionRecovery
@@ -8540,7 +8806,7 @@ paths:
       - sessionCookie: []
       - bearerAuth: []
       - supportSession: []
-      x-contract-status: proposal
+      x-contract-status: implemented-local
       x-domain-owner: support
       x-primary-requirement: PR-22
       responses:
@@ -8575,6 +8841,8 @@ paths:
                 const: no-store
         '409':
           $ref: '#/components/responses/Conflict'
+        '503':
+          $ref: '#/components/responses/Unavailable'
       parameters:
       - $ref: '#/components/parameters/IdempotencyKey'
       requestBody:
@@ -8583,6 +8851,8 @@ paths:
           application/json:
             schema:
               $ref: '#/components/schemas/SupportRecoveryInput'
+      x-proof-group: support
+      x-implementation: src/app/api/v1/support/recovery-challenges/route.ts
   /support/recovery-challenges/{challengeId}/verifications:
     post:
       operationId: verifySupportSessionRecovery
@@ -8599,7 +8869,7 @@ paths:
       - sessionCookie: []
       - bearerAuth: []
       - supportSession: []
-      x-contract-status: proposal
+      x-contract-status: implemented-local
       x-domain-owner: support
       x-primary-requirement: PR-22
       responses:
@@ -8634,6 +8904,8 @@ paths:
                 const: no-store
         '409':
           $ref: '#/components/responses/Conflict'
+        '503':
+          $ref: '#/components/responses/Unavailable'
       parameters:
       - name: challengeId
         in: path
@@ -8647,6 +8919,8 @@ paths:
           application/json:
             schema:
               $ref: '#/components/schemas/ScopedChallengeVerifyInput'
+      x-proof-group: support
+      x-implementation: src/app/api/v1/support/recovery-challenges/[challengeId]/verifications/route.ts
   /me/notification-preferences:
     get:
       operationId: getNotificationPreferences
@@ -8662,7 +8936,7 @@ paths:
       security:
       - sessionCookie: []
       - bearerAuth: []
-      x-contract-status: proposal
+      x-contract-status: implemented-local
       x-domain-owner: access
       x-primary-requirement: PR-13
       responses:
@@ -8695,7 +8969,11 @@ paths:
               schema:
                 type: string
                 const: no-store
+        '503':
+          $ref: '#/components/responses/Unavailable'
       parameters: []
+      x-proof-group: accounts
+      x-implementation: src/app/api/v1/me/notification-preferences/route.ts
     post:
       operationId: setNotificationPreferences
       summary: Set notification preferences
@@ -8710,7 +8988,7 @@ paths:
       security:
       - sessionCookie: []
       - bearerAuth: []
-      x-contract-status: proposal
+      x-contract-status: implemented-local
       x-domain-owner: access
       x-primary-requirement: PR-13
       responses:
@@ -8745,6 +9023,8 @@ paths:
                 const: no-store
         '409':
           $ref: '#/components/responses/Conflict'
+        '503':
+          $ref: '#/components/responses/Unavailable'
       parameters:
       - $ref: '#/components/parameters/IdempotencyKey'
       requestBody:
@@ -8753,6 +9033,8 @@ paths:
           application/json:
             schema:
               $ref: '#/components/schemas/NotificationPreferenceInput'
+      x-proof-group: accounts
+      x-implementation: src/app/api/v1/me/notification-preferences/route.ts
   /me/session-terminations:
     post:
       operationId: terminateOwnSessions
@@ -8767,7 +9049,7 @@ paths:
       security:
       - sessionCookie: []
       - bearerAuth: []
-      x-contract-status: proposal
+      x-contract-status: implemented-local
       x-domain-owner: access
       x-primary-requirement: PR-13
       responses:
@@ -8802,6 +9084,8 @@ paths:
                 const: no-store
         '409':
           $ref: '#/components/responses/Conflict'
+        '503':
+          $ref: '#/components/responses/Unavailable'
       parameters:
       - $ref: '#/components/parameters/IdempotencyKey'
       requestBody:
@@ -8810,6 +9094,8 @@ paths:
           application/json:
             schema:
               $ref: '#/components/schemas/SessionTerminationInput'
+      x-proof-group: accounts
+      x-implementation: src/app/api/v1/me/session-terminations/route.ts
   /me/notifications:
     get:
       operationId: listAccountNotifications
@@ -8824,7 +9110,7 @@ paths:
       security:
       - sessionCookie: []
       - bearerAuth: []
-      x-contract-status: proposal
+      x-contract-status: implemented-local
       x-domain-owner: support
       x-primary-requirement: PR-22
       responses:
@@ -8857,9 +9143,13 @@ paths:
               schema:
                 type: string
                 const: no-store
+        '503':
+          $ref: '#/components/responses/Unavailable'
       parameters:
       - $ref: '#/components/parameters/Cursor'
       - $ref: '#/components/parameters/Limit'
+      x-proof-group: support
+      x-implementation: src/app/api/v1/me/notifications/route.ts
   /me/notifications/{notificationId}/state:
     post:
       operationId: setAccountNotificationState
@@ -8874,7 +9164,7 @@ paths:
       security:
       - sessionCookie: []
       - bearerAuth: []
-      x-contract-status: proposal
+      x-contract-status: implemented-local
       x-domain-owner: support
       x-primary-requirement: PR-22
       responses:
@@ -8909,6 +9199,8 @@ paths:
                 const: no-store
         '409':
           $ref: '#/components/responses/Conflict'
+        '503':
+          $ref: '#/components/responses/Unavailable'
       parameters:
       - name: notificationId
         in: path
@@ -8922,6 +9214,8 @@ paths:
           application/json:
             schema:
               $ref: '#/components/schemas/NotificationStateInput'
+      x-proof-group: support
+      x-implementation: src/app/api/v1/me/notifications/[notificationId]/state/route.ts
   /support/notifications:
     get:
       operationId: listSupportNotifications
@@ -8937,7 +9231,7 @@ paths:
       - sessionCookie: []
       - bearerAuth: []
       - supportSession: []
-      x-contract-status: proposal
+      x-contract-status: implemented-local
       x-domain-owner: support
       x-primary-requirement: PR-22
       responses:
@@ -8970,9 +9264,13 @@ paths:
               schema:
                 type: string
                 const: no-store
+        '503':
+          $ref: '#/components/responses/Unavailable'
       parameters:
       - $ref: '#/components/parameters/Cursor'
       - $ref: '#/components/parameters/Limit'
+      x-proof-group: support
+      x-implementation: src/app/api/v1/support/notifications/route.ts
   /support/notifications/{notificationId}/state:
     post:
       operationId: setSupportNotificationState
@@ -8988,7 +9286,7 @@ paths:
       - sessionCookie: []
       - bearerAuth: []
       - supportSession: []
-      x-contract-status: proposal
+      x-contract-status: implemented-local
       x-domain-owner: support
       x-primary-requirement: PR-22
       responses:
@@ -9023,6 +9321,8 @@ paths:
                 const: no-store
         '409':
           $ref: '#/components/responses/Conflict'
+        '503':
+          $ref: '#/components/responses/Unavailable'
       parameters:
       - name: notificationId
         in: path
@@ -9036,6 +9336,8 @@ paths:
           application/json:
             schema:
               $ref: '#/components/schemas/NotificationStateInput'
+      x-proof-group: support
+      x-implementation: src/app/api/v1/support/notifications/[notificationId]/state/route.ts
   /orders/{orderId}/receipt:
     get:
       operationId: getPrivateOrderReceipt
@@ -9052,7 +9354,7 @@ paths:
       - sessionCookie: []
       - bearerAuth: []
       - orderAccess: []
-      x-contract-status: proposal
+      x-contract-status: implemented-local
       x-domain-owner: checkout
       x-primary-requirement: PR-24
       responses:
@@ -9085,12 +9387,16 @@ paths:
               schema:
                 type: string
                 const: no-store
+        '503':
+          $ref: '#/components/responses/Unavailable'
       parameters:
       - name: orderId
         in: path
         required: true
         schema:
           $ref: '#/components/schemas/Id'
+      x-proof-group: order-receipt
+      x-implementation: src/app/api/v1/orders/[orderId]/receipt/route.ts
   /consent/receipt:
     get:
       operationId: getConsentReceipt
@@ -9316,7 +9622,7 @@ paths:
       security:
       - sessionCookie: []
       - bearerAuth: []
-      x-contract-status: proposal
+      x-contract-status: implemented-local
       x-domain-owner: advertising
       x-primary-requirement: PR-23
       responses:
@@ -9349,11 +9655,15 @@ paths:
               schema:
                 type: string
                 const: no-store
+        '503':
+          $ref: '#/components/responses/Unavailable'
       x-allowed-roles:
       - owner
       parameters:
       - $ref: '#/components/parameters/Cursor'
       - $ref: '#/components/parameters/Limit'
+      x-proof-group: advertising-diagnostics
+      x-implementation: src/app/api/v1/admin/advertising/destinations/route.ts
     post:
       operationId: createAdvertisingDestination
       summary: Create advertising destination
@@ -9367,7 +9677,7 @@ paths:
       security:
       - sessionCookie: []
       - bearerAuth: []
-      x-contract-status: proposal
+      x-contract-status: implemented-local
       x-domain-owner: advertising
       x-primary-requirement: PR-23
       responses:
@@ -9402,6 +9712,8 @@ paths:
                 const: no-store
         '409':
           $ref: '#/components/responses/Conflict'
+        '503':
+          $ref: '#/components/responses/Unavailable'
       x-allowed-roles:
       - owner
       parameters:
@@ -9412,6 +9724,8 @@ paths:
           application/json:
             schema:
               $ref: '#/components/schemas/AdDestinationInput'
+      x-proof-group: advertising-diagnostics
+      x-implementation: src/app/api/v1/admin/advertising/destinations/route.ts
   /admin/advertising/destinations/{destinationId}/versions:
     post:
       operationId: appendAdvertisingDestinationVersion
@@ -9426,7 +9740,7 @@ paths:
       security:
       - sessionCookie: []
       - bearerAuth: []
-      x-contract-status: proposal
+      x-contract-status: implemented-local
       x-domain-owner: advertising
       x-primary-requirement: PR-23
       responses:
@@ -9461,6 +9775,8 @@ paths:
                 const: no-store
         '409':
           $ref: '#/components/responses/Conflict'
+        '503':
+          $ref: '#/components/responses/Unavailable'
       x-allowed-roles:
       - owner
       parameters:
@@ -9476,6 +9792,8 @@ paths:
           application/json:
             schema:
               $ref: '#/components/schemas/AdDestinationInput'
+      x-proof-group: advertising-diagnostics
+      x-implementation: src/app/api/v1/admin/advertising/destinations/[destinationId]/versions/route.ts
   /admin/advertising/destinations/{destinationId}/diagnostics:
     get:
       operationId: getAdvertisingDiagnostics
@@ -9490,7 +9808,7 @@ paths:
       security:
       - sessionCookie: []
       - bearerAuth: []
-      x-contract-status: proposal
+      x-contract-status: implemented-local
       x-domain-owner: advertising
       x-primary-requirement: PR-23
       responses:
@@ -9523,6 +9841,8 @@ paths:
               schema:
                 type: string
                 const: no-store
+        '503':
+          $ref: '#/components/responses/Unavailable'
       x-allowed-roles:
       - owner
       - ecommerce_admin
@@ -9544,6 +9864,8 @@ paths:
           $ref: '#/components/schemas/DateTime'
         required: true
       x-required-permission: advertising.diagnostics.read
+      x-proof-group: advertising-diagnostics
+      x-implementation: src/app/api/v1/admin/advertising/destinations/[destinationId]/diagnostics/route.ts
   /admin/advertising/destinations/{destinationId}/pause:
     post:
       operationId: setAdvertisingPause
@@ -9558,7 +9880,7 @@ paths:
       security:
       - sessionCookie: []
       - bearerAuth: []
-      x-contract-status: proposal
+      x-contract-status: implemented-local
       x-domain-owner: advertising
       x-primary-requirement: PR-23
       responses:
@@ -9593,6 +9915,8 @@ paths:
                 const: no-store
         '409':
           $ref: '#/components/responses/Conflict'
+        '503':
+          $ref: '#/components/responses/Unavailable'
       x-allowed-roles:
       - owner
       parameters:
@@ -9608,6 +9932,8 @@ paths:
           application/json:
             schema:
               $ref: '#/components/schemas/AdPauseInput'
+      x-proof-group: advertising-diagnostics
+      x-implementation: src/app/api/v1/admin/advertising/destinations/[destinationId]/pause/route.ts
   /admin/advertising/destinations/{destinationId}/replays:
     post:
       operationId: replayAdvertisingEvent
@@ -9623,7 +9949,7 @@ paths:
       security:
       - sessionCookie: []
       - bearerAuth: []
-      x-contract-status: proposal
+      x-contract-status: implemented-local
       x-domain-owner: advertising
       x-primary-requirement: PR-23
       responses:
@@ -9658,6 +9984,8 @@ paths:
                 const: no-store
         '409':
           $ref: '#/components/responses/Conflict'
+        '503':
+          $ref: '#/components/responses/Unavailable'
       x-allowed-roles:
       - owner
       parameters:
@@ -9673,6 +10001,8 @@ paths:
           application/json:
             schema:
               $ref: '#/components/schemas/AdReplayInput'
+      x-proof-group: advertising-diagnostics
+      x-implementation: src/app/api/v1/admin/advertising/destinations/[destinationId]/replays/route.ts
   /admin/dashboard:
     get:
       operationId: getRoleDashboard
@@ -9691,7 +10021,7 @@ paths:
       security:
       - sessionCookie: []
       - bearerAuth: []
-      x-contract-status: proposal
+      x-contract-status: implemented-local
       x-domain-owner: administration
       x-primary-requirement: PR-14
       responses:
@@ -9726,6 +10056,8 @@ paths:
                 const: no-store
         '409':
           $ref: '#/components/responses/Conflict'
+        '503':
+          $ref: '#/components/responses/Unavailable'
       x-allowed-roles:
       - owner
       - ecommerce_admin
@@ -9759,6 +10091,8 @@ paths:
           $ref: '#/components/schemas/DateTime'
         required: true
       x-required-permission: dashboard.read
+      x-proof-group: administration
+      x-implementation: src/app/api/v1/admin/dashboard/route.ts
   /admin/work-queues:
     get:
       operationId: listRoleWorkQueue
@@ -9777,7 +10111,7 @@ paths:
       security:
       - sessionCookie: []
       - bearerAuth: []
-      x-contract-status: proposal
+      x-contract-status: implemented-local
       x-domain-owner: administration
       x-primary-requirement: PR-14
       responses:
@@ -9812,6 +10146,8 @@ paths:
                 const: no-store
         '409':
           $ref: '#/components/responses/Conflict'
+        '503':
+          $ref: '#/components/responses/Unavailable'
       x-allowed-roles:
       - owner
       - ecommerce_admin
@@ -9866,6 +10202,8 @@ paths:
         description: Private actor-bound metric drilldown token; no personal data or credentials in token. Supplied
           explicit workspace/queue/date/warehouse filters must match; cannot combine stale token with altered filters.
       x-required-permission: queues.read
+      x-proof-group: administration
+      x-implementation: src/app/api/v1/admin/work-queues/route.ts
   /admin/export-selections:
     post:
       operationId: freezeScopedExportSelection
@@ -9880,7 +10218,7 @@ paths:
       security:
       - sessionCookie: []
       - bearerAuth: []
-      x-contract-status: proposal
+      x-contract-status: implemented-local
       x-domain-owner: administration
       x-primary-requirement: PR-14
       responses:
@@ -9915,6 +10253,8 @@ paths:
                 const: no-store
         '409':
           $ref: '#/components/responses/Conflict'
+        '503':
+          $ref: '#/components/responses/Unavailable'
       x-allowed-roles:
       - owner
       - ecommerce_admin
@@ -9930,6 +10270,8 @@ paths:
           application/json:
             schema:
               $ref: '#/components/schemas/ExportFilterInput'
+      x-proof-group: administration
+      x-implementation: src/app/api/v1/admin/export-selections/route.ts
   /admin/exports:
     post:
       operationId: downloadScopedCsvExport
@@ -9946,7 +10288,7 @@ paths:
       security:
       - sessionCookie: []
       - bearerAuth: []
-      x-contract-status: proposal
+      x-contract-status: implemented-local
       x-domain-owner: administration
       x-primary-requirement: PR-14
       responses:
@@ -9985,6 +10327,8 @@ paths:
                 type: string
         '409':
           $ref: '#/components/responses/Conflict'
+        '503':
+          $ref: '#/components/responses/Unavailable'
       x-allowed-roles:
       - owner
       - ecommerce_admin
@@ -10000,6 +10344,8 @@ paths:
           application/json:
             schema:
               $ref: '#/components/schemas/ExportInput'
+      x-proof-group: administration
+      x-implementation: src/app/api/v1/admin/exports/route.ts
   /admin/shipping-label-templates:
     get:
       operationId: listShippingLabelCapabilities
@@ -10014,7 +10360,7 @@ paths:
       security:
       - sessionCookie: []
       - bearerAuth: []
-      x-contract-status: proposal
+      x-contract-status: implemented-local
       x-domain-owner: fulfillment
       x-primary-requirement: PR-25
       responses:
@@ -10047,6 +10393,8 @@ paths:
               schema:
                 type: string
                 const: no-store
+        '503':
+          $ref: '#/components/responses/Unavailable'
       x-allowed-roles:
       - owner
       - ecommerce_admin
@@ -10055,6 +10403,8 @@ paths:
       - $ref: '#/components/parameters/Cursor'
       - $ref: '#/components/parameters/Limit'
       x-required-permission: shipping.labels.read
+      x-proof-group: labels
+      x-implementation: src/app/api/v1/admin/shipping-label-templates/route.ts
     post:
       operationId: createShippingLabelTemplate
       summary: Create shipping label template
@@ -10068,7 +10418,7 @@ paths:
       security:
       - sessionCookie: []
       - bearerAuth: []
-      x-contract-status: proposal
+      x-contract-status: implemented-local
       x-domain-owner: fulfillment
       x-primary-requirement: PR-25
       responses:
@@ -10103,6 +10453,8 @@ paths:
                 const: no-store
         '409':
           $ref: '#/components/responses/Conflict'
+        '503':
+          $ref: '#/components/responses/Unavailable'
       x-allowed-roles:
       - owner
       parameters:
@@ -10113,6 +10465,8 @@ paths:
           application/json:
             schema:
               $ref: '#/components/schemas/ShippingLabelTemplateInput'
+      x-proof-group: labels
+      x-implementation: src/app/api/v1/admin/shipping-label-templates/route.ts
   /admin/shipping-label-templates/{templateId}/versions:
     post:
       operationId: appendShippingLabelTemplateVersion
@@ -10127,7 +10481,7 @@ paths:
       security:
       - sessionCookie: []
       - bearerAuth: []
-      x-contract-status: proposal
+      x-contract-status: implemented-local
       x-domain-owner: fulfillment
       x-primary-requirement: PR-25
       responses:
@@ -10162,6 +10516,8 @@ paths:
                 const: no-store
         '409':
           $ref: '#/components/responses/Conflict'
+        '503':
+          $ref: '#/components/responses/Unavailable'
       x-allowed-roles:
       - owner
       parameters:
@@ -10177,6 +10533,8 @@ paths:
           application/json:
             schema:
               $ref: '#/components/schemas/ShippingLabelTemplateInput'
+      x-proof-group: labels
+      x-implementation: src/app/api/v1/admin/shipping-label-templates/[templateId]/versions/route.ts
   /admin/shipments/{shipmentId}/label-jobs:
     post:
       operationId: generateShipmentLabel
@@ -10192,7 +10550,7 @@ paths:
       security:
       - sessionCookie: []
       - bearerAuth: []
-      x-contract-status: proposal
+      x-contract-status: implemented-local
       x-domain-owner: fulfillment
       x-primary-requirement: PR-25
       responses:
@@ -10227,6 +10585,8 @@ paths:
                 const: no-store
         '409':
           $ref: '#/components/responses/Conflict'
+        '503':
+          $ref: '#/components/responses/Unavailable'
       x-allowed-roles:
       - owner
       - ecommerce_admin
@@ -10245,6 +10605,8 @@ paths:
           application/json:
             schema:
               $ref: '#/components/schemas/ShippingLabelGenerateInput'
+      x-proof-group: labels
+      x-implementation: src/app/api/v1/admin/shipments/[shipmentId]/label-jobs/route.ts
   /admin/label-jobs/{labelJobId}:
     get:
       operationId: getShippingLabelJob
@@ -10260,7 +10622,7 @@ paths:
       security:
       - sessionCookie: []
       - bearerAuth: []
-      x-contract-status: proposal
+      x-contract-status: implemented-local
       x-domain-owner: fulfillment
       x-primary-requirement: PR-25
       responses:
@@ -10293,6 +10655,8 @@ paths:
               schema:
                 type: string
                 const: no-store
+        '503':
+          $ref: '#/components/responses/Unavailable'
       x-allowed-roles:
       - owner
       - ecommerce_admin
@@ -10304,6 +10668,8 @@ paths:
         schema:
           $ref: '#/components/schemas/Id'
       x-required-permission: shipping.labels.read
+      x-proof-group: labels
+      x-implementation: src/app/api/v1/admin/label-jobs/[labelJobId]/route.ts
   /admin/label-artifacts/{artifactId}:
     get:
       operationId: getShippingLabelArtifact
@@ -10319,7 +10685,7 @@ paths:
       security:
       - sessionCookie: []
       - bearerAuth: []
-      x-contract-status: proposal
+      x-contract-status: implemented-local
       x-domain-owner: fulfillment
       x-primary-requirement: PR-25
       responses:
@@ -10352,6 +10718,8 @@ paths:
               schema:
                 type: string
                 const: no-store
+        '503':
+          $ref: '#/components/responses/Unavailable'
       x-allowed-roles:
       - owner
       - ecommerce_admin
@@ -10363,6 +10731,8 @@ paths:
         schema:
           $ref: '#/components/schemas/Id'
       x-required-permission: shipping.labels.read
+      x-proof-group: labels
+      x-implementation: src/app/api/v1/admin/label-artifacts/[artifactId]/route.ts
   /admin/label-artifacts/{artifactId}/content:
     get:
       operationId: downloadValidatedLabelArtifact
@@ -10378,7 +10748,7 @@ paths:
       security:
       - sessionCookie: []
       - bearerAuth: []
-      x-contract-status: proposal
+      x-contract-status: implemented-local
       x-domain-owner: fulfillment
       x-primary-requirement: PR-25
       responses:
@@ -10412,6 +10782,8 @@ paths:
               schema:
                 type: string
                 const: no-store
+        '503':
+          $ref: '#/components/responses/Unavailable'
       x-allowed-roles:
       - owner
       - ecommerce_admin
@@ -10423,6 +10795,8 @@ paths:
         schema:
           $ref: '#/components/schemas/Id'
       x-required-permission: shipping.labels.read
+      x-proof-group: labels
+      x-implementation: src/app/api/v1/admin/label-artifacts/[artifactId]/content/route.ts
   /admin/label-batches:
     post:
       operationId: generateShippingLabelBatch
@@ -10437,7 +10811,7 @@ paths:
       security:
       - sessionCookie: []
       - bearerAuth: []
-      x-contract-status: proposal
+      x-contract-status: implemented-local
       x-domain-owner: fulfillment
       x-primary-requirement: PR-25
       responses:
@@ -10472,6 +10846,8 @@ paths:
                 const: no-store
         '409':
           $ref: '#/components/responses/Conflict'
+        '503':
+          $ref: '#/components/responses/Unavailable'
       x-allowed-roles:
       - owner
       - ecommerce_admin
@@ -10485,6 +10861,8 @@ paths:
           application/json:
             schema:
               $ref: '#/components/schemas/ShippingLabelBatchInput'
+      x-proof-group: labels
+      x-implementation: src/app/api/v1/admin/label-batches/route.ts
   /admin/label-batches/{batchId}:
     get:
       operationId: getShippingLabelBatch
@@ -10499,7 +10877,7 @@ paths:
       security:
       - sessionCookie: []
       - bearerAuth: []
-      x-contract-status: proposal
+      x-contract-status: implemented-local
       x-domain-owner: fulfillment
       x-primary-requirement: PR-25
       responses:
@@ -10532,6 +10910,8 @@ paths:
               schema:
                 type: string
                 const: no-store
+        '503':
+          $ref: '#/components/responses/Unavailable'
       x-allowed-roles:
       - owner
       - ecommerce_admin
@@ -10543,6 +10923,8 @@ paths:
         schema:
           $ref: '#/components/schemas/Id'
       x-required-permission: shipping.labels.read
+      x-proof-group: labels
+      x-implementation: src/app/api/v1/admin/label-batches/[batchId]/route.ts
   /admin/shipments/{shipmentId}/print-attempts:
     post:
       operationId: recordShippingPrintAttempt
@@ -10557,7 +10939,7 @@ paths:
       security:
       - sessionCookie: []
       - bearerAuth: []
-      x-contract-status: proposal
+      x-contract-status: implemented-local
       x-domain-owner: fulfillment
       x-primary-requirement: PR-25
       responses:
@@ -10592,6 +10974,8 @@ paths:
                 const: no-store
         '409':
           $ref: '#/components/responses/Conflict'
+        '503':
+          $ref: '#/components/responses/Unavailable'
       x-allowed-roles:
       - owner
       - ecommerce_admin
@@ -10610,6 +10994,8 @@ paths:
           application/json:
             schema:
               $ref: '#/components/schemas/ShippingPrintAttemptInput'
+      x-proof-group: labels
+      x-implementation: src/app/api/v1/admin/shipments/[shipmentId]/print-attempts/route.ts
     get:
       operationId: listShippingPrintAttempts
       summary: List shipping print attempts
@@ -10622,7 +11008,7 @@ paths:
       security:
       - sessionCookie: []
       - bearerAuth: []
-      x-contract-status: proposal
+      x-contract-status: implemented-local
       x-domain-owner: fulfillment
       x-primary-requirement: PR-25
       responses:
@@ -10655,6 +11041,8 @@ paths:
               schema:
                 type: string
                 const: no-store
+        '503':
+          $ref: '#/components/responses/Unavailable'
       x-allowed-roles:
       - owner
       - ecommerce_admin
@@ -10668,6 +11056,8 @@ paths:
       - $ref: '#/components/parameters/Cursor'
       - $ref: '#/components/parameters/Limit'
       x-required-permission: shipping.labels.read
+      x-proof-group: labels
+      x-implementation: src/app/api/v1/admin/shipments/[shipmentId]/print-attempts/route.ts
   /support/conversation-searches:
     post:
       operationId: searchOwnSupportConversationMetadata
@@ -10683,7 +11073,7 @@ paths:
       - sessionCookie: []
       - bearerAuth: []
       - supportSession: []
-      x-contract-status: proposal
+      x-contract-status: implemented-local
       x-domain-owner: support
       x-primary-requirement: PR-22
       responses:
@@ -10718,6 +11108,8 @@ paths:
                 const: no-store
         '409':
           $ref: '#/components/responses/Conflict'
+        '503':
+          $ref: '#/components/responses/Unavailable'
       parameters:
       - $ref: '#/components/parameters/IdempotencyKey'
       requestBody:
@@ -10726,6 +11118,8 @@ paths:
           application/json:
             schema:
               $ref: '#/components/schemas/SupportConversationSearchInput'
+      x-proof-group: support
+      x-implementation: src/app/api/v1/support/conversation-searches/route.ts
   /support/contact-challenges:
     post:
       operationId: requestSupportRecoveryContactBinding
@@ -10743,7 +11137,7 @@ paths:
       - sessionCookie: []
       - bearerAuth: []
       - supportSession: []
-      x-contract-status: proposal
+      x-contract-status: implemented-local
       x-domain-owner: support
       x-primary-requirement: PR-22
       responses:
@@ -10778,6 +11172,8 @@ paths:
                 const: no-store
         '409':
           $ref: '#/components/responses/Conflict'
+        '503':
+          $ref: '#/components/responses/Unavailable'
       parameters:
       - $ref: '#/components/parameters/IdempotencyKey'
       requestBody:
@@ -10786,6 +11182,8 @@ paths:
           application/json:
             schema:
               $ref: '#/components/schemas/SupportContactBindingInput'
+      x-proof-group: support
+      x-implementation: src/app/api/v1/support/contact-challenges/route.ts
   /support/contact-challenges/{challengeId}/verifications:
     post:
       operationId: verifySupportRecoveryContactBinding
@@ -10803,7 +11201,7 @@ paths:
       - sessionCookie: []
       - bearerAuth: []
       - supportSession: []
-      x-contract-status: proposal
+      x-contract-status: implemented-local
       x-domain-owner: support
       x-primary-requirement: PR-22
       responses:
@@ -10838,6 +11236,8 @@ paths:
                 const: no-store
         '409':
           $ref: '#/components/responses/Conflict'
+        '503':
+          $ref: '#/components/responses/Unavailable'
       parameters:
       - name: challengeId
         in: path
@@ -10851,6 +11251,8 @@ paths:
           application/json:
             schema:
               $ref: '#/components/schemas/ScopedChallengeVerifyInput'
+      x-proof-group: support
+      x-implementation: src/app/api/v1/support/contact-challenges/[challengeId]/verifications/route.ts
   /admin/policy-versions:
     get:
       operationId: listPolicyVersions
@@ -12260,7 +12662,7 @@ paths:
       - Orders
       security:
       - sessionCookie: []
-      x-contract-status: proposal
+      x-contract-status: implemented-local
       x-domain-owner: checkout
       x-primary-requirement: PR-21
       responses:
@@ -12321,6 +12723,8 @@ paths:
       - customer_service
       - warehouse
       - finance
+      x-proof-group: exceptions
+      x-implementation: src/app/api/v1/admin/commerce-exceptions/route.ts
     post:
       operationId: reportStockDiscrepancy
       summary: Report affected unhanded complete offer units
@@ -12331,7 +12735,7 @@ paths:
       - Orders
       security:
       - sessionCookie: []
-      x-contract-status: proposal
+      x-contract-status: implemented-local
       x-domain-owner: checkout
       x-primary-requirement: PR-21
       responses:
@@ -12373,6 +12777,8 @@ paths:
           application/json:
             schema:
               $ref: '#/components/schemas/StockDiscrepancyInput'
+      x-proof-group: exceptions
+      x-implementation: src/app/api/v1/admin/commerce-exceptions/route.ts
   /admin/commerce-exceptions/{exceptionId}:
     get:
       operationId: getCommerceException
@@ -12384,7 +12790,7 @@ paths:
       - Orders
       security:
       - sessionCookie: []
-      x-contract-status: proposal
+      x-contract-status: implemented-local
       x-domain-owner: checkout
       x-primary-requirement: PR-21
       responses:
@@ -12421,6 +12827,8 @@ paths:
       - customer_service
       - warehouse
       - finance
+      x-proof-group: exceptions
+      x-implementation: src/app/api/v1/admin/commerce-exceptions/[exceptionId]/route.ts
   /admin/commerce-exceptions/{exceptionId}/decisions:
     post:
       operationId: decideCommerceException
@@ -12432,7 +12840,7 @@ paths:
       - Orders
       security:
       - sessionCookie: []
-      x-contract-status: proposal
+      x-contract-status: implemented-local
       x-domain-owner: checkout
       x-primary-requirement: PR-21
       responses:
@@ -12479,6 +12887,8 @@ paths:
           application/json:
             schema:
               $ref: '#/components/schemas/ExceptionDecisionInput'
+      x-proof-group: exceptions
+      x-implementation: src/app/api/v1/admin/commerce-exceptions/[exceptionId]/decisions/route.ts
   /admin/commerce-exceptions/{exceptionId}/intakes:
     post:
       operationId: recordExceptionIntake
@@ -12490,7 +12900,7 @@ paths:
       - Orders
       security:
       - sessionCookie: []
-      x-contract-status: proposal
+      x-contract-status: implemented-local
       x-domain-owner: checkout
       x-primary-requirement: PR-21
       responses:
@@ -12537,6 +12947,8 @@ paths:
           application/json:
             schema:
               $ref: '#/components/schemas/ExceptionIntakeInput'
+      x-proof-group: exceptions
+      x-implementation: src/app/api/v1/admin/commerce-exceptions/[exceptionId]/intakes/route.ts
   /admin/commerce-exceptions/{exceptionId}/refunds:
     post:
       operationId: queueRecoveryRefund
@@ -12548,7 +12960,7 @@ paths:
       - Orders
       security:
       - sessionCookie: []
-      x-contract-status: proposal
+      x-contract-status: implemented-local
       x-domain-owner: checkout
       x-primary-requirement: PR-21
       responses:
@@ -12596,6 +13008,8 @@ paths:
           application/json:
             schema:
               $ref: '#/components/schemas/QueueRecoveryRefundInput'
+      x-proof-group: exceptions
+      x-implementation: src/app/api/v1/admin/commerce-exceptions/[exceptionId]/refunds/route.ts
   /admin/commerce-exceptions/{exceptionId}/refunds/{refundId}:
     get:
       operationId: getRecoveryRefund
@@ -12607,7 +13021,7 @@ paths:
       - Orders
       security:
       - sessionCookie: []
-      x-contract-status: proposal
+      x-contract-status: implemented-local
       x-domain-owner: checkout
       x-primary-requirement: PR-21
       responses:
@@ -12648,6 +13062,8 @@ paths:
       - owner
       - finance
       x-required-permission: finance.refunds.read
+      x-proof-group: exceptions
+      x-implementation: src/app/api/v1/admin/commerce-exceptions/[exceptionId]/refunds/[refundId]/route.ts
   /admin/commerce-exceptions/{exceptionId}/refunds/{refundId}/reconciliations:
     post:
       operationId: reconcileRecoveryRefund
@@ -12659,7 +13075,7 @@ paths:
       - Orders
       security:
       - sessionCookie: []
-      x-contract-status: proposal
+      x-contract-status: implemented-local
       x-domain-owner: checkout
       x-primary-requirement: PR-21
       responses:
@@ -12712,6 +13128,8 @@ paths:
           application/json:
             schema:
               $ref: '#/components/schemas/ReconcileRecoveryRefundInput'
+      x-proof-group: exceptions
+      x-implementation: src/app/api/v1/admin/commerce-exceptions/[exceptionId]/refunds/[refundId]/reconciliations/route.ts
   /orders/{orderId}/recovery-actions:
     get:
       operationId: listBuyerRecoveryActions
@@ -12725,7 +13143,7 @@ paths:
       - sessionCookie: []
       - commerceGuest: []
         orderCookie: []
-      x-contract-status: proposal
+      x-contract-status: implemented-local
       x-domain-owner: checkout
       x-primary-requirement: PR-21
       responses:
@@ -12759,6 +13177,8 @@ paths:
           $ref: '#/components/schemas/Id'
       - $ref: '#/components/parameters/Cursor'
       - $ref: '#/components/parameters/Limit'
+      x-proof-group: exceptions
+      x-implementation: src/app/api/v1/orders/[orderId]/recovery-actions/route.ts
     post:
       operationId: chooseBuyerRecoveryAction
       summary: Accept an exact proposal or verified destination
@@ -12771,7 +13191,7 @@ paths:
       - sessionCookie: []
       - commerceGuest: []
         orderCookie: []
-      x-contract-status: proposal
+      x-contract-status: implemented-local
       x-domain-owner: checkout
       x-primary-requirement: PR-21
       responses:
@@ -12815,7 +13235,8 @@ paths:
           application/json:
             schema:
               $ref: '#/components/schemas/BuyerRecoveryActionInput'
-
+      x-proof-group: exceptions
+      x-implementation: src/app/api/v1/orders/[orderId]/recovery-actions/route.ts
 components:
   schemas:
     CodCollections:
@@ -12893,7 +13314,10 @@ components:
       - if:
           properties:
             status:
-              enum: [due, collected, refused]
+              enum:
+              - due
+              - collected
+              - refused
         then:
           properties:
             amount_due:
@@ -12916,10 +13340,10 @@ components:
               type: 'null'
             receipt_id:
               type: 'null'
-      description: Before funding, amounts follow the currently collectible original units. After an accepted
-        collection, they retain the original receipt's frozen amounts. A fully retired unpaid parcel has zero
-        amounts and cancelled status; unresolved original money can still require reconciliation. buyer_total
-        on CodCollections remains the original order snapshot. New S33 cancellation branches await runtime proof.
+      description: Before funding, amounts follow the currently collectible original units. After an accepted collection,
+        they retain the original receipt's frozen amounts. A fully retired unpaid parcel has zero amounts and cancelled
+        status; unresolved original money can still require reconciliation. buyer_total on CodCollections remains
+        the original order snapshot. New S33 cancellation branches await runtime proof.
     Id:
       type: string
       minLength: 1
@@ -13847,8 +14271,8 @@ components:
         cancelled:
           type: boolean
           readOnly: true
-          description: This exact original or replacement occurrence was explicitly retired. It establishes no
-            returned stock, buyer receipt or cash refund and never removes the original quantity identity.
+          description: This exact original or replacement occurrence was explicitly retired. It establishes no returned
+            stock, buyer receipt or cash refund and never removes the original quantity identity.
         replacement_of_fulfillment_item_id:
           $ref: '#/components/schemas/Id'
       required:
@@ -15739,7 +16163,8 @@ components:
         cancelled:
           type: boolean
           readOnly: true
-          description: Exact physical replacement occurrence retired by an accepted recovery; original identity and quantity remain historical facts.
+          description: Exact physical replacement occurrence retired by an accepted recovery; original identity
+            and quantity remain historical facts.
         id:
           $ref: '#/components/schemas/Id'
         return_item_id:
@@ -23263,9 +23688,9 @@ components:
         can resolve an existing case. Later physical on-hand movements require reinspection before loss/cancellation,
         while reservation-only changes do not fabricate physical loss. expected_version always fences the original
         fulfillment. Reinspection additionally requires the exact existing case ID and case version; omitting it
-        creates only a new case and cannot implicitly replace an active report or newer buyer consent.
-        An actually accepted cancellation/refund retains its proposal and awaiting_source through positive or zero
-        reinspection. Unanswered proposals are invalidated; zero counts resolve only without an accepted remedy.
+        creates only a new case and cannot implicitly replace an active report or newer buyer consent. An actually
+        accepted cancellation/refund retains its proposal and awaiting_source through positive or zero reinspection.
+        Unanswered proposals are invalidated; zero counts resolve only without an accepted remedy.
     ExceptionDecisionInput:
       type: object
       properties:
@@ -23714,7 +24139,6 @@ components:
       description: One subject-bound finance authorization atomically queues all exact original-source groups; every
         refund retains its own capacity, obligation and job. This covers a replacement related to multiple original
         COD parcels without merging money sources.
-
   securitySchemes:
     sessionCookie:
       type: apiKey
@@ -23904,7 +24328,7 @@ components:
         application/problem+json:
           schema:
             $ref: '#/components/schemas/Problem'
-x-contract-status: partially-implemented-local
+x-contract-status: implemented-local
 x-canonical-owner: API-1
 x-operation-owners:
   settings: Versioned company commercial and warehouse calendars.
@@ -23984,3 +24408,39 @@ x-proof-groups:
   affiliate-rates:
     integration: tests/integration/affiliate-rate-contract.test.ts
     browser: tests/integration/replacement-http.test.ts
+  accounts:
+    integration: tests/integration/buyer-account.test.ts
+    browser: tests/browser/buyer-account.test.ts
+  order-receipt:
+    integration: tests/integration/storefront-order-receipt.test.ts
+    browser: tests/browser/storefront-order-receipt.test.ts
+  exceptions:
+    integration: tests/integration/exception-routes.test.ts
+    browser: tests/browser/localhost-readiness.test.ts
+  support:
+    integration: tests/integration/support-chat.test.ts
+    browser: tests/browser/support-chat.test.ts
+  affiliates:
+    integration: tests/integration/affiliate-referral.test.ts
+    browser: tests/browser/affiliate-workspace.test.ts
+  commissions:
+    integration: tests/integration/commission-maturity.test.ts
+    browser: tests/browser/affiliate-workspace.test.ts
+  payouts:
+    integration: tests/integration/affiliate-payouts.test.ts
+    browser: tests/browser/affiliate-workspace.test.ts
+  administration:
+    integration: tests/integration/admin-reporting.test.ts
+    browser: tests/browser/admin-workspaces.test.ts
+  operations:
+    integration: tests/integration/admin-reporting.test.ts
+    browser: tests/browser/admin-workspaces.test.ts
+  advertising-diagnostics:
+    integration: tests/integration/advertising-diagnostics.test.ts
+    browser: tests/browser/admin-workspaces.test.ts
+  labels:
+    integration: tests/integration/shipping-labels.test.ts
+    browser: tests/browser/shipping-print-center.test.ts
+  finance-summary:
+    integration: tests/integration/finance-realized-contribution.test.ts
+    browser: tests/integration/finance-http.test.ts

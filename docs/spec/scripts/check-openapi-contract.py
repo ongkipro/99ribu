@@ -75,6 +75,24 @@ for path, methods in spec['paths'].items():
             elif operation.get('x-proof-group') == 'returns':
                 expected = [{'sessionCookie': []}, {'commerceGuest': [], 'orderCookie': []}] if path.startswith('/orders/') else [{'sessionCookie': []}]
                 check(operation['security'] == expected, 'returns retain exact current cookie-only buyer/staff authority')
+            elif operation.get('x-proof-group') == 'exceptions':
+                expected = [{'sessionCookie': []}] if path.startswith('/admin/') else [{'sessionCookie': []}, {'commerceGuest': [], 'orderCookie': []}]
+                check(operation['security'] == expected, 'exceptions retain exact cookie-only buyer/staff authority')
+            elif operation.get('x-proof-group') == 'accounts':
+                expected = [] if path.startswith('/guest-order-access/') else [{'sessionCookie': []}, {'bearerAuth': []}, {'orderAccess': []}] if path.startswith('/orders/') else [{'sessionCookie': []}, {'bearerAuth': []}]
+                check(operation['security'] == expected, 'accounts retain exact buyer/guest order authority')
+            elif operation.get('x-proof-group') == 'order-receipt':
+                check(operation['security'] == [{'sessionCookie': []}, {'bearerAuth': []}, {'orderAccess': []}], 'order receipt and buyer cancellation retain owned/verified guest boundary')
+            elif operation.get('x-proof-group') == 'support':
+                expected = [] if path == '/guest-support-sessions' else [{'sessionCookie': []}, {'bearerAuth': []}] if path.startswith(('/admin/', '/me/')) else [{'sessionCookie': []}, {'bearerAuth': []}, {'supportSession': []}]
+                check(operation['security'] == expected, 'support retains exact buyer/guest/staff chat authority')
+            elif operation.get('x-proof-group') == 'affiliates':
+                expected = [] if path == '/referral-touches' else [{'sessionCookie': []}, {'bearerAuth': []}]
+                check(operation['security'] == expected, 'affiliates retain exact public referral touch and authenticated partner authority')
+            elif operation.get('x-proof-group') in ('commissions', 'payouts', 'administration', 'advertising-diagnostics', 'labels', 'finance-summary'):
+                check(operation['security'] == [{'sessionCookie': []}, {'bearerAuth': []}], 'domain retains explicit authenticated transport declarations')
+            elif operation.get('x-proof-group') == 'operations':
+                check(operation['security'] == [{'sessionCookie': []}, {'bearerAuth': []}, {'cartAccess': []}, {'orderAccess': []}], 'operation status retains scoped caller recovery transports')
             elif operation.get('x-proof-group') == 'storefront':
                 check(operation['security'] == [], 'public storefront read never requires a session')
             else:
@@ -103,7 +121,7 @@ for route in (ROOT.parents[1] / 'src/app/api/v1').rglob('route.ts'):
     path = '/' + re.sub(r'\[([^]]+)\]', r'{\1}', str(route.parent.relative_to(ROOT.parents[1] / 'src/app/api/v1')))
     for method in re.findall(r'export\s+(?:async\s+)?function\s+(GET|POST|PUT|PATCH|DELETE)\b', route.read_text()):
         actual_routes.add((path, method.lower()))
-check(set(implemented).issubset(actual_routes), 'every versioned adapter has exact implemented contract ownership')
+check(actual_routes == set(implemented), 'every versioned adapter has exact implemented contract ownership')
 check(spec['components']['securitySchemes']['sessionCookie']['name'] == '99ribu-local.session_token', 'actual local cookie name')
 for name in ('bearerAuth', 'supportSession'):
     check(spec['components']['securitySchemes'][name]['x-transport-status'] == 'proposal-unissued', 'unsupported transports never claim issuance')

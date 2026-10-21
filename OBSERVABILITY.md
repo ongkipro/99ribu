@@ -1,6 +1,6 @@
 # Observability — Serba 99ribu
 
-Adopted at repository root on 2026-10-16. Documents are canonical here; application implementation and localhost acceptance remain pending.
+Adopted at repository root on 2026-10-16; updated 2026-10-21 with all local operational reliability probes (`S63`) and assembled localhost readiness/restore checks (`S65`–`S68`) implemented and verified PASS. External remote monitoring and production alerting remain separate per `CTX-18`.
 
 ## Executable foundation readiness
 
@@ -75,3 +75,19 @@ Subsequent replacement stock-case source now opens one original-intent case from
 
 
 Original replacement-retirement claim consequences are now staged: exact per-parcel accepted cancellation moves selected original replacing claims to held, preserves inspection/entitlement and rejects duplicate physical branching. It creates no received/refunded/released claim or money effect. Actual r25b bounded source APPROVE and static30/serial17 including5 new policy checks/OAS6374/installed140/23 integrity PASS do not execute new0023 or render its new private explanation. Latest SQL9be368... remains stopped/uncompiled/unexecuted. Original-source recovery finance/mixed claim closure and full acceptance remain pending; STATUS owns the next action and both definition executors remain consumed.
+
+## S63 operational reliability probes and S65–S68 assembled readiness verification
+
+`src/jobs/probes.ts` and `/api/v1/admin/operations/probes` implement the local operational reliability and recovery probes required by `S63` (`T-16` / `PR-16`):
+
+- `inspectWorkerHealth`: reports outbox queue depth (`pendingCount`, `processingCount`, `failedCount`, `deadLetterCount`), oldest pending age in seconds, active expired leases, and failed expiry holds whose inventory or promotion reservations remain active.
+- `reconcileFailedExpiryHolds`: identifies failed `inventory.reservation.expire` and `promotion.reservation.expire` outbox jobs whose underlying reservation is still `active` and safely rearms them to `pending` so the worker converges physical stock and promotion budget without duplicate release.
+- `cleanupOrphanSeedOperators`: inspects and revokes sessions/grants for namespace-tagged orphan synthetic seed operators left behind by uncatchable host interruption, targeting explicit synthetic identities only.
+- `recoverInterruptedAuthTransition`: detects and revokes undelivered sign-in sessions when guest-context revocation is interrupted (`503`), preventing split or unacknowledged identity transitions.
+- `verifyRedactedDiagnosticLog`: recursively scrubs credentials, cookies, tokens, signatures, raw contact/address PII, support message bodies, and bank/payout evidence from diagnostic log payloads while preserving correlation IDs and occurrence vs ingestion timestamps.
+
+Verified executable probe commands and results (2026-10-21):
+
+- `npm run test:integration -- --case=PR-16`: `2/2` PASS (`tests/integration/jobs-reliability.test.ts` and `tests/integration/operational-reliability.test.ts`).
+- `npm run test:integration -- --case=localhost-readiness`: `2/2` PASS (`tests/integration/scenarios-s62.test.ts` and `tests/integration/localhost-readiness.test.ts`, including all 14 canonical scenarios and isolated `pg_dump`/`pg_restore` rehearsal into disposable database `99ribu_restore_<uuid>` with post-restore `finance_tx_open_guard` XID immutability verification).
+- `PLAYWRIGHT_CHROMIUM_EXECUTABLE=/snap/bin/chromium npm run test:browser -- --case=localhost-readiness`: `1/1` PASS across mobile (`390x844`), tablet (`768x1024`), and desktop (`1440x900`) viewports.
