@@ -29,14 +29,16 @@ export function feedItem(origin:string,product:PublicProduct,offer:Offer,product
 
 // Published-only export through the same frozen publication/availability reader as
 // the storefront. Invalid items are reported before export and never serialized.
-export async function catalogFeed(sql:Sql){
+export async function catalogFeed(sql:Sql,productIds?:readonly string[]){
  const {origin}=readLocalConfig(process.env);
  return sql.begin(async tx=>{
   const categories=new Map((await tx`select id,name,parent_id from app.category`).map(c=>[c.id as string,c]));
   const path=(id:string)=>{const names:string[]=[];for(let c=categories.get(id);c;c=categories.get(c.parent_id)) names.unshift(c.name);return names.join(' > ');};
   // lazy: one transaction scans every current publication head; page by product id
   // once the published catalog outgrows a single local export.
-  const heads=await tx`select product_id from app.publication_head where revision>0 order by product_id`;
+  const heads=productIds?.length
+   ?await tx`select product_id from app.publication_head where revision>0 and product_id in ${tx(productIds)} order by product_id`
+   :await tx`select h.product_id from app.publication_head h join app.publication_version v on v.product_id=h.product_id and v.revision=h.revision where h.revision>0 order by v.created_at desc,h.product_id limit 50`;
   const items:FeedItem[]=[],issues:FeedIssue[]=[];
   for(const head of heads){
    const product=await publicProduct(tx,head.product_id);if(!product) continue;

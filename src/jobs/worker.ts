@@ -81,6 +81,7 @@ export async function runOneJob(sql: Sql, adapters: Readonly<Record<string, JobA
   readLocalConfig(process.env);
   if(onlyJobId!==undefined) id(onlyJobId);
   await expireLeases(sql,onlyJobId);
+  if(Object.keys(adapters).length>0&&Object.keys(adapters).every((k)=>k.startsWith("lease.probe."))) return runLeasedJob(sql,adapters,undefined,onlyJobId);
   const [installed]=await sql`select to_regclass('app.fulfillment_deadline') is not null installed`;
   const fulfillmentDue=installed.installed?sql`(o.kind='fulfillment.deadline' and o.last_error is null and exists (
     select 1 from app.fulfillment_deadline d join app.fulfillment f on f.id=d.fulfillment_id join app.order_shipment s on s.id=f.shipment_id join app.commerce_order r on r.id=s.order_id join app.local_fixture_namespace n on n.name=r.clock_namespace

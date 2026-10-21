@@ -781,7 +781,7 @@ T-17 prototype acceptance now includes MW1–MW7 and the refined UX-4 matrix. T-
 - Expected: Standalone fixture rejects its invalid mutations. Actual seed rerun preserves intended identities without wiping rows; real DB/auth/core scenarios pass with no external dispatch. All14 scenario contracts have runnable owned cases, including separate real PostgreSQL races. First command currently checks input only, not application behavior.
 
 ### T-39 — Prove assembled localhost readiness and recovery
-- **Status:** Planned; not started.
+- **Status:** Complete for assembled localhost readiness (`S65`–`S68` PASS): production build (`NODE_ENV=production`, `APP_ENV=local`), `npm run test:integration -- --case=localhost-readiness` (`2/2` PASS including isolated `pg_dump`/`pg_restore` rehearsal and fresh-XID journal immutability), and `npm run test:browser -- --case=localhost-readiness` (`1/1` PASS across `390x844`/`768x1024`/`1440x900` viewports). External provider/hardware/production gates remain explicitly separate.
 - **Primary requirement:** PR-16
 - **Constraints:** CTX-18, DEL-1, SEC-1, DATA-1, NFR-1, NFR-2, UX-4, API-1
 - **Risk Level:** R3

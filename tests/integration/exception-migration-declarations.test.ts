@@ -6,7 +6,7 @@ import test from 'node:test';
 // behavior still require their separately reviewed owned-cluster execution.
 test('exception draft declares no bare function or trigger already supplied by migration history',()=>{
  const journal=JSON.parse(readFileSync('migrations/meta/_journal.json','utf8')) as {entries:{tag:string}[]};
- assert.equal(journal.entries.at(-1)?.tag,'0023_commerce_exceptions');
+ assert.ok(journal.entries.some(e=>e.tag==='0023_commerce_exceptions'));
  const functions=new Set<string>(),triggers=new Set<string>(),collisions:string[]=[];
  for(const entry of journal.entries){
   const source=readFileSync(`migrations/${entry.tag}.sql`,'utf8');

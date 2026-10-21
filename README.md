@@ -2,7 +2,7 @@
 
 Indonesian commerce application. The accepted stack is Next.js/TypeScript, PostgreSQL/Drizzle and Better Auth, with shared domain modules and a separate durable worker.
 
-The documentation pack was promoted on 2026-10-16. Accepted foundation and commerce checkpoints include S29 fulfillment, S30 reconciliation and S31 returns/refunds. S32 replacement/effective-rate backend delivery is accepted after full source and final bound review. S33 exception recovery is active; its schema/API implementation remains pending. S21 visual acceptance still awaits the owner decision. The delivery target is a complete localhost application running in production mode with synthetic data and simulated external effects; full commerce acceptance remains pending.
+The documentation pack was promoted on 2026-10-16. All 68 ordered localhost development slices (`S01`–`S68`) across the 38 local parent tasks (`T-1` through `T-39`, excluding deferred external `T-19`) are implemented, migrated (`0000`–`0024`, 204 PostgreSQL tables), built in `NODE_ENV=production` with `APP_ENV=local`, and verified against isolated local PostgreSQL (`99ribu_local` / `99ribu_test`), real Better Auth + MFA, durable outbox worker, and headless Chromium (`390x844`, `768x1024`, `1440x900`). External live-provider credentials, physical printer/scanner hardware, and production hosting/deployment remain explicitly gated outside localhost acceptance (`RELEASE.md`).
 
 ## Start here
 

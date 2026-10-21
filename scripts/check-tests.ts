@@ -36,15 +36,82 @@ export async function checkFiles(files: readonly string[]) {
 
 if (import.meta.main) {
   const raw = process.argv.slice(2);
-  const [mode, selector, ...extra] = raw.length === 1 && raw[0] === "--case=T-32" ? ["integration", "--case=T-32"] : raw;
-  if (!["integration", "browser"].includes(mode) || !["--case=foundation", "--case=PR-1", "--case=PR-2", "--case=PR-11", "--case=PR-3", "--case=PR-4", "--case=PR-5", "--case=PR-6", "--case=PR-7", "--case=T-26", "--case=T-31", "--case=T-32", "--case=S29-candidate", "--case=S30-candidate", "--case=S31-candidate", "--case=PR-17", "--case=PR-12", "--case=PR-13", "--case=PR-18", "--case=PR-19", "--case=seed-foundation", "--case=seed-commerce", "--case=PR-16", "--case=PR-20"].includes(selector) || extra.length || (mode === "browser" && ["--case=seed-foundation", "--case=PR-16", "--case=PR-3", "--case=S29-candidate", "--case=S30-candidate", "--case=S31-candidate"].includes(selector))) {
-    console.error("Use check-tests.ts integration|browser --case=foundation|--case=PR-1|--case=PR-2|--case=PR-4|--case=PR-5|--case=PR-6|--case=PR-7|--case=T-26|--case=T-31|--case=T-32|--case=PR-11|--case=PR-12|--case=PR-13|--case=PR-17|--case=PR-18|--case=PR-19|--case=PR-20|--case=seed-commerce; integration also supports --case=seed-foundation|--case=PR-16|--case=PR-3|--case=S29-candidate|--case=S30-candidate|--case=S31-candidate (unapplied rollback-only proofs, not full parent acceptance). PR-5 proves S24/S28 prepaid and COD; T-26 proves S25/S28 first-party canonical signals. Unknown, missing and extra selectors are refused.");
+  const [mode, selector, ...rawExtra] = raw.length === 1 && raw[0] === "--case=T-32" ? ["integration", "--case=T-32"] : raw;
+  const extra = mode === "browser" ? rawExtra.filter((arg) => arg !== "--project=mobile" && arg !== "--project=desktop") : rawExtra;
+  const validSelectors = [
+    "--case=foundation", "--case=PR-1", "--case=PR-2", "--case=PR-3", "--case=PR-4", "--case=PR-5", "--case=PR-6", "--case=PR-7",
+    "--case=PR-8", "--case=PR-9", "--case=PR-10", "--case=PR-11", "--case=PR-12", "--case=PR-13", "--case=PR-15", "--case=PR-16",
+    "--case=PR-17", "--case=PR-18", "--case=PR-19", "--case=PR-20", "--case=PR-21", "--case=PR-22",
+    "--case=T-26", "--case=T-27", "--case=T-28", "--case=T-29", "--case=T-30", "--case=T-31", "--case=T-32", "--case=T-33",
+    "--case=T-34", "--case=T-35", "--case=T-36", "--case=T-37", "--case=T-38", "--case=localhost-readiness",
+    "--case=S29-candidate", "--case=S30-candidate", "--case=S31-candidate", "--case=seed-foundation", "--case=seed-commerce",
+  ];
+  const integrationOnlySelectors = ["--case=seed-foundation", "--case=PR-3", "--case=S29-candidate", "--case=S30-candidate", "--case=S31-candidate", "--case=T-38"];
+  if (!["integration", "browser"].includes(mode) || !validSelectors.includes(selector) || extra.length || (mode === "browser" && integrationOnlySelectors.includes(selector))) {
+    console.error("Use check-tests.ts integration|browser with a registered --case=... selector. Unknown, missing and extra selectors are refused.");
     process.exitCode = 1;
   } else {
     const files = selector === "--case=T-32"
-      ? mode === 'integration' ? ['tests/integration/storefront-order-receipt.test.ts'] : ['tests/browser/storefront-order-receipt.test.ts']
+      ? mode === "integration" ? ["tests/integration/storefront-order-receipt.test.ts"] : ["tests/browser/storefront-order-receipt.test.ts"]
       : selector === "--case=T-31"
-      ? mode === 'integration' ? ['tests/integration/storefront-checkout-contract.test.ts','tests/integration/storefront-checkout-runtime.test.ts','tests/integration/storefront-checkout-payment.test.ts','tests/integration/storefront-checkout-signals.test.ts','tests/integration/storefront-checkout-draft.test.ts'] : ['tests/browser/storefront-checkout.test.ts']
+      ? mode === "integration" ? ["tests/integration/storefront-checkout-contract.test.ts","tests/integration/storefront-checkout-runtime.test.ts","tests/integration/storefront-checkout-payment.test.ts","tests/integration/storefront-checkout-signals.test.ts","tests/integration/storefront-checkout-draft.test.ts"] : ["tests/browser/storefront-checkout.test.ts"]
+      : selector === "--case=PR-21"
+      ? mode === "integration"
+        ? [
+            "tests/integration/exception-application-policy.test.ts",
+            "tests/integration/exception-callback-basis.test.ts",
+            "tests/integration/exception-cancellation-source.test.ts",
+            "tests/integration/exception-cod-basis.test.ts",
+            "tests/integration/exception-collection.test.ts",
+            "tests/integration/exception-fulfillment-authority.test.ts",
+            "tests/integration/exception-migration-declarations.test.ts",
+            "tests/integration/exception-policy.test.ts",
+            "tests/integration/exception-promotion-basis.test.ts",
+            "tests/integration/exception-proposals.test.ts",
+            "tests/integration/exception-recovery-claims.test.ts",
+            "tests/integration/exception-recovery-queue-policy.test.ts",
+            "tests/integration/exception-recovery-source.test.ts",
+            "tests/integration/exception-replacement-claims.test.ts",
+            "tests/integration/exception-shipment-read-race.test.ts",
+            "tests/integration/exception-shipping-recovery.test.ts",
+            "tests/integration/exception-stock-policy.test.ts",
+            "tests/integration/exception-unit-progress.test.ts",
+            "tests/integration/exception-waybill-projection.test.ts",
+            "tests/integration/exception-routes.test.ts",
+          ]
+        : ["tests/integration/exception-routes.test.ts"]
+      : selector === "--case=PR-8"
+      ? mode === "integration" ? ["tests/integration/affiliate-referral.test.ts"] : ["tests/browser/affiliate-workspace.test.ts"]
+      : selector === "--case=PR-9"
+      ? mode === "integration" ? ["tests/integration/commission-maturity.test.ts"] : ["tests/browser/affiliate-workspace.test.ts"]
+      : selector === "--case=PR-10"
+      ? mode === "integration" ? ["tests/integration/affiliate-payouts.test.ts"] : ["tests/browser/affiliate-workspace.test.ts"]
+      : selector === "--case=PR-15"
+      ? mode === "integration" ? ["tests/integration/catalog-feed.test.ts"] : ["tests/integration/catalog-feed.test.ts"]
+      : selector === "--case=PR-22"
+      ? mode === "integration" ? ["tests/integration/support-chat.test.ts"] : ["tests/browser/support-chat.test.ts"]
+      : selector === "--case=T-27"
+      ? ["tests/integration/advertising-meta-capi.test.ts"]
+      : selector === "--case=T-28"
+      ? ["tests/integration/advertising-google-offline-clicks.test.ts"]
+      : selector === "--case=T-29"
+      ? ["tests/integration/advertising-tiktok-events-api.test.ts"]
+      : selector === "--case=T-30"
+      ? mode === "integration" ? ["tests/integration/advertising-diagnostics.test.ts"] : ["tests/browser/admin-workspaces.test.ts"]
+      : selector === "--case=T-33"
+      ? mode === "integration" ? ["tests/integration/storefront.test.ts","tests/integration/storefront-contract.test.ts","tests/integration/storefront-offer-selection.test.ts","tests/integration/storefront-purchase.test.ts","tests/integration/storefront-cart-stock.test.ts","tests/integration/storefront-cart-runtime.test.ts"] : ["tests/browser/storefront.test.ts","tests/browser/storefront-filter-recovery.test.ts","tests/browser/storefront-cart.test.ts","tests/browser/storefront-continuity.test.ts"]
+      : selector === "--case=T-34"
+      ? mode === "integration" ? ["tests/integration/admin-reporting.test.ts"] : ["tests/browser/admin-workspaces.test.ts"]
+      : selector === "--case=T-35"
+      ? mode === "integration" ? ["tests/integration/buyer-account.test.ts"] : ["tests/browser/buyer-account.test.ts"]
+      : selector === "--case=T-36"
+      ? ["tests/integration/shipping-labels.test.ts"]
+      : selector === "--case=T-37"
+      ? mode === "integration" ? ["tests/integration/shipping-labels.test.ts"] : ["tests/browser/shipping-print-center.test.ts"]
+      : selector === "--case=T-38"
+      ? ["tests/integration/scenarios-14.test.ts"]
+      : selector === "--case=localhost-readiness"
+      ? mode === "integration" ? ["tests/integration/localhost-readiness.test.ts"] : ["tests/browser/localhost-readiness.test.ts"]
       : selector === "--case=S31-candidate"
       ? ["tests/integration/return-candidate.test.ts"]
       : selector === "--case=S30-candidate"
@@ -72,7 +139,7 @@ if (import.meta.main) {
       : selector === "--case=PR-11"
       ? mode === "integration" ? ["tests/integration/promotion-migration.test.ts","tests/integration/promotion.test.ts","tests/integration/promotion-worker.test.ts","tests/integration/promotion-contract.test.ts"] : ["tests/integration/promotion-http.test.ts"]
       : selector === "--case=PR-19"
-      ? mode === "integration" ? ["tests/integration/finance-migration.test.ts", "tests/integration/finance-costs.test.ts", "tests/integration/finance-publication.test.ts", "tests/integration/finance-contract.test.ts"] : ["tests/integration/finance-http.test.ts"]
+      ? mode === "integration" ? ["tests/integration/finance-migration.test.ts", "tests/integration/finance-costs.test.ts", "tests/integration/finance-publication.test.ts", "tests/integration/finance-contract.test.ts", "tests/integration/finance-realized-contribution.test.ts"] : ["tests/integration/finance-http.test.ts"]
       : selector === "--case=PR-2"
       ? mode === "integration" ? ["tests/integration/inventory-migration.test.ts", "tests/integration/inventory.test.ts", "tests/integration/inventory-reservations.test.ts", "tests/integration/inventory-transfers.test.ts"] : ["tests/integration/inventory-http.test.ts"]
       : selector === "--case=PR-1"
@@ -84,7 +151,7 @@ if (import.meta.main) {
       : selector === "--case=seed-foundation"
       ? ["tests/integration/fixtures.test.ts"]
       : selector === "--case=PR-18"
-      ? [mode === "integration" ? "tests/contract/access.test.ts" : "tests/integration/access-http.test.ts"]
+      ? mode === "integration" ? ["tests/contract/access.test.ts", "tests/contract/openapi-parity.test.ts"] : ["tests/integration/access-http.test.ts"]
       : selector === "--case=PR-13"
       ? [mode === "integration" ? "tests/integration/access.test.ts" : "tests/integration/access-http.test.ts"]
       : mode === "integration"
