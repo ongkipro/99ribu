@@ -39,7 +39,7 @@ async function referenceLimit(tx:TransactionSql,p:Principal){
 export async function listOrderHistory(identity:LocalAuth,principal:Principal,url:URL){
  const p=parameters(url,['cursor','limit','from','to','status','payment_status','warehouse_id','reference','fulfillment_status','return_status']);
  const filters={from:p.has('from')?financeInstant(p.get('from')):null,to:p.has('to')?financeInstant(p.get('to')):null,
-  status:state(p.get('status'),['pending','confirmed','processing','partially_completed','completed','cancelled']),payment_status:state(p.get('payment_status'),['pending','cod_due','partially_collected','confirmed','expired','failed','partially_refunded','refunded']),
+  status:state(p.get('status'),['pending','processing','partially_completed','cancelled']),payment_status:state(p.get('payment_status'),['pending','cod_due','partially_collected','confirmed','expired','failed','partially_refunded','refunded']),
   warehouse_id:p.has('warehouse_id')?id(p.get('warehouse_id')):null,reference:p.has('reference')?text(p.get('reference'),100):null,
   fulfillment_status:state(p.get('fulfillment_status'),['ready','picking','packed','handover_pending','handed_over','exception']),return_status:state(p.get('return_status'),['requested','reviewing','approved','rejected','awaiting_goods','inspecting','refunding','replacing','resolved'])};
  if(filters.from&&filters.to&&filters.from>=filters.to||filters.reference&&/[\p{Cc}\p{Cf}]/u.test(filters.reference)) throw invalid();
