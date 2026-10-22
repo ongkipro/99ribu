@@ -10,8 +10,10 @@ import {recordRecoveryReplacementClaims} from './refund-claims.ts';
 import {readRecoveryDestinationSource,readRecoverySourceEvent,verifyRecoveryDestinationSource,verifyRecoverySourceEvent} from './refund-source.ts';
 import {advanceRecoveryRefund,type RecoveryRefundHead} from './refunds.ts';
 
-// Staged callback owner. Its caller must complete the exact callback job and
-// native effect seals in this transaction before this module can be registered.
+// Registered 'recovery.refund.callback' owner. processDatabaseJob completes the
+// exact callback job and checks the native effect seals in this savepoint.
+// A terminally failed callback without a result is re-armed only by
+// recoverRecoveryCallbacks under its audited owner action (0026).
 export async function processRecoveryRefundEvent(tx:TransactionSql,job:{id:string;payload:unknown}){
  const input=object(job.payload,['eventId']),eventId=id(input.eventId),[registered]=await tx`select provider.*,refund.exception_id from app.recovery_provider_event provider
   join app.recovery_refund refund on refund.id=provider.refund_id where provider.id=${eventId} and provider.callback_job_id=${job.id}`;

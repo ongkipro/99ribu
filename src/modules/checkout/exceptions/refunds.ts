@@ -14,9 +14,9 @@ import {returnText} from '../../returns/policy.ts';
 import {intentHash,mutationKey} from '../carts.ts';
 import {advanceException,exceptionProposal,exceptionUnits,finishExceptionOperation,insertExceptionOperation,lockException} from './core.ts';
 import {qualifyRefundProposal} from './proposals.ts';
-import {buyerRecoveryRequest} from './policy.ts';
+import {buyerRecoveryRequest,recoveryFinanceRequest} from './policy.ts';
 import {projectException} from './projection.ts';
-import {readRecoveryDestinationSource,verifyRecoveryDestinationSource} from './refund-source.ts';
+import {readRecoveryDestinationSource,readRecoverySourceEvent,verifyRecoveryDestinationSource,verifyRecoverySourceEvent} from './refund-source.ts';
 
 export type RecoveryRefundHead={id:string;exception_id:string;order_id:string;operation_id:string;revision:number;status:string;basis_kind:'purchased_units'|'unallocated';source_kind:'payment_event'|'cod_event';source_id:string;source_transaction_id:string;receipt_id:string|null;source_amount:string;amount:string;obligation_transaction_id:string;cash_transaction_id:string|null;current_job_id:string|null;current_operation_id:string|null;destination_source_id:string|null;created_at:string};
 type RecoveryRefundState=Pick<RecoveryRefundHead,'status'|'current_job_id'|'current_operation_id'|'destination_source_id'|'cash_transaction_id'>;
@@ -86,6 +86,42 @@ export async function queueRecoveryRefund(request:Request,identity:LocalAuth,pri
   await advanceException(tx,head,{kind:'refund_queue',status:'refunding',source_kind:'operation',source_id:operation.id,actor_id:principal.id,reason:normalized.reason,occurred_at:operation.occurred_at,proposal_event_id:head.proposal_event_id});
   await refundFinanceAuthority(tx,principal,true);
   return finishExceptionOperation(tx,operation.id,await projectRecoveryRefundBatch(tx,head.id));
+ });
+}
+
+// S71 finance retry, mirroring returns recoverRefund 'retry': only after the
+// current attempt is a known zero-money outcome (signed failed bank result, or a
+// creation job that failed before any bank request), start attempt+1 with a
+// fresh creation job. The 0026 guards re-verify every condition.
+// Mounted as POST /api/v1/admin/commerce-exceptions/{exceptionId}/refunds/{refundId}/retries.
+export async function retryRecoveryRefund(request:Request,identity:LocalAuth,principal:Principal,exceptionId:string,refundId:string,value:unknown){
+ const selectedException=id(exceptionId),selectedRefund=id(refundId),input=recoveryFinanceRequest(value),key=mutationKey(request);
+ const normalized={expected_version:input.expected_version,reason:input.reason};
+ const hash=await intentHash(identity,'commerce_exception.refund_retry',{exception_id:selectedException,refund_id:selectedRefund,...normalized});
+ return identity.sql.begin(async tx=>{
+  await refundFinanceAuthority(tx,principal,true);
+  const {head:caseHead}=await lockException(tx,selectedException),[head]=await tx<RecoveryRefundHead[]>`select * from app.recovery_refund where id=${selectedRefund} and exception_id=${caseHead.id} for update`;
+  if(!head)throw new AccessError(404,'NOT_FOUND');
+  await refundFinanceAuthority(tx,principal,true);
+  const [previous]=await tx`select subject_id,request_hash,response from app.exception_operation where actor_scope=${`user:${principal.id}`} and action='refund_retry' and key=${key}`;
+  if(previous){if(previous.subject_id!==head.id||previous.request_hash!==hash)throw new AccessError(409,'IDEMPOTENCY_CONFLICT');return previous.response as Record<string,unknown>;}
+  if(head.revision!==normalized.expected_version)throw new AccessError(409,'VERSION_CONFLICT');
+  const [currentJob]=head.current_job_id?await tx`select * from app.outbox_job where id=${head.current_job_id} and kind='recovery.refund.create' for share`:[];
+  if(!currentJob||!['completed','failed'].includes(currentJob.status)||!['queued','failed'].includes(head.status)||head.cash_transaction_id!==null||!['refunding','unknown'].includes(caseHead.status))throw new AccessError(409,'RECOVERY_OUTCOME_STILL_AMBIGUOUS');
+  if(head.current_operation_id){
+   const events=await tx`select e.id,r.outcome from app.local_recovery_event e left join app.recovery_event_result r on r.event_id=e.id where e.operation_id=${head.current_operation_id}`;
+   if(head.status!=='failed'||events.length!==1||events[0].outcome!=='failed')throw new AccessError(409,'RECOVERY_OUTCOME_STILL_AMBIGUOUS');
+   const stored=await readRecoverySourceEvent(tx,events[0].id);if(!stored||verifyRecoverySourceEvent(stored).status!=='failed')throw new AccessError(409,'RECOVERY_OUTCOME_STILL_AMBIGUOUS');
+  }else if(currentJob.status!=='failed'||(await tx`select id from app.local_recovery_operation where creation_job_id=${currentJob.id}`).length)throw new AccessError(409,'RECOVERY_OUTCOME_STILL_AMBIGUOUS');
+  const nextAttempt=integer(currentJob.payload.attempt,1)+1;if(nextAttempt>2147483647)throw new AccessError(409,'RECOVERY_ATTEMPTS_EXHAUSTED');
+  await refundFinanceAuthority(tx,principal,true);
+  const operation=await insertExceptionOperation(tx,caseHead,{kind:'user',id:principal.id,principal},key,'refund_retry',head.id,hash,normalized,createHash('sha256').update(input.reauthentication_proof).digest('hex'));
+  await consumeAccessProof(tx,principal,'finance.recovery_refund',head.id,input.reauthentication_proof);
+  const job=await enqueueJob(tx,'recovery.refund.create',`recovery-refund-create:${head.id}:${nextAttempt}`,{refundId:head.id,attempt:nextAttempt});
+  await advanceRecoveryRefund(tx,head,{...head,status:'queued',current_job_id:job,current_operation_id:null},{kind:'retry',source_kind:'operation',source_id:operation.id,reason:normalized.reason,occurred_at:operation.occurred_at});
+  await refundFinanceAuthority(tx,principal,true);
+  const [projected]=await tx`select app.recovery_refund_projection(${head.id}::uuid) value`;
+  return finishExceptionOperation(tx,operation.id,projected.value as Record<string,unknown>);
  });
 }
 

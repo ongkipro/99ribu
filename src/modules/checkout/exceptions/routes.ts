@@ -47,12 +47,12 @@ import {
 } from "./policy.ts";
 import { projectException } from "./projection.ts";
 import { chooseExceptionProposal, decideException } from "./proposals.ts";
+import { recoverRecoveryCallbacks } from "./refund-worker.ts";
 import {
-	readRecoverySourceEvent,
-	registerRecoverySourceEvent,
-	verifyRecoverySourceEvent,
-} from "./refund-source.ts";
-import { acceptRecoveryDestination, queueRecoveryRefund } from "./refunds.ts";
+	acceptRecoveryDestination,
+	queueRecoveryRefund,
+	retryRecoveryRefund,
+} from "./refunds.ts";
 import { reportStockDiscrepancy } from "./stock.ts";
 
 const adminRoot = "/api/v1/admin/commerce-exceptions";
@@ -643,17 +643,9 @@ async function reconcileRecoveryRefund(
 			storedInput,
 			proofDigest,
 		);
-		const events = await tx<{ id: string }[]>`
-      select e.id from app.local_recovery_event e
-       join app.local_recovery_operation p on p.id=e.operation_id
-      where p.refund_id=${refund.id}
-      order by e.occurred_at,e.id`;
-		for (const candidate of events) {
-			const event = verifyRecoverySourceEvent(
-				await readRecoverySourceEvent(tx, candidate.id),
-			);
-			await registerRecoverySourceEvent(tx, event);
-		}
+		// Same callback owner as the host path: re-registers committed bank
+		// events and re-arms a failed callback without an applied result (S71).
+		await recoverRecoveryCallbacks(tx, refund.id, principal.id, operation.id);
 		if (refund.current_job_id) {
 			await tx`
         update app.outbox_job
@@ -997,6 +989,22 @@ export async function handleCommerceExceptions(
 					principal,
 					reconcile[1],
 					reconcile[2],
+					await readExceptionBody(request, 16384),
+				),
+				201,
+			);
+		}
+		const retry = new RegExp(
+			`^${adminRoot}/([^/]+)/refunds/([^/]+)/retries$`,
+		).exec(url.pathname);
+		if (retry && request.method === "POST") {
+			return privateJson(
+				await retryRecoveryRefund(
+					request,
+					identity,
+					principal,
+					retry[1],
+					retry[2],
 					await readExceptionBody(request, 16384),
 				),
 				201,

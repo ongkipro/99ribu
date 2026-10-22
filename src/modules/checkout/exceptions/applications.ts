@@ -14,6 +14,7 @@ import {exceptionApplicationConsent,exceptionApplicationRequest} from './policy.
 import {projectException} from './projection.ts';
 import {qualifyRefundProposal} from './proposals.ts';
 import {recordReplacementClaimCancellation} from './replacement-claims.ts';
+import {enqueueCommissionVoid} from '../../commissions/jobs.ts';
 
 type Retirement={unit:ExceptionUnit;disposition:'released'|'consumed'|'not_reserved';reservation_id:string|null;physical_source_id:string|null;stock_report_operation_id:string|null};
 type Component={balance_id:string;stock_item_id:string;quantity:number};
@@ -176,6 +177,7 @@ export async function applyException(request:Request,identity:LocalAuth,principa
   const changed=await finish('cancel',funded.length?'ready_for_refund':awaitingGoods?'awaiting_return':'resolved');
   for(const row of retired)await tx`insert into app.exception_cancellation (exception_unit_id,exception_id,fulfillment_item_id,replacement_link_id,stock_disposition,stock_report_operation_id,physical_source_id,event_id,consent_event_id,operation_id,occurred_at)
    values (${row.unit.id},${head.id},${row.unit.fulfillment_item_id},${row.unit.replacement_link_id},${row.disposition},${row.stock_report_operation_id},${row.physical_source_id},${changed.eventId},${consent.consent_event_id},${operation.id},${operation.occurred_at})`;
+  for(const row of retired)if(row.unit.replacement_link_id===null)await enqueueCommissionVoid(tx,order.id,row.unit.fulfillment_item_id);
   await releaseCancelledPromotionUnits(tx,operation.id,input.reason,principal.id);
   await releaseComponents(tx,stock,operation.id,principal.id,input.reason,operation.occurred_at);
   const replacementScopes=await tx`select link.shipment_id,min(cancellation.exception_unit_id::text)::uuid source_id

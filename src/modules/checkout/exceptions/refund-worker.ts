@@ -1,5 +1,5 @@
 import {createHash,randomUUID} from 'node:crypto';
-import type {Sql} from 'postgres';
+import type {Sql,TransactionSql} from 'postgres';
 import {readLocalConfig} from '../../../config/local.ts';
 import type {Claim,JobAdapter} from '../../../jobs/leases.ts';
 import {AccessError} from '../../access/policy.ts';
@@ -8,10 +8,10 @@ import {fulfillmentClock} from '../../fulfillment/core.ts';
 import {lockRecoveryCollectionBasis} from './collection.ts';
 import {lockException} from './core.ts';
 import {advanceRecoveryRefund,type RecoveryRefundHead} from './refunds.ts';
-import {ingestRecoverySourceEvent,readRecoveryDestinationSource,readRecoverySourceEvent,simulateRecoveryOutcome,verifyRecoveryDestinationSource,verifyRecoverySourceEvent} from './refund-source.ts';
+import {ingestRecoverySourceEvent,readRecoveryDestinationSource,readRecoverySourceEvent,registerRecoverySourceEvent,simulateRecoveryOutcome,verifyRecoveryDestinationSource,verifyRecoverySourceEvent} from './refund-source.ts';
 
-// Internal adapter preparation. This is deliberately not registered with the
-// worker until its native creation/callback/claim consequences are complete.
+// Leased 'recovery.refund.create' preparation, registered in scripts/worker.ts;
+// its signed bank outcome is applied by the 'recovery.refund.callback' owner.
 export async function prepareRecoveryRefundOperation(sql:Sql,target:'local'|'test',claim:Claim,reconciliation=false,beforeCommit=false){
  readLocalConfig(process.env);const input=object(claim.payload,['refundId','attempt']),refundId=id(input.refundId),attempt=integer(input.attempt,1);
  if(claim.kind!=='recovery.refund.create')throw invalid();
@@ -80,4 +80,44 @@ export function recoveryRefundAdapter(sql:Sql,target:'local'|'test',faults:Reado
   return {status:'succeeded' as const,receipt:{operation_id:created.operation_id}};
  };
  return {dispatch:claim=>resolve(claim,false),reconcile:claim=>resolve(claim,true)};
+}
+
+// Shared callback recovery for the host and finance reconcile owners, mirroring
+// returns recoverRefundCallbacks. It re-registers committed bank events, pulls
+// pending callbacks forward and re-arms a terminally failed callback that has
+// no applied result; 0026 accepts that failed->pending only with this exact
+// same-transaction audit row (bound to the failure's attempts and completion).
+export async function recoverRecoveryCallbacks(tx:TransactionSql,refundId:string,actorId:string|null,operationId:string|null){
+ const events=await tx`select e.id from app.local_recovery_event e join app.local_recovery_operation p on p.id=e.operation_id where p.refund_id=${refundId} order by e.occurred_at,e.id`,jobs:string[]=[];
+ for(const event of events){
+  const stored=await readRecoverySourceEvent(tx,event.id);if(!stored)throw new AccessError(409,'RECOVERY_SOURCE_MISSING');
+  const callback=await registerRecoverySourceEvent(tx,verifyRecoverySourceEvent(stored));jobs.push(callback);
+  const [job]=await tx`select id,status,attempts,last_error,completed_at::text previous_completed_at from app.outbox_job where id=${callback} and kind='recovery.refund.callback' for update`;
+  if(!job||!['pending','failed'].includes(job.status)||(await tx`select event_id from app.recovery_event_result where event_id=${event.id}`).length)continue;
+  const rearm=job.status==='failed';
+  if(rearm||job.last_error)await tx`insert into app.audit_event (actor_id,action,subject_id,outcome,reason,details) values (${actorId},'local.recovery_refund.reconcile',${refundId},'allowed','Recover original authenticated recovery callback; never send new money',${JSON.stringify({operation_id:operationId,source_id:event.id,job_id:job.id,previous_status:job.status,previous_attempts:job.attempts,previous_error:job.last_error,...(rearm?{previous_completed_at:job.previous_completed_at}:{})})}::jsonb)`;
+  await tx`update app.outbox_job set status='pending',attempts=${rearm?0:job.attempts},run_at=clock_timestamp(),completed_at=null,last_error=null where id=${job.id}`;
+ }
+ return jobs;
+}
+
+// Host-only source recovery, mirroring reconcileRefundNow. Creation jobs keep
+// their attempts and unknown->pending stays refused; a known failed bank
+// outcome needs the finance retryRecoveryRefund action for a new attempt.
+export async function reconcileRecoveryRefundNow(sql:Sql,refundId:string){
+ readLocalConfig(process.env);const selected=id(refundId);
+ return sql.begin(async tx=>{
+  const [before]=await tx`select exception_id from app.recovery_refund where id=${selected}`;if(!before)throw new AccessError(404,'NOT_FOUND');
+  const {head:caseHead}=await lockException(tx,before.exception_id),[head]=await tx<RecoveryRefundHead[]>`select * from app.recovery_refund where id=${selected} and exception_id=${caseHead.id} for update`;
+  if(!head)throw new AccessError(404,'NOT_FOUND');
+  const jobs=await recoverRecoveryCallbacks(tx,head.id,null,null);
+  if(head.current_job_id){
+   const [job]=await tx`select id,status from app.outbox_job where id=${head.current_job_id} and kind='recovery.refund.create' for update`;
+   if(job&&['pending','unknown'].includes(job.status)){
+    await tx`insert into app.audit_event (action,subject_id,outcome,reason,details) values ('local.recovery_refund.reconcile',${head.id},'allowed','Recover the same fenced recovery request without resetting its attempts',${JSON.stringify({job_id:job.id,previous_status:job.status})}::jsonb)`;
+    await tx`update app.outbox_job set run_at=clock_timestamp() where id=${job.id}`;jobs.unshift(String(job.id));
+   }
+  }
+  await tx`set constraints all immediate`;return jobs;
+ });
 }
