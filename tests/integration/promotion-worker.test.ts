@@ -15,8 +15,8 @@ async function dueFixture(){
  const namespace=`pw-${randomUUID().slice(0,8)}`;const f=await promotionFixture(namespace);const p=await f.campaign();const hold=await f.reserve(await f.input([p.id]));
  const [job]=await f.identity.sql`select id,status,run_at>clock_timestamp() as future from app.outbox_job where kind='promotion.reservation.expire' and payload->>'reservationId'=${hold.id}`;
  assert.equal(job.status,'pending');assert.equal(job.future,true);
- // `--once` workers claim the oldest due job globally: drain every job already due (any kind) before this
- // fixture's clock advance makes its own job due, so the subprocesses claim it deterministically.
+ // Drain jobs already due so the fixture starts clean; the workers below target this fixture's job by id,
+ // because jobs left by earlier files can become due between this drain and the worker start.
  for(let i=0;i<1000;i++) if(!await runOneJob(f.identity.sql)) break;
  assert.equal((await f.identity.sql`select status from app.outbox_job where id=${job.id}`)[0].status,'pending');
  const clock=await readFixtureClock('test',namespace);await advanceFixtureClock('test',namespace,121,clock.version);
@@ -27,7 +27,7 @@ test('two actual worker processes expire one scenario-due promotion before its w
  const f=await dueFixture();try{
   const later=await f.reserve(await f.input([f.p.id],'b'.repeat(64)));
   await assert.rejects(f.identity.sql.begin((tx)=>resolvePromotionReservation(tx,f.hold.id,'consumed','Cannot consume expired hold')),denied('RESERVATION_EXPIRED'));
-  await Promise.all([1,2].map(()=>exec(process.execPath,['--env-file=.env.example','scripts/worker.ts','test','--once'],{env:environment,timeout:10000})));
+  await Promise.all([1,2].map(()=>exec(process.execPath,['--env-file=.env.example','scripts/worker.ts','test','--once',f.jobId],{env:environment,timeout:10000})));
   const [job]=await f.identity.sql`select status,attempts from app.outbox_job where id=${f.jobId}`;assert.deepEqual(job,{status:'completed',attempts:1});
   const [head]=await f.identity.sql`select reserved_amount::text,committed_amount::text from app.promotion where id=${f.p.id}`;assert.deepEqual(head,{reserved_amount:'10001',committed_amount:'0'});
   const [stillHeld]=await f.identity.sql`select status from app.promotion_reservation where id=${later.id}`;assert.equal(stillHeld.status,'active');
@@ -45,7 +45,7 @@ test('killing a worker after uncommitted release/completion rolls back both; res
   await ready;const [before]=await f.identity.sql`select status from app.promotion_reservation where id=${f.hold.id}`;assert.equal(before.status,'active');
   child.kill('SIGKILL');await once(child,'exit');child=undefined;
   const [rolled]=await f.identity.sql`select status,attempts from app.outbox_job where id=${f.jobId}`;assert.deepEqual(rolled,{status:'pending',attempts:0});
-  await exec(process.execPath,['--env-file=.env.example','scripts/worker.ts','test','--once'],{env:environment,timeout:10000});
+  await exec(process.execPath,['--env-file=.env.example','scripts/worker.ts','test','--once',f.jobId],{env:environment,timeout:10000});
   const [after]=await f.identity.sql`select status from app.promotion_reservation where id=${f.hold.id}`;assert.equal(after.status,'expired');
  }finally{if(child){child.kill('SIGKILL');await once(child,'exit');}await f.close();}
 });

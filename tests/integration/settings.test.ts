@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { createHash, randomUUID } from "node:crypto";
 import { setTimeout } from "node:timers/promises";
-import test from "node:test";
+import test, { after } from "node:test";
 import { createLocalAuth, type LocalAuth } from "../../src/modules/access/auth.ts";
 import { handleAccess } from "../../src/modules/access/routes.ts";
 import { roles } from "../../src/modules/access/policy.ts";
@@ -27,6 +27,22 @@ async function history(user: Actor, query = "kind=commercial") {
 function later(current: { data: { effective_at: string }[] }, extra = 1000) {
   return new Date(Math.max(Date.now() + extra, Date.parse(current.data[0]?.effective_at ?? "1970-01-01T00:00:00.000Z") + extra)).toISOString();
 }
+
+// Commercial versions are immutable and cannot be withdrawn, and every activation invalidates
+// publications made under the previous version. Hold the file open until each scheduled company
+// version is current so no later suite sees a mid-run policy switch (PUBLICATION_REVIEW_REQUIRED).
+after(async () => {
+  const identity = createLocalAuth("test");
+  try {
+    for (;;) {
+      const [pending] = await identity.sql`select extract(epoch from max(v.effective_at)-clock_timestamp())*1000 as ms
+        from app.policy_version v join app.policy_head h on h.id=v.head_id where h.kind='commercial' and h.warehouse_id is null`;
+      const ms = Number(pending?.ms ?? 0); if (!(ms > 0)) break;
+      assert.ok(ms <= 30000, `Commercial policy scheduled ${Math.round(ms)}ms ahead would leak into later suites`);
+      await setTimeout(Math.ceil(ms) + 50);
+    }
+  } finally { await identity.sql.end(); }
+});
 
 test("policy API owner/MFA, request/response contract, strict transport and field boundaries", async () => {
   const identity = createLocalAuth("test"); const users: Actor[] = []; const samples: Exchange[] = [];
@@ -86,7 +102,7 @@ test("concurrent policy append has one winner; prior immutable version resolves 
     const owner = await actor(identity, "owner", []); users.push(owner); await enroll(owner.browser, owner.password);
     const peer = await actor(identity, "owner", []); users.push(peer); await enroll(peer.browser, peer.password);
     const state = await history(owner);
-    const firstBody = { kind: "commercial", warehouse_id: null, effective_at: later(state, 60000), values: commercial,
+    const firstBody = { kind: "commercial", warehouse_id: null, effective_at: later(state, 10000), values: commercial,
       expected_version: state.latest_version, reason: "Synthetic baseline policy", reauthentication_proof: await proof(identity, owner) };
     const tooDistant = await handleAccess(post(owner, { ...firstBody, effective_at: "2062-01-01T00:00:00.000Z" }), identity);
     assert.equal(tooDistant.status, 400); assert.equal((await tooDistant.json()).code, "POLICY_SCHEDULE_TOO_DISTANT");
