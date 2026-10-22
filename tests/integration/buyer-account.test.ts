@@ -1,5 +1,5 @@
 import assert from "node:assert/strict";
-import { randomUUID } from "node:crypto";
+import { createHash, randomUUID } from "node:crypto";
 import test from "node:test";
 import {
 	challengeVerificationCode,
@@ -7,15 +7,32 @@ import {
 	handleAccounts,
 } from "../../src/modules/accounts/service.ts";
 import { commerceActor } from "../../src/modules/checkout/access.ts";
-import { handleOrderReceipt } from "../../src/modules/orders/receipt.ts";
+import {
+	handleOrderReceipt,
+	readOrderReceipt,
+} from "../../src/modules/orders/receipt.ts";
 import { createReturn } from "../../src/modules/returns/cases.ts";
 import {
 	ingestParcelReceiptSource,
 	simulateParcelReceipt,
 } from "../../src/modules/returns/receipt-source.ts";
+import { readPrivateArtifact } from "../../src/storage/private.ts";
 import { actor } from "../contract/access-fixture.ts";
-import { closeFulfillmentActor } from "./fulfillment-fixture.ts";
+import {
+	closeFulfillmentActor,
+	fulfillmentFixture,
+} from "./fulfillment-fixture.ts";
 import { returnFixture } from "./return-fixture.ts";
+
+function guestOrderCookie(response: Response) {
+	const header = response.headers
+		.getSetCookie()
+		.find((value) => value.startsWith("__Host-99ribu_order="));
+	assert.ok(header, "verification sets the __Host-99ribu_order cookie");
+	assert.match(header, /; Path=\/; HttpOnly; Secure; SameSite=Lax;/);
+	assert.doesNotMatch(header, /Domain=/i);
+	return header.split(";")[0];
+}
 
 test("S46-S48 integration: buyer profile mononym & no-email support, address book default invariants & snapshot isolation, contact/guest-order challenges, notifications, session termination, and return evidence", async () => {
 	const f = await returnFixture("cod");
@@ -285,6 +302,114 @@ test("S46-S48 integration: buyer profile mononym & no-email support, address boo
 			guestChallengeData.challenge_id,
 		);
 
+		// Security regression: the code must not be derivable from the public challenge id,
+		// must never be persisted in audit details, and parallel guesses cannot exceed 5 attempts.
+		const unkeyedHash = createHash("sha256")
+			.update(`buyer-challenge-otp:${guestChallengeData.challenge_id}`)
+			.digest("hex");
+		const unkeyedOtp = String(
+			(Number.parseInt(unkeyedHash.slice(0, 8), 16) % 900000) + 100000,
+		);
+		const [auditLeak] = await sql<{ n: number }[]>`
+			select count(*)::int as n from app.audit_event
+			where subject_id = ${guestChallengeData.challenge_id} and details ? 'otp_code'
+		`;
+		assert.equal(auditLeak.n, 0, "OTP must not be stored in audit details");
+		const guessChallengeRes = await handleAccounts(
+			new Request(
+				"http://127.0.0.1:3099/api/v1/guest-order-access/challenges",
+				{
+					method: "POST",
+					headers: {
+						origin: "http://127.0.0.1:3099",
+						"content-type": "application/json",
+						"idempotency-key": randomUUID(),
+					},
+					body: JSON.stringify({
+						order_id: f.order.id,
+						contact: quoteDoc.phone,
+					}),
+				},
+			),
+			identity,
+		);
+		const guessChallenge = await guessChallengeRes.json();
+		const realGuessOtp = await challengeVerificationCode(
+			identity,
+			guessChallenge.challenge_id,
+		);
+		const wrong = Array.from({ length: 12 }, (_, i) =>
+			String(100000 + ((Number(realGuessOtp) - 100000 + 1 + i) % 900000)),
+		);
+		const guesses = await Promise.all(
+			wrong.map((code) =>
+				handleAccounts(
+					new Request(
+						"http://127.0.0.1:3099/api/v1/guest-order-access/verifications",
+						{
+							method: "POST",
+							headers: {
+								origin: "http://127.0.0.1:3099",
+								"content-type": "application/json",
+								"idempotency-key": randomUUID(),
+							},
+							body: JSON.stringify({
+								challenge_id: guessChallenge.challenge_id,
+								code,
+							}),
+						},
+					),
+					identity,
+				).then((r) => r.status),
+			),
+		);
+		assert.equal(guesses.filter((s) => s === 403).length, 5);
+		assert.equal(guesses.filter((s) => s === 409).length, 7);
+		const lockedOut = await handleAccounts(
+			new Request(
+				"http://127.0.0.1:3099/api/v1/guest-order-access/verifications",
+				{
+					method: "POST",
+					headers: {
+						origin: "http://127.0.0.1:3099",
+						"content-type": "application/json",
+						"idempotency-key": randomUUID(),
+					},
+					body: JSON.stringify({
+						challenge_id: guessChallenge.challenge_id,
+						code: realGuessOtp,
+					}),
+				},
+			),
+			identity,
+		);
+		assert.equal(
+			lockedOut.status,
+			409,
+			"correct code after lockout is refused",
+		);
+		if (unkeyedOtp !== guestOtp) {
+			const unkeyedAttempt = await handleAccounts(
+				new Request(
+					"http://127.0.0.1:3099/api/v1/guest-order-access/verifications",
+					{
+						method: "POST",
+						headers: {
+							origin: "http://127.0.0.1:3099",
+							"content-type": "application/json",
+							"idempotency-key": randomUUID(),
+						},
+						body: JSON.stringify({
+							challenge_id: guestChallengeData.challenge_id,
+							code: unkeyedOtp,
+						}),
+					},
+				),
+				identity,
+			);
+			assert.equal(unkeyedAttempt.status, 403, "unkeyed derivation is refused");
+		}
+
 		const guestVerifyReq = new Request(
 			"http://127.0.0.1:3099/api/v1/guest-order-access/verifications",
 			{
@@ -305,18 +430,61 @@ test("S46-S48 integration: buyer profile mononym & no-email support, address boo
 		const guestAccess = await guestVerifyRes.json();
 		assert.equal(guestAccess.order_id, f.order.id);
 		assert.ok(guestAccess.order_access_token);
+		const orderCookie = guestOrderCookie(guestVerifyRes);
+		assert.equal(
+			orderCookie,
+			`__Host-99ribu_order=${guestAccess.order_access_token}`,
+		);
 
-		const tokenReceiptRes = await handleOrderReceipt(
-			new Request(
-				`http://127.0.0.1:3099/api/v1/orders/${f.order.id}/receipt?token=${encodeURIComponent(guestAccess.order_access_token)}`,
-				{
-					method: "GET",
-					headers: { origin: "http://127.0.0.1:3099" },
-				},
-			),
+		const receiptUrl = `http://127.0.0.1:3099/api/v1/orders/${f.order.id}/receipt`;
+		const cookieReceiptRes = await handleOrderReceipt(
+			new Request(receiptUrl, {
+				method: "GET",
+				headers: { origin: "http://127.0.0.1:3099", cookie: orderCookie },
+			}),
 			identity,
 		);
-		assert.equal(tokenReceiptRes.status, 200);
+		assert.equal(cookieReceiptRes.status, 200);
+		assert.equal((await cookieReceiptRes.json()).order.id, f.order.id);
+
+		// S72: a query-string token is never a credential, alone or beside the cookie.
+		const queryToken = `?token=${encodeURIComponent(guestAccess.order_access_token)}`;
+		const queryOnlyRes = await handleOrderReceipt(
+			new Request(`${receiptUrl}${queryToken}`, {
+				method: "GET",
+				headers: { origin: "http://127.0.0.1:3099" },
+			}),
+			identity,
+		);
+		assert.equal(queryOnlyRes.status, 400);
+		const queryWithCookieRes = await handleOrderReceipt(
+			new Request(`${receiptUrl}${queryToken}`, {
+				method: "GET",
+				headers: { origin: "http://127.0.0.1:3099", cookie: orderCookie },
+			}),
+			identity,
+		);
+		assert.equal(queryWithCookieRes.status, 400);
+		const pageView = await readOrderReceipt(
+			new Request(`http://127.0.0.1:3099/orders/${f.order.id}${queryToken}`, {
+				headers: { origin: "http://127.0.0.1:3099" },
+			}),
+			identity,
+			f.order.id,
+		);
+		assert.equal(
+			pageView.kind,
+			"denied",
+			"page ignores ?token= without the cookie",
+		);
+		const cookiePageView = await readOrderReceipt(
+			new Request(`http://127.0.0.1:3099/orders/${f.order.id}`, {
+				headers: { origin: "http://127.0.0.1:3099", cookie: orderCookie },
+			}),
+			identity,
+			f.order.id,
+		);
+		assert.equal(cookiePageView.kind, "ready");
 
 		// 6. Notification preferences & in-app notifications state
 		const prefGet = await callBuyer("/api/v1/me/notification-preferences");
@@ -403,25 +571,120 @@ test("S46-S48 integration: buyer profile mononym & no-email support, address boo
 			returnClaim,
 		)) as { id: string; version: number };
 
+		// Grant binds case, media type and exact size; bytes arrive only via PUT upload_url.
+		const jpeg = new Uint8Array(2048);
+		jpeg.set([0xff, 0xd8, 0xff, 0xe0, 0x00, 0x10, 0x4a, 0x46, 0x49, 0x46]);
+		jpeg.set([0xff, 0xd9], jpeg.length - 2);
 		const uploadInit = await callBuyer(
 			`/api/v1/orders/${f.order.id}/returns/${createdReturn.id}/evidence-uploads`,
 			{
 				file_name: "kerusakan-paket.jpg",
 				media_type: "image/jpeg",
-				size_bytes: 24576,
+				size_bytes: jpeg.byteLength,
 			},
 		);
 		assert.equal(uploadInit.status, 201);
 		assert.ok(uploadInit.payload.id);
-		assert.ok(uploadInit.payload.upload_url.includes(uploadInit.payload.id));
-
-		const attachedReturn = await callBuyer(
-			`/api/v1/orders/${f.order.id}/returns/${createdReturn.id}/evidence`,
-			{
-				upload_id: uploadInit.payload.id,
-				expected_version: createdReturn.version,
-			},
+		const uploadPath = new URL(uploadInit.payload.upload_url).pathname;
+		assert.equal(
+			uploadPath,
+			`/api/v1/orders/${f.order.id}/returns/${createdReturn.id}/evidence-uploads/${uploadInit.payload.id}`,
 		);
+		const attachEvidence = () =>
+			callBuyer(
+				`/api/v1/orders/${f.order.id}/returns/${createdReturn.id}/evidence`,
+				{
+					upload_id: uploadInit.payload.id,
+					expected_version: createdReturn.version,
+				},
+			);
+		const putBytes = async (
+			bytes: Uint8Array,
+			contentType = "image/jpeg",
+			cookies = true,
+		) => {
+			const headers = new Headers({
+				origin: "http://127.0.0.1:3099",
+				"content-type": contentType,
+			});
+			if (cookies) {
+				headers.set(
+					"cookie",
+					[...buyerUser.browser.cookies]
+						.map(([name, value]) => `${name}=${value}`)
+						.join("; "),
+				);
+			}
+			const res = await handleAccounts(
+				new Request(`http://127.0.0.1:3099${uploadPath}`, {
+					method: "PUT",
+					headers,
+					body: bytes.slice(),
+				}),
+				identity,
+			);
+			return { status: res.status, payload: await res.json() };
+		};
+
+		const attachWithoutBytes = await attachEvidence();
+		assert.equal(attachWithoutBytes.status, 409);
+		assert.equal(attachWithoutBytes.payload.code, "EVIDENCE_NOT_UPLOADED");
+
+		const anonymousPut = await putBytes(jpeg, "image/jpeg", false);
+		assert.ok([401, 403, 404].includes(anonymousPut.status));
+		const notImage = new Uint8Array(jpeg.byteLength).fill(0x41);
+		const notImagePut = await putBytes(notImage);
+		assert.equal(notImagePut.status, 400);
+		assert.equal(notImagePut.payload.code, "INVALID_IMAGE_FORMAT");
+		const pngAsJpeg = new Uint8Array(jpeg.byteLength);
+		pngAsJpeg.set([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]);
+		assert.equal(
+			(await putBytes(pngAsJpeg)).payload.code,
+			"UPLOAD_TYPE_MISMATCH",
+		);
+		const html = new TextEncoder().encode("<!DOCTYPE html><script>x</script>");
+		const disguised = new Uint8Array(jpeg.byteLength);
+		disguised.set(jpeg.subarray(0, 4));
+		disguised.set(html, 4);
+		assert.equal(
+			(await putBytes(disguised)).payload.code,
+			"DANGEROUS_IMAGE_CONTENT",
+		);
+		const oversized = new Uint8Array(jpeg.byteLength + 1);
+		oversized.set(jpeg);
+		assert.equal((await putBytes(oversized)).status, 413);
+		assert.equal(
+			(await putBytes(jpeg.subarray(0, 1024))).payload.code,
+			"UPLOAD_SIZE_MISMATCH",
+		);
+		assert.equal((await putBytes(jpeg, "image/png")).status, 415);
+		assert.equal(
+			(await attachEvidence()).status,
+			409,
+			"rejected bytes are never attachable",
+		);
+
+		const stored = await putBytes(jpeg);
+		assert.equal(stored.status, 200);
+		const expectedSha = createHash("sha256").update(jpeg).digest("hex");
+		assert.equal(stored.payload.sha256, expectedSha);
+		assert.equal(stored.payload.status, "uploaded");
+		assert.equal(stored.payload.size_bytes, jpeg.byteLength);
+		assert.equal(
+			(await putBytes(jpeg)).status,
+			409,
+			"a grant accepts bytes once",
+		);
+		const [storedRow] = await sql<{ sha256: string; storage_key: string }[]>`
+			select sha256, storage_key from app.return_evidence where id = ${uploadInit.payload.id}
+		`;
+		assert.equal(storedRow.sha256, expectedSha);
+		assert.deepEqual(
+			new Uint8Array(await readPrivateArtifact(storedRow.storage_key)),
+			jpeg,
+		);
+
+		const attachedReturn = await attachEvidence();
 		assert.equal(attachedReturn.status, 201);
 		assert.equal(attachedReturn.payload.id, createdReturn.id);
 
@@ -430,8 +693,81 @@ test("S46-S48 integration: buyer profile mononym & no-email support, address boo
 		`;
 		assert.equal(evidenceRow?.status, "attached");
 	} finally {
+		await sql`
+			delete from app.auth_rate_limit
+			where key like ${`rl:%:${f.order.id}`} or key like ${`rl:%:${buyerUser.id}`}
+				or key in (
+					select 'rl:evidence-upload:' || id from app.return_case where order_id = ${f.order.id}
+				)
+		`;
 		await closeFulfillmentActor(identity, buyerUser);
 		await closeFulfillmentActor(identity, secondSession);
+		await f.close();
+	}
+});
+
+test("S72 integration: recovered prepaid guest receipt is authorised by the order cookie, never by ?token=", async () => {
+	const f = await fulfillmentFixture("prepaid");
+	const { identity } = f;
+	const sql = identity.sql;
+	const origin = "http://127.0.0.1:3099";
+	const post = (path: string, body: Record<string, unknown>) =>
+		handleAccounts(
+			new Request(`${origin}${path}`, {
+				method: "POST",
+				headers: {
+					origin,
+					"content-type": "application/json",
+					"idempotency-key": randomUUID(),
+				},
+				body: JSON.stringify(body),
+			}),
+			identity,
+		);
+	try {
+		const [quoteDoc] = await sql<{ phone: string }[]>`
+			select q.document->'contact'->>'phone' as phone
+			from app.commerce_order o join app.checkout_quote q on q.id = o.quote_id
+			where o.id = ${f.order.id}
+		`;
+		const challenge = await post("/api/v1/guest-order-access/challenges", {
+			order_id: f.order.id,
+			contact: quoteDoc.phone,
+		});
+		assert.equal(challenge.status, 202);
+		const { challenge_id } = await challenge.json();
+		const verified = await post("/api/v1/guest-order-access/verifications", {
+			challenge_id,
+			code: await challengeVerificationCode(identity, challenge_id),
+		});
+		assert.equal(verified.status, 201);
+		const access = await verified.json();
+		const orderCookie = guestOrderCookie(verified);
+		const page = (search: string, cookie?: string) =>
+			readOrderReceipt(
+				new Request(`${origin}/orders/${f.order.id}${search}`, {
+					headers: cookie ? { origin, cookie } : { origin },
+				}),
+				identity,
+				f.order.id,
+			);
+
+		const byCookie = await page("", orderCookie);
+		assert.equal(
+			byCookie.kind,
+			"ready",
+			"cookie credential authorises the prepaid receipt",
+		);
+		assert.equal(byCookie.receipt?.order.id, f.order.id);
+		assert.equal(byCookie.receipt?.order.payment_method, "prepaid");
+
+		const byQuery = await page(
+			`?token=${encodeURIComponent(access.order_access_token)}`,
+		);
+		assert.equal(byQuery.kind, "denied", "?token= grants nothing");
+		assert.equal(byQuery.receipt, null);
+	} finally {
+		await sql`delete from app.auth_rate_limit where key like ${`rl:%:${f.order.id}`}`;
 		await f.close();
 	}
 });

@@ -470,7 +470,6 @@ export async function authorizeOrderOrContinuity(
 	identity: LocalAuth,
 	actor: CommerceActor | null,
 	orderId: string,
-	explicitToken?: string | null,
 ): Promise<OrderRow> {
 	const target = id(orderId);
 	try {
@@ -489,12 +488,7 @@ export async function authorizeOrderOrContinuity(
 				if (order) return order;
 			}
 		}
-		const p = await prefix(identity);
-		const candidateToken =
-			explicitToken ??
-			cookie(request, "__Host-99ribu_order") ??
-			cookie(request, `${p}.guest_order_access`) ??
-			null;
+		const candidateToken = await continuityToken(request, identity);
 		if (candidateToken) {
 			const tokenDigest = digest(`order-access:${candidateToken}`);
 			const [verified] = await tx<
@@ -509,6 +503,14 @@ export async function authorizeOrderOrContinuity(
 		}
 		throw error;
 	}
+}
+
+// Guest order capability travels only in HttpOnly cookies, never query strings (spec 09).
+async function continuityToken(request: Request, identity: LocalAuth) {
+	return (
+		cookie(request, "__Host-99ribu_order") ??
+		cookie(request, `${await prefix(identity)}.guest_order_access`)
+	);
 }
 
 export type OrderContinuityExceptionProposal = {
@@ -623,12 +625,10 @@ export async function readOrderReceipt(
 	request: Request,
 	identity: LocalAuth,
 	orderId: string,
-	explicitToken?: string | null,
 ): Promise<OrderReceiptView> {
 	try {
 		const targetId = id(orderId);
 		const url = new URL(request.url);
-		const tokenParam = explicitToken ?? url.searchParams.get("token");
 		const cleanUrl = new URL(orderReceiptPath(targetId), url.origin);
 		const cleanReq = new Request(cleanUrl, {
 			method: request.method,
@@ -637,15 +637,11 @@ export async function readOrderReceipt(
 		const scoped = await orderReceiptRequest(cleanReq, identity, targetId);
 		const authorized = await identity.sql.begin(async (tx) => {
 			const actor = await commerceActor(scoped, identity);
-			return authorizeOrderOrContinuity(
-				tx,
-				scoped,
-				identity,
-				actor,
-				targetId,
-				tokenParam,
-			);
+			return authorizeOrderOrContinuity(tx, scoped, identity, actor, targetId);
 		});
+		const hasContinuityCredential = Boolean(
+			await continuityToken(scoped, identity),
+		);
 		let attemptUnavailable = false;
 		if (authorized.payment_method === "prepaid") {
 			const [clock] = await identity.sql<
@@ -664,7 +660,7 @@ export async function readOrderReceipt(
 				if (
 					[401, 403, 404].includes(res.status) &&
 					authorized.owner_user_id === null &&
-					!tokenParam
+					!hasContinuityCredential
 				)
 					throw new AccessError(res.status, data.code);
 				if (!res.ok) attemptUnavailable = true;
@@ -678,20 +674,12 @@ export async function readOrderReceipt(
 				identity,
 				actor,
 				targetId,
-				tokenParam,
 			);
 			const { receipt, attempt } = await projectOrderReceipt(tx, current.id);
 			const [obs] = await tx<
 				{ viewed: boolean }[]
 			>`select exists(select 1 from app.commerce_event where order_id=${current.id} and name='receipt_viewed') viewed`;
-			await authorizeOrderOrContinuity(
-				tx,
-				scoped,
-				identity,
-				actor,
-				current.id,
-				tokenParam,
-			);
+			await authorizeOrderOrContinuity(tx, scoped, identity, actor, current.id);
 			const hasVisitorCookie = Boolean(
 				cookie(request, `${await prefix(identity)}.visitor`),
 			);
@@ -731,13 +719,10 @@ export async function handleOrderReceipt(
 			throw new AccessError(401, "UNSUPPORTED_AUTH_TRANSPORT");
 		if (request.method !== "GET") throw new AccessError(404, "NOT_FOUND");
 		const url = new URL(request.url);
-		for (const key of url.searchParams.keys())
-			if (key !== "token" || url.searchParams.getAll(key).length !== 1)
-				throw invalid();
+		if (url.search) throw invalid();
 		const match = /^\/api\/v1\/orders\/([^/]+)\/receipt$/.exec(url.pathname);
 		if (!match) throw new AccessError(404, "NOT_FOUND");
 		const targetId = id(match[1]);
-		const tokenParam = url.searchParams.get("token");
 		const receipt = await identity.sql.begin(async (tx) => {
 			const actor = await commerceActor(request, identity);
 			const current = await authorizeOrderOrContinuity(
@@ -746,7 +731,6 @@ export async function handleOrderReceipt(
 				identity,
 				actor,
 				targetId,
-				tokenParam,
 			);
 			const projected = await projectOrderReceipt(tx, current.id);
 			await authorizeOrderOrContinuity(
@@ -755,7 +739,6 @@ export async function handleOrderReceipt(
 				identity,
 				actor,
 				current.id,
-				tokenParam,
 			);
 			return projected.receipt;
 		});

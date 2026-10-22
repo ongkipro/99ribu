@@ -381,6 +381,10 @@ test("S46-S48 browser: buyer account profile (mononym + no email), address book 
 					res.end(Buffer.from(await r.arrayBuffer()));
 					return;
 				}
+				if (url.pathname === "/favicon.ico") {
+					res.writeHead(204).end();
+					return;
+				}
 				res.writeHead(404);
 				res.end("Not Found");
 			} catch (err) {
@@ -516,6 +520,181 @@ test("S46-S48 browser: buyer account profile (mononym + no email), address book 
 		}
 		try {
 			await closeFulfillmentActor(identity, buyer);
+		} finally {
+			await f.close();
+		}
+	}
+});
+
+test("S72 browser: recovered prepaid guest stores the __Host-99ribu_order cookie on 127.0.0.1 and opens the receipt by path only; ?token= grants nothing", async () => {
+	const f = await fulfillmentFixture("prepaid");
+	const { identity } = f;
+	const sql = identity.sql;
+	let server: Server | null = null;
+	try {
+		const [quoteDoc] = await sql<{ phone: string }[]>`
+			select q.document->'contact'->>'phone' as phone
+			from app.commerce_order o join app.checkout_quote q on q.id = o.quote_id
+			where o.id = ${f.order.id}
+		`;
+		server = createServer(async (req, res) => {
+			try {
+				const canonicalOrigin = "http://127.0.0.1:3099";
+				const url = new URL(req.url ?? "/", canonicalOrigin);
+				const headers = new Headers();
+				for (const [k, v] of Object.entries(req.headers))
+					if (typeof v === "string") headers.set(k, v);
+				headers.set("host", "127.0.0.1:3099");
+				if (req.method !== "GET") headers.set("origin", canonicalOrigin);
+				const chunks: Buffer[] = [];
+				for await (const chunk of req)
+					chunks.push(Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk));
+				const webReq = new Request(url.toString(), {
+					method: req.method ?? "GET",
+					headers,
+					body:
+						req.method && !["GET", "HEAD"].includes(req.method)
+							? Buffer.concat(chunks)
+							: undefined,
+				});
+				const orderPageMatch = /^\/orders\/([^/]+)$/.exec(url.pathname);
+				if (orderPageMatch) {
+					const view = await readOrderReceipt(
+						webReq,
+						identity,
+						orderPageMatch[1],
+					);
+					const extras =
+						view.kind === "ready"
+							? await readOrderContinuityExtras(identity, orderPageMatch[1])
+							: {
+									exception_proposals: [],
+									return_cases: [],
+									support_conversation_id: null,
+								};
+					res.writeHead(200, { "content-type": "text/html; charset=utf-8" });
+					res.end(renderOrderContinuityHtml(view, extras));
+					return;
+				}
+				if (url.pathname.startsWith("/api/v1/guest-order-access/")) {
+					const r = await handleAccounts(webReq, identity);
+					const out = new Headers(r.headers);
+					out.delete("set-cookie");
+					res.writeHead(r.status, {
+						...Object.fromEntries(out.entries()),
+						"set-cookie": r.headers.getSetCookie(),
+					});
+					res.end(Buffer.from(await r.arrayBuffer()));
+					return;
+				}
+				if (url.pathname === "/start") {
+					res.writeHead(200, { "content-type": "text/html; charset=utf-8" });
+					res.end(
+						'<!doctype html><html lang="id"><title>Pulihkan</title><main id="main"></main></html>',
+					);
+					return;
+				}
+				res.writeHead(url.pathname === "/favicon.ico" ? 204 : 404).end();
+			} catch (err) {
+				res.writeHead(500);
+				res.end(String(err));
+			}
+		});
+		await new Promise<void>((resolve) =>
+			server?.listen(0, "127.0.0.1", () => resolve()),
+		);
+		const addr = server.address();
+		assert.ok(addr && typeof addr === "object");
+		const baseUrl = `http://127.0.0.1:${addr.port}`;
+
+		const browser = await chromium.launch({
+			executablePath: process.env.PLAYWRIGHT_CHROMIUM_EXECUTABLE,
+		});
+		try {
+			const post = (
+				page: import("@playwright/test").Page,
+				path: string,
+				body: Record<string, unknown>,
+			) =>
+				page.evaluate(
+					async ([p, b]) => {
+						const r = await fetch(p, {
+							method: "POST",
+							headers: {
+								"content-type": "application/json",
+								"idempotency-key": crypto.randomUUID(),
+							},
+							body: JSON.stringify(b),
+						});
+						return { status: r.status, payload: await r.json() };
+					},
+					[path, body] as const,
+				);
+
+			const guest = await browser.newContext({ reducedMotion: "reduce" });
+			const page = await guest.newPage();
+			await page.goto(`${baseUrl}/start`);
+			const challenge = await post(
+				page,
+				"/api/v1/guest-order-access/challenges",
+				{
+					order_id: f.order.id,
+					contact: quoteDoc.phone,
+				},
+			);
+			assert.equal(challenge.status, 202);
+			const verified = await post(
+				page,
+				"/api/v1/guest-order-access/verifications",
+				{
+					challenge_id: challenge.payload.challenge_id,
+					code: await challengeVerificationCode(
+						identity,
+						challenge.payload.challenge_id,
+					),
+				},
+			);
+			assert.equal(verified.status, 201);
+			const stored = (await guest.cookies(baseUrl)).find(
+				(c) => c.name === "__Host-99ribu_order",
+			);
+			assert.ok(
+				stored,
+				"Chromium stores the __Host- Secure cookie on http://127.0.0.1",
+			);
+			assert.equal(stored.value, verified.payload.order_access_token);
+			assert.equal(stored.httpOnly, true);
+			assert.equal(stored.secure, true);
+			assert.equal(stored.sameSite, "Lax");
+			assert.equal(stored.path, "/");
+			assert.equal(
+				await page.evaluate(() => document.cookie.includes("99ribu_order")),
+				false,
+			);
+
+			await page.goto(`${baseUrl}/orders/${encodeURIComponent(f.order.id)}`);
+			assert.equal(new URL(page.url()).search, "");
+			await expect(page.getByTestId("order-continuity-heading")).toContainText(
+				f.order.number,
+			);
+
+			const stranger = await browser.newContext({ reducedMotion: "reduce" });
+			const strangerPage = await stranger.newPage();
+			await strangerPage.goto(
+				`${baseUrl}/orders/${f.order.id}?token=${encodeURIComponent(verified.payload.order_access_token)}`,
+			);
+			await expect(strangerPage.getByTestId("order-denied")).toBeVisible();
+			await expect(
+				strangerPage.getByTestId("order-continuity-heading"),
+			).toHaveCount(0);
+		} finally {
+			await browser.close();
+		}
+	} finally {
+		if (server)
+			await new Promise<void>((resolve) => server?.close(() => resolve()));
+		try {
+			await sql`delete from app.auth_rate_limit where key like ${`rl:%:${f.order.id}`}`;
 		} finally {
 			await f.close();
 		}

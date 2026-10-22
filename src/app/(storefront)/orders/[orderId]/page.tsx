@@ -351,10 +351,8 @@ function renderSummaryItem(item: OrderReceipt["order"]["items"][number]) {
 
 export default async function OrderReceiptPage({
 	params,
-	searchParams,
 }: {
 	params: Promise<{ orderId: string }>;
-	searchParams?: Promise<{ token?: string }>;
 }) {
 	let orderId: string;
 	try {
@@ -362,14 +360,11 @@ export default async function OrderReceiptPage({
 	} catch {
 		redirect("/404");
 	}
-	const query = searchParams ? await searchParams : {};
-	const token = typeof query?.token === "string" ? query.token : null;
 	const path = orderReceiptPath(orderId),
 		view = await readOrderReceipt(
 			await storefrontRequest("GET", path),
 			getLocalAuth(),
 			orderId,
-			token,
 		);
 	if (view.kind !== "ready") {
 		return (
