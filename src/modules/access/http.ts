@@ -10,17 +10,32 @@ export function problem(error: unknown) {
   const status = known ? error.status : 503;
   const headers = new Headers({ "Content-Type": "application/problem+json", "Cache-Control": "no-store", "Referrer-Policy": "no-referrer", "X-Content-Type-Options": "nosniff" });
   if (known && error.retryAfter) headers.set("Retry-After", String(error.retryAfter));
+  const requestId = randomUUID();
+  // Redacted by design: messages/stacks can carry buyer fields or SQL values (spec 16), so log only class and SQLSTATE.
+  if (!known) console.error(JSON.stringify({ event: "http.unexpected_error", request_id: requestId,
+    error: error instanceof Error ? error.name : typeof error,
+    sqlstate: typeof (error as { code?: unknown })?.code === "string" ? (error as { code: string }).code : undefined }));
   return new Response(JSON.stringify({ type: "about:blank", title: known ? error.code : "SERVICE_UNAVAILABLE", status,
-    code: known ? error.code : "SERVICE_UNAVAILABLE", request_id: randomUUID() }),
+    code: known ? error.code : "SERVICE_UNAVAILABLE", request_id: requestId }),
   { status, headers });
 }
+// The browser origin a request arrived through, or null. Next builds request.url from its own
+// loopback listener (NextURL normalizes 127.0.0.1 to localhost, accepted only with an actual Host),
+// so the browser-visible origin is the exact Host header: the loopback host, or the opt-in tailnet
+// IP:port that `tailscale serve --tcp` forwards unchanged. Any other Host (DNS rebinding, aliases) is refused.
+export function requestOrigin(request: Request) {
+  const { origin, tailnetOrigin } = readLocalConfig(process.env);
+  const incoming = new URL(request.url).origin;
+  if (!request.headers.has("host")) return incoming === origin ? origin : null;
+  if (incoming !== origin && incoming !== "http://localhost:3099") return null;
+  const host = request.headers.get("host");
+  if (host === new URL(origin).host) return origin;
+  return tailnetOrigin && host === new URL(tailnetOrigin).host ? tailnetOrigin : null;
+}
 export function assertOrigin(request: Request) {
-  const { origin } = readLocalConfig(process.env);
-  const incoming = new URL(request.url);
-  const host = new URL(origin).host;
-  const normalizedByNext = incoming.origin === "http://localhost:3099" && request.headers.get("host") === host;
-  if ((incoming.origin !== origin && !normalizedByNext) || (request.headers.has("host") && request.headers.get("host") !== host) ||
-    (request.method !== "GET" && request.headers.get("origin") !== origin)) throw new AccessError(403, "INVALID_ORIGIN");
+  const origin = requestOrigin(request);
+  if (!origin || (request.method !== "GET" && request.headers.get("origin") !== origin)) throw new AccessError(403, "INVALID_ORIGIN");
+  return origin;
 }
 export async function readBody(request: Request, maxBytes: 16384 | 32768 = 16384): Promise<Record<string, unknown>> {
   if (maxBytes !== 16384 && maxBytes !== 32768) throw new AccessError(500, "INVALID_BODY_LIMIT");

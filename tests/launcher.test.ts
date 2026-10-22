@@ -28,3 +28,12 @@ test(`direct Next startup through ${entry} refuses a different loopback listener
   assert.match(result.stderr, /fixed local listener/);
 });
 }
+
+test("startup refuses a malformed tailnet origin before listening, without echoing it", () => {
+  const result = spawnSync(process.execPath, ["--env-file=.env.example", "scripts/run-local.ts", "start"], {
+    env: { ...process.env, LOCAL_TAILNET_ORIGIN: "http://0.0.0.0:3099" }, encoding: "utf8", timeout: 5000,
+  });
+  assert.equal(result.status, 1);
+  assert.match(result.stderr, /LOCAL_TAILNET_ORIGIN must be/);
+  assert.doesNotMatch(result.stderr, /0\.0\.0\.0/);
+});

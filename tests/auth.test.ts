@@ -4,6 +4,7 @@ import test from "node:test";
 import { NextRequest } from "next/server.js";
 import { createLocalAuth } from "../src/modules/access/auth.ts";
 import { handleAuth, requireIdentity, requireStaff } from "../src/modules/access/handler.ts";
+import { mac } from "../src/modules/checkout/access.ts";
 import { runOneJob } from "../src/jobs/worker.ts";
 import { enqueueJob } from "../src/jobs/outbox.ts";
 import type { Sql } from "postgres";
@@ -222,6 +223,80 @@ test("two real principals cannot select another identity or gain staff rights th
       await identity.sql`delete from app.auth_user where id=${user.id}`;
     }
     await identity.sql`delete from app.auth_rate_limit where key in ${identity.sql(keys)}`;
+    await identity.sql.end();
+  }
+});
+
+test("failed logins for one email do not lock out another email", async () => {
+  const identity = createLocalAuth("test");
+  const [a, b] = [`rl-a-${randomUUID()}@example.invalid`, `rl-b-${randomUUID()}@example.invalid`];
+  const signIn = (email: string) => handleAuth(new Request(`${origin}/api/auth/sign-in/email`, {
+    method: "POST", headers: { origin, "content-type": "application/json" }, body: JSON.stringify({ email, password: "wrong-password-123" }),
+  }), identity);
+  const keys = ["127.0.0.1|/sign-in/email"];
+  for (const email of [a, b]) keys.push(`rl:auth-account:/api/auth/sign-in/email:${await mac(identity, "auth-account", [email])}`);
+  await identity.sql`delete from app.auth_rate_limit where key in ${identity.sql(keys)}`;
+  try {
+    for (let i = 0; i < 5; i++) assert.equal((await signIn(a)).status, 401);
+    const blocked = await signIn(a);
+    assert.equal(blocked.status, 429);
+    assert.ok(Number(blocked.headers.get("retry-after")) > 0);
+    assert.equal((await signIn(b)).status, 401, "another account must not share the lockout");
+  } finally {
+    await identity.sql`delete from app.auth_rate_limit where key in ${identity.sql(keys)}`;
+    await identity.sql.end();
+  }
+});
+
+test("2FA limiter refuses ambiguous duplicate Better Auth cookies before any budget is spent", async () => {
+  const identity = createLocalAuth("test");
+  const p = (await identity.auth.$context).options.advanced?.cookiePrefix as string;
+  try {
+    const response = await handleAuth(new Request(`${origin}/api/auth/two-factor/verify-totp`, {
+      method: "POST",
+      headers: { origin, "content-type": "application/json", cookie: `${p}.two_factor =REAL; ${p}.two_factor=junk-${randomUUID()}` },
+      body: JSON.stringify({ code: "000000" }),
+    }), identity);
+    assert.equal(response.status, 401);
+    assert.equal((await response.json()).code, "UNAUTHENTICATED");
+  } finally {
+    await identity.sql.end();
+  }
+});
+
+test("2FA verify budget follows the account across separate sign-ins, not the per-sign-in cookie", async () => {
+  const identity = createLocalAuth("test");
+  const p = (await identity.auth.$context).options.advanced?.cookiePrefix as string;
+  const email = `mfa-budget-${randomUUID()}@example.invalid`;
+  const password = randomBytes(24).toString("base64url");
+  const post = (path: string, body: Record<string, unknown>, cookie = "") => handleAuth(new Request(`${origin}/api/auth${path}`, {
+    method: "POST", headers: { origin, "content-type": "application/json", cookie }, body: JSON.stringify(body),
+  }), identity);
+  let userId = "";
+  const keys = [`rl:auth-account:/api/auth/sign-in/email:${await mac(identity, "auth-account", [email])}`];
+  try {
+    assert.equal((await post("/sign-up/email", { name: "MFA Budget", email, password })).status, 200);
+    [{ id: userId }] = await identity.sql`update app.auth_user set email_verified=true, two_factor_enabled=true where email=${email} returning id`;
+    keys.push(`rl:auth-account:/api/auth/two-factor/verify-totp:${await mac(identity, "auth-account", [userId])}`);
+    await identity.sql`delete from app.auth_rate_limit where key in ${identity.sql(keys)}`;
+    const challenge = async () => {
+      const login = await post("/sign-in/email", { email, password });
+      assert.equal(login.status, 200);
+      const pending = login.headers.getSetCookie().find((c) => c.startsWith(`${p}.two_factor=`));
+      assert.ok(pending, "sign-in must issue a pending two-factor cookie");
+      return pending.split(";")[0];
+    };
+    const [first, second] = [await challenge(), await challenge()];
+    assert.notEqual(first, second, "Better Auth issues a fresh challenge cookie per sign-in");
+    for (let i = 0; i < 5; i++) assert.notEqual((await post("/two-factor/verify-totp", { code: "000000" }, first)).status, 429);
+    const blocked = await post("/two-factor/verify-totp", { code: "000000" }, second);
+    assert.equal(blocked.status, 429, "a second sign-in must not reset the account's 2FA budget");
+  } finally {
+    await identity.sql`delete from app.auth_rate_limit where key in ${identity.sql(keys)}`;
+    await identity.sql`delete from app.outbox_job where kind='local.notification' and payload->>'deliveryId' in (select id::text from app.local_delivery where recipient=${email})`;
+    await identity.sql`delete from app.local_delivery where recipient=${email}`;
+    if (userId) await identity.sql`delete from app.auth_verification where value=${userId}`;
+    await identity.sql`delete from app.auth_user where email=${email}`;
     await identity.sql.end();
   }
 });

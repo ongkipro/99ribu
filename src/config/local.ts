@@ -3,7 +3,7 @@ import { resolve } from "node:path";
 
 type Environment = Record<string, string | undefined>;
 
-export function privateDirectory(name: "postgres" | "pgsocket" | "artifacts" | "auth") {
+export function privateDirectory(name: "postgres" | "pgsocket" | "artifacts" | "auth" | "catalog-media") {
   const parent = resolve(".local");
   const path = resolve(parent, name);
   for (const directory of [parent, path]) {
@@ -28,6 +28,18 @@ export function assertLocalNextCommand(args: readonly string[]) {
   ) {
     throw new Error("Use npm run dev, npm run build or npm start with the fixed local listener.");
   }
+}
+
+// Opt-in second browser origin for the owner's devices: this machine's Tailscale IPv4
+// (CGNAT 100.64.0.0/10), plain http on the same port, raw-TCP-forwarded by `tailscale serve --tcp`
+// to the loopback listener. Canonical dotted quad only: no hostname, wildcard, path or credentials.
+function readTailnetOrigin(value: string | undefined) {
+  if (value === undefined || value === "") return null;
+  const octets = /^http:\/\/(0|[1-9]\d{0,2})\.(0|[1-9]\d{0,2})\.(0|[1-9]\d{0,2})\.(0|[1-9]\d{0,2}):3099$/.exec(value)?.slice(1).map(Number);
+  if (!octets || octets.some((octet) => octet > 255) || octets[0] !== 100 || octets[1] < 64 || octets[1] > 127) {
+    throw new Error("LOCAL_TAILNET_ORIGIN must be http://<Tailscale 100.64.0.0/10 IPv4>:3099.");
+  }
+  return value;
 }
 
 // This profile is deliberately local-only. Live activation requires its own gate.
@@ -60,5 +72,10 @@ export function readLocalConfig(env: Environment) {
   if (env.DATABASE_URL || env.PGHOST || env.PGPORT || env.PGDATABASE || env.PGUSER || env.PGPASSWORD) {
     throw new Error("Database overrides are forbidden; use the private local socket profile.");
   }
-  return Object.freeze({ origin: env.APP_ORIGIN, hostname: "127.0.0.1", port: 3099 });
+  const tailnetOrigin = readTailnetOrigin(env.LOCAL_TAILNET_ORIGIN);
+  return Object.freeze({
+    origin: env.APP_ORIGIN, hostname: "127.0.0.1", port: 3099, tailnetOrigin,
+    // Exactly the browser origins this profile serves; the listener itself stays on loopback.
+    trustedOrigins: Object.freeze(tailnetOrigin ? [env.APP_ORIGIN, tailnetOrigin] : [env.APP_ORIGIN]),
+  });
 }

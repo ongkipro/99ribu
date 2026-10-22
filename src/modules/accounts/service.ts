@@ -1,15 +1,21 @@
 import { createHash, randomBytes, randomUUID } from "node:crypto";
 import type { TransactionSql } from "postgres";
 import { readLocalConfig } from "../../config/local.ts";
-import { savePrivateArtifact } from "../../storage/private.ts";
+import { sniffImageOrMp4ContentType, scanImagePayload } from "../../storage/media-sniff.ts";
+import {
+	deletePrivateArtifact,
+	savePrivateArtifact,
+} from "../../storage/private.ts";
 import type { LocalAuth } from "../access/auth.ts";
 import {
 	assertOrigin,
 	privateJson,
 	problem,
 	readBody,
+	requestOrigin,
 } from "../access/http.ts";
 import { AccessError, getPrincipal, type Principal } from "../access/policy.ts";
+import { LIMITS, rateLimit } from "../access/rate-limit.ts";
 import { id, integer, invalid, object, text } from "../catalog/validation.ts";
 
 function boolean(value: unknown): boolean {
@@ -17,7 +23,7 @@ function boolean(value: unknown): boolean {
 	return value;
 }
 
-import { actorScope, commerceActor, digest } from "../checkout/access.ts";
+import { actorScope, commerceActor, digest, mac, prefix, setCookie } from "../checkout/access.ts";
 import { intentHash, mutationKey } from "../checkout/carts.ts";
 import { type OrderRow, projectOrder } from "../checkout/orders.ts";
 import { authorizeOrderOrContinuity } from "../orders/receipt.ts";
@@ -138,21 +144,63 @@ function parsePagination(url: URL) {
 	};
 }
 
+// Raw evidence body, refused as soon as it passes the granted size.
+async function readUploadBytes(request: Request, maxBytes: number) {
+	const reader = request.body?.getReader();
+	if (!reader) throw new AccessError(400, "INVALID_INPUT");
+	const chunks: Uint8Array[] = [];
+	let size = 0;
+	while (true) {
+		const chunk = await reader.read();
+		if (chunk.done) break;
+		size += chunk.value.byteLength;
+		if (size > maxBytes) {
+			await reader.cancel();
+			throw new AccessError(413, "BODY_TOO_LARGE");
+		}
+		chunks.push(chunk.value);
+	}
+	return new Uint8Array(Buffer.concat(chunks));
+}
+
+// The code is keyed by the server secret: the public challenge id alone must never
+// derive it. The simulated notification adapter (and tests) read it with the same key.
 export async function challengeVerificationCode(
-	_identity: LocalAuth,
+	identity: LocalAuth,
 	challengeId: string,
 ): Promise<string> {
-	const hash = digest(`buyer-challenge-otp:${challengeId}`);
-	const numeric = (Number.parseInt(hash.slice(0, 8), 16) % 900000) + 100000;
+	const key = await mac(identity, "buyer-challenge-otp", [challengeId]);
+	const numeric =
+		(Buffer.from(key, "base64url").readUInt32BE(0) % 900000) + 100000;
 	return String(numeric);
 }
 
 async function challengeDigest(
-	_identity: LocalAuth,
+	identity: LocalAuth,
 	challengeId: string,
 	code: string,
 ): Promise<string> {
-	return digest(`buyer-challenge-digest:${challengeId}:${code}`);
+	return mac(identity, "buyer-challenge-digest", [challengeId, code]);
+}
+
+// Consume one attempt atomically before comparing, so parallel guesses cannot exceed the cap.
+async function reserveChallengeAttempt(
+	identity: LocalAuth,
+	table: "support_challenge" | "buyer_identity_challenge",
+	challengeId: string,
+): Promise<number | null> {
+	const pending =
+		table === "support_challenge"
+			? identity.sql`verified_at is null`
+			: identity.sql`status = 'pending'`;
+	const [row] = await identity.sql<{ attempts: number }[]>`
+		update ${identity.sql(`app.${table}`)}
+		set attempts = attempts + 1
+		where id = ${challengeId} and ${pending}
+			and attempts < 5 and expires_at > clock_timestamp()
+		returning attempts
+	`;
+	return row ? Number(row.attempts) : null;
 }
 
 async function ensureBuyerProfile(
@@ -691,6 +739,17 @@ export async function handleAccounts(request: Request, identity: LocalAuth) {
 				contact,
 			});
 			const actorKey = `guest_access:${orderId}`;
+			// Counted in autocommit so contact mismatches (which roll back) still spend budget.
+			await rateLimit(
+				identity.sql,
+				`guest-access-challenge-order:${orderId}`,
+				LIMITS.guestAccessChallengePerOrder,
+			);
+			await rateLimit(
+				identity.sql,
+				`guest-access-challenge-contact:${digest(`${contact.channel}:${contact.value}`)}`,
+				LIMITS.guestAccessChallengePerContact,
+			);
 			const result = await identity.sql.begin(async (tx) => {
 				const prior = await checkIdempotency<{
 					challenge_id: string;
@@ -735,7 +794,7 @@ export async function handleAccounts(request: Request, identity: LocalAuth) {
 					challengeId,
 					"Issued guest order access verification challenge",
 					response,
-					{ challenge_id: challengeId, otp_code: code },
+					{ challenge_id: challengeId },
 				);
 			});
 			return privateJson(result, 202);
@@ -771,23 +830,23 @@ export async function handleAccounts(request: Request, identity: LocalAuth) {
 				throw new AccessError(404, "NOT_FOUND");
 			}
 			const expectedDigest = await challengeDigest(identity, challengeId, code);
-			if (
-				!challengeRow.verified_at &&
-				(Number(challengeRow.attempts) >= 5 ||
-					new Date(challengeRow.expires_at).getTime() <= Date.now())
-			) {
-				throw new AccessError(409, "CHALLENGE_EXPIRED");
-			}
-			if (
-				!challengeRow.verified_at &&
-				challengeRow.code_digest !== expectedDigest
-			) {
-				await identity.sql`
-					update app.support_challenge
-					set attempts = attempts + 1
-					where id = ${challengeId}
-				`;
-				throw new AccessError(403, "INVALID_CHALLENGE_CODE");
+			if (!challengeRow.verified_at) {
+				await rateLimit(
+					identity.sql,
+					`guest-access-verify-order:${challengeRow.order_id}`,
+					LIMITS.guestAccessVerifyPerOrder,
+				);
+				const attempts = await reserveChallengeAttempt(
+					identity,
+					"support_challenge",
+					challengeId,
+				);
+				if (attempts === null) {
+					throw new AccessError(409, "CHALLENGE_EXPIRED");
+				}
+				if (challengeRow.code_digest !== expectedDigest) {
+					throw new AccessError(403, "INVALID_CHALLENGE_CODE");
+				}
 			}
 			const result = await identity.sql.begin(async (tx) => {
 				const prior = await checkIdempotency<{
@@ -818,7 +877,6 @@ export async function handleAccounts(request: Request, identity: LocalAuth) {
 					update app.support_challenge
 					set
 						verified_at = clock_timestamp(),
-						attempts = attempts + 1,
 						target_reference = ${tokenDigest},
 						expires_at = clock_timestamp() + interval '7 days'
 					where id = ${challengeId}
@@ -841,11 +899,120 @@ export async function handleAccounts(request: Request, identity: LocalAuth) {
 				);
 			});
 			const res = privateJson(result, 201);
-			res.headers.append(
-				"set-cookie",
-				`__Host-99ribu_order=${result.order_access_token}; Path=/; HttpOnly; Secure; SameSite=Lax; Max-Age=604800`,
-			);
+			// `__Host-` requires Secure, which browsers refuse on the plain-http tailnet IP. Only a request
+			// through the validated opt-in tailnet origin gets the host-only, HttpOnly, Lax capability cookie
+			// that receipt.ts already accepts; loopback keeps the prefixed cookie.
+			if (requestOrigin(request) === readLocalConfig(process.env).origin) {
+				res.headers.append(
+					"set-cookie",
+					`__Host-99ribu_order=${result.order_access_token}; Path=/; HttpOnly; Secure; SameSite=Lax; Max-Age=604800`,
+				);
+			} else {
+				setCookie(res, `${await prefix(identity)}.guest_order_access`, result.order_access_token);
+			}
 			return res;
+		}
+
+		// 2a. Return evidence bytes: PUT the upload_url returned by evidence-uploads
+		const evidenceBytesMatch =
+			/^\/api\/v1\/orders\/([^/]+)\/returns\/([^/]+)\/evidence-uploads\/([^/]+)$/.exec(
+				url.pathname,
+			);
+		if (evidenceBytesMatch) {
+			if (request.method !== "PUT") throw new AccessError(404, "NOT_FOUND");
+			const orderId = id(evidenceBytesMatch[1]);
+			const returnId = id(evidenceBytesMatch[2]);
+			const uploadId = id(evidenceBytesMatch[3]);
+			const actor = await commerceActor(request, identity);
+			const loadGrant = async (tx: TransactionSql) => {
+				const order = await authorizeOrderOrContinuity(
+					tx,
+					request,
+					identity,
+					actor,
+					orderId,
+				);
+				const scope = actor
+					? actorScope(actor)
+					: `guest:${order.owner_guest_id ?? order.id}`;
+				const [grant] = await tx<
+					{
+						id: string;
+						uploader_scope: string;
+						content_type: string;
+						byte_size: number;
+						status: string;
+						live: boolean;
+					}[]
+				>`
+					select id, uploader_scope, content_type, byte_size, status,
+						expires_at > clock_timestamp() as live
+					from app.return_evidence
+					where id = ${uploadId} and case_id = ${returnId} and order_id = ${order.id}
+					for update
+				`;
+				if (!grant || grant.uploader_scope !== scope) {
+					throw new AccessError(404, "NOT_FOUND");
+				}
+				if (grant.status !== "pending_upload") {
+					throw new AccessError(409, "EVIDENCE_UPLOAD_CLOSED");
+				}
+				if (!grant.live) throw new AccessError(409, "EVIDENCE_UPLOAD_EXPIRED");
+				return grant;
+			};
+			const grant = await identity.sql.begin(loadGrant);
+			const declaredType = request.headers
+				.get("content-type")
+				?.split(";", 1)[0]
+				.trim()
+				.toLowerCase();
+			if (declaredType !== grant.content_type) {
+				throw new AccessError(415, "UPLOAD_TYPE_MISMATCH");
+			}
+			const bytes = await readUploadBytes(request, Number(grant.byte_size));
+			if (bytes.byteLength !== Number(grant.byte_size)) {
+				throw new AccessError(400, "UPLOAD_SIZE_MISMATCH");
+			}
+			if (sniffImageOrMp4ContentType(bytes) !== grant.content_type) {
+				throw new AccessError(415, "UPLOAD_TYPE_MISMATCH");
+			}
+			const scan = scanImagePayload(bytes);
+			if (scan === "rejected") {
+				await identity.sql`
+					update app.return_evidence set status = 'rejected'
+					where id = ${uploadId} and status = 'pending_upload'
+				`;
+				throw new AccessError(422, "EVIDENCE_REJECTED");
+			}
+			const sha256 = createHash("sha256").update(bytes).digest("hex");
+			const storageKey = await savePrivateArtifact(bytes);
+			try {
+				const stored = await identity.sql.begin(async (tx) => {
+					await loadGrant(tx);
+					const [row] = await tx<
+						{ id: string; status: string; byte_size: number; sha256: string }[]
+					>`
+						update app.return_evidence
+						set storage_key = ${storageKey}, sha256 = ${sha256},
+							status = ${scan === "ready" ? "uploaded" : "pending_scan"}
+						where id = ${uploadId}
+						returning id, status, byte_size, sha256
+					`;
+					return row;
+				});
+				return privateJson(
+					{
+						id: String(stored.id),
+						status: stored.status,
+						size_bytes: Number(stored.byte_size),
+						sha256: stored.sha256,
+					},
+					200,
+				);
+			} catch (error) {
+				await deletePrivateArtifact(storageKey).catch(() => undefined);
+				throw error;
+			}
 		}
 
 		// 2. Return evidence upload & attach routes (/api/v1/orders/[orderId]/returns/[returnId]/evidence*)
@@ -920,20 +1087,15 @@ export async function handleAccounts(request: Request, identity: LocalAuth) {
 						for share
 					`;
 					if (!retCase) throw new AccessError(404, "NOT_FOUND");
-
-					const evidenceId = randomUUID();
-					const payloadBytes = Buffer.from(
-						JSON.stringify({
-							evidence_id: evidenceId,
-							file_name: fileName,
-							media_type: mediaType,
-							size_bytes: sizeBytes,
-						}),
+					await rateLimit(
+						tx,
+						`evidence-upload:${returnId}`,
+						LIMITS.evidenceUploadPerCase,
 					);
-					const sha256 = createHash("sha256")
-						.update(payloadBytes)
-						.digest("hex");
-					const storageKey = await savePrivateArtifact(payloadBytes);
+
+					// A grant holds no bytes: storage_key/sha256 stay empty until the PUT to upload_url
+					// stores sniffed, size-checked content, and attach refuses anything not 'uploaded'.
+					const evidenceId = randomUUID();
 					const [inserted] = await tx<{ id: string; expires_at: string }[]>`
 						insert into app.return_evidence (
 							id,
@@ -954,14 +1116,14 @@ export async function handleAccounts(request: Request, identity: LocalAuth) {
 							${scope},
 							${mediaType},
 							${sizeBytes},
-							${sha256},
-							${storageKey},
+							'',
+							'',
 							'pending_upload',
 							clock_timestamp() + interval '30 minutes'
 						)
 						returning id, expires_at
 					`;
-					const origin = readLocalConfig(process.env).origin;
+					const origin = requestOrigin(request) ?? readLocalConfig(process.env).origin;
 					const response = {
 						id: String(inserted.id),
 						upload_url: `${origin}/api/v1/orders/${order.id}/returns/${returnId}/evidence-uploads/${inserted.id}`,
@@ -1027,18 +1189,26 @@ export async function handleAccounts(request: Request, identity: LocalAuth) {
 					throw new AccessError(409, "RETURN_VERSION_CONFLICT");
 				}
 				const [evidence] = await tx<
-					{ id: string; status: string; expires_at: string }[]
+					{
+						id: string;
+						status: string;
+						expires_at: string;
+						uploader_scope: string;
+						storage_key: string;
+					}[]
 				>`
-					select id, status, expires_at
+					select id, status, expires_at, uploader_scope, storage_key
 					from app.return_evidence
 					where id = ${uploadId} and case_id = ${returnId} and order_id = ${order.id}
 					for update
 				`;
-				if (!evidence) throw new AccessError(404, "NOT_FOUND");
-				if (
-					evidence.status === "expired" ||
-					new Date(evidence.expires_at).getTime() <= Date.now()
-				) {
+				if (!evidence || evidence.uploader_scope !== scope) {
+					throw new AccessError(404, "NOT_FOUND");
+				}
+				if (evidence.status !== "uploaded" || !evidence.storage_key) {
+					throw new AccessError(409, "EVIDENCE_NOT_UPLOADED");
+				}
+				if (new Date(evidence.expires_at).getTime() <= Date.now()) {
 					throw new AccessError(409, "EVIDENCE_UPLOAD_EXPIRED");
 				}
 				await tx`
@@ -1583,6 +1753,11 @@ export async function handleAccounts(request: Request, identity: LocalAuth) {
 					"buyer.contact_change.challenge",
 					{ channel, targetValue },
 				);
+				await rateLimit(
+					identity.sql,
+					`buyer-challenge-user:${principal.id}`,
+					LIMITS.buyerChallengePerUser,
+				);
 				const challenge = await identity.sql.begin(async (tx) => {
 					const prior = await checkIdempotency<{
 						challenge_id: string;
@@ -1629,7 +1804,7 @@ export async function handleAccounts(request: Request, identity: LocalAuth) {
 						challengeId,
 						"Issued buyer contact change challenge",
 						response,
-						{ challenge_id: challengeId, otp_code: code, channel, targetValue },
+						{ challenge_id: challengeId, channel, targetValue },
 					);
 				});
 				return privateJson(challenge, 201);
@@ -1667,30 +1842,29 @@ export async function handleAccounts(request: Request, identity: LocalAuth) {
 			`;
 			if (!challengeRow) throw new AccessError(404, "NOT_FOUND");
 			const expectedDigest = await challengeDigest(identity, challengeId, code);
-			if (
-				challengeRow.status === "pending" &&
-				(Number(challengeRow.attempts) >= 5 ||
-					new Date(challengeRow.expires_at).getTime() <= Date.now())
-			) {
-				await identity.sql`
-					update app.buyer_identity_challenge
-					set status = 'expired'
-					where id = ${challengeId}
-				`;
-				throw new AccessError(409, "CHALLENGE_EXPIRED");
-			}
-			if (
-				challengeRow.status === "pending" &&
-				challengeRow.code_digest !== expectedDigest
-			) {
-				await identity.sql`
-					update app.buyer_identity_challenge
-					set
-						attempts = attempts + 1,
-						status = case when attempts + 1 >= 5 then 'expired' else status end
-					where id = ${challengeId}
-				`;
-				throw new AccessError(403, "INVALID_CHALLENGE_CODE");
+			if (challengeRow.status === "pending") {
+				await rateLimit(
+					identity.sql,
+					`buyer-verify-user:${principal.id}`,
+					LIMITS.buyerVerifyPerUser,
+				);
+				const attempts = await reserveChallengeAttempt(
+					identity,
+					"buyer_identity_challenge",
+					challengeId,
+				);
+				const matches = challengeRow.code_digest === expectedDigest;
+				if (attempts === null || (!matches && attempts >= 5)) {
+					await identity.sql`
+						update app.buyer_identity_challenge
+						set status = 'expired'
+						where id = ${challengeId} and status = 'pending'
+					`;
+				}
+				if (attempts === null) {
+					throw new AccessError(409, "CHALLENGE_EXPIRED");
+				}
+				if (!matches) throw new AccessError(403, "INVALID_CHALLENGE_CODE");
 			}
 
 			const updatedProfile = await identity.sql.begin(async (tx) => {
@@ -1724,7 +1898,7 @@ export async function handleAccounts(request: Request, identity: LocalAuth) {
 				}
 				await tx`
 					update app.buyer_identity_challenge
-					set status = 'verified', verified_at = clock_timestamp(), attempts = attempts + 1
+					set status = 'verified', verified_at = clock_timestamp()
 					where id = ${challengeId}
 				`;
 				if (lockedChallenge.channel === "phone") {
@@ -1792,6 +1966,17 @@ export async function handleAccounts(request: Request, identity: LocalAuth) {
 					"buyer.guest_order_link.challenge",
 					{ orderId, contact },
 				);
+				await rateLimit(
+					identity.sql,
+					`buyer-challenge-user:${principal.id}`,
+					LIMITS.buyerChallengePerUser,
+				);
+				// Signed-in callers are bounded per user; the order budget is shared with the public path.
+				await rateLimit(
+					identity.sql,
+					`guest-access-challenge-order:${orderId}`,
+					LIMITS.guestAccessChallengePerOrder,
+				);
 				const challenge = await identity.sql.begin(async (tx) => {
 					const prior = await checkIdempotency<{
 						challenge_id: string;
@@ -1841,7 +2026,7 @@ export async function handleAccounts(request: Request, identity: LocalAuth) {
 						challengeId,
 						"Issued guest order link challenge",
 						response,
-						{ challenge_id: challengeId, otp_code: code, order_id: orderId },
+						{ challenge_id: challengeId, order_id: orderId },
 					);
 				});
 				return privateJson(challenge, 201);
@@ -1874,30 +2059,29 @@ export async function handleAccounts(request: Request, identity: LocalAuth) {
 				throw new AccessError(404, "NOT_FOUND");
 			}
 			const expectedDigest = await challengeDigest(identity, challengeId, code);
-			if (
-				challengeRow.status === "pending" &&
-				(Number(challengeRow.attempts) >= 5 ||
-					new Date(challengeRow.expires_at).getTime() <= Date.now())
-			) {
-				await identity.sql`
-					update app.buyer_identity_challenge
-					set status = 'expired'
-					where id = ${challengeId}
-				`;
-				throw new AccessError(409, "CHALLENGE_EXPIRED");
-			}
-			if (
-				challengeRow.status === "pending" &&
-				challengeRow.code_digest !== expectedDigest
-			) {
-				await identity.sql`
-					update app.buyer_identity_challenge
-					set
-						attempts = attempts + 1,
-						status = case when attempts + 1 >= 5 then 'expired' else status end
-					where id = ${challengeId}
-				`;
-				throw new AccessError(403, "INVALID_CHALLENGE_CODE");
+			if (challengeRow.status === "pending") {
+				await rateLimit(
+					identity.sql,
+					`buyer-verify-user:${principal.id}`,
+					LIMITS.buyerVerifyPerUser,
+				);
+				const attempts = await reserveChallengeAttempt(
+					identity,
+					"buyer_identity_challenge",
+					challengeId,
+				);
+				const matches = challengeRow.code_digest === expectedDigest;
+				if (attempts === null || (!matches && attempts >= 5)) {
+					await identity.sql`
+						update app.buyer_identity_challenge
+						set status = 'expired'
+						where id = ${challengeId} and status = 'pending'
+					`;
+				}
+				if (attempts === null) {
+					throw new AccessError(409, "CHALLENGE_EXPIRED");
+				}
+				if (!matches) throw new AccessError(403, "INVALID_CHALLENGE_CODE");
 			}
 
 			const ack = await identity.sql.begin(async (tx) => {
@@ -1921,7 +2105,7 @@ export async function handleAccounts(request: Request, identity: LocalAuth) {
 				}
 				const [verified] = await tx<{ verified_at: string }[]>`
 					update app.buyer_identity_challenge
-					set status = 'verified', verified_at = clock_timestamp(), attempts = attempts + 1
+					set status = 'verified', verified_at = clock_timestamp()
 					where id = ${challengeId}
 					returning verified_at
 				`;

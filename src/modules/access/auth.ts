@@ -16,7 +16,7 @@ export function createLocalAuth(target: "local" | "test") {
   const config = readLocalConfig(process.env);
   const connection = connectDatabase(target);
   async function deliver(recipient: string, kind: "verification" | "password_reset" | "existing_account", url: string) {
-    if (!isSyntheticEmail(recipient) || new URL(url).origin !== config.origin) {
+    if (!isSyntheticEmail(recipient) || !config.trustedOrigins.includes(new URL(url).origin)) {
       throw new Error("Local delivery requires a synthetic recipient and canonical origin.");
     }
     await connection.sql.begin(async (tx) => {
@@ -26,8 +26,14 @@ export function createLocalAuth(target: "local" | "test") {
     });
   }
   const auth = betterAuth({
-    appName: "99ribu", baseURL: config.origin, basePath: "/api/auth",
-    secret: localSigningKey(target), trustedOrigins: [config.origin],
+    appName: "99ribu", basePath: "/api/auth",
+    // Default: one static loopback origin. With the opt-in tailnet origin, links and redirects follow the
+    // request's Host, which handleAuth has already pinned to exactly these two hosts (no other host, no
+    // forwarded headers: trustedProxyHeaders stays false); anything else falls back to loopback.
+    baseURL: config.tailnetOrigin
+      ? { allowedHosts: config.trustedOrigins.map((origin) => new URL(origin).host), protocol: "http", fallback: config.origin }
+      : config.origin,
+    secret: localSigningKey(target), trustedOrigins: [...config.trustedOrigins],
     database: drizzleAdapter(connection.db, { provider: "pg", schema, transaction: true }),
     plugins: [twoFactor({ issuer: "99ribu", skipVerificationOnEnable: false, allowPasswordless: false, twoFactorCookieMaxAge: 300 })],
     hooks: {
@@ -50,7 +56,7 @@ export function createLocalAuth(target: "local" | "test") {
       minPasswordLength: 12, maxPasswordLength: 128, resetPasswordTokenExpiresIn: 1800,
       revokeSessionsOnPasswordReset: true,
       sendResetPassword: ({ user, url }) => deliver(user.email, "password_reset", url),
-      onExistingUserSignUp: ({ user }) => deliver(user.email, "existing_account", `${config.origin}/login`),
+      onExistingUserSignUp: ({ user }) => deliver(user.email, "existing_account", `${config.origin}/masuk`),
     },
     emailVerification: {
       sendOnSignUp: true, sendOnSignIn: false, autoSignInAfterVerification: false, expiresIn: 1800,
@@ -60,18 +66,22 @@ export function createLocalAuth(target: "local" | "test") {
     account: { accountLinking: { enabled: false } },
     verification: { storeIdentifier: "hashed" },
     rateLimit: {
-      enabled: true, storage: "database", window: 60, max: 100,
+      // Loopback collapses every caller into one IP bucket, so these are global ceilings only.
+      // Per-account budgets (handler.ts) carry the brute-force limits.
+      enabled: true, storage: "database", window: 60, max: 300,
       customRules: {
-        "/sign-in/email": { window: 60, max: 5 }, "/sign-up/email": { window: 60, max: 3 },
-        "/request-password-reset": { window: 60, max: 3 }, "/reset-password": { window: 60, max: 3 },
-        "/send-verification-email": { window: 60, max: 3 },
-        "/two-factor/enable": { window: 60, max: 3 },
-        "/two-factor/verify-totp": { window: 60, max: 5 },
-        "/two-factor/verify-backup-code": { window: 60, max: 5 },
+        "/sign-in/email": { window: 60, max: 300 }, "/sign-up/email": { window: 60, max: 100 },
+        "/request-password-reset": { window: 60, max: 100 }, "/reset-password": { window: 60, max: 100 },
+        "/send-verification-email": { window: 60, max: 100 },
+        "/two-factor/enable": { window: 60, max: 60 },
+        "/two-factor/verify-totp": { window: 60, max: 300 },
+        "/two-factor/verify-backup-code": { window: 60, max: 300 },
       },
     },
     advanced: {
       // HTTP is intentionally confined to this validated loopback profile, including NODE_ENV=production.
+      // Both served origins are plain http (browsers drop Secure cookies on the non-loopback tailnet IP),
+      // so session cookies stay non-Secure, host-only, HttpOnly and SameSite=Lax for either origin.
       useSecureCookies: false, cookiePrefix: `99ribu-${target}`, trustedProxyHeaders: false,
       defaultCookieAttributes: { httpOnly: true, sameSite: "lax", path: "/" },
       ipAddress: { ipAddressHeaders: ["x-99ribu-local-ip"] },
