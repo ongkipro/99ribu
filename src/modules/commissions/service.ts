@@ -5,9 +5,80 @@ import { AccessError, getPrincipal, type Principal } from "../access/policy.ts";
 import { attributeOrderToAffiliate } from "../affiliates/profile.ts";
 import { offerCommissionIdr } from "../affiliates/rates.ts";
 import { invalid, pageInput } from "../catalog/validation.ts";
+import {
+	appendFinanceTransaction,
+	financeEnvironment,
+	reverseFinanceTransaction,
+} from "../finance/ledger.ts";
 import { resolvePolicy } from "../settings/policies.ts";
 
 const TEN_DAYS_MS = 10 * 86400 * 1000;
+const COMMISSION_SOURCE = "affiliate.commission";
+
+async function recognitionFor(tx: TransactionSql, entryId: string) {
+	const environment = await financeEnvironment(tx);
+	const [row] = await tx<{ id: string; occurred_at: string; reversed: boolean }[]>`
+    select t.id, t.occurred_at,
+      exists(select 1 from app.finance_transaction r where r.reverses_id = t.id) as reversed
+    from app.finance_transaction t
+    where t.source = ${COMMISSION_SOURCE} and t.environment = ${environment}
+      and t.effect_reference = ${`commission:${entryId}`}
+  `;
+	return { environment, recognition: row };
+}
+
+// Accounting: a matured (eligible) unit commission becomes a company obligation
+// to the affiliate. One recognition per entry; later holds keep it, a void
+// reverses it, and payout settles affiliate_payable against company_cash.
+async function recognizeCommission(
+	tx: TransactionSql,
+	entry: CommissionEntryRow,
+	occurredAt: string,
+) {
+	const amount = Number(entry.amount_idr);
+	if (amount <= 0) return null;
+	const { environment, recognition } = await recognitionFor(tx, entry.id);
+	if (recognition) return recognition.id;
+	const journal = await appendFinanceTransaction(tx, {
+		kind: "adjustment",
+		source: COMMISSION_SOURCE,
+		environment,
+		effect_reference: `commission:${entry.id}`,
+		order_id: entry.order_id,
+		reverses_id: null,
+		reason: "Matured affiliate unit commission recognized as payable",
+		occurred_at: occurredAt,
+		postings: [
+			{ account: "commission_expense", side: "debit", amount },
+			{ account: "affiliate_payable", side: "credit", amount },
+		],
+	});
+	return journal.id;
+}
+
+async function reverseCommissionRecognition(
+	tx: TransactionSql,
+	entryId: string,
+	reason: string,
+	occurredAt: string | undefined,
+) {
+	const { environment, recognition } = await recognitionFor(tx, entryId);
+	if (!recognition || recognition.reversed) return null;
+	const [clock] = await tx<{ now: string }[]>`
+    select greatest(
+      coalesce(${occurredAt ?? null}::timestamptz, date_trunc('milliseconds', clock_timestamp())),
+      ${recognition.occurred_at}::timestamptz
+    )::text as now
+  `;
+	const reversal = await reverseFinanceTransaction(tx, recognition.id, {
+		source: COMMISSION_SOURCE,
+		environment,
+		effect_reference: `commission-void:${entryId}`,
+		reason: reason.slice(0, 500),
+		occurred_at: new Date(clock.now).toISOString(),
+	});
+	return reversal.id;
+}
 
 export type CommissionStatus =
 	| "pending"
@@ -89,13 +160,6 @@ export async function accrueOrderCommissions(
 	const created: CommissionEntryRow[] = [];
 
 	for (const unit of units) {
-		const [existing] = await tx<CommissionEntryRow[]>`
-      select * from app.commission_entry where fulfillment_item_id = ${unit.fulfillment_item_id}
-    `;
-		if (existing) {
-			created.push(existing);
-			continue;
-		}
 		const [entry] = await tx<CommissionEntryRow[]>`
       insert into app.commission_entry (
         order_id,
@@ -117,8 +181,15 @@ export async function accrueOrderCommissions(
         ${amountIdr},
         'pending',
         1
-      ) returning *
+      ) on conflict (fulfillment_item_id) do nothing returning *
     `;
+		if (!entry) {
+			const [existing] = await tx<CommissionEntryRow[]>`
+      select * from app.commission_entry where fulfillment_item_id = ${unit.fulfillment_item_id}
+    `;
+			created.push(existing);
+			continue;
+		}
 		await tx`
       insert into app.commission_adjustment (
         commission_entry_id,
@@ -316,6 +387,60 @@ export async function voidUnitCommissionOnRefund(
       coalesce(${input.occurredAt ?? null}::timestamptz, clock_timestamp())
     )
   `;
+	await reverseCommissionRecognition(tx, entry.id, reason, input.occurredAt);
+	return updated;
+}
+
+export async function releaseUnitCommissionHold(
+	tx: TransactionSql,
+	input: {
+		fulfillmentItemId: string;
+		sourceId?: string;
+		reason?: string;
+		occurredAt?: string;
+	},
+) {
+	const [entry] = await tx<CommissionEntryRow[]>`
+    select * from app.commission_entry
+    where fulfillment_item_id = ${input.fulfillmentItemId}
+    for update
+  `;
+	if (!entry) throw new AccessError(404, "COMMISSION_ENTRY_NOT_FOUND");
+	if (entry.status !== "held") return entry;
+	const nextRevision = entry.revision + 1;
+	const [updated] = await tx<CommissionEntryRow[]>`
+    update app.commission_entry
+    set
+      status = 'pending',
+      hold_reason = null,
+      revision = ${nextRevision},
+      updated_at = clock_timestamp()
+    where id = ${entry.id}
+    returning *
+  `;
+	await tx`
+    insert into app.commission_adjustment (
+      commission_entry_id,
+      revision,
+      kind,
+      delta_idr,
+      status_after,
+      source_kind,
+      source_id,
+      reason,
+      occurred_at
+    ) values (
+      ${entry.id},
+      ${nextRevision},
+      'released',
+      0,
+      'pending',
+      'return_claim',
+      ${input.sourceId ?? input.fulfillmentItemId},
+      ${input.reason ?? "Return claim closed without refund; maturity resumes"},
+      coalesce(${input.occurredAt ?? null}::timestamptz, clock_timestamp())
+    )
+  `;
 	return updated;
 }
 
@@ -387,6 +512,7 @@ export async function matureEligibleCommissions(
 	tx: TransactionSql,
 	input?: {
 		affiliateId?: string;
+		entryId?: string;
 		asOf?: string;
 	},
 ) {
@@ -395,10 +521,11 @@ export async function matureEligibleCommissions(
   `;
 	const asOfIso = new Date(clock.now).toISOString();
 
-	const candidates = input?.affiliateId
+	const candidates = input?.affiliateId || input?.entryId
 		? await tx<CommissionEntryRow[]>`
         select * from app.commission_entry
-        where affiliate_id = ${input.affiliateId}
+        where (${input.affiliateId ?? null}::uuid is null or affiliate_id = ${input.affiliateId ?? null}::uuid)
+          and (${input.entryId ?? null}::uuid is null or id = ${input.entryId ?? null}::uuid)
           and status = 'pending'
           and hold_reason is null
           and receipt_anchor is not null
@@ -453,6 +580,7 @@ export async function matureEligibleCommissions(
         ${asOfIso}::timestamptz
       )
     `;
+		await recognizeCommission(tx, updated, asOfIso);
 		matured.push(updated);
 	}
 	return matured;

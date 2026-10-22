@@ -9,6 +9,7 @@ import {readCodEvent,verifyCodEvent} from './cod-local.ts';
 import {initializeFulfillments} from '../fulfillment/core.ts';
 import {openCollectionException} from '../checkout/exceptions/collection-cases.ts';
 import {codCollectionBasis} from '../finance/receipt-units.ts';
+import {enqueueCommissionAccrual} from '../commissions/jobs.ts';
 
 export async function confirmCodOrder(tx:TransactionSql,orderId:string){
  const order=await lockPaymentOrder(tx,id(orderId));if(order.payment_method!=='cod')throw new AccessError(409,'COD_NOT_APPLICABLE');
@@ -16,7 +17,7 @@ export async function confirmCodOrder(tx:TransactionSql,orderId:string){
  if(order.status!=='pending'||order.payment_status!=='pending'||order.revision!==1)throw new AccessError(409,'COD_CONFIRMATION_NOT_CURRENT');
  const [confirmation]=await tx`insert into app.cod_confirmation (order_id,operation_id,accepted_at) values (${order.id},${order.operation_id},${new Date(order.created_at).toISOString()}) returning *`;
  await tx`insert into app.order_event (order_id,revision,status,payment_status,reason,source_id,created_at) values (${order.id},2,'pending','cod_due','Server accepted the complete COD checkout',${confirmation.id},${confirmation.accepted_at})`;
- await tx`update app.commerce_order set revision=2,payment_status='cod_due',actionable_at=${confirmation.accepted_at} where id=${order.id}`;await initializeFulfillments(tx,order.id);return confirmation;
+ await tx`update app.commerce_order set revision=2,payment_status='cod_due',actionable_at=${confirmation.accepted_at} where id=${order.id}`;await initializeFulfillments(tx,order.id);await enqueueCommissionAccrual(tx,order.id);return confirmation;
 }
 
 // Own caller transaction: source registration, original money, state/Purchase

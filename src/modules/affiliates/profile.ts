@@ -17,6 +17,8 @@ import {
 	prefix,
 } from "../checkout/access.ts";
 import { readEffectiveAffiliateRate } from "./rates.ts";
+import { enqueueAffiliatePayoutQueue } from "../commissions/jobs.ts";
+import { LIMITS, rateLimit } from "../access/rate-limit.ts";
 
 const digest = (value: string) =>
 	createHash("sha256").update(value).digest("hex");
@@ -473,6 +475,12 @@ export async function changeAffiliateBeneficiary(
         updated_at = clock_timestamp()
       where affiliate_id = ${profile.affiliate_id}
     `;
+		// Eligible balance that waited for a verified destination is queued now.
+		await enqueueAffiliatePayoutQueue(
+			tx,
+			profile.affiliate_id,
+			`beneficiary-${nextBeneficiaryRevision}`,
+		);
 
 		const response = {
 			id: change.id,
@@ -586,6 +594,12 @@ export async function recordReferralTouch(
 			: resolved.buyerUserId;
 	const guestId =
 		options?.guestId !== undefined ? options.guestId : resolved.guestId;
+
+	await rateLimit(
+		identity.sql,
+		`referral-touch:${visitorId}`,
+		LIMITS.referralTouchPerVisitor,
+	);
 
 	return identity.sql.begin(async (tx) => {
 		const [previous] = await tx<

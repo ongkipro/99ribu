@@ -16,6 +16,7 @@ import {
 import { createCart } from "../../src/modules/checkout/carts.ts";
 import { submitOrder } from "../../src/modules/checkout/orders.ts";
 import { createQuote } from "../../src/modules/checkout/quotes.ts";
+import { LIMITS } from "../../src/modules/access/rate-limit.ts";
 import { actor } from "../contract/access-fixture.ts";
 import { CommerceClient } from "./checkout-fixture.ts";
 import { closeFulfillmentActor } from "./fulfillment-fixture.ts";
@@ -331,5 +332,50 @@ test("PR-8: affiliate enrollment, beneficiary verification, sticky first-touch r
 		} finally {
 			await f.close();
 		}
+	}
+});
+
+test("S63 referral touches are rate-limited per visitor across requests", async () => {
+	const f = await shippingFixture();
+	const identity = f.identity;
+	const visitorId = randomUUID();
+	const key = `rl:referral-touch:${visitorId}`;
+	try {
+		const [limit] = LIMITS.referralTouchPerVisitor;
+		for (let i = 0; i < limit; i++) {
+			const req = new Request("http://127.0.0.1:3099/api/v1/referral-touches", {
+				method: "POST",
+				headers: {
+					origin: "http://127.0.0.1:3099",
+					"content-type": "application/json",
+					"idempotency-key": randomUUID(),
+					"x-visitor-id": visitorId,
+				},
+				body: JSON.stringify({ referral_code: "NONEXISTENT-CODE" }),
+			});
+			const res = await handleAffiliateProfile(req, identity);
+			assert.notEqual(res.status, 429);
+			await res.body?.cancel();
+		}
+		const overReq = new Request("http://127.0.0.1:3099/api/v1/referral-touches", {
+			method: "POST",
+			headers: {
+				origin: "http://127.0.0.1:3099",
+				"content-type": "application/json",
+				"idempotency-key": randomUUID(),
+				"x-visitor-id": visitorId,
+			},
+			body: JSON.stringify({ referral_code: "NONEXISTENT-CODE" }),
+		});
+		const overRes = await handleAffiliateProfile(overReq, identity);
+		assert.equal(overRes.status, 429);
+		const retryAfter = Number(overRes.headers.get("retry-after"));
+		assert.ok(Number.isInteger(retryAfter) && retryAfter >= 1);
+		assert.equal(overRes.headers.get("content-type"), "application/problem+json");
+		const body = await overRes.json();
+		assert.equal(body.code, "RATE_LIMITED");
+	} finally {
+		await identity.sql`delete from app.auth_rate_limit where key = ${key}`;
+		await f.close();
 	}
 });

@@ -22,7 +22,7 @@ import { CommerceClient } from "./checkout-fixture.ts";
 import { closeFulfillmentActor } from "./fulfillment-fixture.ts";
 import { shippingFixture } from "./shipping-fixture.ts";
 
-test("PR-10: IDR 98,999 vs 99,000 threshold, frozen beneficiary snapshot, exclusive finance claim, balanced ledger verification, and unknown transfer reservation", async () => {
+test("PR-10: IDR 89,100 vs 99,000 threshold, frozen beneficiary snapshot, exclusive finance claim, balanced ledger verification, and unknown transfer reservation", async () => {
 	const f = await shippingFixture();
 	const affiliate = await actor(f.identity, "affiliate", []);
 	const finance1 = await actor(f.identity, "finance", []);
@@ -141,7 +141,7 @@ test("PR-10: IDR 98,999 vs 99,000 threshold, frozen beneficiary snapshot, exclus
     `;
 		assert.equal(units.length, 3);
 
-		// 2. Insert first eligible commission of IDR 98,999 -> must NOT queue!
+		// 2. Insert first eligible commission of IDR 89,100 -> must NOT queue!
 		const [_c1] = await sql<{ id: string }[]>`
       insert into app.commission_entry (
         order_id, order_item_id, fulfillment_item_id, affiliate_id,
@@ -149,7 +149,7 @@ test("PR-10: IDR 98,999 vs 99,000 threshold, frozen beneficiary snapshot, exclus
         receipt_anchor, available_at, revision
       ) values (
         ${submitted.order.id}, ${units[0].order_item_id}, ${units[0].fulfillment_item_id}, ${profile.id},
-        9999, 99000, 98999, 'eligible',
+        9000, 99000, 89100, 'eligible',
         '2026-06-01T00:00:00.000Z'::timestamptz, '2026-06-11T00:00:00.000Z'::timestamptz, 2
       ) returning id
     `;
@@ -160,10 +160,10 @@ test("PR-10: IDR 98,999 vs 99,000 threshold, frozen beneficiary snapshot, exclus
 		assert.equal(
 			belowThreshold.length,
 			0,
-			"IDR 98,999 is below IDR 99,000 threshold",
+			"IDR 89,100 is below IDR 99,000 threshold",
 		);
 
-		// 3. Insert second eligible commission of IDR 1 -> total is now exact IDR 99,000 -> queues automatically!
+		// 3. Insert second eligible commission of IDR 9,900 -> total is now exact IDR 99,000 -> queues automatically!
 		const [_c2] = await sql<{ id: string }[]>`
       insert into app.commission_entry (
         order_id, order_item_id, fulfillment_item_id, affiliate_id,
@@ -171,7 +171,7 @@ test("PR-10: IDR 98,999 vs 99,000 threshold, frozen beneficiary snapshot, exclus
         receipt_anchor, available_at, revision
       ) values (
         ${submitted.order.id}, ${units[1].order_item_id}, ${units[1].fulfillment_item_id}, ${profile.id},
-        1, 99000, 1, 'eligible',
+        1000, 99000, 9900, 'eligible',
         '2026-06-01T00:00:00.000Z'::timestamptz, '2026-06-11T00:00:00.000Z'::timestamptz, 2
       ) returning id
     `;
@@ -296,6 +296,48 @@ test("PR-10: IDR 98,999 vs 99,000 threshold, frozen beneficiary snapshot, exclus
 		badVerifyReq.headers.set("idempotency-key", randomUUID());
 		assert.equal((await handlePayouts(badVerifyReq, identity)).status, 422);
 
+		// Verification refused when evidence slot was created but bytes were never uploaded
+		const unuploadedVerifyReq = finance1.browser.request(
+			`/api/v1/admin/payouts/${payout1.id}/manual-transfer-verifications`,
+			{
+				expected_version: 2,
+				transfer_claim_id: claimed1.payout.transfer_claim_id,
+				bank_transfer_reference: `BCA-REF-${randomUUID()}`,
+				evidence_id: uploaded.id,
+				transferred_at: "2026-06-12T09:30:00.000Z",
+				reason: "Verifikasi bukti transfer manual BCA Rp99.000",
+				reauthentication_proof: `fin1-verify-${randomUUID()}`,
+			},
+		);
+		unuploadedVerifyReq.headers.set("idempotency-key", randomUUID());
+		const unuploadedRes = await handlePayouts(unuploadedVerifyReq, identity);
+		assert.equal(unuploadedRes.status, 422);
+		assert.equal((await unuploadedRes.json()).code, "PAYOUT_EVIDENCE_NOT_UPLOADED");
+
+		// Upload real PNG bytes to the evidence upload URL
+		const pngMagic = Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]);
+		const pngBytes = Buffer.concat([pngMagic, Buffer.alloc(24500 - pngMagic.length, 0x42)]);
+		const expectedSha256 = (await import("node:crypto")).createHash("sha256").update(pngBytes).digest("hex");
+
+		const putEvidenceReq = new Request(uploaded.upload_url, {
+			method: "PUT",
+			headers: {
+				origin: "http://127.0.0.1:3099",
+				"content-type": "image/png",
+				"x-payout-id": payout1.id,
+				cookie: [...finance1.browser.cookies]
+					.map(([name, value]) => `${name}=${value}`)
+					.join("; "),
+			},
+			body: pngBytes.slice(),
+		});
+		const putRes = await handlePayouts(putEvidenceReq, identity);
+		assert.equal(putRes.status, 200);
+		const putPayload = await putRes.json();
+		assert.equal(putPayload.id, uploaded.id);
+		assert.equal(putPayload.sha256, expectedSha256);
+		assert.equal(putPayload.size_bytes, 24500);
+
 		// Valid verification succeeds, posts balanced ledger journal, and marks commissions paid
 		const validVerifyReq = finance1.browser.request(
 			`/api/v1/admin/payouts/${payout1.id}/manual-transfer-verifications`,
@@ -332,6 +374,8 @@ test("PR-10: IDR 98,999 vs 99,000 threshold, frozen beneficiary snapshot, exclus
 		assert.equal(postings.length, 2);
 		assert.equal(Number(postings[0].amount), 99000);
 		assert.equal(Number(postings[1].amount), 99000);
+		assert.equal(postings.find(p => p.side === 'debit')?.account, 'affiliate_payable');
+		assert.equal(postings.find(p => p.side === 'credit')?.account, 'company_cash');
 
 		// Commission balance reflects paid = 99000 and allocated = 0
 		const balAfterPaid = await (

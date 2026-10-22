@@ -9,6 +9,7 @@ import {readProviderEvents,verifyProviderEvent} from './local.ts';
 import {recordPurchase} from '../advertising/events.ts';
 import {initializeFulfillments} from '../fulfillment/core.ts';
 import {openCollectionException} from '../checkout/exceptions/collection-cases.ts';
+import {enqueueCommissionAccrual} from '../commissions/jobs.ts';
 
 // The worker owns the surrounding transaction and completes only this callback
 // before checking deferred constraints. Any error rolls back money and funding.
@@ -61,6 +62,7 @@ export async function processPaymentEvent(tx:TransactionSql,job:{id:string;paylo
    await tx`insert into app.order_event (order_id,revision,status,payment_status,reason,source_id,created_at) values (${order.id},${order.revision+1},'pending','confirmed','Verified prepaid collection',${event.id},${event.occurred_at})`;
    await tx`update app.commerce_order set revision=revision+1,payment_status='confirmed',actionable_at=${event.occurred_at} where id=${order.id}`;
    await initializeFulfillments(tx,order.id);
+   await enqueueCommissionAccrual(tx,order.id);
    // Source may precede the additive signal migration during local upgrade.
    // Once installed, its funded-result seal forbids a receipt-only commit.
    const [signals]=await tx`select to_regclass('app.commerce_event') is not null installed`;

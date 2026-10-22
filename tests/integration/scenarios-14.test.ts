@@ -541,9 +541,9 @@ test("S62.3b: canonical last-component race, publication gate, and waybill repri
 		) => {
 			const req = owner.browser.request(`/api/v1/admin${path}`, body);
 			req.headers.set("idempotency-key", randomUUID());
-			const res = await (
-				domain === "catalog" ? handleCatalog : handleInventory
-			)(req, identity);
+			const res = await (domain === "catalog"
+				? handleCatalog
+				: handleInventory)(req, identity);
 			assert.equal(res.status, 201);
 			return res.json();
 		};
@@ -582,7 +582,9 @@ test("S62.3b: canonical last-component race, publication gate, and waybill repri
 						sku: `U-${randomUUID().slice(0, 8)}`.toUpperCase(),
 						label: "Unit Offer",
 						offer_kind: "unit",
-						contents: [{ stock_item_id: stockA.id, name: stockA.name, quantity: 1 }],
+						contents: [
+							{ stock_item_id: stockA.id, name: stockA.name, quantity: 1 },
+						],
 					},
 					{
 						...base,
@@ -814,7 +816,8 @@ test("S62.3b: canonical last-component race, publication gate, and waybill repri
 					privacy_mode: "masked_phone",
 					brand_mode: "neutral_partner",
 					partner_brand_name: "Mitra Logistik 99ribu",
-					disclosure_text: "TEST-NOT-FOR-SHIPPING - Hanya untuk pengujian lokal",
+					disclosure_text:
+						"TEST-NOT-FOR-SHIPPING - Hanya untuk pengujian lokal",
 				},
 			);
 			assert.equal(tplRes.status, 201);
@@ -878,7 +881,10 @@ test("S62.3b: canonical last-component race, publication gate, and waybill repri
 			);
 			assert.equal(meta1.payload.status, "expired");
 			assert.equal(meta2.payload.status, "valid");
-			assert.equal(meta2.payload.tracking_number, meta1.payload.tracking_number);
+			assert.equal(
+				meta2.payload.tracking_number,
+				meta1.payload.tracking_number,
+			);
 
 			const pdf2 = await callOwnerLabel(
 				`/api/v1/admin/label-artifacts/${artifact2Id}/content`,
@@ -908,7 +914,8 @@ test("S62.3b: canonical last-component race, publication gate, and waybill repri
 				ownerSlice: "S55",
 				expiredArtifactStatus: meta1.payload.status,
 				refreshedArtifactStatus: meta2.payload.status,
-				sameAwb: meta2.payload.tracking_number === meta1.payload.tracking_number,
+				sameAwb:
+					meta2.payload.tracking_number === meta1.payload.tracking_number,
 				bookingCount: bookingCountA.n,
 			};
 		} finally {
@@ -943,7 +950,9 @@ test("S62.3c: canonical ads consent/timeout, support escalation, and shared-devi
 			`;
 			assert.equal(suppressedRows.length, 3);
 			assert.ok(
-				suppressedRows.every((r) => r.status === "suppressed" && r.job_id === null),
+				suppressedRows.every(
+					(r) => r.status === "suppressed" && r.job_id === null,
+				),
 			);
 
 			observedScenarios["ads-consent-denied"] = {
@@ -976,16 +985,25 @@ test("S62.3c: canonical ads consent/timeout, support escalation, and shared-devi
 				where id = ${googleOutbox.job_id}
 			`;
 
-			const googleDiagRes = await handleAdvertisingDiagnostics(
-				f.owner.browser.request("/api/v1/admin/advertising/destinations/google"),
+			await handleAdvertisingDiagnostics(
+				f.owner.browser.request("/api/v1/admin/advertising/destinations"),
 				f.identity,
-				"google",
+			);
+			const [googleDestination] = await f.identity.sql<{ id: string }[]>`
+				select id from app.ad_destination_config where platform = 'google'
+			`;
+			const googleDiagRes = await handleAdvertisingDiagnostics(
+				f.owner.browser.request(
+					`/api/v1/admin/advertising/destinations/${googleDestination.id}/diagnostics`,
+				),
+				f.identity,
+				googleDestination.id,
 			);
 			const googleDiag = await googleDiagRes.json();
 
 			const replayRes = await handleAdvertisingDiagnostics(
 				f.owner.browser.request(
-					"/api/v1/admin/advertising/destinations/google/replays",
+					`/api/v1/admin/advertising/destinations/${googleDestination.id}/replays`,
 					{
 						expected_version: googleDiag.version,
 						event_id: consentedEvent.id,
@@ -993,7 +1011,7 @@ test("S62.3c: canonical ads consent/timeout, support escalation, and shared-devi
 					},
 				),
 				f.identity,
-				"google",
+				googleDestination.id,
 			);
 			assert.equal(replayRes.status, 202);
 			const replayPayload = await replayRes.json();
@@ -1004,7 +1022,10 @@ test("S62.3c: canonical ads consent/timeout, support escalation, and shared-devi
 			);
 
 			const [sinkRow] = await f.identity.sql<
-				{ event_id: string; payload: { event_id: string; occurred_at: string } }[]
+				{
+					event_id: string;
+					payload: { event_id: string; occurred_at: string };
+				}[]
 			>`
 				select event_id, payload from app.local_ad_sink
 				where outbox_id = ${googleOutbox.id} and platform = 'google'

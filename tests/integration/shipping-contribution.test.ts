@@ -9,8 +9,17 @@ import {checkShippingBenefit} from '../../src/modules/shipping/contribution.ts';
 import type {ShippingPlan} from '../../src/modules/shipping/quotes.ts';
 import {shippingFixture,denied} from './shipping-fixture.ts';
 async function promotion(f:Awaited<ReturnType<typeof shippingFixture>>,serviceIds:string[]=[]){
- const request=f.owner.browser.request('/api/v1/admin/shipping-promotions',{expected_version:0,name:'Synthetic actual subsidy',active:true,starts_at:new Date(Date.now()-60000).toISOString(),ends_at:new Date(Date.now()+3600000).toISOString(),kind:'fixed',value:8000,maximum_per_order:8000,minimum_merchandise:99000,budget:100000,per_buyer_limit:10,payment_methods:['prepaid','cod'],region_ids:[],service_ids:serviceIds,stacking:'exclusive',priority:10,reason:'Synthetic financial quote boundary'});request.headers.set('idempotency-key',randomUUID());
+ const config={expected_version:0,name:'Synthetic actual subsidy',active:true,starts_at:new Date(Date.now()-60000).toISOString(),ends_at:new Date(Date.now()+3600000).toISOString(),kind:'fixed',value:8000,maximum_per_order:8000,minimum_merchandise:99000,budget:100000,per_buyer_limit:10,payment_methods:['prepaid','cod'],region_ids:[],service_ids:serviceIds,stacking:'exclusive',priority:10,reason:'Synthetic financial quote boundary'};
+ const request=f.owner.browser.request('/api/v1/admin/shipping-promotions',config);request.headers.set('idempotency-key',randomUUID());
  const response=await handlePromotions(request,f.identity);assert.equal(response.status,201);const saved=await response.json();
+ const prevClose=f.close;
+ f.close=async()=>{
+  try{
+   const deactivate=f.owner.browser.request(`/api/v1/admin/shipping-promotions/${saved.id}/versions`,{...config,expected_version:1,active:false,reason:'SYNTHETIC fixture teardown; retain budget, commitments and history'});
+   deactivate.headers.set('idempotency-key',randomUUID());
+   await handlePromotions(deactivate,f.identity);
+  }finally{await prevClose();}
+ };
  const [rule]=await f.identity.sql<Rule[]>`select * from app.promotion_version where id=${saved.version_id}`;return rule;
 }
 function benefits(plan:ShippingPlan,rule:Rule){

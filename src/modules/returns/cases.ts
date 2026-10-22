@@ -12,6 +12,7 @@ import {lockPaymentOrder} from '../payments/attempts.ts';
 import {assertReturnReview,returnAuthority} from './authority.ts';
 import {assertReturnWindow,returnEntitlement,returnRequest,returnText} from './policy.ts';
 import {readReturnOccurrences,verifyOccurrenceReceipt} from './occurrences.ts';
+import {enqueueCommissionClaim} from '../commissions/jobs.ts';
 
 export type ReturnHead={id:string;order_id:string;operation_id:string;revision:number;status:string;requested_resolution:'refund'|'replacement';resolution:'refund'|'replacement'|null;requires_goods:boolean|null;created_at:string};
 export type ReturnUnit={id:string;case_id:string;fulfillment_item_id:string;replacement_link_id:string|null;order_item_id:string;shipment_id:string;warehouse_id:string;reason:string;details:string;claim_state:string;inspection_status:string;merchandise_amount:string;buyer_shipping:string;deadline_at:string};
@@ -47,6 +48,7 @@ async function appendReturnEvent(tx:TransactionSql,head:ReturnHead,revision:numb
   const [stored]=await tx`update app.return_item set claim_state=${state.claim_state},inspection_status=${state.inspection_status} where id=${state.id} and case_id=${head.id} returning id`;
   if(!stored)throw new AccessError(404,'NOT_FOUND');
   await tx`insert into app.return_item_event (case_id,event_id,return_item_id,claim_state,inspection_status) values (${head.id},${eventId},${state.id},${state.claim_state},${state.inspection_status})`;
+  await enqueueCommissionClaim(tx,head.order_id,state.id,state.claim_state);
  }
  return eventId;
 }

@@ -6,6 +6,7 @@ import {lockPaymentOrder} from '../payments/attempts.ts';
 import {returnDeadline} from './policy.ts';
 import {readParcelReceiptSource,verifyParcelReceiptSource} from './receipt-source.ts';
 import {readReturnOccurrences} from './occurrences.ts';
+import {enqueueCommissionReceipt} from '../commissions/jobs.ts';
 
 export async function processParcelReceipt(tx:TransactionSql,job:{id:string;payload:unknown}){
  const input=object(job.payload,['eventId']),eventId=id(input.eventId);
@@ -42,6 +43,7 @@ export async function processParcelReceipt(tx:TransactionSql,job:{id:string;payl
  for(const unit of units){
   const [existing]=await tx`select id from app.buyer_receipt where fulfillment_item_id=${unit.id}`;if(existing)continue;
   await tx`insert into app.buyer_receipt (fulfillment_item_id,source_id,received_at) values (${unit.id},${event.id},${event.occurred_at})`;count++;
+  await enqueueCommissionReceipt(tx,order.id,unit.id);
  }
  const outcome=count?'received':'duplicate',reason=count?'Original signed parcel evidence confirms actual buyer receipt':'Original per-unit receipt remains unchanged';
  await tx`insert into app.parcel_receipt_result (event_id,outcome,reason,receipt_count) values (${event.id},${outcome},${reason},${count})`;
