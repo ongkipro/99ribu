@@ -132,7 +132,9 @@ export async function featuredProducts(identity:LocalAuth,limit=8){
 }
 // Category tile photo: first image of the department's newest current publication, read through the
 // same guarded public reader (deterministic for a given catalog); null keeps the labelled placeholder.
-export async function departmentPhoto(identity:LocalAuth,categoryId:string){
- const [product]=(await listProducts(identity,catalogQuery(new URLSearchParams({category_id:categoryId,sort:'newest',limit:'1'})))).data;
- return product?.images[0]??null;
+// `exclude` skips products already shown nearby (the home shelf) so a tile does not repeat a card photo.
+export async function departmentPhoto(identity:LocalAuth,categoryId:string,exclude:readonly string[]=[]){
+ const limit=String(Math.min(40,exclude.length+1));
+ const products=(await listProducts(identity,catalogQuery(new URLSearchParams({category_id:categoryId,sort:'newest',limit})))).data;
+ return (products.find(p=>!exclude.includes(p.id))??products[0])?.images[0]??null;
 }

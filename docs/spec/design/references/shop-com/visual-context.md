@@ -200,12 +200,20 @@ S81 replaced the demo merchandising with the published Berlapak catalog: real ph
 - Environment copy: the banner reads "Data contoh: pesanan, pembayaran, dan pengiriman masih simulasi lokal." (it keeps the "Data contoh" phrase asserted by `tests/smoke.test.ts`). The footer reads "Katalog dan foto produk asli. Pesanan, pembayaran, dan pengiriman masih simulasi lokal." The "katalog contoh" returns sentence is now "Ketentuan pengembalian belum diterbitkan."
 - Department tile baselines: each tile spans two shared grid rows (media, label) through `subgrid`. Labels in a row therefore start on one line even when an enlarged placeholder brief grows one slot or names wrap to different line counts, which keeps the 200%-text baseline invariant of `storefront-http`. Before this, the media used `flex: 1 0 auto`, which pushed each label to the bottom of an equal-height cell, so labels with different line counts started at different tops.
 
-## Round 7 (owner-authorised: "lanjutkan, juga sempurnakan", relayed by the coordinator, 2026-10-22)
+## Round 7 (aborted) and round 8 (owner-authorised: "lanjutkan, juga sempurnakan", relayed by the coordinator, 2026-10-22)
 
-The owner approved continuing past the cap, so this is review round 7, appended to the existing rounds log (the log is not reset). The capture comes from a fresh build that includes the real-catalog polish and the subgrid label fix: integration 465/465, browser 62/62, `storefront-http` 6/6 including the 200%-text department baseline, the full `shots-r2.mjs` run after the build, nothing in `src/` newer than the captures, overflowX 0, and only the 392 published B99 products. The render paths cited under Render critique now show the real Berlapak catalog.
+Round 7 ran on the first real-catalog capture, but was aborted before counting because pending admin source changes made its evidence stale. Its verdict is not counted; the review is kept as `docs/spec/design/reviews/shop-com-r2/review-round7.md`. Its findings within builder authority are fixed for round 8, the counted round, which is appended to the existing rounds log (the log is not reset):
+- PDP buy box: the raw catalog description no longer sits between the price and the purchase controls. It is now a "Deskripsi" accordion after the purchase region, using the same summary and chevron pattern as "Ongkir dan pengiriman" and "Pengembalian". A long description (over 160 characters) starts collapsed; a short one starts open. The text keeps its line breaks. Title → price → options → contents → stock → quantity → "Tambah ke keranjang" is the first block, as in the shop.com PDP.
+- PDP media: sticky on desktop and tablet, so the left column no longer leaves a ~700px empty band beside the long buy box and accordions.
+- Department chips: every top-level department is listed (the earlier cap of three hid one home tile's department). On phones they scroll horizontally on one line; on desktop they wrap.
+- Home hero: on desktop the title sits beside a 34rem price card, instead of a ~1200px yellow band with an empty centre. Below 1050px they stack.
+- Category tiles: the tile photo skips products already on the "Mulai dari pilihan ini" shelf, so no tile repeats a card photo. Tiles are four per row from tablet up (short tiles before the shelf at 768) and two per row on phones, with a 16px column gap so enlarged labels never run together.
+- Lazy product images: the image box carries the lavender slot surface until it paints, and the capture script walks each page so every image loads before a full-page shot.
+- Help chat header: the hours line sits under the H2 instead of being squeezed beside it.
 
-Builder render inspection of this capture:
-- Home 1440: hero and fixed-price card first, then a full-width four-up row of category photos with one-line names, then a four-up shelf of eight real products. Long bundle names wrap to two lines, contents clamp to two lines, and the price basis stays inline.
-- Home 390: the chip row scrolls horizontally on one line, category tiles and products are two-up, and names wrap without clipping.
-
-Known content trait: the category photo is "newest publication in the department", so a department's tile can repeat the photo of the same product on the "Mulai dari pilihan ini" shelf (Rumah Tangga & Kebersihan at 1440). That is deterministic and truthful, and was left as is under the no-edit-after-capture rule.
+Not changed (outside builder authority or accepted):
+- The "Pengembalian" content is owner content that has not been published yet.
+- The 7-line filled cart on phones pushes checkout below the first screen; this is acceptable under the spec.
+- R3/R6 option pills remain UNVERIFIED because no published multi-option product exists.
+- Category pages are still not captured.
+- Tiles use one photo per department rather than shop.com's mosaic, because each department has a single representative photo in the data.

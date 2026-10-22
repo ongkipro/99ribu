@@ -11,7 +11,7 @@ export async function Shell({children,q='',active='home',task=false,backTo=null,
  const here=(key:string)=>department===key?'page' as const:undefined;
  const current=await currentBrowserCart(),count=current.kind==='ready'&&current.cart.state==='open'&&Date.parse(current.cart.expires_at)>Date.parse(current.now)?cartUnits(current.cart):0;
  const cartLabel=count?`Keranjang, ${count} pilihan`:'Keranjang';
- const departments=task?[]:await featuredDepartments(getLocalAuth(),3);
+ const departments=task?[]:await featuredDepartments(getLocalAuth());
  const destinations=[{key:'home',label:'Beranda',href:'/',icon:'home'},{key:'category',label:'Kategori',href:'/categories',icon:'category'},{key:'cart',label:'Keranjang',href:'/cart',icon:'bag'},{key:'account',label:'Akun',href:'/account',icon:'user'}] as const;
  return <>
   <a className="skip" href="#main">Lewati ke konten</a>

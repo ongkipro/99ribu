@@ -40,7 +40,6 @@ export default async function Product({params,searchParams}:Props){
  const facts=[...(offer?.attributes??[]),...product.facts.filter(f=>!offer?.attributes.some(a=>a.key===f.key))],alternative=product.variants.find(v=>v.availability==='available'&&v.id!==offer?.id);
  return <Shell active="none" task backTo={from}><main id="main" className="wrap product-detail"><nav className="product-category" aria-label="Kategori produk"><Link href="/search">Semua produk</Link>{category&&<><span aria-hidden="true">/</span><Link href={`/category/${category.slug}`}>{category.name}</Link></>}</nav><div className="detail-layout"><Media product={product} offer={offer??undefined} caption/><section><h1>{product.name}</h1>
   {offer&&<p className="detail-price">{rupiah(offer.price)} <small>/ pilihan lengkap</small></p>}
-  {description&&!(sample&&description==='Harga berlaku untuk satu pilihan lengkap sesuai rincian isi.')&&<p className="detail-description">{description}</p>}
   {invalid&&<section className="cart-warning" role="alert"><h2>Pilihan belum ditemukan</h2><p>Pilih kembali opsi produk ini sebelum menambahkannya.</p></section>}
   <OfferPicker from={from} selected={offer?.id??''} choices={product.variants.map(v=>({id:v.id,label:v.label,available:v.availability==='available'}))}/>
   {offer?<section className="offer-detail" aria-label="Rincian pilihan"><h2>Isi yang diterima</h2><ul>{offer.contents.map(c=><li key={c.name}>{c.quantity} × {contentName(product,c.name)}</li>)}</ul>
@@ -51,6 +50,8 @@ export default async function Product({params,searchParams}:Props){
    <p className="cart-advisory">Stok diperiksa kembali saat ditambahkan. Isi keranjang belum memesan stok.</p></div>
   </section>:<p className="cart-advisory">Belum ada pilihan yang dapat ditambahkan.</p>}
   <section className="product-facts"><h2>Spesifikasi</h2>{facts.length?<dl>{facts.map(f=><div key={f.key}><dt>{f.label}</dt><dd>{f.values.join(', ')}</dd></div>)}</dl>:<p className="cart-advisory">Spesifikasi tambahan belum tersedia.</p>}</section>
+  {/* Description follows the purchase action (shop.com order); a short one stays open, a long catalog text starts collapsed. */}
+  {description&&!(sample&&description==='Harga berlaku untuk satu pilihan lengkap sesuai rincian isi.')&&<details className="product-policy" open={description.length<=160}><summary>Deskripsi<Icon name="chevron"/></summary><p className="detail-description">{description}</p></details>}
   <details className="product-policy"><summary>Ongkir dan pengiriman<Icon name="chevron"/></summary><p>Ongkir dihitung dari alamat dan paket, lalu ditampilkan sebelum konfirmasi. Hari libur tidak dihitung sebagai hari proses pengiriman.</p></details>
   <details className="product-policy"><summary>Pengembalian<Icon name="chevron"/></summary><p>Ketentuan pengembalian belum diterbitkan.</p><Link className="detail-help" href="/help#returns">Ketentuan pengembalian</Link></details>
  </section></div></main></Shell>;

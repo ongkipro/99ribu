@@ -298,8 +298,10 @@ body:has(> .store-header, > .task-header) {
 }
 .price-intro {
 	display: grid;
-	grid-template-columns: minmax(0, 1fr);
-	gap: 16px;
+	/* Desktop: title beside a bounded price card instead of a 1200px-wide band. */
+	grid-template-columns: minmax(0, 1fr) minmax(0, 34rem);
+	align-items: center;
+	gap: 16px 48px;
 	min-width: 0;
 }
 .price-intro h1 {
@@ -442,7 +444,8 @@ body:has(> .store-header, > .task-header) {
 	object-fit: contain;
 	width: 100%;
 	height: auto;
-	background: #fff;
+	/* Slot surface until a lazy image paints; real photos cover it. */
+	background: #f6f5fa;
 	border: 1px solid #e6e4f0;
 	border-radius: 20px;
 }
@@ -788,6 +791,9 @@ body:has(> .store-header, > .task-header) {
 	.home-entry {
 		gap: 32px;
 	}
+	.price-intro {
+		grid-template-columns: minmax(0, 1fr);
+	}
 	.detail-layout {
 		gap: 32px;
 		grid-template-columns: minmax(0, 1fr) minmax(18rem, 1fr);
@@ -1031,10 +1037,10 @@ body:has(> .store-header, > .task-header) {
 	margin: 0;
 	display: grid;
 	gap: 24px 16px;
-	/* Same rhythm as the product shelf: four per row on desktop, two below. */
+	/* Four per row from tablet up (short tiles before the shelf), two on phones. */
 	grid-template-columns: repeat(
 		auto-fill,
-		minmax(min(100%, max(15rem, calc((100% - 48px) / 4))), 1fr)
+		minmax(min(100%, max(9rem, calc((100% - 48px) / 4))), 1fr)
 	);
 }
 /* Each tile spans two shared rows (media, label) through subgrid, so every
@@ -1244,7 +1250,7 @@ body:has(> .store-header, > .task-header) {
 		display: none;
 	}
 	.department-tiles {
-		gap: 20px 12px;
+		gap: 20px 16px;
 		grid-template-columns: repeat(2, minmax(0, 1fr));
 	}
 	.department-tiles a {
@@ -1842,7 +1848,15 @@ body:has(> .store-header, > .task-header) {
 	padding-block: 12px;
 }
 .detail-description {
-	margin-top: 16px;
+	margin-top: 8px;
+	white-space: pre-line;
+}
+/* Desktop PDP: the media stays in view while the buy box and accordions scroll. */
+@media (min-width: 701px) {
+	.detail-layout > :is(.product-media, .product-image, .photo-slot) {
+		position: sticky;
+		top: 24px;
+	}
 }
 .purchase-region {
 	display: grid;

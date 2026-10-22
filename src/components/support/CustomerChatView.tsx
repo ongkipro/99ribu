@@ -765,11 +765,8 @@ export function CustomerChatView() {
 
 			<div
 				style={{
-					display: "flex",
-					flexWrap: "wrap",
-					justifyContent: "space-between",
-					alignItems: "center",
-					gap: "12px",
+					display: "grid",
+					gap: "4px",
 					marginBottom: "12px",
 				}}
 			>
