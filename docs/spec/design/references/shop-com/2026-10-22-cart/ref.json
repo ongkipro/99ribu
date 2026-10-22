@@ -1,0 +1,283 @@
+{
+  "capturedAt": "2026-10-22T09:33:45.289Z",
+  "viewports": {
+    "390": {
+      "url": "https://shop.com/cart",
+      "width": 390,
+      "height": 1331,
+      "title": "Cart - Shop",
+      "headingMax": 18,
+      "type": {
+        "families": [
+          {
+            "v": "GT Standard Web",
+            "c": 581
+          }
+        ],
+        "sizes": [
+          {
+            "v": "14px",
+            "c": 347
+          },
+          {
+            "v": "12px",
+            "c": 207
+          },
+          {
+            "v": "18px",
+            "c": 20
+          },
+          {
+            "v": "16px",
+            "c": 7
+          }
+        ],
+        "weights": [
+          {
+            "v": "400",
+            "c": 490
+          },
+          {
+            "v": "600",
+            "c": 73
+          },
+          {
+            "v": "500",
+            "c": 18
+          }
+        ],
+        "roles": {
+          "p": {
+            "size": "12px",
+            "weight": "500",
+            "lineHeight": "16px",
+            "letterSpacing": "-0.2px",
+            "family": "GT Standard Web",
+            "transform": "none"
+          },
+          "h4": {
+            "size": "18px",
+            "weight": "600",
+            "lineHeight": "20px",
+            "letterSpacing": "-0.5px",
+            "family": "GT Standard Web",
+            "transform": "none"
+          }
+        }
+      },
+      "color": {
+        "text": [
+          {
+            "v": "rgba(0, 0, 0, 0.56)",
+            "c": 425
+          },
+          {
+            "v": "rgb(0, 0, 0)",
+            "c": 139
+          },
+          {
+            "v": "rgb(123, 123, 123)",
+            "c": 10
+          },
+          {
+            "v": "rgb(255, 255, 255)",
+            "c": 7
+          }
+        ],
+        "background": [
+          {
+            "v": "rgb(255, 255, 255)",
+            "c": 28860
+          }
+        ]
+      },
+      "radius": [
+        {
+          "v": "1e+07px",
+          "c": 7
+        },
+        {
+          "v": "28px",
+          "c": 1
+        },
+        {
+          "v": "9999px",
+          "c": 1
+        },
+        {
+          "v": "32px",
+          "c": 1
+        }
+      ],
+      "sections": [
+        {
+          "tag": "div",
+          "y": 770,
+          "h": 74,
+          "bg": "rgb(255, 255, 255)",
+          "cols": 1,
+          "imgs": 7,
+          "heading": null
+        },
+        {
+          "tag": "div",
+          "y": 0,
+          "h": 1331,
+          "bg": "rgb(255, 255, 255)",
+          "cols": 1,
+          "imgs": 17,
+          "heading": {
+            "tag": "h2",
+            "size": "20px",
+            "text": "Your cart is waiting"
+          }
+        }
+      ]
+    },
+    "1440": {
+      "url": "https://shop.com/cart",
+      "width": 1440,
+      "height": 1044,
+      "title": "Cart - Shop",
+      "headingMax": 20,
+      "type": {
+        "families": [
+          {
+            "v": "GT Standard Web",
+            "c": 588
+          }
+        ],
+        "sizes": [
+          {
+            "v": "14px",
+            "c": 347
+          },
+          {
+            "v": "12px",
+            "c": 214
+          },
+          {
+            "v": "20px",
+            "c": 20
+          },
+          {
+            "v": "16px",
+            "c": 7
+          }
+        ],
+        "weights": [
+          {
+            "v": "400",
+            "c": 490
+          },
+          {
+            "v": "600",
+            "c": 73
+          },
+          {
+            "v": "500",
+            "c": 25
+          }
+        ],
+        "roles": {
+          "p": {
+            "size": "12px",
+            "weight": "500",
+            "lineHeight": "16px",
+            "letterSpacing": "-0.2px",
+            "family": "GT Standard Web",
+            "transform": "none"
+          },
+          "h2": {
+            "size": "20px",
+            "weight": "600",
+            "lineHeight": "22px",
+            "letterSpacing": "-1px",
+            "family": "GT Standard Web",
+            "transform": "none"
+          }
+        }
+      },
+      "color": {
+        "text": [
+          {
+            "v": "rgba(0, 0, 0, 0.56)",
+            "c": 425
+          },
+          {
+            "v": "rgb(0, 0, 0)",
+            "c": 146
+          },
+          {
+            "v": "rgb(123, 123, 123)",
+            "c": 10
+          },
+          {
+            "v": "rgb(255, 255, 255)",
+            "c": 7
+          }
+        ],
+        "background": [
+          {
+            "v": "rgb(252, 252, 252)",
+            "c": 1503360
+          },
+          {
+            "v": "rgb(255, 255, 255)",
+            "c": 1393968
+          },
+          {
+            "v": "rgba(255, 255, 255, 0.75)",
+            "c": 32768
+          }
+        ]
+      },
+      "radius": [
+        {
+          "v": "1e+07px",
+          "c": 7
+        },
+        {
+          "v": "28px",
+          "c": 2
+        },
+        {
+          "v": "32px",
+          "c": 2
+        },
+        {
+          "v": "9999px",
+          "c": 1
+        },
+        {
+          "v": "8px",
+          "c": 1
+        }
+      ],
+      "sections": [
+        {
+          "tag": "div",
+          "y": 0,
+          "h": 900,
+          "bg": "rgb(252, 252, 252)",
+          "cols": 1,
+          "imgs": 7,
+          "heading": null
+        },
+        {
+          "tag": "div",
+          "y": 0,
+          "h": 1044,
+          "bg": "rgb(252, 252, 252)",
+          "cols": 1,
+          "imgs": 16,
+          "heading": {
+            "tag": "h2",
+            "size": "20px",
+            "text": "Your cart is waiting"
+          }
+        }
+      ]
+    }
+  }
+}

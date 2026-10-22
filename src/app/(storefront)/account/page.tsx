@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { BuyerAccountClient } from "../../../components/storefront/buyer-account-client";
 import { Shell } from "../../../components/storefront/shell";
+import { SignOutButton } from "../../../components/storefront/sign-out-button";
 import { getLocalAuth } from "../../../modules/access/auth";
 import { readBuyerAccountWorkspace } from "../../../modules/accounts/service";
 import { storefrontRequest } from "../../../modules/storefront/browser";
@@ -17,9 +18,15 @@ export default async function AccountPage() {
 	const workspace = await readBuyerAccountWorkspace(req, identity);
 	return (
 		<Shell active="account">
-			<main id="main" className="wrap">
+			<main id="main" className="wrap" style={{ paddingTop: "24px" }}>
 				<section className="notice-panel">
-					<h1>
+					<h1
+						aria-label={
+							workspace.authenticated
+								? undefined
+								: "Halaman akun sedang disiapkan"
+						}
+					>
 						{workspace.authenticated
 							? `Akun ${workspace.profile.display_name}`
 							: "Akun opsional"}
@@ -36,6 +43,13 @@ export default async function AccountPage() {
 						<Link className="button button-secondary" href="/help">
 							Bantuan pesanan
 						</Link>
+						{workspace.authenticated ? (
+							<SignOutButton to="/" />
+						) : (
+							<Link className="button button-secondary" href="/masuk?next=%2Faccount">
+								Masuk
+							</Link>
+						)}
 					</div>
 				</section>
 				<BuyerAccountClient

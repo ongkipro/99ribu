@@ -76,15 +76,70 @@ export default async function AffiliateWorkspacePage() {
 	if (!principal?.roles.includes("affiliate")) {
 		return (
 			<Shell active="account">
-				<main id="main" className="wrap empty-state">
-					<h1>Ruang Mitra Afiliasi 99ribu</h1>
-					<p>
-						Masuk sebagai mitra afiliasi terverifikasi untuk melihat tautan
-						rujukan, rincian komisi per unit, dan status pencairan otomatis.
-					</p>
-					<Link className="button" href="/search">
-						Lihat katalog produk
-					</Link>
+				<main id="main" className="wrap affiliate-workspace">
+					<header className="receipt-header">
+						<p className="checkout-order-reference">
+							<span>Program Mitra Afiliasi · 99ribu</span>
+							<span>Harga Tetap Rp99.000</span>
+						</p>
+						<h1>Ruang Mitra Afiliasi 99ribu</h1>
+						<p className="receipt-lead">
+							Harga produk tetap Rp99.000 untuk semua pembeli. Komisi dihitung
+							per unit dan masuk antrean transfer manual otomatis saat saldo
+							siap cair mencapai minimal Rp99.000.
+						</p>
+					</header>
+
+					<section
+						className="affiliate-head"
+						aria-label="Ringkasan program afiliasi"
+					>
+						<article className="affiliate-eligible-card">
+							<span className="receipt-badge" data-tone="active">
+								Skema Komisi Transparan
+							</span>
+							<div className="affiliate-eligible-amount">Rp9.900 / unit</div>
+							<p style={{ margin: 0, color: "var(--muted)", lineHeight: 1.6 }}>
+								Tarif dasar 10% (1.000 bps) dari harga tetap Rp99.000 per
+								pilihan. Tanpa diskon kode dan tanpa mengubah harga pembeli.
+							</p>
+							<dl className="receipt-returns-list" style={{ marginTop: "4px" }}>
+								<div>
+									<dt>Masa tunggu komisi</dt>
+									<dd>Matang H+10 setelah paket diterima pembeli</dd>
+								</div>
+								<div>
+									<dt>Batas minimum pencairan otomatis</dt>
+									<dd>Rp99.000 (masuk antrean transfer keuangan otomatis)</dd>
+								</div>
+							</dl>
+						</article>
+
+						<article className="notice-panel" style={{ maxWidth: "none" }}>
+							<h2
+								style={{
+									fontSize: "var(--section-size)",
+									lineHeight: "var(--section-leading)",
+									margin: 0,
+								}}
+							>
+								Masuk sebagai Mitra Afiliasi
+							</h2>
+							<p>
+								Masuk menggunakan akun mitra afiliasi terverifikasi untuk
+								melihat tautan rujukan pribadi, saldo komisi per status, dan
+								riwayat pencairan otomatis.
+							</p>
+							<div className="notice-actions">
+								<Link className="button" href="/masuk?next=%2Faffiliate">
+									Masuk ke Akun
+								</Link>
+								<Link className="button button-secondary" href="/search">
+									Lihat katalog produk
+								</Link>
+							</div>
+						</article>
+					</section>
 				</main>
 			</Shell>
 		);
@@ -113,17 +168,21 @@ export default async function AffiliateWorkspacePage() {
 	if (!workspace) {
 		return (
 			<Shell active="account">
-				<main id="main" className="wrap empty-state">
-					<h1>Aktivasi Profil Afiliasi</h1>
-					<p>
-						Akun Anda memiliki akses mitra afiliasi, tetapi profil rujukan belum
-						diaktifkan. Komisi dihitung dari harga tetap Rp99.000 per pilihan
-						dan dicairkan otomatis saat saldo siap cair mencapai minimal
-						Rp99.000.
-					</p>
-					<Link className="button" href="/search">
-						Jelajahi produk 99ribu
-					</Link>
+				<main id="main" className="wrap affiliate-workspace">
+					<section className="notice-panel">
+						<h1>Aktivasi Profil Afiliasi</h1>
+						<p>
+							Akun Anda memiliki akses mitra afiliasi, tetapi profil rujukan
+							belum diaktifkan. Komisi dihitung dari harga tetap Rp99.000 per
+							pilihan dan dicairkan otomatis saat saldo siap cair mencapai
+							minimal Rp99.000.
+						</p>
+						<div className="notice-actions">
+							<Link className="button" href="/search">
+								Jelajahi produk 99ribu
+							</Link>
+						</div>
+					</section>
 				</main>
 			</Shell>
 		);
@@ -134,24 +193,14 @@ export default async function AffiliateWorkspacePage() {
 
 	return (
 		<Shell active="account">
-			<main
-				id="main"
-				className="wrap"
-				style={{
-					paddingBlock: "1.5rem 3rem",
-					display: "grid",
-					gap: "1.5rem",
-					maxWidth: "72rem",
-				}}
-			>
-				<header style={{ display: "grid", gap: "0.5rem" }}>
-					<p style={{ margin: 0, fontSize: "0.875rem", opacity: 0.8 }}>
-						Mitra Afiliasi · {profile.display_name}
+			<main id="main" className="wrap affiliate-workspace">
+				<header className="receipt-header">
+					<p className="checkout-order-reference">
+						<span>Mitra Afiliasi · {profile.display_name}</span>
+						<span>Kode: {profile.referral_code}</span>
 					</p>
-					<h1 style={{ margin: 0, fontSize: "1.5rem", lineHeight: 1.25 }}>
-						Ruang Mitra Afiliasi 99ribu
-					</h1>
-					<p style={{ margin: 0, fontSize: "0.9375rem", opacity: 0.85 }}>
+					<h1>Ruang Mitra Afiliasi 99ribu</h1>
+					<p className="receipt-lead">
 						Semua produk tetap seharga Rp99.000 bagi pembeli. Komisi dihitung
 						transparan per unit dan masuk antrean transfer manual otomatis saat
 						saldo siap cair mencapai minimal {rupiah(balance.minimum_payout)}.
@@ -161,94 +210,47 @@ export default async function AffiliateWorkspacePage() {
 				<section
 					id="affiliate-profile-section"
 					aria-labelledby="heading-affiliate-profile"
-					style={{
-						display: "grid",
-						gap: "1rem",
-						gridTemplateColumns:
-							"repeat(auto-fit, minmax(min(100%, 18rem), 1fr))",
-					}}
+					className="affiliate-head"
 				>
-					<article
-						style={{
-							border: "1px solid var(--border, #d6d3cd)",
-							borderRadius: "0.75rem",
-							padding: "1rem",
-							background: "var(--surface, #fff)",
-							display: "grid",
-							gap: "0.625rem",
-						}}
-					>
-						<div
-							style={{
-								display: "flex",
-								justifyContent: "space-between",
-								alignItems: "center",
-								gap: "0.5rem",
-								flexWrap: "wrap",
-							}}
-						>
+					<article className="affiliate-card">
+						<div className="receipt-parcel-head">
 							<h2
 								id="heading-affiliate-profile"
-								style={{ margin: 0, fontSize: "1.0625rem" }}
+								style={{
+									margin: 0,
+									fontSize: "var(--section-size)",
+									lineHeight: "var(--section-leading)",
+								}}
 							>
 								Tautan & Tarif Rujukan
 							</h2>
 							<span
 								data-testid="affiliate-status-badge"
-								style={{
-									fontSize: "0.8125rem",
-									fontWeight: 600,
-									padding: "0.125rem 0.5rem",
-									borderRadius: "999px",
-									background: "#eef6ee",
-								}}
+								className="receipt-badge"
+								data-tone={profile.status === "active" ? "active" : "warning"}
 							>
 								{profile.status === "active" ? "Aktif" : "Ditangguhkan"}
 							</span>
 						</div>
-						<dl
-							style={{
-								margin: 0,
-								display: "grid",
-								gap: "0.5rem",
-								fontSize: "0.9375rem",
-							}}
-						>
+						<dl className="receipt-returns-list">
 							<div>
-								<dt style={{ fontSize: "0.8125rem", opacity: 0.75 }}>
-									Kode rujukan
-								</dt>
-								<dd
-									data-testid="affiliate-referral-code"
-									style={{ margin: 0, fontWeight: 700, wordBreak: "break-all" }}
-								>
+								<dt>Kode rujukan</dt>
+								<dd data-testid="affiliate-referral-code">
 									{profile.referral_code}
 								</dd>
 							</div>
 							<div>
-								<dt style={{ fontSize: "0.8125rem", opacity: 0.75 }}>
-									Tautan bagikan
-								</dt>
+								<dt>Tautan bagikan</dt>
 								<dd
 									data-testid="affiliate-referral-url"
-									style={{
-										margin: 0,
-										fontFamily: "monospace",
-										fontSize: "0.8125rem",
-										wordBreak: "break-all",
-									}}
+									className="affiliate-copy-box"
 								>
 									{profile.referral_url}
 								</dd>
 							</div>
 							<div>
-								<dt style={{ fontSize: "0.8125rem", opacity: 0.75 }}>
-									Tarif komisi efektif
-								</dt>
-								<dd
-									data-testid="affiliate-rate-bps"
-									style={{ margin: 0, fontWeight: 600 }}
-								>
+								<dt>Tarif komisi efektif</dt>
+								<dd data-testid="affiliate-rate-bps">
 									{formatBpsPercent(profile.rate_basis_points)} (
 									{profile.rate_basis_points} bps) · {rupiah(unitCommissionIdr)}{" "}
 									per unit
@@ -257,88 +259,58 @@ export default async function AffiliateWorkspacePage() {
 						</dl>
 					</article>
 
-					<article
-						style={{
-							border: "1px solid var(--border, #d6d3cd)",
-							borderRadius: "0.75rem",
-							padding: "1rem",
-							background: "var(--surface, #fff)",
-							display: "grid",
-							gap: "0.625rem",
-						}}
-					>
-						<div
-							style={{
-								display: "flex",
-								justifyContent: "space-between",
-								alignItems: "center",
-								gap: "0.5rem",
-								flexWrap: "wrap",
-							}}
-						>
-							<h2 style={{ margin: 0, fontSize: "1.0625rem" }}>
+					<article className="affiliate-card">
+						<div className="receipt-parcel-head">
+							<h2
+								style={{
+									margin: 0,
+									fontSize: "var(--section-size)",
+									lineHeight: "var(--section-leading)",
+								}}
+							>
 								Rekening Tujuan Pencairan
 							</h2>
 							<span
 								data-testid="beneficiary-status-badge"
-								style={{
-									fontSize: "0.8125rem",
-									fontWeight: 600,
-									padding: "0.125rem 0.5rem",
-									borderRadius: "999px",
-									background: "#f3f2ee",
-								}}
+								className="receipt-badge"
+								data-tone={
+									profile.beneficiary_status === "verified"
+										? "active"
+										: "warning"
+								}
 							>
 								{beneficiaryStatusLabel(profile.beneficiary_status)}
 							</span>
 						</div>
 						{profile.beneficiary ? (
-							<dl
-								style={{
-									margin: 0,
-									display: "grid",
-									gap: "0.5rem",
-									fontSize: "0.9375rem",
-								}}
-							>
+							<dl className="receipt-returns-list">
 								<div>
-									<dt style={{ fontSize: "0.8125rem", opacity: 0.75 }}>
-										Bank tujuan
-									</dt>
-									<dd
-										data-testid="beneficiary-bank-name"
-										style={{ margin: 0, fontWeight: 600 }}
-									>
+									<dt>Bank tujuan</dt>
+									<dd data-testid="beneficiary-bank-name">
 										{profile.beneficiary.bank_name}
 									</dd>
 								</div>
 								<div>
-									<dt style={{ fontSize: "0.8125rem", opacity: 0.75 }}>
-										Nomor rekening
-									</dt>
+									<dt>Nomor rekening</dt>
 									<dd
 										data-testid="beneficiary-masked-account"
-										style={{ margin: 0, fontFamily: "monospace" }}
+										style={{ fontFamily: "ui-monospace, monospace" }}
 									>
 										{profile.beneficiary.masked_account}
 									</dd>
 								</div>
 								<div>
-									<dt style={{ fontSize: "0.8125rem", opacity: 0.75 }}>
-										Nama pemilik rekening
-									</dt>
-									<dd style={{ margin: 0 }}>
-										{profile.beneficiary.account_holder_name}
-									</dd>
+									<dt>Nama pemilik rekening</dt>
+									<dd>{profile.beneficiary.account_holder_name}</dd>
 								</div>
 							</dl>
 						) : (
-							<p style={{ margin: 0, fontSize: "0.875rem" }}>
+							<p style={{ margin: 0, color: "var(--muted)" }}>
 								Rekening tujuan belum diatur. Verifikasi rekening diperlukan
 								sebelum saldo siap cair dapat masuk antrean transfer.
 							</p>
 						)}
-						<p style={{ margin: 0, fontSize: "0.8125rem", opacity: 0.75 }}>
+						<p className="checkout-hint" style={{ margin: 0 }}>
 							Perubahan rekening memerlukan verifikasi ulang kata sandi dan
 							hanya berlaku untuk pencairan berikutnya; antrean yang sudah
 							diklaim tetap menggunakan rekening terbeku.
@@ -349,192 +321,113 @@ export default async function AffiliateWorkspacePage() {
 				<section
 					id="affiliate-commissions-section"
 					aria-labelledby="heading-affiliate-balance"
-					style={{ display: "grid", gap: "1rem" }}
+					style={{ display: "grid", gap: "16px" }}
 				>
-					<div style={{ display: "grid", gap: "0.25rem" }}>
+					<div style={{ display: "grid", gap: "4px" }}>
 						<h2
 							id="heading-affiliate-balance"
-							style={{ margin: 0, fontSize: "1.25rem" }}
+							style={{
+								margin: 0,
+								fontSize: "var(--section-size)",
+								lineHeight: "var(--section-leading)",
+							}}
 						>
 							Ringkasan Saldo Komisi
 						</h2>
-						<p style={{ margin: 0, fontSize: "0.875rem", opacity: 0.8 }}>
+						<p className="checkout-hint" style={{ margin: 0 }}>
 							Komisi matang 10 hari setelah paket diterima pembeli (H+10) atau
 							setelah paket pengganti diterima. Pengajuan retur menahan komisi
 							dan refund membatalkan komisi unit terkait.
 						</p>
 					</div>
 
-					<div
-						style={{
-							display: "grid",
-							gap: "0.75rem",
-							gridTemplateColumns:
-								"repeat(auto-fit, minmax(min(100%, 11rem), 1fr))",
-						}}
-					>
+					<div className="affiliate-balance-grid">
 						<div
 							data-testid="balance-card-pending"
-							style={{
-								border: "1px solid var(--border, #d6d3cd)",
-								borderRadius: "0.75rem",
-								padding: "0.875rem",
-								background: "var(--surface, #fff)",
-							}}
+							className="affiliate-balance-item"
 						>
-							<div style={{ fontSize: "0.8125rem", opacity: 0.75 }}>
-								Menunggu (H+10)
-							</div>
-							<strong style={{ fontSize: "1.125rem" }}>
-								{rupiah(balance.pending)}
-							</strong>
+							<span>Menunggu (H+10)</span>
+							<strong>{rupiah(balance.pending)}</strong>
 						</div>
 						<div
 							data-testid="balance-card-held"
-							style={{
-								border: "1px solid var(--border, #d6d3cd)",
-								borderRadius: "0.75rem",
-								padding: "0.875rem",
-								background: "var(--surface, #fff)",
-							}}
+							className="affiliate-balance-item"
 						>
-							<div style={{ fontSize: "0.8125rem", opacity: 0.75 }}>
-								Ditahan (Retur/Klaim)
-							</div>
-							<strong style={{ fontSize: "1.125rem" }}>
-								{rupiah(balance.held)}
-							</strong>
+							<span>Ditahan (Retur/Klaim)</span>
+							<strong>{rupiah(balance.held)}</strong>
 						</div>
 						<div
 							data-testid="balance-card-eligible"
-							style={{
-								border: "1px solid var(--border, #d6d3cd)",
-								borderRadius: "0.75rem",
-								padding: "0.875rem",
-								background: "var(--surface, #fff)",
-							}}
+							className="affiliate-balance-item"
+							data-highlight="true"
 						>
-							<div style={{ fontSize: "0.8125rem", opacity: 0.75 }}>
-								Siap Cair
-							</div>
-							<strong style={{ fontSize: "1.125rem" }}>
-								{rupiah(balance.eligible)}
-							</strong>
+							<span>Siap Cair</span>
+							<strong>{rupiah(balance.eligible)}</strong>
 						</div>
 						<div
 							data-testid="balance-card-allocated"
-							style={{
-								border: "1px solid var(--border, #d6d3cd)",
-								borderRadius: "0.75rem",
-								padding: "0.875rem",
-								background: "var(--surface, #fff)",
-							}}
+							className="affiliate-balance-item"
 						>
-							<div style={{ fontSize: "0.8125rem", opacity: 0.75 }}>
-								Dalam Antrean Transfer
-							</div>
-							<strong style={{ fontSize: "1.125rem" }}>
-								{rupiah(balance.allocated)}
-							</strong>
+							<span>Dalam Antrean Transfer</span>
+							<strong>{rupiah(balance.allocated)}</strong>
 						</div>
 						<div
 							data-testid="balance-card-paid"
-							style={{
-								border: "1px solid var(--border, #d6d3cd)",
-								borderRadius: "0.75rem",
-								padding: "0.875rem",
-								background: "var(--surface, #fff)",
-							}}
+							className="affiliate-balance-item"
 						>
-							<div style={{ fontSize: "0.8125rem", opacity: 0.75 }}>
-								Telah Dibayar
-							</div>
-							<strong style={{ fontSize: "1.125rem" }}>
-								{rupiah(balance.paid)}
-							</strong>
+							<span>Telah Dibayar</span>
+							<strong>{rupiah(balance.paid)}</strong>
 						</div>
 					</div>
 
-					<div
-						style={{
-							border: "1px solid var(--border, #d6d3cd)",
-							borderRadius: "0.75rem",
-							padding: "1rem",
-							background: "var(--surface, #fff)",
-							display: "grid",
-							gap: "0.75rem",
-						}}
-					>
-						<h3 style={{ margin: 0, fontSize: "1.0625rem" }}>
+					<div className="affiliate-card">
+						<h3
+							style={{
+								margin: 0,
+								fontSize: "var(--card-size)",
+								lineHeight: "var(--card-leading)",
+							}}
+						>
 							Riwayat Komisi per Unit
 						</h3>
 						{commissions.length === 0 ? (
-							<p style={{ margin: 0, fontSize: "0.875rem", opacity: 0.8 }}>
+							<p style={{ margin: 0, color: "var(--muted)" }}>
 								Belum ada transaksi teratribusi. Bagikan tautan rujukan Anda
 								untuk mulai mengumpulkan komisi.
 							</p>
 						) : (
 							<ul
 								data-testid="commission-history-list"
-								style={{
-									listStyle: "none",
-									margin: 0,
-									padding: 0,
-									display: "grid",
-									gap: "0.75rem",
-								}}
+								className="checkout-summary-lines"
+								style={{ margin: 0 }}
 							>
 								{commissions.map((item) => (
 									<li
 										key={item.id}
 										data-testid={`commission-row-${item.status}`}
-										style={{
-											borderTop: "1px solid var(--border, #e5e2dc)",
-											paddingTop: "0.75rem",
-											display: "grid",
-											gap: "0.25rem",
-										}}
 									>
-										<div
-											style={{
-												display: "flex",
-												justifyContent: "space-between",
-												alignItems: "baseline",
-												gap: "0.5rem",
-												flexWrap: "wrap",
-											}}
-										>
+										<div className="checkout-summary-parent">
 											<strong>
 												{item.product_name} ({item.quantity} unit)
 											</strong>
 											<strong>{rupiah(item.amount)}</strong>
 										</div>
 										<div
-											style={{
-												display: "flex",
-												justifyContent: "space-between",
-												alignItems: "center",
-												gap: "0.5rem",
-												flexWrap: "wrap",
-												fontSize: "0.8125rem",
-												opacity: 0.85,
-											}}
+											className="receipt-parcel-head"
+											style={{ marginTop: "4px", fontSize: "0.875rem" }}
 										>
-											<span>
+											<span style={{ color: "var(--muted)" }}>
 												Ref {item.sale_reference} · Tarif{" "}
 												{formatBpsPercent(item.rate_basis_points)}
 											</span>
-											<span style={{ fontWeight: 600 }}>
+											<span className="receipt-badge" data-tone="active">
 												{commissionStatusLabel(item.status)}
 											</span>
 										</div>
 										{item.received_at && (
 											<p
-												style={{
-													margin: 0,
-													fontSize: "0.8125rem",
-													opacity: 0.75,
-												}}
+												className="checkout-hint"
+												style={{ margin: "4px 0 0" }}
 											>
 												Penerimaan{" "}
 												{item.receipt_kind === "replacement"
@@ -549,9 +442,9 @@ export default async function AffiliateWorkspacePage() {
 										{item.hold_reason && (
 											<p
 												style={{
-													margin: 0,
+													margin: "4px 0 0",
 													fontSize: "0.8125rem",
-													color: "#7c2d12",
+													color: "var(--warning)",
 												}}
 											>
 												Catatan status: {item.hold_reason}
@@ -567,23 +460,20 @@ export default async function AffiliateWorkspacePage() {
 				<section
 					id="affiliate-payouts-section"
 					aria-labelledby="heading-affiliate-payouts"
-					style={{
-						border: "1px solid var(--border, #d6d3cd)",
-						borderRadius: "0.75rem",
-						padding: "1rem",
-						background: "var(--surface, #fff)",
-						display: "grid",
-						gap: "0.75rem",
-					}}
+					className="affiliate-card"
 				>
-					<div style={{ display: "grid", gap: "0.25rem" }}>
+					<div style={{ display: "grid", gap: "4px" }}>
 						<h2
 							id="heading-affiliate-payouts"
-							style={{ margin: 0, fontSize: "1.125rem" }}
+							style={{
+								margin: 0,
+								fontSize: "var(--section-size)",
+								lineHeight: "var(--section-leading)",
+							}}
 						>
 							Antrean Pencairan Otomatis & Transfer Manual
 						</h2>
-						<p style={{ margin: 0, fontSize: "0.875rem", opacity: 0.8 }}>
+						<p className="checkout-hint" style={{ margin: 0 }}>
 							Batas minimum pencairan otomatis:{" "}
 							<strong>{rupiah(balance.minimum_payout)}</strong> (inklusif).
 							Tidak ada penarikan manual oleh mitra; saat saldo siap cair
@@ -593,7 +483,7 @@ export default async function AffiliateWorkspacePage() {
 					</div>
 
 					{payouts.length === 0 ? (
-						<p style={{ margin: 0, fontSize: "0.875rem", opacity: 0.8 }}>
+						<p style={{ margin: 0, color: "var(--muted)" }}>
 							Belum ada antrean pencairan. Komisi siap cair akan masuk antrean
 							secara otomatis saat mencapai minimal{" "}
 							{rupiah(balance.minimum_payout)}.
@@ -601,45 +491,21 @@ export default async function AffiliateWorkspacePage() {
 					) : (
 						<ul
 							data-testid="payout-history-list"
-							style={{
-								listStyle: "none",
-								margin: 0,
-								padding: 0,
-								display: "grid",
-								gap: "0.75rem",
-							}}
+							className="checkout-summary-lines"
+							style={{ margin: 0 }}
 						>
 							{payouts.map((payout) => (
-								<li
-									key={payout.id}
-									data-testid={`payout-row-${payout.status}`}
-									style={{
-										borderTop: "1px solid var(--border, #e5e2dc)",
-										paddingTop: "0.75rem",
-										display: "grid",
-										gap: "0.25rem",
-									}}
-								>
-									<div
-										style={{
-											display: "flex",
-											justifyContent: "space-between",
-											alignItems: "baseline",
-											gap: "0.5rem",
-											flexWrap: "wrap",
-										}}
-									>
+								<li key={payout.id} data-testid={`payout-row-${payout.status}`}>
+									<div className="checkout-summary-parent">
 										<strong>Pencairan {rupiah(payout.amount)}</strong>
-										<span style={{ fontSize: "0.8125rem", fontWeight: 600 }}>
+										<span className="receipt-badge" data-tone="active">
 											{payoutStatusLabel(payout.status)}
 										</span>
 									</div>
-									<p
-										style={{ margin: 0, fontSize: "0.8125rem", opacity: 0.85 }}
-									>
+									<p style={{ margin: "4px 0 0", color: "var(--ink)" }}>
 										{payout.explanation}
 									</p>
-									<p style={{ margin: 0, fontSize: "0.75rem", opacity: 0.7 }}>
+									<p className="checkout-hint" style={{ margin: "4px 0 0" }}>
 										Dijadwalkan: {formatWib(payout.created_at)}
 										{payout.completed_at
 											? ` · Diselesaikan: ${formatWib(payout.completed_at)}`

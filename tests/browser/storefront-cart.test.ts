@@ -116,7 +116,7 @@ test('actual publication acknowledgement and stock loss preserve frozen cart fac
   const request=owner.browser.request('/api/v1/admin/inventory/movements',{warehouse_id:position.warehouse_id,stock_item_id:position.stock_item_id,kind,quantity,expected_version:position.revision,reason:'Owned S22 browser recovery stock proof'});request.headers.set('idempotency-key',randomUUID());const response=await handleInventory(request,identity);assert.equal(response.status,201);
  };
  try{
-  await enroll(owner.browser,owner.password);const command=()=>{const request=owner.browser.request('/api/v1/admin/products');request.headers.set('idempotency-key',randomUUID());return request;},namespace='s22-cart-recovery';
+  await enroll(owner.browser,owner.password);const command=()=>{const request=owner.browser.request('/api/v1/admin/products');request.headers.set('idempotency-key',randomUUID());return request;},namespace=`s22-recovery-${randomUUID().slice(0,8)}`;// Own namespace per run: this test edits and republishes its product, so a withdrawn (teardown) edited fixture is never republished by prepareStorefront.
   seeded=await seedCommerce(command(),identity,'local',namespace);const curated=await prepareStorefront(command(),identity,'local',namespace,seeded),product=curated.products.shirt;assert.ok(product.publication_id);
   const draft=await readCatalogRevision(identity.sql,product.id),variant=draft.variants.find(v=>v.id===product.offer_id);assert.ok(variant);
   const path=`/product/${product.id}?offer=${product.offer_id}`;await f.page.goto(origin+path);const quantity=f.page.getByRole('spinbutton',{name:'Jumlah pilihan',exact:true});await quantity.fill('50');await f.page.getByRole('button',{name:'Tambah ke keranjang',exact:true}).click();await expect(f.page.locator('.cart-form-error')).toContainText('Jumlah itu belum tersedia');await expect(quantity).toHaveValue('50');await expect(f.page.locator('.cart-mutation [role=alert]')).toContainText('Jumlah itu belum tersedia');assert.equal((await current(f.page)).lines.length,0);await quantity.fill('1');await f.page.getByRole('button',{name:'Tambah ke keranjang',exact:true}).click();await expect(f.page.locator('.cart-feedback')).toContainText('ditambahkan');const saved=await current(f.page),originalQuantity=saved.lines[0].contents[0].quantity,nextQuantity=originalQuantity===1?2:1;
@@ -245,7 +245,7 @@ for(const width of [390,1440])test(`PDP Back restores the filtered source and na
 
 test('PDP Back retains category and anchor through native option and no-JS cart forms',async()=>{
  const f=await start(390,false);try{
-  const source='/category/shop-commerce-demo-busana?offer_kind=multipack&availability=available&sort=newest&limit=40';
+  const source=`/category/shop-${fixtureNamespace}-busana?offer_kind=multipack&availability=available&sort=newest&limit=40`;
   await f.page.goto(origin+source);const card=f.page.locator('.product-link').first();await expect(card).toBeVisible();
   const href=await card.getAttribute('href');assert.ok(href);const target=new URL(href,origin),id=target.pathname.split('/').at(-1),parent=`${source}#product-${id}`;assert.equal(target.searchParams.get('from'),parent);
   await card.click();assert.equal(new URL(f.page.url()).searchParams.get('from'),parent);

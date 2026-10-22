@@ -461,13 +461,13 @@ test("S61 browser: responsive mobile/short-IME/desktop shell, category-preservin
 			// 4. Campaign & referral landing + category-preserving filter reset + draft Reset then Apply
 			const busana = await publicCategory(
 				identity.sql,
-				"shop-commerce-demo-busana",
+				`shop-${namespace}-busana`,
 				"slug",
 			);
 			assert.ok(busana);
 
 			await page.goto(
-				`${baseUrl}/category/shop-commerce-demo-busana?offer_kind=multipack&sort=newest&utm_source=meta&fbclid=SYNTH_FB_1&ref=MITRA99`,
+				`${baseUrl}/category/shop-${namespace}-busana?offer_kind=multipack&sort=newest&utm_source=meta&fbclid=SYNTH_FB_1&ref=MITRA99`,
 			);
 			await expect(
 				page.getByRole("heading", { level: 1, name: "Busana" }),

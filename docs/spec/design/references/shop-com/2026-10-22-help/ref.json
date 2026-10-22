@@ -1,0 +1,333 @@
+{
+  "capturedAt": "2026-10-22T09:35:11.845Z",
+  "viewports": {
+    "390": {
+      "url": "https://help.shop.app/en/shop",
+      "width": 390,
+      "height": 4181,
+      "title": "Shop Help Center",
+      "headingMax": 20,
+      "type": {
+        "families": [
+          {
+            "v": "GTStandard-Regular",
+            "c": 2753
+          }
+        ],
+        "sizes": [
+          {
+            "v": "14px",
+            "c": 2114
+          },
+          {
+            "v": "16px",
+            "c": 412
+          },
+          {
+            "v": "12px",
+            "c": 116
+          },
+          {
+            "v": "20px",
+            "c": 111
+          }
+        ],
+        "weights": [
+          {
+            "v": "400",
+            "c": 2102
+          },
+          {
+            "v": "550",
+            "c": 508
+          },
+          {
+            "v": "450",
+            "c": 131
+          },
+          {
+            "v": "500",
+            "c": 12
+          }
+        ],
+        "roles": {
+          "h2": {
+            "size": "20px",
+            "weight": "550",
+            "lineHeight": "28px",
+            "letterSpacing": "0.15px",
+            "family": "GTStandard-Regular",
+            "transform": "none"
+          },
+          "p": {
+            "size": "14px",
+            "weight": "400",
+            "lineHeight": "18px",
+            "letterSpacing": "0.15px",
+            "family": "GTStandard-Regular",
+            "transform": "none"
+          },
+          "a": {
+            "size": "14px",
+            "weight": "500",
+            "lineHeight": "20px",
+            "letterSpacing": "normal",
+            "family": "GTStandard-Regular",
+            "transform": "none"
+          }
+        }
+      },
+      "color": {
+        "text": [
+          {
+            "v": "rgb(74, 74, 74)",
+            "c": 2102
+          },
+          {
+            "v": "rgb(0, 0, 0)",
+            "c": 497
+          },
+          {
+            "v": "rgb(111, 112, 113)",
+            "c": 127
+          },
+          {
+            "v": "rgb(107, 113, 119)",
+            "c": 15
+          },
+          {
+            "v": "rgb(255, 255, 255)",
+            "c": 12
+          }
+        ],
+        "background": [
+          {
+            "v": "rgb(255, 255, 255)",
+            "c": 19890
+          },
+          {
+            "v": "rgb(242, 244, 245)",
+            "c": 16800
+          },
+          {
+            "v": "rgb(84, 51, 235)",
+            "c": 4580.625
+          }
+        ]
+      },
+      "radius": [
+        {
+          "v": "12px",
+          "c": 36
+        },
+        {
+          "v": "32px",
+          "c": 1
+        },
+        {
+          "v": "10px",
+          "c": 1
+        }
+      ],
+      "sections": [
+        {
+          "tag": "header",
+          "y": 0,
+          "h": 51,
+          "bg": "rgb(255, 255, 255)",
+          "cols": 1,
+          "imgs": 3,
+          "heading": null
+        },
+        {
+          "tag": "div",
+          "y": 64,
+          "h": 3906,
+          "bg": "rgb(255, 255, 255)",
+          "cols": 1,
+          "imgs": 1,
+          "heading": {
+            "tag": "h2",
+            "size": "20px",
+            "text": "Most viewed topics"
+          }
+        },
+        {
+          "tag": "footer",
+          "y": 3970,
+          "h": 211,
+          "bg": "rgb(255, 255, 255)",
+          "cols": 3,
+          "imgs": 2,
+          "heading": null
+        }
+      ]
+    },
+    "1440": {
+      "url": "https://help.shop.app/en/shop",
+      "width": 1440,
+      "height": 2439,
+      "title": "Shop Help Center",
+      "headingMax": 20,
+      "type": {
+        "families": [
+          {
+            "v": "GTStandard-Regular",
+            "c": 2774
+          }
+        ],
+        "sizes": [
+          {
+            "v": "14px",
+            "c": 2114
+          },
+          {
+            "v": "16px",
+            "c": 433
+          },
+          {
+            "v": "12px",
+            "c": 116
+          },
+          {
+            "v": "20px",
+            "c": 111
+          }
+        ],
+        "weights": [
+          {
+            "v": "400",
+            "c": 2102
+          },
+          {
+            "v": "550",
+            "c": 508
+          },
+          {
+            "v": "450",
+            "c": 133
+          },
+          {
+            "v": "500",
+            "c": 31
+          }
+        ],
+        "roles": {
+          "button": {
+            "size": "16px",
+            "weight": "450",
+            "lineHeight": "24px",
+            "letterSpacing": "normal",
+            "family": "GTStandard-Regular",
+            "transform": "none"
+          },
+          "h2": {
+            "size": "20px",
+            "weight": "550",
+            "lineHeight": "28px",
+            "letterSpacing": "0.15px",
+            "family": "GTStandard-Regular",
+            "transform": "none"
+          },
+          "p": {
+            "size": "14px",
+            "weight": "400",
+            "lineHeight": "18px",
+            "letterSpacing": "0.15px",
+            "family": "GTStandard-Regular",
+            "transform": "none"
+          },
+          "a": {
+            "size": "14px",
+            "weight": "500",
+            "lineHeight": "20px",
+            "letterSpacing": "normal",
+            "family": "GTStandard-Regular",
+            "transform": "none"
+          }
+        }
+      },
+      "color": {
+        "text": [
+          {
+            "v": "rgb(74, 74, 74)",
+            "c": 2102
+          },
+          {
+            "v": "rgb(0, 0, 0)",
+            "c": 499
+          },
+          {
+            "v": "rgb(111, 112, 113)",
+            "c": 127
+          },
+          {
+            "v": "rgb(255, 255, 255)",
+            "c": 31
+          },
+          {
+            "v": "rgb(107, 113, 119)",
+            "c": 15
+          }
+        ],
+        "background": [
+          {
+            "v": "rgb(255, 255, 255)",
+            "c": 84960
+          },
+          {
+            "v": "rgb(242, 244, 245)",
+            "c": 34752
+          }
+        ]
+      },
+      "radius": [
+        {
+          "v": "12px",
+          "c": 36
+        },
+        {
+          "v": "10px",
+          "c": 3
+        },
+        {
+          "v": "32px",
+          "c": 1
+        }
+      ],
+      "sections": [
+        {
+          "tag": "header",
+          "y": 0,
+          "h": 59,
+          "bg": "rgb(255, 255, 255)",
+          "cols": 1,
+          "imgs": 1,
+          "heading": null
+        },
+        {
+          "tag": "div",
+          "y": 64,
+          "h": 2304,
+          "bg": "rgb(255, 255, 255)",
+          "cols": 1,
+          "imgs": 1,
+          "heading": {
+            "tag": "h2",
+            "size": "20px",
+            "text": "Most viewed topics"
+          }
+        },
+        {
+          "tag": "footer",
+          "y": 2368,
+          "h": 71,
+          "bg": "rgb(255, 255, 255)",
+          "cols": 2,
+          "imgs": 2,
+          "heading": null
+        }
+      ]
+    }
+  }
+}

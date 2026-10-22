@@ -62,7 +62,8 @@ export async function projectCart(tx:TransactionSql,cart:CartRow){
  const lines=[];
  for(const line of await cartLines(tx,cart.id)){
   const revision=await readCatalogRevision(tx,line.product_id,line.product_revision);const offer=revision.variants.find(v=>v.id===line.offer_id);if(!offer) throw new AccessError(503,'CART_INVALID');
-  const [head]=await tx`select v.id from app.publication_head h join app.publication_version v on v.product_id=h.product_id and v.revision=h.revision where h.product_id=${line.product_id}`;
+  const [head]=await tx`select v.id from app.publication_head h join app.publication_version v on v.product_id=h.product_id and v.revision=h.revision where h.product_id=${line.product_id}
+   and not exists (select 1 from app.publication_withdrawal w where w.publication_id=v.id)`;
   lines.push({id:line.id,product_id:line.product_id,catalog_id:offer.catalog_id,variant_id:line.offer_id,publication_id:line.publication_id,product_revision:line.product_revision,name:revision.name,variant_label:offer.label,offer_kind:offer.offer_kind,contents:offer.contents,quantity:line.quantity,unit_price:99000,line_total:99000*line.quantity,publication_changed:head?.id!==line.publication_id});
  }
  return {id:cart.id,version:cart.revision,state:cart.state,access_transport:cart.transport,active_quote_id:cart.active_quote_id,submitted_order_id:cart.submitted_order_id,currency:'IDR',merchandise_total:lines.reduce((n,l)=>n+l.line_total,0),lines,expires_at:new Date(cart.expires_at).toISOString()};

@@ -26,17 +26,17 @@ export function Listing({input,products,next,categories,categoryName,facets}:{in
   <div className="listing-layout"><FilterPanel>{separateCategory&&<form action="/search" aria-label="Ganti kategori">
    {input.q&&<input type="hidden" name="q" value={input.q}/>}
    {(['offer_kind','availability','sort','limit'] as const).map(key=>input[key]&&<input key={key} type="hidden" name={key} value={input[key]}/>)}
-   {categoryControl}
+   <div className="filter-field">{categoryControl}</div>
    <button className="button secondary" type="submit">Lihat kategori</button>
   </form>}<form action="/search" aria-label="Filter produk">
    {input.q&&<input type="hidden" name="q" value={input.q}/>}
-   {separateCategory?input.category_id&&<input type="hidden" name="category_id" value={input.category_id}/>:categoryControl}
+   {separateCategory?input.category_id&&<input type="hidden" name="category_id" value={input.category_id}/>:<div className="filter-field">{categoryControl}</div>}
    <input type="hidden" name="limit" value={input.limit}/>
-   <label htmlFor="kind-filter">Isi pilihan</label><select id="kind-filter" name="offer_kind" defaultValue={input.offer_kind??''}><option value="">Semua pilihan</option><option value="unit">Satuan</option><option value="multipack">Paket barang yang sama</option><option value="bundle">Paket campuran</option></select>
-   <label htmlFor="stock-filter">Ketersediaan</label><select id="stock-filter" name="availability" defaultValue={input.availability??''}><option value="">Semua stok</option><option value="available">Tersedia</option><option value="unavailable">Belum tersedia</option></select>
-   <label htmlFor="sort-filter">Urutan</label><select id="sort-filter" name="sort" defaultValue={input.sort}><option value="relevance">Paling sesuai</option><option value="newest">Publikasi terbaru</option></select>
+   <div className="filter-field"><label htmlFor="kind-filter">Isi pilihan</label><select id="kind-filter" name="offer_kind" defaultValue={input.offer_kind??''}><option value="">Semua pilihan</option><option value="unit">Satuan</option><option value="multipack">Paket barang yang sama</option><option value="bundle">Paket campuran</option></select></div>
+   <div className="filter-field"><label htmlFor="stock-filter">Ketersediaan</label><select id="stock-filter" name="availability" defaultValue={input.availability??''}><option value="">Semua stok</option><option value="available">Tersedia</option><option value="unavailable">Belum tersedia</option></select></div>
+   <div className="filter-field"><label htmlFor="sort-filter">Urutan</label><select id="sort-filter" name="sort" defaultValue={input.sort}><option value="relevance">Paling sesuai</option><option value="newest">Publikasi terbaru</option></select></div>
    {facets.filter(f=>f.values.length).map(f=><fieldset className="facet" key={f.key}><legend>{f.label}</legend>{f.values.map(value=><label className="facet-option" key={value}><input type="checkbox" name={`filter.${f.key}`} value={value} defaultChecked={input.attributes[f.key]?.includes(value)??false}/>{value}</label>)}</fieldset>)}
-   <button className="button" type="submit">Terapkan filter</button><Link className="reset-link" href={resetHref}>Hapus filter</Link>
+   <div className="filter-actions"><button className="button" type="submit">Terapkan filter</button><Link className="reset-link" href={resetHref}>Hapus filter</Link></div>
   </form></FilterPanel><section aria-label="Hasil produk">
    {products.length?<ProductGrid products={products} input={input}/>:<div className="empty-state"><h2>{next?'Belum ada kecocokan di halaman ini':'Belum ada produk yang sesuai'}</h2><p>{next?'Lanjutkan pencarian pada halaman berikutnya dengan filter yang sama.':'Coba kata lain atau hapus filter untuk melihat pilihan lain.'}</p><Link className="button" href={next?url({cursor:next}):'/search'}>{next?'Halaman berikutnya':'Lihat semua produk'}</Link></div>}
    {next&&products.length>0&&<div className="pagination"><Link className="button secondary" href={url({cursor:next})}>Halaman berikutnya</Link><p>Stok dan publikasi diperiksa lagi pada setiap halaman.</p></div>}

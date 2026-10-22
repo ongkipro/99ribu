@@ -42,7 +42,7 @@ export function BuyerAccountClient({
 	const [guestContact, setGuestContact] = useState("");
 	const [guestChallengeId, setGuestChallengeId] = useState<string | null>(null);
 	const [guestOtp, setGuestOtp] = useState("");
-	const [recoveredToken, setRecoveredToken] = useState<string | null>(null);
+	const [recoveredOrderId, setRecoveredOrderId] = useState<string | null>(null);
 
 	async function handleProfileSave(e: React.FormEvent) {
 		e.preventDefault();
@@ -84,6 +84,10 @@ export function BuyerAccountClient({
 			const updated = (await res.json()) as BuyerAddressListResponse;
 			setAddresses(updated);
 			setStatusMsg("Alamat utama berhasil diperbarui.");
+		} else {
+			setStatusMsg(
+				"Gagal memperbarui alamat utama. Muat ulang halaman lalu coba lagi.",
+			);
 		}
 	}
 
@@ -120,6 +124,10 @@ export function BuyerAccountClient({
 		if (res.ok) {
 			setPreferences((await res.json()) as NotificationPreferenceResponse);
 			setStatusMsg("Preferensi notifikasi disimpan.");
+		} else {
+			setStatusMsg(
+				"Gagal menyimpan preferensi notifikasi. Muat ulang halaman lalu coba lagi.",
+			);
 		}
 	}
 
@@ -143,6 +151,8 @@ export function BuyerAccountClient({
 			setNotifications((prev) =>
 				prev.map((n) => (n.id === updated.id ? updated : n)),
 			);
+		} else {
+			setStatusMsg("Gagal memperbarui status notifikasi.");
 		}
 	}
 
@@ -155,12 +165,20 @@ export function BuyerAccountClient({
 			},
 			body: JSON.stringify({ scope }),
 		});
+		if (res.ok && scope === "all") {
+			// The current session row is gone; sign-out clears its Better Auth cookies and guest context.
+			await fetch("/api/auth/sign-out", {
+				method: "POST",
+				headers: { "content-type": "application/json" },
+				body: "{}",
+			}).catch(() => null);
+			window.location.assign("/account");
+			return;
+		}
 		if (res.ok) {
-			setStatusMsg(
-				scope === "others"
-					? "Sesi perangkat lain telah dihentikan."
-					: "Seluruh sesi telah dihentikan.",
-			);
+			setStatusMsg("Sesi perangkat lain telah dihentikan.");
+		} else {
+			setStatusMsg("Gagal menghentikan sesi.");
 		}
 	}
 
@@ -201,11 +219,8 @@ export function BuyerAccountClient({
 			}),
 		});
 		if (res.ok) {
-			const data = (await res.json()) as {
-				order_id: string;
-				order_access_token: string;
-			};
-			setRecoveredToken(data.order_access_token);
+			const data = (await res.json()) as { order_id: string };
+			setRecoveredOrderId(data.order_id);
 			setStatusMsg("Akses pesanan tamu berhasil dipulihkan.");
 		} else {
 			setStatusMsg("Kode verifikasi tidak sesuai.");
@@ -514,11 +529,11 @@ export function BuyerAccountClient({
 						</button>
 					</form>
 				)}
-				{recoveredToken && (
+				{recoveredOrderId && (
 					<p className="checkout-hint">
 						<a
 							data-testid="guest-recovered-receipt-link"
-							href={`/orders/${guestOrderId}?token=${encodeURIComponent(recoveredToken)}`}
+							href={`/orders/${encodeURIComponent(recoveredOrderId)}`}
 						>
 							Buka tanda terima pesanan tamu sekarang
 						</a>

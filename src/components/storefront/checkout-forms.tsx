@@ -12,7 +12,10 @@ import {Icon} from './icon';
 type RetryChild=(capture:(data:FormData|null,snapshot?:CheckoutState)=>void,retry:FormData|null)=>React.ReactNode;
 class CheckoutBoundary extends Component<{children:RetryChild;heading?:boolean;href:string},{failed:boolean;revision:number;retry:FormData|null}>{
  state={failed:false,revision:0,retry:null as FormData|null};submitted:FormData|null=null;snapshot:CheckoutState|null=null;
- static getDerivedStateFromError(){return {failed:true};}
+ static getDerivedStateFromError(error:unknown){
+  if(typeof (error as {digest?:string})?.digest==='string'&&(error as {digest:string}).digest.startsWith('NEXT_REDIRECT'))throw error;
+  return {failed:true};
+ }
  capture=(data:FormData|null,snapshot?:CheckoutState)=>{this.submitted=data;this.snapshot=data?snapshot??null:null;};
  render(){
   if(this.state.failed){

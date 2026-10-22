@@ -51,7 +51,7 @@ export default async function Product({params,searchParams}:Props){
    <p className="cart-advisory">Stok diperiksa kembali saat ditambahkan. Isi keranjang belum memesan stok.</p></div>
   </section>:<p className="cart-advisory">Belum ada pilihan yang dapat ditambahkan.</p>}
   <section className="product-facts"><h2>Spesifikasi</h2>{facts.length?<dl>{facts.map(f=><div key={f.key}><dt>{f.label}</dt><dd>{f.values.join(', ')}</dd></div>)}</dl>:<p className="cart-advisory">Spesifikasi tambahan belum tersedia.</p>}</section>
-  <details className="product-policy"><summary>Ongkir dan pengiriman</summary><p>Ongkir dihitung dari alamat dan paket, lalu ditampilkan sebelum konfirmasi. Hari libur tidak dihitung sebagai hari proses pengiriman.</p></details>
-  <details className="product-policy"><summary>Pengembalian</summary><p>Ketentuan pengembalian katalog contoh belum diterbitkan.</p><Link className="detail-help" href="/help#returns">Ketentuan pengembalian</Link></details>
+  <details className="product-policy"><summary>Ongkir dan pengiriman<Icon name="chevron"/></summary><p>Ongkir dihitung dari alamat dan paket, lalu ditampilkan sebelum konfirmasi. Hari libur tidak dihitung sebagai hari proses pengiriman.</p></details>
+  <details className="product-policy"><summary>Pengembalian<Icon name="chevron"/></summary><p>Ketentuan pengembalian belum diterbitkan.</p><Link className="detail-help" href="/help#returns">Ketentuan pengembalian</Link></details>
  </section></div></main></Shell>;
 }

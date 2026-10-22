@@ -39,7 +39,7 @@ before(async()=>{
   const draft=await readCatalogRevision(identity.sql,stored.product_id);assert.equal(draft.version,1);assert.equal(draft.name,name);assert.equal(draft.category_id,categoryId);assert.deepEqual(draft.variants[0].attributes,attributes);
   if(!(await identity.sql`select id from app.offer_cost_assumption_version where offer_id=${stored.id} limit 1`).length)await appendCostVersion(command(),identity,principal,'assumption',stored.id,{expected_version:0,effective_from:null,packaging_idr:1000,provider_fee_idr:1000,subsidy_idr:5000,returns_reserve_idr:1000,source:'TEST-ONLY filter recovery assumptions',reason:'Initialize empty owned regression assumption'});
   let state=await readPublicationState(identity,principal,stored.product_id);
-  if(!state.current){await publishProduct(command(),identity,principal,stored.product_id,{expected_version:1,expected_publication_version:0,reason:'Guarded synthetic filter recovery publication'});state=await readPublicationState(identity,principal,stored.product_id);}
+  if(!state.current){await publishProduct(command(),identity,principal,stored.product_id,{expected_version:1,expected_publication_version:state.latest_version,reason:'Guarded synthetic filter recovery publication'});state=await readPublicationState(identity,principal,stored.product_id);}
   assert.equal(state.current_review_state,'approved');if(size==='M')matchingProduct=stored.product_id;
  }
 });

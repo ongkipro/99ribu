@@ -1,0 +1,331 @@
+{
+  "capturedAt": "2026-10-22T09:32:57.913Z",
+  "viewports": {
+    "390": {
+      "url": "https://shop.com/",
+      "width": 390,
+      "height": 1624,
+      "title": "Shop - Shopping designed around you",
+      "headingMax": 18,
+      "type": {
+        "families": [
+          {
+            "v": "GT Standard Web",
+            "c": 960
+          }
+        ],
+        "sizes": [
+          {
+            "v": "12px",
+            "c": 452
+          },
+          {
+            "v": "14px",
+            "c": 412
+          },
+          {
+            "v": "18px",
+            "c": 64
+          },
+          {
+            "v": "16px",
+            "c": 32
+          }
+        ],
+        "weights": [
+          {
+            "v": "400",
+            "c": 468
+          },
+          {
+            "v": "600",
+            "c": 432
+          },
+          {
+            "v": "500",
+            "c": 60
+          }
+        ],
+        "roles": {
+          "p": {
+            "size": "12px",
+            "weight": "500",
+            "lineHeight": "16px",
+            "letterSpacing": "-0.2px",
+            "family": "GT Standard Web",
+            "transform": "none"
+          },
+          "h2": {
+            "size": "18px",
+            "weight": "600",
+            "lineHeight": "20px",
+            "letterSpacing": "-0.5px",
+            "family": "GT Standard Web",
+            "transform": "none"
+          }
+        }
+      },
+      "color": {
+        "text": [
+          {
+            "v": "rgb(0, 0, 0)",
+            "c": 420
+          },
+          {
+            "v": "rgb(255, 255, 255)",
+            "c": 297
+          },
+          {
+            "v": "rgba(0, 0, 0, 0.56)",
+            "c": 236
+          },
+          {
+            "v": "oklch(0.55161 0.02649 290.54)",
+            "c": 7
+          }
+        ],
+        "background": [
+          {
+            "v": "rgb(255, 255, 255)",
+            "c": 1079630.5
+          },
+          {
+            "v": "rgb(242, 244, 245)",
+            "c": 753088
+          },
+          {
+            "v": "rgb(251, 251, 251)",
+            "c": 656930.625
+          },
+          {
+            "v": "rgba(0, 0, 0, 0.04)",
+            "c": 157889.537109375
+          },
+          {
+            "v": "rgba(255, 255, 255, 0.75)",
+            "c": 22912
+          },
+          {
+            "v": "oklch(1 0 0)",
+            "c": 21840
+          }
+        ]
+      },
+      "radius": [
+        {
+          "v": "9999px",
+          "c": 22
+        },
+        {
+          "v": "1e+07px",
+          "c": 14
+        },
+        {
+          "v": "20px",
+          "c": 14
+        },
+        {
+          "v": "16px",
+          "c": 6
+        },
+        {
+          "v": "32px",
+          "c": 2
+        },
+        {
+          "v": "28px",
+          "c": 1
+        }
+      ],
+      "sections": [
+        {
+          "tag": "header",
+          "y": 788,
+          "h": 56,
+          "bg": "oklch(1 0 0)",
+          "cols": 1,
+          "imgs": 10,
+          "heading": null
+        },
+        {
+          "tag": "div",
+          "y": 0,
+          "h": 1624,
+          "bg": "oklch(0.98809 0 0)",
+          "cols": 1,
+          "imgs": 76,
+          "heading": {
+            "tag": "h2",
+            "size": "18px",
+            "text": "Women"
+          }
+        }
+      ]
+    },
+    "1440": {
+      "url": "https://shop.com/",
+      "width": 1440,
+      "height": 1908,
+      "title": "Shop - Shopping designed around you",
+      "headingMax": 20,
+      "type": {
+        "families": [
+          {
+            "v": "GT Standard Web",
+            "c": 1280
+          }
+        ],
+        "sizes": [
+          {
+            "v": "14px",
+            "c": 796
+          },
+          {
+            "v": "12px",
+            "c": 303
+          },
+          {
+            "v": "11.4046px",
+            "c": 85
+          },
+          {
+            "v": "20px",
+            "c": 64
+          },
+          {
+            "v": "16px",
+            "c": 32
+          }
+        ],
+        "weights": [
+          {
+            "v": "400",
+            "c": 685
+          },
+          {
+            "v": "600",
+            "c": 432
+          },
+          {
+            "v": "500",
+            "c": 163
+          }
+        ],
+        "roles": {
+          "p": {
+            "size": "11.4046px",
+            "weight": "500",
+            "lineHeight": "15.2023px",
+            "letterSpacing": "-0.2px",
+            "family": "GT Standard Web",
+            "transform": "none"
+          },
+          "h2": {
+            "size": "20px",
+            "weight": "600",
+            "lineHeight": "22px",
+            "letterSpacing": "-1px",
+            "family": "GT Standard Web",
+            "transform": "none"
+          }
+        }
+      },
+      "color": {
+        "text": [
+          {
+            "v": "rgb(0, 0, 0)",
+            "c": 592
+          },
+          {
+            "v": "rgba(0, 0, 0, 0.56)",
+            "c": 384
+          },
+          {
+            "v": "rgb(255, 255, 255)",
+            "c": 297
+          },
+          {
+            "v": "oklch(0.55161 0.02649 290.54)",
+            "c": 7
+          }
+        ],
+        "background": [
+          {
+            "v": "rgb(251, 251, 251)",
+            "c": 3502752
+          },
+          {
+            "v": "rgb(255, 255, 255)",
+            "c": 1601983.295754781
+          },
+          {
+            "v": "rgb(242, 244, 245)",
+            "c": 684208
+          },
+          {
+            "v": "rgba(0, 0, 0, 0.04)",
+            "c": 235224
+          },
+          {
+            "v": "rgba(255, 255, 255, 0.75)",
+            "c": 65536
+          },
+          {
+            "v": "oklab(1 0 0 / 0.8)",
+            "c": 15680
+          }
+        ]
+      },
+      "radius": [
+        {
+          "v": "9999px",
+          "c": 25
+        },
+        {
+          "v": "1e+07px",
+          "c": 21
+        },
+        {
+          "v": "28px",
+          "c": 14
+        },
+        {
+          "v": "16px",
+          "c": 7
+        },
+        {
+          "v": "32px",
+          "c": 4
+        },
+        {
+          "v": "28.8px",
+          "c": 3
+        }
+      ],
+      "sections": [
+        {
+          "tag": "header",
+          "y": 0,
+          "h": 900,
+          "bg": "oklch(0.98809 0 0)",
+          "cols": 1,
+          "imgs": 10,
+          "heading": null
+        },
+        {
+          "tag": "div",
+          "y": 0,
+          "h": 1908,
+          "bg": "oklch(0.98809 0 0)",
+          "cols": 1,
+          "imgs": 87,
+          "heading": {
+            "tag": "h2",
+            "size": "20px",
+            "text": "Women"
+          }
+        }
+      ]
+    }
+  }
+}
