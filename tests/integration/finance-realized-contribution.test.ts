@@ -33,7 +33,10 @@ test("S34 GET /api/v1/admin/finance/summary computes complete and incomplete rea
         (select max(occurred_at) from app.finance_transaction),
         (select max(occurred_at) from app.economic_receipt),
         (select max(created_at) from app.commission_entry),
-        (select max(occurred_at) from app.finance_expense)
+        (select max(occurred_at) from app.finance_expense),
+        (select max(created_at) from app.refund),
+        (select max(created_at) from app.recovery_refund),
+        (select max(created_at) from app.stock_movement)
       )::text as latest`;
 		const targetMs =
 			Math.max(
@@ -147,6 +150,37 @@ test("S34 GET /api/v1/admin/finance/summary computes complete and incomplete rea
        where i.order_id=${order.id}`;
 		assert.ok(unit);
 
+		// Estimated contribution uses the inputs the accepted quote froze for this line (S77 isolation):
+		// the commercial policy in force at quote time is global state other suites append to
+		// (settings.test publishes a 700 bps successor), so derive the expectation from the frozen
+		// policy/assumption versions instead of assuming which version is current.
+		const [frozen] = await sql<
+			{
+				bps: number;
+				packaging: number;
+				provider_fee: number;
+				subsidy: number;
+				returns_reserve: number;
+			}[]
+		>`
+      select (p.values->>'default_commission_bps')::int as bps,
+             a.packaging_idr as packaging,a.provider_fee_idr as provider_fee,
+             a.subsidy_idr as subsidy,a.returns_reserve_idr as returns_reserve
+        from app.commerce_order o
+        join app.checkout_quote q on q.id=o.quote_id
+        join app.order_item i on i.order_id=o.id
+        cross join lateral jsonb_array_elements(q.document->'financial_sources') s
+        join app.policy_version p on p.id=(s->>'policy_version_id')::uuid
+        join app.offer_cost_assumption_version a on a.id=(s->>'assumption_version_id')::uuid
+       where o.id=${order.id} and s->>'line_id'=i.line_id::text`;
+		assert.ok(frozen, "Order line must freeze its policy and assumption versions");
+		const frozenCommission = Math.floor((99000 * frozen.bps + 5000) / 10000);
+		const frozenAssumptions =
+			frozen.packaging +
+			frozen.provider_fee +
+			frozen.subsidy +
+			frozen.returns_reserve;
+
 		// 4. Before settlement: realized_contribution & operating_result are incomplete due to missing settlement
 		const unsettled = await callSummary(
 			finance,
@@ -176,7 +210,7 @@ test("S34 GET /api/v1/admin/finance/summary computes complete and incomplete rea
 		});
 		assert.deepEqual(unsettled.payload.estimated_contribution, {
 			complete: true,
-			amount: 54070,
+			amount: 99000 - 30000 - frozenAssumptions - frozenCommission,
 			missing_inputs: [],
 		});
 		assert.equal(unsettled.payload.realized_contribution.complete, false);
@@ -251,7 +285,7 @@ test("S34 GET /api/v1/admin/finance/summary computes complete and incomplete rea
 			carrierFee -
 			Number(unit.subsidy_amount) -
 			providerFee -
-			1000 -
+			frozen.packaging -
 			6930;
 		assert.deepEqual(settled.payload.realized_contribution, {
 			complete: true,

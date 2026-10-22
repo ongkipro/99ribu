@@ -4,6 +4,10 @@ import test from "node:test";
 import { runOneJob } from "../../src/jobs/worker.ts";
 import { handleAdvertisingDiagnostics } from "../../src/modules/advertising/diagnostics.ts";
 import { advertisingAdapter } from "../../src/modules/advertising/worker.ts";
+import {
+	ingestCodEvent,
+	simulateCodCollection,
+} from "../../src/modules/payments/cod-local.ts";
 import { actor, cleanup, enroll } from "../contract/access-fixture.ts";
 import { advertisingFixture, deniedChoices } from "./advertising-fixture.ts";
 import { CommerceClient } from "./checkout-fixture.ts";
@@ -36,20 +40,6 @@ test("T-30: owner-only advertising diagnostics, secret redaction, money-vs-signa
 		);
 		assert.equal(financeDeniedRes.status, 403);
 
-		const ecomDeniedRes = await handleAdvertisingDiagnostics(
-			ecomAdmin.browser.request(
-				"/api/v1/admin/advertising/destinations/meta/pause",
-				{
-					expected_version: 1,
-					paused: true,
-					reason: "Percobaan jeda oleh non-owner",
-				},
-			),
-			f.identity,
-			"meta",
-		);
-		assert.equal(ecomDeniedRes.status, 403);
-
 		// 2. Owner lists destinations: verify secret redaction & Google UPLOAD_CLICKS source
 		const listRes = await handleAdvertisingDiagnostics(
 			f.owner.browser.request("/api/v1/admin/advertising/destinations"),
@@ -73,6 +63,45 @@ test("T-30: owner-only advertising diagnostics, secret redaction, money-vs-signa
 		assert.equal(googleDest.credentials_configured, true);
 		assert.equal(googleDest.secret_redacted, true);
 		assert.equal(googleDest.browser_purchase_enabled, false);
+		// {destinationId} is the opaque destination row id from the inventory, never a platform alias.
+		const destinationId = (platform: string): string =>
+			listPayload.data.find(
+				(d: { platform: string }) => d.platform === platform,
+			).id;
+
+		const ecomDeniedRes = await handleAdvertisingDiagnostics(
+			ecomAdmin.browser.request(
+				`/api/v1/admin/advertising/destinations/${destinationId("meta")}/pause`,
+				{
+					expected_version: 1,
+					paused: true,
+					reason: "Percobaan jeda oleh non-owner",
+				},
+			),
+			f.identity,
+			destinationId("meta"),
+		);
+		assert.equal(ecomDeniedRes.status, 403);
+
+		// Diagnostics aggregate company-wide, so collection-vs-order counts are asserted as deltas
+		// over one fixed window around this test's own Purchases (S77: no reliance on other suites' data).
+		const windowNow = Date.now();
+		const windowQuery = `?from=${encodeURIComponent(new Date(windowNow - 86400_000).toISOString())}&to=${encodeURIComponent(new Date(windowNow + 86400_000).toISOString())}`;
+		const metaWindow = async () => {
+			const res = await handleAdvertisingDiagnostics(
+				f.owner.browser.request(
+					`/api/v1/admin/advertising/destinations/${destinationId("meta")}/diagnostics${windowQuery}`,
+				),
+				f.identity,
+				destinationId("meta"),
+			);
+			assert.equal(res.status, 200);
+			return (await res.json()) as {
+				purchase_collection_instances: number;
+				unique_orders: number;
+			};
+		};
+		const windowBefore = await metaWindow();
 
 		// 3. Seed 1 consented prepaid order + 1 non-consented prepaid order
 		await f.consent(f.client);
@@ -103,6 +132,70 @@ test("T-30: owner-only advertising diagnostics, secret redaction, money-vs-signa
     `;
 		assert.ok(suppressedEvent);
 
+		// Own split-parcel COD order: one order, two shipments, each collected separately,
+		// so it yields two Purchase collection instances for a single unique order.
+		const codClient = new CommerceClient(f.identity);
+		await f.consent(codClient);
+		const codInput = { lines: [f.line("fixture-offer-shirt", 3)] };
+		const codKey = randomUUID();
+		let codCart = await codClient.call("/api/v1/carts", codInput, { key: codKey });
+		if (codCart.response.status === 401)
+			codCart = await codClient.call("/api/v1/carts", codInput, { key: codKey });
+		assert.equal(codCart.response.status, 201, JSON.stringify(codCart.payload));
+		const codQuote = await codClient.call(
+			"/api/v1/checkout/quotes",
+			{
+				cart_id: codCart.payload.cart.id,
+				address: f.address,
+				contact: f.contact(),
+				payment_method: "cod",
+			},
+			{ version: 1 },
+		);
+		assert.equal(codQuote.response.status, 201);
+		const codSubmitted = await codClient.call(
+			"/api/v1/orders",
+			{ quote_id: codQuote.payload.id },
+			{ version: 1 },
+		);
+		assert.equal(codSubmitted.response.status, 201);
+		const splitOrder = codSubmitted.payload.order;
+		assert.equal(splitOrder.shipments.length, 2);
+		for (const shipment of splitOrder.shipments as { id: string }[]) {
+			const codEvent = await simulateCodCollection(
+				f.identity.sql,
+				"test",
+				shipment.id,
+			);
+			const codJob = await ingestCodEvent(f.identity.sql, codEvent);
+			assert.equal(await runOneJob(f.identity.sql, {}, codJob), true);
+		}
+		const splitPurchases = await f.identity.sql<{ occurred_at: string }[]>`
+      select occurred_at from app.commerce_event
+      where order_id = ${splitOrder.id}::uuid and name = 'Purchase'
+    `;
+		assert.equal(splitPurchases.length, 2);
+		for (const event of [consentedEvent, suppressedEvent, ...splitPurchases]) {
+			const at = Date.parse(event.occurred_at);
+			assert.ok(
+				Math.abs(at - windowNow) < 86400_000,
+				"Own Purchases must fall inside the fixed diagnostics window",
+			);
+		}
+
+		const windowAfter = await metaWindow();
+		// 2 prepaid orders (1 Purchase each) + 1 split order (2 Purchases): +4 instances, +3 unique orders.
+		assert.equal(
+			windowAfter.purchase_collection_instances -
+				windowBefore.purchase_collection_instances,
+			4,
+		);
+		assert.equal(
+			windowAfter.unique_orders - windowBefore.unique_orders,
+			3,
+			"Split-parcel collection instances must be distinguished from unique_orders count",
+		);
+
 		// Dispatch ONLY the meta outbox job for the consented Purchase event
 		const [metaOutbox] = await f.identity.sql<{ id: string; job_id: string }[]>`
       select id, job_id from app.ad_event_outbox
@@ -120,9 +213,11 @@ test("T-30: owner-only advertising diagnostics, secret redaction, money-vs-signa
 
 		// Inspect Meta diagnostics: eligible, suppressed, queued, accepted, processed, attributed (null), and reconciliation
 		const metaDiagRes = await handleAdvertisingDiagnostics(
-			f.owner.browser.request("/api/v1/admin/advertising/destinations/meta"),
+			f.owner.browser.request(
+				`/api/v1/admin/advertising/destinations/${destinationId("meta")}/diagnostics`,
+			),
 			f.identity,
-			"meta",
+			destinationId("meta"),
 		);
 		assert.equal(metaDiagRes.status, 200);
 		const metaDiag = await metaDiagRes.json();
@@ -140,10 +235,6 @@ test("T-30: owner-only advertising diagnostics, secret redaction, money-vs-signa
 			null,
 			"API acceptance must never claim external ad attribution",
 		);
-		assert.ok(
-			metaDiag.purchase_collection_instances > metaDiag.unique_orders,
-			"Split-parcel collection instances must be distinguished from unique_orders count",
-		);
 		assert.ok(metaDiag.reconciliation.gross_merchandise_amount_idr >= 198000);
 		assert.ok(
 			metaDiag.reconciliation.dispatched_purchase_signal_amount_idr >= 99000,
@@ -153,13 +244,13 @@ test("T-30: owner-only advertising diagnostics, secret redaction, money-vs-signa
 		);
 		assert.ok(metaDiag.missing_identity.orders_without_visitor_session >= 1);
 
-		// 4. Versioned PATCH, Pause, Resume, and Stale expected_version (409)
+		// 4. Appended destination versions, Pause, Resume, and Stale expected_version (409)
 		// Reject secret write or browser_purchase_enabled=true
 		const secretWriteRes = await handleAdvertisingDiagnostics(
 			new Request(
-				"http://127.0.0.1:3099/api/v1/admin/advertising/destinations/meta",
+				`http://127.0.0.1:3099/api/v1/admin/advertising/destinations/${destinationId("meta")}/versions`,
 				{
-					method: "PATCH",
+					method: "POST",
 					headers: {
 						origin: "http://127.0.0.1:3099",
 						"content-type": "application/json",
@@ -175,16 +266,16 @@ test("T-30: owner-only advertising diagnostics, secret redaction, money-vs-signa
 				},
 			),
 			f.identity,
-			"meta",
+			destinationId("meta"),
 		);
 		assert.equal(secretWriteRes.status, 400);
 
-		// Valid PATCH on meta
+		// Valid version append on meta
 		const patchMetaRes = await handleAdvertisingDiagnostics(
 			new Request(
-				"http://127.0.0.1:3099/api/v1/admin/advertising/destinations/meta",
+				`http://127.0.0.1:3099/api/v1/admin/advertising/destinations/${destinationId("meta")}/versions`,
 				{
-					method: "PATCH",
+					method: "POST",
 					headers: {
 						origin: "http://127.0.0.1:3099",
 						"content-type": "application/json",
@@ -200,19 +291,19 @@ test("T-30: owner-only advertising diagnostics, secret redaction, money-vs-signa
 				},
 			),
 			f.identity,
-			"meta",
+			destinationId("meta"),
 		);
-		assert.equal(patchMetaRes.status, 200);
+		assert.equal(patchMetaRes.status, 201);
 		const patchedMeta = await patchMetaRes.json();
 		assert.equal(patchedMeta.version, metaDiag.version + 1);
 		assert.equal(patchedMeta.public_identifier, "meta-pixel-local-002");
 
-		// Stale expected_version on PATCH -> 409
+		// Stale expected_version on version append -> 409
 		const stalePatchRes = await handleAdvertisingDiagnostics(
 			new Request(
-				"http://127.0.0.1:3099/api/v1/admin/advertising/destinations/meta",
+				`http://127.0.0.1:3099/api/v1/admin/advertising/destinations/${destinationId("meta")}/versions`,
 				{
-					method: "PATCH",
+					method: "POST",
 					headers: {
 						origin: "http://127.0.0.1:3099",
 						"content-type": "application/json",
@@ -228,21 +319,23 @@ test("T-30: owner-only advertising diagnostics, secret redaction, money-vs-signa
 				},
 			),
 			f.identity,
-			"meta",
+			destinationId("meta"),
 		);
 		assert.equal(stalePatchRes.status, 409);
 
 		// Pause Google destination
 		const googleBeforeRes = await handleAdvertisingDiagnostics(
-			f.owner.browser.request("/api/v1/admin/advertising/destinations/google"),
+			f.owner.browser.request(
+				`/api/v1/admin/advertising/destinations/${destinationId("google")}/diagnostics`,
+			),
 			f.identity,
-			"google",
+			destinationId("google"),
 		);
 		const googleBefore = await googleBeforeRes.json();
 
 		const pauseGoogleRes = await handleAdvertisingDiagnostics(
 			f.owner.browser.request(
-				"/api/v1/admin/advertising/destinations/google/pause",
+				`/api/v1/admin/advertising/destinations/${destinationId("google")}/pause`,
 				{
 					expected_version: googleBefore.version,
 					paused: true,
@@ -250,7 +343,7 @@ test("T-30: owner-only advertising diagnostics, secret redaction, money-vs-signa
 				},
 			),
 			f.identity,
-			"google",
+			destinationId("google"),
 		);
 		assert.equal(pauseGoogleRes.status, 200);
 		const pausedGoogle = await pauseGoogleRes.json();
@@ -260,7 +353,7 @@ test("T-30: owner-only advertising diagnostics, secret redaction, money-vs-signa
 		// Replay while destination is paused -> 409 DESTINATION_PAUSED
 		const replayWhilePausedRes = await handleAdvertisingDiagnostics(
 			f.owner.browser.request(
-				"/api/v1/admin/advertising/destinations/google/replays",
+				`/api/v1/admin/advertising/destinations/${destinationId("google")}/replays`,
 				{
 					expected_version: pausedGoogle.version,
 					event_id: consentedEvent.id,
@@ -268,14 +361,14 @@ test("T-30: owner-only advertising diagnostics, secret redaction, money-vs-signa
 				},
 			),
 			f.identity,
-			"google",
+			destinationId("google"),
 		);
 		assert.equal(replayWhilePausedRes.status, 409);
 
 		// Resume Google destination
 		const resumeGoogleRes = await handleAdvertisingDiagnostics(
 			f.owner.browser.request(
-				"/api/v1/admin/advertising/destinations/google/resume",
+				`/api/v1/admin/advertising/destinations/${destinationId("google")}/pause`,
 				{
 					expected_version: pausedGoogle.version,
 					paused: false,
@@ -283,7 +376,7 @@ test("T-30: owner-only advertising diagnostics, secret redaction, money-vs-signa
 				},
 			),
 			f.identity,
-			"google",
+			destinationId("google"),
 		);
 		assert.equal(resumeGoogleRes.status, 200);
 		const resumedGoogle = await resumeGoogleRes.json();
@@ -294,7 +387,7 @@ test("T-30: owner-only advertising diagnostics, secret redaction, money-vs-signa
 		// 5a. Replay of suppressed (no-consent) event -> 409 CONSENT_SUPPRESSED
 		const replaySuppressedRes = await handleAdvertisingDiagnostics(
 			f.owner.browser.request(
-				"/api/v1/admin/advertising/destinations/google/replays",
+				`/api/v1/admin/advertising/destinations/${destinationId("google")}/replays`,
 				{
 					expected_version: resumedGoogle.version,
 					event_id: suppressedEvent.id,
@@ -302,7 +395,7 @@ test("T-30: owner-only advertising diagnostics, secret redaction, money-vs-signa
 				},
 			),
 			f.identity,
-			"google",
+			destinationId("google"),
 		);
 		assert.equal(replaySuppressedRes.status, 409);
 
@@ -322,7 +415,7 @@ test("T-30: owner-only advertising diagnostics, secret redaction, money-vs-signa
 
 		const replayValidRes = await handleAdvertisingDiagnostics(
 			f.owner.browser.request(
-				"/api/v1/admin/advertising/destinations/google/replays",
+				`/api/v1/admin/advertising/destinations/${destinationId("google")}/replays`,
 				{
 					expected_version: resumedGoogle.version,
 					event_id: consentedEvent.id,
@@ -330,7 +423,7 @@ test("T-30: owner-only advertising diagnostics, secret redaction, money-vs-signa
 				},
 			),
 			f.identity,
-			"google",
+			destinationId("google"),
 		);
 		assert.equal(replayValidRes.status, 202);
 		const replayValid = await replayValidRes.json();
@@ -359,15 +452,17 @@ test("T-30: owner-only advertising diagnostics, secret redaction, money-vs-signa
 		// 5c. Withdraw consent on f.client and verify replay on tiktok (which was still queued) is refused with 409!
 		await f.consent(f.client, deniedChoices, 1);
 		const tiktokBeforeRes = await handleAdvertisingDiagnostics(
-			f.owner.browser.request("/api/v1/admin/advertising/destinations/tiktok"),
+			f.owner.browser.request(
+				`/api/v1/admin/advertising/destinations/${destinationId("tiktok")}/diagnostics`,
+			),
 			f.identity,
-			"tiktok",
+			destinationId("tiktok"),
 		);
 		const tiktokBefore = await tiktokBeforeRes.json();
 
 		const replayWithdrawnRes = await handleAdvertisingDiagnostics(
 			f.owner.browser.request(
-				"/api/v1/admin/advertising/destinations/tiktok/replays",
+				`/api/v1/admin/advertising/destinations/${destinationId("tiktok")}/replays`,
 				{
 					expected_version: tiktokBefore.version,
 					event_id: consentedEvent.id,
@@ -375,18 +470,43 @@ test("T-30: owner-only advertising diagnostics, secret redaction, money-vs-signa
 				},
 			),
 			f.identity,
-			"tiktok",
+			destinationId("tiktok"),
 		);
 		assert.equal(replayWithdrawnRes.status, 409);
 
 		const unknownPlatformRes = await handleAdvertisingDiagnostics(
 			f.owner.browser.request(
-				`/api/v1/admin/advertising/destinations/${randomUUID()}`,
+				`/api/v1/admin/advertising/destinations/${randomUUID()}/diagnostics`,
 			),
 			f.identity,
 			randomUUID(),
 		);
 		assert.equal(unknownPlatformRes.status, 404);
+		const platformAliasRes = await handleAdvertisingDiagnostics(
+			f.owner.browser.request(
+				"/api/v1/admin/advertising/destinations/meta/diagnostics",
+			),
+			f.identity,
+			"meta",
+		);
+		assert.equal(
+			platformAliasRes.status,
+			404,
+			"Platform names are not destination ids",
+		);
+		const removedResumeRes = await handleAdvertisingDiagnostics(
+			f.owner.browser.request(
+				`/api/v1/admin/advertising/destinations/${destinationId("google")}/resume`,
+				{ expected_version: 1, paused: false, reason: "Rute lama" },
+			),
+			f.identity,
+			destinationId("google"),
+		);
+		assert.equal(
+			removedResumeRes.status,
+			404,
+			"Resume is the pause endpoint with paused=false",
+		);
 	} finally {
 		await cleanup(f.identity, extraUsers);
 		await f.close();

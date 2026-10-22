@@ -36,6 +36,8 @@ test('built promotion API enforces browser MFA cookies, immutable configuration 
   assert.equal((await call(`${root}/${first.payload.id}/versions`,edit,key())).status,409);
   const history=await call(`${root}/${first.payload.id}/versions?limit=1`);assert.equal(history.status,200);assert.equal(history.payload.pagination.next_cursor,'2');
   const old=await call(`${root}/${first.payload.id}/versions?cursor=2`);assert.equal(old.payload.data[0].value,5000);assert.equal(old.payload.data[0].version_id,first.payload.version_id);
+  // Retire the campaign so later suites on this database never see a live synthetic window.
+  assert.equal((await call(`${root}/${first.payload.id}/versions`,{...edit,expected_version:2,active:false,reason:'Synthetic browser campaign finished'},key())).status,201);
   assert.equal((await call(`${root}/${first.payload.id}?as_of=2030`)).status,400);assert.equal((await call(root,undefined,{'x-order-token':'synthetic-unsupported'})).status,401);
   assert.ok(!(await page.evaluate(()=>document.cookie)).includes('session_token'));
   assert.equal((await call('/api/auth/sign-out',{})).status,200);assert.equal((await call(root)).status,401);validateExchanges(samples,'promotions');

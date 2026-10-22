@@ -16,7 +16,7 @@ import { handleCommerceExceptions } from "../../src/modules/checkout/exceptions/
 import { handleCheckout } from "../../src/modules/checkout/routes.ts";
 import { handleCommissions } from "../../src/modules/commissions/service.ts";
 import { handleShippingLabels } from "../../src/modules/documents/labels.ts";
-import { handleFinance } from "../../src/modules/finance/routes.ts";
+import { handleOrderHistory } from "../../src/modules/finance/history-routes.ts";
 import { handleFulfillment } from "../../src/modules/fulfillment/routes.ts";
 import { handleInventory } from "../../src/modules/inventory/routes.ts";
 import { handleOrderReceipt } from "../../src/modules/orders/receipt.ts";
@@ -74,7 +74,7 @@ async function assertProblemJson(
 	return body;
 }
 
-test("S64.1: check-openapi-contract.py validates all 173 paths, 207 operations, and 309 schemas", async () => {
+test("S64.1: check-openapi-contract.py validates all 178 paths, 212 operations, and 315 schemas", async () => {
 	const { stdout } = await exec(
 		"python3",
 		["docs/spec/scripts/check-openapi-contract.py"],
@@ -82,7 +82,56 @@ test("S64.1: check-openapi-contract.py validates all 173 paths, 207 operations, 
 			timeout: 20000,
 		},
 	);
-	assert.match(stdout, /173 paths, 207 operations, 309 schemas/);
+	assert.match(stdout, /178 paths, 212 operations, 315 schemas/);
+});
+
+// S75/DEC-001: 'preparing' (revision 0) is created and promoted to 'pending'
+// inside the single order-create transaction, so it is never observable.
+const ORDER_STATUSES = [
+	"pending",
+	"processing",
+	"partially_completed",
+	"cancelled",
+];
+
+test("S75: order status enums match the commerce_order_state_check lifecycle", async () => {
+	const migrations = readdirSync("migrations")
+		.filter((name) => name.endsWith(".sql"))
+		.sort()
+		.map((name) => readFileSync(join("migrations", name), "utf8"))
+		.join("\n");
+	const definitions = [
+		...migrations.matchAll(
+			/ADD CONSTRAINT "commerce_order_state_check" CHECK \((.*)\);/g,
+		),
+	];
+	const latest = definitions.at(-1)?.[1];
+	assert.ok(latest, "commerce_order_state_check definition");
+	const dbStatuses = new Set<string>();
+	for (const m of latest.matchAll(
+		/"commerce_order"\."status"(?:='([a-z_]+)'| IN \(([^)]*)\))/g,
+	)) {
+		for (const value of (m[1] ?? m[2]).split(","))
+			dbStatuses.add(value.replaceAll("'", "").trim());
+	}
+	assert.deepEqual(
+		[...dbStatuses].sort(),
+		[...ORDER_STATUSES, "preparing"].sort(),
+	);
+
+	const { stdout } = await exec("python3", [
+		"-c",
+		`import json,yaml
+d=yaml.safe_load(open('docs/spec/openapi.yaml'))
+s=d['components']['schemas']
+p=[x for x in d['paths']['/admin/orders']['get']['parameters'] if x.get('name')=='status'][0]
+print(json.dumps({'Order':s['Order']['properties']['status']['enum'],'AdminOrderSummary':s['AdminOrderSummary']['properties']['status']['enum'],'listAdminOrderHistory.status':p['schema']['enum']}))`,
+	]);
+	for (const [where, values] of Object.entries(
+		JSON.parse(stdout) as Record<string, string[]>,
+	)) {
+		assert.deepEqual(values, ORDER_STATUSES, where);
+	}
 });
 
 test("S64.2: every implemented OpenAPI operation has a matching route.ts HTTP method export and zero stub 200 placeholders exist", async () => {
@@ -144,7 +193,7 @@ test("S64.2: every implemented OpenAPI operation has a matching route.ts HTTP me
 				"for p, item in spec['paths'].items():",
 				"    for m, op in item.items():",
 				"        if m in ('get','post','put','patch','delete'):",
-				"            ops.append({'path': p, 'method': m, 'status': op.get('x-contract-status'), 'id': op.get('operationId')})",
+				"            ops.append({'path': p, 'method': m, 'status': op.get('x-contract-status'), 'id': op.get('operationId'), 'description': op.get('description', '')})",
 				"print(json.dumps({'paths': len(spec['paths']), 'ops': ops, 'schemas': len(spec['components']['schemas'])}))",
 			].join("\n"),
 		],
@@ -152,24 +201,47 @@ test("S64.2: every implemented OpenAPI operation has a matching route.ts HTTP me
 	);
 	const parsed = JSON.parse(stdout) as {
 		paths: number;
-		ops: { path: string; method: string; status: string; id: string }[];
+		ops: {
+			path: string;
+			method: string;
+			status: string;
+			id: string;
+			description: string;
+		}[];
 		schemas: number;
 	};
-	assert.equal(parsed.paths, 173);
-	assert.equal(parsed.ops.length, 207);
-	assert.equal(parsed.schemas, 309);
+	assert.equal(parsed.paths, 178);
+	assert.equal(parsed.ops.length, 212);
+	assert.equal(parsed.schemas, 315);
 
 	const implementedOps = parsed.ops.filter(
 		(op) => op.status === "implemented-local",
 	);
-	assert.equal(implementedOps.length, 207);
+	assert.equal(implementedOps.length, 212);
 
-	for (const op of implementedOps) {
+	// Bidirectional parity over ALL spec operations: every operation has an exported handler at its exact
+	// path (no parameter aliases), and every exported handler method is a spec operation.
+	for (const op of parsed.ops) {
+		assert.ok(
+			!/\b(?:proposed|not implemented|no implemented)\b/i.test(op.description),
+			`Operation ${op.method.toUpperCase()} ${op.path} (${op.id}) still carries a proposed/not-implemented description: ${op.description}`,
+		);
 		const methods = actualRoutes.get(op.path);
 		assert.ok(
 			methods?.has(op.method),
-			`Missing route.ts export for implemented-local operation ${op.method.toUpperCase()} ${op.path} (${op.id})`,
+			`Missing route.ts export for operation ${op.method.toUpperCase()} ${op.path} (${op.id})`,
 		);
+	}
+	const specOperations = new Set(
+		parsed.ops.map((op) => `${op.method} ${op.path}`),
+	);
+	for (const [path, methods] of actualRoutes) {
+		for (const method of methods) {
+			assert.ok(
+				specOperations.has(`${method} ${path}`),
+				`route.ts export ${method.toUpperCase()} ${path} has no OpenAPI operation`,
+			);
+		}
 	}
 });
 
@@ -290,6 +362,14 @@ test("S64.3: live handler/schema/IAM/CSRF parity across accounts, support, affil
 					),
 			},
 			{
+				name: "GET /api/v1/admin/label-queue",
+				call: () =>
+					handleShippingLabels(
+						new Request(`${origin}/api/v1/admin/label-queue`),
+						identity,
+					),
+			},
+			{
 				name: "GET /api/v1/admin/commerce-exceptions",
 				call: () =>
 					handleCommerceExceptions(
@@ -332,7 +412,10 @@ test("S64.3: live handler/schema/IAM/CSRF parity across accounts, support, affil
 			{
 				name: "GET /api/v1/admin/orders",
 				call: () =>
-					handleFinance(new Request(`${origin}/api/v1/admin/orders`), identity),
+					handleOrderHistory(
+						new Request(`${origin}/api/v1/admin/orders`),
+						identity,
+					),
 			},
 			{
 				name: "GET /api/v1/admin/policy-versions",
@@ -389,6 +472,11 @@ test("S64.3: live handler/schema/IAM/CSRF parity across accounts, support, affil
 			() =>
 				handleShippingLabels(
 					buyer.browser.request("/api/v1/admin/shipping-label-templates"),
+					identity,
+				),
+			() =>
+				handleShippingLabels(
+					buyer.browser.request("/api/v1/admin/label-queue"),
 					identity,
 				),
 			() =>
@@ -526,9 +614,12 @@ test("S64.3: live handler/schema/IAM/CSRF parity across accounts, support, affil
 		);
 		await assertProblemJson(
 			await handleAdvertisingDiagnostics(
-				crossOriginPost("/api/v1/admin/advertising/destinations/meta/pause", {
-					reason: "Cross-origin test",
-				}),
+				crossOriginPost(
+					`/api/v1/admin/advertising/destinations/${randomUUID()}/pause`,
+					{
+						reason: "Cross-origin test",
+					},
+				),
 				identity,
 			),
 			403,
@@ -695,12 +786,45 @@ test("S64.3: live handler/schema/IAM/CSRF parity across accounts, support, affil
 		assert.equal(labelTplRes.status, 200);
 		assert.equal(labelTplRes.headers.get("cache-control"), "no-store");
 
+		const labelQueueRes = await handleShippingLabels(
+			owner.browser.request("/api/v1/admin/label-queue?limit=1"),
+			identity,
+		);
+		assert.equal(labelQueueRes.status, 200);
+		assert.equal(labelQueueRes.headers.get("cache-control"), "no-store");
+		for (const bad of ["cursor=abc", "limit=0", "limit=101", "sort=due_at"])
+			await assertProblemJson(
+				await handleShippingLabels(
+					owner.browser.request(`/api/v1/admin/label-queue?${bad}`),
+					identity,
+				),
+				400,
+			);
+
 		const excListRes = await handleCommerceExceptions(
 			owner.browser.request("/api/v1/admin/commerce-exceptions"),
 			identity,
 		);
 		assert.equal(excListRes.status, 200);
 		assert.equal(excListRes.headers.get("cache-control"), "no-store");
+
+		// S75/DEC-001: history filter accepts exactly the reachable order lifecycle.
+		for (const status of ORDER_STATUSES) {
+			const res = await handleOrderHistory(
+				owner.browser.request(`/api/v1/admin/orders?status=${status}`),
+				identity,
+			);
+			assert.equal(res.status, 200, `status=${status}`);
+		}
+		for (const status of ["preparing", "confirmed", "completed"]) {
+			await assertProblemJson(
+				await handleOrderHistory(
+					owner.browser.request(`/api/v1/admin/orders?status=${status}`),
+					identity,
+				),
+				400,
+			);
+		}
 
 		// Public storefront / signals / receipt parity checks
 		const sfRes = await handleStorefront(

@@ -1,23 +1,9 @@
 import {randomUUID} from 'node:crypto';
-import type {LocalAuth} from '../../src/modules/access/auth.ts';
-import {handleAuth} from '../../src/modules/access/handler.ts';
+import {CommerceClient} from '../../src/modules/local/synthetic-session.ts';
 import {readFixtureClock,advanceFixtureClock} from '../../src/modules/local/fixtures.ts';
 import {handlePromotions} from '../../src/modules/promotions/routes.ts';
-import {handleCheckout} from '../../src/modules/checkout/routes.ts';
 import {shippingFixture} from './shipping-fixture.ts';
-const origin='http://127.0.0.1:3099';
-export class CommerceClient{
- readonly identity:LocalAuth;cookies=new Map<string,{name:string;value:string;path:string}>();
- constructor(identity:LocalAuth){this.identity=identity;}
- request(path:string,body?:unknown,options:{method?:string;key?:string;version?:number;headers?:Record<string,string>;anonymous?:boolean}={}){
-  const headers=new Headers({origin,'content-type':'application/json',...(body!==undefined||options.method==='DELETE'?{'idempotency-key':options.key??randomUUID()}:{}),...(options.version?{'if-match':`"${options.version}"`}:{}),...options.headers});
-  if(!options.anonymous) headers.set('cookie',[...this.cookies.values()].filter(c=>path===c.path||path.startsWith(c.path.endsWith('/')?c.path:`${c.path}/`)).sort((a,b)=>b.path.length-a.path.length).map(c=>`${c.name}=${c.value}`).join('; '));
-  return new Request(`${origin}${path}`,{method:options.method??(body!==undefined?'POST':'GET'),headers,body:body!==undefined?JSON.stringify(body):undefined});
- }
- absorb(response:Response){for(const raw of response.headers.getSetCookie()){const [pair,...attributes]=raw.split(';').map(s=>s.trim());const index=pair.indexOf('=');const name=pair.slice(0,index),value=pair.slice(index+1);const path=attributes.find(s=>s.startsWith('Path='))?.slice(5)??'/';const key=`${name}:${path}`;if(value&&!attributes.includes('Max-Age=0')) this.cookies.set(key,{name,value,path});else this.cookies.delete(key);}}
- async call(path:string,body?:unknown,options:Parameters<CommerceClient['request']>[2]={}){const request=this.request(path,body,options);const response=await handleCheckout(request,this.identity);this.absorb(response);return {request,response,payload:await response.json()};}
- async auth(path:string,body:unknown){const response=await handleAuth(this.request(`/api/auth${path}`,body),this.identity);this.absorb(response);return response;}
-}
+export {CommerceClient};
 export async function checkoutFixture(){
  const shipping=await shippingFixture();const client=new CommerceClient(shipping.identity);
  const line=(key='fixture-offer-shirt',quantity=1)=>{const l=shipping.line(key,quantity);return {variant_id:l.offer_id,quantity,expected_publication_id:l.publication_id};};

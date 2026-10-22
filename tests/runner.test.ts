@@ -50,3 +50,17 @@ test("unknown or widened acceptance selections fail before executing any cases",
     });
   }
 });
+
+test("all-current selects every direct integration/browser test file and never a historical candidate", async () => {
+  const { currentFiles } = await import("../scripts/check-tests.ts");
+  const { readdirSync } = await import("node:fs");
+  for (const mode of ["integration", "browser"] as const) {
+    const expected = readdirSync(`tests/${mode}`).filter((name) => name.endsWith(".test.ts")).map((name) => `tests/${mode}/${name}`).sort();
+    assert.ok(expected.length > 0);
+    assert.deepEqual(currentFiles(mode), expected);
+  }
+  const historical = readdirSync("tests/historical").filter((name) => name.endsWith(".test.ts"));
+  assert.equal(historical.length, 14);
+  const current = new Set(currentFiles("integration").map((file) => file.slice("tests/integration/".length)));
+  assert.ok(historical.every((name) => !current.has(name)));
+});

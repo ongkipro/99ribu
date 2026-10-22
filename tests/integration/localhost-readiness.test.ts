@@ -10,12 +10,14 @@ import {
 } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
+import { spawn } from "node:child_process";
 import test from "node:test";
+import postgres, { type Sql, type TransactionSql } from "postgres";
 import {
 	assertLocalNextCommand,
+	privateDirectory,
 	readLocalConfig,
 } from "../../src/config/local.ts";
-import { connectDatabase } from "../../src/db/client.ts";
 import { expireLeases } from "../../src/jobs/leases.ts";
 import { runOneJob } from "../../src/jobs/worker.ts";
 import {
@@ -89,6 +91,97 @@ function validPngBytes(): Uint8Array {
 	]);
 }
 
+// S67 backup/restore uses the pinned PostgreSQL 18 client binaries inside this checkout's compose
+// container; the project name matches scripts/database.ts.
+const composeProject = `99ribu-${createHash("sha256").update(process.cwd()).digest("hex").slice(0, 10)}`;
+function containerPostgres(args: string[], input?: Buffer): Promise<Buffer> {
+	return new Promise((resolve, reject) => {
+		const child = spawn(
+			"docker",
+			[
+				"compose",
+				"--project-name",
+				composeProject,
+				"--file",
+				"compose.yaml",
+				"exec",
+				"-T",
+				"database",
+				...args,
+			],
+			{
+				env: {
+					...process.env,
+					LOCAL_UID: String(process.getuid?.()),
+					LOCAL_GID: String(process.getgid?.()),
+				},
+			},
+		);
+		const out: Buffer[] = [];
+		const err: Buffer[] = [];
+		child.stdout.on("data", (chunk: Buffer) => out.push(chunk));
+		child.stderr.on("data", (chunk: Buffer) => err.push(chunk));
+		child.on("error", reject);
+		// An early exit closes stdin; the exit code and stderr below carry the real failure.
+		child.stdin.on("error", () => {});
+		child.on("close", (code) =>
+			code === 0
+				? resolve(Buffer.concat(out))
+				: reject(
+						new Error(
+							`${args[0]} exited ${code}: ${Buffer.concat(err).toString()}`,
+						),
+					),
+		);
+		child.stdin.end(input);
+	});
+}
+// Database creation, pg_dump snapshots and pg_restore require the cluster bootstrap role on the private socket.
+function superuserConnection(database: string) {
+	return postgres({
+		path: join(privateDirectory("pgsocket"), ".s.PGSQL.5432"),
+		database,
+		username: "bootstrap",
+		max: 1,
+		connect_timeout: 3,
+		onnotice: () => {},
+	});
+}
+const restoreParityTables = [
+	"commerce_order",
+	"order_item",
+	"economic_receipt",
+	"finance_transaction",
+	"finance_posting",
+	"commission_entry",
+	"commission_adjustment",
+	"affiliate_payout",
+	"affiliate_payout_entry",
+	"affiliate_payout_event",
+	"inventory_balance",
+	"outbox_job",
+	"role_grant",
+] as const;
+async function restoreInventory(db: Sql | TransactionSql) {
+	const [{ tables, triggers, functions }] = await db<
+		{ tables: number; triggers: number; functions: number }[]
+	>`
+		select
+			(select count(*)::int from pg_tables where schemaname = 'app') as tables,
+			(select count(*)::int from pg_trigger t join pg_class c on c.oid = t.tgrelid
+				where c.relnamespace = 'app'::regnamespace and not t.tgisinternal) as triggers,
+			(select count(*)::int from pg_proc where pronamespace = 'app'::regnamespace) as functions
+	`;
+	const rows: Record<string, number> = {};
+	for (const table of restoreParityTables) {
+		const [{ n }] = await db.unsafe<{ n: number }[]>(
+			`select count(*)::int as n from app."${table}"`,
+		);
+		rows[table] = n;
+	}
+	return { tables, triggers, functions, rows };
+}
+
 function assertPrivateCacheControl(headers: Headers, label: string) {
 	const cc = (headers.get("cache-control") ?? "").toLowerCase();
 	assert.ok(
@@ -104,6 +197,9 @@ test("S65 & S66 integration: assembled localhost journey across all domains enfo
 		origin: "http://127.0.0.1:3099",
 		hostname: "127.0.0.1",
 		port: 3099,
+		// The opt-in tailnet origin is absent by default: loopback is the only served origin.
+		tailnetOrigin: null,
+		trustedOrigins: ["http://127.0.0.1:3099"],
 	});
 	assert.equal(process.env.APP_ENV, "local");
 	assert.equal(process.env.EXTERNAL_DISPATCH, "disabled");
@@ -768,15 +864,13 @@ test("S65 & S66 integration: assembled localhost journey across all domains enfo
 	}
 });
 
-test("S67 integration: independent web/worker restart converges pending and unknown jobs without duplicate effects, and isolated DB + private-artifact backup/restore rehearsal reseals creating-XID guards while leaving original target untouched", async () => {
+test("S67 integration: independent web/worker restart converges pending and unknown jobs without duplicate effects, and private-artifact backup/restore rehearsal verifies SHA-256 integrity while leaving original target untouched", async () => {
 	const f = await fulfillmentFixture("prepaid");
 	const identity = f.identity;
 	const sql = identity.sql;
-	const ownerDb = connectDatabase("test", "owner");
 	const [parcelA] = f.parcels;
 	assert.ok(parcelA);
 
-	const rehearsalSchema = `rehearsal_${randomUUID().replace(/-/g, "").slice(0, 12)}`;
 	const artifactBackupDir = mkdtempSync(
 		join(tmpdir(), "99ribu-s67-backup-artifacts-"),
 	);
@@ -1219,188 +1313,7 @@ test("S67 integration: independent web/worker restart converges pending and unkn
 		`;
 		assert.ok(origRoleGrant);
 
-		// 5. Rehearse Isolated Database Backup & Restore into Temporary Schema + Creating-XID Reseal Verification
-		await ownerDb.sql.begin(async (tx) => {
-			await tx.unsafe(`CREATE SCHEMA "${rehearsalSchema}"`);
-			await tx.unsafe(
-				`GRANT USAGE ON SCHEMA "${rehearsalSchema}" TO "99ribu_test_app"`,
-			);
-
-			await tx.unsafe(`
-				CREATE TABLE "${rehearsalSchema}".inventory_balance (
-					id uuid PRIMARY KEY,
-					warehouse_id uuid NOT NULL,
-					stock_item_id uuid NOT NULL,
-					on_hand integer NOT NULL,
-					reserved integer NOT NULL,
-					quarantined integer NOT NULL,
-					revision integer NOT NULL,
-					CONSTRAINT rehearsal_stock_nonnegative CHECK (on_hand >= 0 AND reserved >= 0 AND quarantined >= 0 AND on_hand >= reserved + quarantined)
-				);
-				CREATE TABLE "${rehearsalSchema}".finance_transaction (
-					id uuid PRIMARY KEY,
-					kind text NOT NULL,
-					source text NOT NULL,
-					environment text NOT NULL,
-					effect_reference text NOT NULL,
-					request_hash text NOT NULL,
-					order_id uuid,
-					reason text NOT NULL,
-					occurred_at timestamptz NOT NULL,
-					created_xid text NOT NULL
-				);
-				CREATE TABLE "${rehearsalSchema}".finance_posting (
-					transaction_id uuid NOT NULL REFERENCES "${rehearsalSchema}".finance_transaction(id) ON DELETE RESTRICT,
-					ordinal integer NOT NULL,
-					account text NOT NULL,
-					side text NOT NULL,
-					amount bigint NOT NULL,
-					PRIMARY KEY (transaction_id, ordinal)
-				);
-				CREATE TABLE "${rehearsalSchema}".commission_entry (
-					id uuid PRIMARY KEY,
-					order_id uuid NOT NULL,
-					affiliate_id uuid NOT NULL,
-					amount_idr bigint NOT NULL,
-					status text NOT NULL
-				);
-				CREATE TABLE "${rehearsalSchema}".outbox_job (
-					id uuid PRIMARY KEY,
-					status text NOT NULL,
-					attempts integer NOT NULL
-				);
-				CREATE TABLE "${rehearsalSchema}".role_grant (
-					user_id text PRIMARY KEY,
-					roles text[] NOT NULL
-				);
-
-				CREATE FUNCTION "${rehearsalSchema}".guard_finance_part() RETURNS trigger LANGUAGE plpgsql AS $$
-				DECLARE h "${rehearsalSchema}".finance_transaction;
-				BEGIN
-					SELECT * INTO h FROM "${rehearsalSchema}".finance_transaction WHERE id = NEW.transaction_id;
-					IF h.id IS NULL THEN RAISE EXCEPTION 'Journal parent is required' USING ERRCODE = '23503'; END IF;
-					IF h.created_xid <> pg_current_xact_id()::text THEN
-						RAISE EXCEPTION 'Historical journal is sealed' USING ERRCODE = '23514';
-					END IF;
-					RETURN NEW;
-				END;
-				$$;
-
-				CREATE TRIGGER finance_posting_guard
-					BEFORE INSERT ON "${rehearsalSchema}".finance_posting
-					FOR EACH ROW EXECUTE FUNCTION "${rehearsalSchema}".guard_finance_part();
-
-				GRANT SELECT, INSERT, UPDATE, DELETE ON ALL TABLES IN SCHEMA "${rehearsalSchema}" TO "99ribu_test_app";
-			`);
-
-			// Restore snapshot rows into isolated rehearsal schema
-			for (const b of origBalances) {
-				await tx.unsafe(
-					`INSERT INTO "${rehearsalSchema}".inventory_balance (id, warehouse_id, stock_item_id, on_hand, reserved, quarantined, revision) VALUES ($1, $2, $3, $4, $5, $6, $7)`,
-					[
-						b.id,
-						b.warehouse_id,
-						b.stock_item_id,
-						b.on_hand,
-						b.reserved,
-						b.quarantined,
-						b.revision,
-					],
-				);
-			}
-
-			// During restore load (before resealing), created_xid matches the restore transaction's XID so original postings can be loaded
-			await tx.unsafe(
-				`INSERT INTO "${rehearsalSchema}".finance_transaction (id, kind, source, environment, effect_reference, request_hash, order_id, reason, occurred_at, created_xid) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, pg_current_xact_id()::text)`,
-				[
-					origJournal.id,
-					origJournal.kind,
-					origJournal.source,
-					origJournal.environment,
-					origJournal.effect_reference,
-					origJournal.request_hash,
-					origJournal.order_id,
-					origJournal.reason,
-					origJournal.occurred_at,
-				],
-			);
-			for (const p of origPostings) {
-				await tx.unsafe(
-					`INSERT INTO "${rehearsalSchema}".finance_posting (transaction_id, ordinal, account, side, amount) VALUES ($1, $2, $3, $4, $5)`,
-					[p.transaction_id, p.ordinal, p.account, p.side, Number(p.amount)],
-				);
-			}
-
-			// Reseal database-local creating-XID guard metadata to a non-numeric cluster-independent token before enabling immutability & reopening app writes!
-			await tx.unsafe(
-				`UPDATE "${rehearsalSchema}".finance_transaction SET created_xid = 'restored:' || id::text`,
-			);
-
-			await tx.unsafe(`
-				CREATE TRIGGER finance_transaction_immutable
-					BEFORE UPDATE OR DELETE ON "${rehearsalSchema}".finance_transaction
-					FOR EACH ROW EXECUTE FUNCTION app.reject_catalog_mutation();
-				CREATE TRIGGER finance_posting_immutable
-					BEFORE UPDATE OR DELETE ON "${rehearsalSchema}".finance_posting
-					FOR EACH ROW EXECUTE FUNCTION app.reject_catalog_mutation();
-			`);
-
-			await tx.unsafe(
-				`INSERT INTO "${rehearsalSchema}".commission_entry (id, order_id, affiliate_id, amount_idr, status) VALUES ($1, $2, $3, $4, $5)`,
-				[
-					origCommission.id,
-					origCommission.order_id,
-					origCommission.affiliate_id,
-					Number(origCommission.amount_idr),
-					origCommission.status,
-				],
-			);
-			for (const j of postRestartJobs) {
-				await tx.unsafe(
-					`INSERT INTO "${rehearsalSchema}".outbox_job (id, status, attempts) VALUES ($1, $2, $3)`,
-					[j.id, j.status, j.attempts],
-				);
-			}
-			await tx.unsafe(
-				`INSERT INTO "${rehearsalSchema}".role_grant (user_id, roles) VALUES ($1, $2)`,
-				[origRoleGrant.user_id, origRoleGrant.roles],
-			);
-		});
-
-		// Verify restored invariants and prove resealed journals reject new historical parts even in a new transaction / fresh cluster
-		const [restoredJournalCheck] = await sql<
-			{ created_xid: string; debits: string; credits: string }[]
-		>`
-			select
-				h.created_xid,
-				coalesce(sum(p.amount) filter (where p.side = 'debit'), 0)::text as debits,
-				coalesce(sum(p.amount) filter (where p.side = 'credit'), 0)::text as credits
-			from ${sql(rehearsalSchema)}.finance_transaction h
-			join ${sql(rehearsalSchema)}.finance_posting p on p.transaction_id = h.id
-			where h.id = ${origJournal.id}
-			group by h.created_xid
-		`;
-		assert.equal(
-			restoredJournalCheck.created_xid,
-			`restored:${origJournal.id}`,
-		);
-		assert.equal(restoredJournalCheck.debits, origReceipt.amount);
-		assert.equal(restoredJournalCheck.credits, origReceipt.amount);
-
-		// Attempting to append a new historical posting to the resealed restored journal fails with 23514 ('Historical journal is sealed')
-		await assert.rejects(
-			sql`
-				insert into ${sql(rehearsalSchema)}.finance_posting (transaction_id, ordinal, account, side, amount)
-				values (${origJournal.id}, 3, 'company_cash', 'debit', 1)
-			`,
-			{ code: "23514" },
-		);
-		await assert.rejects(
-			sql`
-				update ${sql(rehearsalSchema)}.finance_transaction set reason = 'Tamper restored journal' where id = ${origJournal.id}
-			`,
-			{ code: "23514" },
-		);
+		// 5. The database backup/restore rehearsal is the separate S67 pg_dump/pg_restore test below.
 		// Also verify the live app.finance_posting rejects historical parts on origJournal.id
 		await assert.rejects(
 			sql`
@@ -1528,13 +1441,6 @@ test("S67 integration: independent web/worker restart converges pending and unkn
 		`;
 		assert.deepEqual(afterBalances, origBalances);
 	} finally {
-		try {
-			await ownerDb.sql.unsafe(
-				`DROP SCHEMA IF EXISTS "${rehearsalSchema}" CASCADE`,
-			);
-		} finally {
-			await ownerDb.sql.end();
-		}
 		rmSync(artifactBackupDir, { recursive: true, force: true });
 		rmSync(artifactRestoreDir, { recursive: true, force: true });
 		if (createdConversationIds.length > 0) {
@@ -1565,5 +1471,210 @@ test("S67 integration: independent web/worker restart converges pending and unkn
 		}
 		await cleanup(identity, []);
 		await f.close();
+	}
+});
+
+test("S67 integration: pg_dump -Fc of the isolated test database restores into a disposable 99ribu_restore_<uuid> database with schema/trigger/row parity, resealed creating-XID guards and enforcing real app.* immutability triggers", async () => {
+	const f = await fulfillmentFixture("prepaid");
+	const sql = f.identity.sql;
+	const maintenance = superuserConnection("postgres");
+	const source = superuserConnection("99ribu_test");
+	const restoreDatabase = `99ribu_restore_${randomUUID().replaceAll("-", "")}`;
+	let restoreCreated = false;
+	let restored: Sql | null = null;
+	try {
+		const [origReceipt] = await sql<
+			{ transaction_id: string; amount: string }[]
+		>`
+			select transaction_id, amount::text from app.economic_receipt where order_id = ${f.order.id}
+		`;
+		assert.ok(
+			origReceipt,
+			"Prepaid fixture order owns a historical economic receipt journal",
+		);
+		const [origJournal] = await sql<
+			{ id: string; reason: string; created_xid: string }[]
+		>`
+			select id, reason, created_xid from app.finance_transaction where id = ${origReceipt.transaction_id}
+		`;
+		assert.ok(origJournal);
+		const origPostings = await sql<
+			{
+				transaction_id: string;
+				ordinal: number;
+				account: string;
+				side: string;
+				amount: string;
+			}[]
+		>`
+			select transaction_id, ordinal, account, side, amount::text
+			from app.finance_posting where transaction_id = ${origJournal.id}
+			order by ordinal
+		`;
+		assert.ok(origPostings.length >= 2);
+
+		// Real isolated backup/restore rehearsal. pg_dump -Fc of 99ribu_test under an exported snapshot, so the
+		// parity counts and the dump describe the same instant; pg_restore pre-data+data into a disposable database,
+		// reseal database-local creating-XID guards while the post-data triggers are still absent, then restore
+		// post-data (constraints, triggers) and prove the real app.* guards on the restored copy.
+		const snapshot = await source.begin(
+			"isolation level repeatable read read only",
+			async (tx) => {
+				const [{ id: snapshotId }] = await tx<
+					{ id: string }[]
+				>`select pg_export_snapshot() as id`;
+				const state = await restoreInventory(tx);
+				const dump = await containerPostgres([
+					"pg_dump",
+					"--username=bootstrap",
+					"--dbname=99ribu_test",
+					"--format=custom",
+					`--snapshot=${snapshotId}`,
+				]);
+				return { state, dump };
+			},
+		);
+		assert.ok(snapshot.dump.subarray(0, 5).toString() === "PGDMP");
+		assert.ok(snapshot.state.tables > 0);
+		assert.ok(snapshot.state.rows.finance_posting >= origPostings.length);
+
+		await maintenance.unsafe(`create database "${restoreDatabase}"`);
+		restoreCreated = true;
+		const restoreArgs = [
+			"pg_restore",
+			"--username=bootstrap",
+			`--dbname=${restoreDatabase}`,
+			"--exit-on-error",
+		];
+		await containerPostgres(
+			[...restoreArgs, "--section=pre-data", "--section=data"],
+			snapshot.dump,
+		);
+		const restoredDb = superuserConnection(restoreDatabase);
+		restored = restoredDb;
+		const xidTables = await restoredDb<{ table_name: string }[]>`
+			select table_name from information_schema.columns
+			where table_schema = 'app' and column_name = 'created_xid'
+			order by table_name
+		`;
+		assert.ok(xidTables.some((t) => t.table_name === "finance_transaction"));
+		for (const { table_name } of xidTables) {
+			await restoredDb.unsafe(
+				`update app."${table_name}" set created_xid = 'restored:' || created_xid where created_xid !~ '^restored:'`,
+			);
+		}
+		await containerPostgres(
+			[...restoreArgs, "--section=post-data"],
+			snapshot.dump,
+		);
+
+		// Schema, trigger and row parity with the dumped snapshot
+		assert.deepEqual(await restoreInventory(restoredDb), snapshot.state);
+		const restoredGuards = await restoredDb<{ name: string }[]>`
+			select c.relname || '.' || t.tgname as name
+			from pg_trigger t join pg_class c on c.oid = t.tgrelid
+			where c.relnamespace = 'app'::regnamespace and not t.tgisinternal
+				and c.relname in ('finance_transaction', 'finance_posting')
+				and t.tgname in ('finance_transaction_immutable', 'finance_posting_immutable', 'finance_posting_guard')
+			order by 1
+		`;
+		assert.deepEqual(
+			restoredGuards.map((g) => g.name),
+			[
+				"finance_posting.finance_posting_guard",
+				"finance_posting.finance_posting_immutable",
+				"finance_transaction.finance_transaction_immutable",
+			],
+		);
+		for (const { table_name } of xidTables) {
+			const [{ unsealed }] = await restoredDb.unsafe<{ unsealed: number }[]>(
+				`select count(*)::int as unsealed from app."${table_name}" where created_xid !~ '^restored:'`,
+			);
+			assert.equal(unsealed, 0, `${table_name} creating-XID guard resealed`);
+		}
+
+		const [restoredJournal] = await restoredDb<
+			{ created_xid: string; reason: string; debits: string; credits: string }[]
+		>`
+			select h.created_xid, h.reason,
+				coalesce(sum(p.amount) filter (where p.side = 'debit'), 0)::text as debits,
+				coalesce(sum(p.amount) filter (where p.side = 'credit'), 0)::text as credits
+			from app.finance_transaction h
+			join app.finance_posting p on p.transaction_id = h.id
+			where h.id = ${origJournal.id}
+			group by h.created_xid, h.reason
+		`;
+		assert.equal(
+			restoredJournal.created_xid,
+			`restored:${origJournal.created_xid}`,
+		);
+		assert.equal(restoredJournal.reason, origJournal.reason);
+		assert.equal(restoredJournal.debits, origReceipt.amount);
+		assert.equal(restoredJournal.credits, origReceipt.amount);
+		const restoredPostings = await restoredDb`
+			select transaction_id, ordinal, account, side, amount::text
+			from app.finance_posting where transaction_id = ${origJournal.id}
+			order by ordinal
+		`;
+		assert.deepEqual([...restoredPostings], [...origPostings]);
+		// The real migrated immutability guards reject tampering with restored history
+		const [firstPosting] = origPostings;
+		assert.ok(firstPosting);
+		await assert.rejects(
+			restoredDb`
+				update app.finance_posting set amount = amount + 1
+				where transaction_id = ${origJournal.id} and ordinal = ${firstPosting.ordinal}
+			`,
+			{ code: "23514" },
+		);
+		await assert.rejects(
+			restoredDb`delete from app.finance_posting where transaction_id = ${origJournal.id}`,
+			{ code: "23514" },
+		);
+		await assert.rejects(
+			restoredDb`update app.finance_transaction set reason = 'Tamper restored journal' where id = ${origJournal.id}`,
+			{ code: "23514" },
+		);
+		await assert.rejects(
+			restoredDb`delete from app.finance_transaction where id = ${origJournal.id}`,
+			{ code: "23514" },
+		);
+		await assert.rejects(
+			restoredDb`
+				insert into app.finance_posting (transaction_id, ordinal, account, side, amount)
+				values (${origJournal.id}, 3, 'company_cash', 'debit', 1)
+			`,
+			{ code: "23514", message: /Historical journal is sealed/ },
+		);
+		// The source database is untouched by dump and restore
+		const [afterJournal] = await sql`
+			select id, reason, created_xid from app.finance_transaction where id = ${origJournal.id}
+		`;
+		assert.deepEqual({ ...afterJournal }, { ...origJournal });
+		const afterPostings = await sql`
+			select transaction_id, ordinal, account, side, amount::text
+			from app.finance_posting where transaction_id = ${origJournal.id}
+			order by ordinal
+		`;
+		assert.deepEqual([...afterPostings], [...origPostings]);
+	} finally {
+		try {
+			await restored?.end();
+			// Only the disposable database created by this test is ever dropped.
+			if (
+				restoreCreated &&
+				/^99ribu_restore_[0-9a-f]{32}$/.test(restoreDatabase)
+			) {
+				await maintenance.unsafe(
+					`drop database if exists "${restoreDatabase}" with (force)`,
+				);
+			}
+		} finally {
+			try {
+				await Promise.all([maintenance.end(), source.end()]);
+			} finally {
+				await f.close();
+			}
+		}
 	}
 });

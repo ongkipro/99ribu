@@ -13,9 +13,12 @@ const exec=promisify(execFile);const environment={...process.env};delete environ
 const driver=['--env-file=.env.example','tests/integration/promotion-worker-fixture.ts'];
 async function dueFixture(){
  const namespace=`pw-${randomUUID().slice(0,8)}`;const f=await promotionFixture(namespace);const p=await f.campaign();const hold=await f.reserve(await f.input([p.id]));
- for(let i=0;i<50;i++) if(!await runOneJob(f.identity.sql)) break;
  const [job]=await f.identity.sql`select id,status,run_at>clock_timestamp() as future from app.outbox_job where kind='promotion.reservation.expire' and payload->>'reservationId'=${hold.id}`;
  assert.equal(job.status,'pending');assert.equal(job.future,true);
+ // `--once` workers claim the oldest due job globally: drain every job already due (any kind) before this
+ // fixture's clock advance makes its own job due, so the subprocesses claim it deterministically.
+ for(let i=0;i<1000;i++) if(!await runOneJob(f.identity.sql)) break;
+ assert.equal((await f.identity.sql`select status from app.outbox_job where id=${job.id}`)[0].status,'pending');
  const clock=await readFixtureClock('test',namespace);await advanceFixtureClock('test',namespace,121,clock.version);
  return {...f,namespace,p,hold,jobId:job.id as string};
 }
