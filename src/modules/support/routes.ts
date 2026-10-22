@@ -6,6 +6,7 @@ import {
 	readBody,
 } from "../access/http.ts";
 import { AccessError } from "../access/policy.ts";
+import { LIMITS, rateLimit } from "../access/rate-limit.ts";
 import { invalid } from "../catalog/validation.ts";
 import { setCookie } from "../checkout/access.ts";
 import {
@@ -142,14 +143,11 @@ export async function handleSupport(request: Request, identity: LocalAuth) {
 				throw new AccessError(401, "UNSUPPORTED_AUTH_TRANSPORT");
 			const body = await readBody(request);
 			return privateJson(
-				await identity.sql.begin((tx) =>
-					verifyContactBinding(
-						tx,
-						request,
-						identity,
-						contactVerifyMatch[1],
-						body,
-					),
+				await verifyContactBinding(
+					request,
+					identity,
+					contactVerifyMatch[1],
+					body,
 				),
 				201,
 			);
@@ -175,14 +173,11 @@ export async function handleSupport(request: Request, identity: LocalAuth) {
 			if (request.headers.has("x-order-token"))
 				throw new AccessError(401, "UNSUPPORTED_AUTH_TRANSPORT");
 			const body = await readBody(request);
-			const result = await identity.sql.begin((tx) =>
-				verifyRecoveryChallenge(
-					tx,
-					request,
-					identity,
-					recoveryVerifyMatch[1],
-					body,
-				),
+			const result = await verifyRecoveryChallenge(
+				request,
+				identity,
+				recoveryVerifyMatch[1],
+				body,
 			);
 			const response = privateJson(result.state, 201);
 			if (result.rotatedCookie) {
@@ -288,6 +283,13 @@ export async function handleSupport(request: Request, identity: LocalAuth) {
 					return privateJson(
 						await identity.sql.begin(async (tx) => {
 							const actor = await resolveSupportCustomer(tx, request, identity);
+							if (actor.kind === "guest") {
+								await rateLimit(
+									tx,
+									`support-guest-message:${actor.id}`,
+									LIMITS.guestSupportMessagePerGuest,
+								);
+							}
 							return commitPublicMessage(
 								tx,
 								request,

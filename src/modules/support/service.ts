@@ -1,10 +1,16 @@
 import { randomBytes, randomUUID, timingSafeEqual } from "node:crypto";
 import type { TransactionSql } from "postgres";
 import {
+	scanImagePayload,
+	sniffImageContentType,
+} from "../../storage/media-sniff.ts";
+import {
+	deletePrivateArtifact,
 	readPrivateArtifact,
 	savePrivateArtifact,
 } from "../../storage/private.ts";
 import type { LocalAuth } from "../access/auth.ts";
+import { LIMITS, rateLimit } from "../access/rate-limit.ts";
 import { AccessError, getPrincipal, type Principal } from "../access/policy.ts";
 import {
 	array,
@@ -231,7 +237,6 @@ export async function resolveSupportCustomer(
 		select id, token_digest, guest_id, expires_at
 		from app.guest_support_identity
 		where id = ${match[1].toLowerCase()}
-		for update
 	`;
 	const [clock] = await tx<{ now: string }[]>`select clock_timestamp() as now`;
 	if (!guest || new Date(guest.expires_at) <= new Date(clock.now)) {
@@ -412,6 +417,13 @@ export async function createGuestSupportSession(
 		`;
 		if (cg) commerceGuestId = cg.id;
 	}
+	// lazy: an anonymous first request has no stable key, so new guest identities share one
+	// budget (cookie replays above are free); add a trusted network key before remote activation.
+	await rateLimit(
+		tx,
+		"support-guest-session",
+		LIMITS.guestSupportSessionGlobal,
+	);
 	const token = randomBytes(32).toString("base64url");
 	const guestSupportId = randomUUID();
 	const [created] = await tx<{ id: string; expires_at: string }[]>`
@@ -490,7 +502,6 @@ export async function requestContactBinding(
 		requestHash,
 	);
 	if (prior) return prior as { challenge_id: string; expires_at: string };
-
 	let currentVersion = 0;
 	if (actor.kind === "guest") {
 		const [row] = await tx<{ contact_verified_at: string | null }[]>`
@@ -506,6 +517,16 @@ export async function requestContactBinding(
 	if (expectedVersion !== currentVersion) {
 		throw new AccessError(409, "VERSION_CONFLICT");
 	}
+	await rateLimit(
+		tx,
+		`support-challenge-actor:${actor.scope}`,
+		LIMITS.supportChallengePerActor,
+	);
+	await rateLimit(
+		tx,
+		`support-challenge-contact:${digest(contact.normalized)}`,
+		LIMITS.supportChallengePerContact,
+	);
 	const challengeId = randomUUID();
 	const rawProof = await supportChallengeProof(
 		identity,
@@ -534,79 +555,100 @@ export async function requestContactBinding(
 }
 
 export async function verifyContactBinding(
-	tx: TransactionSql,
 	request: Request,
 	identity: LocalAuth,
 	challengeIdParam: string,
 	value: unknown,
 ) {
 	const key = mutationKey(request);
-	const actor = await resolveSupportCustomer(tx, request, identity);
+	const pool = identity.sql as unknown as TransactionSql;
+	const actor = await resolveSupportCustomer(pool, request, identity);
 	const challengeId = id(challengeIdParam);
 	const body = object(value, ["proof"]);
 	const proof = text(body.proof, 2000);
 	const requestHash = digest(JSON.stringify({ challengeId, proof }));
 	const prior = await checkOperation(
-		tx,
+		pool,
 		actor.scope,
 		"support.contact.verify",
 		key,
 		requestHash,
 	);
 	if (prior) return prior;
-
-	const [challenge] = await tx<
+	// Rate limit floods and reserve one of the 5 challenge attempts on the autocommit
+	// pool BEFORE opening a transaction so wrong guesses persist across 403 without
+	// holding a transaction connection across nested pool queries.
+	await rateLimit(
+		identity.sql,
+		`support-verify:${challengeId}`,
+		LIMITS.supportVerifyPerChallenge,
+	);
+	const [existing] = await identity.sql<{ id: string }[]>`
+		select id from app.support_challenge
+		where id = ${challengeId} and kind = 'contact_binding' and actor_scope = ${actor.scope}
+	`;
+	if (!existing) throw new AccessError(404, "NOT_FOUND");
+	const [challenge] = await identity.sql<
 		{
 			id: string;
-			kind: string;
-			actor_scope: string;
 			target_reference: string;
 			code_digest: string;
-			attempts: number;
-			verified_at: string | null;
-			expires_at: string;
 		}[]
 	>`
-		select * from app.support_challenge
+		update app.support_challenge
+		set attempts = attempts + 1
 		where id = ${challengeId} and kind = 'contact_binding' and actor_scope = ${actor.scope}
-		for update
+			and verified_at is null and attempts < 5 and expires_at > clock_timestamp()
+		returning id, target_reference, code_digest
 	`;
-	if (!challenge) throw new AccessError(404, "NOT_FOUND");
-	const [clock] = await tx<{ now: string }[]>`select clock_timestamp() as now`;
-	if (
-		challenge.verified_at ||
-		challenge.attempts >= 5 ||
-		new Date(challenge.expires_at) <= new Date(clock.now)
-	) {
+	if (!challenge) {
 		throw new AccessError(409, "CHALLENGE_EXPIRED");
 	}
 	if (digest(proof) !== challenge.code_digest) {
-		await tx`update app.support_challenge set attempts = attempts + 1 where id = ${challenge.id}`;
 		throw new AccessError(403, "INVALID_CHALLENGE_PROOF");
 	}
-	await tx`update app.support_challenge set verified_at = ${clock.now} where id = ${challenge.id}`;
-	if (actor.kind === "guest") {
-		await tx`
-			update app.guest_support_identity
-			set contact_value = ${challenge.target_reference}, contact_verified_at = ${clock.now}
-			where id = ${actor.id}
+	return identity.sql.begin(async (tx) => {
+		const replay = await checkOperation(
+			tx,
+			actor.scope,
+			"support.contact.verify",
+			key,
+			requestHash,
+		);
+		if (replay) return replay;
+		const [sealed] = await tx<{ now: string }[]>`
+			update app.support_challenge
+			set verified_at = clock_timestamp()
+			where id = ${challenge.id} and verified_at is null
+			returning verified_at as now
 		`;
-	}
-	const response = {
-		id: challenge.id,
-		version: 1,
-		status: "confirmed" as const,
-		as_of: new Date(clock.now).toISOString(),
-	};
-	await saveOperation(
-		tx,
-		actor.scope,
-		"support.contact.verify",
-		key,
-		requestHash,
-		response,
-	);
-	return response;
+		if (!sealed) {
+			throw new AccessError(409, "CHALLENGE_EXPIRED");
+		}
+		const clock = sealed;
+		if (actor.kind === "guest") {
+			await tx`
+				update app.guest_support_identity
+				set contact_value = ${challenge.target_reference}, contact_verified_at = ${clock.now}
+				where id = ${actor.id}
+			`;
+		}
+		const response = {
+			id: challenge.id,
+			version: 1,
+			status: "confirmed" as const,
+			as_of: new Date(clock.now).toISOString(),
+		};
+		await saveOperation(
+			tx,
+			actor.scope,
+			"support.contact.verify",
+			key,
+			requestHash,
+			response,
+		);
+		return response;
+	});
 }
 
 export async function requestRecoveryChallenge(
@@ -631,6 +673,16 @@ export async function requestRecoveryChallenge(
 		requestHash,
 	);
 	if (prior) return prior as { challenge_id: string; expires_at: string };
+	await rateLimit(
+		tx,
+		`support-challenge-actor:${actor.scope}`,
+		LIMITS.supportChallengePerActor,
+	);
+	await rateLimit(
+		tx,
+		`support-challenge-contact:${digest(contact.normalized)}`,
+		LIMITS.supportChallengePerContact,
+	);
 
 	let matchedGuestId: string | null = null;
 	let matchedConversationId: string | null = null;
@@ -696,20 +748,20 @@ export async function requestRecoveryChallenge(
 }
 
 export async function verifyRecoveryChallenge(
-	tx: TransactionSql,
 	request: Request,
 	identity: LocalAuth,
 	challengeIdParam: string,
 	value: unknown,
 ) {
 	const key = mutationKey(request);
-	const actor = await resolveSupportCustomer(tx, request, identity);
+	const pool = identity.sql as unknown as TransactionSql;
+	const actor = await resolveSupportCustomer(pool, request, identity);
 	const challengeId = id(challengeIdParam);
 	const body = object(value, ["proof"]);
 	const proof = text(body.proof, 2000);
 	const requestHash = digest(JSON.stringify({ challengeId, proof }));
 	const prior = await checkOperation(
-		tx,
+		pool,
 		actor.scope,
 		"support.recovery.verify",
 		key,
@@ -721,75 +773,99 @@ export async function verifyRecoveryChallenge(
 			rotatedCookie: null as string | null,
 		};
 	}
-
-	const [challenge] = await tx<
+	await rateLimit(
+		identity.sql,
+		`support-verify:${challengeId}`,
+		LIMITS.supportVerifyPerChallenge,
+	);
+	const [existing] = await identity.sql<{ id: string }[]>`
+		select id from app.support_challenge
+		where id = ${challengeId} and kind = 'session_recovery' and actor_scope = ${actor.scope}
+	`;
+	if (!existing) throw new AccessError(404, "NOT_FOUND");
+	const [challenge] = await identity.sql<
 		{
 			id: string;
 			target_reference: string;
 			code_digest: string;
-			attempts: number;
-			verified_at: string | null;
-			expires_at: string;
 		}[]
 	>`
-		select id, target_reference, code_digest, attempts, verified_at, expires_at
-		from app.support_challenge
+		update app.support_challenge
+		set attempts = attempts + 1
 		where id = ${challengeId} and kind = 'session_recovery' and actor_scope = ${actor.scope}
-		for update
+			and verified_at is null and attempts < 5 and expires_at > clock_timestamp()
+		returning id, target_reference, code_digest
 	`;
-	if (!challenge) throw new AccessError(404, "NOT_FOUND");
-	const [clock] = await tx<{ now: string }[]>`select clock_timestamp() as now`;
-	if (
-		challenge.verified_at ||
-		challenge.attempts >= 5 ||
-		new Date(challenge.expires_at) <= new Date(clock.now)
-	) {
+	if (!challenge) {
 		throw new AccessError(409, "CHALLENGE_EXPIRED");
 	}
 	if (
 		challenge.target_reference === "unmatched" ||
 		digest(proof) !== challenge.code_digest
 	) {
-		await tx`update app.support_challenge set attempts = attempts + 1 where id = ${challenge.id}`;
 		throw new AccessError(403, "INVALID_CHALLENGE_PROOF");
 	}
-	await tx`update app.support_challenge set verified_at = ${clock.now} where id = ${challenge.id}`;
-	const originalGuestId = challenge.target_reference;
-	let rotatedCookie: string | null = null;
-	let expiresAt = new Date(Date.parse(clock.now) + 604800000).toISOString();
+	return identity.sql.begin(async (tx) => {
+		const replay = await checkOperation(
+			tx,
+			actor.scope,
+			"support.recovery.verify",
+			key,
+			requestHash,
+		);
+		if (replay) {
+			return {
+				state: replay as { status: "active"; expires_at: string },
+				rotatedCookie: null as string | null,
+			};
+		}
+		const [sealed] = await tx<{ now: string }[]>`
+			update app.support_challenge
+			set verified_at = clock_timestamp()
+			where id = ${challenge.id} and verified_at is null
+			returning verified_at as now
+		`;
+		if (!sealed) {
+			throw new AccessError(409, "CHALLENGE_EXPIRED");
+		}
+		const clock = sealed;
+		const originalGuestId = challenge.target_reference;
+		let rotatedCookie: string | null = null;
+		let expiresAt = new Date(Date.parse(clock.now) + 604800000).toISOString();
 
-	if (actor.kind === "user") {
-		await tx`
-			update app.guest_support_identity
-			set linked_user_id = ${actor.id}
-			where id = ${originalGuestId}
-		`;
-		await tx`
-			update app.support_conversation
-			set buyer_user_id = ${actor.id}
-			where guest_support_id = ${originalGuestId} and buyer_user_id is null
-		`;
-	} else {
-		const newToken = randomBytes(32).toString("base64url");
-		const [updated] = await tx<{ expires_at: string }[]>`
-			update app.guest_support_identity
-			set token_digest = ${digest(newToken)}, expires_at = clock_timestamp() + interval '7 days'
-			where id = ${originalGuestId}
-			returning expires_at
-		`;
-		expiresAt = new Date(updated.expires_at).toISOString();
-		rotatedCookie = `${originalGuestId}.${newToken}`;
-	}
-	const state = { status: "active" as const, expires_at: expiresAt };
-	await saveOperation(
-		tx,
-		actor.scope,
-		"support.recovery.verify",
-		key,
-		requestHash,
-		state,
-	);
-	return { state, rotatedCookie };
+		if (actor.kind === "user") {
+			await tx`
+				update app.guest_support_identity
+				set linked_user_id = ${actor.id}
+				where id = ${originalGuestId}
+			`;
+			await tx`
+				update app.support_conversation
+				set buyer_user_id = ${actor.id}
+				where guest_support_id = ${originalGuestId} and buyer_user_id is null
+			`;
+		} else {
+			const newToken = randomBytes(32).toString("base64url");
+			const [updated] = await tx<{ expires_at: string }[]>`
+				update app.guest_support_identity
+				set token_digest = ${digest(newToken)}, expires_at = clock_timestamp() + interval '7 days'
+				where id = ${originalGuestId}
+				returning expires_at
+			`;
+			expiresAt = new Date(updated.expires_at).toISOString();
+			rotatedCookie = `${originalGuestId}.${newToken}`;
+		}
+		const state = { status: "active" as const, expires_at: expiresAt };
+		await saveOperation(
+			tx,
+			actor.scope,
+			"support.recovery.verify",
+			key,
+			requestHash,
+			state,
+		);
+		return { state, rotatedCookie };
+	});
 }
 
 export async function projectPublicConversation(
@@ -856,6 +932,7 @@ async function verifyPublishedProduct(
 		from app.product p
 		left join app.publication_head ph on ph.product_id = p.id and ph.revision > 0
 		left join app.publication_version pub on pub.product_id = p.id and pub.revision = ph.revision
+			and not exists (select 1 from app.publication_withdrawal w where w.publication_id = pub.id)
 		where p.id = ${pid}
 	`;
 	if (!prod?.publication_revision || prod.published_revision === null) {
@@ -1296,7 +1373,9 @@ async function projectMessage(
 						};
 		} else if (card.kind === "product") {
 			const [prod] = await tx<{ revision: number }[]>`
-				select revision from app.publication_head where product_id = ${card.resource_id}
+				select h.revision from app.publication_head h join app.publication_version pub
+					on pub.product_id = h.product_id and pub.revision = h.revision
+				where h.product_id = ${card.resource_id} and not exists (select 1 from app.publication_withdrawal w where w.publication_id = pub.id)
 			`;
 			const available =
 				Boolean(prod && prod.revision > 0) && !card.snapshot.revoked;
@@ -1865,68 +1944,6 @@ export async function revokeConversationOrderLink(
 	`;
 }
 
-function sniffImageContentType(
-	bytes: Uint8Array,
-): "image/jpeg" | "image/png" | "image/webp" {
-	if (
-		bytes.byteLength >= 3 &&
-		bytes[0] === 0xff &&
-		bytes[1] === 0xd8 &&
-		bytes[2] === 0xff
-	) {
-		return "image/jpeg";
-	}
-	if (
-		bytes.byteLength >= 8 &&
-		bytes[0] === 0x89 &&
-		bytes[1] === 0x50 &&
-		bytes[2] === 0x4e &&
-		bytes[3] === 0x47 &&
-		bytes[4] === 0x0d &&
-		bytes[5] === 0x0a &&
-		bytes[6] === 0x1a &&
-		bytes[7] === 0x0a
-	) {
-		return "image/png";
-	}
-	if (
-		bytes.byteLength >= 12 &&
-		bytes[0] === 0x52 &&
-		bytes[1] === 0x49 &&
-		bytes[2] === 0x46 &&
-		bytes[3] === 0x46 &&
-		bytes[8] === 0x57 &&
-		bytes[9] === 0x45 &&
-		bytes[10] === 0x42 &&
-		bytes[11] === 0x50
-	) {
-		return "image/webp";
-	}
-	throw new AccessError(400, "INVALID_IMAGE_FORMAT");
-}
-
-function scanImagePayload(
-	bytes: Uint8Array,
-): "ready" | "pending_scan" | "rejected" {
-	const ascii = Buffer.from(
-		bytes.subarray(0, Math.min(bytes.byteLength, 4096)),
-	).toString("latin1");
-	if (
-		ascii.includes("<script") ||
-		ascii.includes("<!DOCTYPE html") ||
-		ascii.includes("<svg")
-	) {
-		throw new AccessError(400, "DANGEROUS_IMAGE_CONTENT");
-	}
-	if (ascii.includes("EICAR-STANDARD-ANTIVIRUS-TEST-FILE")) {
-		return "rejected";
-	}
-	if (ascii.includes("SUPPORT_ATTACHMENT_PENDING_SCAN")) {
-		return "pending_scan";
-	}
-	return "ready";
-}
-
 async function resolveAttachmentCaller(
 	tx: TransactionSql,
 	request: Request,
@@ -2063,45 +2080,52 @@ export async function uploadSupportAttachment(
 	if (priorClient) return priorClient;
 
 	const storageKey = await savePrivateArtifact(bytes);
-	const [inserted] = await tx<
-		{
-			id: string;
-			content_type: "image/jpeg" | "image/png" | "image/webp";
-			byte_size: number;
-			scan_status: "pending_scan" | "ready" | "rejected";
-		}[]
-	>`
-		insert into app.support_attachment (
-			conversation_id, uploader_scope, content_type, byte_size, sha256, storage_key, scan_status
-		)
-		values (
-			${conversation.id}, ${callerScope}, ${mediaType}, ${bytes.byteLength}, ${sha256}, ${storageKey}, ${scanStatus}
-		)
-		returning id, content_type, byte_size, scan_status
-	`;
-	const response = {
-		id: inserted.id,
-		media_type: inserted.content_type,
-		size_bytes: inserted.byte_size,
-		status: inserted.scan_status,
-	};
-	await saveOperation(
-		tx,
-		callerScope,
-		`support.attachment.upload:${conversation.id}`,
-		key,
-		requestHash,
-		response,
-	);
-	await saveOperation(
-		tx,
-		callerScope,
-		`support.attachment.client:${conversation.id}`,
-		clientAttachmentId,
-		requestHash,
-		response,
-	);
-	return response;
+	// Remove the file if the row is never written so a failed request leaves no orphan.
+	// lazy: a failure at COMMIT after this point can still orphan; a sweeper owns that case.
+	try {
+		const [inserted] = await tx<
+			{
+				id: string;
+				content_type: "image/jpeg" | "image/png" | "image/webp";
+				byte_size: number;
+				scan_status: "pending_scan" | "ready" | "rejected";
+			}[]
+		>`
+			insert into app.support_attachment (
+				conversation_id, uploader_scope, content_type, byte_size, sha256, storage_key, scan_status
+			)
+			values (
+				${conversation.id}, ${callerScope}, ${mediaType}, ${bytes.byteLength}, ${sha256}, ${storageKey}, ${scanStatus}
+			)
+			returning id, content_type, byte_size, scan_status
+		`;
+		const response = {
+			id: inserted.id,
+			media_type: inserted.content_type,
+			size_bytes: inserted.byte_size,
+			status: inserted.scan_status,
+		};
+		await saveOperation(
+			tx,
+			callerScope,
+			`support.attachment.upload:${conversation.id}`,
+			key,
+			requestHash,
+			response,
+		);
+		await saveOperation(
+			tx,
+			callerScope,
+			`support.attachment.client:${conversation.id}`,
+			clientAttachmentId,
+			requestHash,
+			response,
+		);
+		return response;
+	} catch (error) {
+		await deletePrivateArtifact(storageKey).catch(() => undefined);
+		throw error;
+	}
 }
 
 export async function getSupportAttachment(
@@ -3296,6 +3320,11 @@ export async function setStaffClassification(
 		}
 	}
 	const nextRevision = conv.revision + 1;
+	const priorTags = await tx<{ tag_id: string }[]>`
+		select tag_id from app.support_conversation_tag
+		where conversation_id = ${conv.id}
+		order by tag_id asc
+	`;
 	await tx`
 		update app.support_conversation
 		set priority = ${priority},
@@ -3317,6 +3346,24 @@ export async function setStaffClassification(
 		priority,
 		updated_at: new Date(clock.now).toISOString(),
 	};
+	await tx`
+		insert into app.audit_event (actor_id, action, subject_id, outcome, reason, details)
+		values (
+			${principal.id},
+			'support.classification.set',
+			${conv.id},
+			'allowed',
+			${reason},
+			${JSON.stringify({
+				version: nextRevision,
+				before: {
+					priority: conv.priority,
+					tag_ids: priorTags.map((t) => t.tag_id),
+				},
+				after: { priority, tag_ids: response.tag_ids },
+			})}::jsonb
+		)
+	`;
 	await saveOperation(
 		tx,
 		principal.id,
@@ -3433,6 +3480,22 @@ function parseSavedReplyInput(value: unknown) {
 	};
 }
 
+// lazy: support definitions have no *_version table; the immutable audit row keeps
+// each prior/next snapshot until a dedicated version table exists.
+async function auditSupportDefinition(
+	tx: TransactionSql,
+	actorId: string,
+	action: string,
+	subjectId: string,
+	reason: string,
+	details: Record<string, unknown>,
+) {
+	await tx`
+		insert into app.audit_event (actor_id, action, subject_id, outcome, reason, details)
+		values (${actorId}, ${action}, ${subjectId}, 'allowed', ${reason}, ${JSON.stringify(details)}::jsonb)
+	`;
+}
+
 export async function createOrUpdateSavedReply(
 	tx: TransactionSql,
 	request: Request,
@@ -3495,13 +3558,31 @@ export async function createOrUpdateSavedReply(
 			placeholders: inserted.placeholders,
 			enabled: inserted.enabled,
 		};
+		await auditSupportDefinition(
+			tx,
+			principal.id,
+			"support.saved_reply.create",
+			inserted.id,
+			parsed.reason,
+			{ version: inserted.revision, before: null, after: response },
+		);
 		await saveOperation(tx, principal.id, action, key, requestHash, response);
 		return response;
 	}
 
 	const defId = id(definitionIdParam);
-	const [existing] = await tx<{ id: string; revision: number }[]>`
-		select id, revision from app.support_saved_reply where id = ${defId} for update
+	const [existing] = await tx<
+		{
+			id: string;
+			title: string;
+			body_template: string;
+			placeholders: string[];
+			enabled: boolean;
+			revision: number;
+		}[]
+	>`
+		select id, title, body_template, placeholders, enabled, revision
+		from app.support_saved_reply where id = ${defId} for update
 	`;
 	if (!existing) throw new AccessError(404, "NOT_FOUND");
 	if (existing.revision !== parsed.expectedVersion) {
@@ -3537,6 +3618,25 @@ export async function createOrUpdateSavedReply(
 		placeholders: updated.placeholders,
 		enabled: updated.enabled,
 	};
+	await auditSupportDefinition(
+		tx,
+		principal.id,
+		"support.saved_reply.version",
+		updated.id,
+		parsed.reason,
+		{
+			version: updated.revision,
+			before: {
+				id: existing.id,
+				version: existing.revision,
+				title: existing.title,
+				text: existing.body_template,
+				placeholders: existing.placeholders,
+				enabled: existing.enabled,
+			},
+			after: response,
+		},
+	);
 	await saveOperation(tx, principal.id, action, key, requestHash, response);
 	return response;
 }
@@ -3611,6 +3711,7 @@ export async function previewSavedReplyDraft(
 			join app.product_revision pv
 				on pv.product_id = ph.product_id and pv.revision = pub.product_revision
 			where ph.product_id = ${conv.primary_product_id} and ph.revision > 0
+				and not exists (select 1 from app.publication_withdrawal w where w.publication_id = pub.id)
 		`;
 		productTitle = prod?.name ?? null;
 	}
@@ -3763,13 +3864,23 @@ export async function createOrUpdateSupportTag(
 			label: inserted.label,
 			enabled: inserted.enabled,
 		};
+		await auditSupportDefinition(
+			tx,
+			principal.id,
+			"support.tag.create",
+			inserted.id,
+			reason,
+			{ version: inserted.revision, before: null, after: response },
+		);
 		await saveOperation(tx, principal.id, action, key, requestHash, response);
 		return response;
 	}
 
 	const tagId = id(definitionIdParam);
-	const [existing] = await tx<{ id: string; revision: number }[]>`
-		select id, revision from app.support_tag where id = ${tagId} for update
+	const [existing] = await tx<
+		{ id: string; label: string; enabled: boolean; revision: number }[]
+	>`
+		select id, label, enabled, revision from app.support_tag where id = ${tagId} for update
 	`;
 	if (!existing) throw new AccessError(404, "NOT_FOUND");
 	if (existing.revision !== expectedVersion) {
@@ -3794,6 +3905,23 @@ export async function createOrUpdateSupportTag(
 		label: updated.label,
 		enabled: updated.enabled,
 	};
+	await auditSupportDefinition(
+		tx,
+		principal.id,
+		"support.tag.version",
+		updated.id,
+		reason,
+		{
+			version: updated.revision,
+			before: {
+				id: existing.id,
+				version: existing.revision,
+				label: existing.label,
+				enabled: existing.enabled,
+			},
+			after: response,
+		},
+	);
 	await saveOperation(tx, principal.id, action, key, requestHash, response);
 	return response;
 }

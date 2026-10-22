@@ -7,6 +7,7 @@ import {
 	privateJson,
 	problem,
 	readBody,
+	requestOrigin,
 } from "../access/http.ts";
 import { AccessError, getPrincipal, type Principal } from "../access/policy.ts";
 import {
@@ -18,7 +19,12 @@ import {
 	text,
 } from "../catalog/validation.ts";
 import type { CommissionEntryRow } from "../commissions/service.ts";
-import { appendFinanceTransaction, financeInstant } from "../finance/ledger.ts";
+import {
+	appendFinanceTransaction,
+	financeEnvironment,
+	financeInstant,
+} from "../finance/ledger.ts";
+import { savePrivateArtifact } from "../../storage/private.ts";
 import { resolvePolicy } from "../settings/policies.ts";
 
 const digest = (value: string) =>
@@ -616,7 +622,7 @@ export async function createPayoutEvidenceUpload(
 	const requestHash = digest(
 		JSON.stringify({ payout_id: selectedId, ...input }),
 	);
-	const origin = readLocalConfig(process.env).origin;
+	const origin = requestOrigin(request) ?? readLocalConfig(process.env).origin;
 
 	return identity.sql.begin(async (tx) => {
 		await requireFinanceOrOwner(tx, principal);
@@ -657,6 +663,12 @@ export async function createPayoutEvidenceUpload(
 		const evidenceId = randomUUID();
 		const expiresIso = new Date(nowMs + 15 * 60 * 1000).toISOString();
 
+		// The slot carries no bytes yet; verification refuses it until the
+		// claim holder uploads matching content to upload_url.
+		await tx`
+      insert into app.affiliate_payout_evidence (id, payout_id, created_by_user_id, file_name, media_type, size_bytes, expires_at)
+      values (${evidenceId}, ${selectedId}, ${principal.id}, ${input.file_name}, ${input.media_type}, ${input.size_bytes}, ${expiresIso}::timestamptz)
+    `;
 		await tx`
       update app.affiliate_payout
       set evidence_artifact_id = ${evidenceId}, updated_at = clock_timestamp()
@@ -678,7 +690,151 @@ export async function createPayoutEvidenceUpload(
       insert into app.access_operation (id, actor_id, action, key, request_hash, response)
       values (${operationId}, ${principal.id}, 'payout.evidence_upload', ${key}, ${requestHash}, ${JSON.stringify(response)}::jsonb)
     `;
+		await tx`
+      insert into app.audit_event (actor_id, action, subject_id, outcome, reason, details, created_at)
+      values (
+        ${principal.id},
+        'payout.evidence_upload',
+        ${selectedId},
+        'allowed',
+        'Registered manual transfer evidence slot',
+        ${JSON.stringify({
+					operation_id: operationId,
+					evidence_id: evidenceId,
+					replaced_evidence_id: payout.evidence_artifact_id ?? null,
+					media_type: input.media_type,
+					size_bytes: input.size_bytes,
+					revision: Number(payout.revision),
+				})}::jsonb,
+        clock_timestamp()
+      )
+    `;
 		return response;
+	});
+}
+
+const MAX_EVIDENCE_BYTES = 10485760;
+
+// Content type comes from magic bytes; the declared type must agree with them.
+function sniffEvidenceType(bytes: Uint8Array) {
+	const starts = (signature: number[]) =>
+		bytes.byteLength >= signature.length &&
+		signature.every((value, index) => bytes[index] === value);
+	if (starts([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]))
+		return "image/png";
+	if (starts([0xff, 0xd8, 0xff])) return "image/jpeg";
+	if (starts([0x25, 0x50, 0x44, 0x46, 0x2d])) return "application/pdf";
+	return null;
+}
+
+async function readEvidenceBytes(request: Request) {
+	const declared = Number(request.headers.get("content-length") ?? "0");
+	if (declared > MAX_EVIDENCE_BYTES)
+		throw new AccessError(413, "BODY_TOO_LARGE");
+	if (!request.body) throw invalid();
+	const reader = request.body.getReader();
+	const chunks: Uint8Array[] = [];
+	let total = 0;
+	for (;;) {
+		const { done, value } = await reader.read();
+		if (done) break;
+		total += value.byteLength;
+		if (total > MAX_EVIDENCE_BYTES) {
+			await reader.cancel();
+			throw new AccessError(413, "BODY_TOO_LARGE");
+		}
+		chunks.push(value);
+	}
+	return Buffer.concat(chunks);
+}
+
+export async function uploadPayoutEvidence(
+	request: Request,
+	identity: LocalAuth,
+	principal: Principal,
+	payoutId: string,
+	evidenceId: string,
+) {
+	const selectedId = id(payoutId);
+	const selectedEvidence = id(evidenceId);
+	if (request.headers.get("x-payout-id") !== selectedId) throw invalid();
+	// Cheap role gate before buffering bytes; the transaction re-checks grants.
+	if (!principal.roles.some((role) => role === "owner" || role === "finance"))
+		throw new AccessError(403, "FORBIDDEN");
+	const declaredType = request.headers.get("content-type");
+	const bytes = await readEvidenceBytes(request);
+	const sniffed = sniffEvidenceType(bytes);
+	if (!sniffed || sniffed !== declaredType) {
+		throw new AccessError(422, "INVALID_PAYOUT_EVIDENCE_CONTENT");
+	}
+	const sha256 = createHash("sha256").update(bytes).digest("hex");
+
+	return identity.sql.begin(async (tx) => {
+		await requireFinanceOrOwner(tx, principal);
+		const [payout] = await tx<AffiliatePayoutRow[]>`
+      select * from app.affiliate_payout where id = ${selectedId} for update
+    `;
+		if (!payout) throw new AccessError(404, "NOT_FOUND");
+		const [slot] = await tx<
+			{
+				media_type: string;
+				size_bytes: number;
+				created_by_user_id: string;
+				artifact_id: string | null;
+				sha256: string | null;
+				live: boolean;
+			}[]
+		>`
+      select media_type, size_bytes, created_by_user_id, artifact_id, sha256,
+        (expires_at > clock_timestamp()) as live
+      from app.affiliate_payout_evidence
+      where id = ${selectedEvidence} and payout_id = ${selectedId}
+      for update
+    `;
+		if (!slot || slot.created_by_user_id !== principal.id)
+			throw new AccessError(404, "NOT_FOUND");
+		if (slot.artifact_id) {
+			// Byte-identical replay is idempotent; different bytes never replace proof.
+			if (slot.sha256 !== sha256)
+				throw new AccessError(409, "PAYOUT_EVIDENCE_ALREADY_UPLOADED");
+			return { id: selectedEvidence, sha256, size_bytes: bytes.byteLength };
+		}
+		if (
+			payout.status !== "processing" ||
+			payout.claimed_by_user_id !== principal.id ||
+			payout.evidence_artifact_id !== selectedEvidence
+		) {
+			throw new AccessError(409, "ACTIVE_CLAIM_HOLDER_REQUIRED");
+		}
+		if (!slot.live)
+			throw new AccessError(409, "PAYOUT_EVIDENCE_UPLOAD_EXPIRED");
+		if (
+			slot.media_type !== sniffed ||
+			Number(slot.size_bytes) !== bytes.byteLength
+		) {
+			throw new AccessError(422, "INVALID_PAYOUT_EVIDENCE_CONTENT");
+		}
+		// lazy: an artifact orphaned by a later rollback is unreachable private
+		// storage; add a sweeper if local disk use ever matters.
+		const artifactId = await savePrivateArtifact(bytes);
+		await tx`
+      update app.affiliate_payout_evidence
+      set artifact_id = ${artifactId}, sha256 = ${sha256}, uploaded_at = clock_timestamp()
+      where id = ${selectedEvidence}
+    `;
+		await tx`
+      insert into app.audit_event (actor_id, action, subject_id, outcome, reason, details, created_at)
+      values (
+        ${principal.id},
+        'payout.evidence_uploaded',
+        ${selectedId},
+        'allowed',
+        'Stored private manual transfer evidence bytes',
+        ${JSON.stringify({ evidence_id: selectedEvidence, sha256, size_bytes: bytes.byteLength, media_type: sniffed })}::jsonb,
+        clock_timestamp()
+      )
+    `;
+		return { id: selectedEvidence, sha256, size_bytes: bytes.byteLength };
 	});
 }
 
@@ -783,6 +939,13 @@ export async function verifyManualPayoutTransfer(
 		) {
 			throw new AccessError(422, "UNVERIFIABLE_PAYOUT_EVIDENCE");
 		}
+		const [evidence] = await tx<{ artifact_id: string | null }[]>`
+      select artifact_id from app.affiliate_payout_evidence
+      where id = ${input.evidence_id} and payout_id = ${selectedId}
+    `;
+		if (!evidence?.artifact_id) {
+			throw new AccessError(422, "PAYOUT_EVIDENCE_NOT_UPLOADED");
+		}
 
 		const [reusedEvidence] = await tx<{ id: string }[]>`
       select id from app.affiliate_payout
@@ -803,20 +966,19 @@ export async function verifyManualPayoutTransfer(
 		}
 
 		const amountIdr = Number(payout.amount_idr);
-		const [dbEnv] = await tx<{ is_test: boolean }[]>`
-      select (current_database() = '99ribu_test') as is_test
-    `;
+		// Settles the recognized affiliate obligation. Transfer charges are a
+		// company expense and never reduce the affiliate amount posted here.
 		const journal = await appendFinanceTransaction(tx, {
 			kind: "adjustment",
 			source: "affiliate.payout",
-			environment: dbEnv?.is_test ? "test" : "local",
+			environment: await financeEnvironment(tx),
 			effect_reference: selectedId,
 			order_id: null,
 			reverses_id: null,
 			reason: input.reason.slice(0, 500),
 			occurred_at: input.transferred_at,
 			postings: [
-				{ account: "buyer_funds_liability", side: "debit", amount: amountIdr },
+				{ account: "affiliate_payable", side: "debit", amount: amountIdr },
 				{ account: "company_cash", side: "credit", amount: amountIdr },
 			],
 		});
@@ -1108,6 +1270,23 @@ export async function handlePayouts(request: Request, identity: LocalAuth) {
 					principal,
 					evidenceRoute[1],
 					await readBody(request),
+				),
+				200,
+			);
+		}
+
+		const evidenceBytesRoute =
+			/^\/api\/v1\/admin\/payouts\/([^/]+)\/evidence-uploads\/([^/]+)$/.exec(
+				url.pathname,
+			);
+		if (evidenceBytesRoute && request.method === "PUT") {
+			return privateJson(
+				await uploadPayoutEvidence(
+					request,
+					identity,
+					principal,
+					evidenceBytesRoute[1],
+					evidenceBytesRoute[2],
 				),
 				200,
 			);

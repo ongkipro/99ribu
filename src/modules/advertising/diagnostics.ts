@@ -121,31 +121,20 @@ export async function ensureDefaultDestinations(sql: Sql): Promise<void> {
 	}
 }
 
+// The {destinationId} path parameter is the ad_destination_config row id; platform names are not aliases.
 async function resolveDestinationRow(
 	sql: Sql,
-	platformOrId: string,
+	destinationId: string,
 ): Promise<DestinationRow> {
 	await ensureDefaultDestinations(sql);
-	const normalized = platformOrId.trim().toLowerCase();
-	if ((PLATFORMS as string[]).includes(normalized)) {
-		const [row] = await sql<DestinationRow[]>`
+	if (!UUID_RE.test(destinationId)) throw new AccessError(404, "NOT_FOUND");
+	const [row] = await sql<DestinationRow[]>`
       select id, platform, destination_version, paused, public_identifier, secret_reference, revision, actor_id, reason, updated_at
       from app.ad_destination_config
-      where platform = ${normalized}
+      where id = ${destinationId}::uuid
     `;
-		if (!row) throw new AccessError(404, "NOT_FOUND");
-		return row;
-	}
-	if (UUID_RE.test(platformOrId)) {
-		const [row] = await sql<DestinationRow[]>`
-      select id, platform, destination_version, paused, public_identifier, secret_reference, revision, actor_id, reason, updated_at
-      from app.ad_destination_config
-      where id = ${platformOrId}::uuid
-    `;
-		if (!row) throw new AccessError(404, "NOT_FOUND");
-		return row;
-	}
-	throw new AccessError(404, "NOT_FOUND");
+	if (!row) throw new AccessError(404, "NOT_FOUND");
+	return row;
 }
 
 async function computePlatformDiagnostics(
@@ -548,7 +537,7 @@ export async function listAdvertisingDestinations(
 export async function getAdvertisingDestination(
 	request: Request,
 	identity: LocalAuth,
-	platformOrId: string,
+	destinationId: string,
 ) {
 	const url = new URL(request.url);
 	const allowedParams = new Set(["from", "to"]);
@@ -558,7 +547,7 @@ export async function getAdvertisingDestination(
 		}
 	}
 	await requireOwnerPrincipal(request, identity);
-	const row = await resolveDestinationRow(identity.sql, platformOrId);
+	const row = await resolveDestinationRow(identity.sql, destinationId);
 
 	const rawFrom = url.searchParams.get("from");
 	const rawTo = url.searchParams.get("to");
@@ -604,7 +593,7 @@ export async function getAdvertisingDestination(
 export async function updateAdvertisingDestination(
 	request: Request,
 	identity: LocalAuth,
-	platformOrId: string,
+	destinationId: string,
 ) {
 	assertOrigin(request);
 	const url = new URL(request.url);
@@ -639,7 +628,7 @@ export async function updateAdvertisingDestination(
 	const updated = await identity.sql.begin(async (tx) => {
 		const target = await resolveDestinationRow(
 			tx as unknown as Sql,
-			platformOrId,
+			destinationId,
 		);
 		const [locked] = await tx<DestinationRow[]>`
       select id, platform, destination_version, paused, public_identifier, secret_reference, revision, actor_id, reason, updated_at
@@ -707,12 +696,27 @@ export async function updateAdvertisingDestination(
     `;
 
 		await tx`
-      insert into app.audit_event (actor_id, action, outcome, reason)
+      insert into app.audit_event (actor_id, action, subject_id, outcome, reason, details)
       values (
         ${principal.id},
         'advertising.destination.update',
+        ${saved.id},
         'allowed',
-        ${reason}
+        ${reason},
+        ${JSON.stringify({
+					platform: saved.platform,
+					version: nextRevision,
+					before: {
+						destination_version: locked.destination_version,
+						public_identifier: locked.public_identifier,
+						paused: locked.paused,
+					},
+					after: {
+						destination_version: saved.destination_version,
+						public_identifier: saved.public_identifier,
+						paused: saved.paused,
+					},
+				})}::jsonb
       )
     `;
 
@@ -740,8 +744,7 @@ export async function updateAdvertisingDestination(
 export async function setDestinationPauseState(
 	request: Request,
 	identity: LocalAuth,
-	platformOrId: string,
-	forcedPause?: boolean,
+	destinationId: string,
 ) {
 	assertOrigin(request);
 	const url = new URL(request.url);
@@ -764,19 +767,18 @@ export async function setDestinationPauseState(
 	if (!reason || reason.length > 1000) {
 		throw new AccessError(400, "INVALID_INPUT");
 	}
-	const desiredPause =
-		forcedPause !== undefined
-			? forcedPause
-			: typeof body.paused === "boolean"
-				? body.paused
-				: true;
+	// One audited endpoint pauses and resumes; AdPauseInput requires an explicit target state.
+	if (typeof body.paused !== "boolean") {
+		throw new AccessError(400, "INVALID_INPUT");
+	}
+	const desiredPause = body.paused;
 
 	await ensureDefaultDestinations(identity.sql);
 
 	const updated = await identity.sql.begin(async (tx) => {
 		const target = await resolveDestinationRow(
 			tx as unknown as Sql,
-			platformOrId,
+			destinationId,
 		);
 		const [locked] = await tx<DestinationRow[]>`
       select id, platform, destination_version, paused, public_identifier, secret_reference, revision, actor_id, reason, updated_at
@@ -843,12 +845,19 @@ export async function setDestinationPauseState(
 		}
 
 		await tx`
-      insert into app.audit_event (actor_id, action, outcome, reason)
+      insert into app.audit_event (actor_id, action, subject_id, outcome, reason, details)
       values (
         ${principal.id},
         ${desiredPause ? "advertising.destination.pause" : "advertising.destination.resume"},
+        ${saved.id},
         'allowed',
-        ${reason}
+        ${reason},
+        ${JSON.stringify({
+					platform: saved.platform,
+					version: nextRevision,
+					before: { paused: locked.paused },
+					after: { paused: saved.paused },
+				})}::jsonb
       )
     `;
 
@@ -873,15 +882,68 @@ export async function setDestinationPauseState(
 	return projectDestination(updated, diag, versions);
 }
 
+type ReplayTrace = {
+	destination_id: string | null;
+	platform: Platform | null;
+	event_id: string | null;
+	outbox_id: string | null;
+	job_id: string | null;
+};
+
 export async function replayAdvertisingEvent(
 	request: Request,
 	identity: LocalAuth,
-	platformOrId: string,
+	destinationId: string,
 ) {
 	assertOrigin(request);
 	const url = new URL(request.url);
 	if (url.search) throw new AccessError(400, "INVALID_INPUT");
 	const principal = await requireOwnerPrincipal(request, identity);
+	const trace: ReplayTrace = {
+		destination_id: null,
+		platform: null,
+		event_id: null,
+		outbox_id: null,
+		job_id: null,
+	};
+	try {
+		return await replayWithTrace(
+			request,
+			identity,
+			principal.id,
+			destinationId,
+			trace,
+		);
+	} catch (error) {
+		// The replay transaction may have rolled back; this separate row is the failure trace.
+		// Once a job was queued the committed request row exists, so this records its result.
+		const code = error instanceof AccessError ? error.code : "REPLAY_FAILED";
+		try {
+			await identity.sql`
+        insert into app.audit_event (actor_id, action, subject_id, outcome, reason, details)
+        values (
+          ${principal.id},
+          ${trace.job_id ? "advertising.destination.replay.result" : "advertising.destination.replay"},
+          ${trace.destination_id},
+          'denied',
+          ${code},
+          ${JSON.stringify(trace)}::jsonb
+        )
+      `;
+		} catch {
+			// Never mask the original replay error with an audit write failure.
+		}
+		throw error;
+	}
+}
+
+async function replayWithTrace(
+	request: Request,
+	identity: LocalAuth,
+	actorId: string,
+	destinationId: string,
+	trace: ReplayTrace,
+) {
 	const body = await readBody(request);
 
 	// Forbid caller-supplied amount/time/event_name overrides
@@ -922,7 +984,9 @@ export async function replayAdvertisingEvent(
 	}
 
 	await ensureDefaultDestinations(identity.sql);
-	const destination = await resolveDestinationRow(identity.sql, platformOrId);
+	const destination = await resolveDestinationRow(identity.sql, destinationId);
+	trace.destination_id = destination.id;
+	trace.platform = destination.platform;
 	if (Number(destination.revision) !== expectedVersion) {
 		throw new AccessError(409, "VERSION_CONFLICT");
 	}
@@ -970,6 +1034,8 @@ export async function replayAdvertisingEvent(
 	if (!target) {
 		throw new AccessError(404, "NOT_FOUND");
 	}
+	trace.event_id = String(target.event_id);
+	trace.outbox_id = String(target.outbox_id);
 
 	const [clock] = await identity.sql<
 		{ now: string }[]
@@ -1072,8 +1138,20 @@ export async function replayAdvertisingEvent(
         where id = ${jId}::uuid
       `;
 		}
+		await tx`
+      insert into app.audit_event (actor_id, action, subject_id, outcome, reason, details)
+      values (
+        ${actorId},
+        'advertising.destination.replay',
+        ${destination.id},
+        'allowed',
+        ${reason},
+        ${JSON.stringify({ ...trace, job_id: jId, destination_version: Number(destination.revision) })}::jsonb
+      )
+    `;
 		return jId;
 	});
+	trace.job_id = jobId;
 
 	const [dbRow] = await identity.sql<
 		{ name: string }[]
@@ -1100,12 +1178,14 @@ export async function replayAdvertisingEvent(
 	}
 
 	await identity.sql`
-    insert into app.audit_event (actor_id, action, outcome, reason)
+    insert into app.audit_event (actor_id, action, subject_id, outcome, reason, details)
     values (
-      ${principal.id},
-      'advertising.destination.replay',
+      ${actorId},
+      'advertising.destination.replay.result',
+      ${destination.id},
       'allowed',
-      ${reason}
+      ${reason},
+      ${JSON.stringify({ ...trace, delivery_status: afterOutbox?.status ?? "accepted" })}::jsonb
     )
   `;
 
@@ -1126,7 +1206,7 @@ export async function replayAdvertisingEvent(
 export async function handleAdvertisingDiagnostics(
 	request: Request,
 	identity: LocalAuth,
-	platformParam?: string,
+	destinationParam?: string,
 ): Promise<Response> {
 	try {
 		assertOrigin(request);
@@ -1142,51 +1222,60 @@ export async function handleAdvertisingDiagnostics(
 			if (request.method === "POST") {
 				const clone = request.clone();
 				const body = await readBody(clone);
-				const p = typeof body.platform === "string" ? body.platform : "";
+				const platform = typeof body.platform === "string" ? body.platform : "";
+				if (!(PLATFORMS as string[]).includes(platform)) {
+					throw new AccessError(400, "INVALID_INPUT");
+				}
+				await ensureDefaultDestinations(identity.sql);
+				const [target] = await identity.sql<{ id: string }[]>`
+          select id from app.ad_destination_config where platform = ${platform}
+        `;
+				if (!target) throw new AccessError(404, "NOT_FOUND");
 				return privateJson(
-					await updateAdvertisingDestination(request, identity, p),
+					await updateAdvertisingDestination(request, identity, target.id),
 					201,
 				);
 			}
 		}
-		// /api/v1/admin/advertising/destinations/[platform]
-		const platform = platformParam ?? segments[5] ?? "";
+		// /api/v1/admin/advertising/destinations/{destinationId}/{diagnostics|pause|replays|versions}
+		const destinationId = destinationParam ?? segments[5] ?? "";
 		const subAction = segments[6];
-		if (!subAction) {
-			if (request.method === "GET") {
-				return privateJson(
-					await getAdvertisingDestination(request, identity, platform),
-				);
-			}
-			if (request.method === "PATCH") {
-				return privateJson(
-					await updateAdvertisingDestination(request, identity, platform),
-				);
-			}
-		} else if (subAction === "pause" && request.method === "POST") {
-			return privateJson(
-				await setDestinationPauseState(request, identity, platform),
-			);
-		} else if (subAction === "resume" && request.method === "POST") {
-			return privateJson(
-				await setDestinationPauseState(request, identity, platform, false),
-			);
-		} else if (subAction === "replays" && request.method === "POST") {
-			return privateJson(
-				await replayAdvertisingEvent(request, identity, platform),
-				202,
-			);
-		} else if (subAction === "diagnostics" && request.method === "GET") {
-			return privateJson(
-				await getAdvertisingDestination(request, identity, platform),
-			);
-		} else if (
-			subAction === "versions" &&
-			(request.method === "POST" || request.method === "PATCH")
+		if (
+			segments.length === 7 &&
+			subAction === "pause" &&
+			request.method === "POST"
 		) {
 			return privateJson(
-				await updateAdvertisingDestination(request, identity, platform),
-				request.method === "POST" ? 201 : 200,
+				await setDestinationPauseState(request, identity, destinationId),
+			);
+		}
+		if (
+			segments.length === 7 &&
+			subAction === "replays" &&
+			request.method === "POST"
+		) {
+			return privateJson(
+				await replayAdvertisingEvent(request, identity, destinationId),
+				202,
+			);
+		}
+		if (
+			segments.length === 7 &&
+			subAction === "diagnostics" &&
+			request.method === "GET"
+		) {
+			return privateJson(
+				await getAdvertisingDestination(request, identity, destinationId),
+			);
+		}
+		if (
+			segments.length === 7 &&
+			subAction === "versions" &&
+			request.method === "POST"
+		) {
+			return privateJson(
+				await updateAdvertisingDestination(request, identity, destinationId),
+				201,
 			);
 		}
 		throw new AccessError(404, "NOT_FOUND");
