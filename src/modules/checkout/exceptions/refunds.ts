@@ -76,8 +76,8 @@ export async function queueRecoveryRefund(request:Request,identity:LocalAuth,pri
     values (${refundId},${head.id},${order.id},${operation.id},1,${status},${basis.basis_kind},${order.payment_method==='prepaid'?'payment_event':'cod_event'},${source.source_event_id},${source.source_transaction_id},${source.receipt_id},${source.source_amount},${source.amount},${obligation.id},${job},${operation.occurred_at})`;
    for(const original of source.units){
     const unit=units.find(unit=>unit.active&&unit.fulfillment_item_id===original.fulfillment_item_id);if(!unit)throw new AccessError(409,'EXCEPTION_COMPONENT_SCOPE_MISMATCH');
-    await tx`insert into app.recovery_refund_allocation (refund_id,exception_unit_id,fulfillment_item_id,receipt_id,purchase_event_id,merchandise_amount,buyer_shipping,amount)
-     values (${refundId},${unit.id},${original.fulfillment_item_id},${original.receipt_id},${original.purchase_event_id},${original.merchandise_amount},${original.buyer_shipping},${original.amount})`;
+    await tx`insert into app.recovery_refund_allocation (refund_id,exception_unit_id,fulfillment_item_id,receipt_id,purchase_event_id,merchandise_amount,buyer_shipping,payment_charge,amount)
+     values (${refundId},${unit.id},${original.fulfillment_item_id},${original.receipt_id},${original.purchase_event_id},${original.merchandise_amount},${original.buyer_shipping},${original.payment_charge},${original.amount})`;
    }
    if(basis.basis_kind==='unallocated')await tx`insert into app.recovery_refund_allocation (refund_id,merchandise_amount,buyer_shipping,amount) values (${refundId},0,0,${source.amount})`;
    await tx`insert into app.recovery_refund_event (refund_id,revision,kind,status,source_kind,source_id,job_id,reason,occurred_at)

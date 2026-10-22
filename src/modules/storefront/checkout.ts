@@ -49,7 +49,7 @@ export function checkoutAllocationChoices(document:QuoteDocument,cart:BrowserCar
 }
 export function initialCheckoutState(view:CheckoutView):CheckoutState{
  const progress=view.progress,q=view.quote,wire=q?validateCheckoutDraft(view.draft).wire:null;
- const same=Boolean(q&&wire&&isDeepStrictEqual(q.address,wire.canonicalAddress)&&isDeepStrictEqual(q.contact,wire.contact)&&q.payment_method===wire.payment_method&&(!progress||progress.quote===q.id&&progress.cart_version===view.cart?.version));
+ const same=Boolean(q&&wire&&isDeepStrictEqual(q.address,wire.canonicalAddress)&&isDeepStrictEqual(q.contact,wire.contact)&&q.payment_method===wire.payment_method&&q.payment_channel===wire.payment_channel&&(!progress||progress.quote===q.id&&progress.cart_version===view.cart?.version));
  const step=view.quoteCurrent&&same&&!view.draftExpired&&progress?.step!=='contact'?progress?.step==='review'?'review':'shipping':'contact';
  const allocation=progress&&q?.allocation_options.some(p=>p.id===progress.allocation_id)?progress.allocation_id:q?.selected_allocation_id??'';
  const packages=progress&&q&&progress.quote===q.id?progress.packages.filter(p=>q.packages.some(parcel=>parcel.id===p.package_id&&parcel.options.some(o=>o.id===p.shipping_option_id))):[];
@@ -95,11 +95,12 @@ export function validateCheckoutDraft(draft:CheckoutDraft){
  if(phone)try{contact=normalizeContact({phone,email:draft.email.trim()||null});}catch{errors.email='Periksa alamat email atau kosongkan jika tidak digunakan.';}
  const destination=shippingFixture().destinations.find(d=>d.id===draft.destination_id);
  if(!destination)errors.destination_id='Pilih wilayah dari daftar tujuan pengiriman.';
- if(!['prepaid','cod'].includes(draft.payment_method))errors.payment_method='Pilih metode pembayaran yang tersedia.';
+ // DEC-008: 'transfer' is the manual bank channel and 'va' the AutoLaris VA/QRIS channel of the prepaid method.
+ if(!['prepaid','transfer','va','cod'].includes(draft.payment_method))errors.payment_method='Pilih metode pembayaran yang tersedia.';
  if(draft.buyer_note.trim())try{note=clean(singleLine(draft.buyer_note),500);}catch{errors.buyer_note='Gunakan catatan maksimal 500 karakter tanpa karakter kontrol.';}
  if(Object.keys(errors).length||!destination||!contact)return {errors,wire:null};
  const address={recipient_name:recipient,phone,address_line:street,destination_id:destination.id,postal_code:destination.postal_code};
- return {errors,wire:{address,canonicalAddress:normalizeAddress(address),contact,payment_method:draft.payment_method as 'prepaid'|'cod',...(note?{buyer_note:note}:{})}};
+ return {errors,wire:{address,canonicalAddress:normalizeAddress(address),contact,payment_method:(draft.payment_method==='cod'?'cod':'prepaid') as 'prepaid'|'cod',payment_channel:(draft.payment_method==='cod'?'cod':draft.payment_method==='transfer'?'manual-bank':draft.payment_method==='va'?'autolaris':'local-prepaid') as 'cod'|'manual-bank'|'autolaris'|'local-prepaid',...(note?{buyer_note:note}:{})}};
 }
 
 export function checkoutApiRequest(request:Request,path:string,method:string,body?:unknown,key?:string,version?:string){
@@ -128,7 +129,7 @@ export async function readCheckout(request:Request,identity:LocalAuth,dispatch:t
   const actor=await commerceActor(request,identity);if(!actor)throw new AccessError(401,'UNAUTHENTICATED');
   document=await identity.sql.begin(async tx=>(await ownedQuote(tx,request,identity,actor,quote?.id??'')).quote.document);
  }catch(error){return {...checkoutUnavailableView(),kind:error instanceof AccessError&&[401,403].includes(error.status)?'denied':'unavailable',code:error instanceof AccessError?error.code:'SERVICE_UNAVAILABLE'};}}
- let draft:CheckoutDraft=quote?{recipient_name:quote.address.recipient_name,phone:quote.contact.phone,email:quote.contact.email??'',destination_id:quote.address.destination_id,address_line:quote.address.address_line,buyer_note:'',payment_method:quote.payment_method}:emptyCheckoutDraft();
+ let draft:CheckoutDraft=quote?{recipient_name:quote.address.recipient_name,phone:quote.contact.phone,email:quote.contact.email??'',destination_id:quote.address.destination_id,address_line:quote.address.address_line,buyer_note:'',payment_method:quote.payment_channel==='manual-bank'?'transfer':quote.payment_channel==='autolaris'?'va':quote.payment_method}:emptyCheckoutDraft();
  const expired=Date.parse(current.cart.expires_at)<=Date.parse(current.now),issue=current.cart.state==='submitted'?'submitted':expired||current.cart.state!=='open'?'expired':current.lines.some(l=>!l.product||!l.offer||!l.stock||l.publicationChanged)?'cart':null;
  let progress:CheckoutProgress|null=null,draftExpired=false;
  if(current.cart.state==='open'&&!expired)try{const saved=await readCheckoutDraft(request,identity,current.cart.id);progress=saved.progress;draftExpired=saved.kind==='expired';if(progress)draft=progress.draft;}
@@ -142,6 +143,7 @@ const messages:Record<string,string>={
  CART_EMPTY:'Keranjang masih kosong. Pilih produk sebelum checkout.',CART_EXPIRED:'Keranjang kedaluwarsa. Kembali ke keranjang untuk memulai lagi.',CART_SUBMITTED:'Keranjang ini sudah menjadi pesanan. Periksa pesanan yang tersimpan.',
  QUOTE_EXPIRED:'Perhitungan pengiriman kedaluwarsa. Gunakan Hitung ongkir untuk menghitung ulang, lalu tinjau total terbaru.',QUOTE_SUPERSEDED:'Perhitungan pengiriman berubah. Gunakan Hitung ongkir, lalu periksa setiap paket.',
  SHIPPING_RATE_EXPIRED:'Tarif pengiriman kedaluwarsa. Gunakan Hitung ongkir untuk menghitung ulang.',SHIPPING_OPTION_UNAVAILABLE:'Layanan yang dipilih sudah tidak tersedia. Pilih kembali layanan pengiriman.',
+ MANUAL_BANK_UNAVAILABLE:'Transfer bank belum tersedia. Pilih metode pembayaran lain.',MANUAL_BANK_BUSY:'Transfer bank sedang penuh. Pilih metode pembayaran lain atau coba lagi nanti.',MANUAL_BANK_OPEN_LIMIT:'Selesaikan transfer pesanan sebelumnya dulu, atau pilih metode pembayaran lain.',RATE_LIMITED:'Terlalu banyak percobaan. Tunggu sebentar lalu coba lagi.',
  COD_UNAVAILABLE:'COD belum tersedia untuk tujuan atau paket ini. Ubah preferensi pembayaran atau wilayah pengiriman.',NO_SUPPORTED_ROUTE:'Belum ada pengiriman untuk tujuan dan isi keranjang ini. Pilih wilayah pengiriman lain atau periksa keranjang.',ROUTE_UNCONFIGURED:'Tujuan ini belum memiliki layanan pengiriman. Pilih tujuan lain.',
  DESTINATION_UNAVAILABLE:'Tujuan pengiriman sudah tidak tersedia. Pilih kembali dari daftar.',DESTINATION_POSTCODE_MISMATCH:'Wilayah dan kode pos perlu diperiksa kembali.',
  OFFER_UNAVAILABLE:'Pilihan produk tidak tersedia. Periksa kembali keranjang.',INSUFFICIENT_COMPLETE_STOCK:'Stok pilihan lengkap berubah. Periksa kembali keranjang.',INSUFFICIENT_STOCK:'Stok berubah sebelum pesanan tersimpan. Periksa keranjang.',PUBLICATION_REVIEW_REQUIRED:'Rincian pilihan berubah. Setujui isi terbaru dari keranjang.',
@@ -171,7 +173,7 @@ export async function mutateCheckout(request:Request,identity:LocalAuth,intent:C
    const sameQuote=state.view.quote?.id===intent.quote;
    state.intent={...intent,key:randomUUID(),navigate:'',version:String(state.view.cart?.version??intent.version),quote:state.view.quote?.id??'',allocation_id:sameQuote?intent.allocation_id:state.view.quote?.selected_allocation_id??'',packages:sameQuote?intent.packages:[]};
    const validation=validateCheckoutDraft(intent.draft),wire=validation.wire,q=state.view.quote;
-   const unchanged=Boolean(wire&&q&&isDeepStrictEqual(q.address,wire.canonicalAddress)&&isDeepStrictEqual(q.contact,wire.contact)&&q.payment_method===wire.payment_method);
+   const unchanged=Boolean(wire&&q&&isDeepStrictEqual(q.address,wire.canonicalAddress)&&isDeepStrictEqual(q.contact,wire.contact)&&q.payment_method===wire.payment_method&&q.payment_channel===wire.payment_channel);
    state.step=['shipping','review'].includes(navigate)&&state.view.quoteCurrent&&unchanged?navigate==='review'&&sameQuote&&String(state.view.cart?.version)===intent.version?'review':'shipping':'contact';
    state.intent.kind=state.step==='review'?'order':state.step==='shipping'?'shipping':'quote';
    if(navigate==='lookup'){
@@ -189,11 +191,11 @@ export async function mutateCheckout(request:Request,identity:LocalAuth,intent:C
   }
   const wire=validation.wire;
   if(intent.kind==='quote'){
-   const reply=await call('/api/v1/checkout/quotes','POST',{cart_id:intent.cart,address:wire.address,contact:wire.contact,payment_method:wire.payment_method},intent.key,intent.version);
+   const reply=await call('/api/v1/checkout/quotes','POST',{cart_id:intent.cart,address:wire.address,contact:wire.contact,payment_method:wire.payment_method,payment_channel:wire.payment_channel},intent.key,intent.version);
    const state=await acceptedQuote(reply.data as CheckoutQuote);return {state:{...state,phase:'success',step:'shipping',intent:{...state.intent,draft:intent.draft,kind:'shipping',query:intent.query},message:''},cookies,order:null};
   }
   const quote=(await call(`/api/v1/checkout/quotes/${intent.quote}`)).data as CheckoutQuote;
-  if(!isDeepStrictEqual(quote.address,wire.canonicalAddress)||!isDeepStrictEqual(quote.contact,wire.contact)||quote.payment_method!==wire.payment_method){
+  if(!isDeepStrictEqual(quote.address,wire.canonicalAddress)||!isDeepStrictEqual(quote.contact,wire.contact)||quote.payment_method!==wire.payment_method||quote.payment_channel!==wire.payment_channel){
    const state=await fresh();return {state:{...state,phase:'error',step:'contact',intent:{...intent,key:randomUUID(),kind:'quote',packages:[]},message:'Alamat atau metode berubah. Gunakan Hitung ongkir untuk menghitung ulang.',code:'INVALID_INPUT'},cookies,order:null};
   }
   if(intent.kind==='shipping'){
@@ -215,7 +217,7 @@ export async function mutateCheckout(request:Request,identity:LocalAuth,intent:C
   let state:CheckoutState;try{state=await fresh();}catch{state=initialCheckoutState(checkoutUnavailableView());}
   const lostScope=blocked||state.view.kind==='denied'||state.view.kind==='none'||!unknown&&Boolean(state.view.cart&&state.view.cart.id!==intent.cart);
   const safeIntent=lostScope?initialCheckoutIntent():unknown?intent:{...intent,key:randomUUID(),kind:'quote' as const,version:state.view.cart?.id===intent.cart?String(state.view.cart.version):intent.version,quote:state.view.quote?.id??'',packages:[],navigate:''};
-  const errors:CheckoutState['errors']=lostScope||unknown?{}:navigate==='lookup'&&code==='INVALID_INPUT'?{query:'Periksa kata pencarian wilayah.'}:code==='COD_UNAVAILABLE'?{payment_method:messages[code]}:code==='NO_SUPPORTED_ROUTE'?{destination_id:messages[code]}:{};
+  const errors:CheckoutState['errors']=lostScope||unknown?{}:navigate==='lookup'&&code==='INVALID_INPUT'?{query:'Periksa kata pencarian wilayah.'}:['COD_UNAVAILABLE','MANUAL_BANK_UNAVAILABLE','MANUAL_BANK_BUSY','MANUAL_BANK_OPEN_LIMIT'].includes(code)?{payment_method:messages[code]}:code==='NO_SUPPORTED_ROUTE'?{destination_id:messages[code]}:{};
   return {state:{...state,phase:unknown?'unknown':'error',step:unknown?intent.kind==='order'?'review':intent.kind==='shipping'?'shipping':'contact':'contact',intent:safeIntent,view:lostScope?{...checkoutUnavailableView(),kind:'denied',code}:state.view.cart&&state.view.cart.id!==intent.cart?checkoutUnavailableView():state.view,errors,message:lostScope?'Sesi atau keranjang berubah. Hasil tindakan hanya dapat diperiksa melalui akses yang sah.':unknown?'Hasil tindakan belum diketahui. Ulangi tindakan yang sama untuk memeriksa hasilnya.':messages[code]??'Perubahan belum diterapkan. Periksa kembali pilihan dan coba lagi.',code,blocked:lostScope},cookies,order:null};
  }
 }

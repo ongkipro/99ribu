@@ -11,7 +11,8 @@ import {fulfillmentClock,lockFulfillment} from './core.ts';
 import {collectionUnitTotals} from '../finance/receipt-units.ts';
 import {isWaybillSourceCancelled} from './cancellation-source.ts';
 
-export function waybillRequestBasis(units:readonly {id:string;unit_price:number;buyer_shipping:number}[],paymentMethod:'cod'|'prepaid'){
+// cod_due includes each unit's frozen buyer-paid COD fee share (DEC-009), as app.waybill_current_request_basis does.
+export function waybillRequestBasis(units:readonly {id:string;unit_price:number;buyer_shipping:number;payment_charge?:number}[],paymentMethod:'cod'|'prepaid'){
  if(!['cod','prepaid'].includes(paymentMethod))throw invalid();
  const basis=collectionUnitTotals(units);if(!basis.unit_ids.length)throw new AccessError(409,'SHIPPING_SOURCE_NOT_ELIGIBLE');
  return {unit_ids:basis.unit_ids,cod_due:paymentMethod==='cod'?basis.amount:0};
@@ -50,8 +51,8 @@ export async function createWaybillOperation(sql:Sql,target:'local'|'test',booki
    if(!head.prepared_at||head.booking_id!==booking.id||head.handover_at)throw new AccessError(409,'SHIPPING_SOURCE_NOT_ELIGIBLE');
    const [snapshot]=await tx`select s.snapshot,q.document->'address' address from app.order_shipment s join app.commerce_order o on o.id=s.order_id join app.checkout_quote q on q.id=o.quote_id where s.id=${head.shipment_id}`;
    const [schema]=await tx`select to_regclass('app.commerce_exception') is not null installed`;
-   const units=schema.installed?await tx`select f.id,i.unit_price,f.buyer_shipping from app.fulfillment_item f join app.order_item i on i.id=f.order_item_id where f.shipment_id=${head.shipment_id} and not exists(select 1 from app.exception_cancellation cancelled where cancelled.fulfillment_item_id=f.id and cancelled.replacement_link_id is null) order by f.id`:[];
-   const basis=schema.installed?waybillRequestBasis(units.map(unit=>({id:String(unit.id),unit_price:Number(unit.unit_price),buyer_shipping:Number(unit.buyer_shipping)})),order.payment_method):null;
+   const units=schema.installed?await tx`select f.id,i.unit_price,f.buyer_shipping,f.payment_charge from app.fulfillment_item f join app.order_item i on i.id=f.order_item_id where f.shipment_id=${head.shipment_id} and not exists(select 1 from app.exception_cancellation cancelled where cancelled.fulfillment_item_id=f.id and cancelled.replacement_link_id is null) order by f.id`:[];
+   const basis=schema.installed?waybillRequestBasis(units.map(unit=>({id:String(unit.id),unit_price:Number(unit.unit_price),buyer_shipping:Number(unit.buyer_shipping),payment_charge:Number(unit.payment_charge)})),order.payment_method):null;
    const hash=createHash('sha256').update(JSON.stringify({shipment_id:head.shipment_id,snapshot:snapshot.snapshot,address:snapshot.address,...(basis?{request_basis:basis}:{})})).digest('hex'),now=await fulfillmentClock(tx,order.clock_namespace);
    [operation]=basis?await tx`insert into app.local_waybill_operation (booking_id,environment,request_hash,request_basis,created_at) values (${booking.id},${target},${hash},${JSON.stringify(basis)}::jsonb,${now}) returning *`
     :await tx`insert into app.local_waybill_operation (booking_id,environment,request_hash,created_at) values (${booking.id},${target},${hash},${now}) returning *`;await emit(tx,operation);

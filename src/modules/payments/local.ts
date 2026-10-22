@@ -31,22 +31,32 @@ async function appendProviderEvent(tx:TransactionSql,operation:Record<string,unk
 // The per-attempt mutex fences an old creator after a no-effect reconciliation.
 export async function createLocalOperation(sql:Sql,target:'local'|'test',attemptId:string,noEffect=false,crashBeforeCommit=false){
  return sql.begin(async tx=>{
-  await profile(tx,target);const selected=id(attemptId);await tx`select pg_advisory_xact_lock(hashtextextended(${`payment:${selected}`},0))`;
-  const [attempt]=await tx`select a.*,o.status order_status,o.payment_status,app.reservation_clock(o.clock_namespace) as now from app.payment_attempt a join app.commerce_order o on o.id=a.order_id where a.id=${selected}`;if(!attempt) throw new AccessError(404,'NOT_FOUND');
-  let [operation]=await tx`select * from app.local_payment_operation where attempt_id=${selected}`;
-  const rejected=noEffect||attempt.order_status!=='pending'||attempt.payment_status!=='pending'||new Date(attempt.now)>=new Date(attempt.expires_at);
-  if(!operation){[operation]=await tx`insert into app.local_payment_operation (attempt_id,environment,status,requested_amount) values (${selected},${target},${rejected?'failed':'pending'},${attempt.expected_amount}) returning *`;await appendProviderEvent(tx,operation,new Date(attempt.now).toISOString());}
+  const opened=await openLocalOperation(tx,target,attemptId,noEffect);
   if(crashBeforeCommit) throw new Error('Simulated provider transaction failure before commit');
-  return {operation_id:String(operation.id),events:await readProviderEvents(tx,selected)};
+  return {operation_id:opened.operation_id,events:await readProviderEvents(tx,id(attemptId))};
  });
 }
-export async function simulateCollection(sql:Sql,target:'local'|'test',attemptId:string,options:{amount?:number;status?:'confirmed'|'failed'|'expired'}={}){
- return sql.begin(async tx=>{
+// Caller-transaction form (S93 binds the AutoLaris identity in the same transaction).
+export async function openLocalOperation(tx:TransactionSql,target:'local'|'test',attemptId:string,noEffect=false){
+ await profile(tx,target);const selected=id(attemptId);await tx`select pg_advisory_xact_lock(hashtextextended(${`payment:${selected}`},0))`;
+ const [attempt]=await tx`select a.*,o.status order_status,o.payment_status,app.reservation_clock(o.clock_namespace) as now from app.payment_attempt a join app.commerce_order o on o.id=a.order_id where a.id=${selected}`;if(!attempt) throw new AccessError(404,'NOT_FOUND');
+ let [operation]=await tx`select * from app.local_payment_operation where attempt_id=${selected}`;
+ const rejected=noEffect||attempt.order_status!=='pending'||attempt.payment_status!=='pending'||new Date(attempt.now)>=new Date(attempt.expires_at);
+ if(!operation){[operation]=await tx`insert into app.local_payment_operation (attempt_id,environment,status,requested_amount) values (${selected},${target},${rejected?'failed':'pending'},${attempt.expected_amount}) returning *`;await appendProviderEvent(tx,operation,new Date(attempt.now).toISOString());}
+ return {operation_id:String(operation.id),status:String(operation.status)};
+}
+export async function simulateCollection(sql:Sql,target:'local'|'test',attemptId:string,options:{amount?:number;status?:'confirmed'|'failed'|'expired';occurred_at?:string}={}){
+ return sql.begin(tx=>settleLocalOperation(tx,target,attemptId,options));
+}
+// Caller-transaction form: finance manual-bank confirmation (S92) settles the
+// attempt's own operation with the actually received amount and bank time.
+export async function settleLocalOperation(tx:TransactionSql,target:'local'|'test',attemptId:string,options:{amount?:number;status?:'confirmed'|'failed'|'expired';occurred_at?:string}={}){
+ {
   await profile(tx,target);const selected=id(attemptId);const [attempt]=await tx`select order_id from app.payment_attempt where id=${selected}`;if(!attempt) throw new AccessError(404,'NOT_FOUND');
   await lockPaymentOrder(tx,attempt.order_id);await tx`select pg_advisory_xact_lock(hashtextextended(${`payment:${selected}`},0))`;
   const [operation]=await tx`select p.*,app.reservation_clock(o.clock_namespace) as now from app.local_payment_operation p join app.payment_attempt a on a.id=p.attempt_id join app.commerce_order o on o.id=a.order_id where p.attempt_id=${selected} for update of p`;
   if(!operation) throw new AccessError(404,'NOT_FOUND');
-  const status=options.status??'confirmed',amount=integer(options.amount??Number(operation.requested_amount),1,Number.MAX_SAFE_INTEGER),now=new Date(operation.now).toISOString();
+  const status=options.status??'confirmed',amount=integer(options.amount??Number(operation.requested_amount),1,Number.MAX_SAFE_INTEGER),now=options.occurred_at??new Date(operation.now).toISOString();
   if(!['confirmed','failed','expired'].includes(status)) throw invalid();
   if(operation.status==='pending'){
    const [updated]=await tx`update app.local_payment_operation set status=${status},collected_amount=${status==='confirmed'?amount:null},paid_at=${status==='confirmed'?now:null} where id=${operation.id} returning *`;
@@ -54,11 +64,12 @@ export async function simulateCollection(sql:Sql,target:'local'|'test',attemptId
   }
   if(operation.status!==status||(status==='confirmed'&&Number(operation.collected_amount)!==amount)) throw new AccessError(409,'PROVIDER_EFFECT_FINAL');
   return appendProviderEvent(tx,operation,operation.paid_at?new Date(operation.paid_at).toISOString():now);
- });
+ }
 }
-export async function ingestProviderEvent(sql:Sql,value:unknown){
+export async function ingestProviderEvent(sql:Sql,value:unknown){return sql.begin(tx=>registerProviderEvent(tx,value));}
+export async function registerProviderEvent(tx:TransactionSql,value:unknown){
  const e=verifyProviderEvent(value),hash=createHash('sha256').update(canonical(e)).digest('hex');
- return sql.begin(async tx=>{
+ {
   await profile(tx,e.environment);const rows=await readProviderEvents(tx,e.attempt_id),stored=rows.find(row=>row.id===e.id);
   if(!stored||canonical(stored)!==canonical(e)||stored.signature!==e.signature) throw new AccessError(401,'INVALID_PAYMENT_EVIDENCE');
   await tx`select pg_advisory_xact_lock(hashtextextended(${`payment-event:${e.id}`},0))`;
@@ -66,5 +77,5 @@ export async function ingestProviderEvent(sql:Sql,value:unknown){
   if(previous){if(previous.payload_hash!==hash) throw new AccessError(409,'IDEMPOTENCY_CONFLICT');return String(previous.callback_job_id);}
   const job=await enqueueJob(tx,'payment.callback',`payment-callback:${e.id}`,{eventId:e.id});
   await tx`insert into app.payment_provider_event (id,attempt_id,payload_hash,callback_job_id) values (${e.id},${e.attempt_id},${hash},${job})`;return job;
- });
+ }
 }

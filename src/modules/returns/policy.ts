@@ -40,10 +40,12 @@ export function assertReturnWindow(receivedAt:string,submittedAt:string){
  return deadline;
 }
 
-export function returnEntitlement(unitPrice:unknown,buyerShipping:unknown){
- const merchandise=integer(unitPrice,99000,99000),shipping=integer(buyerShipping,0,Number.MAX_SAFE_INTEGER),total=BigInt(merchandise)+BigInt(shipping);
+// DEC-009/DEC-008: a refunded unit also returns its frozen buyer-paid payment charge
+// share (COD fee or transfer code), so a full return conserves the original payment.
+export function returnEntitlement(unitPrice:unknown,buyerShipping:unknown,paymentCharge:unknown=0){
+ const merchandise=integer(unitPrice,99000,99000),shipping=integer(buyerShipping,0,Number.MAX_SAFE_INTEGER),charge=integer(paymentCharge,0,Number.MAX_SAFE_INTEGER),total=BigInt(merchandise)+BigInt(shipping)+BigInt(charge);
  if(total>BigInt(Number.MAX_SAFE_INTEGER))throw new AccessError(422,'REFUND_AMOUNT_LIMIT_EXCEEDED');
- return {merchandise_amount:merchandise,buyer_shipping:shipping,amount:Number(total)};
+ return {merchandise_amount:merchandise,buyer_shipping:shipping,payment_charge:charge,amount:Number(total)};
 }
 
 export function returnInspectionRequest(value:unknown){

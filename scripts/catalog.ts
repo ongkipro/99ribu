@@ -6,9 +6,11 @@ import { resolve } from "node:path";
 // `initial-stock` reads the raw snapshot at run time and posts initial receive movements, HPP and
 // default offer assumptions through the real inventory/finance services (nothing is committed).
 // `withdraw` lists (default) or, with --apply, withdraws every current publication outside the
-// committed catalog through the real publication service.
+// committed catalog through the real publication service. `rehome` (DEC-006 transition) reports
+// (default, read-only) or, with --apply, moves catalog stock held outside its origin warehouses
+// through warehouse transfers; the next `import` rebinds offers to their origin warehouses.
 const [command, ...args] = process.argv.slice(2);
-const usage = "Use: catalog dataset [out-dir] | catalog import local|test <warehouse-id> [dataset-dir] | catalog initial-stock local|test <warehouse-id> [dataset-dir] | catalog withdraw local|test [--apply].";
+const usage = "Use: catalog dataset [out-dir] | catalog import local|test [dataset-dir] | catalog initial-stock local|test [dataset-dir] | catalog rehome local|test [--apply] | catalog withdraw local|test [--apply].";
 const rawDirectory = () => {
   const directory = process.env.BERLAPAK_DATA_DIR || "/data/99ribu-berlapak-data";
   if (!existsSync(`${directory}/data-json`) || !existsSync(`${directory}/images`)) throw new Error(`Berlapak data directory not found: ${directory}. Set BERLAPAK_DATA_DIR.`, { cause: "visible" });
@@ -21,21 +23,35 @@ try {
     const directory = rawDirectory();
     const { defaultDatasetDir, writeBerlapakDataset } = await import("../src/modules/local/berlapak-dataset.ts");
     console.log(JSON.stringify(writeBerlapakDataset(directory, args[0] ? resolve(args[0]) : defaultDatasetDir)));
-  } else if (command === "import" && ["local", "test"].includes(args[0]) && (args.length === 2 || args.length === 3)) {
+  } else if (command === "import" && ["local", "test"].includes(args[0]) && (args.length === 1 || args.length === 2)) {
     const { importCatalog, readCatalogDataset } = await import("../src/modules/catalog/dataset.ts");
     const { defaultDatasetDir } = await import("../src/modules/local/berlapak-dataset.ts");
-    const dataset = (() => { try { return readCatalogDataset(args[2] ? resolve(args[2]) : defaultDatasetDir); } catch (error) { return visible(error); } })();
+    const dataset = (() => { try { return readCatalogDataset(args[1] ? resolve(args[1]) : defaultDatasetDir); } catch (error) { return visible(error); } })();
     const { withSeedOwner } = await import("../src/modules/local/seed-runtime.ts");
     const summary = await withSeedOwner(args[0] as "local" | "test", "catalog-import", (request, identity, signal) =>
-      importCatalog(request, identity, dataset, { warehouseId: args[1], signal }).catch(visible));
+      importCatalog(request, identity, dataset, { signal }).catch(visible));
     console.log(JSON.stringify(summary));
-  } else if (command === "initial-stock" && ["local", "test"].includes(args[0]) && (args.length === 2 || args.length === 3)) {
+  } else if (command === "initial-stock" && ["local", "test"].includes(args[0]) && (args.length === 1 || args.length === 2)) {
     const sourceDir = rawDirectory();
     const { loadInitialStock } = await import("../src/modules/local/berlapak-dataset.ts");
     const { withSeedOwner } = await import("../src/modules/local/seed-runtime.ts");
     const summary = await withSeedOwner(args[0] as "local" | "test", "catalog-stock", (request, identity, signal) =>
-      loadInitialStock(request, identity, { warehouseId: args[1], sourceDir, datasetDir: args[2] ? resolve(args[2]) : undefined, signal }).catch(visible));
+      loadInitialStock(request, identity, { sourceDir, datasetDir: args[1] ? resolve(args[1]) : undefined, signal }).catch(visible));
     console.log(JSON.stringify(summary));
+  } else if (command === "rehome" && ["local", "test"].includes(args[0]) && (args.length === 1 || (args.length === 2 && args[1] === "--apply"))) {
+    const { readCatalogDocument } = await import("../src/modules/catalog/dataset.ts");
+    const { applyOriginTransition, defaultDatasetDir, planOriginTransition, summarizeTransition } = await import("../src/modules/local/berlapak-dataset.ts");
+    const catalog = (() => { try { return readCatalogDocument(defaultDatasetDir); } catch (error) { return visible(error); } })();
+    const target = args[0] as "local" | "test";
+    if (args[1] !== "--apply") {
+      const { connectDatabase } = await import("../src/db/client.ts");
+      const { sql } = connectDatabase(target);
+      try { console.log(JSON.stringify({ mode: "dry-run", target, ...summarizeTransition(await sql.begin("read only", (tx) => planOriginTransition(tx, catalog))) })); }
+      finally { await sql.end(); }
+    } else {
+      const { withSeedOwner } = await import("../src/modules/local/seed-runtime.ts");
+      console.log(JSON.stringify({ target, ...(await withSeedOwner(target, "catalog-rehome", (request, identity, signal) => applyOriginTransition(request, identity, catalog, signal).catch(visible))) }));
+    }
   } else if (command === "withdraw" && ["local", "test"].includes(args[0]) && (args.length === 1 || (args.length === 2 && args[1] === "--apply"))) {
     const { readCatalogDocument, summarizeCandidates, withdrawCandidates, withdrawalCandidates } = await import("../src/modules/catalog/dataset.ts");
     const { defaultDatasetDir } = await import("../src/modules/local/berlapak-dataset.ts");

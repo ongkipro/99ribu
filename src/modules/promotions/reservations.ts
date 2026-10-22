@@ -98,7 +98,7 @@ export async function reservePromotions(tx:TransactionSql,value:{key:string;cust
   const merchandise=safeMoney(definitions.reduce((sum,d)=>sum+BigInt(d.price)*BigInt(d.quantity),0n));
   const shipping=safeMoney(shipments.reduce((sum,s)=>sum+BigInt(s.shipping_fee),0n));
   const [wall]=await tx`select clock_timestamp()::text as now`;const now=namespace===null?wall.now:clock.now.toISOString();
-  const duration=Date.parse(expiresAt)-Date.parse(now);if(duration<=0) throw new AccessError(409,'RESERVATION_EXPIRED');if(duration>3600000) throw new AccessError(400,'RESERVATION_DEADLINE_TOO_DISTANT');
+  const duration=Date.parse(expiresAt)-Date.parse(now);if(duration<=0) throw new AccessError(409,'RESERVATION_EXPIRED');if(duration>86400000) throw new AccessError(400,'RESERVATION_DEADLINE_TOO_DISTANT');
   const rules=await tx<(Rule&{active:boolean;starts_at:string;ends_at:string;payment_methods:string[];minimum_merchandise:string;budget:string;reserved_amount:string;committed_amount:string;reserved_uses:number;committed_uses:number;per_buyer_limit:number})[]>`
     select v.*,p.reserved_amount,p.committed_amount,b.reserved_uses,b.committed_uses from app.promotion p
     join app.promotion_version v on v.promotion_id=p.id and v.revision=p.configuration_revision

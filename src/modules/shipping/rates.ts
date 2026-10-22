@@ -4,7 +4,10 @@ import {integer,invalid,object} from '../catalog/validation.ts';
 import {shippingFixture} from './address.ts';
 export type ParcelMeasures={weight_grams:number;length_mm:number;width_mm:number;height_mm:number};
 export type Rate={id:string;service_id:string;courier_name:string;service_name:string;shipping_amount:number;supports_cod:boolean;source:'TEST-ONLY';version:string;expires_at:string};
-export type RateRequest={warehouse_id:string;origin_fixture_id:string;destination_id:string;measures:ParcelMeasures;now:string};
+// DEC-006: the origin is the warehouse's kecamatan-level location, never a street address.
+// province/district are null only on pre-DEC-006 rows (city-level comparison).
+export type RateOrigin={province:string|null;city:string;district:string|null};
+export type RateRequest={warehouse_id:string;origin:RateOrigin;destination_id:string;measures:ParcelMeasures;now:string};
 export type RateAdapter={estimate:(request:RateRequest,signal:AbortSignal)=>Promise<Rate[]>};
 export function chargeableWeight(measures:ParcelMeasures,policy=shippingFixture().policy){for(const value of Object.values(measures)) integer(value,1);
   const volume=BigInt(measures.length_mm)*BigInt(measures.width_mm)*BigInt(measures.height_mm);const divisor=BigInt(policy.volumetric_divisor_mm3_per_gram);
@@ -12,14 +15,24 @@ export function chargeableWeight(measures:ParcelMeasures,policy=shippingFixture(
   if([measures.length_mm,measures.width_mm,measures.height_mm].some((v)=>v>policy.maximum_dimension_mm)||weight>BigInt(policy.maximum_weight_grams)) return null;
   return Number(weight);
 }
+// Names compare case/space-insensitively and exactly otherwise ("Kota X" and "Kabupaten X" stay
+// distinct). A district only matches inside the same city; a city inside the same province
+// unless either province is unknown. lazy: name matching suits the simulated adapter only; a
+// real courier adapter maps the kecamatan to the provider's own area id.
+const place=(value:string|null)=>value===null?null:value.normalize('NFKC').toLocaleLowerCase('id-ID').replace(/\s+/g,' ').trim()||null;
+export function rateBand(origin:RateOrigin,destination:{province:string;city:string;district:string}){
+  const province=place(origin.province)!==null&&place(origin.province)===place(destination.province);
+  const city=place(origin.city)!==null&&place(origin.city)===place(destination.city)&&(origin.province===null||province);
+  if(city&&place(origin.district)!==null&&place(origin.district)===place(destination.district)) return 'district' as const;
+  return city?'city' as const:province?'province' as const:'national' as const;
+}
 export const localRateAdapter:RateAdapter={async estimate(request,signal){
   signal.throwIfAborted();const fixture=shippingFixture();const destination=fixture.destinations.find((d)=>d.id===request.destination_id);
-  // Local snapshot warehouses (berlapak-<id>) are simulated cross-city origins.
-  if(!destination||!(['fixture-malang','fixture-pontianak'].includes(request.origin_fixture_id)||/^berlapak-[0-9a-f]{24}$/.test(request.origin_fixture_id))) throw new AccessError(422,'ROUTE_UNCONFIGURED');
+  if(!destination||place(request.origin?.city??null)===null) throw new AccessError(422,'ROUTE_UNCONFIGURED');
   if(destination.id==='test-no-route') return [];const weight=chargeableWeight(request.measures,fixture.policy);if(weight===null) return [];
-  const local=request.origin_fixture_id===`fixture-${destination.city.toLowerCase()}`;const steps=Math.ceil(weight/1000)-1;
+  const band=rateBand(request.origin,destination);const steps=Math.ceil(weight/1000)-1;
   return fixture.services.map((s)=>({id:`sim_${createHash('sha256').update(JSON.stringify([fixture.version,request.warehouse_id,destination.id,s.id,request.measures])).digest('hex')}`,
-    service_id:s.id,courier_name:'Pengiriman simulasi',service_name:s.name,shipping_amount:(local?s.local_base_idr:s.cross_base_idr)+steps*s.step_idr,
+    service_id:s.id,courier_name:'Pengiriman simulasi',service_name:s.name,shipping_amount:{district:s.district_base_idr,city:s.local_base_idr,province:s.province_base_idr,national:s.cross_base_idr}[band]+steps*s.step_idr,
     supports_cod:s.supports_cod&&destination.id!=='test-prepaid-only',source:'TEST-ONLY' as const,version:fixture.version,expires_at:new Date(Date.parse(request.now)+600000).toISOString()}));
 }};
 export async function estimateRates(adapter:RateAdapter,request:RateRequest,remainingMs=2000){

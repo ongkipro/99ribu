@@ -42,10 +42,13 @@ export async function seedLocal(target: Target, namespace: string) {
       if (inserted.length) {
         const warehouseIds = new Map<string, string>();
         for (const item of data.warehouses) {
-          const city = ({ "fixture-malang": "Malang", "fixture-pontianak": "Pontianak" } as Record<string, string>)[item.id];
-          if (!city) throw new Error("Warehouse fixture city requires explicit mapping.");
+          // DEC-006 kecamatan-level origin; the fixture kecamatan differs from every destination
+          // fixture kecamatan, so fixture quotes keep their same-city/inter-province bands.
+          const place = ({ "fixture-malang": { province: "Jawa Timur", city: "Malang", district: "Kecamatan Gudang Contoh A" },
+            "fixture-pontianak": { province: "Kalimantan Barat", city: "Pontianak", district: "Kecamatan Gudang Contoh B" } } as Record<string, { province: string; city: string; district: string }>)[item.id];
+          if (!place) throw new Error("Warehouse fixture city requires explicit mapping.");
           const warehouseId = randomUUID(); warehouseIds.set(item.id, warehouseId);
-          await tx`insert into app.warehouse (id,name,city,timezone) values (${warehouseId},${`${item.name} [${namespace}]`},${city},${item.timezone})`;
+          await tx`insert into app.warehouse (id,name,province,city,district,timezone) values (${warehouseId},${`${item.name} [${namespace}]`},${place.province},${place.city},${place.district},${item.timezone})`;
           await tx`insert into app.local_fixture_warehouse (namespace,fixture_id,warehouse_id) values (${namespace},${item.id},${warehouseId})`;
         }
         for (const item of data.users) {

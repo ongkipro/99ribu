@@ -3,6 +3,7 @@ import { connectDatabase } from "../src/db/client.ts";
 import { readLocalConfig } from "../src/config/local.ts";
 import { runOneJob } from "../src/jobs/worker.ts";
 import {paymentAdapter} from '../src/modules/payments/worker.ts';
+import {autolarisAdviceAdapter,simulateAutolarisStatus} from '../src/modules/payments/autolaris.ts';
 import {ingestProviderEvent,simulateCollection} from '../src/modules/payments/local.ts';
 import {reconcilePaymentNow} from '../src/modules/payments/recovery.ts';
 import {id,integer,invalid} from '../src/modules/catalog/validation.ts';
@@ -34,7 +35,7 @@ async function sourceInput(){
 }
 
 const [target, mode, ...extra] = process.argv.slice(2);
-const paymentCommand=mode==='--confirm-payment'||mode==='--reconcile-payment';
+const paymentCommand=mode==='--confirm-payment'||mode==='--reconcile-payment'||mode==='--autolaris-paid';
 const codCommand=['--collect-cod','--refuse-cod','--reconcile-cod'].includes(mode);
 const shippingCommand=['--issue-waybill','--fail-waybill','--reconcile-shipping'].includes(mode),initializeCommand=mode==='--initialize-fulfillment';
 const cancellationCommand=['--cancel-waybill','--reject-waybill-cancellation','--reconcile-waybill-cancellation'].includes(mode);
@@ -46,7 +47,7 @@ const replacementShippingCommand=['--issue-replacement-waybill','--fail-replacem
 const replacementReceiptCommand=mode==='--receive-replacement'||mode==='--reconcile-replacement-receipt';
 const expectedExtra=mode==='--once'&&extra.length===1?1:mode==='--revise-settlement'?2:mode==='--reconcile-settlement'||mode==='--reconcile-parcel-receipt'||mode==='--reconcile-replacement-receipt'||paymentCommand||codCommand||shippingCommand||cancellationCommand||initializeCommand||refundCommand||recoveryRefundCommand||replacementShippingCommand?1:0;
 if ((target !== 'local' && target !== 'test') || (mode !== undefined && mode !== '--once'&&!paymentCommand&&!codCommand&&!shippingCommand&&!cancellationCommand&&!initializeCommand&&!settlementCommand&&!receiptCommand&&!refundCommand&&!recoveryRefundCommand&&!replacementShippingCommand&&!replacementReceiptCommand) || extra.length!==expectedExtra) {
-  throw new Error('Use worker.ts local|test [--once [JOB_ID] | --confirm-payment ATTEMPT_ID | --reconcile-payment ATTEMPT_ID | --collect-cod SHIPMENT_ID | --refuse-cod SHIPMENT_ID | --reconcile-cod SHIPMENT_ID | --issue-waybill BOOKING_ID | --fail-waybill BOOKING_ID | --reconcile-shipping BOOKING_ID | --cancel-waybill CANCELLATION_ID | --reject-waybill-cancellation CANCELLATION_ID | --reconcile-waybill-cancellation CANCELLATION_ID | --initialize-fulfillment ORDER_ID | --observe-settlement < JSON | --revise-settlement SOURCE_ID EXPECTED_VERSION < JSON | --reconcile-settlement SOURCE_ID | --receive-parcel < JSON | --reconcile-parcel-receipt SOURCE_ID | --verify-refund-destination REFUND_ID | --confirm-refund REFUND_ID | --fail-refund REFUND_ID | --reconcile-refund REFUND_ID | --verify-recovery-destination RECOVERY_REFUND_ID | --confirm-recovery-refund RECOVERY_REFUND_ID | --fail-recovery-refund RECOVERY_REFUND_ID | --reconcile-recovery-refund RECOVERY_REFUND_ID | --issue-replacement-waybill BOOKING_ID | --fail-replacement-waybill BOOKING_ID | --reconcile-replacement-shipping BOOKING_ID | --receive-replacement < JSON | --reconcile-replacement-receipt SOURCE_ID].');
+  throw new Error('Use worker.ts local|test [--once [JOB_ID] | --confirm-payment ATTEMPT_ID | --reconcile-payment ATTEMPT_ID | --autolaris-paid ATTEMPT_ID | --collect-cod SHIPMENT_ID | --refuse-cod SHIPMENT_ID | --reconcile-cod SHIPMENT_ID | --issue-waybill BOOKING_ID | --fail-waybill BOOKING_ID | --reconcile-shipping BOOKING_ID | --cancel-waybill CANCELLATION_ID | --reject-waybill-cancellation CANCELLATION_ID | --reconcile-waybill-cancellation CANCELLATION_ID | --initialize-fulfillment ORDER_ID | --observe-settlement < JSON | --revise-settlement SOURCE_ID EXPECTED_VERSION < JSON | --reconcile-settlement SOURCE_ID | --receive-parcel < JSON | --reconcile-parcel-receipt SOURCE_ID | --verify-refund-destination REFUND_ID | --confirm-refund REFUND_ID | --fail-refund REFUND_ID | --reconcile-refund REFUND_ID | --verify-recovery-destination RECOVERY_REFUND_ID | --confirm-recovery-refund RECOVERY_REFUND_ID | --fail-recovery-refund RECOVERY_REFUND_ID | --reconcile-recovery-refund RECOVERY_REFUND_ID | --issue-replacement-waybill BOOKING_ID | --fail-replacement-waybill BOOKING_ID | --reconcile-replacement-shipping BOOKING_ID | --receive-replacement < JSON | --reconcile-replacement-receipt SOURCE_ID].');
 }
 const onlyJobId=mode==='--once'&&extra.length===1?id(extra[0]):undefined;
 let settlementId=settlementCommand&&mode!=='--observe-settlement'?id(extra[0]):null;
@@ -59,7 +60,7 @@ const cancellationId=cancellationCommand?id(extra[0]):null;
 const replacementBookingId=replacementShippingCommand?id(extra[0]):null;
 readLocalConfig(process.env);
 const { sql } = connectDatabase(target);
-const adapters={'payment.create':paymentAdapter(sql,target),'advertising.dispatch':advertisingAdapter(sql,target),'shipping.create':shippingAdapter(sql,target),'shipping.cancel.create':shippingCancellationAdapter(sql,target),'refund.create':refundAdapter(sql,target),'recovery.refund.create':recoveryRefundAdapter(sql,target),'replacement.shipping.create':replacementShippingAdapter(sql,target)};
+const adapters={'payment.create':paymentAdapter(sql,target),'payment.autolaris.advice':autolarisAdviceAdapter(sql,target),'advertising.dispatch':advertisingAdapter(sql,target),'shipping.create':shippingAdapter(sql,target),'shipping.cancel.create':shippingCancellationAdapter(sql,target),'refund.create':refundAdapter(sql,target),'recovery.refund.create':recoveryRefundAdapter(sql,target),'replacement.shipping.create':replacementShippingAdapter(sql,target)};
 const stop = new AbortController();
 const shutdown = () => stop.abort();
 process.once("SIGINT", shutdown); process.once("SIGTERM", shutdown);
@@ -128,6 +129,9 @@ try {
     const existing=await reconcilePaymentNow(sql,attemptId);
     for(const job of existing) await runOneJob(sql,adapters,job);
     if(mode==='--confirm-payment') await ingestProviderEvent(sql,await simulateCollection(sql,target,attemptId));
+    // S93: the simulated AutoLaris account reports payment; the next advice poll (made due now) observes it.
+    if(mode==='--autolaris-paid'){await simulateAutolarisStatus(sql,target,attemptId,'paid');
+      const [poll]=await sql`update app.outbox_job set run_at=now() where kind='payment.autolaris.advice' and payload->>'attemptId'=${attemptId} and status='pending' returning id`;if(poll)await runOneJob(sql,adapters,poll.id);}
     const jobs=await reconcilePaymentNow(sql,attemptId);
     for(const job of jobs) await runOneJob(sql,adapters,job);
     console.log(`local_payment_command target=${target} mode=${mode} attempt_id=${attemptId} jobs=${jobs.length}`);

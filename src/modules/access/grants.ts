@@ -32,9 +32,9 @@ export async function issueAccessProof(request: Request, principal: Principal, i
   const key = request.headers.get("idempotency-key");
   if (!key || !/^[A-Za-z0-9_-]{16,200}$/.test(key)) throw new AccessError(400, "INVALID_IDEMPOTENCY_KEY");
   if (Object.keys(body).some((key) => !["password", "action", "subject_id"].includes(key)) || typeof body.action !== "string" ||
-    ![action, "company_policy.version", "warehouse_calendar.version", "catalog_publication.exception", "finance.reconcile", "finance.refund", "affiliate_rate.version"].includes(body.action) ||
+    ![action, "company_policy.version", "payment_policy.version", "warehouse_calendar.version", "catalog_publication.exception", "finance.reconcile", "finance.refund", "affiliate_rate.version"].includes(body.action) ||
     !validId(body.subject_id) || typeof body.password !== "string" || body.password.length > 128) throw new AccessError(400, "INVALID_INPUT");
-  if ((body.action === "company_policy.version" && body.subject_id !== "company-commercial") ||
+  if ((body.action === "company_policy.version" && body.subject_id !== "company-commercial") || (body.action === "payment_policy.version" && body.subject_id !== "company-payment") ||
     (["warehouse_calendar.version", "catalog_publication.exception", "finance.reconcile", "finance.refund", "affiliate_rate.version"].includes(body.action) && !/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(body.subject_id))) throw new AccessError(400, "INVALID_INPUT");
   const proofAction = body.action;
   const subjectId = ["warehouse_calendar.version", "catalog_publication.exception", "finance.reconcile", "finance.refund", "affiliate_rate.version"].includes(proofAction) ? body.subject_id.toLowerCase() : body.subject_id;

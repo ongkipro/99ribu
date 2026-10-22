@@ -14,13 +14,23 @@ test('default worker lets unknown original reconciliation run after fixture expi
   // Wake the original unknown claim only. Do not ingest its collection here:
   // the actual default worker must reach its leased reconciliation lane.
   await f.identity.sql`update app.outbox_job set run_at=clock_timestamp() where id=${stored.creation_job_id} and status='unknown'`;
-  const [queue]=await f.identity.sql`select count(*)::int n from app.outbox_job where status in ('pending','unknown')`;
-  let funded=false;
-  for(let n=0;n<queue.n*3+20;n++){
-   const processed=await runOneJob(f.identity.sql,{'payment.create':paymentAdapter(f.identity.sql,'test')});
+  // Only this order's jobs, in the default worker's lane order (due database jobs, fixture-clock expiry
+  // included, before the leased lane), each through runOneJob(sql, adapters, jobId): the result never
+  // depends on the shared queue size. A deferred expiry has left the lane and is not offered again.
+  const owned=()=>f.identity.sql`select id from app.outbox_job where status in ('pending','unknown') and last_error is distinct from 'PAYMENT_RECONCILIATION_PENDING' and (id=${stored.creation_job_id}
+    or (kind='checkout.order.expire' and payload->>'orderId'=${order.id}) or (kind='inventory.reservation.expire' and payload->>'reservationId'=(select stock_reservation_id::text from app.commerce_order where id=${order.id}))
+    or (kind='payment.callback' and run_at<=clock_timestamp() and id in (select callback_job_id from app.payment_provider_event where attempt_id=${attempt.id}))) order by kind='payment.create',run_at,created_at,id`;
+  let funded=false;const ran:string[]=[];
+  for(let n=0;n<20&&!funded;n++){
+   const due=await owned();if(!due.length) break;
+   const jobId=String(due[0].id),processed=await runOneJob(f.identity.sql,{'payment.create':paymentAdapter(f.identity.sql,'test')},jobId);ran.push(jobId);
+   // A deferred expiry must leave the lane: re-running it at once processes nothing (no spin).
+   const [after]=await f.identity.sql`select kind,status,last_error from app.outbox_job where id=${jobId}`;
+   if(after.last_error==='PAYMENT_RECONCILIATION_PENDING')assert.equal(await runOneJob(f.identity.sql,{'payment.create':paymentAdapter(f.identity.sql,'test')},jobId),false,`${after.kind} deferred, not spinning`);
+   else assert.equal(processed,true);
    funded=(await f.identity.sql`select payment_status from app.commerce_order where id=${order.id}`)[0].payment_status==='confirmed';
-   if(funded||!processed) break;
   }
+  assert.ok(ran.includes(String(stored.creation_job_id)),'the leased reconciliation lane was reached');
   assert.equal(funded,true);
   const [deferred]=await f.identity.sql`select count(*)::int n from app.outbox_job where last_error='PAYMENT_RECONCILIATION_PENDING' and ((kind='checkout.order.expire' and payload->>'orderId'=${order.id}) or (kind='inventory.reservation.expire' and payload->>'reservationId'=(select stock_reservation_id::text from app.commerce_order where id=${order.id})))`;
   assert.ok(deferred.n>0);

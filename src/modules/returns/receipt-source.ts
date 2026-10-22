@@ -9,7 +9,7 @@ import {effectReference,financeInstant} from '../finance/ledger.ts';
 import {fulfillmentClock} from '../fulfillment/core.ts';
 import {lockPaymentOrder} from '../payments/attempts.ts';
 
-export type ParcelReceiptSource={id:string;reference:string;environment:'local'|'test';booking_id:string;shipment_id:string;clock_namespace:string|null;unit_ids:string[];occurred_at:string;signature:string};
+export type ParcelReceiptSource={id:string;reference:string;environment:'local'|'test';booking_id:string|null;shipment_id:string;clock_namespace:string|null;unit_ids:string[];occurred_at:string;signature:string};
 function units(value:unknown){
  const result=array(value,id,1,100).sort();
  if(new Set(result).size!==result.length)throw invalid();
@@ -25,11 +25,11 @@ function sign(event:Omit<ParcelReceiptSource,'signature'>){return createHmac('sh
 export function verifyParcelReceiptSource(value:unknown):ParcelReceiptSource{
  const input=object(value,['id','reference','environment','booking_id','shipment_id','clock_namespace','unit_ids','occurred_at','signature']);
  if(!['local','test'].includes(String(input.environment)))throw invalid();
- const event:ParcelReceiptSource={id:id(input.id),reference:effectReference(input.reference),environment:input.environment as 'local'|'test',booking_id:id(input.booking_id),shipment_id:id(input.shipment_id),clock_namespace:namespace(input.clock_namespace),unit_ids:units(input.unit_ids),occurred_at:financeInstant(input.occurred_at),signature:String(input.signature)};
+ const event:ParcelReceiptSource={id:id(input.id),reference:effectReference(input.reference),environment:input.environment as 'local'|'test',booking_id:input.booking_id===null?null:id(input.booking_id),shipment_id:id(input.shipment_id),clock_namespace:namespace(input.clock_namespace),unit_ids:units(input.unit_ids),occurred_at:financeInstant(input.occurred_at),signature:String(input.signature)};
  if(!/^[a-f0-9]{64}$/.test(event.signature)||!timingSafeEqual(Buffer.from(sign(event),'hex'),Buffer.from(event.signature,'hex')))throw new AccessError(401,'INVALID_PARCEL_RECEIPT_EVIDENCE');
  return event;
 }
-function project(row:Record<string,unknown>):ParcelReceiptSource{return {id:String(row.id),reference:String(row.reference),environment:row.environment as 'local'|'test',booking_id:String(row.booking_id),shipment_id:String(row.shipment_id),clock_namespace:row.clock_namespace as string|null,unit_ids:units(row.unit_ids),occurred_at:new Date(row.occurred_at as string).toISOString(),signature:String(row.signature)};}
+function project(row:Record<string,unknown>):ParcelReceiptSource{return {id:String(row.id),reference:String(row.reference),environment:row.environment as 'local'|'test',booking_id:row.booking_id===null?null:String(row.booking_id),shipment_id:String(row.shipment_id),clock_namespace:row.clock_namespace as string|null,unit_ids:units(row.unit_ids),occurred_at:new Date(row.occurred_at as string).toISOString(),signature:String(row.signature)};}
 export async function readParcelReceiptSource(tx:TransactionSql,eventId:string){const [row]=await tx`select * from app.local_parcel_receipt where id=${id(eventId)}`;return row?project(row):null;}
 async function profile(tx:TransactionSql,target:'local'|'test'){
  readLocalConfig(process.env);if(!['local','test'].includes(target))throw invalid();
@@ -56,6 +56,23 @@ export async function createParcelReceiptSource(tx:TransactionSql,target:'local'
  if(previous){if(previous.request_hash!==hash)throw new AccessError(409,'IDEMPOTENCY_CONFLICT');return verifyParcelReceiptSource(project(previous));}
  const event:ParcelReceiptSource={id:randomUUID(),...intent,signature:''};event.signature=sign(event);
  await tx`insert into app.local_parcel_receipt (id,reference,environment,booking_id,shipment_id,clock_namespace,unit_ids,occurred_at,request_hash,signature) values (${event.id},${reference},${target},${bookingId},${event.shipment_id},${event.clock_namespace},${JSON.stringify(selected)}::jsonb,${occurred},${hash},${event.signature})`;
+ return event;
+}
+// S91 manual parcel (operator-entered resi from 99ribu's own Mengantar dashboard
+// booking, no carrier booking row): the delivered observation of the tracking
+// seam or the audited operator fallback becomes one whole-parcel receipt source.
+export async function createManualParcelReceiptSource(tx:TransactionSql,target:'local'|'test',fulfillmentId:string,occurredAt:string){
+ await profile(tx,target);
+ const [head]=await tx`select f.id,f.shipment_id,f.booking_id,f.handover_at,o.clock_namespace from app.fulfillment f join app.order_shipment s on s.id=f.shipment_id join app.commerce_order o on o.id=s.order_id where f.id=${id(fulfillmentId)}`;
+ if(!head||head.booking_id!==null||!head.handover_at)throw new AccessError(409,'PARCEL_RECEIPT_BEFORE_HANDOVER');
+ const occurred=financeInstant(occurredAt),now=await fulfillmentClock(tx,head.clock_namespace);
+ if(Date.parse(occurred)<new Date(head.handover_at).getTime()||Date.parse(occurred)>Date.parse(now))throw new AccessError(422,'INVALID_PARCEL_RECEIPT_TIME');
+ const selected=units((await tx`select id from app.fulfillment_dispatch_unit_ids(${head.id}::uuid) id`).map(row=>String(row.id))),reference=`manual-delivery:${head.id}`;
+ await tx`select pg_advisory_xact_lock(hashtextextended(${`parcel-receipt-source:${target}:${reference}`},0))`;
+ const [previous]=await tx`select * from app.local_parcel_receipt where environment=${target} and reference=${reference}`;if(previous)return verifyParcelReceiptSource(project(previous));
+ const intent={reference,environment:target,booking_id:null,shipment_id:String(head.shipment_id),clock_namespace:head.clock_namespace as string|null,unit_ids:selected,occurred_at:occurred},hash=createHash('sha256').update(JSON.stringify(intent)).digest('hex');
+ const event:ParcelReceiptSource={id:randomUUID(),...intent,signature:''};event.signature=sign(event);
+ await tx`insert into app.local_parcel_receipt (id,reference,environment,booking_id,shipment_id,clock_namespace,unit_ids,occurred_at,request_hash,signature) values (${event.id},${reference},${target},${null},${event.shipment_id},${event.clock_namespace},${JSON.stringify(selected)}::jsonb,${occurred},${hash},${event.signature})`;
  return event;
 }
 export async function simulateParcelReceipt(sql:Sql,target:'local'|'test',value:unknown,fault?:'before-commit'|'after-commit-lost-ack'){

@@ -16,18 +16,18 @@ export async function processParcelReceipt(tx:TransactionSql,job:{id:string;payl
  if(prior)return {event_id:eventId,outcome:String(prior.outcome),receipt_count:Number(prior.receipt_count)};
  const original=await readParcelReceiptSource(tx,eventId);if(!original)throw new AccessError(400,'INVALID_PARCEL_RECEIPT_JOB');const event=verifyParcelReceiptSource(original);
  const [database]=await tx`select current_database() name`;if(database.name!==`99ribu_${event.environment}`||event.clock_namespace!==order.clock_namespace)throw new AccessError(409,'PARCEL_RECEIPT_CONTEXT_MISMATCH');
- const [head]=await tx`select f.handover_at,f.booking_id,b.status booking_status from app.fulfillment f join app.shipment_booking b on b.id=f.booking_id where f.shipment_id=${event.shipment_id} for share of f,b`;
+ const [head]=await tx`select f.id,f.handover_at,f.booking_id,b.status booking_status,exists(select 1 from app.fulfillment_event e where e.fulfillment_id=f.id and e.kind='manual_issued') manual from app.fulfillment f left join app.shipment_booking b on b.id=f.booking_id where f.shipment_id=${event.shipment_id} for share of f`;
  const now=await fulfillmentClock(tx,order.clock_namespace);
- if(!head?.handover_at||head.booking_id!==event.booking_id||head.booking_status!=='issued'||Date.parse(event.occurred_at)<new Date(head.handover_at).getTime()||Date.parse(event.occurred_at)>Date.parse(now))throw new AccessError(409,'PARCEL_RECEIPT_SOURCE_NOT_ELIGIBLE');
+ if(!head?.handover_at||head.booking_id!==event.booking_id||(event.booking_id===null?!head.manual:head.booking_status!=='issued')||Date.parse(event.occurred_at)<new Date(head.handover_at).getTime()||Date.parse(event.occurred_at)>Date.parse(now))throw new AccessError(409,'PARCEL_RECEIPT_SOURCE_NOT_ELIGIBLE');
  const units=await tx`select f.id from app.fulfillment_item f join app.order_item i on i.id=f.order_item_id where f.id in ${tx(event.unit_ids)} and f.shipment_id=${event.shipment_id} and i.order_id=${order.id} order by f.id for update of f`;
  if(units.length!==event.unit_ids.length)throw new AccessError(409,'PARCEL_RECEIPT_QUANTITY_MISMATCH');
  const [custody]=await tx`select to_regclass('app.local_parcel_outcome') is not null installed`;
  if(custody.installed){
-  const membership=await tx`select membership.id from app.waybill_request_unit_ids(${event.booking_id}) membership where membership.id in ${tx(event.unit_ids)}`;
+  const membership=await tx`select membership.id from app.fulfillment_dispatch_unit_ids(${head.id}::uuid) membership where membership.id in ${tx(event.unit_ids)}`;
   if(membership.length!==event.unit_ids.length)throw new AccessError(409,'PARCEL_RECEIPT_QUANTITY_MISMATCH');
   const conflicts=await tx`select e.id,r.event_id processed from app.local_parcel_outcome e
    left join app.parcel_outcome_result r on r.event_id=e.id
-   where e.shipment_id=${event.shipment_id} and e.booking_id=${event.booking_id} and e.environment=${event.environment}
+   where e.shipment_id=${event.shipment_id} and e.booking_id is not distinct from ${event.booking_id}::uuid and e.environment=${event.environment}
     and e.clock_namespace is not distinct from ${order.clock_namespace} and e.status='returned_to_sender' and e.occurred_at<=${event.occurred_at}
     and exists(select 1 from app.fulfillment_item f where f.id in ${tx(event.unit_ids)} and e.unit_ids ? f.id::text
      and not exists(select 1 from app.buyer_receipt b where b.fulfillment_item_id=f.id))`;

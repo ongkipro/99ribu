@@ -58,7 +58,7 @@ test('current version/publication, closed inputs, recipient controls and remaini
   const empty=f.client.request(linePath,undefined,{method:'DELETE',version:1});
   const bad=new Request(empty,{body:new ReadableStream({start(controller){controller.enqueue(new Uint8Array([1]));controller.close();}}),duplex:'half'} as RequestInit&{duplex:'half'});assert.equal((await handleCheckout(bad,f.identity)).status,400);
   const streamed=new Request(empty,{body:new ReadableStream({start(controller){controller.close();}}),duplex:'half'} as RequestInit&{duplex:'half'});assert.equal((await handleCheckout(streamed,f.identity)).status,200);
-  const request:RateRequest={warehouse_id:randomUUID(),origin_fixture_id:'fixture-malang',destination_id:'test-malang',measures:{weight_grams:100,length_mm:100,width_mm:100,height_mm:100},now:new Date().toISOString()};
+  const request:RateRequest={warehouse_id:randomUUID(),origin:{province:'Jawa Timur',city:'Malang',district:'Kecamatan Gudang Contoh A'},destination_id:'test-malang',measures:{weight_grams:100,length_mm:100,width_mm:100,height_mm:100},now:new Date().toISOString()};
   const started=performance.now();await assert.rejects(estimateRates({async estimate(){return new Promise(()=>{});}},request,40),{code:'SHIPPING_RATE_TIMEOUT'});assert.ok(performance.now()-started<1000);
  }finally{await f.close();}
 });

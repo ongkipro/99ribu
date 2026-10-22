@@ -52,7 +52,8 @@ export async function prepareReservation(tx: TransactionSql, input: {
       !Number.isFinite(Date.parse(input.expiresAt)) || new Date(input.expiresAt).toISOString() !== input.expiresAt) throw invalid();
     const duration = Date.parse(input.expiresAt) - clock.now.getTime();
     if (duration <= 0) throw new AccessError(409, "RESERVATION_EXPIRED");
-    if (duration > 3600000) throw new AccessError(400, "RESERVATION_DEADLINE_TOO_DISTANT");
+    // S92: a manual-bank order holds stock for its 24-hour transfer window (DEC-008).
+    if (duration > 86400000) throw new AccessError(400, "RESERVATION_DEADLINE_TOO_DISTANT");
   } else if (input.expiresAt !== null) throw invalid();
   const inserted = await tx`insert into app.stock_reservation (key,request_hash,kind,expires_at,clock_namespace,created_at)
     values (${input.key},${hash},${input.kind},${input.expiresAt},${input.clockNamespace},${clock.now.toISOString()}) on conflict (key) do nothing returning id`;

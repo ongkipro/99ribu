@@ -1,14 +1,17 @@
 "use client";
 
 import {
+	Banknote,
 	ExternalLink,
 	Headset,
+	Landmark,
 	LayoutDashboard,
 	type LucideIcon,
 	MessagesSquare,
 	Package,
 	Printer,
 	Store,
+	Truck,
 	Wallet,
 	Warehouse,
 } from "lucide-react";
@@ -123,10 +126,14 @@ function ToolLinks({
 	canCatalog,
 	canPrint,
 	canSupport,
+	canShip,
+	canCod,
 }: {
 	canCatalog: boolean;
 	canPrint: boolean;
 	canSupport: boolean;
+	canShip: boolean;
+	canCod: boolean;
 }) {
 	const pathname = usePathname();
 	const close = useCloseOnNavigate();
@@ -144,6 +151,60 @@ function ToolLinks({
 						>
 							<Package aria-hidden="true" />
 							<span>Katalog</span>
+						</Link>
+					</SidebarMenuButton>
+				</SidebarMenuItem>
+			)}
+			{canShip && (
+				<SidebarMenuItem>
+					<SidebarMenuButton
+						asChild
+						isActive={pathname === "/admin/fulfillment"}
+						tooltip="Pengiriman Manual"
+					>
+						<Link
+							href="/admin/fulfillment"
+							aria-current={pathname === "/admin/fulfillment" ? "page" : undefined}
+							onClick={close}
+						>
+							<Truck aria-hidden="true" />
+							<span>Pengiriman Manual</span>
+						</Link>
+					</SidebarMenuButton>
+				</SidebarMenuItem>
+			)}
+			{canCod && (
+				<SidebarMenuItem>
+					<SidebarMenuButton
+						asChild
+						isActive={pathname === "/admin/cod-settlements"}
+						tooltip="Setoran COD"
+					>
+						<Link
+							href="/admin/cod-settlements"
+							aria-current={pathname === "/admin/cod-settlements" ? "page" : undefined}
+							onClick={close}
+						>
+							<Banknote aria-hidden="true" />
+							<span>Setoran COD</span>
+						</Link>
+					</SidebarMenuButton>
+				</SidebarMenuItem>
+			)}
+			{canCod && (
+				<SidebarMenuItem>
+					<SidebarMenuButton
+						asChild
+						isActive={pathname === "/admin/payments"}
+						tooltip="Pembayaran"
+					>
+						<Link
+							href="/admin/payments"
+							aria-current={pathname === "/admin/payments" ? "page" : undefined}
+							onClick={close}
+						>
+							<Landmark aria-hidden="true" />
+							<span>Pembayaran</span>
 						</Link>
 					</SidebarMenuButton>
 				</SidebarMenuItem>
@@ -206,6 +267,13 @@ export function AdminShell({
 	const canCatalog = catalogAccess(roles, permissions).read;
 	const canSupport =
 		roles.includes("owner") || roles.includes("customer_service");
+	const canShip = ["owner", "ecommerce_admin", "warehouse"].some((r) =>
+		roles.includes(r as CanonicalWorkspace),
+	);
+	const canCod =
+		roles.includes("owner") ||
+		(roles.includes("finance") &&
+			permissions.includes("finance.reconciliation.read"));
 
 	return (
 		<TooltipProvider>
@@ -243,6 +311,8 @@ export function AdminShell({
 										canCatalog={canCatalog}
 										canPrint={canPrint}
 										canSupport={canSupport}
+										canShip={canShip}
+										canCod={canCod}
 									/>
 								</SidebarGroupContent>
 							</SidebarGroup>

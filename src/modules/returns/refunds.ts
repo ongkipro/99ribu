@@ -68,7 +68,7 @@ export async function queueRefund(request:Request,identity:LocalAuth,principal:P
   if((await tx`select a.return_item_id from app.refund_allocation a join app.return_item r on r.id=a.return_item_id where r.fulfillment_item_id in ${tx(items.map(item=>item.fulfillment_item_id))}`).length)throw new AccessError(409,'REFUND_QUANTITY_ALREADY_ALLOCATED');
   for(const unit of basis.units){
    const item=items.find(item=>item.fulfillment_item_id===unit.fulfillment_item_id);
-   if(!item||Number(item.merchandise_amount)!==unit.merchandise_amount||Number(item.buyer_shipping)!==unit.buyer_shipping)throw new AccessError(409,'REFUND_ORIGINAL_ALLOCATION_MISMATCH');
+   if(!item||Number(item.merchandise_amount)!==unit.merchandise_amount||Number(item.buyer_shipping)!==unit.buyer_shipping||Number(item.payment_charge)!==unit.payment_charge)throw new AccessError(409,'REFUND_ORIGINAL_ALLOCATION_MISMATCH');
   }
   // No proof is consumed while collection, version or quantity eligibility is
   // unresolved. Recheck current authority after every original-journal wait.
@@ -80,7 +80,7 @@ export async function queueRefund(request:Request,identity:LocalAuth,principal:P
   const [refund]=await tx<RefundHead[]>`insert into app.refund (id,case_id,order_id,operation_id,revision,status,amount,obligation_transaction_id,current_job_id,created_at) values (${refundId},${head.id},${order.id},${operationId},1,${status},${basis.amount},${obligation.id},${jobId},${occurredAt}) returning *`;
   for(const unit of basis.units){
    const item=items.find(item=>item.fulfillment_item_id===unit.fulfillment_item_id);if(!item)throw invalid();
-   await tx`insert into app.refund_allocation (refund_id,return_item_id,receipt_id,purchase_event_id,merchandise_amount,buyer_shipping,amount) values (${refundId},${item.id},${unit.receipt_id},${unit.purchase_event_id},${unit.merchandise_amount},${unit.buyer_shipping},${unit.amount})`;
+   await tx`insert into app.refund_allocation (refund_id,return_item_id,receipt_id,purchase_event_id,merchandise_amount,buyer_shipping,payment_charge,amount) values (${refundId},${item.id},${unit.receipt_id},${unit.purchase_event_id},${unit.merchandise_amount},${unit.buyer_shipping},${unit.payment_charge},${unit.amount})`;
   }
   await appendRefundEvent(tx,refundId,1,refund,{kind:'queue',source_kind:'operation',source_id:operationId,reason:normalized.reason,occurred_at:occurredAt});
   await advanceReturn(tx,head,{kind:'refund_queue',status:'refunding',resolution:'refund',requires_goods:head.requires_goods,cause:{source_kind:'operation',source_id:operationId,actor_id:principal.id,reason:normalized.reason,occurred_at:occurredAt},states:[]});

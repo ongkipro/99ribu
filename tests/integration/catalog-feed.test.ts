@@ -59,5 +59,6 @@ test('PR-15 local feed exports published offers only, with permanent IDs, exact 
 
   await patch(4,{variant_changes:[{operation:'retire',variant_id:pair.id}]});await publish(5,2);
   ({items}=await mine());assert.deepEqual(items.map(i=>i.id),[unit.catalog_id],'a retired offer leaves the feed; the surviving ID is unchanged');
+  assert.equal(items[0].link,`${origin}/product/${created.id}`,'the single remaining offer links to the canonical product page');
  }finally{await f.close();}
 });

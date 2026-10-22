@@ -1,9 +1,11 @@
 import {createHash,randomBytes,randomUUID} from 'node:crypto';
+import {isDeepStrictEqual} from 'node:util';
 import {connectDatabase} from '../../db/client.ts';
 import {runOneJob} from '../../jobs/worker.ts';
 import {createLocalAuth,type LocalAuth} from '../access/auth.ts';
 import {AccessError} from '../access/policy.ts';
 import {handleAuth} from '../access/handler.ts';
+import {handleAccess} from '../access/routes.ts';
 import {capability,commerceActor,prefix} from '../checkout/access.ts';
 import {createCart} from '../checkout/carts.ts';
 import {importBerlapak} from './berlapak.ts';
@@ -23,7 +25,7 @@ type Target='local'|'test';
 const need=(ok:boolean,code:string)=>{if(!ok) throw new AccessError(409,code);};
 // Developer-only host bootstrap. Existing real rate limits remain enabled;
 // unlike acceptance actor()/cleanup(), this command never clears shared buckets.
-export async function withSeedOwner<T>(target:Target,namespace:string,run:(request:Request,identity:LocalAuth,signal:AbortSignal)=>Promise<T>){
+export async function withSeedOwner<T>(target:Target,namespace:string,run:(request:Request,identity:LocalAuth,signal:AbortSignal,session:{browser:BrowserSession;password:string})=>Promise<T>){
   if(!['local','test'].includes(target)||!/^[a-z][a-z0-9-]{0,23}$/.test(namespace)) throw new Error('Invalid local seed target.');
   const identity=createLocalAuth(target);const browser=new BrowserSession(identity);
   const interruption=new AbortController();
@@ -40,7 +42,7 @@ export async function withSeedOwner<T>(target:Target,namespace:string,run:(reque
     need((await browser.auth('/sign-in/email',{email,password})).status===200,'SEED_SIGN_IN_REJECTED');check();
     await identity.sql`insert into app.role_grant (user_id,roles) values (${user.id},ARRAY['owner']::text[])`;
     await enroll(browser,password);check();
-    return await run(browser.request('/api/v1/admin/local-fixture-command'),identity,interruption.signal);
+    return await run(browser.request('/api/v1/admin/local-fixture-command'),identity,interruption.signal,{browser,password});
   }finally{
     process.off('SIGINT',stopInt);process.off('SIGTERM',stopTerm);
     // Scope cleanup to this exact randomly generated account, even when auth
@@ -149,6 +151,26 @@ export async function createBerlapakOrders(identity:LocalAuth,target:Target,name
       where o.clock_namespace=${namespace} and q.document->'contact'->>'email' in ${identity.sql(emails)} group by 1,2,3 order by 1,2,3`;
     return {created,existing,resumed,states:Object.fromEntries(rows.map((r)=>[`${r.payment_method}:${r.status}:${r.payment_status}`,r.n]))};
   });}finally{await lockDatabase.end();}
+}
+
+// LOCAL-only developer terms (DEC-008/DEC-009): appends a payment-policy version
+// with the 333 bps buyer COD fee and a SYNTHETIC manual-bank account through the
+// real owner reauthentication + policy-version routes. Takes effect now (wall
+// clock); a cart on a fixture clock namespace sees it once that clock passes now.
+export const LOCAL_PAYMENT_TERMS={cod_fee_bps:333,manual_bank_accounts:[{bank_name:'Bank SINTETIS',account_number:'1234567890',account_holder:'PT SINTETIS 99RIBU'}]};
+export function runPaymentTermsFixture(target:Target,namespace:string){
+  if(target!=='local') throw new Error('Payment terms fixture is local-only.');
+  return withSeedOwner(target,namespace,async(_request,identity,signal,{browser,password})=>{
+    const [database]=await identity.sql`select current_database() as name`;need(database.name==='99ribu_local','SEED_TARGET_REFUSED');
+    const call=async(path:string,body:Record<string,unknown>)=>{const request=browser.request(`/api/v1${path}`,body);request.headers.set('idempotency-key',randomUUID());
+      const response=await handleAccess(request,identity);const payload=await response.json();if(response.status!==201) throw new AccessError(409,`SEED_${payload.code??response.status}`);return payload;};
+    const history=await (await browser.access('/admin/policy-versions?kind=payment')).json() as {latest_version:number;current:{values:Record<string,unknown>}|null};
+    signal.throwIfAborted();
+    if(isDeepStrictEqual(history.current?.values,LOCAL_PAYMENT_TERMS)) return {kind:'payment',changed:false,version:history.latest_version,values:LOCAL_PAYMENT_TERMS};
+    const proof=(await call('/me/reauthentication-proofs',{password,action:'payment_policy.version',subject_id:'company-payment'})).proof;signal.throwIfAborted();
+    await call('/admin/policy-versions',{kind:'payment',warehouse_id:null,expected_version:history.latest_version,effective_at:null,values:LOCAL_PAYMENT_TERMS,reason:'SYNTHETIC local developer payment terms (COD fee 333 bps, synthetic manual bank)',reauthentication_proof:proof});
+    return {kind:'payment',changed:true,version:history.latest_version+1,values:LOCAL_PAYMENT_TERMS};
+  });
 }
 
 export function runBerlapakFixture(target:Target,namespace:string){

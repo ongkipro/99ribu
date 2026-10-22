@@ -17,6 +17,11 @@ export const LIMITS = {
 	supportVerifyPerChallenge: [20, 600_000],
 	evidenceUploadPerCase: [10, 900_000],
 	referralTouchPerVisitor: [30, 60_000],
+	// R4 (S92): checkout quotes/orders per commerce actor (guest context or account); orders hold stock.
+	checkoutQuotePerActor: [60, 60_000],
+	checkoutOrderPerActor: [10, 600_000],
+	// Raw AutoLaris callback receiver (unauthenticated discovery endpoint), global budget.
+	autolarisCallbackGlobal: [120, 60_000],
 } as const satisfies Record<string, readonly [number, number]>;
 
 // Fixed-window counter in the shared app.auth_rate_limit table. Pass the pool `sql`

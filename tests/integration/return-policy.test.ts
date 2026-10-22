@@ -19,8 +19,9 @@ test('seven elapsed days begin at actual receipt across Jakarta midnight, weeken
 
 test('a partial order refund keeps whole purchased offers and their frozen shipping shares without crediting company subsidy',()=>{
  const a=returnEntitlement(99000,7501),b=returnEntitlement(99000,7500);
- assert.deepEqual(a,{merchandise_amount:99000,buyer_shipping:7501,amount:106501});
- assert.deepEqual(b,{merchandise_amount:99000,buyer_shipping:7500,amount:106500});
+ assert.deepEqual(a,{merchandise_amount:99000,buyer_shipping:7501,payment_charge:0,amount:106501});
+ assert.deepEqual(b,{merchandise_amount:99000,buyer_shipping:7500,payment_charge:0,amount:106500});
+ assert.deepEqual(returnEntitlement(99000,7500,3547),{merchandise_amount:99000,buyer_shipping:7500,payment_charge:3547,amount:110047});
  assert.equal(a.amount+b.amount,213001);
  assert.equal(returnEntitlement(99000,0).amount,99000);
  assert.equal(returnEntitlement(99000,Number.MAX_SAFE_INTEGER-99000).amount,Number.MAX_SAFE_INTEGER);

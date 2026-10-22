@@ -15,7 +15,7 @@ import {readReturnOccurrences,verifyOccurrenceReceipt} from './occurrences.ts';
 import {enqueueCommissionClaim} from '../commissions/jobs.ts';
 
 export type ReturnHead={id:string;order_id:string;operation_id:string;revision:number;status:string;requested_resolution:'refund'|'replacement';resolution:'refund'|'replacement'|null;requires_goods:boolean|null;created_at:string};
-export type ReturnUnit={id:string;case_id:string;fulfillment_item_id:string;replacement_link_id:string|null;order_item_id:string;shipment_id:string;warehouse_id:string;reason:string;details:string;claim_state:string;inspection_status:string;merchandise_amount:string;buyer_shipping:string;deadline_at:string};
+export type ReturnUnit={id:string;case_id:string;fulfillment_item_id:string;replacement_link_id:string|null;order_item_id:string;shipment_id:string;warehouse_id:string;reason:string;details:string;claim_state:string;inspection_status:string;merchandise_amount:string;buyer_shipping:string;payment_charge:string;deadline_at:string};
 export type ReturnUnitState={id:string;claim_state:string;inspection_status:string};
 export type ReturnCause={source_kind:'operation'|'refund'|'replacement'|'recovery';source_id:string;actor_id:string|null;reason:string;occurred_at:string};
 
@@ -96,7 +96,7 @@ export async function createReturn(request:Request,identity:LocalAuth,actor:Comm
   const now=await fulfillmentClock(tx,order.clock_namespace),prepared=[];
   for(const original of originals){
    const received=await verifyOccurrenceReceipt(tx,original,order.clock_namespace);
-   const deadline=assertReturnWindow(received,now),amounts=returnEntitlement(Number(original.unit_price),Number(original.buyer_shipping)),line=input.items.find(item=>item.delivered_fulfillment_item_id===original.id);
+   const deadline=assertReturnWindow(received,now),amounts=returnEntitlement(Number(original.unit_price),Number(original.buyer_shipping),Number(original.payment_charge)),line=input.items.find(item=>item.delivered_fulfillment_item_id===original.id);
    if(!line)throw invalid();
    const claims=original.replacement_link_id===null
     ?await tx`select id from app.return_item where fulfillment_item_id=${original.fulfillment_item_id} and claim_state<>'released'`
@@ -115,8 +115,8 @@ export async function createReturn(request:Request,identity:LocalAuth,actor:Comm
   const acceptedAt=new Date(head.created_at).toISOString();
   for(const item of prepared)assertReturnWindow(item.received,acceptedAt);
   for(const item of prepared){
-   if(item.original.replacement_link_id===null)await tx`insert into app.return_item (id,case_id,fulfillment_item_id,buyer_receipt_id,reason,details,deadline_at,merchandise_amount,buyer_shipping) values (${item.id},${caseId},${item.original.fulfillment_item_id},${item.original.buyer_receipt_id},${item.line.reason},${item.line.details},${item.deadline},${item.amounts.merchandise_amount},${item.amounts.buyer_shipping})`;
-   else await tx`insert into app.return_item (id,case_id,fulfillment_item_id,replacement_link_id,buyer_receipt_id,reason,details,deadline_at,merchandise_amount,buyer_shipping) values (${item.id},${caseId},${item.original.fulfillment_item_id},${item.original.replacement_link_id},${item.original.buyer_receipt_id},${item.line.reason},${item.line.details},${item.deadline},${item.amounts.merchandise_amount},${item.amounts.buyer_shipping})`;
+   if(item.original.replacement_link_id===null)await tx`insert into app.return_item (id,case_id,fulfillment_item_id,buyer_receipt_id,reason,details,deadline_at,merchandise_amount,buyer_shipping,payment_charge) values (${item.id},${caseId},${item.original.fulfillment_item_id},${item.original.buyer_receipt_id},${item.line.reason},${item.line.details},${item.deadline},${item.amounts.merchandise_amount},${item.amounts.buyer_shipping},${item.amounts.payment_charge})`;
+   else await tx`insert into app.return_item (id,case_id,fulfillment_item_id,replacement_link_id,buyer_receipt_id,reason,details,deadline_at,merchandise_amount,buyer_shipping,payment_charge) values (${item.id},${caseId},${item.original.fulfillment_item_id},${item.original.replacement_link_id},${item.original.buyer_receipt_id},${item.line.reason},${item.line.details},${item.deadline},${item.amounts.merchandise_amount},${item.amounts.buyer_shipping},${item.amounts.payment_charge})`;
   }
   await appendReturnEvent(tx,head,1,'create','requested',null,null,{source_kind:'operation',source_id:operationId,actor_id:currentActor.kind==='user'?currentActor.id:null,reason:'Buyer submitted original received complete offers within the claim window',occurred_at:acceptedAt},prepared.map(item=>({id:item.id,claim_state:'held',inspection_status:'pending'})));
   const response=await projectBuyerReturn(tx,caseId);

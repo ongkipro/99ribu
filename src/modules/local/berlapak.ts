@@ -84,13 +84,15 @@ function cleanName(raw:string,suppliers:readonly RegExp[],limit:number){
   return result.replace(/\s+/g,' ').replace(/\s+([,.)])/g,'$1').replace(/[-/,:&+\s]+$/,'').trim();
 }
 const titleCase=(value:string)=>value.toLowerCase().replace(/(^|[\s-])(\p{L})/gu,(_,a:string,b:string)=>a+b.toUpperCase());
+// Kecamatan/city/province as public place names (DEC-006); DKI/DI stay acronyms.
+const placeName=(value:unknown)=>titleCase(text(value,100)).replace(/(?<![\p{L}])(Dki|Di)(?![\p{L}])/gu,(m)=>m.toUpperCase());
 const slugify=(value:string)=>value.normalize('NFKD').toLowerCase().replace(/&/g,' dan ').replace(/[^a-z0-9]+/g,'-').replace(/^-+|-+$/g,'');
 // lazy: no carton dimensions in the snapshot; a cube whose volumetric weight equals actual weight.
 // Upgrade path: replace with measured carton dimensions per SKU when the operator records them.
 export const cube=(grams:number)=>Math.min(1000,Math.max(50,Math.ceil(Math.cbrt(grams*6000))));
 
 type Image={file:string;source:string;width:number;height:number};
-type StockSource={rank:number;name:string;hpp:number;stock:number;unitGrams:number;weightDefaulted:boolean;warehouse:{id:string;name:string;city:string};category:string;images:Image[];qty:number};
+type StockSource={rank:number;name:string;hpp:number;stock:number;unitGrams:number;weightDefaulted:boolean;warehouse:{id:string;name:string;province:string;city:string;district:string};category:string;images:Image[];qty:number};
 type OfferSource={key:string;name:string;description:string;category:string;kind:'unit'|'multipack'|'bundle';label:string;parts:{rank:number;quantity:number}[];warehouse:string;grams:number;images:{rank:number;file:string;alt:string}[]};
 
 export function readBerlapakSource(directory:string){
@@ -137,7 +139,7 @@ export function readBerlapakSource(directory:string){
       const base=publicName(text(row.name,500),suppliers,NAME_LIMIT,optionalText(category.storefront_subcategory,100)??undefined);
       const name=variantName?`${base} - ${publicName(variantName,suppliers,60)}`:base;
       stocks.set(rank,{rank,name:text(name,200),hpp,stock,unitGrams:grams??FALLBACK_UNIT_GRAMS,weightDefaulted:grams===null,
-        warehouse:{id:warehouseId,name:text(place.warehouse_name,150),city:titleCase(text(place.city,100))},category:code,images,qty});
+        warehouse:{id:warehouseId,name:text(place.warehouse_name,150),province:placeName(place.province),city:placeName(place.city),district:placeName(place.district)},category:code,images,qty});
     }catch{skip('invalid-record');}
   }
   const offers:OfferSource[]=[];
@@ -218,7 +220,7 @@ export async function importBerlapak(request:Request,identity:LocalAuth,target:T
       warehouses[place.id]=await identity.sql.begin(async(tx)=>{
         await owner(tx,principal);const [prior]=await tx`select warehouse_id from app.local_fixture_warehouse where namespace=${namespace} and fixture_id=${fixtureId}`;
         if(prior) return prior.warehouse_id as string;const warehouseId=randomUUID();
-        await tx`insert into app.warehouse (id,name,city,timezone) values (${warehouseId},${`${place.name} [${namespace}]`},${place.city},'Asia/Jakarta')`;
+        await tx`insert into app.warehouse (id,name,province,city,district,timezone) values (${warehouseId},${`${place.name} [${namespace}]`},${place.province},${place.city},${place.district},'Asia/Jakarta')`;
         await tx`insert into app.local_fixture_warehouse (namespace,fixture_id,warehouse_id) values (${namespace},${fixtureId},${warehouseId})`;
         await tx`insert into app.audit_event (actor_id,action,subject_id,outcome,reason) values (${principal.id},'local_fixture.warehouse',${warehouseId},'allowed','Map local supplier-snapshot warehouse into fixture namespace')`;
         return warehouseId;

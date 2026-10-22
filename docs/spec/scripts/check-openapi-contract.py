@@ -95,6 +95,8 @@ for path, methods in spec['paths'].items():
                 check(operation['security'] == [{'sessionCookie': []}, {'bearerAuth': []}, {'cartAccess': []}, {'orderAccess': []}], 'operation status retains scoped caller recovery transports')
             elif operation.get('x-proof-group') == 'storefront':
                 check(operation['security'] == [], 'public storefront read never requires a session')
+            elif operation.get('x-proof-group') == 'autolaris-callbacks':
+                check(path == '/payments/autolaris/callbacks' and operation['security'] == [], 'raw provider callback receiver is unauthenticated discovery only')
             else:
                 check(operation['security'] == [{'sessionCookie': []}], 'admin/access retains only implemented session cookie transport')
             check('503' in operation['responses'], 'dependency failure is documented')
@@ -103,7 +105,7 @@ for path, methods in spec['paths'].items():
         check('security' in operation, 'security is explicit per operation')
         params = [resolve(x['$ref']) if '$ref' in x else x for x in operation.get('parameters', [])]
         check({x['name'] for x in params if x['in'] == 'path'} == set(re.findall(r'\{([^}]+)\}', path)), 'path parameters match template')
-        if method == 'post':
+        if method == 'post' and path != '/payments/autolaris/callbacks':
             check(any(x['name'] == 'Idempotency-Key' and x.get('required') for x in params), 'POST requires stable retry key')
             check('requestBody' in operation, 'POST request body specified')
         if path.startswith('/admin/'):

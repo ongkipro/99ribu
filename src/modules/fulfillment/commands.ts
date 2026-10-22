@@ -12,7 +12,7 @@ import {coveredOperationalDeadline,packingDeadline} from './calendar.ts';
 import {assertOriginalStockInvestigationClear} from '../checkout/exceptions/stock.ts';
 import {assertWaybillCancellationClear} from './cancellation-source.ts';
 
-async function mutate(request:Request,identity:LocalAuth,principal:Principal,fulfillmentId:string,action:string,input:Record<string,unknown>,write:(tx:TransactionSql,state:Awaited<ReturnType<typeof lockFulfillment>>,operationId:string)=>Promise<unknown>){
+export async function mutate(request:Request,identity:LocalAuth,principal:Principal,fulfillmentId:string,action:string,input:Record<string,unknown>,write:(tx:TransactionSql,state:Awaited<ReturnType<typeof lockFulfillment>>,operationId:string)=>Promise<unknown>){
  const selected=id(fulfillmentId),key=request.headers.get('idempotency-key');if(!key||!/^[A-Za-z0-9_-]{16,200}$/.test(key))throw new AccessError(400,'INVALID_IDEMPOTENCY_KEY');
  const hash=createHash('sha256').update(JSON.stringify({fulfillment_id:selected,action,input})).digest('hex');
  return identity.sql.begin(async tx=>{
@@ -34,7 +34,7 @@ async function mutate(request:Request,identity:LocalAuth,principal:Principal,ful
  });
 }
 function inputFor(value:unknown,fields:string[]=[]){const body=object(value,['expected_version','reason',...fields]);return {body,input:{expected_version:integer(body.expected_version,1),reason:body.reason===undefined?'Scoped original parcel operation':text(body.reason,200)}};}
-async function originalPositions(tx:TransactionSql,shipmentId:string,namespace:string|null,bookingId:string|null=null){
+export async function originalPositions(tx:TransactionSql,shipmentId:string,namespace:string|null,bookingId:string|null=null){
  await tx`select r.id from app.stock_reservation r join app.commerce_order o on o.stock_reservation_id=r.id join app.order_shipment s on s.order_id=o.id where s.id=${shipmentId} for update of r`;
  const [schema]=await tx`select to_regclass('app.commerce_exception') is not null installed`;
  const remaining=schema.installed?(bookingId?tx`f.id in (select id from app.waybill_request_unit_ids(${bookingId}::uuid))`:tx`not exists(select 1 from app.exception_cancellation cancelled where cancelled.fulfillment_item_id=f.id and cancelled.replacement_link_id is null)`):tx`true`;
@@ -48,14 +48,19 @@ export async function prepareFulfillment(request:Request,identity:LocalAuth,prin
  const {input}=inputFor(value);
  return mutate(request,identity,principal,fulfillmentId,'fulfillment.prepare',input,async(tx,{head,order},operationId)=>{
   if(head.status!=='ready'||!head.deadline_id||head.calendar_error)throw new AccessError(409,'FULFILLMENT_NOT_READY');
-  await originalPositions(tx,head.shipment_id,order.clock_namespace);const now=await fulfillmentClock(tx,order.clock_namespace);
-  const changed=await advanceFulfillment(tx,head,{kind:'prepare',status:'picking',source_kind:'operation',source_id:operationId,actor_id:principal.id,reason:input.reason,occurred_at:now,prepared_at:now});
-  if(order.status==='pending'){
-   await tx`insert into app.order_event (order_id,revision,status,payment_status,reason,source_id,created_at) values (${order.id},${order.revision+1},'processing',${order.payment_status},'Original parcel physically prepared',${changed.eventId},${now})`;
-   await tx`update app.commerce_order set revision=revision+1,status='processing' where id=${order.id}`;
-  }
+  await commitPreparation(tx,{head,order},operationId,principal.id,input.reason);
   return projectFulfillment(tx,head.id);
  });
+}
+// Shared by staff preparation and the S91 manual resi path (same transaction).
+export async function commitPreparation(tx:TransactionSql,{head,order}:Awaited<ReturnType<typeof lockFulfillment>>,operationId:string,actorId:string,reason:string){
+ await originalPositions(tx,head.shipment_id,order.clock_namespace);const now=await fulfillmentClock(tx,order.clock_namespace);
+ const changed=await advanceFulfillment(tx,head,{kind:'prepare',status:'picking',source_kind:'operation',source_id:operationId,actor_id:actorId,reason,occurred_at:now,prepared_at:now});
+ if(order.status==='pending'){
+  await tx`insert into app.order_event (order_id,revision,status,payment_status,reason,source_id,created_at) values (${order.id},${order.revision+1},'processing',${order.payment_status},'Original parcel physically prepared',${changed.eventId},${now})`;
+  await tx`update app.commerce_order set revision=revision+1,status='processing' where id=${order.id}`;
+ }
+ return changed;
 }
 export async function bookShipment(request:Request,identity:LocalAuth,principal:Principal,value:unknown){
  const {input,body}=inputFor(value,['fulfillment_id']);const fulfillmentId=id(body.fulfillment_id);
@@ -84,6 +89,12 @@ export async function handoverFulfillment(request:Request,identity:LocalAuth,pri
  return mutate(request,identity,principal,fulfillmentId,'fulfillment.handover',intent,async(tx,{head,order},operationId)=>{
   if(intent.shipment_id!==head.shipment_id)throw new AccessError(404,'NOT_FOUND');
   if(!['packed','handover_pending'].includes(head.status)||!head.prepared_at||!head.waybill_issued_at||!head.tracking_number)throw new AccessError(409,'FULFILLMENT_NOT_PACKED');
+  await commitHandover(tx,{head,order},operationId,principal.id,input.reason,intent.handover_reference);
+  return projectFulfillment(tx,head.id);
+ });
+}
+// Shared by staff handover and the S91 manual resi path (same transaction).
+export async function commitHandover(tx:TransactionSql,{head,order}:Awaited<ReturnType<typeof lockFulfillment>>,operationId:string,actorId:string,reason:string,handoverReference:string){
   // Match checkout's clock -> order -> promotions -> stock lock order across
   // different orders that share both a promotion and a physical position.
   if(order.promotion_reservation_id){
@@ -92,16 +103,15 @@ export async function handoverFulfillment(request:Request,identity:LocalAuth,pri
    await tx`select id from app.promotion_reservation where id=${order.promotion_reservation_id} for update`;
   }
   const components=await originalPositions(tx,head.shipment_id,order.clock_namespace,head.booking_id),now=await fulfillmentClock(tx,order.clock_namespace);
-  const changed=await advanceFulfillment(tx,head,{kind:'handover',status:'handed_over',source_kind:'operation',source_id:operationId,actor_id:principal.id,reason:input.reason,occurred_at:now,handover_at:now,handover_reference:intent.handover_reference});
-  for(const component of components)await postMovement(tx,{balanceId:component.balance_id,kind:'consume',quantity:component.quantity,onHand:-component.quantity,reserved:-component.quantity,quarantined:0,sourceRef:`handover:${changed.eventId}`,actorId:principal.id,reason:input.reason});
-  if(order.promotion_reservation_id)await resolvePromotionReservation(tx,order.promotion_reservation_id,'consumed','Parent shipping benefit committed at first physical handover',principal.id);
+  const changed=await advanceFulfillment(tx,head,{kind:'handover',status:'handed_over',source_kind:'operation',source_id:operationId,actor_id:actorId,reason,occurred_at:now,handover_at:now,handover_reference:handoverReference});
+  for(const component of components)await postMovement(tx,{balanceId:component.balance_id,kind:'consume',quantity:component.quantity,onHand:-component.quantity,reserved:-component.quantity,quarantined:0,sourceRef:`handover:${changed.eventId}`,actorId,reason});
+  if(order.promotion_reservation_id)await resolvePromotionReservation(tx,order.promotion_reservation_id,'consumed','Parent shipping benefit committed at first physical handover',actorId);
   const [schema]=await tx`select to_regclass('app.exception_cancellation') is not null installed`;
   const active=schema.installed?tx`and not exists(select 1 from app.exception_cancellation cancelled where cancelled.fulfillment_item_id=unit.id and cancelled.replacement_link_id is null)`:tx``;
   const [remaining]=await tx`select count(*)::int n from app.fulfillment_item unit join app.order_item item on item.id=unit.order_item_id
    left join app.fulfillment physical on physical.shipment_id=unit.shipment_id where item.order_id=${order.id} and physical.handover_at is null ${active}`;
   if(remaining.n===0)await tx`update app.stock_reservation set status='consumed',resolved_at=${now},resolution_reason='All original parcels physically handed over' where id=${order.stock_reservation_id} and status='active'`;
-  return projectFulfillment(tx,head.id);
- });
+  return changed;
 }
 export async function rescheduleFulfillment(request:Request,identity:LocalAuth,principal:Principal,fulfillmentId:string,value:unknown){
  const {input,body}=inputFor(value,['buyer_explanation']);if(input.reason==='Scoped original parcel operation')throw new AccessError(400,'RESCHEDULE_REASON_REQUIRED');const intent={...input,buyer_explanation:text(body.buyer_explanation,200)};

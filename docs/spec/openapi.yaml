@@ -3014,6 +3014,1021 @@ paths:
       x-proof-group: fulfillment
       x-implementation: src/app/api/v1/admin/fulfillments/[fulfillmentId]/handover/route.ts
       x-request-body-limit-bytes: 16384
+  /admin/manual-shipments:
+    get:
+      operationId: listManualShipments
+      summary: List manual dashboard-booking work queues
+      description: Paid prepaid and confirmed COD parcels whose warehouse is in manual_dashboard mode (DEC-007). queue=to_book
+        waits for a Mengantar dashboard booking and resi; queue=shipped awaits delivery tracking. Scoped to assigned
+        warehouses; owner sees all.
+      tags:
+      - Fulfillment
+      security:
+      - sessionCookie: []
+      x-contract-status: implemented-local
+      x-domain-owner: fulfillment
+      x-primary-requirement: PR-6
+      responses:
+        '200':
+          description: Successful response.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ManualShipmentQueue'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '429':
+          $ref: '#/components/responses/TooManyRequests'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '409':
+          $ref: '#/components/responses/Conflict'
+        '422':
+          $ref: '#/components/responses/Unprocessable'
+        default:
+          description: Unexpected server/proxy failure; clients tolerate a non-Problem gateway body. Financial result
+            may be unknown; recover the operation before retry.
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+        '503':
+          $ref: '#/components/responses/Unavailable'
+      x-allowed-roles:
+      - owner
+      - ecommerce_admin
+      - warehouse
+      parameters:
+      - name: queue
+        in: query
+        required: false
+        schema:
+          type: string
+          enum:
+          - to_book
+          - shipped
+          default: to_book
+      - name: warehouse_id
+        in: query
+        required: false
+        schema:
+          $ref: '#/components/schemas/Id'
+      - name: cursor
+        in: query
+        required: false
+        schema:
+          $ref: '#/components/schemas/Id'
+      - name: limit
+        in: query
+        required: false
+        schema:
+          type: integer
+          minimum: 1
+          maximum: 100
+          default: 20
+      x-proof-group: manual-fulfillment
+      x-implementation: src/app/api/v1/admin/manual-shipments/route.ts
+  /admin/fulfillments/{fulfillmentId}/manual-shipment:
+    post:
+      operationId: recordManualShipment
+      summary: Record courier and resi from the Mengantar dashboard
+      description: Operator booked this parcel in 99ribu's own Mengantar dashboard; the courier and resi mark it shipped
+        (prepare if needed, immutable manual issuance, physical handover consuming the frozen units once). Refused
+        once any carrier booking exists. Optional Berlapak purchase reference.
+      tags:
+      - Fulfillment
+      security:
+      - sessionCookie: []
+      x-contract-status: implemented-local
+      x-domain-owner: fulfillment
+      x-primary-requirement: PR-6
+      responses:
+        '201':
+          description: Successful response.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ManualFulfillment'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '429':
+          $ref: '#/components/responses/TooManyRequests'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '409':
+          $ref: '#/components/responses/Conflict'
+        '422':
+          $ref: '#/components/responses/Unprocessable'
+        default:
+          description: Unexpected server/proxy failure; clients tolerate a non-Problem gateway body. Financial result
+            may be unknown; recover the operation before retry.
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+        '503':
+          $ref: '#/components/responses/Unavailable'
+        '413':
+          $ref: '#/components/responses/PayloadTooLarge'
+        '415':
+          $ref: '#/components/responses/UnsupportedMediaType'
+      x-allowed-roles:
+      - owner
+      - ecommerce_admin
+      - warehouse
+      parameters:
+      - name: fulfillmentId
+        in: path
+        required: true
+        schema:
+          $ref: '#/components/schemas/Id'
+      - $ref: '#/components/parameters/IdempotencyKey'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ManualShipmentInput'
+      x-proof-group: manual-fulfillment
+      x-implementation: src/app/api/v1/admin/fulfillments/[fulfillmentId]/manual-shipment/route.ts
+      x-request-body-limit-bytes: 16384
+  /admin/fulfillments/{fulfillmentId}/tracking-corrections:
+    post:
+      operationId: correctManualTracking
+      summary: Correct a manually entered resi
+      description: Appends a new immutable resi version with a required reason; every version and its audit row are
+        retained. Refused after delivery.
+      tags:
+      - Fulfillment
+      security:
+      - sessionCookie: []
+      x-contract-status: implemented-local
+      x-domain-owner: fulfillment
+      x-primary-requirement: PR-6
+      responses:
+        '201':
+          description: Successful response.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ManualFulfillment'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '429':
+          $ref: '#/components/responses/TooManyRequests'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '409':
+          $ref: '#/components/responses/Conflict'
+        '422':
+          $ref: '#/components/responses/Unprocessable'
+        default:
+          description: Unexpected server/proxy failure; clients tolerate a non-Problem gateway body. Financial result
+            may be unknown; recover the operation before retry.
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+        '503':
+          $ref: '#/components/responses/Unavailable'
+        '413':
+          $ref: '#/components/responses/PayloadTooLarge'
+        '415':
+          $ref: '#/components/responses/UnsupportedMediaType'
+      x-allowed-roles:
+      - owner
+      - ecommerce_admin
+      - warehouse
+      parameters:
+      - name: fulfillmentId
+        in: path
+        required: true
+        schema:
+          $ref: '#/components/schemas/Id'
+      - $ref: '#/components/parameters/IdempotencyKey'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/TrackingCorrectionInput'
+      x-proof-group: manual-fulfillment
+      x-implementation: src/app/api/v1/admin/fulfillments/[fulfillmentId]/tracking-corrections/route.ts
+      x-request-body-limit-bytes: 16384
+  /admin/fulfillments/{fulfillmentId}/berlapak-references:
+    post:
+      operationId: recordPurchaseReference
+      summary: Record the Berlapak purchase reference
+      description: Optional versioned reference of the off-platform Berlapak purchase; no seller payable is created
+        (OD-12).
+      tags:
+      - Fulfillment
+      security:
+      - sessionCookie: []
+      x-contract-status: implemented-local
+      x-domain-owner: fulfillment
+      x-primary-requirement: PR-6
+      responses:
+        '201':
+          description: Successful response.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ManualFulfillment'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '429':
+          $ref: '#/components/responses/TooManyRequests'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '409':
+          $ref: '#/components/responses/Conflict'
+        '422':
+          $ref: '#/components/responses/Unprocessable'
+        default:
+          description: Unexpected server/proxy failure; clients tolerate a non-Problem gateway body. Financial result
+            may be unknown; recover the operation before retry.
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+        '503':
+          $ref: '#/components/responses/Unavailable'
+        '413':
+          $ref: '#/components/responses/PayloadTooLarge'
+        '415':
+          $ref: '#/components/responses/UnsupportedMediaType'
+      x-allowed-roles:
+      - owner
+      - ecommerce_admin
+      - warehouse
+      parameters:
+      - name: fulfillmentId
+        in: path
+        required: true
+        schema:
+          $ref: '#/components/schemas/Id'
+      - $ref: '#/components/parameters/IdempotencyKey'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/PurchaseReferenceInput'
+      x-proof-group: manual-fulfillment
+      x-implementation: src/app/api/v1/admin/fulfillments/[fulfillmentId]/berlapak-references/route.ts
+      x-request-body-limit-bytes: 16384
+  /admin/fulfillments/{fulfillmentId}/tracking-statuses:
+    post:
+      operationId: recordManualTrackingStatus
+      summary: Record a delivery status from the Mengantar dashboard
+      description: Audited operator fallback for the tracking seam when automation is unavailable; statuses only advance.
+        Delivered records one whole-parcel buyer receipt through the existing parcel receipt callback.
+      tags:
+      - Fulfillment
+      security:
+      - sessionCookie: []
+      x-contract-status: implemented-local
+      x-domain-owner: fulfillment
+      x-primary-requirement: PR-6
+      responses:
+        '201':
+          description: Successful response.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ManualFulfillment'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '429':
+          $ref: '#/components/responses/TooManyRequests'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '409':
+          $ref: '#/components/responses/Conflict'
+        '422':
+          $ref: '#/components/responses/Unprocessable'
+        default:
+          description: Unexpected server/proxy failure; clients tolerate a non-Problem gateway body. Financial result
+            may be unknown; recover the operation before retry.
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+        '503':
+          $ref: '#/components/responses/Unavailable'
+        '413':
+          $ref: '#/components/responses/PayloadTooLarge'
+        '415':
+          $ref: '#/components/responses/UnsupportedMediaType'
+      x-allowed-roles:
+      - owner
+      - ecommerce_admin
+      - warehouse
+      parameters:
+      - name: fulfillmentId
+        in: path
+        required: true
+        schema:
+          $ref: '#/components/schemas/Id'
+      - $ref: '#/components/parameters/IdempotencyKey'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/TrackingStatusInput'
+      x-proof-group: manual-fulfillment
+      x-implementation: src/app/api/v1/admin/fulfillments/[fulfillmentId]/tracking-statuses/route.ts
+      x-request-body-limit-bytes: 16384
+  /admin/warehouses/{warehouseId}/pickup-profile:
+    get:
+      operationId: readPickupProfile
+      summary: Read a private warehouse pickup profile
+      description: Owner/ecommerce_admin only. Readiness and the per-warehouse fulfillment mode are computed.
+      tags:
+      - Fulfillment
+      security:
+      - sessionCookie: []
+      x-contract-status: implemented-local
+      x-domain-owner: fulfillment
+      x-primary-requirement: PR-6
+      responses:
+        '200':
+          description: Successful response.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PickupProfile'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '429':
+          $ref: '#/components/responses/TooManyRequests'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '409':
+          $ref: '#/components/responses/Conflict'
+        '422':
+          $ref: '#/components/responses/Unprocessable'
+        default:
+          description: Unexpected server/proxy failure; clients tolerate a non-Problem gateway body. Financial result
+            may be unknown; recover the operation before retry.
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+        '503':
+          $ref: '#/components/responses/Unavailable'
+      x-allowed-roles:
+      - owner
+      - ecommerce_admin
+      parameters:
+      - name: warehouseId
+        in: path
+        required: true
+        schema:
+          $ref: '#/components/schemas/Id'
+      x-proof-group: manual-fulfillment
+      x-implementation: src/app/api/v1/admin/warehouses/[warehouseId]/pickup-profile/route.ts
+    post:
+      operationId: versionPickupProfile
+      summary: Append a pickup profile revision
+      description: Append-only revision with expected version and reason; audit details list changed field names,
+        never personal-data values.
+      tags:
+      - Fulfillment
+      security:
+      - sessionCookie: []
+      x-contract-status: implemented-local
+      x-domain-owner: fulfillment
+      x-primary-requirement: PR-6
+      responses:
+        '201':
+          description: Successful response.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PickupProfile'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '429':
+          $ref: '#/components/responses/TooManyRequests'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '409':
+          $ref: '#/components/responses/Conflict'
+        '422':
+          $ref: '#/components/responses/Unprocessable'
+        default:
+          description: Unexpected server/proxy failure; clients tolerate a non-Problem gateway body. Financial result
+            may be unknown; recover the operation before retry.
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+        '503':
+          $ref: '#/components/responses/Unavailable'
+        '413':
+          $ref: '#/components/responses/PayloadTooLarge'
+        '415':
+          $ref: '#/components/responses/UnsupportedMediaType'
+      x-allowed-roles:
+      - owner
+      - ecommerce_admin
+      parameters:
+      - name: warehouseId
+        in: path
+        required: true
+        schema:
+          $ref: '#/components/schemas/Id'
+      - $ref: '#/components/parameters/IdempotencyKey'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/PickupProfileInput'
+      x-proof-group: manual-fulfillment
+      x-implementation: src/app/api/v1/admin/warehouses/[warehouseId]/pickup-profile/route.ts
+      x-request-body-limit-bytes: 16384
+  /admin/cod-remittances:
+    get:
+      operationId: listCodRemittances
+      summary: List recorded Mengantar COD settlement statements
+      description: Finance reconciliation read authority; newest first.
+      tags:
+      - Finance
+      security:
+      - sessionCookie: []
+      x-contract-status: implemented-local
+      x-domain-owner: finance
+      x-primary-requirement: PR-12
+      responses:
+        '200':
+          description: Successful response.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CodRemittanceList'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '429':
+          $ref: '#/components/responses/TooManyRequests'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '409':
+          $ref: '#/components/responses/Conflict'
+        '422':
+          $ref: '#/components/responses/Unprocessable'
+        default:
+          description: Unexpected server/proxy failure; clients tolerate a non-Problem gateway body. Financial result
+            may be unknown; recover the operation before retry.
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+        '503':
+          $ref: '#/components/responses/Unavailable'
+      x-allowed-roles:
+      - owner
+      - finance
+      parameters:
+      - name: cursor
+        in: query
+        required: false
+        schema:
+          $ref: '#/components/schemas/Id'
+      - name: limit
+        in: query
+        required: false
+        schema:
+          type: integer
+          minimum: 1
+          maximum: 100
+          default: 20
+      x-proof-group: cod-remittances
+      x-implementation: src/app/api/v1/admin/cod-remittances/route.ts
+    post:
+      operationId: recordCodRemittance
+      summary: Record a Mengantar COD settlement statement
+      description: Finance reconciliation write authority plus a finance.reconcile proof bound to the statement id.
+        Writes one COD collection source per shipped parcel and one settlement source; the worker then claims the
+        receivables so the existing reconciliation matches or flags.
+      tags:
+      - Finance
+      security:
+      - sessionCookie: []
+      x-contract-status: implemented-local
+      x-domain-owner: finance
+      x-primary-requirement: PR-12
+      responses:
+        '201':
+          description: Successful response.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CodRemittance'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '429':
+          $ref: '#/components/responses/TooManyRequests'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '409':
+          $ref: '#/components/responses/Conflict'
+        '422':
+          $ref: '#/components/responses/Unprocessable'
+        default:
+          description: Unexpected server/proxy failure; clients tolerate a non-Problem gateway body. Financial result
+            may be unknown; recover the operation before retry.
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+        '503':
+          $ref: '#/components/responses/Unavailable'
+        '413':
+          $ref: '#/components/responses/PayloadTooLarge'
+        '415':
+          $ref: '#/components/responses/UnsupportedMediaType'
+      x-allowed-roles:
+      - owner
+      - finance
+      parameters:
+      - $ref: '#/components/parameters/IdempotencyKey'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CodRemittanceInput'
+      x-proof-group: cod-remittances
+      x-implementation: src/app/api/v1/admin/cod-remittances/route.ts
+      x-request-body-limit-bytes: 32768
+  /admin/cod-remittances/{remittanceId}:
+    get:
+      operationId: readCodRemittance
+      summary: Read a Mengantar COD settlement statement
+      description: Expected-vs-received lines, flags and the linked settlement state.
+      tags:
+      - Finance
+      security:
+      - sessionCookie: []
+      x-contract-status: implemented-local
+      x-domain-owner: finance
+      x-primary-requirement: PR-12
+      responses:
+        '200':
+          description: Successful response.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CodRemittance'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '429':
+          $ref: '#/components/responses/TooManyRequests'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '409':
+          $ref: '#/components/responses/Conflict'
+        '422':
+          $ref: '#/components/responses/Unprocessable'
+        default:
+          description: Unexpected server/proxy failure; clients tolerate a non-Problem gateway body. Financial result
+            may be unknown; recover the operation before retry.
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+        '503':
+          $ref: '#/components/responses/Unavailable'
+      x-allowed-roles:
+      - owner
+      - finance
+      parameters:
+      - name: remittanceId
+        in: path
+        required: true
+        schema:
+          $ref: '#/components/schemas/Id'
+      x-proof-group: cod-remittances
+      x-implementation: src/app/api/v1/admin/cod-remittances/[remittanceId]/route.ts
+  /admin/cod-collectible-parcels:
+    get:
+      operationId: listCodCollectibleParcels
+      summary: List shipped COD parcels awaiting collection
+      description: Finance-only helper for the statement form; at most 100 rows, optional exact order number.
+      tags:
+      - Finance
+      security:
+      - sessionCookie: []
+      x-contract-status: implemented-local
+      x-domain-owner: finance
+      x-primary-requirement: PR-12
+      responses:
+        '200':
+          description: Successful response.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CodCollectibleParcelList'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '429':
+          $ref: '#/components/responses/TooManyRequests'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '409':
+          $ref: '#/components/responses/Conflict'
+        '422':
+          $ref: '#/components/responses/Unprocessable'
+        default:
+          description: Unexpected server/proxy failure; clients tolerate a non-Problem gateway body. Financial result
+            may be unknown; recover the operation before retry.
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+        '503':
+          $ref: '#/components/responses/Unavailable'
+      x-allowed-roles:
+      - owner
+      - finance
+      parameters:
+      - name: reference
+        in: query
+        required: false
+        schema:
+          type: string
+          pattern: ^[A-Za-z0-9-]{3,40}$
+      x-proof-group: cod-remittances
+      x-implementation: src/app/api/v1/admin/cod-collectible-parcels/route.ts
+  /admin/manual-transfers:
+    get:
+      operationId: listManualTransfers
+      summary: List manual bank transfers
+      description: 'Finance reconciliation queue: open = awaiting confirmation (by expiry), resolved = confirmed.'
+      tags:
+      - Finance
+      security:
+      - sessionCookie: []
+      x-contract-status: implemented-local
+      x-domain-owner: finance
+      x-primary-requirement: PR-5
+      responses:
+        '200':
+          description: Successful response.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ManualTransferList'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '429':
+          $ref: '#/components/responses/TooManyRequests'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '409':
+          $ref: '#/components/responses/Conflict'
+        '422':
+          $ref: '#/components/responses/Unprocessable'
+        default:
+          description: Unexpected server/proxy failure; clients tolerate a non-Problem gateway body. Financial result
+            may be unknown; recover the operation before retry.
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+        '503':
+          $ref: '#/components/responses/Unavailable'
+      x-allowed-roles:
+      - owner
+      - finance
+      parameters:
+      - name: state
+        in: query
+        required: false
+        schema:
+          type: string
+          enum:
+          - open
+          - resolved
+          default: open
+      - name: limit
+        in: query
+        required: false
+        schema:
+          type: integer
+          minimum: 1
+          maximum: 100
+          default: 50
+      x-proof-group: manual-transfers
+      x-implementation: src/app/api/v1/admin/manual-transfers/route.ts
+  /admin/manual-transfers/{attemptId}/confirmations:
+    post:
+      operationId: confirmManualTransfer
+      summary: Confirm a manual bank transfer
+      description: Finance reconciliation write plus a finance.reconcile proof bound to the attempt. Records the received
+        amount, bank reference, transfer time and evidence; the existing payment callback posts the receipt or a recovery
+        case.
+      tags:
+      - Finance
+      security:
+      - sessionCookie: []
+      x-contract-status: implemented-local
+      x-domain-owner: finance
+      x-primary-requirement: PR-5
+      responses:
+        '201':
+          description: Successful response.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ManualTransfer'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '429':
+          $ref: '#/components/responses/TooManyRequests'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '409':
+          $ref: '#/components/responses/Conflict'
+        '422':
+          $ref: '#/components/responses/Unprocessable'
+        default:
+          description: Unexpected server/proxy failure; clients tolerate a non-Problem gateway body. Financial result
+            may be unknown; recover the operation before retry.
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+        '503':
+          $ref: '#/components/responses/Unavailable'
+        '413':
+          $ref: '#/components/responses/PayloadTooLarge'
+        '415':
+          $ref: '#/components/responses/UnsupportedMediaType'
+      x-allowed-roles:
+      - owner
+      - finance
+      parameters:
+      - name: attemptId
+        in: path
+        required: true
+        schema:
+          $ref: '#/components/schemas/Id'
+      - $ref: '#/components/parameters/IdempotencyKey'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ManualTransferConfirmationInput'
+      x-proof-group: manual-transfers
+      x-implementation: src/app/api/v1/admin/manual-transfers/[attemptId]/confirmations/route.ts
+      x-request-body-limit-bytes: 16384
+  /admin/autolaris-payments:
+    get:
+      operationId: listAutolarisPayments
+      summary: List AutoLaris payments
+      description: Finance queue of AutoLaris payments (open = attempt pending/unknown). admin_fee is the store-borne
+        AutoLaris fee, deducted at settlement and posted as payment cost; never buyer revenue. Local simulated contract
+        (S93); live gated (S97).
+      tags:
+      - Finance
+      security:
+      - sessionCookie: []
+      x-contract-status: implemented-local
+      x-domain-owner: finance
+      x-primary-requirement: PR-5
+      responses:
+        '200':
+          description: Successful response.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AutolarisPaymentList'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '429':
+          $ref: '#/components/responses/TooManyRequests'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '409':
+          $ref: '#/components/responses/Conflict'
+        '422':
+          $ref: '#/components/responses/Unprocessable'
+        default:
+          description: Unexpected server/proxy failure; clients tolerate a non-Problem gateway body. Financial result
+            may be unknown; recover the operation before retry.
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+        '503':
+          $ref: '#/components/responses/Unavailable'
+      x-allowed-roles:
+      - owner
+      - finance
+      parameters:
+      - name: state
+        in: query
+        required: false
+        schema:
+          type: string
+          enum:
+          - open
+          - resolved
+          default: open
+      - name: limit
+        in: query
+        required: false
+        schema:
+          type: integer
+          minimum: 1
+          maximum: 100
+          default: 50
+      x-proof-group: autolaris-payments
+      x-implementation: src/app/api/v1/admin/autolaris-payments/route.ts
+  /admin/autolaris-payments/{attemptId}/confirmations:
+    post:
+      operationId: confirmAutolarisPayment
+      summary: Confirm an AutoLaris payment manually
+      description: 'Owner/finance confirmation after checking the AutoLaris dashboard when advice is unproven: finance
+        reconciliation write plus a finance.reconcile proof bound to the attempt, reason and evidence; audited. Records
+        a settled observation that settles the attempt operation; exact amounts post the receipt, others become recovery.'
+      tags:
+      - Finance
+      security:
+      - sessionCookie: []
+      x-contract-status: implemented-local
+      x-domain-owner: finance
+      x-primary-requirement: PR-5
+      responses:
+        '201':
+          description: Successful response.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AutolarisPayment'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '429':
+          $ref: '#/components/responses/TooManyRequests'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '409':
+          $ref: '#/components/responses/Conflict'
+        '422':
+          $ref: '#/components/responses/Unprocessable'
+        default:
+          description: Unexpected server/proxy failure; clients tolerate a non-Problem gateway body. Financial result
+            may be unknown; recover the operation before retry.
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+        '503':
+          $ref: '#/components/responses/Unavailable'
+        '413':
+          $ref: '#/components/responses/PayloadTooLarge'
+        '415':
+          $ref: '#/components/responses/UnsupportedMediaType'
+      x-allowed-roles:
+      - owner
+      - finance
+      parameters:
+      - name: attemptId
+        in: path
+        required: true
+        schema:
+          $ref: '#/components/schemas/Id'
+      - $ref: '#/components/parameters/IdempotencyKey'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/AutolarisConfirmationInput'
+      x-proof-group: autolaris-payments
+      x-implementation: src/app/api/v1/admin/autolaris-payments/[attemptId]/confirmations/route.ts
+      x-request-body-limit-bytes: 16384
+  /payments/autolaris/callbacks:
+    post:
+      operationId: receiveAutolarisCallback
+      summary: Receive a raw AutoLaris callback
+      description: 'Discovery only (callback contract unpublished, DEC-008): stores the raw body (max 16 KiB) and
+        never reads or changes payment state. Unauthenticated by necessity; source IP/signature verification is an
+        S97 gate.'
+      tags:
+      - Payments
+      security: []
+      x-contract-status: implemented-local
+      x-domain-owner: payments
+      x-primary-requirement: PR-5
+      responses:
+        '202':
+          description: Stored raw for discovery.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  received:
+                    type: boolean
+                    const: true
+                required:
+                - received
+                additionalProperties: false
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '413':
+          $ref: '#/components/responses/PayloadTooLarge'
+        default:
+          description: Unexpected server/proxy failure; clients tolerate a non-Problem gateway body. Financial result
+            may be unknown; recover the operation before retry.
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+        '503':
+          $ref: '#/components/responses/Unavailable'
+      parameters: []
+      requestBody:
+        required: false
+        content:
+          '*/*':
+            schema:
+              type: string
+              maxLength: 16384
+      x-proof-group: autolaris-callbacks
+      x-implementation: src/app/api/v1/payments/autolaris/callbacks/route.ts
+      x-request-body-limit-bytes: 16384
   /admin/returns:
     get:
       operationId: listAdminReturns
@@ -11611,6 +12626,7 @@ paths:
           enum:
           - commercial
           - warehouse_calendar
+          - payment
       - name: warehouse_id
         in: query
         schema:
@@ -13683,6 +14699,1224 @@ paths:
       x-implementation: src/app/api/v1/orders/[orderId]/recovery-actions/route.ts
 components:
   schemas:
+    PaymentPolicyValues:
+      type: object
+      additionalProperties: false
+      required:
+      - cod_fee_bps
+      properties:
+        cod_fee_bps:
+          type: integer
+          minimum: 0
+          maximum: 2000
+          description: DEC-009 buyer COD fee in basis points (333 = 3.33%); frozen per quote.
+        manual_bank_accounts:
+          type: array
+          maxItems: 5
+          items:
+            type: object
+            additionalProperties: false
+            required:
+            - bank_name
+            - account_number
+            - account_holder
+            properties:
+              bank_name:
+                type: string
+                minLength: 2
+                maxLength: 60
+              account_number:
+                type: string
+                pattern: ^[0-9]{6,20}$
+              account_holder:
+                type: string
+                minLength: 2
+                maxLength: 100
+      description: DEC-008/009 company payment policy (separate from commercial so publications stay valid).
+    ManualTransfer:
+      type: object
+      properties:
+        id:
+          $ref: '#/components/schemas/Id'
+        order_id:
+          $ref: '#/components/schemas/Id'
+        order_number:
+          type: string
+        status:
+          type: string
+        currency:
+          type: string
+          enum:
+          - IDR
+        order_total:
+          $ref: '#/components/schemas/Money'
+        transfer_code:
+          type: integer
+          minimum: 1
+          maximum: 999
+        expected_amount:
+          $ref: '#/components/schemas/Money'
+        expires_at:
+          $ref: '#/components/schemas/DateTime'
+        order_status:
+          type: string
+        payment_status:
+          type: string
+        accounts:
+          type: array
+          maxItems: 5
+          description: Company accounts pinned by the order's payment policy version (the receiving account is one of them).
+          items:
+            type: object
+            properties:
+              bank_name:
+                type: string
+              account_number:
+                type: string
+                pattern: ^[0-9]{6,20}$
+              account_holder:
+                type: string
+            required:
+            - bank_name
+            - account_number
+            - account_holder
+            additionalProperties: false
+        confirmation:
+          anyOf:
+          - type: object
+            properties:
+              amount:
+                $ref: '#/components/schemas/Money'
+              bank_reference:
+                type: string
+              transferred_at:
+                $ref: '#/components/schemas/DateTime'
+              recorded_at:
+                $ref: '#/components/schemas/DateTime'
+              received_account_number:
+                type:
+                - string
+                - 'null'
+              late_transfer:
+                type: boolean
+                description: Transfer time at or after the buyer deadline (recovery, never a paid order).
+              outcome:
+                type: string
+              reason:
+                type:
+                - string
+                - 'null'
+              mismatch:
+                type: boolean
+            required:
+            - amount
+            - bank_reference
+            - transferred_at
+            - recorded_at
+            - received_account_number
+            - late_transfer
+            - outcome
+            - reason
+            - mismatch
+            additionalProperties: false
+          - type: 'null'
+      required:
+      - id
+      - order_id
+      - order_number
+      - status
+      - currency
+      - order_total
+      - transfer_code
+      - expected_amount
+      - expires_at
+      - order_status
+      - payment_status
+      - accounts
+      - confirmation
+      additionalProperties: false
+      description: DEC-008 manual bank transfer awaiting or holding a finance confirmation; a wrong amount or late transfer
+        becomes a recovery case through the existing payment callback.
+    ManualTransferList:
+      type: object
+      properties:
+        data:
+          type: array
+          items:
+            $ref: '#/components/schemas/ManualTransfer'
+          maxItems: 100
+      required:
+      - data
+      additionalProperties: false
+    ManualTransferConfirmationInput:
+      type: object
+      properties:
+        amount:
+          type: integer
+          minimum: 1
+        bank_reference:
+          type: string
+          pattern: ^[A-Za-z0-9][A-Za-z0-9_./:-]{2,79}$
+        account_number:
+          type: string
+          pattern: ^[0-9]{6,20}$
+          description: Receiving company account; the trimmed upper-cased bank_reference is unique per account (BANK_REFERENCE_ALREADY_USED).
+        transferred_at:
+          $ref: '#/components/schemas/DateTime'
+          description: Bank transfer time, between the attempt creation and now; it decides timeliness.
+        late_transfer:
+          type: boolean
+          description: Must equal transferred_at >= the buyer deadline (LATE_TRANSFER_ACKNOWLEDGEMENT_REQUIRED otherwise).
+        evidence:
+          type: string
+          minLength: 1
+          maxLength: 500
+        reason:
+          type: string
+          minLength: 1
+          maxLength: 200
+        reauthentication_proof:
+          type: string
+          minLength: 1
+          maxLength: 100
+          description: finance.reconcile proof bound to the attempt id.
+      required:
+      - amount
+      - bank_reference
+      - account_number
+      - transferred_at
+      - late_transfer
+      - evidence
+      - reason
+      - reauthentication_proof
+      additionalProperties: false
+    AutolarisPayment:
+      type: object
+      properties:
+        id:
+          $ref: '#/components/schemas/Id'
+        order_id:
+          $ref: '#/components/schemas/Id'
+        order_number:
+          type: string
+        status:
+          type: string
+        currency:
+          type: string
+          const: IDR
+        channel_code:
+          type: string
+        reff_id:
+          type: string
+        trx_id:
+          type:
+          - string
+          - 'null'
+        expected_amount:
+          $ref: '#/components/schemas/Money'
+        provider_total:
+          type:
+          - integer
+          - 'null'
+        admin_fee:
+          type:
+          - integer
+          - 'null'
+          description: Store-borne AutoLaris fee (DEC-008 (3)); posted as provider_fee_expense at settlement.
+        refusal_code:
+          type:
+          - string
+          - 'null'
+          enum:
+          - AUTOLARIS_TOTAL_MISMATCH
+          - AUTOLARIS_AMOUNT_MISMATCH
+          - null
+        expires_at:
+          $ref: '#/components/schemas/DateTime'
+        order_status:
+          type: string
+        payment_status:
+          type: string
+        observation_count:
+          type: integer
+          minimum: 0
+        latest_observation:
+          type:
+          - object
+          - 'null'
+          properties:
+            source:
+              type: string
+              enum:
+              - advice
+              - manual
+            classification:
+              type: string
+              enum:
+              - pending
+              - settled
+              - unknown
+              - failed
+            rc:
+              type:
+              - string
+              - 'null'
+            ket:
+              type:
+              - string
+              - 'null'
+            amount:
+              type:
+              - integer
+              - 'null'
+            occurred_at:
+              $ref: '#/components/schemas/DateTime'
+            recorded_at:
+              $ref: '#/components/schemas/DateTime'
+          required:
+          - source
+          - classification
+          - rc
+          - ket
+          - amount
+          - occurred_at
+          - recorded_at
+          additionalProperties: false
+      required:
+      - id
+      - order_id
+      - order_number
+      - status
+      - currency
+      - channel_code
+      - reff_id
+      - trx_id
+      - expected_amount
+      - provider_total
+      - admin_fee
+      - refusal_code
+      - expires_at
+      - order_status
+      - payment_status
+      - observation_count
+      - latest_observation
+      additionalProperties: false
+    AutolarisPaymentList:
+      type: object
+      properties:
+        data:
+          type: array
+          items:
+            $ref: '#/components/schemas/AutolarisPayment'
+          maxItems: 100
+      required:
+      - data
+      additionalProperties: false
+    AutolarisConfirmationInput:
+      type: object
+      properties:
+        amount:
+          type: integer
+          minimum: 1
+        paid_at:
+          $ref: '#/components/schemas/DateTime'
+        evidence:
+          type: string
+          minLength: 1
+          maxLength: 500
+        reason:
+          type: string
+          minLength: 1
+          maxLength: 200
+        reauthentication_proof:
+          type: string
+          minLength: 1
+          maxLength: 100
+          description: finance.reconcile proof bound to the attempt id.
+      required:
+      - amount
+      - paid_at
+      - evidence
+      - reason
+      - reauthentication_proof
+      additionalProperties: false
+    ManualParcel:
+      type: object
+      properties:
+        courier:
+          type:
+          - string
+          - 'null'
+          enum:
+          - jne
+          - jnt
+          - sicepat
+          - sap
+          - ninja
+          - anteraja
+          - idexpress
+          - lion
+          - pos
+          - null
+        courier_name:
+          type:
+          - string
+          - 'null'
+        tracking_number:
+          type:
+          - string
+          - 'null'
+        tracking_versions:
+          type: array
+          items:
+            type: object
+            properties:
+              version:
+                type: integer
+                minimum: 1
+              courier:
+                type: string
+                enum:
+                - jne
+                - jnt
+                - sicepat
+                - sap
+                - ninja
+                - anteraja
+                - idexpress
+                - lion
+                - pos
+              tracking_number:
+                type: string
+                pattern: ^[A-Z0-9][A-Z0-9-]{7,39}$
+              reason:
+                type: string
+              created_at:
+                $ref: '#/components/schemas/DateTime'
+            required:
+            - version
+            - courier
+            - tracking_number
+            - reason
+            - created_at
+            additionalProperties: false
+        purchase_reference:
+          anyOf:
+          - type: object
+            properties:
+              version:
+                type: integer
+                minimum: 1
+              reference:
+                type: string
+                maxLength: 80
+            required:
+            - version
+            - reference
+            additionalProperties: false
+          - type: 'null'
+        purchase_reference_version:
+          type: integer
+          minimum: 0
+        tracking_status:
+          type:
+          - string
+          - 'null'
+          enum:
+          - picked_up
+          - in_transit
+          - delivered
+          - failed
+          - null
+        tracking_events:
+          type: array
+          items:
+            type: object
+            properties:
+              status:
+                type: string
+                enum:
+                - picked_up
+                - in_transit
+                - delivered
+                - failed
+              source:
+                type: string
+                enum:
+                - adapter
+                - operator
+              adapter:
+                type:
+                - string
+                - 'null'
+                enum:
+                - simulated
+                - mengantar
+                - null
+              occurred_at:
+                $ref: '#/components/schemas/DateTime'
+            required:
+            - status
+            - source
+            - adapter
+            - occurred_at
+            additionalProperties: false
+      required:
+      - courier
+      - courier_name
+      - tracking_number
+      - tracking_versions
+      - purchase_reference
+      - purchase_reference_version
+      - tracking_status
+      - tracking_events
+      additionalProperties: false
+      description: 'DEC-007 manual dashboard booking on 99ribu''s own Mengantar account: current courier/resi, every
+        immutable resi version, optional Berlapak purchase reference and the monotonic delivery tracking history. No
+        pickup address or contact.'
+    ManualFulfillment:
+      type: object
+      properties:
+        id:
+          $ref: '#/components/schemas/Id'
+        order_id:
+          $ref: '#/components/schemas/Id'
+        warehouse_id:
+          $ref: '#/components/schemas/Id'
+        status:
+          type: string
+          enum:
+          - ready
+          - picking
+          - packed
+          - handover_pending
+          - handed_over
+          - exception
+        items:
+          type: array
+          items:
+            $ref: '#/components/schemas/ShipmentLine'
+        packing_due_at:
+          anyOf:
+          - $ref: '#/components/schemas/DateTime'
+          - type: 'null'
+        handover_due_at:
+          anyOf:
+          - $ref: '#/components/schemas/DateTime'
+          - type: 'null'
+        version:
+          type: integer
+          minimum: 1
+        pick_items:
+          type: array
+          items:
+            $ref: '#/components/schemas/PickItem'
+        recipient:
+          $ref: '#/components/schemas/Address'
+        waybill_issued_at:
+          anyOf:
+          - $ref: '#/components/schemas/DateTime'
+          - type: 'null'
+        shipment_id:
+          $ref: '#/components/schemas/Id'
+        prepared_at:
+          anyOf:
+          - $ref: '#/components/schemas/DateTime'
+          - type: 'null'
+        handover_at:
+          anyOf:
+          - $ref: '#/components/schemas/DateTime'
+          - type: 'null'
+        booking_id:
+          anyOf:
+          - $ref: '#/components/schemas/Id'
+          - type: 'null'
+        tracking_number:
+          type:
+          - string
+          - 'null'
+        calendar_error:
+          type:
+          - string
+          - 'null'
+          enum:
+          - POLICY_UNCONFIGURED
+          - CALENDAR_COVERAGE_MISSING
+          - POLICY_INVALID
+          - null
+        notices:
+          type: array
+          items:
+            $ref: '#/components/schemas/FulfillmentNotice'
+          maxItems: 500
+          description: Latest retained operational notices first, bounded to500.
+        booking_status:
+          type:
+          - string
+          - 'null'
+          enum:
+          - queued
+          - acknowledged
+          - issued
+          - failed
+          - cancelled
+          - null
+        operation_status:
+          type:
+          - string
+          - 'null'
+          enum:
+          - queued
+          - processing
+          - unknown
+          - succeeded
+          - failed
+          - null
+        manual:
+          $ref: '#/components/schemas/ManualParcel'
+      required:
+      - id
+      - order_id
+      - warehouse_id
+      - status
+      - items
+      - packing_due_at
+      - version
+      - pick_items
+      - recipient
+      - shipment_id
+      - handover_due_at
+      - prepared_at
+      - waybill_issued_at
+      - handover_at
+      - booking_id
+      - tracking_number
+      - calendar_error
+      - notices
+      - booking_status
+      - operation_status
+      - manual
+      additionalProperties: false
+      description: Original parcel after a manual (Mengantar dashboard) action, with its manual resi and tracking facts.
+    ManualShipmentQueueItem:
+      type: object
+      properties:
+        id:
+          $ref: '#/components/schemas/Id'
+        order_id:
+          $ref: '#/components/schemas/Id'
+        warehouse_id:
+          $ref: '#/components/schemas/Id'
+        status:
+          type: string
+          enum:
+          - ready
+          - picking
+          - packed
+          - handover_pending
+          - handed_over
+          - exception
+        items:
+          type: array
+          items:
+            $ref: '#/components/schemas/ShipmentLine'
+        packing_due_at:
+          anyOf:
+          - $ref: '#/components/schemas/DateTime'
+          - type: 'null'
+        handover_due_at:
+          anyOf:
+          - $ref: '#/components/schemas/DateTime'
+          - type: 'null'
+        version:
+          type: integer
+          minimum: 1
+        pick_items:
+          type: array
+          items:
+            $ref: '#/components/schemas/PickItem'
+        recipient:
+          $ref: '#/components/schemas/Address'
+        waybill_issued_at:
+          anyOf:
+          - $ref: '#/components/schemas/DateTime'
+          - type: 'null'
+        shipment_id:
+          $ref: '#/components/schemas/Id'
+        prepared_at:
+          anyOf:
+          - $ref: '#/components/schemas/DateTime'
+          - type: 'null'
+        handover_at:
+          anyOf:
+          - $ref: '#/components/schemas/DateTime'
+          - type: 'null'
+        booking_id:
+          anyOf:
+          - $ref: '#/components/schemas/Id'
+          - type: 'null'
+        tracking_number:
+          type:
+          - string
+          - 'null'
+        calendar_error:
+          type:
+          - string
+          - 'null'
+          enum:
+          - POLICY_UNCONFIGURED
+          - CALENDAR_COVERAGE_MISSING
+          - POLICY_INVALID
+          - null
+        notices:
+          type: array
+          items:
+            $ref: '#/components/schemas/FulfillmentNotice'
+          maxItems: 500
+          description: Latest retained operational notices first, bounded to500.
+        booking_status:
+          type:
+          - string
+          - 'null'
+          enum:
+          - queued
+          - acknowledged
+          - issued
+          - failed
+          - cancelled
+          - null
+        operation_status:
+          type:
+          - string
+          - 'null'
+          enum:
+          - queued
+          - processing
+          - unknown
+          - succeeded
+          - failed
+          - null
+        manual:
+          $ref: '#/components/schemas/ManualParcel'
+        order_number:
+          type: string
+        payment_method:
+          type: string
+          enum:
+          - prepaid
+          - cod
+        warehouse_name:
+          type: string
+        warehouse_city:
+          type: string
+        warehouse_district:
+          type:
+          - string
+          - 'null'
+        mode:
+          type: string
+          enum:
+          - manual_dashboard
+      required:
+      - id
+      - order_id
+      - warehouse_id
+      - status
+      - items
+      - packing_due_at
+      - version
+      - pick_items
+      - recipient
+      - shipment_id
+      - handover_due_at
+      - prepared_at
+      - waybill_issued_at
+      - handover_at
+      - booking_id
+      - tracking_number
+      - calendar_error
+      - notices
+      - booking_status
+      - operation_status
+      - manual
+      - order_number
+      - payment_method
+      - warehouse_name
+      - warehouse_city
+      - warehouse_district
+      - mode
+      additionalProperties: false
+      description: 'Manual work-queue row: paid prepaid or confirmed COD parcel in a manual-mode warehouse. Recipient
+        stays assigned-staff only.'
+    ManualShipmentQueue:
+      type: object
+      properties:
+        data:
+          type: array
+          items:
+            $ref: '#/components/schemas/ManualShipmentQueueItem'
+        pagination:
+          $ref: '#/components/schemas/Pagination'
+      required:
+      - data
+      - pagination
+      additionalProperties: false
+    ManualShipmentInput:
+      type: object
+      properties:
+        expected_version:
+          type: integer
+          minimum: 1
+        courier:
+          type: string
+          enum:
+          - jne
+          - jnt
+          - sicepat
+          - sap
+          - ninja
+          - anteraja
+          - idexpress
+          - lion
+          - pos
+        tracking_number:
+          type: string
+          minLength: 8
+          maxLength: 80
+          description: Normalized to uppercase without spaces; must match ^[A-Z0-9][A-Z0-9-]{7,39}$ (one conservative
+            format for every courier).
+        purchase_reference:
+          type:
+          - string
+          - 'null'
+          maxLength: 80
+        reason:
+          type: string
+          minLength: 1
+          maxLength: 200
+      required:
+      - expected_version
+      - courier
+      - tracking_number
+      additionalProperties: false
+    TrackingCorrectionInput:
+      type: object
+      properties:
+        expected_version:
+          type: integer
+          minimum: 1
+        courier:
+          type: string
+          enum:
+          - jne
+          - jnt
+          - sicepat
+          - sap
+          - ninja
+          - anteraja
+          - idexpress
+          - lion
+          - pos
+        tracking_number:
+          type: string
+          minLength: 8
+          maxLength: 80
+          description: Normalized to uppercase without spaces; must match ^[A-Z0-9][A-Z0-9-]{7,39}$ (one conservative
+            format for every courier).
+        reason:
+          type: string
+          minLength: 1
+          maxLength: 200
+      required:
+      - expected_version
+      - courier
+      - tracking_number
+      - reason
+      additionalProperties: false
+    PurchaseReferenceInput:
+      type: object
+      properties:
+        expected_version:
+          type: integer
+          minimum: 0
+        reference:
+          type: string
+          pattern: ^[A-Za-z0-9][A-Za-z0-9._:/#-]{1,79}$
+        reason:
+          type: string
+          minLength: 1
+          maxLength: 200
+      required:
+      - expected_version
+      - reference
+      additionalProperties: false
+    TrackingStatusInput:
+      type: object
+      properties:
+        status:
+          type: string
+          enum:
+          - picked_up
+          - in_transit
+          - delivered
+          - failed
+        occurred_at:
+          $ref: '#/components/schemas/DateTime'
+        reason:
+          type: string
+          minLength: 1
+          maxLength: 200
+        evidence:
+          type: string
+          minLength: 1
+          maxLength: 500
+      required:
+      - status
+      - occurred_at
+      - reason
+      - evidence
+      additionalProperties: false
+      description: Audited operator fallback when automated tracking is unavailable; statuses only advance (picked_up
+        < in_transit < delivered|failed).
+    PickupProfile:
+      type: object
+      properties:
+        warehouse_id:
+          $ref: '#/components/schemas/Id'
+        warehouse_name:
+          type: string
+        version:
+          type: integer
+          minimum: 0
+        readiness:
+          type: string
+          enum:
+          - complete
+          - incomplete
+        mode:
+          type: string
+          enum:
+          - mengantar_api
+          - manual_dashboard
+        mengantar_api_enabled:
+          type: boolean
+        street_address:
+          type:
+          - string
+          - 'null'
+        pic_name:
+          type:
+          - string
+          - 'null'
+        pic_phone:
+          type:
+          - string
+          - 'null'
+          pattern: ^62[1-9][0-9]{7,12}$
+        pinpoint:
+          anyOf:
+          - type: object
+            properties:
+              latitude:
+                type: number
+              longitude:
+                type: number
+            required:
+            - latitude
+            - longitude
+            additionalProperties: false
+          - type: 'null'
+        updated_at:
+          anyOf:
+          - $ref: '#/components/schemas/DateTime'
+          - type: 'null'
+      required:
+      - warehouse_id
+      - warehouse_name
+      - version
+      - readiness
+      - mode
+      - mengantar_api_enabled
+      - street_address
+      - pic_name
+      - pic_phone
+      - pinpoint
+      - updated_at
+      additionalProperties: false
+      description: 'Private personal data (owner/ecommerce_admin only): never in public, buyer, export, log or audit-detail
+        payloads. Mode is mengantar_api only when readiness is complete and the Mengantar API flag is on (off until
+        S94).'
+    PickupProfileInput:
+      type: object
+      properties:
+        expected_version:
+          type: integer
+          minimum: 0
+        street_address:
+          type:
+          - string
+          - 'null'
+          minLength: 10
+          maxLength: 300
+        pic_name:
+          type:
+          - string
+          - 'null'
+          minLength: 2
+          maxLength: 120
+        pic_phone:
+          type:
+          - string
+          - 'null'
+          maxLength: 24
+        pinpoint:
+          anyOf:
+          - type: object
+            properties:
+              latitude:
+                type: number
+                minimum: -11
+                maximum: 6
+              longitude:
+                type: number
+                minimum: 95
+                maximum: 141
+            required:
+            - latitude
+            - longitude
+            additionalProperties: false
+          - type: 'null'
+        reason:
+          type: string
+          minLength: 1
+          maxLength: 200
+      required:
+      - expected_version
+      - reason
+      additionalProperties: false
+    CodRemittance:
+      type: object
+      properties:
+        id:
+          $ref: '#/components/schemas/Id'
+        reference:
+          type: string
+        statement_at:
+          $ref: '#/components/schemas/DateTime'
+        currency:
+          type: string
+          enum:
+          - IDR
+        gross_amount:
+          $ref: '#/components/schemas/Money'
+        shipping_deduction:
+          $ref: '#/components/schemas/Money'
+        cod_fee_deduction:
+          $ref: '#/components/schemas/Money'
+        other_deduction:
+          $ref: '#/components/schemas/Money'
+        net_amount:
+          $ref: '#/components/schemas/Money'
+        expected_net_amount:
+          type: integer
+        evidence:
+          type: string
+        flags:
+          type: array
+          items:
+            type: string
+            enum:
+            - PARCEL_AMOUNT_MISMATCH
+            - STATEMENT_TOTAL_MISMATCH
+            - OTHER_DEDUCTION_REVIEW
+            - NET_BELOW_EXPECTED
+        settlement:
+          anyOf:
+          - type: object
+            properties:
+              id:
+                $ref: '#/components/schemas/Id'
+              status:
+                type: string
+              problem_code:
+                type:
+                - string
+                - 'null'
+            required:
+            - id
+            - status
+            - problem_code
+            additionalProperties: false
+          - type: 'null'
+        lines:
+          type: array
+          items:
+            type: object
+            properties:
+              shipment_id:
+                $ref: '#/components/schemas/Id'
+              order_number:
+                type: string
+              amount:
+                $ref: '#/components/schemas/Money'
+              expected_amount:
+                $ref: '#/components/schemas/Money'
+              collection_status:
+                type: string
+                enum:
+                - pending
+                - collected
+                - recovery
+                - duplicate
+                - refused
+              collection_reason:
+                type:
+                - string
+                - 'null'
+            required:
+            - shipment_id
+            - order_number
+            - amount
+            - expected_amount
+            - collection_status
+            - collection_reason
+            additionalProperties: false
+          maxItems: 100
+        recorded_at:
+          $ref: '#/components/schemas/DateTime'
+      required:
+      - id
+      - reference
+      - statement_at
+      - currency
+      - gross_amount
+      - shipping_deduction
+      - cod_fee_deduction
+      - other_deduction
+      - net_amount
+      - expected_net_amount
+      - evidence
+      - flags
+      - settlement
+      - lines
+      - recorded_at
+      additionalProperties: false
+      description: Finance-recorded Mengantar COD settlement statement (DEC-007). Collections and cash post only through
+        the existing COD receipt and settlement journals; mismatches are flagged, never silently accepted. No seller
+        payable.
+    CodRemittanceList:
+      type: object
+      properties:
+        data:
+          type: array
+          items:
+            $ref: '#/components/schemas/CodRemittance'
+        pagination:
+          $ref: '#/components/schemas/Pagination'
+      required:
+      - data
+      - pagination
+      additionalProperties: false
+    CodRemittanceInput:
+      type: object
+      properties:
+        id:
+          $ref: '#/components/schemas/Id'
+        reference:
+          type: string
+          pattern: ^[A-Za-z0-9][A-Za-z0-9_.:-]{2,79}$
+        statement_at:
+          $ref: '#/components/schemas/DateTime'
+        lines:
+          type: array
+          minItems: 1
+          maxItems: 100
+          items:
+            type: object
+            properties:
+              shipment_id:
+                $ref: '#/components/schemas/Id'
+              amount:
+                type: integer
+                minimum: 1
+            required:
+            - shipment_id
+            - amount
+            additionalProperties: false
+        shipping_deduction:
+          type: integer
+          minimum: 0
+        cod_fee_deduction:
+          type: integer
+          minimum: 0
+        other_deduction:
+          type: integer
+          minimum: 0
+        net_amount:
+          type: integer
+          minimum: 0
+        evidence:
+          type: string
+          minLength: 1
+          maxLength: 500
+        reason:
+          type: string
+          minLength: 1
+          maxLength: 200
+        reauthentication_proof:
+          type: string
+          minLength: 1
+          maxLength: 100
+          description: finance.reconcile proof bound to this statement id.
+      required:
+      - id
+      - reference
+      - statement_at
+      - lines
+      - shipping_deduction
+      - cod_fee_deduction
+      - other_deduction
+      - net_amount
+      - evidence
+      - reason
+      - reauthentication_proof
+      additionalProperties: false
+    CodCollectibleParcelList:
+      type: object
+      properties:
+        data:
+          type: array
+          maxItems: 100
+          items:
+            type: object
+            properties:
+              shipment_id:
+                $ref: '#/components/schemas/Id'
+              order_number:
+                type: string
+              cod_due:
+                $ref: '#/components/schemas/Money'
+              handed_over_at:
+                $ref: '#/components/schemas/DateTime'
+              courier:
+                type:
+                - string
+                - 'null'
+              tracking_number:
+                type:
+                - string
+                - 'null'
+            required:
+            - shipment_id
+            - order_number
+            - cod_due
+            - handed_over_at
+            - courier
+            - tracking_number
+            additionalProperties: false
+      required:
+      - data
+      additionalProperties: false
     CodCollections:
       type: object
       additionalProperties: false
@@ -13730,6 +15964,9 @@ components:
       - collected_at
       - receipt_id
       properties:
+        cod_fee_amount:
+          $ref: '#/components/schemas/Money'
+          description: DEC-009 buyer-paid COD fee in this parcel amount.
         id:
           $ref: '#/components/schemas/Id'
         status:
@@ -14330,6 +16567,15 @@ components:
     QuoteInput:
       type: object
       properties:
+        payment_channel:
+          type: string
+          enum:
+          - local-prepaid
+          - manual-bank
+          - autolaris
+          - cod
+          description: DEC-008 channel; defaults to local-prepaid for prepaid and cod for COD. manual-bank requires owner-configured
+            transfer accounts.
         cart_id:
           $ref: '#/components/schemas/Id'
         address:
@@ -14394,6 +16640,9 @@ components:
     QuotedPackage:
       type: object
       properties:
+        cod_fee_amount:
+          $ref: '#/components/schemas/Money'
+          description: DEC-009 per-parcel ceil((merchandise + buyer shipping) x cod_fee_bps / 10000).
         id:
           $ref: '#/components/schemas/Id'
         origin_city:
@@ -14433,6 +16682,24 @@ components:
     Quote:
       type: object
       properties:
+        payment_channel:
+          type: string
+          enum:
+          - local-prepaid
+          - manual-bank
+          - autolaris
+          - cod
+        cod_fee_bps:
+          type:
+          - integer
+          - 'null'
+          minimum: 0
+          maximum: 2000
+        cod_fee_total:
+          $ref: '#/components/schemas/Money'
+        amount_due:
+          $ref: '#/components/schemas/Money'
+          description: buyer_total + buyer-paid payment charge (COD fee).
         id:
           $ref: '#/components/schemas/Id'
         cart_id:
@@ -14727,6 +16994,8 @@ components:
     Shipment:
       type: object
       properties:
+        cod_fee_amount:
+          $ref: '#/components/schemas/Money'
         id:
           $ref: '#/components/schemas/Id'
         origin_city:
@@ -14779,6 +17048,14 @@ components:
           - replacement
         waybill_issued_at:
           $ref: '#/components/schemas/DateTime'
+        tracking_status:
+          type: string
+          enum:
+          - picked_up
+          - in_transit
+          - delivered
+          - failed
+          description: DEC-007 delivery tracking of a manually booked parcel (automated adapter or audited operator fallback).
         received_quantity:
           type: integer
           minimum: 0
@@ -14800,6 +17077,25 @@ components:
     Order:
       type: object
       properties:
+        payment_channel:
+          type: string
+          enum:
+          - local-prepaid
+          - manual-bank
+          - autolaris
+          - cod
+        payment_channel_label:
+          type: string
+        payment_charge_total:
+          $ref: '#/components/schemas/Money'
+          description: 'Buyer-paid payment charge: COD fee (DEC-009) or manual-bank unique code (DEC-008); not merchandise
+            or shipping revenue.'
+        cod_fee_bps:
+          type: integer
+          minimum: 0
+          maximum: 2000
+        amount_due:
+          $ref: '#/components/schemas/Money'
         id:
           $ref: '#/components/schemas/Id'
         number:
@@ -14944,6 +17240,10 @@ components:
       properties:
         method_id:
           $ref: '#/components/schemas/Id'
+        channel_code:
+          type: string
+          enum: [VABNI, VAPERMATA, VABCA, VAMANDIRI, VABRI, QRIS]
+          description: Required for method_id autolaris (an account-enabled list_payment channel), forbidden otherwise.
       required:
       - method_id
       additionalProperties: false
@@ -14951,6 +17251,14 @@ components:
     PaymentAttempt:
       type: object
       properties:
+        method_id:
+          type: string
+          enum:
+          - local-prepaid
+          - manual-bank
+          - autolaris
+        expected_amount:
+          $ref: '#/components/schemas/Money'
         id:
           $ref: '#/components/schemas/Id'
         order_id:
@@ -14974,6 +17282,8 @@ components:
               - redirect
               - display_qr
               - instructions
+              - bank_transfer
+              - autolaris
               - none
             url:
               type: string
@@ -14981,6 +17291,45 @@ components:
               pattern: ^https://
             display_text:
               type: string
+            amount:
+              $ref: '#/components/schemas/Money'
+            channel_code:
+              type: string
+              enum: [VABNI, VAPERMATA, VABCA, VAMANDIRI, VABRI, QRIS]
+            instruction:
+              type: ['object', 'null']
+              description: The one non-empty AutoLaris instruction field (simulated locally; DEC-008).
+              properties:
+                kind:
+                  type: string
+                  enum: [virtual_account, qr, payment_code, url]
+                value:
+                  type: string
+                  maxLength: 2048
+              required: [kind, value]
+              additionalProperties: false
+            transfer_code:
+              type: integer
+              minimum: 1
+              maximum: 999
+            accounts:
+              type: array
+              maxItems: 5
+              items:
+                type: object
+                properties:
+                  bank_name:
+                    type: string
+                  account_number:
+                    type: string
+                    pattern: ^[0-9]{6,20}$
+                  account_holder:
+                    type: string
+                required:
+                - bank_name
+                - account_number
+                - account_holder
+                additionalProperties: false
           required:
           - kind
           additionalProperties: false
@@ -17847,6 +20196,7 @@ components:
           enum:
           - staff_roles.replace
           - company_policy.version
+          - payment_policy.version
           - warehouse_calendar.version
           - catalog_publication.exception
           - finance.reconcile
@@ -17864,6 +20214,14 @@ components:
           properties:
             subject_id:
               const: company-commercial
+      - if:
+          properties:
+            action:
+              const: payment_policy.version
+        then:
+          properties:
+            subject_id:
+              const: company-payment
       - if:
           properties:
             action:
@@ -22378,6 +24736,7 @@ components:
           enum:
           - commercial
           - warehouse_calendar
+          - payment
         warehouse_id:
           type:
           - string
@@ -22396,6 +24755,7 @@ components:
           oneOf:
           - $ref: '#/components/schemas/CommercialPolicyValues'
           - $ref: '#/components/schemas/WarehouseCalendarValues'
+          - $ref: '#/components/schemas/PaymentPolicyValues'
         expected_version:
           type: integer
           minimum: 0
@@ -22446,6 +24806,7 @@ components:
           enum:
           - commercial
           - warehouse_calendar
+          - payment
         warehouse_id:
           type:
           - string
@@ -22459,6 +24820,7 @@ components:
           oneOf:
           - $ref: '#/components/schemas/CommercialPolicyValues'
           - $ref: '#/components/schemas/WarehouseCalendarValues'
+          - $ref: '#/components/schemas/PaymentPolicyValues'
         id:
           type: string
           format: uuid
@@ -24088,6 +26450,15 @@ components:
     AdminShipment:
       type: object
       properties:
+        cod_fee_amount:
+          $ref: '#/components/schemas/Money'
+        tracking_status:
+          type: string
+          enum:
+          - picked_up
+          - in_transit
+          - delivered
+          - failed
         id:
           $ref: '#/components/schemas/Id'
         origin_city:
@@ -25076,6 +27447,21 @@ x-operation-owners:
 x-implementation-boundary: Only implemented-local operations have handler evidence. Domain ownership records responsibility,
   not implemented modules. Vendor /api/auth endpoints use the separate S06/S09 auth contract and tests.
 x-proof-groups:
+  autolaris-callbacks:
+    integration: tests/integration/autolaris-payments.test.ts
+    browser: tests/integration/autolaris-payments.test.ts
+  autolaris-payments:
+    integration: tests/integration/autolaris-payments.test.ts
+    browser: tests/integration/autolaris-payments.test.ts
+  manual-transfers:
+    integration: tests/integration/payment-methods.test.ts
+    browser: tests/integration/payment-methods.test.ts
+  manual-fulfillment:
+    integration: tests/integration/manual-fulfillment.test.ts
+    browser: tests/integration/manual-fulfillment.test.ts
+  cod-remittances:
+    integration: tests/integration/cod-remittance.test.ts
+    browser: tests/integration/cod-remittance.test.ts
   access:
     integration: tests/contract/access.test.ts
     browser: tests/integration/access-http.test.ts

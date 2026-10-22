@@ -18,7 +18,7 @@ const SUPPLIER='Supplier Rahasia Jaya';
 const product=(rank:number,o:{name:string;hpp:number;qty:number;ready?:boolean;stock?:number})=>({rank,_id:`p${rank}`,name:o.name,slug:`p-${rank}`,
   pricing:{hpp_price:o.hpp},strategy_99ribu:{recommended_bundle_qty:o.qty},inventory:{is_ready_stock:o.ready??true,total_stock:o.stock??80,weight_gram:200,weight_kg:0.2},
   supplier:{_id:'s1',name:SUPPLIER},variants_summary:{has_variants:false,variant_count:0,variants:[]},assets:{folder_slug:`${String(rank).padStart(3,'0')}-p-${rank}`},
-  warehouse_and_shipping:{warehouse_id:'0123456789abcdef01234567',warehouse_name:'Gudang Rahasia',city:'TANGERANG SELATAN',province:'BANTEN'},
+  warehouse_and_shipping:{warehouse_id:'0123456789abcdef01234567',warehouse_name:'Gudang Rahasia',district:'SERPONG',city:'TANGERANG SELATAN',province:'BANTEN'},
   category_mapping:{storefront_category_code:'CAT-02'}});
 function fixtureDir(){
   const dir=mkdtempSync(join(tmpdir(),'berlapak-fixture-'));mkdirSync(join(dir,'data-json'));

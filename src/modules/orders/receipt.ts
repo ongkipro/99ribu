@@ -235,6 +235,17 @@ export async function projectOrderReceipt(
 	);
 	const fallbackShipmentId =
 		originalShipments[0]?.id ?? order.shipments[0]?.id ?? o.id;
+	// DEC-008: a manual-bank unique code is a buyer-paid charge frozen per parcel; it is shown
+	// inside each parcel's shipping-and-fees figure so the rows sum to the amount transferred.
+	const parcelCharges = new Map(
+		(
+			await tx<
+				{ id: string; payment_charge: string }[]
+			>`select id,payment_charge from app.order_shipment where order_id=${o.id}`
+		).map((r) => [String(r.id), Number(r.payment_charge)]),
+	);
+	const prepaidFees = (s: { id: string; buyer_shipping_amount: number }) =>
+		s.buyer_shipping_amount + (parcelCharges.get(s.id) ?? 0);
 	if (o.payment_method === "prepaid") {
 		const receipts = await tx<
 			{
@@ -263,7 +274,7 @@ export async function projectOrderReceipt(
 					shipment_id: s.id,
 					status: isRefunded ? "refunded" : "verified",
 					merchandise_amount: sMerch,
-					shipping_and_fees_amount: s.buyer_shipping_amount,
+					shipping_and_fees_amount: prepaidFees(s),
 					occurred_at: paidAt,
 				});
 			}
@@ -286,7 +297,7 @@ export async function projectOrderReceipt(
 					shipment_id: s.id,
 					status: st,
 					merchandise_amount: sMerch,
-					shipping_and_fees_amount: s.buyer_shipping_amount,
+					shipping_and_fees_amount: prepaidFees(s),
 					occurred_at: null,
 				});
 			}
@@ -296,10 +307,9 @@ export async function projectOrderReceipt(
 					shipment_id: fallbackShipmentId,
 					status: st,
 					merchandise_amount: order.merchandise_total,
-					shipping_and_fees_amount: Math.max(
-						0,
-						order.shipping_total - order.subsidy_total,
-					),
+					shipping_and_fees_amount:
+						Math.max(0, order.shipping_total - order.subsidy_total) +
+						order.payment_charge_total,
 					occurred_at: null,
 				});
 			}
@@ -322,14 +332,15 @@ export async function projectOrderReceipt(
 								? "unknown"
 								: "pending",
 					merchandise_amount: p.merchandise_amount,
-					shipping_and_fees_amount: p.buyer_shipping_amount,
+					// DEC-009: the buyer-paid COD fee is collected with shipping by the courier.
+					shipping_and_fees_amount: p.buyer_shipping_amount + p.cod_fee_amount,
 					occurred_at: p.collected_at,
 				});
 			}
 		} else {
 			const rows = await tx<
-				{ id: string; merchandise_amount: string; buyer_shipping: string }[]
-			>`select id,merchandise_amount,buyer_shipping from app.order_shipment where order_id=${o.id} order by parcel_id,id limit 51`;
+				{ id: string; merchandise_amount: string; buyer_shipping: string; payment_charge: string }[]
+			>`select id,merchandise_amount,buyer_shipping,payment_charge from app.order_shipment where order_id=${o.id} order by parcel_id,id limit 51`;
 			collectionsComplete = rows.length <= 50;
 			for (const s of rows.slice(0, 50))
 				collections.push({
@@ -337,7 +348,7 @@ export async function projectOrderReceipt(
 					shipment_id: String(s.id),
 					status: "pending",
 					merchandise_amount: Number(s.merchandise_amount),
-					shipping_and_fees_amount: Number(s.buyer_shipping),
+					shipping_and_fees_amount: Number(s.buyer_shipping) + Number(s.payment_charge),
 					occurred_at: null,
 				});
 		}
@@ -757,12 +768,14 @@ export async function prepareOrderReceiptPayment(
 	try {
 		if (request.method !== "POST") throw invalid();
 		const scoped = await orderReceiptRequest(request, identity, input.order);
+		// DEC-008: the attempt uses the channel frozen on the order.
+		const [channel] = await identity.sql<{ method_id: string }[]>`select coalesce(payment_channel,'local-prepaid') method_id from app.commerce_order where id=${id(input.order)}`;
 		const response = await handlePayments(
 				checkoutApiRequest(
 					scoped,
 					`/api/v1/orders/${id(input.order)}/payment-attempts`,
 					"POST",
-					{ method_id: "local-prepaid" },
+					{ method_id: channel?.method_id ?? "local-prepaid" },
 					input.key,
 				),
 				identity,

@@ -8,11 +8,13 @@ import {mutationKey} from '../checkout/carts.ts';
 import {handleCheckout} from '../checkout/routes.ts';
 import type {projectAttempt} from '../payments/attempts.ts';
 import {handlePayments} from '../payments/routes.ts';
+import {AUTOLARIS_CHANNELS,autolarisClientFor,enabledChannels} from '../payments/autolaris.ts';
 import {readBrowserCart} from './cart.ts';
 import {assertCheckoutTransport,checkoutApiRequest,type CheckoutOrder} from './checkout.ts';
 
 export type CheckoutAttempt=Awaited<ReturnType<typeof projectAttempt>>;
-export type CheckoutPaymentView={kind:'ready';order:CheckoutOrder;attempt:CheckoutAttempt|null;attemptUnavailable:boolean;now:string}|{kind:'denied'|'unavailable';order:null;attempt:null;attemptUnavailable:true;now:null;code:string};
+export type CheckoutPaymentChannel={channel_code:string;name:string};
+export type CheckoutPaymentView={kind:'ready';order:CheckoutOrder;attempt:CheckoutAttempt|null;attemptUnavailable:boolean;now:string;channels:CheckoutPaymentChannel[]}|{kind:'denied'|'unavailable';order:null;attempt:null;attemptUnavailable:true;now:null;code:string;channels:[]};
 export type CheckoutPaymentState={phase:'idle'|'success'|'error'|'unknown';order:string;key:string;message:string;code:string|null;blocked:boolean};
 export type CheckoutIssuedCookie={name:string;value:string;path:string;httpOnly:true;sameSite:'lax';secure:boolean;maxAge:number};
 export const checkoutOrderPath=(orderId:string)=>`/checkout/order/${id(orderId)}`;
@@ -46,6 +48,10 @@ export async function checkoutOrderRequest(request:Request,identity:LocalAuth,or
  return new Request(request.url,{method:request.method,headers});
 }
 
+async function autolarisChannels(identity:LocalAuth):Promise<CheckoutPaymentChannel[]>{
+ try{const [db]=await identity.sql<{name:string}[]>`select current_database() name`;return enabledChannels(await autolarisClientFor(db.name==='99ribu_test'?'test':'local',identity.sql).listPayment());}
+ catch{return [];}
+}
 export async function readCheckoutPayment(request:Request,identity:LocalAuth,orderId:string):Promise<CheckoutPaymentView>{
  try{
   const scoped=await checkoutOrderRequest(request,identity,orderId),response=await handleCheckout(checkoutApiRequest(scoped,`/api/v1/orders/${id(orderId)}`,'GET'),identity),payload=await response.json();
@@ -60,20 +66,28 @@ export async function readCheckoutPayment(request:Request,identity:LocalAuth,ord
    if([401,403,404].includes(res.status))throw new AccessError(res.status,data.code);
    if(!res.ok)attemptUnavailable=true;else attempt=data as CheckoutAttempt;
   }
-  return {kind:'ready',order,attempt,attemptUnavailable,now:clock.now};
- }catch(error){return {kind:error instanceof AccessError&&error.status<500?'denied':'unavailable',order:null,attempt:null,attemptUnavailable:true,now:null,code:error instanceof AccessError?error.code:'SERVICE_UNAVAILABLE'};}
+  // DEC-008: AutoLaris channels come from the account's list_payment (simulated locally), never a fixed list.
+  const channels=order.payment_channel==='autolaris'?await autolarisChannels(identity):[];
+  return {kind:'ready',order,attempt,attemptUnavailable,now:clock.now,channels};
+ }catch(error){return {kind:error instanceof AccessError&&error.status<500?'denied':'unavailable',order:null,attempt:null,attemptUnavailable:true,now:null,code:error instanceof AccessError?error.code:'SERVICE_UNAVAILABLE',channels:[]};}
 }
 
 export function checkoutPaymentInput(data:FormData){
- for(const [name,value] of data)if(!name.startsWith('$ACTION_')&&(!['order','key'].includes(name)||typeof value!=='string'))throw invalid();
- const order=data.getAll('order'),keys=data.getAll('key');if(order.length!==1||keys.length!==1||typeof keys[0]!=='string'||keys[0].length>200)throw invalid();
- const orderId=id(order[0]),key=keys[0];mutationKey(new Request('http://localhost',{headers:{'idempotency-key':key}}));return {order:orderId,key};
+ for(const [name,value] of data)if(!name.startsWith('$ACTION_')&&(!['order','key','channel_code'].includes(name)||typeof value!=='string'))throw invalid();
+ const order=data.getAll('order'),keys=data.getAll('key'),channels=data.getAll('channel_code');if(order.length!==1||keys.length!==1||typeof keys[0]!=='string'||keys[0].length>200||channels.length>1)throw invalid();
+ const channel=channels[0]===undefined?undefined:String(channels[0]);if(channel!==undefined&&!(AUTOLARIS_CHANNELS as readonly string[]).includes(channel))throw invalid();
+ const orderId=id(order[0]),key=keys[0];mutationKey(new Request('http://localhost',{headers:{'idempotency-key':key}}));return {order:orderId,key,...(channel?{channel_code:channel}:{})};
 }
-export async function prepareCheckoutPayment(request:Request,identity:LocalAuth,input:{order:string;key:string}):Promise<CheckoutPaymentState>{
+export async function prepareCheckoutPayment(request:Request,identity:LocalAuth,input:{order:string;key:string;channel_code?:string}):Promise<CheckoutPaymentState>{
  const initial={...initialCheckoutPayment(input.order),key:input.key};
  try{
   if(request.method!=='POST')throw invalid();const scoped=await checkoutOrderRequest(request,identity,input.order);
-  const response=await handlePayments(checkoutApiRequest(scoped,`/api/v1/orders/${id(input.order)}/payment-attempts`,'POST',{method_id:'local-prepaid'},input.key),identity),data=await response.json();
+  // DEC-008: the attempt uses the channel the buyer chose at checkout (frozen on the order).
+  const [channel]=await identity.sql`select coalesce(payment_channel,'local-prepaid') method_id from app.commerce_order where id=${id(input.order)}`;
+  // A COD order has no prepaid attempt; the native writer answers PAYMENT_NOT_AVAILABLE.
+  const method=channel?.method_id==='cod'?'local-prepaid':channel?.method_id??'local-prepaid';
+  if(method==='autolaris'&&!input.channel_code)return {...initial,phase:'error',message:'Pilih bank Virtual Account atau QRIS terlebih dahulu.',code:'INVALID_INPUT',blocked:false};
+  const response=await handlePayments(checkoutApiRequest(scoped,`/api/v1/orders/${id(input.order)}/payment-attempts`,'POST',method==='autolaris'?{method_id:method,channel_code:input.channel_code}:{method_id:method},input.key),identity),data=await response.json();
   if(!response.ok)throw new AccessError(response.status,data.code);
   return {...initial,phase:'success',message:'Instruksi pembayaran tersimpan. Periksa status dari halaman ini.'};
  }catch(error){

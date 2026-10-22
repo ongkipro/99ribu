@@ -39,10 +39,10 @@ export async function installFulfillmentCalendars(identity:LocalAuth,owner:Await
  }
  await identity.sql`update app.local_fixture_namespace set clock=greatest(clock,clock_timestamp())+interval '2 seconds',revision=revision+1 where name=${namespace}`;
 }
-export async function fulfillmentFixture(method:'cod'|'prepaid'='cod'){
+export async function fulfillmentFixture(method:'cod'|'prepaid'='cod',{calendars=true}:{calendars?:boolean}={}){
  const f=await paymentFixture();let campaign:Awaited<ReturnType<typeof ownShippingCampaign>>|undefined;
  try{
-  campaign=await ownShippingCampaign(f,[method]);await installFulfillmentCalendars(f.identity,f.owner,f.namespace);
+  campaign=await ownShippingCampaign(f,[method]);if(calendars)await installFulfillmentCalendars(f.identity,f.owner,f.namespace);
   const {client,order}=await f.order(4,method),sql=f.identity.sql;
   const run=async(jobId:string)=>{assert.equal(await runOneJob(sql,{'shipping.create':shippingAdapter(sql,'test'),'payment.create':paymentAdapter(sql,'test')},jobId),true);const [job]=await sql`select status,last_error from app.outbox_job where id=${jobId}`;assert.equal(job.status,'completed',`Owned fulfillment job: ${job.last_error??'no error'}`);};
   if(method==='prepaid'){

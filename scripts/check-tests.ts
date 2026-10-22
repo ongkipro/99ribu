@@ -53,9 +53,9 @@ if (import.meta.main) {
     "--case=T-26", "--case=T-27", "--case=T-28", "--case=T-29", "--case=T-30", "--case=T-31", "--case=T-32", "--case=T-33",
     "--case=T-34", "--case=T-35", "--case=T-36", "--case=T-37", "--case=T-38", "--case=localhost-readiness",
     "--case=S29-candidate", "--case=S30-candidate", "--case=S31-candidate", "--case=seed-foundation", "--case=seed-commerce",
-    "--case=seed-berlapak", "--case=all-current",
+    "--case=seed-berlapak", "--case=manual-fulfillment", "--case=cod-remittance", "--case=payment-methods", "--case=autolaris-payments", "--case=all-current",
   ];
-  const integrationOnlySelectors = ["--case=seed-foundation", "--case=seed-berlapak", "--case=PR-3", "--case=S29-candidate", "--case=S30-candidate", "--case=S31-candidate", "--case=T-38"];
+  const integrationOnlySelectors = ["--case=seed-foundation", "--case=seed-berlapak", "--case=manual-fulfillment", "--case=cod-remittance", "--case=payment-methods", "--case=autolaris-payments", "--case=PR-3", "--case=S29-candidate", "--case=S30-candidate", "--case=S31-candidate", "--case=T-38"];
   if (!["integration", "browser"].includes(mode) || !validSelectors.includes(selector) || extra.length || (mode === "browser" && integrationOnlySelectors.includes(selector))) {
     console.error("Use check-tests.ts integration|browser with a registered --case=... selector. Unknown, missing and extra selectors are refused.");
     process.exitCode = 1;
@@ -100,7 +100,7 @@ if (import.meta.main) {
       : selector === "--case=PR-10"
       ? mode === "integration" ? ["tests/integration/affiliate-payouts.test.ts"] : ["tests/browser/affiliate-workspace.test.ts"]
       : selector === "--case=PR-15"
-      ? ["tests/integration/catalog-feed.test.ts", "tests/integration/catalog-feed-policy.test.ts"]
+      ? ["tests/integration/catalog-feed.test.ts", "tests/integration/catalog-feed-policy.test.ts", "tests/integration/storefront-seo.test.ts"]
       : selector === "--case=PR-22"
       ? mode === "integration" ? ["tests/integration/support-chat.test.ts"] : ["tests/browser/support-chat.test.ts", "tests/browser/support-live.test.ts"]
       : selector === "--case=T-27"
@@ -138,7 +138,7 @@ if (import.meta.main) {
       : selector === "--case=T-26"
       ? mode === 'integration' ? ['tests/integration/consent-policy.test.ts','tests/integration/consent-migration.test.ts','tests/integration/advertising-purchase-candidate.test.ts','tests/integration/advertising-cart-candidate.test.ts','tests/integration/advertising-funnel-input.test.ts','tests/integration/advertising-order-funnel-candidate.test.ts','tests/integration/advertising-purchase.test.ts','tests/integration/advertising-worker.test.ts','tests/integration/advertising-contract.test.ts','tests/integration/cod-collections.test.ts'] : ['tests/integration/advertising-http.test.ts','tests/integration/cod-http.test.ts']
       : selector === "--case=PR-5"
-      ? mode === 'integration' ? ['tests/integration/payments-migration.test.ts','tests/integration/payment-worker.test.ts','tests/integration/payment-attempts.test.ts','tests/integration/payment-recovery.test.ts','tests/integration/payment-operator.test.ts','tests/integration/payment-deadline.test.ts','tests/integration/payment-default-worker.test.ts','tests/integration/payment-access.test.ts','tests/integration/payment-contract.test.ts','tests/integration/cod-candidate.test.ts','tests/integration/cod-checkout-candidate.test.ts','tests/integration/cod-collections.test.ts','tests/integration/cod-contract.test.ts'] : ['tests/integration/payment-http.test.ts','tests/integration/cod-http.test.ts']
+      ? mode === 'integration' ? ['tests/integration/payments-migration.test.ts','tests/integration/payment-worker.test.ts','tests/integration/payment-attempts.test.ts','tests/integration/payment-recovery.test.ts','tests/integration/payment-operator.test.ts','tests/integration/payment-deadline.test.ts','tests/integration/payment-default-worker.test.ts','tests/integration/payment-access.test.ts','tests/integration/payment-contract.test.ts','tests/integration/cod-candidate.test.ts','tests/integration/cod-checkout-candidate.test.ts','tests/integration/cod-collections.test.ts','tests/integration/cod-contract.test.ts','tests/integration/payment-methods.test.ts','tests/integration/autolaris-payments.test.ts'] : ['tests/integration/payment-http.test.ts','tests/integration/cod-http.test.ts']
       : selector === "--case=PR-12"
       ? mode === "integration" ? ["tests/integration/finance-ledger-migration.test.ts","tests/integration/finance-ledger.test.ts","tests/integration/finance-history-migration.test.ts","tests/integration/finance-history.test.ts","tests/integration/settlement-allocation.test.ts","tests/integration/settlement-source-contract.test.ts","tests/integration/settlement-body.test.ts","tests/integration/settlement-access.test.ts","tests/integration/settlement-receivables.test.ts","tests/integration/settlement-native.test.ts","tests/integration/settlement-contract.test.ts","tests/integration/settlement-recovery.test.ts","tests/integration/settlement-races.test.ts","tests/integration/settlement-fixture-isolation.test.ts"] : ["tests/integration/finance-history-http.test.ts","tests/integration/settlement-http.test.ts"]
       : selector === "--case=PR-17"
@@ -149,6 +149,14 @@ if (import.meta.main) {
       ? ["tests/integration/shipping-address.test.ts","tests/integration/shipping.test.ts","tests/integration/shipping-contribution.test.ts"]
       : selector === "--case=seed-berlapak"
       ? ["tests/integration/berlapak-import.test.ts"]
+      : selector === "--case=manual-fulfillment"
+      ? ["tests/integration/manual-fulfillment.test.ts"]
+      : selector === "--case=cod-remittance"
+      ? ["tests/integration/cod-remittance.test.ts"]
+      : selector === "--case=payment-methods"
+      ? ["tests/integration/payment-methods.test.ts"]
+      : selector === "--case=autolaris-payments"
+      ? ["tests/integration/autolaris-payments.test.ts"]
       : selector === "--case=seed-commerce"
       ? [mode === "integration" ? "tests/integration/commerce-fixture.test.ts" : "tests/integration/commerce-fixture-http.test.ts"]
       : selector === "--case=PR-11"

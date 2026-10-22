@@ -16,7 +16,8 @@ const xmlText=/^[\t\n\r\x20-퟿-�\u{10000}-\u{10FFFF}]*$/u;
 export function feedItem(origin:string,product:PublicProduct,offer:Offer,productType:string|null=null){
  const brand=(offer.attributes.find(a=>a.key==='brand')??product.facts.find(a=>a.key==='brand'))?.values;
  const item={id:offer.catalog_id,item_group_id:product.catalog_id,title:`${product.name} - ${offer.label}`,description:product.description.trim(),
-  link:new URL(productHref(product.id,offer.id),origin).href,image_link:offer.image?.url??null,availability:offer.availability==='available'?'in_stock' as const:'out_of_stock' as const,
+  // Single-offer products link to the canonical page; several offers keep a link that preselects this offer (Merchant variant landing page).
+  link:new URL(product.variants.length===1?`/product/${product.id}`:productHref(product.id,offer.id),origin).href,image_link:offer.image?.url??null,availability:offer.availability==='available'?'in_stock' as const:'out_of_stock' as const,
   price:`${offer.price}.00 ${offer.currency}`,brand:brand?.length===1?brand[0]:null,product_type:productType};
  const issues:FeedIssue[]=[],report=(code:FeedIssue['code'],field:string)=>issues.push({code,catalog_id:item.id,field});
  if(!item.description) report('DESCRIPTION_REQUIRED','description');

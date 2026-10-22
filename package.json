@@ -30,6 +30,7 @@
     "catalog:dataset": "node --env-file=.env.example scripts/catalog.ts dataset",
     "catalog:import": "node --env-file=.env.example scripts/catalog.ts import",
     "catalog:initial-stock": "node --env-file=.env.example scripts/catalog.ts initial-stock",
+    "catalog:rehome": "node --env-file=.env.example scripts/catalog.ts rehome",
     "catalog:withdraw": "node --env-file=.env.example scripts/catalog.ts withdraw"
   },
   "dependencies": {

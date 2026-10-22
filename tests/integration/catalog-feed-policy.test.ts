@@ -13,12 +13,14 @@ const product=(fields:Partial<PublicProduct>={},variant=offer()):PublicProduct=>
  images:[],facts:[{key:'brand',label:'Merek',values:['Merek Uji']}],variants:[variant],...fields} as PublicProduct);
 const codes=(p:PublicProduct,v=p.variants[0])=>feedItem(origin,p,v).issues.map(i=>`${i.code}:${i.field}`).sort();
 
-test('a valid offer maps to exact permanent IDs, integer IDR price, real availability and the storefront offer link',()=>{
+test('a valid offer maps to exact permanent IDs, integer IDR price, real availability and the canonical product link',()=>{
  const {item,issues}=feedItem(origin,product(),offer(),'Busana > Kaos');assert.deepEqual(issues,[]);
  assert.deepEqual(item,{id:'v_00000000-0000-4000-8000-0000000000cc',item_group_id:'p_00000000-0000-4000-8000-0000000000aa',title:'Kaos Sintetis - Satuan',description:'Kaos katun sintetis.',
-  link:`${origin}/product/${productId}?offer=${offerId}`,image_link:'https://media.invalid/kaos.png',availability:'in_stock',price:'99000.00 IDR',brand:'Merek Uji',product_type:'Busana > Kaos'});
+  link:`${origin}/product/${productId}`,image_link:'https://media.invalid/kaos.png',availability:'in_stock',price:'99000.00 IDR',brand:'Merek Uji',product_type:'Busana > Kaos'});
  const sold=offer({availability:'unavailable'});assert.equal(feedItem(origin,product({},sold),sold).item.availability,'out_of_stock');
  assert.equal(feedItem(origin,product({},sold),sold).item.price,'99000.00 IDR');
+ const second=offer({id:'00000000-0000-4000-8000-0000000000ce',catalog_id:'v_00000000-0000-4000-8000-0000000000ce',label:'Paket 2'}),both=product({variants:[offer(),second]});
+ assert.equal(feedItem(origin,both,second).item.link,`${origin}/product/${productId}?offer=${second.id}`,'several offers keep a link that preselects the item offer');
  const renamed=product({name:'Nama baru',slug:'renamed-slug'});assert.equal(feedItem(origin,renamed,renamed.variants[0]).item.id,item.id);assert.equal(feedItem(origin,renamed,renamed.variants[0]).item.item_group_id,item.item_group_id);
 });
 
@@ -44,7 +46,7 @@ test('serialization is deterministic, escaped and contains only the given items'
  const xml=feedXml(origin,[item]);assert.equal(xml,feedXml(origin,[structuredClone(item)]));
  assert.ok(xml.startsWith('<?xml version="1.0" encoding="UTF-8"?>\n<rss version="2.0" xmlns:g="http://base.google.com/ns/1.0"><channel><title>99ribu</title><link>http://127.0.0.1:3099/</link>'));
  assert.ok(xml.includes('<g:title>Kaos &amp; &quot;Polo&quot; &lt;Pria&gt; - Satuan</g:title>'));
- assert.ok(xml.includes(`<g:link>${origin}/product/${productId}?offer=${offerId}</g:link>`));
+ assert.ok(xml.includes(`<g:link>${origin}/product/${productId}</g:link>`));
  assert.ok(xml.includes('<g:price>99000.00 IDR</g:price>')&&xml.includes('<g:availability>in_stock</g:availability>'));
  assert.ok(!xml.includes('product_type'),'null attributes are omitted');
  assert.equal(xml.match(/<item>/g)?.length,1);assert.equal(feedXml(origin,[]).includes('<item>'),false);

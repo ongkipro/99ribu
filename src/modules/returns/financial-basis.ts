@@ -6,7 +6,7 @@ import {lockVerifiedReceivables} from '../finance/settlements/receivables.ts';
 import {lockPaymentOrder} from '../payments/attempts.ts';
 import {returnEntitlement} from './policy.ts';
 
-export type RefundCollectionUnit={fulfillment_item_id:string;order_item_id:string;shipment_id:string;receipt_id:string;transaction_id:string;original_payment_operation_id:string|null;purchase_event_id:string|null;original_occurred_at:string;merchandise_amount:number;buyer_shipping:number;amount:number};
+export type RefundCollectionUnit={fulfillment_item_id:string;order_item_id:string;shipment_id:string;receipt_id:string;transaction_id:string;original_payment_operation_id:string|null;purchase_event_id:string|null;original_occurred_at:string;merchandise_amount:number;buyer_shipping:number;payment_charge:number;amount:number};
 
 // Internal financial basis, not a refund authorization. The caller must also
 // lock the current case, authorize finance and seal unrefunded physical units.
@@ -20,7 +20,7 @@ export async function lockRefundCollectionBasis(tx:TransactionSql,orderId:string
  const occurredAt=await fulfillmentClock(tx,order.clock_namespace),provider=order.payment_method==='cod'?'local.cod':'local.payment';
  const [exceptions]=await tx`select to_regclass('app.commerce_exception') is not null installed`;
  const funded=exceptions.installed?tx`and f.id in (select id from app.receipt_entitled_unit_ids(r.id) id)`:tx``;
- const rows=await tx`select f.id,f.order_item_id,f.shipment_id,f.buyer_shipping,i.unit_price,r.id receipt_id,r.transaction_id,r.effect_reference,r.merchandise_amount receipt_merchandise,r.amount receipt_amount,r.occurred_at,
+ const rows=await tx`select f.id,f.order_item_id,f.shipment_id,f.buyer_shipping,f.payment_charge,i.unit_price,r.id receipt_id,r.transaction_id,r.effect_reference,r.merchandise_amount receipt_merchandise,r.amount receipt_amount,r.occurred_at,
   e.id purchase_id,e.order_id purchase_order_id,e.merchandise_amount purchase_merchandise,e.occurred_at purchase_occurred_at
   from app.fulfillment_item f join app.order_item i on i.id=f.order_item_id
   left join app.economic_receipt r on r.order_id=i.order_id and r.environment=${environment} and r.source=${provider}
@@ -40,7 +40,7 @@ export async function lockRefundCollectionBasis(tx:TransactionSql,orderId:string
    const allocation=purchases.find(p=>p.event_id===row.purchase_id&&p.order_item_id===row.order_item_id),claimed=rows.filter(r=>r.purchase_id===row.purchase_id&&r.order_item_id===row.order_item_id).length;
    if(row.purchase_order_id!==order.id||Number(row.purchase_merchandise)!==Number(row.receipt_merchandise)||new Date(row.purchase_occurred_at).toISOString()!==occurred||!allocation||Number(allocation.quantity)<claimed||Number(allocation.merchandise_amount)!==Number(allocation.quantity)*99000)throw new AccessError(409,'REFUND_PURCHASE_CONTEXT_MISMATCH');
   }
-  units.push({fulfillment_item_id:String(row.id),order_item_id:String(row.order_item_id),shipment_id:String(row.shipment_id),receipt_id:String(row.receipt_id),transaction_id:String(row.transaction_id),original_payment_operation_id:order.payment_method==='prepaid'?String(row.effect_reference):null,purchase_event_id:row.purchase_id===null?null:String(row.purchase_id),original_occurred_at:occurred,...returnEntitlement(Number(row.unit_price),Number(row.buyer_shipping))});
+  units.push({fulfillment_item_id:String(row.id),order_item_id:String(row.order_item_id),shipment_id:String(row.shipment_id),receipt_id:String(row.receipt_id),transaction_id:String(row.transaction_id),original_payment_operation_id:order.payment_method==='prepaid'?String(row.effect_reference):null,purchase_event_id:row.purchase_id===null?null:String(row.purchase_id),original_occurred_at:occurred,...returnEntitlement(Number(row.unit_price),Number(row.buyer_shipping),Number(row.payment_charge))});
  }
  const total=units.reduce((sum,unit)=>sum+BigInt(unit.amount),0n);if(total>BigInt(Number.MAX_SAFE_INTEGER))throw new AccessError(422,'REFUND_AMOUNT_LIMIT_EXCEEDED');
  for(const receiptId of new Set(units.map(unit=>unit.receipt_id))){

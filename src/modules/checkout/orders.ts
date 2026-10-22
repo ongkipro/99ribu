@@ -1,4 +1,4 @@
-import {randomUUID} from 'node:crypto';
+import {randomInt,randomUUID} from 'node:crypto';
 import {isDeepStrictEqual} from 'node:util';
 import type {TransactionSql} from 'postgres';
 import type {LocalAuth} from '../access/auth.ts';
@@ -19,8 +19,10 @@ import {captureOrderPlacement} from '../advertising/events.ts';
 import {confirmCodOrder} from '../payments/cod.ts';
 import {buyerFulfillmentProgress,originalParcelReceiptProgress,originalWaybillProgress} from '../fulfillment/core.ts';
 import {buyerReplacementProgress} from '../returns/replacement-core.ts';
+import {buyerManualParcel} from '../fulfillment/manual.ts';
+import {allocateByWeight,codFee,paymentTerms,PAYMENT_CHANNELS,type PaymentChannel} from '../payments/methods.ts';
 
-export type OrderRow={id:string;operation_id:string;actionable_at?:string|null;number:string;cart_id:string;quote_id:string;owner_user_id:string|null;owner_guest_id:string|null;stock_reservation_id:string;promotion_reservation_id:string|null;payment_method:'prepaid'|'cod';merchandise_amount:string;shipping_amount:string;subsidy_amount:string;buyer_total:string;buyer_note:string|null;revision:number;status:string;payment_status:string;clock_namespace:string|null;created_at:string;expires_at:string};
+export type OrderRow={id:string;operation_id:string;actionable_at?:string|null;number:string;cart_id:string;quote_id:string;owner_user_id:string|null;owner_guest_id:string|null;stock_reservation_id:string;promotion_reservation_id:string|null;payment_method:'prepaid'|'cod';payment_channel:PaymentChannel|null;payment_charge_amount:string;cod_fee_bps:number|null;transfer_code:number|null;payment_policy_version_id:string|null;merchandise_amount:string;shipping_amount:string;subsidy_amount:string;buyer_total:string;buyer_note:string|null;revision:number;status:string;payment_status:string;clock_namespace:string|null;created_at:string;expires_at:string};
 export async function projectOrder(tx:TransactionSql,orderId:string){
  const [o]=await tx<OrderRow[]>`select * from app.commerce_order where id=${orderId} for share`;if(!o) throw new AccessError(404,'NOT_FOUND');
  const items=await tx`select i.*,v.catalog_id from app.order_item i join app.offer v on v.id=i.offer_id where i.order_id=${o.id} order by i.line_id`;
@@ -39,14 +41,17 @@ export async function projectOrder(tx:TransactionSql,orderId:string){
  const [refundTotals]=schema.returns_installed?await tx`select coalesce(sum(amount) filter(where status='succeeded'),0)::text confirmed,coalesce(sum(amount) filter(where status<>'succeeded'),0)::text pending
   from (select amount,status from app.refund where order_id=${o.id} ${recoveryTotals}) refunds`:[{confirmed:'0',pending:'0'}];
  const progress=await buyerFulfillmentProgress(tx,o.id),replacements=await buyerReplacementProgress(tx,o.id);
+ // S91: a manually booked parcel shows its operator-entered courier and resi.
+ const manualParcels=new Map<string,NonNullable<Awaited<ReturnType<typeof buyerManualParcel>>>>();for(const s of shipments){const manual=await buyerManualParcel(tx,s.id);if(manual)manualParcels.set(s.id,manual);}
  return {id:o.id,number:o.number,status:o.status,payment_status:o.payment_status,payment_method:o.payment_method,currency:'IDR',version:o.revision,created_at:new Date(o.created_at).toISOString(),expires_at:new Date(o.expires_at).toISOString(),
-  merchandise_total:Number(o.merchandise_amount),shipping_total:Number(o.shipping_amount),subsidy_total:Number(o.subsidy_amount),buyer_total:Number(o.buyer_total),refund_total:Number(refundTotals.confirmed),pending_refund_total:Number(refundTotals.pending),
+  merchandise_total:Number(o.merchandise_amount),shipping_total:Number(o.shipping_amount),subsidy_total:Number(o.subsidy_amount),buyer_total:Number(o.buyer_total),payment_channel:o.payment_channel??(o.payment_method==='cod'?'cod':'local-prepaid'),payment_channel_label:PAYMENT_CHANNELS[o.payment_channel??(o.payment_method==='cod'?'cod':'local-prepaid')].label,payment_charge_total:Number(o.payment_charge_amount??0),...(o.payment_method==='cod'?{cod_fee_bps:o.cod_fee_bps??0}:{}),amount_due:Number(o.buyer_total)+Number(o.payment_charge_amount??0),refund_total:Number(refundTotals.confirmed),pending_refund_total:Number(refundTotals.pending),
   ...(progress.notices.length?{fulfillment_notices:progress.notices}:{}),
   items:items.map(i=>{const original=units.filter(unit=>unit.order_item_id===i.id);return {id:i.id,variant_id:i.offer_id,catalog_id:i.catalog_id,name:i.snapshot.name,variant_label:i.snapshot.offer.label,offer_kind:i.snapshot.offer.offer_kind,contents:i.snapshot.offer.contents,quantity:i.quantity,unit_price:99000,subtotal:99000*i.quantity,cancelled_quantity:original.filter(unit=>unit.cancelled).length,received_quantity:original.filter(unit=>unit.received_at!==null).length,returned_quantity:original.filter(unit=>returned.has(unit.id)).length,refunded_quantity:original.filter(unit=>refunded.has(unit.id)).length,return_pending_quantity:original.filter(unit=>pending.has(unit.id)).length};}),
-  shipments:[...shipments.map(s=>{const rate=s.snapshot.options.find((r:{id:string})=>r.id===s.snapshot.selected_option_id),parcel=progress.parcels.find(p=>p.shipment_id===s.id),waybill=originalWaybillProgress(parcel),original=units.filter(unit=>unit.shipment_id===s.id),receipt=originalParcelReceiptProgress(original),delivered=receipt.delivered_at!==null;return {id:s.id,kind:'original',origin_city:s.snapshot.origin_city,received_quantity:receipt.received_quantity,status:delivered?'delivered':receipt.active_received_quantity?'partially_delivered':parcel?.handover_at?'handed_over':receipt.active_quantity===0||o.status==='cancelled'?'cancelled':waybill.status,courier_name:rate.courier_name,service_name:rate.service_name,
+  shipments:[...shipments.map(s=>{const rate=s.snapshot.options.find((r:{id:string})=>r.id===s.snapshot.selected_option_id),parcel=progress.parcels.find(p=>p.shipment_id===s.id),waybill=originalWaybillProgress(parcel),original=units.filter(unit=>unit.shipment_id===s.id),receipt=originalParcelReceiptProgress(original),delivered=receipt.delivered_at!==null;return {id:s.id,kind:'original',origin_city:s.snapshot.origin_city,received_quantity:receipt.received_quantity,status:delivered?'delivered':receipt.active_received_quantity?'partially_delivered':parcel?.handover_at?'handed_over':receipt.active_quantity===0||o.status==='cancelled'?'cancelled':waybill.status,courier_name:manualParcels.get(s.id)?.courier_name??rate.courier_name,service_name:rate.service_name,
    ...(delivered?{delivered_at:receipt.delivered_at as string}:{}),
    ...(waybill.tracking_number&&parcel?.waybill_issued_at?{tracking_number:waybill.tracking_number,waybill_issued_at:new Date(parcel.waybill_issued_at).toISOString()}:{}),
-   items:units.filter(f=>f.shipment_id===s.id).map(f=>({order_item_id:f.order_item_id,fulfillment_item_id:f.id,quantity:1,cancelled:Boolean(f.cancelled)})),buyer_shipping_amount:Number(s.buyer_shipping),...(o.payment_method==='cod'?{cod_collect_amount:Number(s.cod_due)}:{})};}),...replacements]};
+   ...(manualParcels.get(s.id)&&parcel?.waybill_issued_at?{tracking_number:manualParcels.get(s.id)?.tracking_number as string,waybill_issued_at:new Date(parcel.waybill_issued_at).toISOString(),...(manualParcels.get(s.id)?.tracking_status?{tracking_status:manualParcels.get(s.id)?.tracking_status as string}:{})}:{}),
+   items:units.filter(f=>f.shipment_id===s.id).map(f=>({order_item_id:f.order_item_id,fulfillment_item_id:f.id,quantity:1,cancelled:Boolean(f.cancelled)})),buyer_shipping_amount:Number(s.buyer_shipping),...(o.payment_method==='cod'?{cod_collect_amount:Number(s.cod_due),cod_fee_amount:Number(s.payment_charge??0)}:{})};}),...replacements]};
 }
 // Match the financial guard: allocate each parcel to lines by largest remainder,
 // then give the integer remainder to original unit indexes within that line.
@@ -57,6 +62,8 @@ export function unitMoney(amount:number,lines:readonly {line_id:string;quantity:
  for(const share of shares) if(extra>0n){share.amount++;extra--;}
  return new Map(shares.map(l=>[l.line_id,Array.from({length:l.quantity},(_,n)=>Number(l.amount/BigInt(l.quantity)+(BigInt(n)<l.amount%BigInt(l.quantity)?1n:0n)))]));
 }
+// R4 (S92 finding 3): open manual-bank orders per buyer, and transfer codes kept free.
+export const MANUAL_BANK_OPEN_PER_ACTOR=2,MANUAL_BANK_CODE_RESERVE=99;
 export async function submitOrder(tx:TransactionSql,request:Request,identity:LocalAuth,actor:CommerceActor,value:unknown){
  const body=object(value,['quote_id','buyer_note']);const quoteId=id(body.quote_id);const buyerNote=body.buyer_note===undefined?null:clean(body.buyer_note,500);
  const version=expectedCartVersion(request),key=mutationKey(request),hash=await intentHash(identity,'order.create',{quoteId,buyerNote,version});
@@ -76,7 +83,22 @@ export async function submitOrder(tx:TransactionSql,request:Request,identity:Loc
   if(document.promotions.some(a=>!current.some(v=>v.promotion_id===a.promotion_id&&v.id===a.version_id))) throw new AccessError(409,'PROMOTION_REVIEW_REQUIRED');
  }
  const now=await cartClock(tx,cart);if(Date.parse(quote.expires_at)<=now.getTime()) throw new AccessError(409,'QUOTE_EXPIRED');
- const expires=new Date(now.getTime()+1800000).toISOString(),orderId=randomUUID(),operationId=randomUUID();
+ // DEC-008: manual bank transfer keeps the order and its holds for 24 hours; other channels 30 minutes.
+ const channel:PaymentChannel=quote.payment_channel??(plan.payment_method==='cod'?'cod':'local-prepaid');
+ const expires=new Date(now.getTime()+(channel==='manual-bank'?86400000:1800000)).toISOString(),orderId=randomUUID(),operationId=randomUUID();
+ let transferCode:number|null=null,termsVersion:string|null=null;
+ if(channel==='manual-bank'){
+  const terms=await paymentTerms(tx,now);if(!terms.version_id||!terms.manual_bank_accounts.length)throw new AccessError(409,'MANUAL_BANK_UNAVAILABLE');termsVersion=terms.version_id;
+  // R4: a 24-hour hold is capped per buyer (guest context or account; the actor is locked above).
+  const [mine]=await tx`select count(*)::int n from app.commerce_order where payment_channel='manual-bank' and status='pending' and payment_status='pending' and (owner_user_id=${actor.kind==='user'?actor.id:null} or owner_guest_id=${actor.kind==='guest'?actor.id:null}::uuid)`;
+  if(mine.n>=MANUAL_BANK_OPEN_PER_ACTOR)throw new AccessError(409,'MANUAL_BANK_OPEN_LIMIT');
+  // Unique among open manual-bank orders so a bank statement amount identifies one order. Code
+  // selection is serialized, and a reserve keeps the space from running out under load.
+  await tx`select pg_advisory_xact_lock(hashtextextended('99ribu:manual-bank-transfer-codes',0))`;
+  const used=new Set((await tx`select transfer_code from app.commerce_order where payment_channel='manual-bank' and status='pending' and payment_status='pending'`).map(r=>Number(r.transfer_code)));
+  const free=Array.from({length:999},(_,n)=>n+1).filter(code=>!used.has(code));if(free.length<=MANUAL_BANK_CODE_RESERVE)throw new AccessError(409,'MANUAL_BANK_BUSY');
+  transferCode=free[randomInt(free.length)];
+ }
  let promotionReservationId:string|null=null;
  if(promotionIds.length){
   const reserved=await reservePromotions(tx,{key:`checkout:${orderId}`,customer_key:document.customer_key,promotion_ids:promotionIds,payment_method:plan.payment_method,lines:plan.lines.map(l=>({line_id:l.line_id,product_id:l.product_id,product_revision:l.product_revision,offer_id:l.offer_id,quantity:l.quantity})),shipments:promotionShipments(plan),expires_at:expires,clock_namespace:cart.clock_namespace,actor_id:actor.kind==='user'?actor.id:null});
@@ -90,19 +112,25 @@ export async function submitOrder(tx:TransactionSql,request:Request,identity:Loc
  const shipments=plan.packages.map(parcel=>{
   const subsidy=benefits.find(a=>a.shipment_id===parcel.id)?.amount??0;const net=parcel.shipping_amount-subsidy;
   const subsidyShares=unitMoney(subsidy,parcel.lines),netShares=unitMoney(net,parcel.lines);
-  return {id:randomUUID(),parcel,subsidy,net,units:parcel.lines.flatMap(l=>Array.from({length:l.quantity},(_,n)=>{const index=(counts.get(l.line_id)??0)+1;counts.set(l.line_id,index);
-   return {id:randomUUID(),line_id:l.line_id,unit_index:index,subsidy:subsidyShares.get(l.line_id)?.[n]??0,buyer_shipping:netShares.get(l.line_id)?.[n]??0};}))};
+  return {id:randomUUID(),parcel,subsidy,net,charge:0,units:parcel.lines.flatMap(l=>Array.from({length:l.quantity},(_,n)=>{const index=(counts.get(l.line_id)??0)+1;counts.set(l.line_id,index);
+   return {id:randomUUID(),line_id:l.line_id,unit_index:index,subsidy:subsidyShares.get(l.line_id)?.[n]??0,buyer_shipping:netShares.get(l.line_id)?.[n]??0,payment_charge:0};}))};
  });
+ // DEC-009/DEC-008 buyer-paid payment charge: the COD fee per parcel, or the transfer code
+ // order-wide, frozen per unit by stable largest remainder over unit price + shipping share.
+ const allocateCharge=(total:number,units:{id:string;buyer_shipping:number;payment_charge:number}[])=>{const shares=allocateByWeight(total,units.map(u=>({id:u.id,weight:99000+u.buyer_shipping})));for(const u of units)u.payment_charge=shares.get(u.id)??0;};
+ if(plan.payment_method==='cod')for(const shipment of shipments){shipment.charge=codFee(shipment.parcel.merchandise_amount+shipment.net,quote.cod_fee_bps??0);allocateCharge(shipment.charge,shipment.units);}
+ if(transferCode!==null){allocateCharge(transferCode,shipments.flatMap(s=>s.units));for(const shipment of shipments)shipment.charge=shipment.units.reduce((n,u)=>n+u.payment_charge,0);}
+ const paymentCharge=shipments.reduce((n,s)=>n+s.charge,0);
  const stock=await reserveOffers(tx,{key:`checkout:${orderId}`,lines:shipments.flatMap(s=>s.units.map(unit=>{const line=plan.lines.find(l=>l.line_id===unit.line_id);if(!line) throw invalid();return {line_id:unit.id,product_id:line.product_id,product_revision:line.product_revision,offer_id:line.offer_id,warehouse_id:s.parcel.warehouse_id,quantity:1};})),expires_at:expires,clock_namespace:cart.clock_namespace,actor_id:actor.kind==='user'?actor.id:null});
- const [order]=await tx<OrderRow[]>`insert into app.commerce_order (id,number,cart_id,quote_id,owner_user_id,owner_guest_id,stock_reservation_id,promotion_reservation_id,operation_id,payment_method,merchandise_amount,shipping_amount,subsidy_amount,buyer_total,buyer_note,clock_namespace,created_at,expires_at)
-  values (${orderId},${`99-${orderId.replaceAll('-','').slice(0,16).toUpperCase()}`},${cart.id},${quote.id},${cart.owner_user_id},${cart.owner_guest_id},${stock.header.id},${promotionReservationId},${operationId},${quote.payment_method},${quote.merchandise_amount},${quote.shipping_amount},${quote.subsidy_amount},${quote.buyer_total},${buyerNote},${cart.clock_namespace},${now.toISOString()},${expires}) returning *`;
+ const [order]=await tx<OrderRow[]>`insert into app.commerce_order (id,number,cart_id,quote_id,owner_user_id,owner_guest_id,stock_reservation_id,promotion_reservation_id,operation_id,payment_method,merchandise_amount,shipping_amount,subsidy_amount,buyer_total,buyer_note,clock_namespace,created_at,expires_at,payment_channel,payment_charge_amount,cod_fee_bps,transfer_code,payment_policy_version_id)
+  values (${orderId},${`99-${orderId.replaceAll('-','').slice(0,16).toUpperCase()}`},${cart.id},${quote.id},${cart.owner_user_id},${cart.owner_guest_id},${stock.header.id},${promotionReservationId},${operationId},${quote.payment_method},${quote.merchandise_amount},${quote.shipping_amount},${quote.subsidy_amount},${quote.buyer_total},${buyerNote},${cart.clock_namespace},${now.toISOString()},${expires},${channel},${paymentCharge},${quote.cod_fee_bps??null},${transferCode},${termsVersion}) returning *`;
  for(const line of plan.lines){const item=purchased.get(line.line_id);if(!item) throw invalid();await tx`insert into app.order_item (id,order_id,line_id,product_id,product_revision,offer_id,publication_id,quantity,snapshot) values (${item.id},${order.id},${line.line_id},${line.product_id},${line.product_revision},${line.offer_id},${line.publication_id},${line.quantity},${JSON.stringify(item.snapshot)}::jsonb)`;}
  const remaining=stock.components.map(c=>({balance_id:String(c.balance_id),warehouse_id:String(c.warehouse_id),stock_item_id:String(c.stock_item_id),remaining:Number(c.quantity)}));
  for(const shipment of shipments){const p=shipment.parcel;
-  await tx`insert into app.order_shipment (id,order_id,parcel_id,warehouse_id,merchandise_amount,shipping_amount,subsidy_amount,buyer_shipping,cod_due,snapshot)
-   values (${shipment.id},${order.id},${p.id},${p.warehouse_id},${p.merchandise_amount},${p.shipping_amount},${shipment.subsidy},${shipment.net},${order.payment_method==='cod'?p.merchandise_amount+shipment.net:0},${JSON.stringify(p)}::jsonb)`;
+  await tx`insert into app.order_shipment (id,order_id,parcel_id,warehouse_id,merchandise_amount,shipping_amount,subsidy_amount,buyer_shipping,cod_due,snapshot,payment_charge)
+   values (${shipment.id},${order.id},${p.id},${p.warehouse_id},${p.merchandise_amount},${p.shipping_amount},${shipment.subsidy},${shipment.net},${order.payment_method==='cod'?p.merchandise_amount+shipment.net+shipment.charge:0},${JSON.stringify(p)}::jsonb,${shipment.charge})`;
   for(const unit of shipment.units){const item=purchased.get(unit.line_id);const line=plan.lines.find(l=>l.line_id===unit.line_id);if(!item||!line) throw invalid();
-   await tx`insert into app.fulfillment_item (id,order_item_id,shipment_id,unit_index,buyer_shipping,subsidy_amount) values (${unit.id},${item.id},${shipment.id},${unit.unit_index},${unit.buyer_shipping},${unit.subsidy})`;
+   await tx`insert into app.fulfillment_item (id,order_item_id,shipment_id,unit_index,buyer_shipping,subsidy_amount,payment_charge) values (${unit.id},${item.id},${shipment.id},${unit.unit_index},${unit.buyer_shipping},${unit.subsidy},${unit.payment_charge})`;
    const components=item.contents;
    for(const component of components){let quantity=component.quantity;
     for(const balance of remaining.filter(b=>b.warehouse_id===p.warehouse_id&&b.stock_item_id===component.stock_item_id&&b.remaining>0)){
@@ -129,7 +157,7 @@ export async function submitOrder(tx:TransactionSql,request:Request,identity:Loc
  const response={order:await projectOrder(tx,order.id)};await recordOperation(tx,actor,key,'order.create',hash,order.id,response,operationId);
  await captureOrderPlacement(tx,request,identity,actor,order.id,operationId);
  const job=await enqueueJob(tx,'checkout.order.expire',`order-expire:${order.id}`,{orderId:order.id});
- if(cart.clock_namespace) await tx`update app.outbox_job set run_at=clock_timestamp()+interval '30 minutes' where id=${job}`;
+ if(cart.clock_namespace) await tx`update app.outbox_job set run_at=clock_timestamp()+${channel==='manual-bank'?'24 hours':'30 minutes'}::interval where id=${job}`;
  else await tx`update app.outbox_job set run_at=${expires} where id=${job}`;
  return {order:{...order,revision:response.order.version,status:'pending'},response,transport:cart.transport};
 }

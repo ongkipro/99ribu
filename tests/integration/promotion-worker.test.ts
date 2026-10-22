@@ -15,9 +15,7 @@ async function dueFixture(){
  const namespace=`pw-${randomUUID().slice(0,8)}`;const f=await promotionFixture(namespace);const p=await f.campaign();const hold=await f.reserve(await f.input([p.id]));
  const [job]=await f.identity.sql`select id,status,run_at>clock_timestamp() as future from app.outbox_job where kind='promotion.reservation.expire' and payload->>'reservationId'=${hold.id}`;
  assert.equal(job.status,'pending');assert.equal(job.future,true);
- // Drain jobs already due so the fixture starts clean; the workers below target this fixture's job by id,
- // because jobs left by earlier files can become due between this drain and the worker start.
- for(let i=0;i<1000;i++) if(!await runOneJob(f.identity.sql)) break;
+ // Every worker below targets this fixture's job by id, so jobs left by earlier files never matter.
  assert.equal((await f.identity.sql`select status from app.outbox_job where id=${job.id}`)[0].status,'pending');
  const clock=await readFixtureClock('test',namespace);await advanceFixtureClock('test',namespace,121,clock.version);
  return {...f,namespace,p,hold,jobId:job.id as string};
@@ -61,7 +59,7 @@ test('real SQL timeout rolls back release, honors scenario retry backoff and sto
    const [retry]=await f.identity.sql`select status,attempts,last_error,run_at>clock_timestamp() as future from app.outbox_job where id=${f.jobId}`;
    assert.deepEqual(retry,{status:'pending',attempts:1,last_error:'TEMPORARY_DATABASE_FAILURE',future:true});
    const [reservation]=await f.identity.sql`select status from app.promotion_reservation where id=${f.hold.id}`;assert.equal(reservation.status,'active');
-   assert.equal(await runOneJob(f.identity.sql),false,'Scenario due must not bypass retry backoff');
+   assert.equal(await runOneJob(f.identity.sql,{},f.jobId),false,'Scenario due must not bypass retry backoff');
    await f.identity.sql`update app.outbox_job set run_at=clock_timestamp()-interval '1 second' where id=${f.jobId}`;
    await exec(process.execPath,[...driver,f.jobId,'timeout'],{env:environment,timeout:10000});
    const [failed]=await f.identity.sql`select status,attempts,last_error from app.outbox_job where id=${f.jobId}`;assert.deepEqual(failed,{status:'failed',attempts:2,last_error:'TEMPORARY_DATABASE_FAILURE'});

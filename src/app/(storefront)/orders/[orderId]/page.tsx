@@ -49,6 +49,14 @@ const formatWibNode = (iso: string) => {
 	);
 };
 
+// DEC-007 delivery tracking of a manually booked parcel (courier feed or audited operator record).
+const TRACKING_STATUS_LABELS: Record<string, string> = {
+	picked_up: "Diambil kurir",
+	in_transit: "Dalam perjalanan",
+	delivered: "Terkirim",
+	failed: "Pengantaran gagal, kurir akan mencoba lagi",
+};
+
 function offerKindLabel(kind: string) {
 	return kind === "multipack"
 		? "Multipack"
@@ -507,7 +515,7 @@ export default async function OrderReceiptPage({
 			!closed &&
 			!expired,
 	).length;
-	const remainingCod = Math.max(0, order.buyer_total - verifiedCollected);
+	const remainingCod = Math.max(0, order.amount_due - verifiedCollected);
 	const itemMap = new Map(order.items.map((i) => [i.id, i]));
 	const displayItems = [...order.items].sort(
 		(a, b) => a.quantity - b.quantity || a.name.localeCompare(b.name, "id"),
@@ -704,7 +712,7 @@ export default async function OrderReceiptPage({
 									<dl className="checkout-charges receipt-cod-summary">
 										<div>
 											<dt>Metode pembayaran</dt>
-											<dd>Pembayaran simulasi</dd>
+											<dd>{order.payment_channel_label}</dd>
 										</div>
 										<div
 											className={`checkout-total${!closed && !expired ? " receipt-desktop-total" : ""}`}
@@ -716,7 +724,7 @@ export default async function OrderReceiptPage({
 														? "Total pesanan (tidak ditagihkan)"
 														: "Total pesanan"}
 											</dt>
-											<dd>{rupiah(order.buyer_total)}</dd>
+											<dd>{rupiah(order.amount_due)}</dd>
 										</div>
 									</dl>
 									{!paid && !refunded && !closed && !expired && (
@@ -744,7 +752,7 @@ export default async function OrderReceiptPage({
 												<div>
 													<dt>Nominal pembayaran</dt>
 													<dd>
-														<strong>{rupiah(order.buyer_total)}</strong>
+														<strong>{rupiah(order.amount_due)}</strong>
 													</dd>
 												</div>
 												<div className="receipt-instruction-code-block">
@@ -767,6 +775,46 @@ export default async function OrderReceiptPage({
 												Gunakan kode referensi di atas untuk menyelesaikan
 												pembayaran sebelum batas waktu, lalu pilih Perbarui
 												status untuk memuat konfirmasi.
+											</p>
+										</section>
+									) : !paid &&
+										!refunded &&
+										!closed &&
+										!expired &&
+										attempt?.status === "pending" &&
+										attempt.action.kind === "bank_transfer" ? (
+										<section className="checkout-payment-instructions" data-testid="bank-transfer-instructions">
+											<h2>Transfer bank</h2>
+											<dl className="checkout-charges receipt-instruction-meta">
+												<div>
+													<dt>Nominal transfer (tepat)</dt>
+													<dd>
+														<OrderReceiptCopyCode code={String(attempt.action.amount)} />
+													</dd>
+												</div>
+												<div>
+													<dt>Kode unik</dt>
+													<dd>{attempt.action.transfer_code} rupiah, sudah termasuk dalam nominal</dd>
+												</div>
+												{attempt.action.accounts.map((account) => (
+													<div key={account.account_number} className="receipt-instruction-code-block">
+														<dt>
+															{account.bank_name} a.n. {account.account_holder}
+														</dt>
+														<dd>
+															<OrderReceiptCopyCode code={account.account_number} />
+														</dd>
+													</div>
+												))}
+												<div>
+													<dt>Batas transfer</dt>
+													<dd>{formatWib(attempt.expires_at)} WIB</dd>
+												</div>
+											</dl>
+											<p>{attempt.action.display_text}</p>
+											<p className="checkout-hint">
+												Transfer tepat sesuai nominal agar mudah dicocokkan. Status
+												berubah setelah tim keuangan memeriksa mutasi rekening.
 											</p>
 										</section>
 									) : null}
@@ -848,36 +896,11 @@ export default async function OrderReceiptPage({
 										awaitingPrepaid && !parcelCancelled
 											? "neutral"
 											: parcelTone(effectiveStatus, closed || expired);
-									const displayTracking =
-										parcel.tracking_number ??
-										(codVerified
-											? `MGT-${parcel.origin_city.slice(0, 3).toUpperCase()}-${parcel.id.replaceAll("-", "").slice(0, 8).toUpperCase()}`
-											: null);
-									const createdMs = Date.parse(order.created_at),
-										collectedMs = col?.occurred_at
-											? Date.parse(col.occurred_at)
-											: NaN,
-										stagger =
-											codVerified &&
-											!parcel.waybill_issued_at &&
-											Number.isFinite(collectedMs) &&
-											collectedMs > createdMs + 120000;
-									const displayIssuedAt =
-										parcel.waybill_issued_at ??
-										(stagger
-											? new Date(
-													createdMs +
-														Math.round((collectedMs - createdMs) * 0.35),
-												).toISOString()
-											: codVerified
-												? (col?.occurred_at ?? null)
-												: null);
-									const displayHandedOverAt = stagger
-										? new Date(
-												createdMs +
-													Math.round((collectedMs - createdMs) * 0.65),
-											).toISOString()
-										: displayIssuedAt;
+									// Never invent a tracking number or carrier timestamps: show only
+									// what the shipment actually has, and an honest pending state otherwise.
+									const displayTracking = parcel.tracking_number ?? null;
+									const displayIssuedAt = parcel.waybill_issued_at ?? null;
+									const displayHandedOverAt = displayIssuedAt;
 									const displayDeliveredAt =
 										("delivered_at" in parcel &&
 										typeof parcel.delivered_at === "string"
@@ -964,6 +987,12 @@ export default async function OrderReceiptPage({
 												</strong>{" "}
 												· Layanan {parcel.service_name ?? "Layanan pengiriman"}
 											</p>
+											{!displayTracking &&
+												(codVerified || parcel.status === "handed_over") && (
+													<p className="receipt-tracking">
+														<span>Nomor resi belum tersedia.</span>
+													</p>
+												)}
 											{displayTracking && (
 												<p className="receipt-tracking">
 													<span>
@@ -974,6 +1003,14 @@ export default async function OrderReceiptPage({
 															Diterbitkan {formatWibNode(displayIssuedAt)}
 														</small>
 													)}
+													{"tracking_status" in parcel &&
+														typeof parcel.tracking_status === "string" && (
+															<small data-testid="parcel-tracking-status">
+																Status kurir:{" "}
+																{TRACKING_STATUS_LABELS[parcel.tracking_status] ??
+																	"Diperbarui"}
+															</small>
+														)}
 												</p>
 											)}
 											<ol
@@ -1146,7 +1183,7 @@ export default async function OrderReceiptPage({
 					<div className="receipt-secondary">
 						<OrderReceiptSummary
 							subtitle={summarySubtitle}
-							total={rupiah(order.buyer_total)}
+							total={rupiah(order.amount_due)}
 						>
 							<ul className="checkout-summary-lines">
 								{inlineItems.map(renderSummaryItem)}
@@ -1199,6 +1236,16 @@ export default async function OrderReceiptPage({
 									</dt>
 									<dd>{rupiah(order.shipping_total - order.subsidy_total)}</dd>
 								</div>
+								{order.payment_charge_total > 0 && (
+									<div>
+										<dt>
+											{cod
+												? `Biaya COD (${(((order as { cod_fee_bps?: number }).cod_fee_bps ?? 0) / 100).toLocaleString("id-ID", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}%)`
+												: "Kode unik transfer"}
+										</dt>
+										<dd>{rupiah(order.payment_charge_total)}</dd>
+									</div>
+								)}
 								<div className="checkout-total">
 									<dt>
 										{cod
@@ -1207,7 +1254,7 @@ export default async function OrderReceiptPage({
 												? "Total pesanan (tidak ditagihkan)"
 												: "Total pesanan"}
 									</dt>
-									<dd>{rupiah(order.buyer_total)}</dd>
+									<dd>{rupiah(order.amount_due)}</dd>
 								</div>
 								{cod && verifiedCollected > 0 && remainingCod > 0 && (
 									<>

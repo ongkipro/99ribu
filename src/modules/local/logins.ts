@@ -46,12 +46,15 @@ async function storedTotpUri(identity: LocalAuth, userId: string, email: string)
   return `otpauth://totp/99ribu:${encodeURIComponent(email)}?${new URLSearchParams({ secret: base32(secret), issuer: "99ribu", digits: "6", period: "30" })}`;
 }
 
-// gudang@ works in the S80 catalog warehouse: the `demo` namespace's Malang warehouse, else the oldest active Malang one.
-async function localWarehouse(identity: LocalAuth) {
-  const [row] = await identity.sql`select w.id,w.name from app.warehouse w left join app.local_fixture_warehouse f on f.warehouse_id=w.id
+// gudang@ works where the catalog stock lives: every active S90 origin warehouse; before the catalog
+// is imported, the `demo` namespace's Malang warehouse (else the oldest active Malang one).
+async function localWarehouses(identity: LocalAuth) {
+  const origins = await identity.sql<{ id: string; name: string }[]>`select id,name from app.warehouse where active and origin_key is not null order by name`;
+  if (origins.length) return origins;
+  const [row] = await identity.sql<{ id: string; name: string }[]>`select w.id,w.name from app.warehouse w left join app.local_fixture_warehouse f on f.warehouse_id=w.id
     where w.active and w.city='Malang' order by (f.namespace='demo' and f.fixture_id='fixture-malang') is true desc, w.id limit 1`;
   if (!row) throw new Error("No active local Malang warehouse; run `npm run fixture -- seed local demo` first.", { cause: "visible" });
-  return row as { id: string; name: string };
+  return [row];
 }
 
 // Idempotent desired state for every LOCAL_ACCOUNTS entry: user (verified), credential password, role grant,
@@ -61,7 +64,8 @@ export async function provisionLocalAccounts(target: string) {
   const identity = createLocalAuth("local");
   try {
     const context = await identity.auth.$context;
-    const warehouse = await localWarehouse(identity);
+    const warehouses = await localWarehouses(identity);
+    const scope = warehouses.map((w) => w.id);
     const accounts = [];
     for (const account of LOCAL_ACCOUNTS) {
       if (!isSyntheticEmail(account.email)) throw new Error("Local account email must be synthetic.");
@@ -76,8 +80,8 @@ export async function provisionLocalAccounts(target: string) {
           on conflict (user_id) do update set roles=excluded.roles,permissions=excluded.permissions,revision=app.role_grant.revision+1
           where (app.role_grant.roles,app.role_grant.permissions) is distinct from (excluded.roles,excluded.permissions)`;
         if (account.role !== "warehouse") await tx`delete from app.warehouse_membership where user_id=${user.id}`;
-        else await tx`delete from app.warehouse_membership where user_id=${user.id} and warehouse_id<>${warehouse.id}`;
-        if (account.role === "warehouse") await tx`insert into app.warehouse_membership (user_id,warehouse_id) values (${user.id},${warehouse.id}) on conflict do nothing`;
+        else await tx`delete from app.warehouse_membership where user_id=${user.id} and not (warehouse_id = any(${scope}::uuid[]))`;
+        if (account.role === "warehouse") for (const id of scope) await tx`insert into app.warehouse_membership (user_id,warehouse_id) values (${user.id},${id}) on conflict do nothing`;
       });
       const mfa = STAFF.has(account.role);
       let uri = mfa ? await storedTotpUri(identity, user.id, account.email) : null;
@@ -93,7 +97,7 @@ export async function provisionLocalAccounts(target: string) {
         uri = setup.totpURI; backupCodes = setup.backupCodes;
       }
       accounts.push({ role: account.name, email: account.email, password: account.password, mfa, landing: account.landing,
-        ...(account.role === "warehouse" ? { warehouse: warehouse.name } : {}),
+        ...(account.role === "warehouse" ? { warehouses: warehouses.length === 1 ? warehouses[0].name : `${warehouses.length} gudang asal katalog` } : {}),
         ...(uri ? { totp_uri: uri, totp_secret: new URL(uri).searchParams.get("secret"), current_code: totp(uri) } : {}),
         ...(backupCodes ? { backup_codes: backupCodes } : {}) });
     }

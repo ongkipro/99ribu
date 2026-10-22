@@ -1,0 +1,583 @@
+"use client";
+
+import { CircleAlert, CircleCheck, RefreshCw } from "lucide-react";
+import { useCallback, useEffect, useRef, useState } from "react";
+import { Alert, AlertDescription } from "@/components/ui/alert";
+import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
+import {
+	Dialog,
+	DialogContent,
+	DialogDescription,
+	DialogFooter,
+	DialogHeader,
+	DialogTitle,
+} from "@/components/ui/dialog";
+import { Input } from "@/components/ui/input";
+import {
+	Table,
+	TableBody,
+	TableCell,
+	TableHead,
+	TableHeader,
+	TableRow,
+} from "@/components/ui/table";
+import { Textarea } from "@/components/ui/textarea";
+import { rupiah } from "@/modules/storefront/format";
+import { describeFailure, failureText, getJson, readFailure } from "./admin-errors";
+
+// DEC-008 manual bank transfers (finance queue) and DEC-008/009 payment terms (owner).
+type Transfer = {
+	id: string;
+	order_number: string;
+	transfer_code: number;
+	expected_amount: number;
+	expires_at: string;
+	accounts: Account[];
+	confirmation: {
+		amount: number;
+		bank_reference: string;
+		outcome: string;
+		mismatch: boolean;
+	} | null;
+};
+type Account = { bank_name: string; account_number: string; account_holder: string };
+type Terms = { cod_fee_bps: number; manual_bank_accounts: Account[] } | null;
+const CODE_MESSAGES: Record<string, string> = {
+	TRANSFER_ALREADY_CONFIRMED: "Transfer ini sudah dikonfirmasi.",
+	TRANSFER_NOT_AWAITING: "Pesanan ini tidak lagi menunggu transfer.",
+	INVALID_TRANSFER_TIME: "Waktu transfer harus setelah pesanan dibuat dan tidak di masa depan.",
+	INVALID_BANK_REFERENCE: "Referensi bank hanya huruf, angka dan . _ / : -",
+	REAUTHENTICATION_REQUIRED: "Konfirmasi kata sandi gagal atau kedaluwarsa.",
+	BANK_REFERENCE_ALREADY_USED: "Referensi mutasi ini sudah dipakai untuk pesanan lain di rekening yang sama.",
+	LATE_TRANSFER_ACKNOWLEDGEMENT_REQUIRED: "Tandai transfer terlambat sesuai waktu transfer terhadap batas waktu.",
+	INVALID_RECEIVING_ACCOUNT: "Pilih rekening penerima dari daftar pesanan ini.",
+	FRESH_MFA_REQUIRED: "Verifikasi dua langkah ulang diperlukan.",
+	PAYMENT_ALREADY_FINAL: "Pembayaran ini sudah final.",
+	AUTOLARIS_TRANSACTION_UNAVAILABLE: "Transaksi AutoLaris belum tercatat atau ditolak.",
+	INVALID_PAYMENT_TIME: "Waktu bayar harus setelah instruksi dibuat dan tidak di masa depan.",
+};
+const text = (status: number, code: string | null) =>
+	code && CODE_MESSAGES[code]
+		? `${CODE_MESSAGES[code]} (kode: ${code})`
+		: failureText(describeFailure(status, code));
+const wib = new Intl.DateTimeFormat("id-ID", {
+	dateStyle: "medium",
+	timeStyle: "short",
+	timeZone: "Asia/Jakarta",
+});
+async function post(url: string, body: unknown) {
+	try {
+		const res = await fetch(url, {
+			method: "POST",
+			credentials: "include",
+			headers: { "content-type": "application/json", "idempotency-key": crypto.randomUUID() },
+			body: JSON.stringify(body),
+		});
+		if (res.ok) return { ok: true as const, data: await res.json() };
+		const failure = await readFailure(res);
+		return { ok: false as const, text: text(res.status, failure.code) };
+	} catch {
+		return { ok: false as const, text: text(0, null) };
+	}
+}
+async function proof(password: string, action: string, subject: string) {
+	return post("/api/v1/me/reauthentication-proofs", { password, action, subject_id: subject });
+}
+
+export function PaymentsClient({ canManageTerms }: { canManageTerms: boolean }) {
+	const [state, setState] = useState<"open" | "resolved">("open");
+	const [rows, setRows] = useState<Transfer[] | null>(null);
+	const [error, setError] = useState<string | null>(null);
+	const [notice, setNotice] = useState<string | null>(null);
+	const [selected, setSelected] = useState<Transfer | null>(null);
+	const noticeRef = useRef<HTMLDivElement>(null);
+	const load = useCallback(async () => {
+		setRows(null);
+		setError(null);
+		const result = await getJson<{ data: Transfer[] }>(`/api/v1/admin/manual-transfers?state=${state}`);
+		if (result.ok) setRows(result.data.data);
+		else setError(failureText(result.failure));
+	}, [state]);
+	useEffect(() => {
+		void load();
+	}, [load]);
+	useEffect(() => {
+		if (notice) noticeRef.current?.focus();
+	}, [notice]);
+	return (
+		<div className="flex flex-col gap-6">
+			{notice && (
+				<Alert ref={noticeRef} tabIndex={-1} role="status" className="outline-none">
+					<CircleCheck aria-hidden="true" />
+					<AlertDescription className="text-foreground">{notice}</AlertDescription>
+				</Alert>
+			)}
+			<section aria-labelledby="transfers-heading" className="flex flex-col gap-4">
+				<div className="flex flex-wrap items-end justify-between gap-3">
+					<h2 id="transfers-heading" className="text-lg font-semibold">
+						Transfer bank manual
+					</h2>
+					<Button variant="outline" onClick={() => void load()}>
+						<RefreshCw aria-hidden="true" />
+						Muat ulang
+					</Button>
+				</div>
+				<div role="tablist" aria-label="Status transfer" className="inline-flex w-fit gap-1 rounded-lg border bg-muted p-1">
+					{(
+						[
+							["open", "Menunggu konfirmasi"],
+							["resolved", "Sudah dicatat"],
+						] as const
+					).map(([key, label]) => (
+						<button
+							key={key}
+							type="button"
+							role="tab"
+							aria-selected={state === key}
+							className={`rounded-md px-3 py-1.5 text-sm font-medium ${state === key ? "bg-background shadow-sm" : "text-muted-foreground"}`}
+							onClick={() => setState(key)}
+						>
+							{label}
+						</button>
+					))}
+				</div>
+				{error && (
+					<Alert role="alert">
+						<CircleAlert aria-hidden="true" />
+						<AlertDescription className="text-foreground">{error}</AlertDescription>
+					</Alert>
+				)}
+				{!error && rows === null && (
+					<p className="text-sm text-muted-foreground" aria-live="polite">
+						Memuat transfer…
+					</p>
+				)}
+				{rows?.length === 0 && (
+					<p className="rounded-lg border border-dashed p-6 text-sm text-muted-foreground">
+						{state === "open" ? "Tidak ada transfer yang menunggu konfirmasi." : "Belum ada transfer yang dicatat."}
+					</p>
+				)}
+				{rows && rows.length > 0 && (
+					<div className="overflow-x-auto rounded-lg border">
+						<Table data-testid="manual-transfers">
+							<TableHeader>
+								<TableRow>
+									<TableHead>Pesanan</TableHead>
+									<TableHead className="text-right">Nominal tepat</TableHead>
+									<TableHead>Kode unik</TableHead>
+									<TableHead>{state === "open" ? "Batas transfer" : "Hasil"}</TableHead>
+									<TableHead className="text-right">Tindakan</TableHead>
+								</TableRow>
+							</TableHeader>
+							<TableBody>
+								{rows.map((row) => (
+									<TableRow key={row.id}>
+										<TableCell className="font-medium">{row.order_number}</TableCell>
+										<TableCell className="text-right">{rupiah(row.expected_amount)}</TableCell>
+										<TableCell>{row.transfer_code}</TableCell>
+										<TableCell>
+											{row.confirmation ? (
+												<div className="flex flex-wrap gap-1">
+													<Badge variant={row.confirmation.outcome === "confirmed" ? "default" : "outline"}>
+														{row.confirmation.outcome === "confirmed" ? "Lunas" : row.confirmation.outcome === "recovery" ? "Perlu tinjauan" : "Diproses"}
+													</Badge>
+													{row.confirmation.mismatch && <Badge variant="destructive">Nominal berbeda</Badge>}
+												</div>
+											) : (
+												`${wib.format(new Date(row.expires_at))} WIB`
+											)}
+										</TableCell>
+										<TableCell className="text-right">
+											{!row.confirmation && (
+												<Button size="sm" onClick={() => setSelected(row)}>
+													Konfirmasi transfer
+												</Button>
+											)}
+										</TableCell>
+									</TableRow>
+								))}
+							</TableBody>
+						</Table>
+					</div>
+				)}
+			</section>
+			{selected && (
+				<ConfirmDialog
+					transfer={selected}
+					onClose={() => setSelected(null)}
+					onDone={(message) => {
+						setSelected(null);
+						setNotice(message);
+						void load();
+					}}
+				/>
+			)}
+			<AutolarisPayments onNotice={setNotice} />
+			{canManageTerms && <PaymentTerms />}
+		</div>
+	);
+}
+
+function ConfirmDialog({ transfer, onClose, onDone }: { transfer: Transfer; onClose: () => void; onDone: (message: string) => void }) {
+	const [form, setForm] = useState({ amount: String(transfer.expected_amount), reference: "", account: transfer.accounts[0]?.account_number ?? "", time: "", late: false, evidence: "", reason: "", password: "" });
+	const [error, setError] = useState<string | null>(null);
+	const [pending, setPending] = useState(false);
+	const set = (field: keyof typeof form) => (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => setForm({ ...form, [field]: e.target.value });
+	async function submit() {
+		if (!form.amount || !form.reference || !form.account || !form.time || !form.evidence || !form.reason || !form.password) return setError("Lengkapi semua isian.");
+		// The transfer time decides timeliness; a late transfer must be acknowledged explicitly (spec 11).
+		if (form.late !== new Date(form.time).getTime() >= Date.parse(transfer.expires_at))
+			return setError(form.late ? "Waktu transfer masih sebelum batas; hapus tanda terlambat." : "Waktu transfer setelah batas: centang transfer terlambat dan jelaskan di alasan.");
+		setPending(true);
+		setError(null);
+		const issued = await proof(form.password, "finance.reconcile", transfer.id);
+		if (!issued.ok) {
+			setPending(false);
+			return setError(issued.text);
+		}
+		const result = await post(`/api/v1/admin/manual-transfers/${transfer.id}/confirmations`, {
+			amount: Number(form.amount),
+			bank_reference: form.reference.trim(),
+			account_number: form.account,
+			transferred_at: new Date(form.time).toISOString(),
+			late_transfer: form.late,
+			evidence: form.evidence.trim(),
+			reason: form.reason.trim(),
+			reauthentication_proof: issued.data.proof,
+		});
+		setPending(false);
+		if (!result.ok) return setError(result.text);
+		onDone(
+			result.data.confirmation?.mismatch
+				? `Transfer ${transfer.order_number} dicatat dengan nominal berbeda dan masuk tinjauan.`
+				: `Transfer ${transfer.order_number} dicatat; status pesanan diperbarui setelah diproses.`,
+		);
+	}
+	const field = (id: string, label: string, node: React.ReactNode) => (
+		<div className="flex flex-col gap-1.5">
+			<label htmlFor={id} className="text-sm font-medium">
+				{label}
+			</label>
+			{node}
+		</div>
+	);
+	return (
+		<Dialog open onOpenChange={(next) => { if (!next && !pending) onClose(); }}>
+			<DialogContent>
+				<form noValidate className="flex flex-col gap-4" onSubmit={(e) => { e.preventDefault(); void submit(); }}>
+					<DialogHeader>
+						<DialogTitle>Konfirmasi transfer {transfer.order_number}</DialogTitle>
+						<DialogDescription>
+							Cocokkan dengan mutasi rekening. Nominal tepat {rupiah(transfer.expected_amount)} (kode unik {transfer.transfer_code}). Nominal berbeda tetap dicatat dan masuk tinjauan, bukan dianggap lunas.
+						</DialogDescription>
+					</DialogHeader>
+					{field("transfer-amount", "Nominal diterima", <Input id="transfer-amount" inputMode="numeric" value={form.amount} onChange={set("amount")} />)}
+					{field("transfer-reference", "Referensi mutasi bank", <Input id="transfer-reference" value={form.reference} maxLength={80} onChange={set("reference")} />)}
+					{field("transfer-account", "Rekening penerima", <select id="transfer-account" className="h-9 rounded-md border bg-background px-3 text-sm" value={form.account} onChange={(e) => setForm({ ...form, account: e.target.value })}>{transfer.accounts.map((a) => <option key={a.account_number} value={a.account_number}>{a.bank_name} {a.account_number}</option>)}</select>)}
+					{field("transfer-time", `Waktu transfer (jam perangkat; batas ${wib.format(new Date(transfer.expires_at))} WIB)`, <Input id="transfer-time" type="datetime-local" value={form.time} onChange={set("time")} />)}
+					<label className="flex items-center gap-2 text-sm"><input type="checkbox" checked={form.late} onChange={(e) => setForm({ ...form, late: e.target.checked })} />Transfer dilakukan setelah batas waktu (masuk tinjauan, bukan lunas)</label>
+					{field("transfer-evidence", "Bukti", <Textarea id="transfer-evidence" value={form.evidence} maxLength={500} onChange={set("evidence")} />)}
+					{field("transfer-reason", "Alasan", <Input id="transfer-reason" value={form.reason} maxLength={200} onChange={set("reason")} />)}
+					{field("transfer-password", "Konfirmasi kata sandi", <Input id="transfer-password" type="password" autoComplete="current-password" value={form.password} onChange={set("password")} />)}
+					{error && (
+						<p role="alert" className="text-sm text-destructive">
+							{error}
+						</p>
+					)}
+					<DialogFooter>
+						<Button type="button" variant="outline" disabled={pending} onClick={onClose}>
+							Batal
+						</Button>
+						<Button type="submit" disabled={pending}>
+							{pending ? "Menyimpan…" : "Simpan konfirmasi"}
+						</Button>
+					</DialogFooter>
+				</form>
+			</DialogContent>
+		</Dialog>
+	);
+}
+
+// DEC-008 (2) AutoLaris (local simulated contract): advice polling pays automatically only on an
+// explicit settlement status; finance confirms manually after checking the AutoLaris dashboard.
+type Autolaris = {
+	id: string;
+	order_number: string;
+	channel_code: string;
+	trx_id: string | null;
+	expected_amount: number;
+	admin_fee: number | null;
+	refusal_code: string | null;
+	status: string;
+	expires_at: string;
+	latest_observation: { source: string; classification: string; ket: string | null } | null;
+};
+const OBSERVED: Record<string, string> = { pending: "Menunggu pembayaran", settled: "Lunas", unknown: "Status belum pasti", failed: "Gagal" };
+function AutolarisPayments({ onNotice }: { onNotice: (message: string) => void }) {
+	const [state, setState] = useState<"open" | "resolved">("open");
+	const [rows, setRows] = useState<Autolaris[] | null>(null);
+	const [error, setError] = useState<string | null>(null);
+	const [selected, setSelected] = useState<Autolaris | null>(null);
+	const load = useCallback(async () => {
+		setRows(null);
+		setError(null);
+		const result = await getJson<{ data: Autolaris[] }>(`/api/v1/admin/autolaris-payments?state=${state}`);
+		if (result.ok) setRows(result.data.data);
+		else setError(failureText(result.failure));
+	}, [state]);
+	useEffect(() => {
+		void load();
+	}, [load]);
+	return (
+		<section aria-labelledby="autolaris-heading" className="flex flex-col gap-4 border-t pt-6">
+			<div className="flex flex-wrap items-end justify-between gap-3">
+				<div className="flex flex-col gap-1">
+					<h2 id="autolaris-heading" className="text-lg font-semibold">
+						Virtual Account / QRIS (AutoLaris, simulasi lokal)
+					</h2>
+					<p className="max-w-prose text-sm text-muted-foreground">
+						Status diperiksa otomatis lewat advice; hanya status pelunasan eksplisit yang dianggap lunas. Biaya admin ditanggung toko dan dicatat sebagai biaya pembayaran saat penyelesaian dana.
+					</p>
+				</div>
+				<Button variant="outline" onClick={() => void load()}>
+					<RefreshCw aria-hidden="true" />
+					Muat ulang
+				</Button>
+			</div>
+			<div role="tablist" aria-label="Status AutoLaris" className="inline-flex w-fit gap-1 rounded-lg border bg-muted p-1">
+				{(
+					[
+						["open", "Belum final"],
+						["resolved", "Final"],
+					] as const
+				).map(([key, label]) => (
+					<button key={key} type="button" role="tab" aria-selected={state === key} className={`rounded-md px-3 py-1.5 text-sm font-medium ${state === key ? "bg-background shadow-sm" : "text-muted-foreground"}`} onClick={() => setState(key)}>
+						{label}
+					</button>
+				))}
+			</div>
+			{error && (
+				<Alert role="alert">
+					<CircleAlert aria-hidden="true" />
+					<AlertDescription className="text-foreground">{error}</AlertDescription>
+				</Alert>
+			)}
+			{!error && rows === null && <p className="text-sm text-muted-foreground" aria-live="polite">Memuat pembayaran…</p>}
+			{rows?.length === 0 && <p className="rounded-lg border border-dashed p-6 text-sm text-muted-foreground">Tidak ada pembayaran AutoLaris.</p>}
+			{rows && rows.length > 0 && (
+				<div className="overflow-x-auto rounded-lg border">
+					<Table data-testid="autolaris-payments">
+						<TableHeader>
+							<TableRow>
+								<TableHead>Pesanan</TableHead>
+								<TableHead>Kanal</TableHead>
+								<TableHead className="text-right">Tagihan pembeli</TableHead>
+								<TableHead className="text-right">Biaya admin (toko)</TableHead>
+								<TableHead>Status</TableHead>
+								<TableHead className="text-right">Tindakan</TableHead>
+							</TableRow>
+						</TableHeader>
+						<TableBody>
+							{rows.map((row) => (
+								<TableRow key={row.id}>
+									<TableCell className="font-medium">{row.order_number}</TableCell>
+									<TableCell>{row.channel_code}</TableCell>
+									<TableCell className="text-right">{rupiah(row.expected_amount)}</TableCell>
+									<TableCell className="text-right">{row.admin_fee === null ? "—" : rupiah(row.admin_fee)}</TableCell>
+									<TableCell>
+										{row.refusal_code ? (
+											<Badge variant="destructive">Ditolak: total tidak sama</Badge>
+										) : (
+											<Badge variant={row.latest_observation?.classification === "settled" ? "default" : "outline"}>
+												{row.latest_observation ? OBSERVED[row.latest_observation.classification] ?? row.latest_observation.classification : row.trx_id ? "Menunggu pembayaran" : "Instruksi dibuat"}
+											</Badge>
+										)}
+									</TableCell>
+									<TableCell className="text-right">
+										{state === "open" && row.trx_id && !row.refusal_code && (
+											<Button size="sm" variant="outline" onClick={() => setSelected(row)}>
+												Konfirmasi manual
+											</Button>
+										)}
+									</TableCell>
+								</TableRow>
+							))}
+						</TableBody>
+					</Table>
+				</div>
+			)}
+			{selected && (
+				<AutolarisConfirmDialog
+					payment={selected}
+					onClose={() => setSelected(null)}
+					onDone={(message) => {
+						setSelected(null);
+						onNotice(message);
+						void load();
+					}}
+				/>
+			)}
+		</section>
+	);
+}
+function AutolarisConfirmDialog({ payment, onClose, onDone }: { payment: Autolaris; onClose: () => void; onDone: (message: string) => void }) {
+	const [form, setForm] = useState({ amount: String(payment.expected_amount), time: "", evidence: "", reason: "", password: "" });
+	const [error, setError] = useState<string | null>(null);
+	const [pending, setPending] = useState(false);
+	const set = (field: keyof typeof form) => (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => setForm({ ...form, [field]: e.target.value });
+	async function submit() {
+		if (!form.amount || !form.time || !form.evidence || !form.reason || !form.password) return setError("Lengkapi semua isian.");
+		setPending(true);
+		setError(null);
+		const issued = await proof(form.password, "finance.reconcile", payment.id);
+		if (!issued.ok) {
+			setPending(false);
+			return setError(issued.text);
+		}
+		const result = await post(`/api/v1/admin/autolaris-payments/${payment.id}/confirmations`, {
+			amount: Number(form.amount),
+			paid_at: new Date(form.time).toISOString(),
+			evidence: form.evidence.trim(),
+			reason: form.reason.trim(),
+			reauthentication_proof: issued.data.proof,
+		});
+		setPending(false);
+		if (!result.ok) return setError(result.text);
+		onDone(`Pembayaran ${payment.order_number} dicatat; status pesanan diperbarui setelah diproses.`);
+	}
+	const field = (id: string, label: string, node: React.ReactNode) => (
+		<div className="flex flex-col gap-1.5">
+			<label htmlFor={id} className="text-sm font-medium">
+				{label}
+			</label>
+			{node}
+		</div>
+	);
+	return (
+		<Dialog open onOpenChange={(next) => { if (!next && !pending) onClose(); }}>
+			<DialogContent>
+				<form noValidate className="flex flex-col gap-4" onSubmit={(e) => { e.preventDefault(); void submit(); }}>
+					<DialogHeader>
+						<DialogTitle>Konfirmasi manual {payment.order_number}</DialogTitle>
+						<DialogDescription>
+							Gunakan hanya setelah memeriksa dashboard AutoLaris (transaksi {payment.trx_id}). Nominal berbeda dari {rupiah(payment.expected_amount)} dicatat dan masuk tinjauan.
+						</DialogDescription>
+					</DialogHeader>
+					{field("autolaris-amount", "Nominal dibayar pembeli", <Input id="autolaris-amount" inputMode="numeric" value={form.amount} onChange={set("amount")} />)}
+					{field("autolaris-time", "Waktu bayar (jam perangkat)", <Input id="autolaris-time" type="datetime-local" value={form.time} onChange={set("time")} />)}
+					{field("autolaris-evidence", "Bukti dari dashboard", <Textarea id="autolaris-evidence" value={form.evidence} maxLength={500} onChange={set("evidence")} />)}
+					{field("autolaris-reason", "Alasan", <Input id="autolaris-reason" value={form.reason} maxLength={200} onChange={set("reason")} />)}
+					{field("autolaris-password", "Konfirmasi kata sandi", <Input id="autolaris-password" type="password" autoComplete="current-password" value={form.password} onChange={set("password")} />)}
+					{error && (
+						<p role="alert" className="text-sm text-destructive">
+							{error}
+						</p>
+					)}
+					<DialogFooter>
+						<Button type="button" variant="outline" disabled={pending} onClick={onClose}>
+							Batal
+						</Button>
+						<Button type="submit" disabled={pending}>
+							{pending ? "Menyimpan…" : "Simpan konfirmasi"}
+						</Button>
+					</DialogFooter>
+				</form>
+			</DialogContent>
+		</Dialog>
+	);
+}
+
+function PaymentTerms() {
+	const [current, setCurrent] = useState<{ version: number; terms: Terms } | null>(null);
+	const [form, setForm] = useState({ bps: "333", accounts: "", reason: "", password: "" });
+	const [message, setMessage] = useState<{ kind: "ok" | "error"; text: string } | null>(null);
+	const load = useCallback(async () => {
+		const result = await getJson<{ latest_version: number; current: { values: Terms } | null }>("/api/v1/admin/policy-versions?kind=payment");
+		if (!result.ok) return setMessage({ kind: "error", text: failureText(result.failure) });
+		const terms = result.data.current?.values ?? null;
+		setCurrent({ version: result.data.latest_version, terms });
+		if (terms)
+			setForm((f) => ({
+				...f,
+				bps: String(terms.cod_fee_bps),
+				accounts: terms.manual_bank_accounts.map((a) => `${a.bank_name} | ${a.account_number} | ${a.account_holder}`).join("\n"),
+			}));
+	}, []);
+	useEffect(() => {
+		void load();
+	}, [load]);
+	async function save() {
+		const accounts = form.accounts
+			.split("\n")
+			.map((line) => line.trim())
+			.filter(Boolean)
+			.map((line) => {
+				const [bank_name, account_number, account_holder] = line.split("|").map((part) => part.trim());
+				return { bank_name, account_number, account_holder };
+			});
+		if (!form.reason.trim() || !form.password) return setMessage({ kind: "error", text: "Alasan dan kata sandi wajib diisi." });
+		const issued = await proof(form.password, "payment_policy.version", "company-payment");
+		if (!issued.ok) return setMessage({ kind: "error", text: issued.text });
+		const result = await post("/api/v1/admin/policy-versions", {
+			kind: "payment",
+			warehouse_id: null,
+			expected_version: current?.version ?? 0,
+			effective_at: null,
+			values: { cod_fee_bps: Number(form.bps), manual_bank_accounts: accounts },
+			reason: form.reason.trim(),
+			reauthentication_proof: issued.data.proof,
+		});
+		if (!result.ok) return setMessage({ kind: "error", text: result.text });
+		setForm((f) => ({ ...f, reason: "", password: "" }));
+		setMessage({ kind: "ok", text: `Ketentuan pembayaran versi ${result.data.version} berlaku untuk penawaran baru.` });
+		void load();
+	}
+	return (
+		<section aria-labelledby="terms-heading" className="flex max-w-2xl flex-col gap-4 border-t pt-6">
+			<div className="flex flex-col gap-1">
+				<h2 id="terms-heading" className="text-lg font-semibold">
+					Ketentuan pembayaran
+				</h2>
+				<p className="text-sm text-muted-foreground">
+					Biaya COD dibayar pembeli dan dibekukan di setiap penawaran; perubahan hanya berlaku untuk penawaran baru. Rekening dipakai untuk transfer bank manual.
+					{current?.terms ? ` Berlaku sekarang: ${(current.terms.cod_fee_bps / 100).toLocaleString("id-ID")}% dan ${current.terms.manual_bank_accounts.length} rekening.` : " Belum diatur: tanpa biaya COD dan transfer manual tidak tersedia."}
+				</p>
+			</div>
+			<form noValidate className="flex flex-col gap-3" onSubmit={(e) => { e.preventDefault(); void save(); }}>
+				<div className="flex flex-col gap-1.5">
+					<label htmlFor="terms-bps" className="text-sm font-medium">
+						Biaya COD (basis poin; 333 = 3,33%)
+					</label>
+					<Input id="terms-bps" inputMode="numeric" value={form.bps} onChange={(e) => setForm({ ...form, bps: e.target.value })} />
+				</div>
+				<div className="flex flex-col gap-1.5">
+					<label htmlFor="terms-accounts" className="text-sm font-medium">
+						Rekening transfer (satu per baris: Bank | Nomor | Nama pemilik)
+					</label>
+					<Textarea id="terms-accounts" value={form.accounts} onChange={(e) => setForm({ ...form, accounts: e.target.value })} />
+				</div>
+				<div className="flex flex-col gap-1.5">
+					<label htmlFor="terms-reason" className="text-sm font-medium">
+						Alasan perubahan
+					</label>
+					<Input id="terms-reason" value={form.reason} maxLength={200} onChange={(e) => setForm({ ...form, reason: e.target.value })} />
+				</div>
+				<div className="flex flex-col gap-1.5">
+					<label htmlFor="terms-password" className="text-sm font-medium">
+						Konfirmasi kata sandi
+					</label>
+					<Input id="terms-password" type="password" autoComplete="current-password" value={form.password} onChange={(e) => setForm({ ...form, password: e.target.value })} />
+				</div>
+				{message && (
+					<p role={message.kind === "error" ? "alert" : "status"} className={message.kind === "error" ? "text-sm text-destructive" : "text-sm text-success"}>
+						{message.text}
+					</p>
+				)}
+				<Button type="submit" className="self-start">
+					Simpan ketentuan
+				</Button>
+			</form>
+		</section>
+	);
+}

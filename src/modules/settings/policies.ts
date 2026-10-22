@@ -4,17 +4,27 @@ import type { LocalAuth } from "../access/auth.ts";
 import { assertCurrentOwner, consumeAccessProof } from "../access/grants.ts";
 import { AccessError, type Principal } from "../access/policy.ts";
 
-type Kind = "commercial" | "warehouse_calendar";
+type Kind = "commercial" | "warehouse_calendar" | "payment";
 const uuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
-const purpose = (kind: Kind) => kind === "commercial" ? "company_policy.version" : "warehouse_calendar.version";
-const subject = (warehouseId: string | null) => warehouseId ?? "company-commercial";
+// DEC-008/009 payment terms are their own company policy so changing them never
+// invalidates catalog publications (which freeze the commercial version).
+const purpose = (kind: Kind) => kind === "commercial" ? "company_policy.version" : kind === "payment" ? "payment_policy.version" : "warehouse_calendar.version";
+const subject = (warehouseId: string | null, kind: Kind = "commercial") => warehouseId ?? (kind === "payment" ? "company-payment" : "company-commercial");
 const invalid = () => new AccessError(400, "INVALID_INPUT");
 
 function scope(kind: unknown, warehouseId: unknown): { kind: Kind; warehouseId: string | null } {
-  if (kind !== "commercial" && kind !== "warehouse_calendar") throw invalid();
-  if (kind === "commercial") { if (warehouseId !== null) throw invalid(); return { kind, warehouseId: null }; }
+  if (kind !== "commercial" && kind !== "warehouse_calendar" && kind !== "payment") throw invalid();
+  if (kind === "commercial" || kind === "payment") { if (warehouseId !== null) throw invalid(); return { kind, warehouseId: null }; }
   if (typeof warehouseId !== "string" || !uuid.test(warehouseId)) throw invalid();
   return { kind, warehouseId: warehouseId.toLowerCase() };
+}
+export type BankAccount = { bank_name: string; account_number: string; account_holder: string };
+function bankAccounts(value: unknown): value is BankAccount[] {
+  return Array.isArray(value) && value.length >= 1 && value.length <= 5 && value.every((a) => a && typeof a === "object" && !Array.isArray(a) &&
+    Object.keys(a).every((key) => ["bank_name", "account_number", "account_holder"].includes(key)) &&
+    typeof a.bank_name === "string" && a.bank_name.trim().length >= 2 && a.bank_name.length <= 60 &&
+    typeof a.account_number === "string" && /^[0-9]{6,20}$/.test(a.account_number) &&
+    typeof a.account_holder === "string" && a.account_holder.trim().length >= 2 && a.account_holder.length <= 100);
 }
 function valuesFor(kind: Kind, value: unknown) {
   if (!value || typeof value !== "object" || Array.isArray(value)) throw invalid();
@@ -26,6 +36,13 @@ function valuesFor(kind: Kind, value: unknown) {
       ("minimum_contribution_idr" in data && (!Number.isSafeInteger(data.minimum_contribution_idr) || Number(data.minimum_contribution_idr)<0 || Number(data.minimum_contribution_idr)>99000))) throw invalid();
     return { default_commission_bps: Number(data.default_commission_bps), minimum_payout_idr: Number(data.minimum_payout_idr),
       ...(data.minimum_contribution_idr===undefined?{}:{minimum_contribution_idr:Number(data.minimum_contribution_idr)}) };
+  }
+  if (kind === "payment") {
+    // DEC-009 buyer COD fee rate (basis points) and DEC-008 manual transfer accounts.
+    if (Object.keys(data).some((key) => !["cod_fee_bps", "manual_bank_accounts"].includes(key)) ||
+      !Number.isSafeInteger(data.cod_fee_bps) || Number(data.cod_fee_bps) < 0 || Number(data.cod_fee_bps) > 2000 ||
+      ("manual_bank_accounts" in data && !(Array.isArray(data.manual_bank_accounts) && (data.manual_bank_accounts.length === 0 || bankAccounts(data.manual_bank_accounts))))) throw invalid();
+    return { cod_fee_bps: Number(data.cod_fee_bps), manual_bank_accounts: ((data.manual_bank_accounts ?? []) as BankAccount[]).map((a) => ({ bank_name: a.bank_name.trim(), account_number: a.account_number, account_holder: a.account_holder.trim() })) };
   }
   if (Object.keys(data).some((key) => !["timezone", "year", "working_weekdays", "cutoff_local", "closed_dates", "source", "approval"].includes(key)) ||
     typeof data.timezone !== "string" || !data.timezone || data.timezone.length > 100 ||
@@ -114,7 +131,7 @@ export async function appendPolicyVersion(request: Request, principal: Principal
     const [head] = await tx`select id,revision from app.policy_head where kind=${selected.kind} and warehouse_id is not distinct from ${selected.warehouseId}::uuid for update`;
     if (head.revision !== intent.expected_version) throw new AccessError(409, "VERSION_CONFLICT");
     const [last] = await tx`select effective_at from app.policy_version where head_id=${head.id} order by revision desc limit 1`;
-    await consumeAccessProof(tx, principal, action, subject(selected.warehouseId), reauthenticationProof);
+    await consumeAccessProof(tx, principal, action, subject(selected.warehouseId, selected.kind), reauthenticationProof);
     const [clock] = await tx`select clock_timestamp() as now`;
     const now = new Date(clock.now); const effectiveAt = effectiveInput === null ? now.toISOString() : String(effectiveInput);
     if (Date.parse(effectiveAt) < now.getTime()) throw new AccessError(400, "RETROACTIVE_POLICY_FORBIDDEN");

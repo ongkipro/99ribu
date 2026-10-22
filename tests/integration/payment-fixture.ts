@@ -9,16 +9,18 @@ import {checkoutFixture,CommerceClient} from './checkout-fixture.ts';
 
 export async function paymentFixture(){
  const f=await checkoutFixture(),orders:string[]=[];
- const order=async(quantity=1,payment_method:'prepaid'|'cod'='prepaid')=>{
-  const client=new CommerceClient(f.identity),input={lines:[f.line('fixture-offer-shirt',quantity)]},key=randomUUID();
-  assert.equal((await client.call('/api/v1/carts',input,{key})).response.status,401);
+ const order=async(quantity=1,payment_method:'prepaid'|'cod'='prepaid',payment_channel?:'local-prepaid'|'manual-bank'|'autolaris'|'cod',reuse?:CommerceClient)=>{
+  // reuse: the same guest context places another order (per-actor limits).
+  const client=reuse??new CommerceClient(f.identity),input={lines:[f.line('fixture-offer-shirt',quantity)]},key=randomUUID();
+  if(!reuse)assert.equal((await client.call('/api/v1/carts',input,{key})).response.status,401);
   const request=client.request('/api/v1/carts',input,{key}),actor=await commerceActor(request,f.identity);assert.ok(actor?.kind==='guest');
   const cart=await f.identity.sql.begin(tx=>createCart(tx,request,f.identity,actor,input,{clock_namespace:f.namespace}));
   const name=`${await prefix(f.identity)}.cart_access`,token=await capability(f.identity,'cart',cart.cart.id,actor.id,cart.cart.cap_issued_at as string);
   client.cookies.set(`${name}:/`,{name,value:`${cart.cart.id}.${token}`,path:'/'});
-  const quote=await client.call('/api/v1/checkout/quotes',{cart_id:cart.cart.id,address:f.address,contact:f.contact(),payment_method},{version:1});assert.equal(quote.response.status,201);
-  const submitted=await client.call('/api/v1/orders',{quote_id:quote.payload.id},{version:1});assert.equal(submitted.response.status,201);orders.push(submitted.payload.order.id);
-  return {client,order:submitted.payload.order};
+  const quote=await client.call('/api/v1/checkout/quotes',{cart_id:cart.cart.id,address:f.address,contact:f.contact(),payment_method,...(payment_channel?{payment_channel}:{})},{version:1});assert.equal(quote.response.status,201);
+  const submitted=await client.call("/api/v1/orders",{quote_id:quote.payload.id},{version:1});
+  if(!reuse)assert.equal(submitted.response.status,201,JSON.stringify(submitted.payload));if(submitted.response.status===201)orders.push(submitted.payload.order.id);
+  return {client,order:submitted.payload.order,status:submitted.response.status,code:submitted.payload.code as string|undefined};
  };
  const call=async(client:CommerceClient,path:string,body?:unknown,options:Parameters<CommerceClient['request']>[2]={})=>{
   const request=client.request(path,body,options),response=await handlePayments(request,f.identity);return {response,payload:await response.json()};

@@ -5,6 +5,7 @@ import {id,integer,invalid} from '../catalog/validation.ts';
 import {findDestinations} from '../shipping/address.ts';
 import {authorizeCart,bootstrapGuest,capability,commerceActor,cookie,lockActor,prefix,setCookie,type CartRow} from './access.ts';
 import {cartCreationInput,changeLine,createCart,mutationKey,projectCart} from './carts.ts';
+import {LIMITS,rateLimit} from '../access/rate-limit.ts';
 import {createQuote,ownedQuote,projectQuote,selectQuote} from './quotes.ts';
 import {authorizeOrder,projectOrder,submitOrder} from './orders.ts';
 
@@ -47,12 +48,14 @@ export async function handleCheckout(request:Request,identity:LocalAuth){
    return privateJson(await identity.sql.begin(tx=>changeLine(tx,request,identity,actor,id(lines[1]),lines[2]?id(lines[2]):null,body)),request.method==='POST'?201:200);
   }
   if(path==='/api/v1/checkout/quotes'&&request.method==='POST'){
+   await rateLimit(identity.sql,`checkout.quote:${actor.kind}:${actor.id}`,LIMITS.checkoutQuotePerActor);
    const body=await readBody(request);return privateJson(await identity.sql.begin(tx=>createQuote(tx,request,identity,actor,body)),201);
   }
   const quote=/^\/api\/v1\/checkout\/quotes\/([^/]+)$/.exec(path),selection=/^\/api\/v1\/checkout\/quotes\/([^/]+)\/selection$/.exec(path);
   if(quote&&request.method==='GET') return await identity.sql.begin(async tx=>{await lockActor(tx,actor);const {quote:owned}=await ownedQuote(tx,request,identity,actor,quote[1]);return privateJson(projectQuote(owned));});
   if(selection&&request.method==='POST'){const body=await readBody(request);return privateJson(await identity.sql.begin(tx=>selectQuote(tx,request,identity,actor,selection[1],body)),201);}
   if(path==='/api/v1/orders'&&request.method==='POST'){
+   await rateLimit(identity.sql,`checkout.order:${actor.kind}:${actor.id}`,LIMITS.checkoutOrderPerActor);
    const body=await readBody(request);const result=await identity.sql.begin(tx=>submitOrder(tx,request,identity,actor,body));let response=privateJson(result.response,201);
    if(actor.kind==='guest'){
     const [access]=await identity.sql`select issued_at,expires_at,revoked_at from app.order_access where order_id=${result.order.id}`;

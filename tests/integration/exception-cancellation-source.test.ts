@@ -61,6 +61,8 @@ test('a surviving-unit reissue freezes only its original unit entitlement and CO
  assert.deepEqual(waybillRequestBasis(units,'cod'),{unit_ids:[first,second],cod_due:228001});
  assert.deepEqual(waybillRequestBasis([units[0]],'cod'),{unit_ids:[second],cod_due:114001});
  assert.deepEqual(waybillRequestBasis([units[0]],'prepaid'),{unit_ids:[second],cod_due:0});
+ // DEC-009: the frozen buyer COD fee share is part of what the courier collects.
+ assert.deepEqual(waybillRequestBasis([{...units[0],payment_charge:3797}],'cod'),{unit_ids:[second],cod_due:117798});
  assert.deepEqual(units,before);
  for(const method of ['cod','prepaid'] as const)assert.throws(()=>waybillRequestBasis([],method),{code:'SHIPPING_SOURCE_NOT_ELIGIBLE'});
  assert.throws(()=>waybillRequestBasis([units[0],units[0]],'cod'),{code:'COLLECTION_UNIT_SCOPE_INVALID'});

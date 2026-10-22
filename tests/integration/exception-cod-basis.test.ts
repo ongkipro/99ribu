@@ -10,13 +10,15 @@ const units=[{id:second,unit_price:99000,buyer_shipping:10000},{id:first,unit_pr
 
 test('COD basis freezes each complete original unit price and its allocated buyer shipping',()=>{
  const before=structuredClone(units);
- assert.deepEqual(collectionUnitTotals(units),{unit_ids:[first,second],merchandise_amount:198000,buyer_shipping:20000,amount:218000});
+ assert.deepEqual(collectionUnitTotals(units),{unit_ids:[first,second],merchandise_amount:198000,buyer_shipping:20000,payment_charge:0,amount:218000});
  assert.deepEqual(units,before);
+ // S92: a frozen buyer-paid unit share (COD fee / transfer code) is its own component of the basis.
+ assert.deepEqual(collectionUnitTotals([{...units[1],payment_charge:3697}]),{unit_ids:[first],merchandise_amount:99000,buyer_shipping:10000,payment_charge:3697,amount:112697});
 });
 
 test('one remaining unit has only its own entitlement and no cancelled-unit shipping or price',()=>{
- assert.deepEqual(collectionUnitTotals([units[0]]),{unit_ids:[second],merchandise_amount:99000,buyer_shipping:10000,amount:109000});
- assert.deepEqual(collectionUnitTotals([]),{unit_ids:[],merchandise_amount:0,buyer_shipping:0,amount:0});
+ assert.deepEqual(collectionUnitTotals([units[0]]),{unit_ids:[second],merchandise_amount:99000,buyer_shipping:10000,payment_charge:0,amount:109000});
+ assert.deepEqual(collectionUnitTotals([]),{unit_ids:[],merchandise_amount:0,buyer_shipping:0,payment_charge:0,amount:0});
 });
 
 test('original identities are normalized before duplicate detection and arbitrary prices cannot enter the basis',()=>{

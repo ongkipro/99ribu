@@ -41,7 +41,7 @@ export async function processRecoveryRefundEvent(tx:TransactionSql,job:{id:strin
  if(head.basis_kind==='purchased_units'){
   if(allocations.length!==original.units.length||allocations.some(allocation=>{
    const unit=original.units.find(unit=>unit.fulfillment_item_id===allocation.fulfillment_item_id);
-   return !unit||allocation.receipt_id!==unit.receipt_id||allocation.purchase_event_id!==unit.purchase_event_id||Number(allocation.merchandise_amount)!==unit.merchandise_amount||Number(allocation.buyer_shipping)!==unit.buyer_shipping||Number(allocation.amount)!==unit.amount;
+   return !unit||allocation.receipt_id!==unit.receipt_id||allocation.purchase_event_id!==unit.purchase_event_id||Number(allocation.merchandise_amount)!==unit.merchandise_amount||Number(allocation.buyer_shipping)!==unit.buyer_shipping||Number(allocation.payment_charge)!==unit.payment_charge||Number(allocation.amount)!==unit.amount;
   }))throw new AccessError(409,'RECOVERY_ORIGINAL_ALLOCATION_MISMATCH');
  }else if(allocations.length!==1||allocations[0].exception_unit_id!==null||allocations[0].fulfillment_item_id!==null||allocations[0].receipt_id!==null||allocations[0].purchase_event_id!==null
   ||Number(allocations[0].merchandise_amount)!==0||Number(allocations[0].buyer_shipping)!==0||Number(allocations[0].amount)!==original.amount)throw new AccessError(409,'RECOVERY_ORIGINAL_ALLOCATION_MISMATCH');

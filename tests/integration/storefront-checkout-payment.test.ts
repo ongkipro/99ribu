@@ -54,7 +54,7 @@ test('COD checkout payment exposes original parcel dues without creating a prepa
   const created=await f.order(1,'cod');client=created.client;const {order}=created,path=checkoutOrderPath(order.id);
   const recovered=await recoverCheckoutOrder(client.request(path,{}),f.identity,order.id);
   for(const entry of await checkoutIssuedCookies(f.identity,order.id,recovered.cookies))client.cookies.set(`${entry.name}:${entry.path}`,{name:entry.name,value:entry.value,path:entry.path});
-  for(let i=0;i<2;i++){const view=await readCheckoutPayment(client.request(path),f.identity,order.id);assert.equal(view.kind,'ready');assert.equal(view.order?.payment_status,'cod_due');assert.equal(view.attempt,null);assert.equal(view.order?.shipments.filter(s=>s.kind==='original').reduce((sum,s)=>sum+(s.cod_collect_amount??0),0),order.buyer_total);}
+  for(let i=0;i<2;i++){const view=await readCheckoutPayment(client.request(path),f.identity,order.id);assert.equal(view.kind,'ready');assert.equal(view.order?.payment_status,'cod_due');assert.equal(view.attempt,null);assert.equal(view.order?.shipments.filter(s=>s.kind==='original').reduce((sum,s)=>sum+(s.cod_collect_amount??0),0),order.amount_due);}
   const rejected=await prepareCheckoutPayment(client.request(path,{}),f.identity,{order:order.id,key:randomUUID()});assert.equal(rejected.code,'PAYMENT_NOT_AVAILABLE');
   assert.equal((await f.identity.sql`select count(*)::int n from app.payment_attempt where order_id=${order.id}`)[0].n,0);
   assert.equal((await f.identity.sql`select count(*)::int n from app.commerce_event where order_id=${order.id} and name='Purchase'`)[0].n,0);
