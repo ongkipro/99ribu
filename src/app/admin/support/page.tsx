@@ -36,18 +36,52 @@ export default async function AdminSupportPage() {
 
 	if (!staffUser) {
 		return (
-			<main
-				id="main"
-				className="wrap"
-				style={{ paddingBlock: "40px", maxWidth: "42rem" }}
-			>
-				<h1>Akses Ditolak</h1>
-				<p style={{ marginTop: "12px", lineHeight: 1.7, color: "#5b5b63" }}>
-					Halaman antrean bantuan hanya dapat diakses oleh staf dengan peran{" "}
-					<strong>customer_service</strong> atau <strong>owner</strong> yang
-					memiliki sesi MFA aktif. Peran finance, warehouse, dan ecommerce_admin
-					biasa tidak memiliki akses ke kotak masuk layanan pelanggan.
-				</p>
+			<main className="receipt-shell" id="main">
+				<header className="receipt-header">
+					<p className="checkout-order-reference">
+						<span>Konsol Operasional · 99ribu</span>
+						<span>Layanan Pelanggan (CS)</span>
+					</p>
+					<h1>Antrean Layanan Pelanggan</h1>
+					<p className="receipt-lead">
+						Kotak masuk percakapan pembeli, eskalasi kendala pengiriman, dan
+						tinjauan bukti pengajuan retur.
+					</p>
+				</header>
+				<section className="notice-panel" data-testid="support-access-denied">
+					<div className="receipt-parcel-head">
+						<h2
+							style={{
+								margin: 0,
+								fontSize: "var(--section-size)",
+								lineHeight: "var(--section-leading)",
+							}}
+						>
+							Sesi Operator Diperlukan
+						</h2>
+						<span className="receipt-badge" data-tone="warning">
+							MFA Wajib
+						</span>
+					</div>
+					<p>
+						Halaman antrean bantuan hanya dapat diakses oleh staf dengan peran{" "}
+						<strong>customer_service</strong> atau <strong>owner</strong> yang
+						memiliki sesi MFA aktif. Peran finance, warehouse, dan
+						ecommerce_admin biasa tidak memiliki akses ke kotak masuk layanan
+						pelanggan.
+					</p>
+					<div className="notice-actions">
+						<a className="button" href="/masuk?next=%2Fadmin%2Fsupport">
+							Masuk sebagai staf
+						</a>
+						<a className="button button-secondary" href="/admin">
+							Ke Konsol Operasional
+						</a>
+						<a className="button button-secondary" href="/help">
+							Halaman Bantuan Publik
+						</a>
+					</div>
+				</section>
 			</main>
 		);
 	}

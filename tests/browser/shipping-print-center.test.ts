@@ -11,7 +11,11 @@ import {
 	ingestWaybillEvent,
 	simulateWaybillIssue,
 } from "../../src/modules/fulfillment/local.ts";
-import { fulfillmentFixture } from "../integration/fulfillment-fixture.ts";
+import { actor, enroll } from "../contract/access-fixture.ts";
+import {
+	closeFulfillmentActor,
+	fulfillmentFixture,
+} from "../integration/fulfillment-fixture.ts";
 
 function renderPrintCenterHtml(
 	workspace: Awaited<ReturnType<typeof readPrintCenterWorkspace>>,
@@ -266,6 +270,12 @@ test("S55 browser: admin shipping print center renders thermal/A4 label generati
 	const [parcelA, parcelB] = f.parcels;
 	assert.ok(parcelA && parcelB);
 	let server: Server | null = null;
+	// Parcel work runs as staff of the fixture's own warehouses, so the queue
+	// holds exactly this order's parcels whatever else the database contains.
+	const staff = await actor(identity, "warehouse", [
+		...new Set([String(parcelA.warehouse_id), String(parcelB.warehouse_id)]),
+	]);
+	await enroll(staff.browser, staff.password);
 
 	try {
 		// Issue waybill for parcelA so it is ready to print, while parcelB remains unbooked
@@ -317,6 +327,10 @@ test("S55 browser: admin shipping print center renders thermal/A4 label generati
 					res.end(Buffer.from(await r.arrayBuffer()));
 					return;
 				}
+				if (url.pathname === "/favicon.ico") {
+					res.writeHead(204).end();
+					return;
+				}
 				res.writeHead(404);
 				res.end("Not Found");
 			} catch (err) {
@@ -336,36 +350,40 @@ test("S55 browser: admin shipping print center renders thermal/A4 label generati
 			executablePath: process.env.PLAYWRIGHT_CHROMIUM_EXECUTABLE,
 		});
 		try {
-			const context = await browser.newContext({
-				viewport: { width: 390, height: 844 },
-				reducedMotion: "reduce",
-			});
-			const cookieHeader =
-				f.owner.browser.request("/api/v1/me").headers.get("cookie") ?? "";
-			const parsedCookies = cookieHeader
-				.split(";")
-				.map((part) => part.trim())
-				.filter(Boolean)
-				.map((pair) => {
-					const eq = pair.indexOf("=");
-					return {
-						name: pair.slice(0, eq),
-						value: pair.slice(eq + 1),
-						domain: "127.0.0.1",
-						path: "/",
-					};
-				});
-			await context.addCookies(parsedCookies);
-
-			const page = await context.newPage();
 			const consoleErrors: string[] = [];
 			const pageErrors: string[] = [];
-			page.on("console", (msg) => {
-				if (msg.type() === "error") consoleErrors.push(msg.text());
-			});
-			page.on("pageerror", (err) => {
-				pageErrors.push(String(err));
-			});
+			const openAs = async (user: typeof staff) => {
+				const context = await browser.newContext({
+					viewport: { width: 390, height: 844 },
+					reducedMotion: "reduce",
+				});
+				const cookieHeader =
+					user.browser.request("/api/v1/me").headers.get("cookie") ?? "";
+				await context.addCookies(
+					cookieHeader
+						.split(";")
+						.map((part) => part.trim())
+						.filter(Boolean)
+						.map((pair) => {
+							const eq = pair.indexOf("=");
+							return {
+								name: pair.slice(0, eq),
+								value: pair.slice(eq + 1),
+								domain: "127.0.0.1",
+								path: "/",
+							};
+						}),
+				);
+				const opened = await context.newPage();
+				opened.on("console", (msg) => {
+					if (msg.type() === "error") consoleErrors.push(msg.text());
+				});
+				opened.on("pageerror", (err) => {
+					pageErrors.push(String(err));
+				});
+				return opened;
+			};
+			const page = await openAs(staff);
 
 			await page.goto(`${baseUrl}/admin/print-center`);
 			await expect(page.getByTestId("print-center-heading")).toBeVisible();
@@ -408,23 +426,28 @@ test("S55 browser: admin shipping print center renders thermal/A4 label generati
 				"WAYBILL_REQUIRED",
 			);
 
-			// 4. Template governance: neutral_partner rejected without partner_brand_name & disclosure_text, accepted with both
+			// 4. Template governance (owner-only): neutral_partner rejected without partner_brand_name & disclosure_text, accepted with both
+			const ownerPage = await openAs(f.owner);
+			await ownerPage.goto(`${baseUrl}/admin/print-center`);
+			await expect(ownerPage.getByTestId("print-center-heading")).toBeVisible();
 			const tplName = `mitra-thermal-${randomUUID().slice(0, 6)}`;
-			await page.getByTestId("tpl-name").fill(tplName);
-			await page.getByTestId("tpl-brand-mode").selectOption("neutral_partner");
-			await page.getByTestId("btn-create-template").click();
-			await expect(page.getByTestId("print-status-banner")).toHaveText(
+			await ownerPage.getByTestId("tpl-name").fill(tplName);
+			await ownerPage
+				.getByTestId("tpl-brand-mode")
+				.selectOption("neutral_partner");
+			await ownerPage.getByTestId("btn-create-template").click();
+			await expect(ownerPage.getByTestId("print-status-banner")).toHaveText(
 				"Template ditolak: PARTNER_BRAND_GOVERNANCE_REQUIRED",
 			);
 
-			await page
+			await ownerPage
 				.getByTestId("tpl-partner-name")
 				.fill("Mitra Ekspedisi Nusantara");
-			await page
+			await ownerPage
 				.getByTestId("tpl-disclosure")
 				.fill("Difasilitasi oleh sistem logistik 99ribu");
-			await page.getByTestId("btn-create-template").click();
-			await expect(page.getByTestId("print-status-banner")).toHaveText(
+			await ownerPage.getByTestId("btn-create-template").click();
+			await expect(ownerPage.getByTestId("print-status-banner")).toHaveText(
 				`Template dibuat: ${tplName}`,
 			);
 
@@ -454,6 +477,7 @@ test("S55 browser: admin shipping print center renders thermal/A4 label generati
 		if (server) {
 			await new Promise<void>((resolve) => server?.close(() => resolve()));
 		}
+		await closeFulfillmentActor(identity, staff);
 		await f.close();
 	}
 });

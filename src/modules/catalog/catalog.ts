@@ -7,22 +7,42 @@ import { array, attributes, definitions, id, image, integer, invalid, object, of
 type Definition = ReturnType<typeof offerInput> & { id: string; catalog_id: string; sku: string; retired: boolean };
 type Revision = { id: string; catalog_id: string; slug: string; version: number; name: string; category_id: string;
   description: string; images: ReturnType<typeof image>[]; facts: ReturnType<typeof attributes>; variants: Definition[] };
-type Authority = { owner: boolean; warehouseIds: string[] };
+// owner: Super Admin authority (exception proofs). company: company-wide product
+// scope. financialCodes: may see cost/margin publication blocker codes.
+type Authority = { owner: boolean; company: boolean; financialCodes: boolean; warehouseIds: string[] };
 
-export async function authority(tx: TransactionSql, principal: Principal): Promise<Authority> {
+/**
+ * Current catalog authority, rechecked under the grant-replacement actor lock.
+ * Writes: owner (company) or ecommerce_admin (warehouse-scoped). Reads (`read`)
+ * additionally admit warehouse staff with the same warehouse scope and finance
+ * with an explicit finance.costs.read grant (company scope, matching cost reads).
+ */
+export async function authority(tx: TransactionSql, principal: Principal, read = false): Promise<Authority> {
   // Grant writers lock this same user first, so revocation and catalog mutations serialize.
   await tx`select id from app.auth_user where id=${principal.id} for update`;
-  const [grant] = await tx`select g.roles from app.role_grant g join app.auth_user u on u.id=g.user_id
+  const [grant] = await tx`select g.roles, g.permissions from app.role_grant g join app.auth_user u on u.id=g.user_id
     join app.auth_session s on s.user_id=u.id join app.mfa_session m on m.session_id=s.id
     where u.id=${principal.id} and s.id=${principal.sessionId} and s.expires_at>clock_timestamp()
     and u.two_factor_enabled for share of g,s,m`;
-  if (!grant?.roles.some((r: string) => ["owner", "ecommerce_admin"].includes(r))) throw new AccessError(403, "FORBIDDEN");
+  const roles: string[] = grant?.roles ?? [];
+  const owner = roles.includes("owner");
+  const costReader = read && roles.includes("finance") && (grant?.permissions ?? []).includes("finance.costs.read");
+  const scoped = roles.includes("ecommerce_admin") || (read && roles.includes("warehouse"));
+  if (!owner && !scoped && !costReader) throw new AccessError(403, "FORBIDDEN");
   const rows = await tx`select w.id from app.warehouse_membership m join app.warehouse w on w.id=m.warehouse_id
     where m.user_id=${principal.id} and w.active`;
-  return { owner: grant.roles.includes("owner"), warehouseIds: rows.map((v) => v.id) };
+  return { owner, company: owner || costReader, financialCodes: owner || costReader || roles.includes("ecommerce_admin"),
+    warehouseIds: rows.map((v) => v.id) };
+}
+// Publication blockers that state no cost or margin fact.
+const CATALOG_BLOCKERS = new Set(["MEDIA_REQUIRED", "DESCRIPTION_REQUIRED", "INVALID_OFFER_COUNT", "CATEGORY_REQUIRED", "INVALID_OFFER",
+  "REQUIRED_FACT_MISSING", "FACT_TYPE_INVALID", "COMPLETE_STOCK_REQUIRED", "ACTIVE_WAREHOUSE_REQUIRED"]);
+/** Readers without cost/margin authority see financial blockers as one generic code. */
+export function visibleBlocker(access: Authority, code: string) {
+  return access.financialCodes || CATALOG_BLOCKERS.has(code) ? code : "FINANCIAL_REVIEW_REQUIRED";
 }
 export function assertScope(revision: { variants: readonly { retired?: boolean; default_warehouse_id: string }[] }, access: Authority) {
-  if (!access.owner && revision.variants.some((v) => !v.retired && !access.warehouseIds.includes(v.default_warehouse_id))) throw new AccessError(404, "NOT_FOUND");
+  if (!access.company && revision.variants.some((v) => !v.retired && !access.warehouseIds.includes(v.default_warehouse_id))) throw new AccessError(404, "NOT_FOUND");
 }
 
 // Trusted server consumers use a specific revision, never a mutable current definition.
@@ -180,7 +200,8 @@ export async function readCatalog(identity: LocalAuth, principal: Principal, url
   if (productId && url.search) throw invalid();
   const page = productId ? null : pageInput(url);
   return identity.sql.begin(async (tx) => {
-    const access = await authority(tx, principal);
+    // The physical-SKU dictionary stays with catalog editors; products/categories admit read roles.
+    const access = await authority(tx, principal, Boolean(productId) || !url.pathname.endsWith("/stock-items"));
     if (productId) { const state = await readCatalogRevision(tx, id(productId)); assertScope(state, access); return project(state); }
     if (!page) throw invalid();
     const path = url.pathname;
@@ -190,7 +211,7 @@ export async function readCatalog(identity: LocalAuth, principal: Principal, url
         where (${page.cursor}::uuid is null or id>${page.cursor}::uuid) order by id limit ${page.limit + 1}`
       : await tx`select p.id,p.catalog_id,p.slug,p.revision as version,r.name from app.product p
         join app.product_revision r on r.product_id=p.id and r.revision=p.revision
-        where (${page.cursor}::uuid is null or p.id>${page.cursor}::uuid) and (${access.owner} or not exists (
+        where (${page.cursor}::uuid is null or p.id>${page.cursor}::uuid) and (${access.company} or not exists (
           select 1 from app.offer_revision v where v.product_id=p.id and v.revision=p.revision and not v.retired
           and not exists (select 1 from app.warehouse_membership m join app.warehouse w on w.id=m.warehouse_id
             where m.user_id=${principal.id} and w.active and w.id=v.default_warehouse_id))) order by p.id limit ${page.limit + 1}`;

@@ -7,6 +7,8 @@ import { roles } from "../../src/modules/access/policy.ts";
 import { handleAccess } from "../../src/modules/access/routes.ts";
 import { totp } from "./totp-fixture.ts";
 import { handleCatalog } from "../../src/modules/catalog/routes.ts";
+import { handleFinance } from "../../src/modules/finance/routes.ts";
+import { handleInventory } from "../../src/modules/inventory/routes.ts";
 import { readCatalogRevision } from "../../src/modules/catalog/catalog.ts";
 import { actor, BrowserSession, cleanup, enroll } from "../contract/access-fixture.ts";
 import { type Exchange, validateExchanges } from "../contract/openapi-probe.ts";
@@ -52,7 +54,8 @@ test("catalog cookie/MFA roles, eight wire operations, fixed-price composition a
     for (const role of roles.filter((r) => r !== "owner" && r !== "ecommerce_admin")) {
       const user = await actor(identity, role, []); users.push(user);
       if (!["buyer", "affiliate"].includes(role)) await enroll(user.browser, user.password);
-      await observe(request(user, "GET", "/products"), 403); await observe(request(user, "POST", "/products", {}), 403);
+      // Warehouse staff read their scoped catalog; finance needs finance.costs.read (covered below).
+      await observe(request(user, "GET", "/products"), role === "warehouse" ? 200 : 403); await observe(request(user, "POST", "/products", {}), 403);
     }
     const owner = await actor(identity, "owner", []); users.push(owner);
     await observe(request(owner, "GET", "/products"), 403); await enroll(owner.browser, owner.password);
@@ -198,4 +201,85 @@ test("three-level typed taxonomy rejects a fourth level, duplicate keys and reus
     const page = await send(identity, owner, "GET", "/categories?limit=1", undefined, 200); assert.equal(page.data.length, 1); assert.ok(page.pagination.next_cursor);
     const next = await send(identity, owner, "GET", `/categories?limit=1&cursor=${page.pagination.next_cursor}`, undefined, 200); assert.notEqual(next.data[0].id, page.data[0].id);
   } finally { await cleanup(identity, users); await identity.sql.end(); }
+});
+
+test("catalog read roles: scoped warehouse and finance.costs.read readers, financial blockers redacted, writes stay with catalog editors", async () => {
+  const identity = createLocalAuth("test"); const users: Actor[] = []; const warehouses: string[] = [];
+  const call = async (handler: typeof handleCatalog, user: { browser: BrowserSession }, method: string, path: string, body?: Record<string, unknown>) => {
+    const response = await handler(request(user, method, path, body), identity); return { status: response.status, payload: await response.json() };
+  };
+  try {
+    const wh = await warehouse(identity); const otherWh = await warehouse(identity); warehouses.push(wh, otherWh);
+    const owner = await actor(identity, "owner", []); users.push(owner); await enroll(owner.browser, owner.password);
+    // Cost blocker codes are only evaluated under a current commercial policy (same baseline as catalog-summary).
+    if ((await (await owner.browser.access("/admin/policy-versions?kind=commercial")).json()).latest_version === 0) {
+      const proofReq = owner.browser.request("/api/v1/me/reauthentication-proofs", { password: owner.password, action: "company_policy.version", subject_id: "company-commercial" });
+      proofReq.headers.set("idempotency-key", randomUUID()); const proof = (await (await handleAccess(proofReq, identity)).json()).proof;
+      const req = owner.browser.request("/api/v1/admin/policy-versions", { kind: "commercial", warehouse_id: null, expected_version: 0, effective_at: null,
+        values: { default_commission_bps: 1000, minimum_payout_idr: 99000 }, reason: "Synthetic read-role baseline", reauthentication_proof: proof });
+      req.headers.set("idempotency-key", randomUUID()); assert.equal((await handleAccess(req, identity)).status, 201);
+    }
+    const fixture = await catalog(identity, owner, wh);
+    fixture.body.name = `Synthetic read role ${randomUUID().slice(0, 8)}`;
+    const q = `q=${encodeURIComponent(fixture.body.name)}&limit=100`;
+    const inside = await send(identity, owner, "POST", "/products", fixture.body);
+    const outside = await send(identity, owner, "POST", "/products", { ...fixture.body, variants: [definition(otherWh, fixture.stock)] });
+    for (const target of [wh, otherWh]) {
+      const receive = owner.browser.request("/api/v1/admin/inventory/movements", { warehouse_id: target, stock_item_id: fixture.stock.id, kind: "receive", quantity: 1, expected_version: 0, reason: "Synthetic read-role stock" });
+      receive.headers.set("idempotency-key", randomUUID()); assert.equal((await handleInventory(receive, identity)).status, 201);
+    }
+    const staff = async (role: "warehouse" | "finance" | "customer_service", scope: string[], permissions: string[] = []) => {
+      const user = await actor(identity, role, scope); users.push(user); await enroll(user.browser, user.password);
+      await identity.sql`update app.role_grant set permissions=${permissions} where user_id=${user.id}`; return user;
+    };
+    const keeper = await staff("warehouse", [wh]);
+    const costReader = await staff("finance", [], ["finance.costs.read"]);
+    const financeOnly = await staff("finance", [], ["finance.summary.read"]);
+    const service = await staff("customer_service", [wh]);
+    const ids = (page: { data: { id: string }[] }) => page.data.map((v) => v.id);
+    const writes: [string, string, Record<string, unknown>][] = [["POST", "/categories", {}], ["POST", "/stock-items", {}], ["POST", "/products", {}],
+      ["PATCH", `/products/${inside.id}`, {}], ["POST", `/products/${inside.id}/publications`, {}], ["POST", `/products/${inside.id}/publication-retractions`, {}]];
+
+    // Warehouse staff: their warehouse only, no SKU dictionary, financial blockers collapsed to one code.
+    assert.equal((await call(handleCatalog, keeper, "GET", "/categories")).status, 200);
+    assert.equal((await call(handleCatalog, keeper, "GET", "/stock-items")).status, 403);
+    const keeperList = await call(handleCatalog, keeper, "GET", `/products?${q}`); assert.equal(keeperList.status, 200);
+    assert.deepEqual(ids(keeperList.payload), [inside.id]);
+    const keeperRow = keeperList.payload.data[0];
+    assert.ok(keeperRow.blocker_codes.includes("FINANCIAL_REVIEW_REQUIRED"));
+    assert.ok(!keeperRow.blocker_codes.some((code: string) => code.startsWith("UNKNOWN_") || code === "BELOW_MARGIN_FLOOR"));
+    assert.equal((await call(handleCatalog, keeper, "GET", `/products/${inside.id}`)).status, 200);
+    assert.equal((await call(handleCatalog, keeper, "GET", `/products/${outside.id}`)).status, 404);
+    const keeperState = await call(handleCatalog, keeper, "GET", `/products/${inside.id}/publications`); assert.equal(keeperState.status, 200);
+    assert.ok(keeperState.payload.blockers.every((b: { code: string }) => !b.code.startsWith("UNKNOWN_")));
+    assert.ok(keeperState.payload.blockers.some((b: { code: string }) => b.code === "FINANCIAL_REVIEW_REQUIRED"));
+    assert.equal((await call(handleCatalog, keeper, "GET", `/products/${outside.id}/publications`)).status, 404);
+    const balances = await call(handleInventory, keeper, "GET", `/inventory?stock_item_id=${fixture.stock.id}`); assert.equal(balances.status, 200);
+    assert.deepEqual([...new Set(balances.payload.data.map((v: { warehouse_id: string }) => v.warehouse_id))], [wh]);
+    assert.equal((await call(handleFinance, keeper, "GET", `/products/${inside.id}/contribution-reviews`)).status, 403);
+
+    // Finance with finance.costs.read: company catalog and cost codes, no stock balances.
+    assert.equal((await call(handleCatalog, costReader, "GET", "/categories")).status, 200);
+    assert.equal((await call(handleCatalog, costReader, "GET", "/stock-items")).status, 403);
+    const financeList = await call(handleCatalog, costReader, "GET", `/products?${q}`); assert.equal(financeList.status, 200);
+    assert.deepEqual(ids(financeList.payload).sort(), [inside.id, outside.id].sort());
+    assert.ok(financeList.payload.data.every((v: { blocker_codes: string[] }) => v.blocker_codes.includes("UNKNOWN_HPP")));
+    assert.equal((await call(handleCatalog, costReader, "GET", `/products/${outside.id}`)).status, 200);
+    const financeState = await call(handleCatalog, costReader, "GET", `/products/${outside.id}/publications`); assert.equal(financeState.status, 200);
+    assert.ok(financeState.payload.blockers.some((b: { code: string }) => b.code === "UNKNOWN_HPP"));
+    assert.equal((await call(handleInventory, costReader, "GET", `/inventory?stock_item_id=${fixture.stock.id}`)).status, 403);
+    assert.equal((await call(handleFinance, costReader, "GET", `/products/${inside.id}/contribution-reviews`)).status, 200);
+
+    // Finance without the cost grant and customer service: no private catalog surface at all.
+    for (const user of [financeOnly, service])
+      for (const path of ["/categories", "/stock-items", "/products", `/products/${inside.id}`, `/products/${inside.id}/publications`])
+        assert.equal((await call(handleCatalog, user, "GET", path)).status, 403, path);
+    // Mutations remain owner/ecommerce_admin only, refused before any body validation.
+    for (const user of [keeper, costReader, financeOnly, service])
+      for (const [method, path, body] of writes) assert.equal((await call(handleCatalog, user, method, path, body)).status, 403, `${method} ${path}`);
+
+    // Revoking the cost grant takes effect on the next read.
+    await identity.sql`update app.role_grant set permissions='{}' where user_id=${costReader.id}`;
+    assert.equal((await call(handleCatalog, costReader, "GET", "/products")).status, 403);
+  } finally { await cleanup(identity, users); for (const wh of warehouses) await identity.sql`update app.warehouse set active=false where id=${wh}`; await identity.sql.end(); }
 });

@@ -215,9 +215,78 @@ test("T-34: role-scoped dashboards, unknown vs zero cost metrics, drilldown cons
 		for (const row of drilldownQueue.data) {
 			assert.deepEqual(
 				Object.keys(row).sort(),
-				["due_at", "id", "resource_kind", "state", "version", "warehouse_id"],
+				[
+					"due_at",
+					"due_at_kind",
+					"id",
+					"reference",
+					"resource_kind",
+					"state",
+					"version",
+					"warehouse_id",
+				],
 				"Work queue rows must never leak customer contacts or whole-order money",
 			);
+		}
+		// Rows carry the order number operators see elsewhere, and say which time due_at holds.
+		const orderFacts = await f.identity.sql<
+			{
+				id: string;
+				number: string;
+				expires_at: string | null;
+				created_at: string;
+			}[]
+		>`select id, number, expires_at, created_at from app.commerce_order where id in ${f.identity.sql(drilldownQueue.data.map((r: { id: string }) => r.id))}`;
+		assert.equal(orderFacts.length, drilldownQueue.data.length);
+		for (const row of drilldownQueue.data) {
+			const fact = orderFacts.find((o) => o.id === row.id);
+			assert.ok(fact);
+			assert.equal(row.reference, fact.number);
+			assert.equal(
+				row.due_at_kind,
+				fact.expires_at ? "payment_deadline" : "created",
+			);
+			assert.equal(
+				row.due_at,
+				new Date(fact.expires_at ?? fact.created_at).toISOString(),
+			);
+		}
+
+		// Fulfillment rows: waybill (else order number) and the deadline source behind due_at.
+		const fulfillmentRes = await handleReporting(
+			warehouseStaff.browser.request(
+				"/api/v1/admin/work-queues?workspace=warehouse&queue=fulfillments&limit=100",
+			),
+			f.identity,
+		);
+		assert.equal(fulfillmentRes.status, 200);
+		const fulfillmentRows = (await fulfillmentRes.json()).data as {
+			id: string;
+			due_at: string | null;
+			due_at_kind: string | null;
+			reference: string | null;
+		}[];
+		if (fulfillmentRows.length) {
+			const facts = await f.identity.sql<
+				{
+					id: string;
+					reference: string;
+					kind: string;
+					due_at: string;
+				}[]
+			>`select f.id, coalesce(f.tracking_number, o.number) as reference,
+				case when d.packing_due_at is not null then 'packing_deadline' when d.handover_due_at is not null then 'handover_deadline' else 'created' end as kind,
+				coalesce(d.packing_due_at, d.handover_due_at, f.created_at) as due_at
+				from app.fulfillment f join app.order_shipment s on s.id = f.shipment_id join app.commerce_order o on o.id = s.order_id
+				left join app.fulfillment_deadline d on d.id = f.deadline_id
+				where f.id in ${f.identity.sql(fulfillmentRows.map((r) => r.id))}`;
+			for (const row of fulfillmentRows) {
+				const fact = facts.find((x) => x.id === row.id);
+				assert.ok(fact);
+				assert.equal(row.reference, fact.reference);
+				assert.equal(row.due_at_kind, fact.kind);
+				assert.equal(row.due_at, new Date(fact.due_at).toISOString());
+			}
 		}
 
 		// Using the orders drilldown token against a different queue (returns) -> 409

@@ -844,10 +844,30 @@ test("S65, S66 & S67 browser: assembled localhost multi-role journey, responsive
 						const adBody = await adRes.json();
 						adDestinations = adBody.data ?? [];
 					}
-					const printWorkspace = await readPrintCenterWorkspace(
-						webReq,
-						identity,
-					);
+					const workspace = await readPrintCenterWorkspace(webReq, identity);
+					// The owner's first queue page is ordered by action across the whole
+					// shared database, so this journey lists its own parcel's artifacts,
+					// each read through the authorized metadata API (newest first).
+					let printWorkspace = workspace;
+					if (roleMode === "owner" && workspace.authorized) {
+						const ownArtifacts = [];
+						for (const row of await sql<{ id: string }[]>`
+							select id from app.shipping_label_artifact
+							where shipment_id = ${parcelA.shipment_id}
+							order by created_at desc, id desc
+						`) {
+							const metaRes = await handleShippingLabels(
+								new Request(
+									`http://127.0.0.1:3099/api/v1/admin/label-artifacts/${row.id}`,
+									{ method: "GET", headers },
+								),
+								identity,
+							);
+							assert.equal(metaRes.status, 200);
+							ownArtifacts.push(await metaRes.json());
+						}
+						printWorkspace = { ...workspace, artifacts: ownArtifacts };
+					}
 					const html = renderStaffReadinessHtml({
 						roleLabel:
 							roleMode === "owner" ? "Owner" : "Warehouse Gudang Malang",
@@ -886,6 +906,10 @@ test("S65, S66 & S67 browser: assembled localhost multi-role journey, responsive
 					return;
 				}
 
+				if (url.pathname === "/favicon.ico") {
+					res.writeHead(204).end();
+					return;
+				}
 				res.writeHead(404).end("Not found");
 			} catch (err) {
 				res.writeHead(500).end(String(err));

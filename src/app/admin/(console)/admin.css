@@ -1,0 +1,148 @@
+/*
+ * Admin-console-only Tailwind v4 + shadcn/ui stylesheet (DEC-004).
+ * Imported solely by src/app/admin/(console)/layout.tsx, so it never enters
+ * a storefront document. Every exit from the console to a non-console route
+ * uses a full document navigation (<a>, not next/link) for the same reason.
+ */
+@import "tailwindcss" source(none);
+@import "tw-animate-css";
+@import "shadcn/tailwind.css";
+
+/* Generate utilities only from console code, not the storefront. */
+@source "./";
+@source "../../../components/admin";
+@source "../../../components/ui";
+
+/* Light-only admin (spec 10): `dark:` must never follow the OS preference. */
+@custom-variant dark (&:is(.dark *));
+
+/* Brand tokens from globals.css (#5b35d5 purple, #18181b ink, #d8d8df line). */
+:root {
+	--radius: 0.5rem;
+	--background: oklch(0.991 0.001 286.4);
+	--foreground: oklch(0.21 0.006 285.9);
+	--card: oklch(1 0 0);
+	--card-foreground: oklch(0.21 0.006 285.9);
+	--popover: oklch(1 0 0);
+	--popover-foreground: oklch(0.21 0.006 285.9);
+	--primary: oklch(0.483 0.226 285);
+	--primary-foreground: oklch(1 0 0);
+	--secondary: oklch(0.963 0.02 298.2);
+	--secondary-foreground: oklch(0.483 0.226 285);
+	--muted: oklch(0.968 0.003 286.4);
+	--muted-foreground: oklch(0.474 0.013 285.9);
+	--accent: oklch(0.963 0.02 298.2);
+	--accent-foreground: oklch(0.483 0.226 285);
+	--destructive: oklch(0.425 0.14 28.4);
+	--destructive-surface: oklch(0.975 0.012 29.9);
+	--warning: oklch(0.488 0.137 43.9);
+	--warning-surface: oklch(0.976 0.015 61.3);
+	--success: oklch(0.448 0.108 151.3);
+	--success-surface: oklch(0.982 0.018 155.8);
+	--border: oklch(0.884 0.01 286.2);
+	/* Form-control border keeps the 3:1 non-text contrast of the old #85858e. */
+	--input: oklch(0.62 0.013 286);
+	--ring: oklch(0.483 0.226 285);
+	--sidebar: oklch(0.973 0.003 264.5);
+	--sidebar-foreground: oklch(0.21 0.006 285.9);
+	--sidebar-primary: oklch(0.483 0.226 285);
+	--sidebar-primary-foreground: oklch(1 0 0);
+	--sidebar-accent: oklch(0.963 0.02 298.2);
+	--sidebar-accent-foreground: oklch(0.483 0.226 285);
+	--sidebar-border: oklch(0.884 0.01 286.2);
+	--sidebar-ring: oklch(0.483 0.226 285);
+}
+
+@theme inline {
+	--font-sans: Inter, system-ui, sans-serif;
+	--color-background: var(--background);
+	--color-foreground: var(--foreground);
+	--color-card: var(--card);
+	--color-card-foreground: var(--card-foreground);
+	--color-popover: var(--popover);
+	--color-popover-foreground: var(--popover-foreground);
+	--color-primary: var(--primary);
+	--color-primary-foreground: var(--primary-foreground);
+	--color-secondary: var(--secondary);
+	--color-secondary-foreground: var(--secondary-foreground);
+	--color-muted: var(--muted);
+	--color-muted-foreground: var(--muted-foreground);
+	--color-accent: var(--accent);
+	--color-accent-foreground: var(--accent-foreground);
+	--color-destructive: var(--destructive);
+	--color-destructive-surface: var(--destructive-surface);
+	--color-warning: var(--warning);
+	--color-warning-surface: var(--warning-surface);
+	--color-success: var(--success);
+	--color-success-surface: var(--success-surface);
+	--color-border: var(--border);
+	--color-input: var(--input);
+	--color-ring: var(--ring);
+	--color-sidebar: var(--sidebar);
+	--color-sidebar-foreground: var(--sidebar-foreground);
+	--color-sidebar-primary: var(--sidebar-primary);
+	--color-sidebar-primary-foreground: var(--sidebar-primary-foreground);
+	--color-sidebar-accent: var(--sidebar-accent);
+	--color-sidebar-accent-foreground: var(--sidebar-accent-foreground);
+	--color-sidebar-border: var(--sidebar-border);
+	--color-sidebar-ring: var(--sidebar-ring);
+	--radius-sm: calc(var(--radius) - 4px);
+	--radius-md: calc(var(--radius) - 2px);
+	--radius-lg: var(--radius);
+	--radius-xl: calc(var(--radius) + 4px);
+}
+
+@layer base {
+	* {
+		@apply border-border outline-ring/50;
+	}
+	body {
+		@apply bg-background text-foreground;
+	}
+}
+
+/*
+ * globals.css is unlayered, so its element rules (h1-h3 sizes, `a` color and
+ * decoration, 3px focus outline) beat every Tailwind layer. This file only
+ * loads in console documents, so roll those properties back to the layered
+ * (Tailwind) values for the whole body, including portalled dialogs/sheets.
+ */
+body :is(h1, h2, h3) {
+	font-size: revert-layer;
+	line-height: revert-layer;
+	font-weight: revert-layer;
+	font-variant-ligatures: revert-layer;
+}
+body a,
+body a:hover {
+	color: revert-layer;
+	text-decoration: revert-layer;
+}
+body :is(button, a, input, select, textarea, summary):focus-visible {
+	outline: revert-layer;
+	outline-offset: revert-layer;
+}
+
+/* Spec 10: 44px touch-target goal for operator controls on coarse pointers. */
+@media (pointer: coarse) {
+	body
+		:is(
+			[data-slot="button"],
+			[data-slot="input"],
+			[data-slot="sidebar-menu-button"],
+			[data-slot="sidebar-trigger"],
+			[data-slot="dialog-close"],
+			select
+		) {
+		min-height: 44px;
+		min-width: 44px;
+	}
+	/*
+	 * Widen the collapsed icon rail so 44px menu buttons plus the group's 8px
+	 * side padding still fit (44 + 16 = 60px). Set on the sidebar itself so it
+	 * overrides the value inherited from SidebarProvider's inline style.
+	 */
+	body [data-slot="sidebar"] {
+		--sidebar-width-icon: 3.75rem;
+	}
+}

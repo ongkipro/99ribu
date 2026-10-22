@@ -319,11 +319,22 @@ export interface QueueRowInternal {
 		| "reconciliation";
 	state: string;
 	due_at: string | null;
+	/** What `due_at` holds for this row, so the console can label it exactly. */
+	due_at_kind: DueAtKind | null;
 	warehouse_id: string | null;
 	version: number;
 	amount_idr: number | null;
-	reference: string;
+	/** Human reference: order number, waybill, SKU or settlement reference; null when the row has none. */
+	reference: string | null;
 }
+
+export type DueAtKind =
+	| "payment_deadline"
+	| "packing_deadline"
+	| "handover_deadline"
+	| "created"
+	| "occurred"
+	| "updated";
 
 async function queryQueueRows(
 	identity: LocalAuth,
@@ -379,6 +390,9 @@ async function queryQueueRows(
 				due_at: r.expires_at
 					? new Date(r.expires_at).toISOString()
 					: new Date(r.created_at).toISOString(),
+				due_at_kind: r.expires_at
+					? ("payment_deadline" as const)
+					: ("created" as const),
 				warehouse_id: r.warehouse_id ? String(r.warehouse_id) : null,
 				version: Number(r.revision ?? 1),
 				amount_idr: Number(r.buyer_total ?? 0),
@@ -395,8 +409,10 @@ async function queryQueueRows(
 				revision: number;
 				warehouse_id: string;
 				due_at: string | null;
+				due_at_kind: "packing_deadline" | "handover_deadline" | "created";
 				created_at: string;
 				tracking_number: string | null;
+				order_number: string;
 			}[]
 		>`
       select f.id,
@@ -404,10 +420,15 @@ async function queryQueueRows(
              f.revision,
              s.warehouse_id::text as warehouse_id,
              coalesce(d.packing_due_at, d.handover_due_at, f.created_at) as due_at,
+             case when d.packing_due_at is not null then 'packing_deadline'
+                  when d.handover_due_at is not null then 'handover_deadline'
+                  else 'created' end as due_at_kind,
              f.created_at,
-             f.tracking_number
+             f.tracking_number,
+             o.number as order_number
       from app.fulfillment f
       join app.order_shipment s on s.id = f.shipment_id
+      join app.commerce_order o on o.id = s.order_id
       left join app.fulfillment_deadline d on d.id = f.deadline_id
       where s.warehouse_id::text in ${sql(warehouseIds)}
         and f.created_at >= ${from}::timestamptz
@@ -421,10 +442,11 @@ async function queryQueueRows(
 				resource_kind: "fulfillment" as const,
 				state: String(r.status),
 				due_at: r.due_at ? new Date(r.due_at).toISOString() : null,
+				due_at_kind: r.due_at_kind,
 				warehouse_id: String(r.warehouse_id),
 				version: Number(r.revision ?? 1),
 				amount_idr: null,
-				reference: r.tracking_number ? String(r.tracking_number) : String(r.id),
+				reference: String(r.tracking_number ?? r.order_number),
 			}));
 	}
 
@@ -437,6 +459,7 @@ async function queryQueueRows(
 				kind: string;
 				occurred_at: string;
 				warehouse_id: string | null;
+				order_number: string | null;
 			}[]
 		>`
       select e.id,
@@ -444,6 +467,7 @@ async function queryQueueRows(
              e.revision,
              e.kind,
              e.occurred_at,
+             (select o.number from app.commerce_order o where o.id = e.order_id) as order_number,
              (
                select s.warehouse_id::text
                from app.order_shipment s
@@ -472,10 +496,11 @@ async function queryQueueRows(
 				resource_kind: "shipment" as const,
 				state: String(r.status),
 				due_at: new Date(r.occurred_at).toISOString(),
+				due_at_kind: "occurred" as const,
 				warehouse_id: r.warehouse_id ? String(r.warehouse_id) : null,
 				version: Number(r.revision ?? 1),
 				amount_idr: null,
-				reference: String(r.kind),
+				reference: r.order_number ? String(r.order_number) : null,
 			}));
 	}
 
@@ -488,12 +513,14 @@ async function queryQueueRows(
 				created_at: string;
 				warehouse_id: string | null;
 				merchandise_amount: string;
+				order_number: string | null;
 			}[]
 		>`
       select rc.id,
              rc.status,
              rc.revision,
              rc.created_at,
+             (select o.number from app.commerce_order o where o.id = rc.order_id) as order_number,
              (
                select s.warehouse_id::text
                from app.order_shipment s
@@ -523,10 +550,11 @@ async function queryQueueRows(
 				resource_kind: "return" as const,
 				state: String(r.status),
 				due_at: new Date(r.created_at).toISOString(),
+				due_at_kind: "created" as const,
 				warehouse_id: r.warehouse_id ? String(r.warehouse_id) : null,
 				version: Number(r.revision ?? 1),
 				amount_idr: Number(r.merchandise_amount ?? 0),
-				reference: String(r.status),
+				reference: r.order_number ? String(r.order_number) : null,
 			}));
 	}
 
@@ -569,6 +597,7 @@ async function queryQueueRows(
 					resource_kind: "stock_item" as const,
 					state,
 					due_at: null,
+					due_at_kind: null,
 					warehouse_id: String(r.warehouse_id),
 					version: Number(r.revision ?? 1),
 					amount_idr: null,
@@ -588,7 +617,7 @@ async function queryQueueRows(
 				assigned_user_id: string | null;
 				revision: number;
 				updated_at: string;
-				priority: string;
+				order_number: string | null;
 			}[]
 		>`
       select c.id,
@@ -596,7 +625,7 @@ async function queryQueueRows(
              c.assigned_user_id,
              c.revision,
              c.updated_at,
-             c.priority
+             (select o.number from app.commerce_order o where o.id = c.primary_order_id) as order_number
       from app.support_conversation c
       where c.created_at >= ${from}::timestamptz
         and c.created_at <= ${to}::timestamptz
@@ -609,10 +638,11 @@ async function queryQueueRows(
 				resource_kind: "conversation" as const,
 				state: r.assigned_user_id ? String(r.status) : "unassigned",
 				due_at: new Date(r.updated_at).toISOString(),
+				due_at_kind: "updated" as const,
 				warehouse_id: null,
 				version: Number(r.revision ?? 1),
 				amount_idr: null,
-				reference: String(r.priority),
+				reference: r.order_number ? String(r.order_number) : null,
 			}));
 	}
 
@@ -646,6 +676,7 @@ async function queryQueueRows(
 				resource_kind: "reconciliation" as const,
 				state: String(r.status),
 				due_at: new Date(r.created_at).toISOString(),
+				due_at_kind: "created" as const,
 				warehouse_id: null,
 				version: Number(r.revision ?? 1),
 				amount_idr: Number(r.net_amount ?? 0),
@@ -1203,8 +1234,10 @@ export async function listWorkQueue(request: Request, identity: LocalAuth) {
 			resource_kind: row.resource_kind,
 			state: row.state,
 			due_at: row.due_at,
+			due_at_kind: row.due_at_kind,
 			warehouse_id: row.warehouse_id,
 			version: row.version,
+			reference: row.reference,
 		})),
 		pagination: {
 			next_cursor: nextCursor,
@@ -1711,7 +1744,7 @@ export async function exportCsv(
 			sanitizeCsvCell(row.warehouse_id ?? ""),
 			sanitizeCsvCell(row.due_at ?? ""),
 			sanitizeCsvCell(row.version),
-			sanitizeCsvCell(row.reference),
+			sanitizeCsvCell(row.reference ?? ""),
 		];
 		if (includeMoney) {
 			cells.push(sanitizeCsvCell(row.amount_idr ?? 0));

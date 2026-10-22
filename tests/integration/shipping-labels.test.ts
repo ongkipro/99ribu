@@ -642,3 +642,158 @@ test("S54 integration: shipping label templates, thermal & A4 PDF generation, pr
 		await f.close();
 	}
 });
+
+test("Print-center queue: needs-label parcels first, then labelled not handed over, keyset pages without gaps, warehouse-scoped", async () => {
+	const f = await fulfillmentFixture("cod");
+	const sql = f.identity.sql;
+	const [parcelA, parcelB] = f.parcels;
+	assert.ok(parcelA && parcelB);
+	const both = await actor(f.identity, "warehouse", [
+		...new Set([String(parcelA.warehouse_id), String(parcelB.warehouse_id)]),
+	]);
+	await enroll(both.browser, both.password);
+	const onlyA = await actor(f.identity, "warehouse", [
+		String(parcelA.warehouse_id),
+	]);
+	await enroll(onlyA.browser, onlyA.password);
+	const finance = await actor(f.identity, "finance", []);
+	await enroll(finance.browser, finance.password);
+	type Row = {
+		shipment_id: string;
+		warehouse_id: string;
+		due_at: string | null;
+	};
+	type Page = {
+		data: Row[];
+		artifacts: { shipment_id: string; status: string }[];
+		pagination: { next_cursor: string | null };
+	};
+	const get = async (user: typeof both, query: string) => {
+		const res = await handleShippingLabels(
+			user.browser.request(`/api/v1/admin/label-queue${query}`),
+			f.identity,
+		);
+		return { status: res.status, payload: await res.json() };
+	};
+	// Walks every page one row at a time; a gap or repeat would break the order assertions.
+	const walk = async (user: typeof both) => {
+		const rows: Row[] = [];
+		const artifacts: Page["artifacts"] = [];
+		let cursor: string | null = null;
+		for (let i = 0; i < 50; i++) {
+			const page: { status: number; payload: Page } = await get(
+				user,
+				`?limit=1${cursor ? `&cursor=${encodeURIComponent(cursor)}` : ""}`,
+			);
+			assert.equal(page.status, 200);
+			assert.ok(page.payload.data.length <= 1);
+			rows.push(...page.payload.data);
+			artifacts.push(...page.payload.artifacts);
+			cursor = page.payload.pagination.next_cursor;
+			if (!cursor) return { rows, artifacts };
+		}
+		assert.fail("print queue did not terminate");
+	};
+	try {
+		const ids = [parcelA.shipment_id, parcelB.shipment_id].map(String);
+		const deadlines = await sql<{ id: string; due: string | null }[]>`
+			select s.id, coalesce(d.packing_due_at, d.handover_due_at) as due
+			from app.order_shipment s left join app.fulfillment fl on fl.shipment_id = s.id
+			left join app.fulfillment_deadline d on d.id = fl.deadline_id
+			where s.id in ${sql(ids)}`;
+		const key = (id: string) => {
+			const due = deadlines.find((d) => d.id === id)?.due;
+			return [due ? new Date(due).getTime() : Number.POSITIVE_INFINITY, id] as const;
+		};
+		const expectedInitial = [...ids].sort((x, y) => {
+			const [dx, ix] = key(x);
+			const [dy, iy] = key(y);
+			return dx - dy || (ix < iy ? -1 : 1);
+		});
+
+		// Neither parcel has a label: both rank first, ordered by packing deadline then id.
+		let walked = await walk(both);
+		assert.equal(
+			new Set(walked.rows.map((r) => r.shipment_id)).size,
+			walked.rows.length,
+		);
+		assert.deepEqual(
+			walked.rows.map((r) => r.shipment_id).filter((id) => ids.includes(id)),
+			expectedInitial,
+		);
+		for (const r of walked.rows)
+			assert.ok(
+				[parcelA, parcelB].some(
+					(p) => String(p.warehouse_id) === r.warehouse_id,
+				),
+			);
+
+		// A valid label moves parcelA behind every parcel that still needs one.
+		const booking = await f.book(parcelA);
+		await f.run(booking.creation_job_id);
+		for (const callback of await sql`
+			select callback_job_id from app.waybill_provider_event where booking_id = ${booking.id}
+		`)
+			await f.run(callback.callback_job_id);
+		await f.run(
+			await ingestWaybillEvent(
+				sql,
+				await simulateWaybillIssue(sql, "test", booking.id),
+			),
+		);
+		const job = await handleShippingLabels(
+			(() => {
+				const req = both.browser.request(
+					`/api/v1/admin/shipments/${parcelA.shipment_id}/label-jobs`,
+					{ format: "thermal_100x150" },
+				);
+				req.headers.set("idempotency-key", randomUUID());
+				return req;
+			})(),
+			f.identity,
+		);
+		assert.equal(job.status, 202);
+		walked = await walk(both);
+		const order = walked.rows.map((r) => r.shipment_id);
+		assert.ok(
+			order.indexOf(String(parcelB.shipment_id)) <
+				order.indexOf(String(parcelA.shipment_id)),
+		);
+		assert.ok(
+			walked.artifacts.some(
+				(a) =>
+					a.shipment_id === String(parcelA.shipment_id) && a.status === "valid",
+			),
+			"page carries the label artifact of its parcel",
+		);
+
+		// Scope: an operator of parcelA's warehouse never sees the other warehouse's parcel.
+		if (String(parcelA.warehouse_id) !== String(parcelB.warehouse_id)) {
+			const scoped = await walk(onlyA);
+			assert.ok(
+				scoped.rows.every(
+					(r) => r.warehouse_id === String(parcelA.warehouse_id),
+				),
+			);
+			assert.ok(
+				!scoped.rows.some((r) => r.shipment_id === String(parcelB.shipment_id)),
+			);
+		}
+
+		// Role and input boundaries.
+		assert.equal((await get(finance, "")).status, 403);
+		for (const bad of [
+			"?cursor=abc",
+			`?cursor=3.-.${parcelA.shipment_id}`,
+			"?limit=0",
+			"?limit=101",
+			"?limit=1&limit=2",
+			"?sort=due_at",
+		])
+			assert.equal((await get(both, bad)).status, 400, bad);
+	} finally {
+		for (const user of [both, onlyA, finance])
+			await closeFulfillmentActor(f.identity, user);
+		await f.close();
+	}
+});

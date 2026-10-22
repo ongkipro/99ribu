@@ -1,0 +1,1905 @@
+"use client";
+
+import { cn } from "cn";
+import {
+	CircleAlert,
+	CircleCheck,
+	Clock,
+	Download,
+	Info,
+	type LucideIcon,
+	Printer,
+	RefreshCw,
+	X,
+} from "lucide-react";
+import Link from "next/link";
+import { useCallback, useEffect, useRef, useState } from "react";
+import { Alert, AlertDescription } from "@/components/ui/alert";
+import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
+import {
+	Dialog,
+	DialogContent,
+	DialogDescription,
+	DialogFooter,
+	DialogHeader,
+	DialogTitle,
+} from "@/components/ui/dialog";
+import { Skeleton } from "@/components/ui/skeleton";
+import {
+	Table,
+	TableBody,
+	TableCell,
+	TableHead,
+	TableHeader,
+	TableRow,
+} from "@/components/ui/table";
+import { Textarea } from "@/components/ui/textarea";
+import {
+	type AdDestinationItem,
+	AdDestinationsPanel,
+} from "./ad-destinations-panel";
+import { describeFailure, failureText, readFailure } from "./admin-errors";
+
+export type CanonicalWorkspace =
+	| "owner"
+	| "ecommerce_admin"
+	| "warehouse"
+	| "customer_service"
+	| "finance";
+type QueueKey =
+	| "orders"
+	| "fulfillments"
+	| "delivery_exceptions"
+	| "returns"
+	| "inventory"
+	| "support"
+	| "reconciliation";
+
+interface DashboardMetric {
+	key: string;
+	count: number | null;
+	basis: "snapshot" | "event_period";
+	complete: boolean;
+	queue_key: QueueKey;
+	kind: "count" | "money";
+	amount: number | null;
+	currency: "IDR" | null;
+	financial_basis:
+		| "actual"
+		| "estimated"
+		| "mixed"
+		| "unknown"
+		| "not_applicable";
+	definition: string;
+	as_of: string;
+	queue_filter_token: string;
+	filter_version: number;
+	filter_expires_at: string;
+}
+
+interface DashboardSnapshot {
+	workspace: CanonicalWorkspace;
+	warehouse_ids: string[];
+	from: string;
+	to: string;
+	timezone: string;
+	as_of: string;
+	metrics: DashboardMetric[];
+}
+
+interface WorkQueueItem {
+	id: string;
+	resource_kind: string;
+	state: string;
+	due_at: string | null;
+	due_at_kind: DueAtKind | null;
+	warehouse_id: string | null;
+	version: number;
+	reference: string | null;
+}
+
+type DueAtKind =
+	| "payment_deadline"
+	| "packing_deadline"
+	| "handover_deadline"
+	| "created"
+	| "occurred"
+	| "updated";
+
+const WORKSPACE_LABELS: Record<
+	CanonicalWorkspace,
+	{ title: string; subtitle: string }
+> = {
+	owner: {
+		title: "Ruang Kerja Super Admin",
+		subtitle:
+			"Antrean lintas fungsi, posisi keuangan, dan diagnostik sinyal iklan.",
+	},
+	ecommerce_admin: {
+		title: "Ruang Kerja Admin E-Commerce",
+		subtitle: "Pesanan, pemenuhan gudang, kendala pengiriman, retur, dan stok.",
+	},
+	warehouse: {
+		title: "Ruang Kerja Gudang",
+		subtitle:
+			"Paket di gudang Anda: kemas, cetak label, serah terima kurir, retur, dan stok.",
+	},
+	customer_service: {
+		title: "Ruang Kerja Layanan Pelanggan",
+		subtitle: "Percakapan pembeli, kendala pengiriman, dan pengajuan retur.",
+	},
+	finance: {
+		title: "Ruang Kerja Keuangan",
+		subtitle:
+			"Rekonsiliasi pembayaran dan COD, pengembalian dana, dan komisi afiliasi.",
+	},
+};
+
+// Counts are every row of the metric's queue in the period and scope
+// (the API does not exclude finished rows), so labels say exactly that.
+const METRIC_LABELS: Record<string, string> = {
+	orders_pending: "Pesanan",
+	fulfillments_due: "Pemenuhan gudang",
+	delivery_exceptions: "Kendala pengiriman",
+	returns_pending: "Retur",
+	stock_alerts: "Peringatan stok",
+	support_unassigned: "Percakapan",
+	finance_unmatched: "Mutasi penyelesaian",
+	cod_receivable: "Piutang COD",
+	refund_liability: "Kewajiban pengembalian dana",
+	affiliate_liability: "Kewajiban komisi afiliasi",
+	estimated_contribution: "Estimasi kontribusi margin",
+	realized_contribution: "Kontribusi margin terealisasi",
+	net_merchandise_revenue: "Pendapatan bersih barang",
+};
+
+const METRIC_UNITS: Record<string, string> = {
+	orders_pending: "pesanan",
+	fulfillments_due: "paket",
+	delivery_exceptions: "kasus",
+	returns_pending: "retur",
+	stock_alerts: "SKU",
+	support_unassigned: "percakapan",
+	finance_unmatched: "mutasi",
+};
+
+const BASIS_LABELS: Record<DashboardMetric["financial_basis"], string> = {
+	actual: "Aktual",
+	estimated: "Estimasi",
+	mixed: "Aktual + estimasi",
+	unknown: "Belum diketahui",
+	not_applicable: "",
+};
+
+const QUEUE_LABELS: Record<QueueKey, string> = {
+	orders: "Pesanan",
+	fulfillments: "Pemenuhan gudang",
+	delivery_exceptions: "Kendala pengiriman",
+	returns: "Retur",
+	inventory: "Stok",
+	support: "Percakapan",
+	reconciliation: "Rekonsiliasi",
+};
+
+// Column heading per queue; each row's `due_at_kind` names its own time when
+// it differs (an order without a payment deadline shows its creation time).
+const TIME_LABELS: Record<QueueKey, string | null> = {
+	orders: "Batas bayar",
+	fulfillments: "Batas kemas",
+	delivery_exceptions: "Waktu kejadian",
+	returns: "Dibuat",
+	inventory: null,
+	support: "Diperbarui",
+	reconciliation: "Dibuat",
+};
+
+const DUE_AT_KIND_LABELS: Record<DueAtKind, string> = {
+	payment_deadline: "Batas bayar",
+	packing_deadline: "Batas kemas",
+	handover_deadline: "Batas serah kurir",
+	created: "Dibuat",
+	occurred: "Waktu kejadian",
+	updated: "Diperbarui",
+};
+
+const WINDOW_LABELS: Record<string, string> = {
+	"7d": "7 hari terakhir",
+	"30d": "30 hari terakhir",
+	"90d": "90 hari terakhir",
+};
+
+const KIND_LABELS: Record<string, string> = {
+	order: "Pesanan",
+	fulfillment: "Pemenuhan",
+	shipment: "Kendala kirim",
+	return: "Retur",
+	stock_item: "Stok",
+	conversation: "Percakapan",
+	reconciliation: "Mutasi",
+};
+
+type Tone = "open" | "problem" | "done";
+const TONE_ICON: Record<Tone, LucideIcon> = {
+	open: Clock,
+	problem: CircleAlert,
+	done: CircleCheck,
+};
+
+// [label, tone] per state; per-kind entries override the shared ones.
+const SHARED_STATES: Record<string, [string, Tone]> = {
+	preparing: ["Disiapkan", "open"],
+	pending: ["Menunggu", "open"],
+	exception: ["Bermasalah", "problem"],
+	unknown: ["Status tidak diketahui", "problem"],
+	resolved: ["Selesai", "done"],
+	refunding: ["Pengembalian dana berjalan", "open"],
+};
+const KIND_STATES: Record<string, Record<string, [string, Tone]>> = {
+	order: {
+		processing: ["Diproses", "open"],
+		partially_completed: ["Selesai sebagian", "open"],
+		cancelled: ["Dibatalkan", "done"],
+	},
+	fulfillment: {
+		ready: ["Siap diambil", "open"],
+		picking: ["Diambil dari rak", "open"],
+		packed: ["Dikemas", "open"],
+		handover_pending: ["Menunggu serah terima", "open"],
+		handed_over: ["Diserahkan ke kurir", "done"],
+	},
+	shipment: {
+		open: ["Terbuka", "problem"],
+		awaiting_source: ["Menunggu data sumber", "open"],
+		awaiting_buyer: ["Menunggu pembeli", "open"],
+		awaiting_stock: ["Menunggu stok", "open"],
+		awaiting_return: ["Menunggu barang kembali", "open"],
+		ready_for_refund: ["Siap dikembalikan dananya", "open"],
+		escalated: ["Dieskalasi", "problem"],
+	},
+	return: {
+		requested: ["Diajukan", "open"],
+		reviewing: ["Ditinjau", "open"],
+		approved: ["Disetujui", "open"],
+		rejected: ["Ditolak", "done"],
+		awaiting_goods: ["Menunggu barang", "open"],
+		inspecting: ["Diperiksa", "open"],
+		replacing: ["Penggantian berjalan", "open"],
+	},
+	stock_item: {
+		in_stock: ["Tersedia", "done"],
+		low_stock: ["Stok rendah", "problem"],
+		out_of_stock: ["Habis", "problem"],
+	},
+	conversation: {
+		unassigned: ["Belum ditugaskan", "problem"],
+		open: ["Terbuka", "open"],
+		waiting_customer: ["Menunggu pembeli", "open"],
+		closed: ["Ditutup", "done"],
+	},
+	reconciliation: {
+		partial: ["Cocok sebagian", "open"],
+		matched: ["Cocok", "done"],
+		mismatched: ["Tidak cocok", "problem"],
+	},
+};
+
+function describeState(kind: string, state: string): [string, Tone] {
+	return KIND_STATES[kind]?.[state] ?? SHARED_STATES[state] ?? [state, "open"];
+}
+
+const WORKSPACE_DEFAULT_QUEUE: Record<CanonicalWorkspace, QueueKey> = {
+	owner: "orders",
+	ecommerce_admin: "orders",
+	warehouse: "fulfillments",
+	customer_service: "support",
+	finance: "reconciliation",
+};
+
+const WORKSPACE_ALLOWED_QUEUES: Record<CanonicalWorkspace, QueueKey[]> = {
+	owner: [
+		"orders",
+		"fulfillments",
+		"delivery_exceptions",
+		"returns",
+		"inventory",
+		"support",
+		"reconciliation",
+	],
+	ecommerce_admin: [
+		"orders",
+		"fulfillments",
+		"delivery_exceptions",
+		"returns",
+		"inventory",
+	],
+	warehouse: ["fulfillments", "delivery_exceptions", "returns", "inventory"],
+	customer_service: ["orders", "delivery_exceptions", "returns", "support"],
+	finance: ["reconciliation", "orders", "returns"],
+};
+
+const QUEUE_EXPORT_CONFIG: Partial<
+	Record<QueueKey, { resource: string; columnSet: string }>
+> = {
+	orders: { resource: "orders", columnSet: "order_service" },
+	fulfillments: { resource: "fulfillments", columnSet: "warehouse_operations" },
+	inventory: { resource: "inventory", columnSet: "inventory_operations" },
+	returns: { resource: "returns", columnSet: "return_service" },
+	reconciliation: {
+		resource: "reconciliation",
+		columnSet: "finance_reconciliation",
+	},
+};
+
+const PREVIEW_METRICS: Record<CanonicalWorkspace, DashboardMetric[]> = {
+	owner: [
+		{
+			key: "orders_pending",
+			count: 4,
+			basis: "snapshot",
+			complete: true,
+			queue_key: "orders",
+			kind: "count",
+			amount: null,
+			currency: null,
+			financial_basis: "not_applicable",
+			definition:
+				"Pesanan aktif yang menunggu pembayaran atau alokasi pemenuhan gudang.",
+			as_of: "2026-10-21T12:00:00.000Z",
+			queue_filter_token: "preview-token-owner-orders",
+			filter_version: 1,
+			filter_expires_at: "2026-10-21T12:30:00.000Z",
+		},
+		{
+			key: "fulfillments_due",
+			count: 3,
+			basis: "snapshot",
+			complete: true,
+			queue_key: "fulfillments",
+			kind: "count",
+			amount: null,
+			currency: null,
+			financial_basis: "not_applicable",
+			definition:
+				"Paket gudang siap dikemas atau menunggu serah terima kurir terjadwal.",
+			as_of: "2026-10-21T12:00:00.000Z",
+			queue_filter_token: "preview-token-owner-fulfillments",
+			filter_version: 1,
+			filter_expires_at: "2026-10-21T12:30:00.000Z",
+		},
+		{
+			key: "net_merchandise_revenue",
+			count: null,
+			basis: "event_period",
+			complete: true,
+			queue_key: "reconciliation",
+			kind: "money",
+			amount: 1782000,
+			currency: "IDR",
+			financial_basis: "actual",
+			definition:
+				"Pendapatan bersih barang dagangan Rp99.000/unit setelah pengembalian dana selesai.",
+			as_of: "2026-10-21T12:00:00.000Z",
+			queue_filter_token: "preview-token-owner-revenue",
+			filter_version: 1,
+			filter_expires_at: "2026-10-21T12:30:00.000Z",
+		},
+		{
+			key: "realized_contribution",
+			count: null,
+			basis: "event_period",
+			complete: true,
+			queue_key: "reconciliation",
+			kind: "money",
+			amount: 486000,
+			currency: "IDR",
+			financial_basis: "actual",
+			definition:
+				"Kontribusi margin terealisasi dari pesanan dengan seluruh komponen biaya diketahui.",
+			as_of: "2026-10-21T12:00:00.000Z",
+			queue_filter_token: "preview-token-owner-contribution",
+			filter_version: 1,
+			filter_expires_at: "2026-10-21T12:30:00.000Z",
+		},
+	],
+	ecommerce_admin: [
+		{
+			key: "orders_pending",
+			count: 4,
+			basis: "snapshot",
+			complete: true,
+			queue_key: "orders",
+			kind: "count",
+			amount: null,
+			currency: null,
+			financial_basis: "not_applicable",
+			definition:
+				"Pesanan aktif yang menunggu verifikasi atau pemenuhan gudang.",
+			as_of: "2026-10-21T12:00:00.000Z",
+			queue_filter_token: "preview-token-ecom-orders",
+			filter_version: 1,
+			filter_expires_at: "2026-10-21T12:30:00.000Z",
+		},
+		{
+			key: "stock_alerts",
+			count: 1,
+			basis: "snapshot",
+			complete: true,
+			queue_key: "inventory",
+			kind: "count",
+			amount: null,
+			currency: null,
+			financial_basis: "not_applicable",
+			definition:
+				"SKU fisik yang mendekati ambang batas stok rendah atau memiliki stok karantina.",
+			as_of: "2026-10-21T12:00:00.000Z",
+			queue_filter_token: "preview-token-ecom-inventory",
+			filter_version: 1,
+			filter_expires_at: "2026-10-21T12:30:00.000Z",
+		},
+	],
+	warehouse: [
+		{
+			key: "fulfillments_due",
+			count: 3,
+			basis: "event_period",
+			complete: true,
+			queue_key: "fulfillments",
+			kind: "count",
+			amount: null,
+			currency: null,
+			financial_basis: "not_applicable",
+			definition:
+				"Pemenuhan gudang yang siap dikemas atau diserahkan ke kurir.",
+			as_of: "2026-10-21T12:00:00.000Z",
+			queue_filter_token: "preview-token-warehouse-fulfillments",
+			filter_version: 1,
+			filter_expires_at: "2026-10-21T12:30:00.000Z",
+		},
+		{
+			key: "stock_alerts",
+			count: 1,
+			basis: "snapshot",
+			complete: true,
+			queue_key: "inventory",
+			kind: "count",
+			amount: null,
+			currency: null,
+			financial_basis: "not_applicable",
+			definition:
+				"Saldo stok gudang yang mencapai batas stok rendah atau dikarantina.",
+			as_of: "2026-10-21T12:00:00.000Z",
+			queue_filter_token: "preview-token-warehouse-inventory",
+			filter_version: 1,
+			filter_expires_at: "2026-10-21T12:30:00.000Z",
+		},
+	],
+	customer_service: [
+		{
+			key: "support_unassigned",
+			count: 2,
+			basis: "snapshot",
+			complete: true,
+			queue_key: "support",
+			kind: "count",
+			amount: null,
+			currency: null,
+			financial_basis: "not_applicable",
+			definition:
+				"Percakapan bantuan pembeli yang menunggu penugasan staf layanan pelanggan.",
+			as_of: "2026-10-21T12:00:00.000Z",
+			queue_filter_token: "preview-token-cs-support",
+			filter_version: 1,
+			filter_expires_at: "2026-10-21T12:30:00.000Z",
+		},
+		{
+			key: "delivery_exceptions",
+			count: 1,
+			basis: "snapshot",
+			complete: true,
+			queue_key: "delivery_exceptions",
+			kind: "count",
+			amount: null,
+			currency: null,
+			financial_basis: "not_applicable",
+			definition:
+				"Paket dengan kendala kurir aktif yang membutuhkan konfirmasi alamat pembeli.",
+			as_of: "2026-10-21T12:00:00.000Z",
+			queue_filter_token: "preview-token-cs-exceptions",
+			filter_version: 1,
+			filter_expires_at: "2026-10-21T12:30:00.000Z",
+		},
+	],
+	finance: [
+		{
+			key: "finance_unmatched",
+			count: 1,
+			basis: "snapshot",
+			complete: true,
+			queue_key: "reconciliation",
+			kind: "count",
+			amount: null,
+			currency: null,
+			financial_basis: "not_applicable",
+			definition:
+				"Baris mutasi penyedia pembayaran atau laporan pencairan COD yang belum dicocokkan.",
+			as_of: "2026-10-21T12:00:00.000Z",
+			queue_filter_token: "preview-token-finance-unmatched",
+			filter_version: 1,
+			filter_expires_at: "2026-10-21T12:30:00.000Z",
+		},
+		{
+			key: "cod_receivable",
+			count: null,
+			basis: "snapshot",
+			complete: true,
+			queue_key: "reconciliation",
+			kind: "money",
+			amount: 215000,
+			currency: "IDR",
+			financial_basis: "actual",
+			definition:
+				"Piutang COD berjalan atas paket yang telah diserahkan ke kurir.",
+			as_of: "2026-10-21T12:00:00.000Z",
+			queue_filter_token: "preview-token-finance-cod",
+			filter_version: 1,
+			filter_expires_at: "2026-10-21T12:30:00.000Z",
+		},
+		{
+			key: "affiliate_liability",
+			count: null,
+			basis: "snapshot",
+			complete: true,
+			queue_key: "reconciliation",
+			kind: "money",
+			amount: 99000,
+			currency: "IDR",
+			financial_basis: "actual",
+			definition:
+				"Kewajiban komisi mitra afiliasi siap cair dan dalam antrean transfer manual.",
+			as_of: "2026-10-21T12:00:00.000Z",
+			queue_filter_token: "preview-token-finance-affiliate",
+			filter_version: 1,
+			filter_expires_at: "2026-10-21T12:30:00.000Z",
+		},
+	],
+};
+
+const PREVIEW_DESTINATIONS: AdDestinationItem[] = [
+	{
+		id: "dest-preview-meta",
+		version: 1,
+		revision: 1,
+		platform: "meta",
+		destination_version: "v20.0",
+		public_identifier: "META-PIXEL-99RIBU-LOCAL",
+		external_destination_id: "pixel-99ribu-meta",
+		conversion_action_id: "Purchase",
+		paused: false,
+		enabled: true,
+		server_purchase_enabled: true,
+		browser_purchase_enabled: true,
+		credentials_configured: true,
+		secret_redacted: true,
+		updated_at: "2026-10-21T12:00:00.000Z",
+		eligible: 14,
+		suppressed: 3,
+		queued: 0,
+		accepted: 14,
+		processed: 14,
+		attributed: null,
+		purchase_collection_instances: 15,
+		unique_orders: 14,
+		reconciliation: {
+			gross_merchandise_amount_idr: 1683000,
+			refunded_merchandise_amount_idr: 99000,
+			net_merchandise_amount_idr: 1584000,
+			dispatched_purchase_signal_amount_idr: 1386000,
+			eligible_purchase_signal_amount_idr: 1386000,
+			suppressed_purchase_signal_amount_idr: 297000,
+			net_signal_merchandise_amount_idr: 1287000,
+		},
+		missing_identity: {
+			orders_without_visitor_session: 1,
+			orders_without_consent: 2,
+			expired_outbox_events: 0,
+			total_suppressed_or_missing: 3,
+		},
+	},
+	{
+		id: "dest-preview-google",
+		version: 1,
+		revision: 1,
+		platform: "google",
+		destination_version: "v17",
+		public_identifier: "AW-99RIBU-LOCAL",
+		external_destination_id: "aw-99ribu-google",
+		conversion_action_id: "purchase_action",
+		google_conversion_source: "GOOGLE_HOSTED",
+		paused: false,
+		enabled: true,
+		server_purchase_enabled: true,
+		browser_purchase_enabled: true,
+		credentials_configured: true,
+		secret_redacted: true,
+		updated_at: "2026-10-21T12:00:00.000Z",
+		eligible: 14,
+		suppressed: 3,
+		queued: 0,
+		accepted: 14,
+		processed: 14,
+		attributed: null,
+		purchase_collection_instances: 15,
+		unique_orders: 14,
+		reconciliation: {
+			gross_merchandise_amount_idr: 1683000,
+			refunded_merchandise_amount_idr: 99000,
+			net_merchandise_amount_idr: 1584000,
+			dispatched_purchase_signal_amount_idr: 1386000,
+			eligible_purchase_signal_amount_idr: 1386000,
+			suppressed_purchase_signal_amount_idr: 297000,
+			net_signal_merchandise_amount_idr: 1287000,
+		},
+		missing_identity: {
+			orders_without_visitor_session: 1,
+			orders_without_consent: 2,
+			expired_outbox_events: 0,
+			total_suppressed_or_missing: 3,
+		},
+	},
+	{
+		id: "dest-preview-tiktok",
+		version: 1,
+		revision: 1,
+		platform: "tiktok",
+		destination_version: "v1.3",
+		public_identifier: "TT-PIXEL-99RIBU-LOCAL",
+		external_destination_id: "tt-99ribu-tiktok",
+		conversion_action_id: "CompletePayment",
+		paused: false,
+		enabled: true,
+		server_purchase_enabled: true,
+		browser_purchase_enabled: true,
+		credentials_configured: true,
+		secret_redacted: true,
+		updated_at: "2026-10-21T12:00:00.000Z",
+		eligible: 14,
+		suppressed: 3,
+		queued: 0,
+		accepted: 14,
+		processed: 14,
+		attributed: null,
+		purchase_collection_instances: 15,
+		unique_orders: 14,
+		reconciliation: {
+			gross_merchandise_amount_idr: 1683000,
+			refunded_merchandise_amount_idr: 99000,
+			net_merchandise_amount_idr: 1584000,
+			dispatched_purchase_signal_amount_idr: 1386000,
+			eligible_purchase_signal_amount_idr: 1386000,
+			suppressed_purchase_signal_amount_idr: 297000,
+			net_signal_merchandise_amount_idr: 1287000,
+		},
+		missing_identity: {
+			orders_without_visitor_session: 1,
+			orders_without_consent: 2,
+			expired_outbox_events: 0,
+			total_suppressed_or_missing: 3,
+		},
+	},
+];
+
+function normalizeWorkspaceParam(
+	raw: string | null,
+): CanonicalWorkspace | null {
+	if (!raw) return null;
+	const map: Record<string, CanonicalWorkspace> = {
+		owner: "owner",
+		ecommerce_admin: "ecommerce_admin",
+		warehouse: "warehouse",
+		warehouse_staff: "warehouse",
+		customer_service: "customer_service",
+		cs_staff: "customer_service",
+		finance: "finance",
+		finance_staff: "finance",
+	};
+	return map[raw] ?? null;
+}
+
+type LoadState = "loading" | "ready" | "error" | "preview";
+type Notice = { kind: "info" | "error"; message: string };
+type ExportResult = {
+	rowCount: number;
+	filterVersion: number | null;
+	asOf: string;
+	fileName: string;
+	csv: string;
+	url: string;
+};
+
+const idr = new Intl.NumberFormat("id-ID", {
+	style: "currency",
+	currency: "IDR",
+	maximumFractionDigits: 0,
+});
+
+function queueQuery(
+	ws: CanonicalWorkspace,
+	whId: string,
+	win: string,
+	queue: QueueKey,
+	token: string | null,
+	cursor: string | null,
+) {
+	const q = new URLSearchParams({ workspace: ws, queue, window: win });
+	if (whId) q.set("warehouse_id", whId);
+	if (token) q.set("filter_token", token);
+	if (cursor) q.set("cursor", cursor);
+	return `/api/v1/admin/work-queues?${q.toString()}`;
+}
+
+export function AdminWorkspacesClient({
+	initialAuthenticated,
+	initialStaffRoles,
+	requestedWorkspace,
+	requestedWarehouseId,
+}: {
+	initialAuthenticated: boolean;
+	initialStaffRoles: CanonicalWorkspace[];
+	requestedWorkspace: string | null;
+	requestedWarehouseId: string;
+}) {
+	const preview = !initialAuthenticated;
+	const [workspace, setWorkspace] = useState<CanonicalWorkspace>(
+		normalizeWorkspaceParam(requestedWorkspace) ??
+			initialStaffRoles[0] ??
+			"owner",
+	);
+	const [warehouseId, setWarehouseId] = useState(requestedWarehouseId);
+	const [windowRange, setWindowRange] = useState("30d");
+
+	const [dashboard, setDashboard] = useState<DashboardSnapshot | null>(null);
+	const [dashState, setDashState] = useState<LoadState>(
+		preview ? "preview" : "loading",
+	);
+	const [dashError, setDashError] = useState<string | null>(null);
+
+	const [queue, setQueue] = useState<QueueKey>(
+		WORKSPACE_DEFAULT_QUEUE[workspace],
+	);
+	const [filterToken, setFilterToken] = useState<string | null>(null);
+	const [metricKey, setMetricKey] = useState<string | null>(null);
+	const [rows, setRows] = useState<WorkQueueItem[]>([]);
+	const [nextCursor, setNextCursor] = useState<string | null>(null);
+	const [queueState, setQueueState] = useState<LoadState>(
+		preview ? "preview" : "loading",
+	);
+	const [queueError, setQueueError] = useState<string | null>(null);
+	const [loadingMore, setLoadingMore] = useState(false);
+	const [selectedIds, setSelectedIds] = useState<string[]>([]);
+
+	const [exportMode, setExportMode] = useState<"filter" | "selection" | null>(
+		null,
+	);
+	const [exportReason, setExportReason] = useState("");
+	const [exportPending, setExportPending] = useState(false);
+	const [exportError, setExportError] = useState<string | null>(null);
+	const [exportReasonError, setExportReasonError] = useState<string | null>(
+		null,
+	);
+	const exportReasonRef = useRef<HTMLTextAreaElement>(null);
+	const [exportResult, setExportResult] = useState<ExportResult | null>(null);
+
+	const [destinations, setDestinations] = useState<AdDestinationItem[]>(
+		preview ? PREVIEW_DESTINATIONS : [],
+	);
+	const [adState, setAdState] = useState<LoadState>(
+		preview ? "preview" : "loading",
+	);
+	const [adError, setAdError] = useState<string | null>(null);
+	const [notice, setNotice] = useState<Notice | null>(null);
+	const queueHeadingRef = useRef<HTMLHeadingElement>(null);
+	// Controlled dialogs have no DialogTrigger, so return focus to the opener ourselves.
+	const exportOpenerRef = useRef<HTMLElement | null>(null);
+
+	const loadDashboard = useCallback(
+		async (ws: CanonicalWorkspace, whId: string, win: string) => {
+			if (preview) {
+				setDashboard(null);
+				setDashState("preview");
+				return;
+			}
+			setDashState("loading");
+			setDashError(null);
+			try {
+				const q = new URLSearchParams({ workspace: ws, window: win });
+				if (whId) q.set("warehouse_id", whId);
+				const res = await fetch(`/api/v1/admin/dashboard?${q.toString()}`, {
+					credentials: "include",
+					cache: "no-store",
+				});
+				if (!res.ok) {
+					setDashboard(null);
+					setDashError(failureText(await readFailure(res)));
+					setDashState("error");
+				} else {
+					setDashboard((await res.json()) as DashboardSnapshot);
+					setDashState("ready");
+				}
+			} catch {
+				setDashboard(null);
+				setDashError(failureText(describeFailure(0)));
+				setDashState("error");
+			}
+		},
+		[preview],
+	);
+
+	const loadAds = useCallback(
+		async (ws: CanonicalWorkspace) => {
+			if (preview || ws !== "owner") {
+				setDestinations(preview && ws === "owner" ? PREVIEW_DESTINATIONS : []);
+				setAdState(preview ? "preview" : "ready");
+				return;
+			}
+			setAdState("loading");
+			setAdError(null);
+			try {
+				const res = await fetch("/api/v1/admin/advertising/destinations", {
+					credentials: "include",
+					cache: "no-store",
+				});
+				if (!res.ok) {
+					setAdError(failureText(await readFailure(res)));
+					setAdState("error");
+					return;
+				}
+				const data = (await res.json()) as { data?: AdDestinationItem[] };
+				setDestinations(data.data ?? []);
+				setAdState("ready");
+			} catch {
+				setAdError(failureText(describeFailure(0)));
+				setAdState("error");
+			}
+		},
+		[preview],
+	);
+
+	const loadQueue = useCallback(
+		async (
+			ws: CanonicalWorkspace,
+			whId: string,
+			win: string,
+			q: QueueKey,
+			token: string | null,
+		) => {
+			setSelectedIds([]);
+			setNextCursor(null);
+			if (preview) {
+				setRows([]);
+				setQueueState("preview");
+				return;
+			}
+			setQueueState("loading");
+			setQueueError(null);
+			try {
+				const res = await fetch(queueQuery(ws, whId, win, q, token, null), {
+					credentials: "include",
+					cache: "no-store",
+				});
+				if (!res.ok) {
+					setRows([]);
+					setQueueError(failureText(await readFailure(res)));
+					setQueueState("error");
+					return;
+				}
+				const data = (await res.json()) as {
+					data?: WorkQueueItem[];
+					pagination?: { next_cursor: string | null };
+				};
+				setRows(data.data ?? []);
+				setNextCursor(data.pagination?.next_cursor ?? null);
+				setQueueState("ready");
+			} catch {
+				setRows([]);
+				setQueueError(failureText(describeFailure(0)));
+				setQueueState("error");
+			}
+		},
+		[preview],
+	);
+
+	const loadMore = async () => {
+		if (!nextCursor) return;
+		setLoadingMore(true);
+		try {
+			const res = await fetch(
+				queueQuery(
+					workspace,
+					warehouseId,
+					windowRange,
+					queue,
+					filterToken,
+					nextCursor,
+				),
+				{ credentials: "include", cache: "no-store" },
+			);
+			if (!res.ok) {
+				setNotice({
+					kind: "error",
+					message: failureText(await readFailure(res)),
+				});
+				return;
+			}
+			const data = (await res.json()) as {
+				data?: WorkQueueItem[];
+				pagination?: { next_cursor: string | null };
+			};
+			setRows((prev) => [...prev, ...(data.data ?? [])]);
+			setNextCursor(data.pagination?.next_cursor ?? null);
+		} catch {
+			setNotice({ kind: "error", message: failureText(describeFailure(0)) });
+		} finally {
+			setLoadingMore(false);
+		}
+	};
+
+	useEffect(() => {
+		let mounted = true;
+		(async () => {
+			const requestedWs = normalizeWorkspaceParam(requestedWorkspace);
+			let resolvedWs: CanonicalWorkspace =
+				requestedWs ?? initialStaffRoles[0] ?? "owner";
+			if (!preview) {
+				try {
+					const meRes = await fetch("/api/v1/me", {
+						credentials: "include",
+						cache: "no-store",
+					});
+					if (meRes.ok) {
+						const me = (await meRes.json()) as { roles?: string[] };
+						const staffRoles = (me.roles ?? []).filter(
+							(r): r is CanonicalWorkspace => r in WORKSPACE_DEFAULT_QUEUE,
+						);
+						if (
+							staffRoles.length > 0 &&
+							(!requestedWs ||
+								(!staffRoles.includes(requestedWs) &&
+									!staffRoles.includes("owner")))
+						) {
+							resolvedWs = staffRoles[0];
+						}
+					}
+				} catch {
+					// Server-resolved roles remain authoritative for every API call.
+				}
+			}
+			if (!mounted) return;
+			if (requestedWorkspace !== resolvedWs) {
+				// Keep the URL (and the sidebar's active link) on the workspace actually shown.
+				const url = new URL(window.location.href);
+				url.searchParams.set("workspace", resolvedWs);
+				window.history.replaceState(null, "", url);
+			}
+			const defaultQueue = WORKSPACE_DEFAULT_QUEUE[resolvedWs];
+			setWorkspace(resolvedWs);
+			setWarehouseId(requestedWarehouseId);
+			setQueue(defaultQueue);
+			await Promise.all([
+				loadDashboard(resolvedWs, requestedWarehouseId, "30d"),
+				loadAds(resolvedWs),
+				loadQueue(resolvedWs, requestedWarehouseId, "30d", defaultQueue, null),
+			]);
+		})();
+		return () => {
+			mounted = false;
+		};
+	}, [
+		preview,
+		initialStaffRoles,
+		requestedWorkspace,
+		requestedWarehouseId,
+		loadDashboard,
+		loadAds,
+		loadQueue,
+	]);
+
+	const focusQueue = () => {
+		const heading = queueHeadingRef.current;
+		if (!heading) return;
+		heading.focus({ preventScroll: true });
+		heading.scrollIntoView({ block: "start" });
+	};
+
+	const openQueue = (q: QueueKey, metric: DashboardMetric | null) => {
+		setQueue(q);
+		setFilterToken(metric?.queue_filter_token ?? null);
+		setMetricKey(metric?.key ?? null);
+		void loadQueue(
+			workspace,
+			warehouseId,
+			windowRange,
+			q,
+			metric?.queue_filter_token ?? null,
+		);
+	};
+
+	const metrics =
+		dashState === "preview"
+			? (PREVIEW_METRICS[workspace] ?? [])
+			: (dashboard?.metrics ?? []);
+	const canSeeMoney = workspace === "owner" || workspace === "finance";
+	const countMetrics = metrics.filter((m) => m.kind === "count");
+	const moneyMetrics = canSeeMoney
+		? metrics.filter((m) => m.kind === "money")
+		: [];
+	// Metric counts are the full row count of the same queue, period and scope.
+	const queueTotal =
+		countMetrics.find((m) => m.queue_key === queue)?.count ?? null;
+	const activeMetric = metrics.find((m) => m.key === metricKey) ?? null;
+	const exportConfig = QUEUE_EXPORT_CONFIG[queue];
+	const canPrint = workspace === "owner" || workspace === "warehouse";
+	const canSupport = workspace === "owner" || workspace === "customer_service";
+	const timezone = dashboard?.timezone ?? "Asia/Jakarta";
+	const dateTime = new Intl.DateTimeFormat("id-ID", {
+		timeZone: timezone,
+		dateStyle: "medium",
+		timeStyle: "short",
+	});
+	const formatTime = (iso: string | null) =>
+		iso ? dateTime.format(new Date(iso)) : "—";
+	const allSelected = rows.length > 0 && selectedIds.length === rows.length;
+	const someSelected = selectedIds.length > 0 && !allSelected;
+
+	const toggleRow = (id: string) =>
+		setSelectedIds((prev) =>
+			prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id],
+		);
+
+	const openExport = (mode: "filter" | "selection") => {
+		exportOpenerRef.current = document.activeElement as HTMLElement | null;
+		setExportMode(mode);
+		setExportReason("");
+		setExportError(null);
+		setExportReasonError(null);
+	};
+
+	const runExport = async () => {
+		if (!exportConfig || !exportMode) return;
+		const reason = exportReason.trim();
+		if (!reason) {
+			setExportReasonError("Alasan ekspor wajib diisi untuk jejak audit.");
+			exportReasonRef.current?.focus();
+			return;
+		}
+		setExportReasonError(null);
+		if (preview) {
+			setExportError("Ekspor memerlukan sesi staf dengan MFA aktif.");
+			return;
+		}
+		setExportPending(true);
+		setExportError(null);
+		try {
+			let selection: Record<string, unknown>;
+			let rowCount = selectedIds.length;
+			let filterVersion: number | null = null;
+			let asOf = new Date().toISOString();
+			if (exportMode === "filter") {
+				const now = Date.now();
+				const freeze = await fetch("/api/v1/admin/export-selections", {
+					method: "POST",
+					credentials: "include",
+					headers: {
+						"Content-Type": "application/json",
+						"Idempotency-Key": crypto.randomUUID(),
+					},
+					body: JSON.stringify({
+						resource: exportConfig.resource,
+						warehouse_id: warehouseId || null,
+						from:
+							dashboard?.from ?? new Date(now - 30 * 86400_000).toISOString(),
+						to: dashboard?.to ?? new Date(now + 60_000).toISOString(),
+						statuses: [],
+						max_rows: 1000,
+					}),
+				});
+				if (!freeze.ok) {
+					setExportError(failureText(await readFailure(freeze)));
+					return;
+				}
+				const snap = (await freeze.json()) as {
+					filter_token: string;
+					filter_version: number;
+					row_count: number;
+					as_of: string;
+				};
+				selection = {
+					mode: "filtered_snapshot",
+					filter_token: snap.filter_token,
+					filter_version: snap.filter_version,
+				};
+				rowCount = snap.row_count;
+				filterVersion = snap.filter_version;
+				asOf = snap.as_of;
+			} else {
+				selection = { mode: "explicit_page", resource_ids: selectedIds };
+			}
+			const res = await fetch("/api/v1/admin/exports", {
+				method: "POST",
+				credentials: "include",
+				headers: {
+					"Content-Type": "application/json",
+					"Idempotency-Key": crypto.randomUUID(),
+				},
+				body: JSON.stringify({
+					resource: exportConfig.resource,
+					column_set: exportConfig.columnSet,
+					reason,
+					selection,
+				}),
+			});
+			if (!res.ok) {
+				setExportError(failureText(await readFailure(res)));
+				return;
+			}
+			const csv = await res.text();
+			if (exportResult) URL.revokeObjectURL(exportResult.url);
+			setExportResult({
+				rowCount,
+				filterVersion,
+				asOf,
+				fileName: `${exportConfig.resource}-${asOf.slice(0, 10)}.csv`,
+				csv,
+				url: URL.createObjectURL(new Blob([csv], { type: "text/csv" })),
+			});
+			setExportMode(null);
+		} catch {
+			setExportError(failureText(describeFailure(0)));
+		} finally {
+			setExportPending(false);
+		}
+	};
+
+	const rowActionFor = (item: WorkQueueItem) =>
+		(item.resource_kind === "fulfillment" && canPrint) ||
+		(item.resource_kind === "conversation" && canSupport);
+	const hasRowActions = rows.some(rowActionFor);
+	const timeLabel = TIME_LABELS[queue];
+
+	const rowAction = (item: WorkQueueItem) => {
+		if (item.resource_kind === "fulfillment" && canPrint)
+			return (
+				<Button asChild variant="outline" size="sm">
+					<Link href="/admin/print-center">
+						<Printer data-icon="inline-start" aria-hidden="true" />
+						Cetak label
+					</Link>
+				</Button>
+			);
+		if (item.resource_kind === "conversation" && canSupport)
+			return (
+				<Button asChild variant="outline" size="sm">
+					{/* Full document navigation: /admin/support is outside the console stylesheet scope. */}
+					<a href="/admin/support">Buka percakapan</a>
+				</Button>
+			);
+		return null;
+	};
+
+	// Human reference from the API; the short id only when the row has none.
+	const referenceText = (item: WorkQueueItem) =>
+		item.reference ?? `#${item.id.slice(0, 8).toUpperCase()}`;
+	const reference = (item: WorkQueueItem) => (
+		<div className="flex min-w-0 flex-col">
+			<span className="text-xs text-muted-foreground">
+				{KIND_LABELS[item.resource_kind] ?? item.resource_kind}
+			</span>
+			<span className="font-mono text-sm font-medium break-all" title={item.id}>
+				{referenceText(item)}
+			</span>
+		</div>
+	);
+	const rowTimeLabel = (item: WorkQueueItem) =>
+		item.due_at_kind ? DUE_AT_KIND_LABELS[item.due_at_kind] : timeLabel;
+
+	const status = (item: WorkQueueItem) => {
+		const [label, tone] = describeState(item.resource_kind, item.state);
+		const Icon = TONE_ICON[tone];
+		return (
+			<Badge
+				variant={
+					tone === "problem"
+						? "warning"
+						: tone === "done"
+							? "outline"
+							: "secondary"
+				}
+			>
+				<Icon aria-hidden="true" />
+				{label}
+			</Badge>
+		);
+	};
+
+	const rowCheckbox = (item: WorkQueueItem) => (
+		<label className="-m-2 inline-flex size-11 cursor-pointer items-center justify-center">
+			<input
+				type="checkbox"
+				aria-label={`Pilih ${KIND_LABELS[item.resource_kind] ?? item.resource_kind} ${referenceText(item)}`}
+				className={checkboxClass}
+				checked={selectedIds.includes(item.id)}
+				onChange={() => toggleRow(item.id)}
+			/>
+		</label>
+	);
+
+	return (
+		<div
+			data-testid="admin-workspaces-root"
+			className="flex flex-col gap-6 px-4 py-5 md:px-8 md:py-6"
+		>
+			<header className="flex flex-wrap items-end justify-between gap-4 border-b pb-5">
+				<div className="flex min-w-0 flex-col gap-1.5">
+					{preview && (
+						<Badge variant="warning" className="self-start">
+							Mode pratinjau: contoh data, bukan data nyata
+						</Badge>
+					)}
+					<h1
+						data-testid="workspace-heading"
+						className="text-2xl font-semibold tracking-tight"
+					>
+						{WORKSPACE_LABELS[workspace].title}
+					</h1>
+					<p className="max-w-prose text-sm text-muted-foreground">
+						{WORKSPACE_LABELS[workspace].subtitle}
+					</p>
+					<p className="text-xs text-muted-foreground">
+						Zona waktu {timezone}
+						{dashboard?.warehouse_ids?.length
+							? ` · ${dashboard.warehouse_ids.length} gudang dalam cakupan`
+							: ""}
+						{dashboard?.as_of && ` · Data per ${formatTime(dashboard.as_of)}`}
+					</p>
+				</div>
+				<label className="flex items-center gap-2 text-sm font-medium">
+					<span>Periode</span>
+					<select
+						data-testid="window-select"
+						value={windowRange}
+						onChange={(e) => {
+							const win = e.target.value;
+							setWindowRange(win);
+							setFilterToken(null);
+							setMetricKey(null);
+							void loadDashboard(workspace, warehouseId, win);
+							void loadQueue(workspace, warehouseId, win, queue, null);
+						}}
+						className={nativeSelectClass}
+					>
+						{Object.entries(WINDOW_LABELS).map(([value, label]) => (
+							<option key={value} value={value}>
+								{label}
+							</option>
+						))}
+					</select>
+				</label>
+			</header>
+
+			{notice && (
+				<Alert
+					role="status"
+					data-testid="workspace-status-banner"
+					variant={notice.kind === "error" ? "destructive" : "default"}
+					className={
+						notice.kind === "error"
+							? "border-destructive/40 bg-destructive-surface pr-12"
+							: "border-primary/30 bg-secondary pr-12"
+					}
+				>
+					{notice.kind === "error" ? (
+						<CircleAlert aria-hidden="true" />
+					) : (
+						<Info aria-hidden="true" />
+					)}
+					<AlertDescription className="text-foreground">
+						{notice.message}
+					</AlertDescription>
+					<Button
+						type="button"
+						variant="ghost"
+						size="icon-sm"
+						className="absolute top-2 right-2"
+						onClick={() => setNotice(null)}
+					>
+						<X aria-hidden="true" />
+						<span className="sr-only">Tutup pesan</span>
+					</Button>
+				</Alert>
+			)}
+
+			{/* Work counts: each opens the exact queue behind the number */}
+			<section
+				aria-labelledby="kpi-section-heading"
+				className="flex flex-col gap-2"
+			>
+				<h2 id="kpi-section-heading" className="text-sm font-semibold">
+					Antrean kerja · {WINDOW_LABELS[windowRange]}
+				</h2>
+				{dashState === "loading" ? (
+					<div className="flex flex-wrap gap-2" aria-busy="true">
+						<span className="sr-only">Memuat ringkasan…</span>
+						<Skeleton className="h-14 w-36" />
+						<Skeleton className="h-14 w-36" />
+						<Skeleton className="h-14 w-36" />
+					</div>
+				) : dashState === "error" ? (
+					<RetryAlert
+						message={`Ringkasan gagal dimuat. ${dashError ?? ""}`}
+						onRetry={() =>
+							void loadDashboard(workspace, warehouseId, windowRange)
+						}
+					/>
+				) : (
+					<>
+						<ul data-testid="kpi-cards-grid" className="flex flex-wrap gap-2">
+							{countMetrics.map((m) => {
+								const active = metricKey === m.key;
+								return (
+									<li key={m.key} data-testid={`kpi-card-${m.key}`}>
+										<Button
+											type="button"
+											variant="outline"
+											data-testid={`kpi-drilldown-${m.key}`}
+											aria-pressed={active}
+											onClick={() => {
+												openQueue(m.queue_key, m);
+												focusQueue();
+											}}
+											className={cn(
+												"h-auto flex-col items-start gap-0 px-3 py-2 text-left",
+												active && "border-primary ring-1 ring-primary",
+											)}
+										>
+											<span
+												data-testid={`kpi-value-${m.key}`}
+												className="text-lg font-semibold tabular-nums"
+											>
+												{m.complete ? (m.count ?? 0) : "—"}{" "}
+												<span className="text-xs font-normal text-muted-foreground">
+													{METRIC_UNITS[m.key] ?? ""}
+												</span>
+											</span>
+											<span className="text-xs font-medium text-muted-foreground">
+												{METRIC_LABELS[m.key] ?? m.key}
+												{!m.complete && " · belum lengkap"}
+											</span>
+										</Button>
+									</li>
+								);
+							})}
+						</ul>
+						{countMetrics.length > 0 && (
+							<details className="text-xs text-muted-foreground">
+								<summary className="cursor-pointer select-none font-medium">
+									Arti setiap angka
+								</summary>
+								<dl className="mt-2 grid gap-1.5">
+									{countMetrics.map((m) => (
+										<div key={m.key}>
+											<dt className="inline font-medium text-foreground">
+												{METRIC_LABELS[m.key] ?? m.key}:{" "}
+											</dt>
+											<dd className="inline">{m.definition}</dd>
+										</div>
+									))}
+								</dl>
+							</details>
+						)}
+					</>
+				)}
+			</section>
+
+			{/* Daily queue */}
+			<section
+				aria-labelledby="work-queue-heading"
+				data-testid="work-queue-section"
+				className="flex flex-col gap-4 rounded-lg border bg-card p-4 md:p-5"
+			>
+				<div className="flex flex-wrap items-start justify-between gap-3">
+					<div className="flex min-w-0 flex-col gap-1">
+						<h2
+							id="work-queue-heading"
+							ref={queueHeadingRef}
+							tabIndex={-1}
+							className="scroll-mt-16 text-base font-semibold outline-none focus-visible:ring-2 focus-visible:ring-ring/50"
+						>
+							Antrean {QUEUE_LABELS[queue]}
+						</h2>
+						<p className="text-xs text-muted-foreground">
+							{[
+								queueState === "ready"
+									? queueTotal !== null
+										? `${rows.length} dari ${queueTotal} baris`
+										: `${rows.length} baris${nextCursor ? ", masih ada berikutnya" : ""}`
+									: null,
+								"semua status dalam periode",
+								`waktu dalam ${timezone}`,
+							]
+								.filter(Boolean)
+								.join(" · ")}
+						</p>
+					</div>
+					<div className="flex flex-wrap gap-2">
+						{queue === "fulfillments" && canPrint && (
+							<Button asChild variant="outline" size="sm">
+								<Link href="/admin/print-center">
+									<Printer data-icon="inline-start" aria-hidden="true" />
+									Pusat Cetak Label
+								</Link>
+							</Button>
+						)}
+						{exportConfig && (
+							<Button
+								type="button"
+								variant="outline"
+								size="sm"
+								data-testid="freeze-export-selection-btn"
+								disabled={queueState !== "ready" || rows.length === 0}
+								onClick={() => openExport("filter")}
+							>
+								<Download data-icon="inline-start" aria-hidden="true" />
+								Ekspor hasil filter
+							</Button>
+						)}
+					</div>
+				</div>
+
+				<fieldset className="flex flex-wrap gap-1.5">
+					<legend className="sr-only">Pilih antrean</legend>
+					{WORKSPACE_ALLOWED_QUEUES[workspace].map((q) => {
+						const active = queue === q;
+						return (
+							<Button
+								key={q}
+								type="button"
+								size="sm"
+								variant={active ? "secondary" : "ghost"}
+								aria-pressed={active}
+								data-testid={`queue-tab-${q}`}
+								className={cn(active && "ring-1 ring-primary/40")}
+								onClick={() => openQueue(q, null)}
+							>
+								{QUEUE_LABELS[q]}
+							</Button>
+						);
+					})}
+				</fieldset>
+
+				{activeMetric && (
+					<div className="flex flex-wrap items-center gap-2">
+						<Badge data-testid="active-drilldown-badge" variant="secondary">
+							Filter: {METRIC_LABELS[activeMetric.key] ?? activeMetric.key}
+						</Badge>
+						<Button
+							type="button"
+							variant="ghost"
+							size="sm"
+							onClick={() => openQueue(queue, null)}
+						>
+							Hapus filter
+						</Button>
+					</div>
+				)}
+
+				{selectedIds.length > 0 && exportConfig && (
+					<div
+						data-testid="export-controls-bar"
+						className="flex flex-wrap items-center justify-between gap-2 rounded-md border border-primary/30 bg-secondary px-3 py-2"
+					>
+						<span className="text-sm font-medium tabular-nums">
+							{selectedIds.length} baris dipilih di halaman ini
+						</span>
+						<div className="flex flex-wrap gap-2">
+							<Button
+								type="button"
+								size="sm"
+								onClick={() => openExport("selection")}
+							>
+								<Download data-icon="inline-start" aria-hidden="true" />
+								Ekspor pilihan
+							</Button>
+							<Button
+								type="button"
+								variant="ghost"
+								size="sm"
+								onClick={() => setSelectedIds([])}
+							>
+								Batalkan pilihan
+							</Button>
+						</div>
+					</div>
+				)}
+
+				{exportResult && (
+					<div
+						data-testid="frozen-selection-preview"
+						className="flex flex-col gap-2 rounded-md border px-3 py-2 text-sm"
+					>
+						<div className="flex flex-wrap items-center justify-between gap-2">
+							<span>
+								CSV siap:{" "}
+								<strong className="tabular-nums">
+									{exportResult.rowCount} baris
+								</strong>
+								{exportResult.filterVersion !== null &&
+									` · versi filter ${exportResult.filterVersion}`}{" "}
+								· per {formatTime(exportResult.asOf)}
+							</span>
+							<Button asChild size="sm">
+								<a href={exportResult.url} download={exportResult.fileName}>
+									<Download data-icon="inline-start" aria-hidden="true" />
+									Unduh {exportResult.fileName}
+								</a>
+							</Button>
+						</div>
+						<details>
+							<summary className="cursor-pointer text-xs text-muted-foreground">
+								Lihat isi CSV
+							</summary>
+							<pre
+								data-testid="csv-export-preview"
+								className="mt-2 max-h-64 max-w-full overflow-auto rounded-md border bg-muted p-3 font-mono text-xs"
+							>
+								{exportResult.csv}
+							</pre>
+						</details>
+					</div>
+				)}
+
+				{queueState === "loading" ? (
+					<div className="flex flex-col gap-2" aria-busy="true">
+						<span className="sr-only">Memuat antrean…</span>
+						<Skeleton className="h-12 w-full" />
+						<Skeleton className="h-12 w-full" />
+						<Skeleton className="h-12 w-full" />
+					</div>
+				) : queueState === "error" ? (
+					<RetryAlert
+						message={`Antrean gagal dimuat. ${queueError ?? ""}`}
+						onRetry={() =>
+							void loadQueue(
+								workspace,
+								warehouseId,
+								windowRange,
+								queue,
+								filterToken,
+							)
+						}
+					/>
+				) : queueState === "preview" ? (
+					<p className="rounded-md border border-dashed px-4 py-8 text-center text-sm text-muted-foreground">
+						Antrean hanya tampil untuk staf yang masuk dengan MFA aktif.
+					</p>
+				) : rows.length === 0 ? (
+					<p
+						data-testid="empty-queue-message"
+						className="rounded-md border border-dashed px-4 py-8 text-center text-sm text-muted-foreground"
+					>
+						{filterToken
+							? "Tidak ada baris untuk filter ini."
+							: `Belum ada ${QUEUE_LABELS[queue].toLowerCase()} pada ${WINDOW_LABELS[windowRange]} dalam cakupan Anda.`}
+					</p>
+				) : (
+					<>
+						<div className="hidden md:block">
+							<Table>
+								<TableHeader>
+									<TableRow>
+										<TableHead className="w-12">
+											<label className="-m-2 inline-flex size-11 cursor-pointer items-center justify-center">
+												<input
+													type="checkbox"
+													aria-label="Pilih semua baris di halaman ini"
+													className={checkboxClass}
+													checked={allSelected}
+													ref={(el) => {
+														if (el) el.indeterminate = someSelected;
+													}}
+													onChange={() =>
+														setSelectedIds(
+															allSelected ? [] : rows.map((r) => r.id),
+														)
+													}
+												/>
+											</label>
+										</TableHead>
+										<TableHead>Referensi</TableHead>
+										<TableHead>Status</TableHead>
+										{timeLabel && <TableHead>{timeLabel}</TableHead>}
+										{hasRowActions && (
+											<TableHead>
+												<span className="sr-only">Tindakan</span>
+											</TableHead>
+										)}
+									</TableRow>
+								</TableHeader>
+								<TableBody>
+									{rows.map((item) => (
+										<TableRow
+											key={item.id}
+											data-testid={`queue-row-${item.id}`}
+											data-state={
+												selectedIds.includes(item.id) ? "selected" : undefined
+											}
+											className="h-12"
+										>
+											<TableCell>{rowCheckbox(item)}</TableCell>
+											<TableCell>{reference(item)}</TableCell>
+											<TableCell>{status(item)}</TableCell>
+											{timeLabel && (
+												<TableCell className="tabular-nums">
+													{rowTimeLabel(item) !== timeLabel && (
+														<span className="block text-xs text-muted-foreground">
+															{rowTimeLabel(item)}
+														</span>
+													)}
+													{formatTime(item.due_at)}
+												</TableCell>
+											)}
+											{hasRowActions && (
+												<TableCell className="text-right">
+													{rowAction(item)}
+												</TableCell>
+											)}
+										</TableRow>
+									))}
+								</TableBody>
+							</Table>
+						</div>
+						<ul className="flex flex-col divide-y rounded-md border md:hidden">
+							{rows.map((item) => (
+								<li
+									key={item.id}
+									data-testid={`queue-card-${item.id}`}
+									className="flex items-start gap-2 p-3"
+								>
+									{rowCheckbox(item)}
+									<div className="flex min-w-0 flex-1 flex-col gap-2">
+										<div className="flex flex-wrap items-start justify-between gap-2">
+											{reference(item)}
+											{status(item)}
+										</div>
+										{timeLabel && (
+											<p className="text-xs text-muted-foreground">
+												{rowTimeLabel(item)}{" "}
+												<span className="font-medium text-foreground tabular-nums">
+													{formatTime(item.due_at)}
+												</span>
+											</p>
+										)}
+										{rowActionFor(item) && <div>{rowAction(item)}</div>}
+									</div>
+								</li>
+							))}
+						</ul>
+						{!hasRowActions && (
+							<p className="text-xs text-muted-foreground">
+								Halaman detail untuk {QUEUE_LABELS[queue].toLowerCase()} belum
+								tersedia di konsol
+								{exportConfig ? "; gunakan ekspor CSV untuk rincian." : "."}
+							</p>
+						)}
+						{nextCursor && (
+							<Button
+								type="button"
+								variant="outline"
+								className="self-center"
+								disabled={loadingMore}
+								onClick={() => void loadMore()}
+							>
+								{loadingMore ? "Memuat…" : "Muat baris berikutnya"}
+							</Button>
+						)}
+					</>
+				)}
+			</section>
+
+			{/* Finance position: owner and finance only, below the daily queue */}
+			{moneyMetrics.length > 0 && (
+				<section
+					aria-labelledby="finance-heading"
+					className="flex flex-col gap-3"
+				>
+					<div className="flex flex-col gap-0.5">
+						<h2 id="finance-heading" className="text-base font-semibold">
+							Keuangan
+						</h2>
+						<p className="text-xs text-muted-foreground">
+							{WINDOW_LABELS[windowRange]}
+							{dashboard?.as_of && ` · data per ${formatTime(dashboard.as_of)}`}{" "}
+							· nilai belum lengkap tidak dihitung sebagai Rp0
+						</p>
+					</div>
+					<div className="grid grid-cols-[repeat(auto-fill,minmax(min(100%,15rem),1fr))] gap-3">
+						{moneyMetrics.map((m) => (
+							<article
+								key={m.key}
+								data-testid={`kpi-card-${m.key}`}
+								className={cn(
+									"flex min-w-0 flex-col gap-2 rounded-lg border bg-card p-4",
+									metricKey === m.key && "border-primary ring-1 ring-primary",
+								)}
+							>
+								<div className="flex flex-wrap items-start justify-between gap-2">
+									<h3 className="text-sm font-medium text-muted-foreground">
+										{METRIC_LABELS[m.key] ?? m.key}
+									</h3>
+									{m.complete && BASIS_LABELS[m.financial_basis] && (
+										<Badge variant="outline">
+											{BASIS_LABELS[m.financial_basis]}
+										</Badge>
+									)}
+								</div>
+								<p
+									data-testid={`kpi-value-${m.key}`}
+									className={cn(
+										"text-2xl font-semibold tabular-nums break-words",
+										!m.complete && "text-base text-warning",
+									)}
+								>
+									{m.complete && m.amount !== null
+										? idr.format(m.amount)
+										: "Belum lengkap"}
+								</p>
+								<p className="text-xs leading-relaxed text-muted-foreground">
+									{m.complete
+										? m.definition
+										: "Sebagian sumber biaya belum tercatat, jadi nilai belum dihitung."}
+								</p>
+								<Button
+									type="button"
+									variant="link"
+									size="sm"
+									data-testid={`kpi-drilldown-${m.key}`}
+									className="mt-auto self-start px-0"
+									onClick={() => {
+										openQueue(m.queue_key, m);
+										focusQueue();
+									}}
+								>
+									Lihat antrean {QUEUE_LABELS[m.queue_key].toLowerCase()}
+								</Button>
+							</article>
+						))}
+					</div>
+				</section>
+			)}
+
+			{workspace === "owner" && (
+				<AdDestinationsPanel
+					state={adState}
+					error={adError}
+					onRetry={() => void loadAds(workspace)}
+					destinations={destinations}
+					setDestinations={setDestinations}
+					authenticated={!preview}
+					onNotice={setNotice}
+				/>
+			)}
+
+			<Dialog
+				open={exportMode !== null}
+				onOpenChange={(open) => {
+					if (!open && !exportPending) setExportMode(null);
+				}}
+			>
+				<DialogContent
+					onCloseAutoFocus={(e) => {
+						e.preventDefault();
+						const opener = exportOpenerRef.current;
+						(opener?.isConnected ? opener : queueHeadingRef.current)?.focus();
+					}}
+				>
+					<form
+						noValidate
+						className="flex flex-col gap-4"
+						onSubmit={(e) => {
+							e.preventDefault();
+							void runExport();
+						}}
+					>
+						<DialogHeader>
+							<DialogTitle>
+								Ekspor CSV {QUEUE_LABELS[queue].toLowerCase()}
+							</DialogTitle>
+							<DialogDescription>
+								{exportMode === "selection"
+									? `${selectedIds.length} baris yang dipilih di halaman ini.`
+									: `Semua baris ${QUEUE_LABELS[queue].toLowerCase()} pada ${WINDOW_LABELS[windowRange]} dalam cakupan Anda, maksimal 1.000 baris.`}{" "}
+								Rumus spreadsheet dinetralkan dan ekspor tercatat di audit.
+							</DialogDescription>
+						</DialogHeader>
+						<div className="flex flex-col gap-1.5">
+							<label
+								htmlFor="export-reason-input"
+								className="text-sm font-medium"
+							>
+								Alasan ekspor (wajib)
+							</label>
+							<Textarea
+								ref={exportReasonRef}
+								id="export-reason-input"
+								data-testid="export-reason-input"
+								value={exportReason}
+								onChange={(e) => setExportReason(e.target.value)}
+								maxLength={500}
+								required
+								aria-invalid={exportReasonError ? true : undefined}
+								aria-describedby={
+									exportReasonError ? "export-reason-error" : undefined
+								}
+							/>
+							{exportReasonError && (
+								<p
+									id="export-reason-error"
+									className="text-sm text-destructive"
+								>
+									{exportReasonError}
+								</p>
+							)}
+						</div>
+						{exportError && (
+							<p role="alert" className="text-sm text-destructive">
+								{exportError}
+							</p>
+						)}
+						<DialogFooter>
+							<Button
+								type="button"
+								variant="outline"
+								disabled={exportPending}
+								onClick={() => setExportMode(null)}
+							>
+								Batal
+							</Button>
+							<Button
+								type="submit"
+								data-testid="download-csv-btn"
+								disabled={exportPending}
+							>
+								{exportPending ? "Membuat CSV…" : "Buat CSV"}
+							</Button>
+						</DialogFooter>
+					</form>
+				</DialogContent>
+			</Dialog>
+		</div>
+	);
+}
+
+function RetryAlert({
+	message,
+	onRetry,
+}: {
+	message: string;
+	onRetry: () => void;
+}) {
+	return (
+		<Alert
+			variant="destructive"
+			className="flex flex-wrap items-center justify-between gap-3 border-destructive/40 bg-destructive-surface"
+		>
+			<AlertDescription className="text-foreground">{message}</AlertDescription>
+			<Button type="button" variant="outline" size="sm" onClick={onRetry}>
+				<RefreshCw data-icon="inline-start" aria-hidden="true" />
+				Coba lagi
+			</Button>
+		</Alert>
+	);
+}
+
+const nativeSelectClass =
+	"h-9 rounded-md border border-input bg-background px-3 text-sm font-medium shadow-xs outline-none focus-visible:border-ring focus-visible:ring-[3px] focus-visible:ring-ring/50";
+const checkboxClass =
+	"size-4 accent-primary focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring";
