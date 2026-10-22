@@ -111,8 +111,9 @@ export async function seedCommerce(request:Request,identity:LocalAuth,target:Tar
     for(const item of input.offers){
       signal?.throwIfAborted();
       const state=await readPublicationState(identity,principal,products[item.id]);
-      if(!state.current&&state.latest_version===0&&state.ready){
-        const published=await publishProduct(command(`publication:${item.id}`),identity,principal,products[item.id],{expected_version:state.draft_version,expected_publication_version:0,reason:'Guarded synthetic initial publication; no exception'});
+      // A withdrawn fixture publication (test-run teardown) is republished through the same guard.
+      if(!state.current&&state.ready){
+        const published=await publishProduct(command(`publication:${item.id}:${state.latest_version}`),identity,principal,products[item.id],{expected_version:state.draft_version,expected_publication_version:state.latest_version,reason:'Guarded synthetic publication; no exception'});
         publications[item.id]={id:published.id,blockers:[]};
       }else publications[item.id]={id:state.current?.id??null,blockers:[...new Set(state.blockers.map((b)=>b.code))]};
     }

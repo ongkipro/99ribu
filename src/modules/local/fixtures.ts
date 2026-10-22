@@ -98,8 +98,8 @@ export async function readFixtureInbox(target: Target, namespace: string, princi
     const [principal] = await sql`select u.email from app.local_fixture_principal p join app.auth_user u on u.id=p.user_id where p.namespace=${namespace} and p.user_id=${principalId}`;
     if (!principal?.email.endsWith("@example.test")) throw new Error("Fixture inbox scope denied.");
     const rows = await sql`select id,kind,url,expires_at from app.local_delivery where recipient=${principal.email} and delivered_at is not null and expires_at>now() order by created_at,id`;
-    const { origin } = readLocalConfig(process.env);
-    if (rows.some((row) => new URL(row.url).origin !== origin)) throw new Error("Invalid local inbox destination.");
+    const { trustedOrigins } = readLocalConfig(process.env);
+    if (rows.some((row) => !trustedOrigins.includes(new URL(row.url).origin))) throw new Error("Invalid local inbox destination.");
     return rows.map((row) => ({ id: row.id as string, kind: row.kind as string, url: row.url as string, expiresAt: new Date(row.expires_at).toISOString() }));
   } finally { await sql.end(); }
 }

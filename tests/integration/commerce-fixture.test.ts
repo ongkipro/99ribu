@@ -50,7 +50,7 @@ test('rerun preserves actual HPP/draft/stock edits, historical publication and a
   const patchBody={expected_version:1,name:'Synthetic operator edited title',reason:'Preserve actual operator draft edit'};
   const post=f.owner.browser.request(`/api/v1/admin/products/${first.products['fixture-offer-shirt']}`,patchBody);post.headers.set('idempotency-key',randomUUID());const patch=new Request(post,{method:'PATCH'});assert.equal((await handleCatalog(patch,f.identity)).status,200);
   const before=await readFixtureClock('test',f.ns);await advanceFixtureClock('test',f.ns,3601,before.version);
-  const reservationId=first.reservations['fixture-malang:fixture-shirt'];for(let i=0;i<50;i++){const [r]=await f.identity.sql`select status from app.stock_reservation where id=${reservationId}`;if(r.status==='expired') break;await runOneJob(f.identity.sql);}
+  const reservationId=first.reservations['fixture-malang:fixture-shirt'];const [expireJob]=await f.identity.sql`select id from app.outbox_job where kind='inventory.reservation.expire' and payload->>'reservationId'=${reservationId}`;if(expireJob)await runOneJob(f.identity.sql,{},expireJob.id);for(let i=0;i<50;i++){const [r]=await f.identity.sql`select status from app.stock_reservation where id=${reservationId}`;if(r.status==='expired') break;await runOneJob(f.identity.sql);}
   const [expired]=await f.identity.sql`select status,expires_at::text from app.stock_reservation where id=${reservationId}`;assert.equal(expired.status,'expired');
   const [counts]=await f.identity.sql`select count(*)::int as n from app.stock_movement where balance_id=${first.positions['fixture-malang:fixture-shirt']}`;
   const currentClock=await readFixtureClock('test',f.ns);const second=await f.seed();assert.deepEqual(second.stocks,first.stocks);assert.deepEqual(second.offers,first.offers);assert.deepEqual(second.reservations,first.reservations);assert.deepEqual(await readFixtureClock('test',f.ns),currentClock);
@@ -103,9 +103,9 @@ test('developer CLI honors an existing loopback sign-in limit and cleans up its 
  const {connectDatabase}=await import('../../src/db/client.ts');const {sql}=connectDatabase('test');const ns=namespace();const rateId=randomUUID();
  const environment={...process.env};delete environment.NODE_TEST_CONTEXT;
  try{
-  await sql`insert into app.auth_rate_limit (id,key,count,last_request) values (${rateId},'127.0.0.1|/sign-in/email',5,${Date.now()}) on conflict (key) do update set id=${rateId},count=5,last_request=${Date.now()}`;
+  await sql`insert into app.auth_rate_limit (id,key,count,last_request) values (${rateId},'127.0.0.1|/sign-in/email',300,${Date.now()}) on conflict (key) do update set id=${rateId},count=300,last_request=${Date.now()}`;
   await assert.rejects(exec(process.execPath,['--env-file=.env.example','scripts/seed.ts','commerce','test',ns],{env:environment,timeout:15000}));
-  const [rate]=await sql`select count from app.auth_rate_limit where id=${rateId}`;assert.ok(rate&&rate.count>=5,'CLI must not clear or lower an existing shared limit');
+  const [rate]=await sql`select count from app.auth_rate_limit where id=${rateId}`;assert.ok(rate&&rate.count>=300,'CLI must not clear or lower an existing shared limit');
   const [accounts]=await sql`select count(*)::int as n from app.auth_user where email like ${`${ns}.seed-op-%@example.invalid`}`;assert.equal(accounts.n,0);
  }finally{await sql`delete from app.auth_rate_limit where id=${rateId}`;await sql.end();}
 });

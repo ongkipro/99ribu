@@ -14,7 +14,8 @@ export function chargeableWeight(measures:ParcelMeasures,policy=shippingFixture(
 }
 export const localRateAdapter:RateAdapter={async estimate(request,signal){
   signal.throwIfAborted();const fixture=shippingFixture();const destination=fixture.destinations.find((d)=>d.id===request.destination_id);
-  if(!destination||!['fixture-malang','fixture-pontianak'].includes(request.origin_fixture_id)) throw new AccessError(422,'ROUTE_UNCONFIGURED');
+  // Local snapshot warehouses (berlapak-<id>) are simulated cross-city origins.
+  if(!destination||!(['fixture-malang','fixture-pontianak'].includes(request.origin_fixture_id)||/^berlapak-[0-9a-f]{24}$/.test(request.origin_fixture_id))) throw new AccessError(422,'ROUTE_UNCONFIGURED');
   if(destination.id==='test-no-route') return [];const weight=chargeableWeight(request.measures,fixture.policy);if(weight===null) return [];
   const local=request.origin_fixture_id===`fixture-${destination.city.toLowerCase()}`;const steps=Math.ceil(weight/1000)-1;
   return fixture.services.map((s)=>({id:`sim_${createHash('sha256').update(JSON.stringify([fixture.version,request.warehouse_id,destination.id,s.id,request.measures])).digest('hex')}`,

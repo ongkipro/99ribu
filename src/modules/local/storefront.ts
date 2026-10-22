@@ -59,7 +59,7 @@ export async function prepareStorefront(request:Request,identity:LocalAuth,targe
    if(pristine&&!(await identity.sql`select id from app.offer_cost_assumption_version where offer_id=${stored.id} limit 1`).length)
     await appendCostVersion(command(`assumption:${recipe.key}`),identity,principal,'assumption',stored.id,{expected_version:0,effective_from:null,packaging_idr:1000,provider_fee_idr:1000,subsidy_idr:5000,returns_reserve_idr:1000,source:'TEST-ONLY storefront sample assumptions',reason:'Initialize empty sample assumptions; preserve all later edits'});
    let state=await readPublicationState(identity,principal,stored.product_id);
-   if(pristine&&!state.current&&state.blockers.length===0){await publishProduct(command(`publish:${recipe.key}`),identity,principal,stored.product_id,{expected_version:draft.version,expected_publication_version:0,reason:'Guarded TEST-ONLY storefront sample publication'});state=await readPublicationState(identity,principal,stored.product_id);}
+   if(pristine&&!state.current&&state.blockers.length===0){await publishProduct(command(`publish:${recipe.key}:${state.latest_version}`),identity,principal,stored.product_id,{expected_version:draft.version,expected_publication_version:state.latest_version,reason:'Guarded TEST-ONLY storefront sample publication'});state=await readPublicationState(identity,principal,stored.product_id);}
    products[recipe.key]={id:stored.product_id,offer_id:stored.id,publication_id:state.current?.id??null,preserved:!pristine,blockers:state.blockers};
   }
   signal?.throwIfAborted();await owner();return {namespace,source:'TEST-ONLY',categories,products};

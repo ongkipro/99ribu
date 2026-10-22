@@ -47,7 +47,10 @@ test("local fixture seed preserves real identities, isolates inboxes and advance
         assert.equal((await browser.auth("/request-password-reset", { email: user.email, redirectTo: "http://127.0.0.1:3099/reset-password" })).status, 200);
         assert.equal((await readFixtureInbox("test", namespaces[0], id)).length, 0);
         await assert.rejects(readFixtureInbox("test", namespaces[1], id), /scope denied/);
-        for (let i = 0; i < 20 && !(await readFixtureInbox("test", namespaces[0], id)).length; i++) await runOneJob(identity.sql);
+        // Deliver this user's own notification job; the shared queue may hold other suites' due jobs.
+        const pending = await identity.sql`select o.id from app.outbox_job o join app.local_delivery d on d.id::text=o.payload->>'deliveryId'
+          where o.kind='local.notification' and o.status='pending' and d.recipient=${user.email}`;
+        for (const job of pending) await runOneJob(identity.sql, {}, job.id as string);
         const inbox = await readFixtureInbox("test", namespaces[0], id); assert.equal(inbox.length, 1);
         const token = new URL(inbox[0].url).pathname.split("/").at(-1);
         assert.equal((await browser.auth("/reset-password", { token, newPassword: password })).status, 200);
