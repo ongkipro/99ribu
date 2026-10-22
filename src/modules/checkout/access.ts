@@ -1,7 +1,8 @@
 import {createHash,createHmac,randomBytes} from 'node:crypto';
-import type {TransactionSql} from 'postgres';
+import type {Sql,TransactionSql} from 'postgres';
 import type {LocalAuth} from '../access/auth.ts';
 import {AccessError,getPrincipal,type Principal} from '../access/policy.ts';
+import {rateLimit} from '../access/rate-limit.ts';
 
 export type CommerceActor={kind:'guest';id:string}|{kind:'user';id:string;principal:Principal};
 export const digest=(value:string)=>createHash('sha256').update(value).digest('hex');
@@ -33,6 +34,8 @@ export async function commerceActor(request:Request,identity:LocalAuth):Promise<
  if(!guest) throw new AccessError(401,'UNAUTHENTICATED');return {kind:'guest',id:guest.id};
 }
 export async function bootstrapGuest(identity:LocalAuth,response:Response){
+ // Global ceiling against unbounded anonymous guest rows; generous because loopback has no per-client identity. Expired rows are swept by deleteExpiredGuestContexts.
+ await rateLimit(identity.sql,'guest-bootstrap-global',[600,60_000]);
  const token=randomBytes(32).toString('base64url');
  await identity.sql`insert into app.commerce_guest_context (digest,created_at,expires_at) select ${digest(token)},t,t+interval '7 days' from (select clock_timestamp() t) clock`;
  setCookie(response,`${await prefix(identity)}.commerce_guest`,token);return response;
@@ -71,4 +74,33 @@ export async function revokeGuestContext(request:Request,identity:LocalAuth,resp
  const p=await prefix(identity);const token=cookie(request,`${p}.commerce_guest`);
  if(token&&/^[A-Za-z0-9_-]{43}$/.test(token)) await identity.sql`update app.commerce_guest_context set revoked_at=clock_timestamp() where digest=${digest(token)} and revoked_at is null`;
  for(const name of ['commerce_guest','cart_access']) setCookie(response,`${p}.${name}`,'','/',0);
+}
+
+// S76/DEC-002: bounded, idempotent removal of expired guest contexts that
+// nothing references. The candidate anti-join mirrors 0027
+// commerce_guest_context_referenced() term for term (0028 indexes back it);
+// the delete guard and RESTRICT FKs re-check each row. Each delete runs in its
+// own savepoint, so a reference committed after selection (23514/23503) skips
+// only that row instead of failing the batch.
+export async function deleteExpiredGuestContexts(sql:Sql,limit=500){return sql.begin(tx=>deleteExpiredGuestContextBatch(tx,limit));}
+// Caller owns the transaction (the shared-DB test probes it inside a rolled-back one).
+export async function deleteExpiredGuestContextBatch(tx:TransactionSql,limit=500){
+ const candidates=await tx<{id:string}[]>`select g.id from app.commerce_guest_context g
+  where g.expires_at<=clock_timestamp()
+   and not exists(select 1 from app.cart where owner_guest_id=g.id)
+   and not exists(select 1 from app.commerce_order where owner_guest_id=g.id)
+   and not exists(select 1 from app.order_access where guest_id=g.id)
+   and not exists(select 1 from app.return_operation where guest_id=g.id or actor_scope='guest:'||g.id::text)
+   and not exists(select 1 from app.exception_operation where guest_id=g.id or actor_scope='guest:'||g.id::text)
+   and not exists(select 1 from app.commerce_operation where actor_scope='guest:'||g.id::text)
+   and not exists(select 1 from app.guest_support_identity where guest_id=g.id)
+   and not exists(select 1 from app.referral_touch where guest_id=g.id)
+   and not exists(select 1 from app.support_challenge where actor_scope='guest:'||g.id::text)
+  order by g.expires_at,g.id limit ${limit} for update of g skip locked`;
+ let deleted=0;
+ for(const {id} of candidates){
+  try{deleted+=(await tx.savepoint(inner=>inner`delete from app.commerce_guest_context where id=${id} returning id`)).length;}
+  catch(error){if(!['23514','23503'].includes(String((error as {code?:unknown})?.code)))throw error;}
+ }
+ return deleted;
 }

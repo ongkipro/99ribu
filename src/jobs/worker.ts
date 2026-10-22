@@ -5,6 +5,7 @@ import { expireLeases, type JobAdapter, runLeasedJob } from "./leases.ts";
 import { expireReservationJob } from "../modules/inventory/expiry.ts";
 import { expirePromotionJob } from "../modules/promotions/reservations.ts";
 import { expireOwnedOrderJob } from "../modules/checkout/expiry.ts";
+import {deleteExpiredGuestContexts} from '../modules/checkout/access.ts';
 import { AccessError } from "../modules/access/policy.ts";
 import {id} from '../modules/catalog/validation.ts';
 import {processPaymentEvent} from '../modules/payments/events.ts';
@@ -13,11 +14,49 @@ import {processWaybillEvent,processFulfillmentDeadline,processFulfillmentNotice}
 import {processSettlementEvent} from '../modules/finance/settlements/core.ts';
 import {processParcelReceipt} from '../modules/returns/receipts.ts';
 import {processRefundEvent} from '../modules/returns/worker.ts';
+import {processRecoveryRefundEvent} from '../modules/checkout/exceptions/refund-callback.ts';
 import {processReplacementReceipt} from '../modules/returns/replacement-receipts.ts';
 import {processReplacementWaybill} from '../modules/returns/replacement-shipping.ts';
 import {processWaybillCancellationEvent} from '../modules/fulfillment/cancellations.ts';
+import {COMMISSION_JOB_KINDS,processCommissionJob} from '../modules/commissions/jobs.ts';
 
 export type DatabaseJob = { id: string; kind: string; payload: unknown; attempts: number; max_attempts: number };
+
+type Expiry = { reservationId: string; status: string; deferMs: number | null; orderId?: string };
+// complete: always complete with the handler result; defer: a non-null deferMs
+// reschedules instead; expiry: order ownership is resolved first, `constraints`
+// are sealed for unowned reservations and the outcome is written after the savepoint.
+type DatabaseJobDefinition = { error: string } & (
+  | { seal: "complete" | "defer"; run: (tx: TransactionSql, job: DatabaseJob) => Promise<object> }
+  | { seal: "expiry"; constraints: string; run: (tx: TransactionSql, job: DatabaseJob) => Promise<Expiry> });
+
+const STOCK_SEAL = "app.stock_movement_applied, app.stock_reservation_sealed";
+const PROMOTION_SEAL = "app.promotion_movement_applied, app.promotion_reservation_sealed";
+const OWNED_ORDER_SEAL = `${STOCK_SEAL}, ${PROMOTION_SEAL}, app.commerce_order_sealed, app.order_event_applied, app.checkout_stock_hold_sealed, app.checkout_promotion_hold_sealed`;
+
+// Sole registry of database-owned job kinds: whitelist, dispatch, failure code
+// and the runOneJob selector all derive from it. Leased adapter kinds
+// (scripts/worker.ts) and local.notification are handled separately.
+export const DATABASE_JOBS: Readonly<Record<string, DatabaseJobDefinition>> = {
+  "inventory.reservation.expire": { seal: "expiry", error: "INVALID_INVENTORY_STATE", constraints: STOCK_SEAL, run: (tx, job) => expireReservationJob(tx, job.payload) },
+  "promotion.reservation.expire": { seal: "expiry", error: "INVALID_PROMOTION_STATE", constraints: PROMOTION_SEAL, run: (tx, job) => expirePromotionJob(tx, job.payload) },
+  // lazy: run is unreachable; expireOwnedOrderJob owns every order or throws 404.
+  "checkout.order.expire": { seal: "expiry", error: "INVALID_INVENTORY_STATE", constraints: STOCK_SEAL, run: (tx, job) => expireReservationJob(tx, job.payload) },
+  "payment.callback": { seal: "complete", error: "INVALID_PAYMENT_STATE", run: processPaymentEvent },
+  "cod.callback": { seal: "complete", error: "INVALID_COD_STATE", run: processCodEvent },
+  "settlement.callback": { seal: "complete", error: "INVALID_SETTLEMENT_STATE", run: processSettlementEvent },
+  "parcel.receipt.callback": { seal: "complete", error: "INVALID_PARCEL_RECEIPT_STATE", run: processParcelReceipt },
+  "refund.callback": { seal: "complete", error: "INVALID_REFUND_STATE", run: processRefundEvent },
+  "recovery.refund.callback": { seal: "complete", error: "INVALID_RECOVERY_REFUND_STATE", run: processRecoveryRefundEvent },
+  "replacement.shipping.callback": { seal: "complete", error: "INVALID_REPLACEMENT_STATE", run: processReplacementWaybill },
+  "replacement.receipt.callback": { seal: "complete", error: "INVALID_REPLACEMENT_STATE", run: processReplacementReceipt },
+  "shipping.callback": { seal: "defer", error: "INVALID_SHIPPING_STATE", run: processWaybillEvent },
+  "shipping.cancel.callback": { seal: "defer", error: "INVALID_SHIPPING_CANCELLATION_STATE", run: processWaybillCancellationEvent },
+  "fulfillment.deadline": { seal: "defer", error: "INVALID_FULFILLMENT_STATE", run: processFulfillmentDeadline },
+  "fulfillment.notice": { seal: "defer", error: "INVALID_FULFILLMENT_STATE", run: processFulfillmentNotice },
+  ...Object.fromEntries(COMMISSION_JOB_KINDS.map((kind) => [kind, { seal: "defer", error: "INVALID_COMMISSION_STATE", run: processCommissionJob } satisfies DatabaseJobDefinition])),
+};
+const SELECTED_KINDS = ["local.notification", ...Object.keys(DATABASE_JOBS)];
 
 // Shared by the production selector and rollback/crash proof: effect and job
 // completion always use the caller's actual database transaction.
@@ -28,34 +67,21 @@ export async function processDatabaseJob(tx: TransactionSql, job: DatabaseJob) {
     await tx`update app.outbox_job set status=${error ? "failed" : "completed"},attempts=attempts+1,last_error=${error},completed_at=now() where id=${job.id}`;
     return;
   }
-  if (!["inventory.reservation.expire","promotion.reservation.expire","checkout.order.expire","payment.callback","cod.callback","shipping.callback","shipping.cancel.callback","fulfillment.deadline","fulfillment.notice","settlement.callback","parcel.receipt.callback","refund.callback","replacement.shipping.callback","replacement.receipt.callback"].includes(job.kind)) throw new AccessError(400, "INVALID_DATABASE_JOB");
+  const definition = Object.hasOwn(DATABASE_JOBS, job.kind) ? DATABASE_JOBS[job.kind] : undefined;
+  if (!definition) throw new AccessError(400, "INVALID_DATABASE_JOB");
   try {
     const result = await tx.savepoint(async (inner) => {
-      if(job.kind==='replacement.shipping.callback'||job.kind==='replacement.receipt.callback'){
-        const result=job.kind==='replacement.shipping.callback'?await processReplacementWaybill(inner,job):await processReplacementReceipt(inner,job);
-        await inner`update app.outbox_job set status='completed',attempts=attempts+1,last_error=null,completed_at=clock_timestamp(),result=${JSON.stringify(result)}::jsonb where id=${job.id}`;
-        await inner`set constraints all immediate`;return null;
-      }
-      if(['shipping.callback','shipping.cancel.callback','fulfillment.deadline','fulfillment.notice'].includes(job.kind)){
-        const result=job.kind==='shipping.cancel.callback'?await processWaybillCancellationEvent(inner,job):job.kind==='shipping.callback'?await processWaybillEvent(inner,job):job.kind==='fulfillment.deadline'?await processFulfillmentDeadline(inner,job):await processFulfillmentNotice(inner,job);
-        if('deferMs' in result&&result.deferMs!==null)await inner`update app.outbox_job set run_at=clock_timestamp()+${result.deferMs}*interval '1 millisecond',last_error=null where id=${job.id}`;
+      if (definition.seal !== "expiry") {
+        const result = await definition.run(inner, job);
+        if (definition.seal === "defer" && "deferMs" in result && result.deferMs != null) await inner`update app.outbox_job set run_at=clock_timestamp()+${result.deferMs as number}*interval '1 millisecond',last_error=null where id=${job.id}`;
         else await inner`update app.outbox_job set status='completed',attempts=attempts+1,last_error=null,completed_at=clock_timestamp(),result=${JSON.stringify(result)}::jsonb where id=${job.id}`;
-        await inner`set constraints all immediate`;return null;
-      }
-      if(job.kind==='payment.callback'||job.kind==='cod.callback'||job.kind==='settlement.callback'||job.kind==='parcel.receipt.callback'||job.kind==='refund.callback'){
-        const result=job.kind==='refund.callback'?await processRefundEvent(inner,job):job.kind==='parcel.receipt.callback'?await processParcelReceipt(inner,job):job.kind==='settlement.callback'?await processSettlementEvent(inner,job):job.kind==='cod.callback'?await processCodEvent(inner,job):await processPaymentEvent(inner,job);
-        await inner`update app.outbox_job set status='completed',attempts=attempts+1,last_error=null,completed_at=clock_timestamp(),result=${JSON.stringify(result)}::jsonb where id=${job.id}`;
         await inner`set constraints all immediate`;
         return null;
       }
       const owned = await expireOwnedOrderJob(inner,job);
-      const outcome = owned ?? (job.kind === "promotion.reservation.expire" ? await expirePromotionJob(inner,job.payload) : await expireReservationJob(inner, job.payload));
+      const outcome = owned ?? await definition.run(inner, job);
       // Check deferred stock invariants before leaving the recoverable savepoint.
-      await inner.unsafe(owned
-        ? "SET CONSTRAINTS app.stock_movement_applied, app.stock_reservation_sealed, app.promotion_movement_applied, app.promotion_reservation_sealed, app.commerce_order_sealed, app.order_event_applied, app.checkout_stock_hold_sealed, app.checkout_promotion_hold_sealed IMMEDIATE"
-        : job.kind === "promotion.reservation.expire"
-        ? "SET CONSTRAINTS app.promotion_movement_applied, app.promotion_reservation_sealed IMMEDIATE"
-        : "SET CONSTRAINTS app.stock_movement_applied, app.stock_reservation_sealed IMMEDIATE");
+      await inner.unsafe(`SET CONSTRAINTS ${owned ? OWNED_ORDER_SEAL : definition.constraints} IMMEDIATE`);
       return outcome;
     });
     if(result===null) return;
@@ -70,10 +96,26 @@ export async function processDatabaseJob(tx: TransactionSql, job: DatabaseJob) {
     const retryable = ["40P01", "55P03", "57014", "PAYMENT_RECONCILIATION_PENDING"].includes(code);
     const attempts = job.attempts + 1; const failed = !retryable || attempts >= job.max_attempts;
     const message = error instanceof AccessError && [400,404].includes(error.status) ? "INVALID_PAYLOAD"
-      : retryable ? "TEMPORARY_DATABASE_FAILURE" : job.kind.startsWith('replacement.')?'INVALID_REPLACEMENT_STATE':job.kind==='payment.callback'?'INVALID_PAYMENT_STATE':job.kind==='cod.callback'?'INVALID_COD_STATE':job.kind==='refund.callback'?'INVALID_REFUND_STATE':job.kind==='parcel.receipt.callback'?'INVALID_PARCEL_RECEIPT_STATE':job.kind==='settlement.callback'?'INVALID_SETTLEMENT_STATE':job.kind==='shipping.cancel.callback'?'INVALID_SHIPPING_CANCELLATION_STATE':job.kind==='shipping.callback'?'INVALID_SHIPPING_STATE':job.kind.startsWith('fulfillment.')?'INVALID_FULFILLMENT_STATE':job.kind === "promotion.reservation.expire" ? "INVALID_PROMOTION_STATE" : "INVALID_INVENTORY_STATE";
+      : retryable ? "TEMPORARY_DATABASE_FAILURE" : definition.error;
     const delay = Math.min(60, 2 ** Math.max(0, attempts-1));
     await tx`update app.outbox_job set status=${failed ? "failed" : "pending"},attempts=${attempts},last_error=${message},
       run_at=clock_timestamp()+${delay}*interval '1 second',completed_at=case when ${failed} then clock_timestamp() else null end where id=${job.id}`;
+  }
+}
+
+let guestCleanupAt = Number.NEGATIVE_INFINITY;
+// Single seam so tests can inject a failing cleanup without intercepting the job transaction.
+export const guestCleanup = { run: deleteExpiredGuestContexts };
+// Guest-context cleanup is housekeeping: at most once per minute per process (monotonic clock),
+// and a failure is logged (redacted: class + SQLSTATE) without stopping jobs.
+export async function sweepExpiredGuestContexts(sql: Sql) {
+  if (performance.now() - guestCleanupAt < 60000) return;
+  guestCleanupAt = performance.now();
+  try { await guestCleanup.run(sql); }
+  catch (error) {
+    console.error(JSON.stringify({ event: "jobs.guest_cleanup_failed",
+      error: error instanceof Error ? error.name : typeof error,
+      sqlstate: typeof (error as { code?: unknown })?.code === "string" ? (error as { code: string }).code : undefined }));
   }
 }
 
@@ -81,6 +123,7 @@ export async function runOneJob(sql: Sql, adapters: Readonly<Record<string, JobA
   readLocalConfig(process.env);
   if(onlyJobId!==undefined) id(onlyJobId);
   await expireLeases(sql,onlyJobId);
+  if(onlyJobId===undefined) await sweepExpiredGuestContexts(sql);
   if(Object.keys(adapters).length>0&&Object.keys(adapters).every((k)=>k.startsWith("lease.probe."))) return runLeasedJob(sql,adapters,undefined,onlyJobId);
   const [installed]=await sql`select to_regclass('app.fulfillment_deadline') is not null installed`;
   const fulfillmentDue=installed.installed?sql`(o.kind='fulfillment.deadline' and o.last_error is null and exists (
@@ -88,7 +131,7 @@ export async function runOneJob(sql: Sql, adapters: Readonly<Record<string, JobA
     where d.id::text=o.payload->>'deadlineId' and (case when o.payload->>'kind'='packing' then d.packing_due_at else d.handover_due_at end)<=n.clock))`:sql`false`;
   const processed = await sql.begin(async (tx) => {
     const [job] = await tx<DatabaseJob[]>`select o.id,o.kind,o.payload,o.attempts,o.max_attempts from app.outbox_job o
-      where o.status='pending' and (${onlyJobId??null}::uuid is null or o.id=${onlyJobId??null}::uuid) and o.kind in ('local.notification','inventory.reservation.expire','promotion.reservation.expire','checkout.order.expire','payment.callback','cod.callback','shipping.callback','shipping.cancel.callback','fulfillment.deadline','fulfillment.notice','settlement.callback','parcel.receipt.callback','refund.callback','replacement.shipping.callback','replacement.receipt.callback') and (
+      where o.status='pending' and (${onlyJobId??null}::uuid is null or o.id=${onlyJobId??null}::uuid) and o.kind in ${tx(SELECTED_KINDS)} and (
         o.run_at<=clock_timestamp() or (o.kind='inventory.reservation.expire' and o.last_error is null and exists (
           select 1 from app.stock_reservation r join app.local_fixture_namespace n on n.name=r.clock_namespace
           where r.id::text=o.payload->>'reservationId' and r.kind='checkout' and r.status='active' and r.expires_at<=n.clock))
@@ -97,7 +140,10 @@ export async function runOneJob(sql: Sql, adapters: Readonly<Record<string, JobA
           where r.id::text=o.payload->>'reservationId' and r.status='active' and r.expires_at<=n.clock))
         or (o.kind='checkout.order.expire' and o.last_error is null and exists (
           select 1 from app.commerce_order r join app.local_fixture_namespace n on n.name=r.clock_namespace
-          where r.id::text=o.payload->>'orderId' and r.status='pending' and r.expires_at<=n.clock)) or ${fulfillmentDue})
+          where r.id::text=o.payload->>'orderId' and r.status='pending' and r.expires_at<=n.clock)) or ${fulfillmentDue}
+        or (o.kind='commission.mature' and o.last_error is null and exists (
+          select 1 from app.commission_entry ce join app.commerce_order r on r.id=ce.order_id
+          where ce.id::text=o.payload->>'commissionEntryId' and ce.available_at<=app.reservation_clock(r.clock_namespace))))
       order by o.run_at,o.created_at,o.id for update of o skip locked limit 1`;
     if (!job) return false;
     await processDatabaseJob(tx, job);

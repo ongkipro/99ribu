@@ -507,7 +507,9 @@ test("successful auth followed by failed guest-context revocation returns 503 wi
     const failingIdentity = {
       ...identity,
       sql: new Proxy(identity.sql, {
-        apply() {
+        // The per-account sign-in limiter runs before Better Auth; only post-commit statements fail.
+        apply(target, thisArg, args) {
+          if (Array.isArray(args[0]) && /auth_rate_limit|epoch from clock_timestamp/.test(args[0].join(""))) return Reflect.apply(target, thisArg, args);
           throw new Error("Synthetic guest-context revocation database failure");
         },
       }),
