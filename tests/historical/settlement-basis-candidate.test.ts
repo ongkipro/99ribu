@@ -3,7 +3,7 @@ import {readFileSync} from 'node:fs';
 import test from 'node:test';
 import type {Sql,TransactionSql} from 'postgres';
 import {connectDatabase} from '../../src/db/client.ts';
-import {assertSettlementBases,settlementBasisFixture} from './settlement-basis-fixture.ts';
+import {assertSettlementBases,settlementBasisFixture} from '../integration/settlement-basis-fixture.ts';
 
 test('rollback-only native prepaid and authenticated COD/prepaid recovery bases match without extra Purchase',async()=>{
  const f=await settlementBasisFixture(),owner=connectDatabase('test','owner'),rollback=new Error('Expected full settlement basis candidate rollback');

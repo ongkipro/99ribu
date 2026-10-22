@@ -17,7 +17,7 @@ import {createAttempt} from '../../src/modules/payments/attempts.ts';
 import {paymentAdapter} from '../../src/modules/payments/worker.ts';
 import {simulateCollection,ingestProviderEvent} from '../../src/modules/payments/local.ts';
 import {runOneJob} from '../../src/jobs/worker.ts';
-import {checkoutFixture,ownShippingCampaign} from './checkout-fixture.ts';
+import {checkoutFixture,ownShippingCampaign} from '../integration/checkout-fixture.ts';
 
 // This routes real service transactions into PostgreSQL savepoints solely so
 // the unapplied schema and entire business proof can be rolled back together.

@@ -11,9 +11,9 @@ import {createCart} from '../../src/modules/checkout/carts.ts';
 import {createQuote} from '../../src/modules/checkout/quotes.ts';
 import {submitOrder} from '../../src/modules/checkout/orders.ts';
 import {actor} from '../contract/access-fixture.ts';
-import {CommerceClient} from './checkout-fixture.ts';
-import {closeFulfillmentActor} from './fulfillment-fixture.ts';
-import {shippingFixture} from './shipping-fixture.ts';
+import {CommerceClient} from '../integration/checkout-fixture.ts';
+import {closeFulfillmentActor} from '../integration/fulfillment-fixture.ts';
+import {shippingFixture} from '../integration/shipping-fixture.ts';
 
 function candidateConnection(tx:TransactionSql){return new Proxy(tx,{get(target,property,receiver){
  if(property==='begin')return (run:(inner:TransactionSql)=>Promise<unknown>)=>target.savepoint(async inner=>{

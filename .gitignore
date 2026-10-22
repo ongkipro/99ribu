@@ -22,3 +22,9 @@ __pycache__/
 # Framework-generated declaration
 next-env.d.ts
 .vercel/
+
+# Local data symlink
+/public/berlapak-images
+
+# Local catalog import copies (npm run fixture -- berlapak)
+/public/catalog-local

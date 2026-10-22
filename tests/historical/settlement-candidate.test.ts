@@ -9,7 +9,7 @@ import {appendFinanceTransaction,reverseFinanceTransaction} from '../../src/modu
 import {settlementSourceEvent,reviseSettlementStatement,registerSettlementEvent,type SettlementSourceEvent} from '../../src/modules/finance/settlements/local.ts';
 import {applySettlementFees,createSettlementMatch,advanceSettlement,type SettlementHead,type SettlementCause} from '../../src/modules/finance/settlements/core.ts';
 import {simulateCodCollection,ingestCodEvent} from '../../src/modules/payments/cod-local.ts';
-import {fulfillmentFixture} from './fulfillment-fixture.ts';
+import {fulfillmentFixture} from '../integration/fulfillment-fixture.ts';
 
 // Candidate DDL and real services share one rollback-only transaction. This
 // cannot establish independently committed source or fresh-process evidence.

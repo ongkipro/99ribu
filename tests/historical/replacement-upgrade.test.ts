@@ -21,16 +21,19 @@ import {createReturn,decideReturn} from '../../src/modules/returns/cases.ts';
 import {simulateParcelReceipt,ingestParcelReceiptSource} from '../../src/modules/returns/receipt-source.ts';
 import {ingestRefundSourceEvent,simulateRefundOutcome} from '../../src/modules/returns/refund-source.ts';
 import {queueRefund} from '../../src/modules/returns/refunds.ts';
+import {createReplacement,actOnReplacement} from '../../src/modules/returns/replacements.ts';
+import {replacementShippingAdapter,simulateReplacementWaybill,ingestReplacementWaybillEvent} from '../../src/modules/returns/replacement-shipping.ts';
+import {simulateReplacementReceipt,ingestReplacementReceiptSource} from '../../src/modules/returns/replacement-receipts.ts';
 import {refundAdapter} from '../../src/modules/returns/worker.ts';
-import {paymentFixture} from './payment-fixture.ts';
-import {closeFulfillmentActor,installFulfillmentCalendars} from './fulfillment-fixture.ts';
+import {paymentFixture} from '../integration/payment-fixture.ts';
+import {closeFulfillmentActor,installFulfillmentCalendars} from '../integration/fulfillment-fixture.ts';
 
 // Each process owns a separate private Unix-socket cluster and actual migration
 // history. Existing test/local databases, credentials and applied files are untouched.
 // Keep the original browser authority alive across the real additive upgrade.
-test('genuine pre-signal collection upgrades and refunds its original buyer without inventing a Purchase',{timeout:90000},async()=>{
- const source=resolve('.'),root=mkdtempSync(join(tmpdir(),'99ribu-return-upgrade-')),journal=JSON.parse(readFileSync(join(source,'migrations/meta/_journal.json'),'utf8'));
- assert.equal(journal.entries.length,22);
+test('pre-signal buyer and an approved legacy replacement survive0022 then refund the received replacement without Purchase backfill',{timeout:90000},async()=>{
+ const source=resolve('.'),root=mkdtempSync(join(tmpdir(),'99ribu-replacement-upgrade-')),journal=JSON.parse(readFileSync(join(source,'migrations/meta/_journal.json'),'utf8'));
+ assert.equal(journal.entries.length,23);
  const sourceJournalHash=createHash('sha256').update(readFileSync(join(source,'migrations/meta/_journal.json'))).digest('hex');
  const hash=(path:string)=>createHash('sha256').update(readFileSync(path)).digest('hex');
  const original=new Map<string,string>();
@@ -52,7 +55,7 @@ test('genuine pre-signal collection upgrades and refunds its original buyer with
   const seeded=await seedCommerce(f.request(),f.identity,'test',f.namespace);Object.assign(f.seeded,seeded);assert.ok(f.seeded.publications['fixture-offer-shirt'].id);
   await installFulfillmentCalendars(f.identity,f.owner,f.namespace);
   const {client,order}=await f.order(1),sql=f.identity.sql;
-  const adapters={'payment.create':paymentAdapter(sql,'test'),'shipping.create':shippingAdapter(sql,'test'),'refund.create':refundAdapter(sql,'test')};
+  const adapters={'payment.create':paymentAdapter(sql,'test'),'shipping.create':shippingAdapter(sql,'test'),'refund.create':refundAdapter(sql,'test'),'replacement.shipping.create':replacementShippingAdapter(sql,'test')};
   const run=async(jobId:string)=>{assert.equal(await runOneJob(sql,adapters,jobId),true);assert.equal((await sql`select status from app.outbox_job where id=${jobId}`)[0].status,'completed',stage);};
   stage='genuine original prefix16 payment and buyer cookies';
   assert.equal((await sql`select to_regclass('app.commerce_event') absent`)[0].absent,null);
@@ -62,7 +65,7 @@ test('genuine pre-signal collection upgrades and refunds its original buyer with
   const [funding]=await sql`select * from app.finance_transaction where id=${receipt.transaction_id}`;
   stage='exact additive prefix17 through21 upgrade';
   savePrefix(22);execute('scripts/migrate.ts','test');
-  const current=connectDatabase('test','owner');try{const applied=await current.sql`select hash from drizzle.__drizzle_migrations order by id`;assert.deepEqual(applied.map(row=>row.hash),journal.entries.map((entry:{tag:string})=>hash(join(source,`migrations/${entry.tag}.sql`))));assert.equal((await current.sql`select count(*)::int n from pg_tables where schemaname='app'`)[0].n,124);}finally{await current.sql.end();}
+  const current=connectDatabase('test','owner');try{const applied=await current.sql`select hash from drizzle.__drizzle_migrations order by id`;assert.deepEqual(applied.map(row=>row.hash),journal.entries.slice(0,22).map((entry:{tag:string})=>hash(join(source,`migrations/${entry.tag}.sql`))));assert.equal((await current.sql`select count(*)::int n from pg_tables where schemaname='app'`)[0].n,124);}finally{await current.sql.end();}
   assert.equal((await sql`select count(*)::int n from app.commerce_event where order_id=${order.id}`)[0].n,0);
   assert.deepEqual((await sql`select * from app.economic_receipt where id=${receipt.id}`)[0],receipt);assert.deepEqual((await sql`select * from app.finance_transaction where id=${funding.id}`)[0],funding);
   await sql.begin(tx=>initializeFulfillments(tx,order.id));
@@ -76,12 +79,44 @@ test('genuine pre-signal collection upgrades and refunds its original buyer with
   const [unit]=await sql`select f.* from app.fulfillment_item f join app.order_item i on i.id=f.order_item_id where i.order_id=${order.id}`;
   await run(await ingestParcelReceiptSource(sql,await simulateParcelReceipt(sql,'test',{reference:randomUUID(),booking_id:booking.id,unit_ids:[unit.id]})));
   const buyer=await commerceActor(client.request('/api/v1/carts'),f.identity);assert.ok(buyer);
-  const input={items:[{order_item_id:unit.order_item_id,delivered_fulfillment_item_id:unit.id,quantity:1,reason:'damaged',details:'SYNTHETIC actual pre-signal original buyer claim'}],requested_resolution:'refund'},claim=await createReturn(client.request(`/api/v1/orders/${order.id}/returns`,input),f.identity,buyer,order.id,input) as {id:string};
+  const input={items:[{order_item_id:unit.order_item_id,delivered_fulfillment_item_id:unit.id,quantity:1,reason:'damaged',details:'SYNTHETIC actual pre-signal legacy replacement claim'}],requested_resolution:'replacement'},claim=await createReturn(client.request(`/api/v1/orders/${order.id}/returns`,input),f.identity,buyer,order.id,input) as {id:string};
   const command=(path:string,body:Record<string,unknown>)=>{assert.ok(f);const request=f.owner.browser.request(path,body);request.headers.set('idempotency-key',randomUUID());return request;};
-  const decision={decision:'approve_refund',expected_version:1,requires_goods:false,reason:'SYNTHETIC original company-fault return waiver'};await decideReturn(command(`/api/v1/admin/returns/${claim.id}/decisions`,decision),f.identity,f.principal,claim.id,decision);
-  stage='original authenticated receipt funds one refund without Purchase backfill';
-  const proofResponse=await handleAccess(command('/api/v1/me/reauthentication-proofs',{password:f.owner.password,action:'finance.refund',subject_id:claim.id}),f.identity);assert.equal(proofResponse.status,201);
-  const queue={return_case_id:claim.id,expected_version:2,reason:'SYNTHETIC preserved pre-signal collection refund',reauthentication_proof:(await proofResponse.json()).proof},refund=await queueRefund(command('/api/v1/admin/refunds',queue),f.identity,f.principal,queue) as {id:string;amount:number};
+  const decision={decision:'approve_replacement',expected_version:1,requires_goods:false,reason:'SYNTHETIC original company-fault legacy replacement waiver'};await decideReturn(command(`/api/v1/admin/returns/${claim.id}/decisions`,decision),f.identity,f.principal,claim.id,decision);
+  const originalItems=await sql`select to_jsonb(r) row from app.return_item r where case_id=${claim.id} order by id`,[selected]=await sql`select id from app.return_item where case_id=${claim.id}`;
+  const [originalCase]=await sql`select to_jsonb(c) row from app.return_case c where id=${claim.id}`;
+  assert.equal((await sql`select to_regclass('app.replacement_shipment') absent`)[0].absent,null);
+  stage='exact isolated0022 upgrade preserves the original approved case and buyer authority';
+  savePrefix(23);execute('scripts/migrate.ts','test');
+  const upgraded=connectDatabase('test','owner');try{
+   assert.deepEqual((await upgraded.sql`select hash from drizzle.__drizzle_migrations order by id`).map(row=>row.hash),journal.entries.map((entry:{tag:string})=>hash(join(source,`migrations/${entry.tag}.sql`))));
+   assert.equal((await upgraded.sql`select count(*)::int n from pg_tables where schemaname='app'`)[0].n,140);
+  }finally{await upgraded.sql.end();}
+  assert.deepEqual(await sql`select to_jsonb(r)-'replacement_link_id' row from app.return_item r where case_id=${claim.id} order by id`,originalItems);
+  assert.equal((await sql`select count(*)::int n from app.return_item where case_id=${claim.id} and replacement_link_id is not null`)[0].n,0);
+  assert.deepEqual((await sql`select to_jsonb(c) row from app.return_case c where id=${claim.id}`)[0],originalCase);
+  assert.equal((await sql`select current_user actor`)[0].actor,'99ribu_test_app');
+  const [origin]=await sql`select warehouse_id from app.order_shipment where id=${parcel.shipment_id}`;
+  const replacementInput={return_item_ids:[selected.id],warehouse_id:origin.warehouse_id,expected_version:2,reason:'SYNTHETIC dispatch the pre0022 approved quantity'};
+  let replacement=await createReplacement(command(`/api/v1/admin/returns/${claim.id}/replacements`,replacementInput),f.identity,f.principal,claim.id,replacementInput);
+  assert.equal(replacement.status,'ready');assert.equal(replacement.items.length,1);assert.equal(replacement.items[0].original_fulfillment_item_id,unit.id);
+  const act=async(action:'prepare'|'book'|'handover')=>{assert.ok(f);const body={expected_version:replacement.version,reason:`SYNTHETIC legacy replacement ${action}`,...(action==='handover'?{handover_reference:'SYNTHETIC legacy replacement pickup'}:{})};replacement=await actOnReplacement(command(`/api/v1/admin/replacements/${replacement.id}/${action}`,body),f.identity,f.principal,replacement.id,body,action);};
+  stage='independently committed original replacement booking, waybill and physical handover';
+  await act('prepare');await act('book');const replacementBooking=replacement.booking_id;assert.ok(replacementBooking);
+  const [creation]=await sql`select creation_job_id from app.replacement_booking where id=${replacementBooking}`;await run(creation.creation_job_id);
+  await run(await ingestReplacementWaybillEvent(sql,await simulateReplacementWaybill(sql,'test',replacementBooking)));
+  replacement={...replacement,version:Number((await sql`select revision from app.replacement_shipment where id=${replacement.id}`)[0].revision)};
+  await act('handover');assert.equal(replacement.cod_due,0);assert.equal(replacement.buyer_shipping,0);
+  await sql`update app.local_fixture_namespace set clock=clock+interval '1 hour',revision=revision+1 where name=${f.namespace}`;
+  const replacedUnit=replacement.items[0],replacementReceipt=await simulateReplacementReceipt(sql,'test',{reference:randomUUID(),booking_id:replacementBooking,unit_ids:[replacedUnit.id]});await run(await ingestReplacementReceiptSource(sql,replacementReceipt));
+  assert.equal((await sql`select status from app.return_case where id=${claim.id}`)[0].status,'resolved');
+  stage='original buyer claims the received replacement using its distinct physical anchor';
+  const laterInput={items:[{order_item_id:unit.order_item_id,delivered_fulfillment_item_id:replacedUnit.id,quantity:1,reason:'defective',details:'SYNTHETIC upgraded replacement received defective'}],requested_resolution:'refund'},later=await createReturn(client.request(`/api/v1/orders/${order.id}/returns`,laterInput),f.identity,buyer,order.id,laterInput) as {id:string};
+  const [laterItem]=await sql`select fulfillment_item_id,replacement_link_id,deadline_at from app.return_item where case_id=${later.id}`;
+  assert.equal(laterItem.fulfillment_item_id,unit.id);assert.equal(laterItem.replacement_link_id,replacedUnit.id);assert.equal(new Date(laterItem.deadline_at).getTime(),Date.parse(replacementReceipt.occurred_at)+168*60*60*1000);
+  const refundDecision={decision:'approve_refund',expected_version:1,requires_goods:false,reason:'SYNTHETIC explicit company-fault replacement refund waiver'};await decideReturn(command(`/api/v1/admin/returns/${later.id}/decisions`,refundDecision),f.identity,f.principal,later.id,refundDecision);
+  stage='original authenticated collection funds exactly one refund without Purchase backfill';
+  const proofResponse=await handleAccess(command('/api/v1/me/reauthentication-proofs',{password:f.owner.password,action:'finance.refund',subject_id:later.id}),f.identity);assert.equal(proofResponse.status,201);
+  const queue={return_case_id:later.id,expected_version:2,reason:'SYNTHETIC preserved pre-signal replacement refund',reauthentication_proof:(await proofResponse.json()).proof},refund=await queueRefund(command('/api/v1/admin/refunds',queue),f.identity,f.principal,queue) as {id:string;amount:number};
   assert.equal(refund.amount,99000+Number(unit.buyer_shipping));assert.equal((await sql`select count(*)::int n from app.finance_transaction where order_id=${order.id} and kind='refund_cash'`)[0].n,0);
   await run((await sql`select current_job_id from app.refund where id=${refund.id}`)[0].current_job_id);await run(await ingestRefundSourceEvent(sql,await simulateRefundOutcome(sql,'test',refund.id,'succeeded')));
   const [intent]=await sql`select receipt_id,purchase_event_id,dispatch_reason,merchandise_refunded,retained_merchandise from app.refund_adjustment_intent where refund_id=${refund.id}`;

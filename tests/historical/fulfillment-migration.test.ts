@@ -4,7 +4,7 @@ import {readFileSync} from 'node:fs';
 import test from 'node:test';
 import {connectDatabase} from '../../src/db/client.ts';
 import {packingDeadline} from '../../src/modules/fulfillment/calendar.ts';
-import {fulfillmentCalendarFixture} from './fulfillment-calendar-fixture.ts';
+import {fulfillmentCalendarFixture} from '../integration/fulfillment-calendar-fixture.ts';
 
 test('unapplied fulfillment migration parses on real PostgreSQL, preserves source types and rolls its entire schema back',async()=>{
  const {sql}=connectDatabase('test','owner'),rollback=new Error('Expected complete candidate rollback');

@@ -5,8 +5,8 @@ import test from 'node:test';
 import {connectDatabase} from '../../src/db/client.ts';
 import {postEconomicReceipt,type ReceiptInput} from '../../src/modules/finance/receipts.ts';
 import {readFinanceTransaction,reverseFinanceTransaction} from '../../src/modules/finance/ledger.ts';
-import {financeFixture} from './finance-ledger-fixture.ts';
-import {denied} from './shipping-fixture.ts';
+import {financeFixture} from '../integration/finance-ledger-fixture.ts';
+import {denied} from '../integration/shipping-fixture.ts';
 
 test('candidate receipt/posting transaction conserves actual order money, immutable reversal and partial rollback',async()=>{
  const f=await financeFixture(),connection=connectDatabase('test','owner'),rollback=new Error('Expected candidate rollback');

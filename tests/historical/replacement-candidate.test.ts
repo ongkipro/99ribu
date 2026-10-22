@@ -12,7 +12,7 @@ import {simulateParcelReceipt,ingestParcelReceiptSource} from '../../src/modules
 import {createReplacement,actOnReplacement} from '../../src/modules/returns/replacements.ts';
 import {simulateReplacementWaybill,ingestReplacementWaybillEvent,replacementShippingAdapter} from '../../src/modules/returns/replacement-shipping.ts';
 import {simulateReplacementReceipt,ingestReplacementReceiptSource} from '../../src/modules/returns/replacement-receipts.ts';
-import {returnFixture} from './return-fixture.ts';
+import {returnFixture} from '../integration/return-fixture.ts';
 
 function candidateConnection(tx:TransactionSql){return new Proxy(tx,{get(target,property,receiver){
  if(property==='begin')return (run:(inner:TransactionSql)=>Promise<unknown>)=>target.savepoint(async inner=>{

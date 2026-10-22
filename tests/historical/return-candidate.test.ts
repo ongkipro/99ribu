@@ -15,7 +15,7 @@ import {acceptRefundDestination,projectBuyerRefund,queueRefund} from '../../src/
 import {recoverRefund} from '../../src/modules/returns/refund-recovery.ts';
 import {createRefundDestinationSource,simulateRefundOutcome,ingestRefundSourceEvent} from '../../src/modules/returns/refund-source.ts';
 import {refundAdapter} from '../../src/modules/returns/worker.ts';
-import {returnFixture} from './return-fixture.ts';
+import {returnFixture} from '../integration/return-fixture.ts';
 
 function candidateConnection(tx:TransactionSql){return new Proxy(tx,{get(target,property,receiver){if(property==='begin')return (run:(inner:TransactionSql)=>Promise<unknown>)=>target.savepoint(async inner=>{await inner`set constraints all deferred`;return run(inner);});return Reflect.get(target,property,receiver);}}) as unknown as Sql;}
 type CaseResult={id:string;version:number;status:string;items:{delivered_fulfillment_item_id:string}[]};

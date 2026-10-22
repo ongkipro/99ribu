@@ -12,7 +12,7 @@ import {handleSettlements} from '../../src/modules/finance/settlements/routes.ts
 import {reviseSettlementStatement,settlementSourceEvent,registerSettlementEvent,type SettlementSourceEvent} from '../../src/modules/finance/settlements/local.ts';
 import {simulateCodCollection,ingestCodEvent} from '../../src/modules/payments/cod-local.ts';
 import {actor,cleanup,enroll} from '../contract/access-fixture.ts';
-import {fulfillmentFixture} from './fulfillment-fixture.ts';
+import {fulfillmentFixture} from '../integration/fulfillment-fixture.ts';
 
 function candidateConnection(tx:TransactionSql){return new Proxy(tx,{get(target,property,receiver){if(property==='begin')return (run:(inner:TransactionSql)=>Promise<unknown>)=>target.savepoint(async inner=>{await inner`set constraints all deferred`;return run(inner);});return Reflect.get(target,property,receiver);}}) as unknown as Sql;}
 
