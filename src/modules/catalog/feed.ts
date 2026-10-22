@@ -38,7 +38,8 @@ export async function catalogFeed(sql:Sql,productIds?:readonly string[]){
   // once the published catalog outgrows a single local export.
   const heads=productIds?.length
    ?await tx`select product_id from app.publication_head where revision>0 and product_id in ${tx(productIds)} order by product_id`
-   :await tx`select h.product_id from app.publication_head h join app.publication_version v on v.product_id=h.product_id and v.revision=h.revision where h.revision>0 order by v.created_at desc,h.product_id limit 50`;
+   :await tx`select h.product_id from app.publication_head h join app.publication_version v on v.product_id=h.product_id and v.revision=h.revision where h.revision>0
+    and not exists (select 1 from app.publication_withdrawal w where w.publication_id=v.id) order by v.created_at desc,h.product_id limit 50`;
   const items:FeedItem[]=[],issues:FeedIssue[]=[];
   for(const head of heads){
    const product=await publicProduct(tx,head.product_id);if(!product) continue;

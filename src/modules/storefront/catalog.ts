@@ -13,14 +13,22 @@ export async function publicCategory(sql:Sql|TransactionSql,key:string,by:'id'|'
  const [category]=await sql<PublicCategory[]>`with recursive visible as (
   select distinct r.category_id as id from app.publication_head h join app.publication_version v on v.product_id=h.product_id and v.revision=h.revision
    join app.product_revision r on r.product_id=v.product_id and r.revision=v.product_revision
+   where not exists (select 1 from app.publication_withdrawal w where w.publication_id=v.id)
   union select c.parent_id from app.category c join visible p on p.id=c.id where c.parent_id is not null)
   select c.id,c.name,c.slug,c.parent_id from app.category c where c.id in (select id from visible)
    and ((${by}='id' and c.id::text=${wanted}) or (${by}='slug' and c.slug=${wanted}))`;
  return category??null;
 }
-export async function featuredDepartments(identity:LocalAuth){
- const categories=await Promise.all(['shop-commerce-demo-busana','shop-commerce-demo-perawatan'].map(slug=>publicCategory(identity.sql,slug,'slug')));
- return categories.filter((c):c is PublicCategory=>c!==null);
+// Merchandising from the live catalog only: top-level departments ranked by how many
+// currently published (not withdrawn) products they hold, then name. No hard-coded slugs.
+export async function featuredDepartments(identity:LocalAuth,limit=8){
+ return identity.sql<PublicCategory[]>`with recursive visible as (
+  select r.category_id as id,count(*)::int as n from app.publication_head h join app.publication_version v on v.product_id=h.product_id and v.revision=h.revision
+   join app.product_revision r on r.product_id=v.product_id and r.revision=v.product_revision
+   where not exists (select 1 from app.publication_withdrawal w where w.publication_id=v.id) group by r.category_id),
+  up as (select id,n from visible union all select c.parent_id,up.n from up join app.category c on c.id=up.id where c.parent_id is not null)
+  select c.id,c.name,c.slug,c.parent_id from up join app.category c on c.id=up.id where c.parent_id is null
+  group by c.id order by sum(up.n) desc,c.name,c.id limit ${limit}`;
 }
 export type CatalogQuery={q:string;category_id:string|null;sort:'relevance'|'newest';offer_kind:string|null;availability:string|null;attributes:Filters;limit:number;cursor:string|null};
 const fingerprint=(value:unknown)=>createHash('sha256').update(JSON.stringify(value)).digest('hex');
@@ -92,7 +100,8 @@ export async function listProducts(identity:LocalAuth,input:CatalogQuery){
       when r.name ilike ${`${escaped}%`} then 1 else 2 end as rank
     from app.product p join app.publication_head h on h.product_id=p.id join app.publication_version v on v.product_id=p.id and v.revision=h.revision
      join app.product_revision r on r.product_id=p.id and r.revision=v.product_revision
-    where (${input.category_id}::uuid is null or r.category_id in (select id from departments))
+    where not exists (select 1 from app.publication_withdrawal w where w.publication_id=v.id)
+     and (${input.category_id}::uuid is null or r.category_id in (select id from departments))
      and (${input.q}='' or r.name ilike ${`%${escaped}%`} or r.description ilike ${`%${escaped}%`}))
     select * from ranked where ${position===null} or rank>${position?.r??0}
      or (rank=${position?.r??0} and (created_at<${position?.t??'1970-01-01T00:00:00.000000Z'}::timestamptz or (created_at=${position?.t??'1970-01-01T00:00:00.000000Z'}::timestamptz and id>${position?.id??'00000000-0000-0000-0000-000000000000'}::uuid)))
@@ -112,12 +121,18 @@ export async function listCategories(identity:LocalAuth,params:URLSearchParams){
  const limit=Number(raw);const data=await identity.sql`with recursive visible as (
   select distinct r.category_id as id from app.publication_head h join app.publication_version v on v.product_id=h.product_id and v.revision=h.revision
    join app.product_revision r on r.product_id=v.product_id and r.revision=v.product_revision
+   where not exists (select 1 from app.publication_withdrawal w where w.publication_id=v.id)
   union select c.parent_id from app.category c join visible p on p.id=c.id where c.parent_id is not null)
   select c.id,c.name,c.slug,c.parent_id from app.category c where c.id in (select id from visible) and (${cursor}::uuid is null or c.id>${cursor}::uuid) order by c.id limit ${limit+1}`;
  return {data:data.slice(0,limit),pagination:{next_cursor:data.length>limit?data[limit-1].id as string:null}};
 }
-export async function featuredProducts(identity:LocalAuth){
- // Local home merchandising only; ordinary merchant products remain searchable.
- const rows=await identity.sql`select product_id from app.offer where sku in ('SF_COMMERCE-DEMO_SHIRT','SF_COMMERCE-DEMO_CREAM-PAIR','SF_COMMERCE-DEMO_SHIRT-PAIR','SF_COMMERCE-DEMO_SHIRT-CREAM') order by sku`;
- const products:PublicProduct[]=[];for(const row of rows){const product=await identity.sql.begin(tx=>publicProduct(tx,row.product_id));if(product) products.push(product);}return products;
+// Home merchandising: the newest current publications, through the same guarded public reader.
+export async function featuredProducts(identity:LocalAuth,limit=8){
+ return (await listProducts(identity,catalogQuery(new URLSearchParams({sort:'newest',limit:String(limit)})))).data;
+}
+// Category tile photo: first image of the department's newest current publication, read through the
+// same guarded public reader (deterministic for a given catalog); null keeps the labelled placeholder.
+export async function departmentPhoto(identity:LocalAuth,categoryId:string){
+ const [product]=(await listProducts(identity,catalogQuery(new URLSearchParams({category_id:categoryId,sort:'newest',limit:'1'})))).data;
+ return product?.images[0]??null;
 }

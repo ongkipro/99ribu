@@ -1,6 +1,6 @@
 import { randomUUID } from "node:crypto";
 import { constants } from "node:fs";
-import { open } from "node:fs/promises";
+import { open, unlink } from "node:fs/promises";
 import { join } from "node:path";
 import { privateDirectory } from "../config/local.ts";
 
@@ -21,6 +21,10 @@ export async function savePrivateArtifact(bytes: Uint8Array) {
     await file.close();
   }
   return id;
+}
+
+export async function deletePrivateArtifact(id: string) {
+  await unlink(artifactPath(id));
 }
 
 export async function readPrivateArtifact(id: string) {

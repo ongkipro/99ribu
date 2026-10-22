@@ -5,7 +5,7 @@ import {assertCurrentOwner,consumeAccessProof} from "../access/grants.ts";
 import {AccessError,type Principal} from "../access/policy.ts";
 import {evaluateContribution,lockContributionSources} from "../finance/contribution.ts";
 import {offerAvailability} from "../inventory/reservations.ts";
-import {assertScope,authority,readCatalogRevision} from "./catalog.ts";
+import {assertScope,authority,readCatalogRevision,visibleBlocker} from "./catalog.ts";
 import {definitions,id,integer,invalid,object,offerInput,text} from "./validation.ts";
 
 type Draft=Awaited<ReturnType<typeof readCatalogRevision>>;
@@ -101,12 +101,41 @@ export async function publishProduct(request:Request,identity:LocalAuth,principa
   });
 }
 
+// Takes the current publication off sale (storefront, carts, quotes) through an immutable,
+// audited withdrawal row; publication history is never edited. Republishing is an ordinary
+// publishProduct against the unchanged latest_version. Already-placed orders keep their snapshots.
+export async function withdrawPublication(request:Request,identity:LocalAuth,principal:Principal,productId:string,value:unknown){
+  const body=object(value,['expected_publication_version','reason']);const product=id(productId);
+  const input={product_id:product,expected_publication_version:integer(body.expected_publication_version,1),reason:text(body.reason,500)};
+  const key=request.headers.get('idempotency-key');if(!key||!/^[A-Za-z0-9_-]{16,200}$/.test(key)) throw new AccessError(400,'INVALID_IDEMPOTENCY_KEY');
+  const hash=createHash('sha256').update(JSON.stringify(input)).digest('hex');
+  return identity.sql.begin(async(tx)=>{
+    const access=await authority(tx,principal);
+    await tx`select id from app.product where id=${product} for update`;assertScope(await readCatalogRevision(tx,product),access);
+    const [prior]=await tx`select request_hash,response from app.access_operation where actor_id=${principal.id} and action='catalog.publication.withdraw' and key=${key}`;
+    if(prior){if(prior.request_hash!==hash) throw new AccessError(409,'IDEMPOTENCY_CONFLICT');return prior.response;}
+    const [head]=await tx`select revision from app.publication_head where product_id=${product} for update`;
+    if((head?.revision??0)!==input.expected_publication_version) throw new AccessError(409,'PUBLICATION_VERSION_CONFLICT');
+    const [current]=await tx`select v.id,v.product_revision,exists (select 1 from app.publication_withdrawal w where w.publication_id=v.id) withdrawn
+      from app.publication_version v where v.product_id=${product} and v.revision=${input.expected_publication_version}`;
+    if(current.withdrawn) throw new AccessError(409,'PUBLICATION_ALREADY_WITHDRAWN');
+    const [row]=await tx`insert into app.publication_withdrawal (publication_id,product_id,product_revision,actor_id,reason)
+      values (${current.id},${product},${current.product_revision},${principal.id},${input.reason}) returning created_at`;
+    const response={publication_id:current.id as string,product_id:product,version:input.expected_publication_version,withdrawn_at:new Date(row.created_at).toISOString()};
+    await tx`insert into app.audit_event (actor_id,action,subject_id,outcome,reason,details)
+      values (${principal.id},'catalog.product.withdraw',${product},'allowed',${input.reason},${JSON.stringify({publication_id:current.id,publication_version:input.expected_publication_version})}::jsonb)`;
+    await tx`insert into app.access_operation (actor_id,action,key,request_hash,response) values (${principal.id},'catalog.publication.withdraw',${key},${hash},${JSON.stringify(response)}::jsonb)`;
+    return response;
+  });
+}
+
 // Internal quote/storefront consumer. It returns catalog data only, never the
 // private financial sources or owner exception text. The caller owns its clock,
 // publication/quote lifecycle and authorization; no client as-of value is used.
 export async function salePublication(tx:TransactionSql,productId:string,at:string){
   const product=id(productId);if(!(await tx`select id from app.product where id=${product} for share`).length) return null;
-  const [published]=await tx<Published[]>`select v.* from app.publication_head h join app.publication_version v on v.product_id=h.product_id and v.revision=h.revision where h.product_id=${product} for share of h`;
+  const [published]=await tx<Published[]>`select v.* from app.publication_head h join app.publication_version v on v.product_id=h.product_id and v.revision=h.revision
+    where h.product_id=${product} and not exists (select 1 from app.publication_withdrawal w where w.publication_id=v.id) for share of h`;
   if(!published) return null;
   const draft=await readCatalogRevision(tx,published.product_id,published.product_revision);await lockContributionSources(tx,draft);
   let current:Awaited<ReturnType<typeof evaluateContribution>>;
@@ -122,19 +151,21 @@ export async function salePublication(tx:TransactionSql,productId:string,at:stri
 }
 export async function readPublicationState(identity:LocalAuth,principal:Principal,productId:string){
   return identity.sql.begin(async(tx)=>{
-    const access=await authority(tx,principal);const product=id(productId);await tx`select id from app.product where id=${product} for share`;
+    const access=await authority(tx,principal,true);const product=id(productId);await tx`select id from app.product where id=${product} for share`;
     const draft=await readCatalogRevision(tx,product);assertScope(draft,access);await lockContributionSources(tx,draft);await lockPhysicalSources(tx,draft);
     const blockers=await publicationChecks(tx,draft);const [clock]=await tx`select clock_timestamp()::text as now`;
     try{blockers.push(...financialBlockers(await evaluateContribution(tx,draft,clock.now)));}
     catch(error){if(!(error instanceof AccessError)||![409,422].includes(error.status)) throw error;blockers.push({code:error.code,offer_id:null});}
     const [head]=await tx`select revision from app.publication_head where product_id=${product}`;
-    const [published]=await tx<Published[]>`select v.* from app.publication_head h join app.publication_version v on v.product_id=h.product_id and v.revision=h.revision where h.product_id=${product}`;
+    // A withdrawn head is not current: latest_version stays, so republishing expects it.
+    const [published]=await tx<Published[]>`select v.* from app.publication_head h join app.publication_version v on v.product_id=h.product_id and v.revision=h.revision
+      where h.product_id=${product} and not exists (select 1 from app.publication_withdrawal w where w.publication_id=v.id)`;
     let current:ReturnType<typeof projection>|null=null;
     if(published){try{assertScope(await readCatalogRevision(tx,product,published.product_revision),access);current=projection(published);}catch(error){if(!(error instanceof AccessError)||error.status!==404) throw error;}}
     const currentReview=current?(await salePublication(tx,product,clock.now)?'approved':'requires_review'):null;
     // lazy: expose first100 actionable reasons; repeated preview after correction
     // reveals the remainder without an unbounded admin response.
     return {latest_version:head?.revision??0,current,current_review_state:currentReview,draft_version:draft.version,ready:blockers.length===0,
-      blockers:blockers.slice(0,100),blocker_count:blockers.length,blockers_truncated:blockers.length>100};
+      blockers:blockers.slice(0,100).map((b)=>({...b,code:visibleBlocker(access,b.code)})),blocker_count:blockers.length,blockers_truncated:blockers.length>100};
   });
 }
