@@ -95,8 +95,9 @@ test('built storefront remains usable without JavaScript and keyboard focus rema
   for(let i=0;i<20;i++){await f.page.keyboard.press('Tab');const focus=await f.page.locator(':focus').boundingBox();const bar=await f.page.locator('.shopping-tabs').boundingBox();assert.ok(focus&&bar);if(await f.page.locator('.shopping-tabs :focus').count())assert.ok(focus.y>=bar.y&&focus.y+focus.height<=bar.y+bar.height,'Focused shopping tab stays inside its navigation');else assert.ok(focus.y+focus.height>0&&focus.y<bar.y,'Focused content must not be covered by bottom navigation');}
   assert.ok(await f.page.locator('.shopping-tabs span').evaluateAll(spans=>spans.every(span=>{const range=document.createRange();range.selectNodeContents(span);const text=range.getBoundingClientRect(),target=span.parentElement?.getBoundingClientRect();return target!==undefined&&range.getClientRects().length===1&&text.left>=target.left-1&&text.right<=target.right+1;})),'Every enlarged tab label stays on one line');
   assert.ok(await f.page.locator('.department-photo').evaluateAll(elements=>elements.every(e=>e.scrollHeight-e.clientHeight<=1)),'Enlarged photograph briefs remain inside their slots');
-  const labelTops=await f.page.locator('.department-tiles a>span').evaluateAll(labels=>labels.map(label=>label.getBoundingClientRect().top));assert.equal(labelTops.length,4);
-  for(let i=0;i<labelTops.length;i+=2) assert.ok(Math.abs(labelTops[i]-labelTops[i+1])<=1,'Enlarged department labels in one row share one baseline');
+  // Tiles drop to one column at 200% text, so compare labels of tiles that actually share a row.
+  const tiles=await f.page.locator('.department-tiles li').evaluateAll(items=>items.map(li=>({row:Math.round(li.getBoundingClientRect().top),label:li.querySelector('a>span')?.getBoundingClientRect().top??Number.NaN})));assert.equal(tiles.length,4);
+  for(const tile of tiles) for(const peer of tiles) if(peer.row===tile.row) assert.ok(Math.abs(tile.label-peer.label)<=1,'Enlarged department labels in one row share one baseline');
   await expect(f.page.getByRole('link',{name:'Lewati ke konten'})).toHaveCSS('clip-path','inset(50%)');
   await capture(f.page,`text-200-320.png`);assert.deepEqual(f.errors,[]);
  }finally{await f.browser.close();}

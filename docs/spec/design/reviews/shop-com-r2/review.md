@@ -4,84 +4,76 @@ Model: unavailable: ai-ask does not report the resolved model/provider
 Screenshots: docs/spec/design/renders/shop-com-r2-20261022/cart-1440.png, docs/spec/design/renders/shop-com-r2-20261022/cart-320-text200.png, docs/spec/design/renders/shop-com-r2-20261022/cart-390.png, docs/spec/design/renders/shop-com-r2-20261022/cart-768.png, docs/spec/design/renders/shop-com-r2-20261022/cart-filled-1440.png, docs/spec/design/renders/shop-com-r2-20261022/cart-filled-320-text200.png, docs/spec/design/renders/shop-com-r2-20261022/cart-filled-390.png, docs/spec/design/renders/shop-com-r2-20261022/cart-filled-768.png, docs/spec/design/renders/shop-com-r2-20261022/help-1440.png, docs/spec/design/renders/shop-com-r2-20261022/help-320-text200.png, docs/spec/design/renders/shop-com-r2-20261022/help-390.png, docs/spec/design/renders/shop-com-r2-20261022/help-768.png, docs/spec/design/renders/shop-com-r2-20261022/home-1440.png, docs/spec/design/renders/shop-com-r2-20261022/home-320-text200.png, docs/spec/design/renders/shop-com-r2-20261022/home-390.png, docs/spec/design/renders/shop-com-r2-20261022/home-768.png, docs/spec/design/renders/shop-com-r2-20261022/masuk-1440.png, docs/spec/design/renders/shop-com-r2-20261022/masuk-320-text200.png, docs/spec/design/renders/shop-com-r2-20261022/masuk-390.png, docs/spec/design/renders/shop-com-r2-20261022/masuk-768.png, docs/spec/design/renders/shop-com-r2-20261022/masuk-error-1440.png, docs/spec/design/renders/shop-com-r2-20261022/masuk-error-320-text200.png, docs/spec/design/renders/shop-com-r2-20261022/masuk-error-390.png, docs/spec/design/renders/shop-com-r2-20261022/masuk-error-768.png, docs/spec/design/renders/shop-com-r2-20261022/notfound-1440.png, docs/spec/design/renders/shop-com-r2-20261022/notfound-390.png, docs/spec/design/renders/shop-com-r2-20261022/notfound-768.png, docs/spec/design/renders/shop-com-r2-20261022/pdp-1440.png, docs/spec/design/renders/shop-com-r2-20261022/pdp-320-text200.png, docs/spec/design/renders/shop-com-r2-20261022/pdp-390.png, docs/spec/design/renders/shop-com-r2-20261022/pdp-768.png, docs/spec/design/renders/shop-com-r2-20261022/search-1440.png, docs/spec/design/renders/shop-com-r2-20261022/search-320-text200.png, docs/spec/design/renders/shop-com-r2-20261022/search-390.png, docs/spec/design/renders/shop-com-r2-20261022/search-768.png, docs/spec/design/renders/shop-com-r2-20261022/search-active-1440.png, docs/spec/design/renders/shop-com-r2-20261022/search-active-390.png, docs/spec/design/renders/shop-com-r2-20261022/search-active-768.png, docs/spec/design/renders/shop-com-r2-20261022/search-filters-open-390.png
 References: docs/spec/design/references/shop-com/2026-10-22-cart/1440.png, docs/spec/design/references/shop-com/2026-10-22-cart/390.png, docs/spec/design/references/shop-com/2026-10-22-help/1440.png, docs/spec/design/references/shop-com/2026-10-22-help/390.png, docs/spec/design/references/shop-com/2026-10-22-home/1440.png, docs/spec/design/references/shop-com/2026-10-22-home/390.png, docs/spec/design/references/shop-com/2026-10-22-pdp-1440.png, docs/spec/design/references/shop-com/2026-10-22-pdp-390-scrolled.png, docs/spec/design/references/shop-com/2026-10-22-pdp-390.png, docs/spec/design/references/shop-com/2026-10-22-search-1440.png, docs/spec/design/references/shop-com/2026-10-22-search-390.png, docs/spec/design/references/shop-com/2026-10-22-search-filters-390.png
 Prompt-SHA: 4ae0ce2195b477c4
-Context-SHA: 32e50184b74f3551
-Images-SHA: 6e4defc055f65b59
-Output-SHA: 209c0b301d2c1894
+Context-SHA: 7136c58c27a17ad3
+Images-SHA: a6f5af79a8422011
+Output-SHA: c8d3fd298eb65658
 
-Paduka Ongki, saya sudah membuka ke-126 gambar: 20 slice referensi shop.com dan 106 slice render 99ribu. Hasilnya **PASS**, tapi hanya untuk state yang memang ter-render. Option pill di PDP multi-opsi tetap UNVERIFIED karena di katalog belum ada produk dengan lebih dari satu opsi. Tidak ada kode yang saya ubah; ringkasan review saya simpan di file plan. Review lengkapnya di bawah, dalam bahasa Inggris.
+Semua 159 slice sudah kubuka, termasuk 17 referensi shop.com. Hasilnya **REVISE**. Masalah utamanya bukan layout, tapi isi katalog yang ter-capture: produk fixture/test mendominasi home dan listing, dan PDP yang di-capture juga produk fixture. Review lengkap di bawah dalam bahasa Inggris.
 
 ---
 
-## Section lines (top to bottom)
+## Section-by-section
 
-**Shared shell**
-- Sample-data banner | authored | none (99ribu-specific honesty line) | none needed
-- Header + omnibox | authored | shop.com home omnibox: white pill, soft shadow, no border, purple round submit (R2) | At 320/200% the submit button becomes a 68×48 oval. It reads fine as a pill, so no fix needed.
-- Department chips | authored | shop.com category pill chips (R3); on `/search` the current chip "Semua produk" has the charcoal edge | none
-- Footer | authored | shop.com columned footer reduced to one "Bantuan" column (R9) | At 320/200% the two links sit about 4px apart. Fine as is.
-- Mobile dock | authored | shop.com active-icon grey pill, recoloured lavender (R10); verified on Beranda, Keranjang (with badge "1") and Akun | none
+**Shared shell (all storefront pages)**
+- Env banner + header | authored | shop.com white pill omnibox (`894181…home-1440-01`), the soft-shadow pill with a 44px purple round submit matches `95bdbd…1440-01` | At 320/200% the grown submit button squeezes the input until the placeholder clips to "Cari produk" with the "k" cut off (`f9ad8c…home-320-text200-01`, same on search/cart/help/masuk). Shorten the placeholder at this size or let the field keep about 6ch before the button grows.
+- Department chip row | authored | shop.com chip row (`24f5fb…390-01`) with the end fade and the charcoal current chip ("Semua produk" on `/search`) | none needed.
+- Footer | authored | shop.com columned footer reduced to one "Bantuan" column | none.
+- Mobile dock | authored | shop.com active grey pill moved to lavender (`b2fa7d…home-390-02`, `40d700…cart-390-02`) | none in design. The evidence is broken, though; see "Evidence defects".
 
-**Home**
-- Hero and fixed-price card | authored | not copied from shop.com; the yellow Rp99.000 card is the 99ribu anchor | The H1 scale against the card is an accepted round-1 deviation.
-- "Pilih kategori" tiles | authored | shop.com department shelf "Women ›" with a chevron pill (R12) | At 768 the two tiles are about 347px empty squares and fill the whole first viewport. Use 4:3 tiles between 701 and 1050px.
-- "Mulai dari pilihan ini" shelf | authored | shop.com card rhythm (R5): 4-up at 1440, 2-up at 768/390, the "/ pilihan lengkap" basis stays one phrase | none
-- "Sebelum memesan" | authored | text starts on the second card column at 1440 | none
+**Home** (`894181…-01/02`, `fd8b8d…-01..04`, `b2fa7d…-01..04`, `f9ad8c…-01..11`)
+- Hero + fixed-price card | authored | the 99ribu-owned yellow price card | none (accepted round-1 hero).
+- "Pilih kategori" tiles | authored | shop.com department shelf, using lavender category cards that read differently from product cards | none. Labels share one baseline at 1440/768, and the tiles drop to one per row at 320/200%.
+- "Mulai dari pilihan ini" shelf | generic in content, authored in layout | shop.com product grid | **Six of the eight cards are fixtures:** "Contoh Paket Kaos dan Krim", "Contoh Kaos", "SYNTHETIC cream-pack [s21-d2ef0bc3]", "SYNTHETIC shirt [s21-d2ef0bc3]". All six show "Foto belum tersedia". At 1440 the first visible row is four empty lavender slots directly under four real-photo tiles, so the page's most important shelf looks unfinished. The footer on the same page says "Katalog dan foto produk asli", which contradicts it. Fix the data/capture source (exclude test-owned rows from the public reader, or capture against a DB without integration fixtures). Do not change the styling.
+- Card price alignment | authored | shop.com card rhythm | Prices do not line up across a row when the contents text has one line in one card and two in the next. At 390 row 1 the prices sit at y≈534 vs 516 (`b2fa7d…-02`). Reserve two lines for contents the same way titles are reserved, or pin the price row with subgrid.
+- "Sebelum memesan" | authored | none (99ribu-specific) | none. It aligns to the second card column at 1440.
 
-**Search / listing**
-- Heading and count | authored | shop.com "Results" heading | none
-- Active-filter chip | authored | R3 removable pill | none
-- Filter disclosure | authored | R4: one row of four at 1440, 2×2 at 768, stacked at 390; the open toggle uses the charcoal edge; one filled "Terapkan filter" next to an outline "Hapus filter" | none
-- Results grid | authored | shop.com search: full width, no sidebar, 5 columns at 1440, 2 at 390 | none
-- Stock pill | authored | quiet `#f1eee6` lozenge; wraps cleanly with the 10px radius at 390 | none
-- Pagination | authored | centred outline pill plus one note | none
+**Search / listing** (`71b3b5…`, `0eda6f…`, `e53955…`, `41a374…`, `7554e9…`, `81f143…`, `92b470…`, `0e1bd0…`)
+- Title + count | authored | shop.com 18px "Results" | none.
+- Active filter chip | authored | shop.com chip | none.
+- Filter disclosure / panel | authored | shop.com filter sheet transferred as an in-flow panel | none new. At 768 with the panel open the first product starts at y≈711, but this is an already-accepted R4 trade-off.
+- Results grid | authored | shop.com 6-col grid → 5-col | Same price misalignment, and it shows at every width: "Contoh Paket 2 Kaos" sits at 957 vs 977 (1440 active), 195 vs 215 (768 active) and 736 vs 754 (390 active); the "SYNTHETIC shirt" row sits at 1264 vs 1284 (1440). The round-10 title reservation did not finish this job, because contents is now the variable line. The same fixture rows also lead the default "Semua produk" order.
+- Card titles on the "kaos" query | authored | — | Content: about 20 cards read "Paket 2 pcs Kaos Kata Lucu Sindiran…" and the two-line clamp cuts every one before the slogan that tells them apart. This is mainly a catalog naming issue; flag it to the catalog owner.
+- 320/200% single column | authored | — | The two-line title reservation leaves an empty line under one-line titles ("Contoh Kaos", `0e1bd0…-04`) even though no neighbour shares the row. Drop the reservation when the grid is one column.
+- Pagination | authored | — | none.
 
-**PDP**
-- Task header and breadcrumb | authored | accepted S22 header | none
-- Media slot | authored | shop.com 28px media panel; lavender fill instead of white is a recorded deviation | none
-- Buy box | authored | shop.com PDP 1440: narrow column, 52px full-width primary, pill quantity | none
-- Spesifikasi and accordions | authored | shop.com hairline accordions with a right chevron | none
+**PDP** (`bc2eff…`, `00c6b8…`, `5246c8…`, `b6b3ad…`)
+- Buy box order, 52px primary, pill quantity, chevron accordions | authored | shop.com PDP (`c9edea…`, `52a31a…`) | none in what is shown.
+- Media panel | owner content | photo slot with a shot brief | Acceptable as a placeholder. The real problem is that the captured product is the fixture "Contoh Paket Kaos dan Krim". The round 8–10 PDP changes therefore have no render at all: the "Deskripsi" accordion, the "Lihat N barang lainnya" disclosure, sticky media and the nowrap on hyphenated tokens. Capture a real Berlapak bundle with more than three items and a long description.
 
-**Cart (empty)**
-- Empty state | authored | shop.com "Your cart is waiting": centred heading, one line, one filled pill (R8) | The lead ends with a one-word line ("keranjang.") at 768 and 1440. Add `text-wrap: pretty`.
+**Cart, empty** (`7cd5a8…`, `871c54…`, `40d700…`, `3b1bae…`)
+- Centred heading, one line and one primary pill | authored | shop.com empty cart (`f256fb…`, `9f3fa1…`) | none.
 
-**Cart (filled)**
-- Line | authored | R7: unboxed line, emphasised line total, basis "1 pilihan lengkap × Rp99.000" | The "Perbarui jumlah" label is smaller than other pill labels. At 390 the pill is about 224px wide and doesn't line up with the quantity pill or the column edge.
-- Summary | authored | white 20px raised card, 52px "Lanjut ke checkout" | none
+**Cart, filled** (`4567ff…`, `5802a1…`, `24e17e…`, `ecb1c4…`)
+- Unboxed line + white 20px summary card + 52px checkout pill | authored | R7 | none in design. At 390 the summary rows are not visible in the evidence (see "Evidence defects").
 
-**Help**
-- Title and lead | authored | shop.com help centred column | none
-- Topic cards | authored | help.shop.app 2-up cards (R11) plus a full-width privacy card | At 320/200% the 24px inline padding leaves 2–3 words per line. Use `clamp()` padding as on the sign-in card.
-- Chat card | authored | sentence case; wrapped hours line; chevron now visible at 320 | none
-- "Kembali ke katalog" | authored | secondary outline pill | none
+**Help** (`603301…`, `799a4b…`, `c56a5c…`, `117218…`)
+- Topic cards, 2-up plus a full-width card | authored | help.shop.app (`27b2df…`, `6c377b…`) | none. The top alignment fix holds.
+- Chat card | authored | help "Need more help? / Chat with us" | The hours line renders as dark semibold small text, not the muted line the brief describes, so it competes with the H2. Use regular weight in the muted colour.
 
-**/masuk**
-- Sign-in card | authored | centred white raised 20px card | "Batal" is a 52px full-width pill with the same weight as "Masuk". Make it a 44px secondary, the height of the shop.com PDP secondary.
-- Error state | authored | rounded error panel with a focus ring, both fields marked invalid; wraps readably at 320/200% | none
+**/masuk** (`0ba055…`, `ad4b21…`, `d1f24a…`, `34b0c1…`, `e297cb…`, `f0b455…`, `7c24ac…`, `f7adea…`)
+- Centred 20px card, 48px fields, focused rounded alert, invalid edges | authored | R8 centred card | none. At 320/200% the alert wraps in readable lines and its icon scales.
 
-**Not found**
-- Recovery state | authored | R8 centred state with a single primary action | none
+**Not found** (`f630dc…`, `7798c9…`, `a3d7e2…`)
+- Centred recovery with one primary | authored | shop.com empty state | none.
 
-## Evidence and comparison
+## Evidence defects (these are not design defects)
+- The 390/768 slices still come from full-page captures that include the fixed dock. In `24e17e…cart-filled-390-02` the dock sits exactly over the summary rows ("1 pilihan lengkap / Rp99.000", "Ongkir"), so R7 at 390 cannot be verified. The tall-viewport method used for 320 was not applied at 390.
+- No `/categories` render exists, but round 9 says the tile change ships there too.
+- The option pills (R3/R6) are still UNVERIFIED, as already recorded.
 
-- **Canvas and surfaces (R1).** On the home, search and cart renders at 1440 and 390, the off-white canvas carries white raised surfaces: omnibox, chips, filter panel, summary and topic cards. This matches the off-white shop.com home reference with its white omnibox and chips.
-- **Listing (R4).** `0eda6f57…-search-active-1440-01` shows the filter panel above a full-width 5-column grid. That transfers the chip-row-over-grid hierarchy of `c8a1c9a0…-search-1440` without the left rail, which is correct. `92b4704d…-filters-open-390-01` is the in-flow, non-modal version of the `bbf0d8af…-search-filters-390` sheet: same pill controls, same Apply/Reset pairing.
-- **PDP (R6).** `bc2effc7…-pdp-1440-01` matches the proportions of `c9edea82…-pdp-1440`: wide media, narrow buy box, one dominant 52px pill, hairline accordions. Save/Share/Buy now were left out as the contract requires.
-- **Empty states and help (R8, R11).** `7cd5a859…-cart-1440-01` and `f630dc19…-notfound-1440-01` follow the centred stack of `f256fbf0…`. `603301b6…-help-1440-01` follows the centred column and 2-up cards of `27b2df7e…`.
-- **Imagery.** Every product and category image is a lavender photo slot with a one-line shot brief, sized for the real photo. This is acceptable owner content, not a design failure. There are no stand-in illustrations.
-- **Template signals.** None found:
-  - no dark hero, no accent word, no eyebrows, no icon-tile card rows, no monospace;
-  - no `A · B` labels (the `×` in contents lines is real quantity);
-  - no arrow on every button, no unsourced stats;
-  - no "resmi" / "terpercaya" claims.
-- **Domain fit.** The fixed-price card, the "/ pilihan lengkap" basis and the contents lines tie the layout to 99ribu's business, so it would not fit an unrelated store with only the name swapped.
-- **Capture artifacts, not defects.** In the full-page 390 slices the fixed dock sits on the seam between slices (home, search, filters-open, help, cart-filled, masuk). It hides about 55px of content in the evidence only, not in the real page. The 320/200% set uses the tall-viewport method and shows the dock where it really sits.
-- **Research gaps (recorded).**
-  - No multi-option PDP exists, so the R3/R6 option-pill state is not covered by this acceptance.
-  - Category pages could not be captured on shop.com.
-  - Checkout and receipt are out of scope.
+## Reference transfer
+Hierarchy, rhythm and density do follow the references:
+- an off-white canvas with white raised pills;
+- a department chip row above the content;
+- a full-width grid with no sidebar, using 1:1 rounded media and a 600-weight title;
+- a narrow buy box with a full-width pill primary;
+- centred empty states;
+- a 720px help column of 2-up cards.
 
-All five polish items above are optional and don't need another review round.
+I found no template signals: no dark hero, no eyebrows, no monospace, no icon-tile card rows, and no unsourced claims. The research and transfer rationale are documented and supported.
 
-Most important change: make "Batal" on `/masuk` a smaller secondary so "Masuk" is clearly the one primary action. Everything else is narrow-width text polish.
+The gap is imagery. The shop.com home and listing are photo-led (`95bdbd…`, `c8a1c9…`). These renders lead with empty placeholder slots, and the cause is test data in the captured catalog, not owner photos that have yet to arrive.
 
-Verdict: PASS
+Most important change: Recapture home, listing and PDP from a catalog without the `Contoh…`/`SYNTHETIC…[s21-…]` fixture rows, including a real long-bundle PDP, then fix the price-row misalignment that varying contents length causes.
+
+Verdict: REVISE

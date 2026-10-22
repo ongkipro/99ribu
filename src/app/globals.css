@@ -37,8 +37,8 @@
 	margin-top: 0.2em;
 }
 :where(.search-form button) svg {
-	width: 1.5rem;
-	height: 1.5rem;
+	width: 1.25em;
+	height: 1.25em;
 	flex: none;
 }
 :where(.cart-form-error) > span {
@@ -226,8 +226,8 @@ body:has(> .store-header, > .task-header) {
 	align-items: center;
 	justify-content: center;
 	min-width: 44px;
-	min-height: 44px;
-	padding: 0 10px;
+	min-height: max(44px, 2.25em);
+	padding: 0 0.55em;
 	flex-shrink: 0;
 	border: 0;
 	background: var(--purple);
@@ -258,12 +258,27 @@ body:has(> .store-header, > .task-header) {
 }
 .departments {
 	display: flex;
-	gap: 12px;
-	padding-bottom: 14px;
-	flex-wrap: wrap;
+	gap: 8px;
+	/* One horizontally scrolling chip row at every width (shop.com chip row). */
+	flex-wrap: nowrap;
+	overflow-x: auto;
+	scrollbar-width: none;
+	overscroll-behavior-x: contain;
+	padding-block: 2px 14px;
+	/* Scroll affordance: the row fades out at its end edge. The end padding and
+	   scroll padding let the last chip, and any focused chip, rest clear of the fade. */
+	padding-inline-end: 40px;
+	scroll-padding-inline: 0 40px;
+	mask-image: linear-gradient(to right, #000 calc(100% - 40px), transparent);
+}
+/* A thin scrollbar appears for pointer and keyboard users. */
+.departments:hover,
+.departments:focus-within {
+	scrollbar-width: thin;
 }
 .departments a {
 	display: flex;
+	flex: none;
 	align-items: center;
 	font-size: 0.875rem;
 	min-height: 44px;
@@ -276,6 +291,10 @@ body:has(> .store-header, > .task-header) {
 .departments a:hover {
 	border-color: rgba(24, 24, 27, 0.32);
 	text-decoration: none;
+}
+/* Inset focus ring: the scrolling chip row clips anything drawn outside a chip. */
+.departments a:focus-visible {
+	outline-offset: -4px;
 }
 /* R3 selected chip: charcoal edge marks the current department. */
 .departments a[aria-current] {
@@ -407,10 +426,18 @@ body:has(> .store-header, > .task-header) {
 .product h3 {
 	margin: 12px 0 4px;
 	font-size: 1rem;
-	line-height: 1.375rem;
+	line-height: 1.375;
+	/* Reserve two lines so a one-line title keeps its price on the row's line. */
+	min-height: 2.75em;
 	font-weight: 600;
 	letter-spacing: -0.01em;
 	overflow-wrap: anywhere;
+	/* Two lines keep prices aligned across a row; the full name stays in the DOM. */
+	display: -webkit-box;
+	-webkit-box-orient: vertical;
+	-webkit-line-clamp: 2;
+	line-clamp: 2;
+	overflow: hidden;
 }
 .photo-slot {
 	aspect-ratio: 1;
@@ -841,18 +868,7 @@ body:has(> .store-header, > .task-header) {
 		justify-content: center;
 	}
 	.departments {
-		gap: 8px;
-		flex-wrap: nowrap;
-		overflow-x: auto;
-		scrollbar-width: none;
-		overscroll-behavior-x: contain;
-		/* 8px of room for the 3px + 4px focus outline inside the scroll clip; the
-		   wider box keeps chips aligned with the 16px page gutter. */
-		width: calc(100% - 16px);
-		padding: 8px 8px 10px;
-	}
-	.departments a {
-		flex: none;
+		padding-bottom: 10px;
 	}
 	.departments a {
 		font-size: 0.8125rem;
@@ -1037,16 +1053,23 @@ body:has(> .store-header, > .task-header) {
 	margin: 0;
 	display: grid;
 	gap: 24px 16px;
-	/* Four per row from tablet up (short tiles before the shelf), two on phones. */
+	/* Four per row from tablet up (short tiles before the shelf), two on phones.
+	   The minimum is in em, so enlarged text reduces the column count instead of
+	   pushing long Indonesian names out of a narrow tile. */
 	grid-template-columns: repeat(
 		auto-fill,
-		minmax(min(100%, max(9rem, calc((100% - 48px) / 4))), 1fr)
+		minmax(min(100%, max(9em, calc((100% - 48px) / 4))), 1fr)
 	);
 }
 /* Each tile spans two shared rows (media, label) through subgrid, so every
    label in a row starts on one baseline even when an enlarged brief grows one
    slot or names wrap to different line counts. */
+/* Category tiles read as categories, not products: a tinted lavender card with the
+   name first and a shorter 4:3 photo inside it (shop.com department mosaic tile). */
 .department-tiles a {
+	background: #f1edfd;
+	border-radius: 20px;
+	padding: 14px;
 	font-weight: 600;
 	display: grid;
 	grid-row: span 2;
@@ -1056,13 +1079,13 @@ body:has(> .store-header, > .task-header) {
 	min-width: 0;
 }
 .department-photo {
+	grid-row: 2;
+	min-width: 0;
+	max-width: 100%;
 	background: linear-gradient(145deg, #f6f5fa 0%, #edeaf6 100%);
-	border: 1px solid #e5e2f0;
-	border-radius: 20px;
+	border-radius: 14px;
 	padding: 12px;
-
 	width: 100%;
-
 	display: grid;
 	grid-template-areas: "photo";
 	align-items: center;
@@ -1223,6 +1246,7 @@ body:has(> .store-header, > .task-header) {
 	margin-bottom: 40px;
 }
 .help-topics > section {
+	align-self: start;
 	background: #fff;
 	border-radius: 20px;
 	padding: 20px 24px;
@@ -1251,7 +1275,11 @@ body:has(> .store-header, > .task-header) {
 	}
 	.department-tiles {
 		gap: 20px 16px;
-		grid-template-columns: repeat(2, minmax(0, 1fr));
+		/* Two per row at ordinary text; one per row once a tile would be under 8em. */
+		grid-template-columns: repeat(
+			auto-fill,
+			minmax(min(100%, max(8em, calc((100% - 16px) / 2))), 1fr)
+		);
 	}
 	.department-tiles a {
 		row-gap: 10px;
@@ -1270,11 +1298,16 @@ body:has(> .store-header, > .task-header) {
 	grid-row: span 2;
 	grid-template-rows: subgrid;
 	row-gap: 0;
+	min-width: 0;
 }
 .department-tiles a > span {
+	grid-row: 1;
 	display: block;
+	min-width: 0;
 	font-weight: 600;
 	line-height: 1.5rem;
+	overflow-wrap: anywhere;
+	hyphens: auto;
 }
 @media (max-width: 700px) {
 	.shopping-tabs,
@@ -1336,7 +1369,7 @@ body:has(> .store-header, > .task-header) {
 	content: "";
 	grid-area: photo;
 	width: 100%;
-	aspect-ratio: 1;
+	aspect-ratio: 4 / 3;
 }
 /* Real category photo: full-bleed square inside the tile (shop.com mosaic tile). */
 .department-photo.has-photo {
@@ -1349,8 +1382,8 @@ body:has(> .store-header, > .task-header) {
 	display: block;
 	width: 100%;
 	height: 100%;
-	aspect-ratio: 1;
-	object-fit: cover;
+	aspect-ratio: 4 / 3;
+	object-fit: contain;
 }
 .department-shot {
 	grid-area: photo;
@@ -4127,4 +4160,36 @@ body:has(> .store-header, > .task-header) {
 .signin-alert:focus {
 	outline: 3px solid var(--purple);
 	outline-offset: 2px;
+}
+
+/* Short hyphenated tokens ("3-in-1", "Anti-Stres") never break at the hyphen. */
+.keep-hyphen {
+	white-space: nowrap;
+}
+/* Long bundles on the PDP: count, first three items, the rest behind a disclosure. */
+.contents-count {
+	font-size: 0.875rem;
+	color: var(--muted);
+}
+:where(.contents-more > summary) {
+	display: inline-flex;
+	align-items: center;
+	gap: 6px;
+	min-height: 44px;
+	cursor: pointer;
+	list-style: none;
+	color: var(--purple);
+	font-weight: 600;
+}
+:where(.contents-more > summary)::-webkit-details-marker {
+	display: none;
+}
+:where(.contents-more summary svg) {
+	flex: none;
+	width: 1.125em;
+	height: 1.125em;
+	transform: rotate(-90deg);
+}
+:where(.contents-more[open] summary svg) {
+	transform: rotate(90deg);
 }

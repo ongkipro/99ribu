@@ -3,7 +3,7 @@ import Link from 'next/link';
 import {redirect} from 'next/navigation';
 import {cache} from 'react';
 import {Shell} from '../../../../components/storefront/shell';
-import {Media,rupiah,contentName,isSampleProduct} from '../../../../components/storefront/products';
+import {Media,rupiah,contentName,isSampleProduct,keepHyphens} from '../../../../components/storefront/products';
 import {Icon} from '../../../../components/storefront/icon';
 import {OfferPicker} from '../../../../components/storefront/offer-picker';
 import {CartForm,CartMutations} from '../../../../components/storefront/cart-forms';
@@ -38,11 +38,13 @@ export default async function Product({params,searchParams}:Props){
  const intent=initialCartIntent({product:product.id,variant:offer?.id??'',publication:product.publication_id,...(current.kind==='ready'?open?{cart:current.cart.id,version:String(current.cart.version)}:{generation:current.cart.id}:{})});
  const denied=current.kind==='denied'||current.kind==='unavailable',sample=isSampleProduct(product),description=sample?product.description.replace(/^Data contoh\. /,''):product.description;
  const facts=[...(offer?.attributes??[]),...product.facts.filter(f=>!offer?.attributes.some(a=>a.key===f.key))],alternative=product.variants.find(v=>v.availability==='available'&&v.id!==offer?.id);
- return <Shell active="none" task backTo={from}><main id="main" className="wrap product-detail"><nav className="product-category" aria-label="Kategori produk"><Link href="/search">Semua produk</Link>{category&&<><span aria-hidden="true">/</span><Link href={`/category/${category.slug}`}>{category.name}</Link></>}</nav><div className="detail-layout"><Media product={product} offer={offer??undefined} caption/><section><h1>{product.name}</h1>
+ return <Shell active="none" task backTo={from}><main id="main" className="wrap product-detail"><nav className="product-category" aria-label="Kategori produk"><Link href="/search">Semua produk</Link>{category&&<><span aria-hidden="true">/</span><Link href={`/category/${category.slug}`}>{category.name}</Link></>}</nav><div className="detail-layout"><Media product={product} offer={offer??undefined} caption/><section><h1>{keepHyphens(product.name)}</h1>
   {offer&&<p className="detail-price">{rupiah(offer.price)} <small>/ pilihan lengkap</small></p>}
   {invalid&&<section className="cart-warning" role="alert"><h2>Pilihan belum ditemukan</h2><p>Pilih kembali opsi produk ini sebelum menambahkannya.</p></section>}
   <OfferPicker from={from} selected={offer?.id??''} choices={product.variants.map(v=>({id:v.id,label:v.label,available:v.availability==='available'}))}/>
-  {offer?<section className="offer-detail" aria-label="Rincian pilihan"><h2>Isi yang diterima</h2><ul>{offer.contents.map(c=><li key={c.name}>{c.quantity} × {contentName(product,c.name)}</li>)}</ul>
+  {offer?<section className="offer-detail" aria-label="Rincian pilihan"><h2>Isi yang diterima</h2>{(()=>{const item=(c:typeof offer.contents[number])=><li key={c.name}>{c.quantity} × {contentName(product,c.name)}</li>;
+   // Up to three items stay fully listed; longer bundles show the count and first three so the purchase action stays near the top.
+   return offer.contents.length<=3?<ul>{offer.contents.map(item)}</ul>:<><p className="contents-count">{offer.contents.length} jenis barang dalam pilihan ini</p><ul>{offer.contents.slice(0,3).map(item)}</ul><details className="contents-more"><summary>Lihat {offer.contents.length-3} barang lainnya<Icon name="chevron"/></summary><ul>{offer.contents.slice(3).map(item)}</ul></details></>;})()}
    <div className="purchase-region"><p className="stock-status"><Icon name={offer.availability==='available'?'check':'alert'}/>{offer.availability==='available'?'Stok pilihan tersedia':'Stok pilihan belum tersedia'}</p>
    {offer.availability!=='available'&&<p className="cart-advisory">Pilihan ini belum dapat ditambahkan. {alternative?<Link href={productHref(product.id,alternative.id,from)}>Lihat pilihan tersedia</Link>:<Link href={category?`/category/${category.slug}?availability=available`:'/search?availability=available'}>Cari produk tersedia</Link>}</p>}
    {current.kind==='ready'&&!open&&<p className="cart-warning">Keranjang sebelumnya {current.cart.state==='submitted'?'sudah menjadi pesanan':'kedaluwarsa'}. Penambahan berikutnya memulai keranjang baru.</p>}

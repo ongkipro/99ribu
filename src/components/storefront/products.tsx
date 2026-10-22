@@ -13,6 +13,11 @@ export function contentName(product:PublicProduct,name:string){
  const original=name.replace(/ \[[a-z0-9-]+\]$/,'');
  return ({'SYNTHETIC shirt':'Kaos contoh','SYNTHETIC cream':'Krim contoh','SYNTHETIC bag':'Tas contoh'} as Record<string,string>)[original]??name;
 }
+// Keeps short hyphenated tokens ("3-in-1", "Anti-Stres") on one line without changing the text.
+export function keepHyphens(name:string){
+ let n=0;
+ return name.split(/(\S{1,6}-\S{1,12})/).map(part=>/-/.test(part)&&!/\s/.test(part)?<span key={`${part}#${n++}`} className="keep-hyphen">{part}</span>:part);
+}
 export function Media({product,offer,caption=false}:{product:PublicProduct;offer?:PublicProduct['variants'][number];caption?:boolean}){
  const selected=offer??product.variants[0],image=offer?.image??product.images[0];const sample=isSampleUrl(image?.url);
  if(sample){const brief=`Foto seluruh isi: ${(selected?.contents??[]).map(c=>`${c.quantity} ${contentName(product,c.name)}`).join(' + ')}, tampak depan.`;
@@ -26,7 +31,7 @@ export function Media({product,offer,caption=false}:{product:PublicProduct;offer
 export function ProductGrid({products,input}:{products:PublicProduct[];input?:CatalogQuery}){
  return <ul className="product-grid">{products.map(product=>{
   const offer=matchingVariant(product,input);if(!offer) return null;const available=offer.availability==='available';
-  return <li key={product.id} id={`product-${product.id}`} tabIndex={-1} className="product"><ProductLink className="product-link" product={product.id} offer={offer.id}><Media product={product} offer={offer}/><h3>{product.name}</h3>
+  return <li key={product.id} id={`product-${product.id}`} tabIndex={-1} className="product"><ProductLink className="product-link" product={product.id} offer={offer.id}><Media product={product} offer={offer}/><h3>{keepHyphens(product.name)}</h3>
    <p className="product-contents">{offer.contents.map(c=>`${c.quantity} × ${contentName(product,c.name)}`).join(' + ')}{product.variants.length>1?` · ${product.variants.length} pilihan`:''}</p>
    <p className="product-price">{rupiah(offer.price)} <span>/ pilihan lengkap</span></p>{!available&&<p className="unavailable">Stok pilihan belum tersedia</p>}
   </ProductLink></li>;

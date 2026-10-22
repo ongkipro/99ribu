@@ -217,3 +217,22 @@ Not changed (outside builder authority or accepted):
 - R3/R6 option pills remain UNVERIFIED because no published multi-option product exists.
 - Category pages are still not captured.
 - Tiles use one photo per department rather than shop.com's mosaic, because each department has a single representative photo in the data.
+
+## Round 9 (owner-authorised under the standing "lanjutkan, juga sempurnakan", relayed by the coordinator)
+
+Round 8 (counted) is `docs/spec/design/reviews/shop-com-r2/review-round8.md`, verdict REVISE. All five findings are within builder authority and are fixed for round 9, which is appended to the existing rounds log. Where they conflict, these entries supersede the round-8 notes above.
+- Department chips: one horizontally scrolling row at every width, so they no longer wrap at 768 or 1440 and products return to the first screen on search at tablet. The current chip keeps `aria-current` and the charcoal edge. Focus rings are drawn inset (`outline-offset: -4px`) so the scroll clip cannot hide them, and the row scrolls on one line at 320/200%.
+- PDP "Isi yang diterima": bundles of up to three items stay fully listed, so the fixture contents asserted visible in tests stay visible. Longer bundles show "N jenis barang dalam pilihan ini", the first three items, and a "Lihat N barang lainnya" disclosure using the accordion chevron pattern. "Tambah ke keranjang" moves up into the first screen at 1440 and much closer to it on phones.
+- Category tiles now read as categories: a tinted lavender card with the department name first and a shorter 4:3 photo inside it, distinct from the white product cards, on both home and `/categories`. The subgrid keeps every name in a row on one line (name in row 1, media in row 2), so the 200%-text baseline invariant still holds.
+- Product card titles are clamped to two lines, so prices align across each row. The full name stays in the DOM and the link's accessible name.
+- Hyphenated tokens such as "3-in-1" and "Anti-Stres" are wrapped at render time in a `white-space: nowrap` span on card titles and the PDP title. The stored names and the text content (and therefore accessible names and test matching) are unchanged.
+
+## Round 10 (owner-authorised under the standing "lanjutkan, juga sempurnakan"; the coordinator's last round this cycle)
+
+Round 9 is `docs/spec/design/reviews/shop-com-r2/review-round9.md`, verdict REVISE. All five findings are fixed for round 10, which is appended to the existing rounds log. These entries supersede earlier notes where they conflict.
+- Category tiles at 320/200%: the tile minimum width is now in `em` (9em on desktop and tablet, 8em on phones). Enlarged text therefore drops the tiles to one per row instead of squeezing long Indonesian names into two narrow columns, while ordinary text keeps two per row on phones and four from tablet up. Tile, label and media all have `min-width: 0`. Labels use `overflow-wrap: anywhere` and `hyphens: auto`. The photo panel is capped at the card width, so it stays inside the lavender card.
+- Baseline test: the `storefront-http` 200%-text test compared labels pairwise (1–2, 3–4) on the assumption of two tiles per row. That no longer holds once enlarged text gives one tile per row. The builder changed it minimally to compare labels of tiles that share a row (same tile top), keeping the invariant that labels in one row share a baseline.
+- Product card titles reserve two lines (`min-height: 2.75em` at a 1.375 line-height) and keep the two-line clamp, so a one-line title no longer lifts its price above its neighbours.
+- Department chip row: a 40px end-edge fade signals that the row scrolls. End padding and scroll padding let the last chip, and any focused chip, rest clear of the fade, and a thin scrollbar appears on hover or keyboard focus. The nine real department names (roughly 1,800px of chips) cannot fit one 1200px row even with tighter padding, so the row scrolls at every width rather than imitating shop.com's fully visible row.
+- Help topic cards are top-aligned, so the short "Pengembalian" card is not stretched to the height of its neighbour.
+- Omnibox: the search icon is 1.25em inside an em-padded button with a minimum height of `max(44px, 2.25em)`, so at 320/200% the icon keeps clear space inside the purple button.
