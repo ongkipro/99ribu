@@ -1,17 +1,17 @@
 # Observability and Recovery
 
-Status: Draft — planning only; no application or runtime verification.
+Status: Accepted contract — implementation and acceptance state is owned by root [STATUS.md](../../STATUS.md); external gates remain open.
 
-Owner: Paduka Ongki. Updated: 2026-10-15.
+Owner: Paduka Ongki. Updated: 2026-10-21.
 
 ### OBS-1 — Actionable operational evidence
-- Status: Proposal
+- Status: Accepted
 - Owner: Engineering owner
 - Source: CTX-11
 - Statement: Expose overdue fulfillment, integration failures, return backlog and payout ambiguity through redacted events and recoverable queues.
 - Acceptance: Inject a failed provider operation and worker restart; operator can identify the target, reason and safe next action without secret or customer-data logs.
 - Constraints: None
-- Evidence: None; execution pending.
+- Evidence: Implementation and local acceptance evidence is tracked in root [STATUS.md](../../STATUS.md); external gates remain open.
 - Changed at: 2026-10-15
 - Change history: Initial planning declaration from owner discussion.
 

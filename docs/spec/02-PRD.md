@@ -1,8 +1,8 @@
 # Serba 99ribu — Product Requirements
 
-Status: Draft — planning only; no application or runtime verification.
+Status: Accepted contract — implementation and acceptance state is owned by root [STATUS.md](../../STATUS.md); external gates remain open.
 
-Owner: Paduka Ongki. Updated: 2026-10-16.
+Owner: Paduka Ongki. Updated: 2026-10-21.
 
 ## Overview and authority
 Serba 99ribu is a single-company Indonesia ecommerce business with fixed-price physical goods, company-owned national warehouses and affiliate acquisition. This pack translates owner decisions; it is not proof of demand, profitability or working integrations. Domain ownership is owner-reported, not verified in Cloudflare. Next.js/TypeScript/PostgreSQL stack is selected under owner-delegated technical authority; Vultr + Coolify hosting is owner-confirmed (ADR-0005).
@@ -25,7 +25,7 @@ Requirement lifecycle Accepted means owner-approved business behavior, not imple
 - Statement: Every published listing shall expose one or more selectable sellable offers (variants), each priced at IDR 99,000. One offer may contain one physical unit, multiple units or a complete mixed-product bundle; component prices are never added to its IDR 99,000 total. Shipping is a checkout component, not launch-page copy.
 - Acceptance: Given a listing with two IDR 99,000 options and one option containing two products, When the buyer selects one option and quantity one, Then the merchandise total is IDR 99,000 and its contents are explicit; publishing any differently priced offer is rejected.
 - Constraints: None
-- Evidence: None; execution pending.
+- Evidence: Implementation and local acceptance evidence is tracked in root [STATUS.md](../../STATUS.md); external gates remain open.
 - Changed at: 2026-10-15
 - Change history: Initial planning declaration; amended 2026-10-15 by the latest owner instruction for offer composition, physical stock, waybill milestone or manual payout as applicable.
 
@@ -36,7 +36,7 @@ Requirement lifecycle Accepted means owner-approved business behavior, not imple
 - Statement: The system shall manage inventory per physical SKU/component and company warehouse, including reservation, transfer, damage and return quarantine; derive sellable offer availability from complete component quantities without duplicate bundle stock counters.
 - Acceptance: Given two different offers sharing the last physical component unit in one warehouse, When two buyers concurrently reserve them, Then only one complete reservation succeeds and stock never becomes negative.
 - Constraints: None
-- Evidence: None; execution pending.
+- Evidence: Implementation and local acceptance evidence is tracked in root [STATUS.md](../../STATUS.md); external gates remain open.
 - Changed at: 2026-10-15
 - Change history: Initial planning declaration; amended 2026-10-15 by the latest owner instruction for offer composition, physical stock, waybill milestone or manual payout as applicable.
 
@@ -47,7 +47,7 @@ Requirement lifecycle Accepted means owner-approved business behavior, not imple
 - Statement: The system shall choose a stock-feasible allocation prioritizing the lowest total supported shipping charge and disclose every shipment before confirmation.
 - Acceptance: Given stock in Pontianak and Malang, When checkout is quoted, Then supported consolidated and split options are compared and the selected total equals the sum of shipment charges.
 - Constraints: None
-- Evidence: None; execution pending.
+- Evidence: Implementation and local acceptance evidence is tracked in root [STATUS.md](../../STATUS.md); external gates remain open.
 - Changed at: 2026-10-15
 - Change history: Initial planning declaration from owner discussion.
 
@@ -58,7 +58,7 @@ Requirement lifecycle Accepted means owner-approved business behavior, not imple
 - Statement: The system shall allow guest checkout and create one parent order with immutable item, allocation, shipping and promotion snapshots.
 - Acceptance: Given a valid two-warehouse cart, When submitted twice with the same request identity, Then exactly one order is created with the disclosed total and two fulfillment groups.
 - Constraints: None
-- Evidence: None; execution pending.
+- Evidence: Implementation and local acceptance evidence is tracked in root [STATUS.md](../../STATUS.md); external gates remain open.
 - Changed at: 2026-10-15
 - Change history: Initial planning declaration from owner discussion.
 
@@ -69,7 +69,7 @@ Requirement lifecycle Accepted means owner-approved business behavior, not imple
 - Statement: The system shall accept Virgo prepaid or supported Mengantar COD, with payment attempts and collection amounts distinct from shipping status.
 - Acceptance: Given a split COD order, When shipment collection amounts are generated, Then their sum equals the buyer total and each amount belongs only to its shipment.
 - Constraints: None
-- Evidence: None; execution pending.
+- Evidence: Implementation and local acceptance evidence is tracked in root [STATUS.md](../../STATUS.md); external gates remain open.
 - Changed at: 2026-10-15
 - Change history: Initial planning declaration from owner discussion.
 
@@ -80,7 +80,7 @@ Requirement lifecycle Accepted means owner-approved business behavior, not imple
 - Statement: The system shall require a valid issued courier waybill by H+2 from successful prepaid payment or confirmed COD. This is the owner-defined packing milestone, followed by physical preparation and courier handover by the next working day; declared public holidays and major-holiday closures do not count toward shipping H+. Exact cutoff and Sunday handling remain owned timing questions.
 - Acceptance: Given an actionable shipment, When a provider-confirmed waybill is issued by H+2, Then the packing milestone is met without claiming courier handover or buyer receipt; issuance timeout or either overdue deadline produces a recoverable exception and buyer notification.
 - Constraints: None
-- Evidence: None; execution pending.
+- Evidence: Implementation and local acceptance evidence is tracked in root [STATUS.md](../../STATUS.md); external gates remain open.
 - Changed at: 2026-10-15
 - Change history: Initial planning declaration; amended 2026-10-15 by the latest owner instruction for offer composition, physical stock, waybill milestone or manual payout as applicable.
 
@@ -91,7 +91,7 @@ Requirement lifecycle Accepted means owner-approved business behavior, not imple
 - Statement: The system shall accept eligible return requests within seven days of receipt and resolve approved claims through full related refund or replacement.
 - Acceptance: Given an approved faulty-item claim in the window, When resolved, Then the related buyer-paid item/shipping/admin amounts are refunded or a tracked replacement is created, without duplicate commission.
 - Constraints: None
-- Evidence: None; execution pending.
+- Evidence: Implementation and local acceptance evidence is tracked in root [STATUS.md](../../STATUS.md); external gates remain open.
 - Changed at: 2026-10-15
 - Change history: Initial planning declaration from owner discussion.
 
@@ -102,7 +102,7 @@ Requirement lifecycle Accepted means owner-approved business behavior, not imple
 - Statement: The system shall register affiliates automatically and attribute checkout to the first eligible referral within a non-extending seven-day cookie window, excluding self-purchases.
 - Acceptance: Given valid referral A followed by B before expiry, When checkout occurs, Then A is retained; after expiry a new referral can start a new window.
 - Constraints: None
-- Evidence: None; execution pending.
+- Evidence: Implementation and local acceptance evidence is tracked in root [STATUS.md](../../STATUS.md); external gates remain open.
 - Changed at: 2026-10-15
 - Change history: Initial planning declaration from owner discussion.
 
@@ -113,7 +113,7 @@ Requirement lifecycle Accepted means owner-approved business behavior, not imple
 - Statement: The system shall snapshot the affiliate-specific rate or default 10 percent per attributed item and mature commission ten days after verified buyer receipt, using replacement receipt after an exchange.
 - Acceptance: Given an exchanged attributed item, When the original H+10 passes, Then it remains held; ten days after verified replacement receipt it can mature if no unresolved claim exists.
 - Constraints: None
-- Evidence: None; execution pending.
+- Evidence: Implementation and local acceptance evidence is tracked in root [STATUS.md](../../STATUS.md); external gates remain open.
 - Changed at: 2026-10-15
 - Change history: Initial planning declaration from owner discussion.
 
@@ -124,7 +124,7 @@ Requirement lifecycle Accepted means owner-approved business behavior, not imple
 - Statement: The system shall automatically identify affiliate balances at or above the default minimum IDR 99,000 after PR-9 maturity (future owner-versioned threshold changes follow PR-20), place them in the finance payout queue, and support manual transfer of the entire allocated eligible balance. No fixed monthly/date-5/date-20 schedule or affiliate withdrawal request applies. Automated external transfers are future capability-gated work.
 - Acceptance: Given ten matured default commissions totaling IDR 99,000 and concurrent processors, When eligibility is evaluated, Then exactly one queued payout owns the balance; only authorized finance can claim and record a verified manual transfer, and an ambiguous outcome cannot cause a duplicate payment.
 - Constraints: None
-- Evidence: None; execution pending.
+- Evidence: Implementation and local acceptance evidence is tracked in root [STATUS.md](../../STATUS.md); external gates remain open.
 - Changed at: 2026-10-15
 - Change history: Initial planning declaration; amended 2026-10-15 by the latest owner instruction for offer composition, physical stock, waybill milestone or manual payout as applicable.
 
@@ -135,7 +135,7 @@ Requirement lifecycle Accepted means owner-approved business behavior, not imple
 - Statement: The system shall let authorized staff configure shipping subsidy eligibility, cap, minimum spend, period, customer quota, budget and stacking, at parent-order level.
 - Acceptance: Given a two-shipment order, When the subsidy applies, Then package allocations sum to one allowed order subsidy and concurrent orders cannot exceed its reserved budget.
 - Constraints: None
-- Evidence: None; execution pending.
+- Evidence: Implementation and local acceptance evidence is tracked in root [STATUS.md](../../STATUS.md); external gates remain open.
 - Changed at: 2026-10-15
 - Change history: Initial planning declaration from owner discussion.
 
@@ -146,7 +146,7 @@ Requirement lifecycle Accepted means owner-approved business behavior, not imple
 - Statement: The system shall provide role-scoped order history and finance reporting for owner (displayed as Super Admin) and finance staff, recording provider receivables, settlements, versioned costs, shipping, subsidies, refund liabilities and affiliate liabilities independently of gross sales; contribution, operating result and cash must be distinguished, with incomplete costs explicit.
 - Acceptance: Given a COD delivered event without settlement, When reports refresh, Then it appears as a receivable, not received cash; payout timing remains governed by commission policy.
 - Constraints: None
-- Evidence: None; execution pending.
+- Evidence: Implementation and local acceptance evidence is tracked in root [STATUS.md](../../STATUS.md); external gates remain open.
 - Changed at: 2026-10-15
 - Change history: Initial planning declaration from owner discussion.
 
@@ -157,7 +157,7 @@ Requirement lifecycle Accepted means owner-approved business behavior, not imple
 - Statement: The system shall enforce owner, ecommerce_admin, warehouse, customer_service, finance, buyer and affiliate permissions on the server.
 - Acceptance: Given warehouse staff scoped to Malang, When they query or mutate Pontianak fulfillment, Then access is denied even through a direct request.
 - Constraints: None
-- Evidence: None; execution pending.
+- Evidence: Implementation and local acceptance evidence is tracked in root [STATUS.md](../../STATUS.md); external gates remain open.
 - Changed at: 2026-10-15
 - Change history: Initial planning declaration from owner discussion.
 
@@ -168,7 +168,7 @@ Requirement lifecycle Accepted means owner-approved business behavior, not imple
 - Statement: The system shall provide recoverable buyer, admin and affiliate journeys, including item-level exchange reasons, receipt date, maturity date and payout history without buyer PII in affiliate views.
 - Acceptance: Given a partial exchange, When the affiliate reads the order report, Then the affected item explains its hold and revised date while other eligible items remain separate.
 - Constraints: None
-- Evidence: None; execution pending.
+- Evidence: Implementation and local acceptance evidence is tracked in root [STATUS.md](../../STATUS.md); external gates remain open.
 - Changed at: 2026-10-15
 - Change history: Initial planning declaration from owner discussion.
 
@@ -179,7 +179,7 @@ Requirement lifecycle Accepted means owner-approved business behavior, not imple
 - Statement: The system shall export consistent price, availability and permanent sellable IDs with internal taxonomy mapped to Google taxonomy and report synchronization failures.
 - Acceptance: Given a variant with a changed slug, When feed and event payloads are generated, Then its permanent catalog ID is unchanged; invalid required product data is reported before export.
 - Constraints: None
-- Evidence: None; execution pending.
+- Evidence: Implementation and local acceptance evidence is tracked in root [STATUS.md](../../STATUS.md); external gates remain open.
 - Changed at: 2026-10-15
 - Change history: Initial planning declaration from owner discussion.
 
@@ -190,7 +190,7 @@ Requirement lifecycle Accepted means owner-approved business behavior, not imple
 - Statement: The system shall accept orders 24 hours a day, seven days a week, including public/major holidays, subject to truthful stock/provider availability, and durably process provider events and scheduled work with deduplication, bounded retries, reconciliation and auditable recovery. Warehouse closures do not close the storefront.
 - Acceptance: Given repeated or out-of-order provider events and a worker restart, When reprocessed, Then no duplicate stock, refund, commission or payout effect occurs.
 - Constraints: None
-- Evidence: None; execution pending.
+- Evidence: Implementation and local acceptance evidence is tracked in root [STATUS.md](../../STATUS.md); external gates remain open.
 - Changed at: 2026-10-15
 - Change history: Initial planning declaration from owner discussion.
 
@@ -203,18 +203,18 @@ Requirement lifecycle Accepted means owner-approved business behavior, not imple
 - Statement: Money shall use integer IDR and exact arithmetic; concurrent transitions shall not oversell or duplicate money movements.
 - Acceptance: Run race, replay, partial-refund and ambiguous-payout scenarios; all conservation invariants hold.
 - Constraints: DATA-1, BILL-1
-- Evidence: None; execution pending.
+- Evidence: Implementation and local acceptance evidence is tracked in root [STATUS.md](../../STATUS.md); external gates remain open.
 - Changed at: 2026-10-15
 - Change history: Initial planning declaration from owner discussion.
 
 ### NFR-2 — Accessible responsive interaction
-- Status: Proposal
+- Status: Accepted
 - Owner: Paduka Ongki
 - Source: CTX-11
 - Statement: Critical journeys shall support keyboard use, labeled errors, focus recovery and narrow/wide layouts.
 - Acceptance: Browser checks at 390px and 1440px plus keyboard-only checkout and return submission show no lost essential actions.
 - Constraints: UI-1, UX-1
-- Evidence: None; execution pending.
+- Evidence: Implementation and local acceptance evidence is tracked in root [STATUS.md](../../STATUS.md); external gates remain open.
 - Changed at: 2026-10-15
 - Change history: Initial planning declaration from owner discussion.
 

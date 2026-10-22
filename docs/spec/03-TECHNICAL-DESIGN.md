@@ -1,8 +1,8 @@
 # Technical Design
 
-Status: Draft — planning only; no application or runtime verification.
+Status: Accepted contract — implementation and acceptance state is owned by root [STATUS.md](../../STATUS.md); external gates remain open.
 
-Owner: Paduka Ongki. Updated: 2026-10-15.
+Owner: Paduka Ongki. Updated: 2026-10-21.
 
 ### TD-1 — Application structure proposal
 - Status: Accepted
@@ -11,7 +11,7 @@ Owner: Paduka Ongki. Updated: 2026-10-15.
 - Statement: Use one TypeScript application with Next.js App Router, PostgreSQL/Drizzle and Better Auth; a separately running worker shares domain modules and the database.
 - Acceptance: Implementation preserves delegated stack selection, records pinned compatible versions and verifies local and deployed runtime separately.
 - Constraints: None
-- Evidence: None; execution pending.
+- Evidence: Implementation and local acceptance evidence is tracked in root [STATUS.md](../../STATUS.md); external gates remain open.
 - Changed at: 2026-10-15
 - Change history: Initial planning declaration from owner discussion.
 

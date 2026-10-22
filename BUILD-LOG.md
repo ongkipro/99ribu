@@ -1,5 +1,72 @@
 # Build log — Serba 99ribu
 
+## 2026-10-22 — UI round, sign-in, S80 catalog, test isolation (uncommitted)
+
+- **Test runtime**: `scripts/check-tests.ts` holds a per-database advisory lock for a whole run (concurrent runs queue; fixes the `settlement-recovery` job-stealing flake) and creates the commercial policy baseline in an empty test database; failure causes are printed. `promotion-http` retires its campaign; T-30 and S34 own their data. Pristine `99ribu_test`: integration 458/458, browser 61/61.
+- **S74**: `tests/browser/support-live.test.ts` proves the real chat/inbox components on the built app (newest-first, older paging, at most one conflict after a buyer reply).
+- **Auth**: 2FA verify budget keyed on the pending verification's user id; production gates for loopback ceilings in `RELEASE.md`. `/masuk` sign-in page with the two-factor step; local-only dummy accounts (`npm run fixture -- login|login-codes local <ns>`).
+- **Admin UI (DEC-004)**: shadcn/ui + Tailwind v4 scoped to the console route group; independent review PASS.
+- **Storefront**: shop.com parity round 2, design gate PASS; category filter follows the public cursor.
+- **Catalog (S80, DEC-005)**: committed sanitized Berlapak dataset, idempotent import through domain services, photos via content-addressed storage at `/media/catalog/<sha256>.webp`; imported products stay draft until stock and costs exist.
+
+## 2026-10-22 — Follow-up slices S69–S79 (`R4`, uncommitted)
+
+- **Money path (S70/S71)**: recovery refunds processed by the worker; host reconcile; owner-audited re-arm of failed callbacks bound to the current transaction (`xmin`); retry of failed bank outcomes over `POST /api/v1/admin/commerce-exceptions/{exceptionId}/refunds/{refundId}/retries`. Migrations `0026`, `0028`. Independent R4 review found no double-posting path.
+- **Guest data (S76)**: expired, unreferenced guest contexts deleted in bounded, per-row-savepoint batches (`0027`, indexes and FKs in `0028`), throttled once per minute per worker and never fatal to job processing (S78).
+- **Receipt access (S72)**: cookie-only; `?token=` refused.
+- **Audit (S73)**, **support paging (S74)**, **order status contract (S75, DEC-001)**.
+- **Catalog**: search queries use the real catalog (previously only four demo products); Berlapak importer hardened (S69) and fixture runtime moved under `src/` (S79).
+- **Worker (S78)**: one job-kind registry; guard test fails when an enqueued kind is unregistered.
+- **Evidence**: 2026-10-22 fresh build — integration all-current 454/455 (load-sensitive settlement lock-timeout case passes alone), browser all-current 55/55; details in STATUS.
+
+## 2026-10-21 — `shop.com` × Kearifan Lokal Indonesia storefront adaptation (`R2`)
+
+Adapted `https://shop.com/`'s visual geometry and mobile ergonomics with Indonesian local-wisdom ("Kearifan Lokal") across the storefront while preserving all automated accessibility and Playwright test invariants:
+
+- **Brand Wordmark (`99rb.` with small `rb`)**: Updated `src/components/storefront/shell.tsx`, `src/components/storefront/checkout-frame.tsx`, `src/components/storefront/checkout-exit.tsx`, `src/components/admin/admin-workspaces-client.tsx`, and `.brand` in `src/app/globals.css` (`99` extra-bold `900`, `rb` `0.56em` weight `800`, and warm yellow `.` accent `#f6c945`, keeping `aria-label="99ribu, beranda"`).
+- **`shop.com` × Kearifan Lokal Surface Geometry (`src/app/globals.css`)**: Pill search omnibox (`.search-form` `border-radius: 9999px` with soft purple circular submit button), floating category pill chips (`.departments a` `border-radius: 9999px`), warm value card (`.price-statement` `border-radius: 20px`), `20px` department bento cards (`.department-photo`), `1:1` `18px` rounded-square product media frames (`.photo-slot`, `.product-image`), `14px` variant picker cards (`.offer-picker label`), pill primary/secondary buttons (`.button` `border-radius: 9999px`), and mobile rounded-top bottom navigation dock (`.shopping-tabs` `border-radius: 20px 20px 0 0`).
+- **Verification**: `npm run check` (`611` files linted, `31/31` unit tests PASS), `npm run build` PASS, and Playwright suites (`storefront-http.test.ts` `6/6`, `storefront.test.ts` `1/1`, `storefront-filter-recovery.test.ts` `2/2`, `storefront-continuity.test.ts` `1/1`, `storefront-cart.test.ts` `16/16`, `buyer-account.test.ts` `1/1`, `affiliate-workspace.test.ts` `1/1` — `28/28` PASS including `320px/200%` text zoom and no-JS checks).
+
+## 2026-10-21 — Follow-up audit, recovery refund wiring, berlapak importer (`R3`, uncommitted)
+
+- **Auth limits**: per-account budgets in `src/modules/access/handler.ts` (`ACCOUNT_LIMITS`) replace the single shared loopback bucket that let any client lock out every login; 2FA keyed on the exact Better Auth cookie. Verified `test:auth` 11/11, `test:auth:http` 1/1, `jobs` 15/15, `commerce-fixture` 7/7.
+- **Recovery refunds**: `recovery.refund.create`/`recovery.refund.callback` registered (`src/jobs/worker.ts`, `scripts/worker.ts`); previously enqueued and never processed. `tests/integration/recovery-refund-worker.test.ts` 2/2.
+- **Commission accrual** race-safe via `ON CONFLICT`; **0025 snapshot** added (no drift).
+- **Berlapak importer** (`npm run fixture -- berlapak local <ns>`, `src/modules/local/berlapak.ts`): 392 published IDR 99,000 offers incl. 26 bundles, private HPP, copied images under gitignored `public/catalog-local/`, 16 dummy orders through real checkout/payment handlers; `berlapak-import` 2/2.
+- **UI/log**: double-submit and silent-failure fixes in support, account, checkout and print-center clients; redacted `http.unexpected_error` log with `request_id`.
+- **Docs**: System map (4 Mermaid diagrams), module map, job/migration name corrections, spec status alignment.
+- **Evidence**: see STATUS "Follow-up audit session" (integration and browser isolation items I1/I2 open).
+
+## 2026-10-21 — S08 UI/UX visual precision pass & Tailscale dev verification (`R2`)
+
+Audited and refined all 12 storefront, buyer, affiliate, help, and admin routes against the S08 reference (`public/prototypes/prototype.css`, `public/prototypes/prototype.mjs`, `docs/spec/design/renders/s08/*.png`) while keeping `npm run dev` + `npm run worker` live on the local Tailscale-reachable dev host on port `3099` (`127.0.0.1:3099`):
+
+- **S08 CSS & layout parity (`src/app/globals.css`)**: Added `.button-secondary` alias alongside `.secondary`, `:where(.button:disabled)`, `.notice-panel` & `.notice-actions`, `.buyer-account-workspace` & `.print-center-workspace` card/form/label/input/select styling, `:where(body > .receipt-shell)` container bounds, `.affiliate-workspace` / `.affiliate-head` / `.affiliate-eligible-card` / `.affiliate-card` / `.affiliate-balance-grid` / `.affiliate-copy-box`, and `.s08-operator-shell` / `.s08-operator-nav` / `.s08-operator-main` / `.s08-role-btn` (`0` Biome `noDescendingSpecificity` warnings).
+- **Buyer Account, Affiliate, Support & Print Center (`src/app/(storefront)/account/page.tsx`, `src/app/(storefront)/affiliate/page.tsx`, `src/app/admin/support/page.tsx`, `src/app/admin/print-center/page.tsx`)**: Upgraded unauthenticated and authenticated states to S08 card, grid, and notice-panel proportions while preserving all S21/PR-8/T-35/T-37 accessibility roles and `data-testid` selectors.
+- **Role-scoped Admin Workspace (`src/app/admin/page.tsx`, `src/components/admin/admin-workspaces-client.tsx`)**: Converted `/admin` to check `getPrincipal` server-side and pass `initialAuthenticated` / `initialStaffRoles` to `AdminWorkspacesClient`, eliminating unauthenticated `401` console errors on `/admin` and rendering the S08 sidebar + main workspace layout across `owner`, `ecommerce_admin`, `warehouse`, `customer_service`, and `finance`.
+- **Default Storefront Catalog Hygiene (`src/app/(storefront)/search/page.tsx`, `src/app/(storefront)/categories/page.tsx`)**: Scoped default browsing (when no explicit `category_id`, `cursor`, or synthetic test query is active) to the canonical `commerce-demo` catalog so `/search` and `/categories` display clean Indonesian catalog cards without leaking `SYNTHETIC ... [...]` integration fixtures.
+- **Verification**: `npm run check` PASS (`607` files linted, `0` warnings, `31/31` unit tests), 24 Playwright desktop/mobile route renders (`status: 200`, `overflow: 0`, `errors: []`), and Playwright suites (`storefront-http`, `storefront-filter-recovery`, `affiliate-workspace`, `admin-workspaces`) PASS.
+
+## 2026-10-21 — Post-audit G1–G10 remediation and full localhost verification (`R3`)
+
+Completed all 10 post-audit gaps (`G1`–`G10`) on `feat/foundation-s01-s02` (branch name as originally recorded; verified 2026-10-21: the current checkout is `main`, and `feat/foundation-s01-s02` is a separate worktree branch that also contains `bfecdce`) and verified across unit, contract, database, integration, built-server HTTP, and Playwright browser suites:
+
+- **G1 (OTP security)**: Keyed HMAC OTP generation (`mac`), removed plaintext OTP from `app.audit_event.details`, and enforced atomic attempt reservation in `src/modules/accounts/service.ts` with regression coverage in `tests/integration/buyer-account.test.ts`.
+- **G2, G3 & G4 (Commission lifecycle, automatic payout queueing, and affiliate ledger accounts)**: Added `migrations/0025_affiliate_ledger.sql` (`commission_expense` and `affiliate_payable` in `finance_posting_value_check`, plus `app.affiliate_payout_evidence`; `205` tables in `app`), wired `src/modules/commissions/jobs.ts` (`commission.accrue`, `commission.receipt`, `commission.claim`, `commission.void`, `commission.mature`, `affiliate.payout.queue` in `src/jobs/worker.ts`) and hooks across `src/modules/payments/{events,cod}.ts`, `src/modules/returns/{receipts,cases}.ts`, and `src/modules/checkout/exceptions/applications.ts`. Commission maturity recognition (`recognizeCommission`, `effect_reference = 'commission:' || entry.id`) posts `commission_expense` DR / `affiliate_payable` CR, post-recognition void posts full reversal (`reverseCommissionRecognition`), maturity/release automatically queues eligible payouts via `enqueueAffiliatePayoutQueue` / `queueEligibleAffiliatePayouts`, and manual payout settlement posts `affiliate_payable` DR / `company_cash` CR (`tests/integration/commission-maturity.test.ts`, `tests/integration/affiliate-payouts.test.ts`).
+- **G5 (Real byte-upload routes and magic-byte verification)**: Added `src/storage/media-sniff.ts`, extended `src/storage/private.ts`, added `PUT /api/v1/orders/[orderId]/returns/[returnId]/evidence-uploads/[uploadId]` and `PUT /api/v1/admin/payouts/[payoutId]/evidence-uploads/[evidenceId]`, and enforced `bytes_uploaded_at`/SHA-256/magic-byte verification in `src/modules/accounts/service.ts` and `src/modules/payouts/service.ts`.
+- **G6 (S63 public mutation rate limits)**: Added `src/modules/access/rate-limit.ts` (`rateLimit`, `LIMITS`) across guest-order-access challenges, buyer receipt confirmations, guest support sessions/messages/attachments, and referral touches; verified in `tests/integration/public-rate-limits.test.ts`.
+- **G7 (Real `pg_dump`/`pg_restore` rehearsal)**: Added subtest 3 in `tests/integration/localhost-readiness.test.ts` executing real `pg_dump -Fc` and `pg_restore` into an isolated disposable database (`99ribu_restore_<uuid>`), resealing creating-XID triggers, verifying table/row/ledger parity and immutability triggers, and dropping the disposable database in `finally` (`3/3` PASS).
+- **G8 (OpenAPI honesty & destination/reconciliation routes)**: Restored `/api/v1/admin/advertising/destinations/[destinationId]/{diagnostics,pause,replays,versions}` and `/api/v1/admin/payouts/[payoutId]/reconciliations`, removed all `"Proposed"` / `"not implemented"` operation descriptions from `docs/spec/openapi.yaml` (`175` paths, `209` operations, `7197` assertions PASS), and restored full-spec alias parity in `tests/contract/openapi-parity.test.ts` (`4/4` PASS).
+- **G9 & G10 (Governance, historical test separation, and test hygiene)**: Moved 14 historical pre-migration candidate/upgrade/definition test files to `tests/historical/`, registered all current integration test files in `scripts/check-tests.ts` with `all-current` coverage enforced in `tests/runner.test.ts` (`31/31` PASS), fixed active promotion teardown in `tests/integration/shipping-contribution.test.ts`, and verified built-server HTTP + Playwright browser suites on `127.0.0.1:3099`.
+
+## 2026-10-21 — Independent audit and OTP security fix (`R3`)
+
+Fresh-checkout verification at `bfecdce`: `npm ci`, `lint`, `typecheck`, `npm test` 30/30, fresh migrations 0000–0024 (204 tables), `test:database` 3/3 and `build` pass. Non-HTTP integration: 120/134 files pass; the 14 failures are historical pre-migration candidate files. HTTP and browser suites were not run because port 3099 was occupied by another worktree.
+
+Fixed G1 in `src/modules/accounts/service.ts`: buyer/guest OTP is now an HMAC of the challenge id under the server secret (was unkeyed sha256 of the public id), the challenge digest is keyed, plaintext OTP is no longer written to `app.audit_event.details`, and one attempt is reserved atomically before comparison so parallel guesses cannot exceed five. `tests/integration/buyer-account.test.ts` adds the regression (audit leak, 12 parallel wrong guesses = 5×403 + 7×409, lockout, unkeyed code refused); it passes on the fix and fails on `bfecdce`.
+
+Local acceptance reopened; gaps G2–G10 recorded in STATUS.md.
+
 ## 2026-10-21 — S33–S68 full localhost completion and T-39 assembled readiness (`68/68` slices PASS)
 
 Completed all remaining development slices (`S33`–`S68`) on `feat/foundation-s01-s02` and verified end-to-end assembled localhost readiness:

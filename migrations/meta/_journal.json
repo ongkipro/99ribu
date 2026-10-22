@@ -176,6 +176,41 @@
       "when": 1792517884764,
       "tag": "0024_remaining_domains",
       "breakpoints": true
+    },
+    {
+      "idx": 25,
+      "version": "7",
+      "when": 1792600000000,
+      "tag": "0025_affiliate_ledger",
+      "breakpoints": true
+    },
+    {
+      "idx": 26,
+      "version": "7",
+      "when": 1792600892685,
+      "tag": "0026_recovery_refund_retry",
+      "breakpoints": true
+    },
+    {
+      "idx": 27,
+      "version": "7",
+      "when": 1792600894742,
+      "tag": "0027_guest_context_cleanup",
+      "breakpoints": true
+    },
+    {
+      "idx": 28,
+      "version": "7",
+      "when": 1792602272197,
+      "tag": "0028_hardening",
+      "breakpoints": true
+    },
+    {
+      "idx": 29,
+      "version": "7",
+      "when": 1792679917628,
+      "tag": "0029_publication_withdrawal",
+      "breakpoints": true
     }
   ]
 }

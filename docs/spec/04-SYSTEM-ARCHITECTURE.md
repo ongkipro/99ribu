@@ -1,18 +1,18 @@
 # System Architecture
 
-Status: Draft — planning only; no application or runtime verification.
+Status: Accepted contract — implementation and acceptance state is owned by root [STATUS.md](../../STATUS.md); external gates remain open.
 
-Owner: Paduka Ongki. Updated: 2026-10-15.
+Owner: Paduka Ongki. Updated: 2026-10-21.
 
 ### ARCH-1 — Trust and runtime boundaries
 - Review owner: Engineering owner; independent document review performed 2026-10-15, runtime/diagram approval not claimed.
-- Status: Proposal
+- Status: Accepted (ADR-0001, ADR-0004, ADR-0006)
 - Owner: Engineering owner
 - Source: CTX-3
 - Statement: Keep commerce mutation authority in trusted server/worker processes backed by one transactional database; browsers and provider callbacks are untrusted inputs.
 - Acceptance: Direct unauthenticated mutations fail, provider calls remain server-only and worker restart cannot lose committed work.
 - Constraints: None
-- Evidence: None; execution pending.
+- Evidence: Implementation and local acceptance evidence is tracked in root [STATUS.md](../../STATUS.md); external gates remain open.
 - Changed at: 2026-10-15
 - Change history: Initial planning declaration from owner discussion.
 
@@ -41,7 +41,7 @@ Public API versioning adds a real compatibility boundary: clients cannot be assu
 
 
 ## Diagram ARCH-D1 — System context
-Owner: Engineering owner. Status: Proposal; logical boundary view, not a deployed system.
+Owner: Engineering owner. Status: Accepted design (ADR-0001, ADR-0006); logical boundary view, not a deployed system.
 Trace: [ARCH-1](#arch-1--trust-and-runtime-boundaries), [PR-4, PR-8, PR-13, PR-18](02-PRD.md), [API-1](09-API-SPECIFICATION.md).
 
 ```mermaid
@@ -63,7 +63,7 @@ flowchart LR
 Callback arrows represent inputs requiring authentication, replay protection and reconciliation; they are not authority to mark payments or delivery without validation. Outbound merchant payout API is intentionally absent until T-19 proves an issued contract. Public catalog synchronization does not expose buyer, banking or finance evidence.
 
 ## Diagram ARCH-D2 — Application containers and trust boundary
-Owner: Engineering owner. Status: Proposal; proposed modular monolith with a separate worker process.
+Owner: Engineering owner. Status: Accepted design (ADR-0001, ADR-0004); modular monolith with a separate worker process.
 Trace: [TD-1](03-TECHNICAL-DESIGN.md#td-1--application-structure-proposal), [PR-2, PR-13, PR-16, PR-17, PR-18](02-PRD.md), [DATA-1](05-DATA-MODEL.md#data-1--transactional-invariants).
 
 ```mermaid
@@ -112,7 +112,7 @@ flowchart TB
 Vultr, Coolify, Singapore and Next.js are selected. Exact PostgreSQL placement, TLS termination, proxied DNS versus Tunnel, origin protection, secrets delivery, storage vendor and backup destination remain setup decisions. Coolify access is separate from public storefront traffic. Backup arrows denote required design behavior, not proof that backups or restores exist. The currently published static coming-soon Worker is a separate release and does not establish this commerce runtime.
 
 ## Proposed source and responsibility boundaries
-Status: Proposal, conditional on ADR-0001, ADR-0004 and ADR-0006 acceptance. These are intended repository paths, not folders or application code created by this planning task.
+Status: Accepted (ADR-0001, ADR-0004 and ADR-0006). These are the selected repository paths; actual layout is recorded in root [ARCHITECTURE.md](../../ARCHITECTURE.md).
 
 | Boundary | Intended path / owner | Rule |
 |---|---|---|

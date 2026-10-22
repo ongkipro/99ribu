@@ -1,17 +1,17 @@
 # Identity and Authorization
 
-Status: Draft — planning only; no application or runtime verification.
+Status: Accepted contract — implementation and acceptance state is owned by root [STATUS.md](../../STATUS.md); external gates remain open.
 
-Owner: Paduka Ongki. Updated: 2026-10-15.
+Owner: Paduka Ongki. Updated: 2026-10-21.
 
 ### IAM-1 — Role and object scope
-- Status: Proposal
+- Status: Accepted
 - Owner: Engineering owner
 - Source: CTX-7
 - Statement: Authorize every read, mutation, export and job by actor, permission and object scope; guest links prove access only to their order.
 - Acceptance: Cross-warehouse, cross-affiliate and cross-buyer direct requests fail; legitimate scoped requests succeed.
 - Constraints: None
-- Evidence: None; execution pending.
+- Evidence: Implementation and local acceptance evidence is tracked in root [STATUS.md](../../STATUS.md); external gates remain open.
 - Changed at: 2026-10-15
 - Change history: Initial planning declaration from owner discussion.
 
@@ -107,6 +107,8 @@ Company commercial and warehouse-calendar policies are owner-only in this checkp
 Owner and ecommerce_admin with exact-session MFA can create/read company category and physical-SKU dictionaries. These responses never include HPP, stock balances or finance data. Product editing/read/list requires every active offer default warehouse within the current ecommerce warehouse membership; owner has company scope. A product outside that scope returns404 and is omitted from the list. Introducing a foreign warehouse is forbidden. Auth, role and membership are rechecked in the transaction under actor locking shared with grant replacement; privilege/session revocation cannot be bypassed by an old committed retry response. Cookie-only transport, strict origin/CSRF, no-store and denial of mixed capability/native headers match the access boundary.
 
 Catalog retry recovery authorizes both the current product and every warehouse in the original saved response against current scope. A later warehouse move and reassignment cannot expose an older response for a warehouse the actor no longer holds. The regression uses actual role replacement/session revocation and fresh sign-in/MFA.
+
+Owner-approved catalog read extension (2026-10-22): product list/detail, publication state and the category dictionary are also readable by warehouse staff, using the same every-active-offer-warehouse membership rule as ecommerce_admin, and by finance holding an explicit finance.costs.read grant at company scope (the scope of cost-version reads). Warehouse-only readers receive cost, margin and commercial-policy publication blockers collapsed to FINANCIAL_REVIEW_REQUIRED; no reader receives amounts through catalog responses. Stock balances stay behind the inventory warehouse scope and cost/contribution data behind finance.costs.read. The physical-SKU dictionary, every catalog write, publication and retraction remain owner/ecommerce_admin. Customer service and finance without the cost grant receive no private catalog surface; they use the public storefront projection. Authority is rechecked in the read transaction under the shared actor lock, so grant revocation applies to the next read.
 
 ## S15 inventory and transfer scope
 

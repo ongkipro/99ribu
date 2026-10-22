@@ -948,7 +948,7 @@ paths:
     get:
       operationId: listMyOrders
       summary: List authenticated buyer orders
-      description: Proposed Serba 99ribu v1 contract; not implemented or deployed. Enforce server validation and
+      description: Implemented-local Serba 99ribu v1 endpoint; not deployed. Enforce server validation and
         caller object scope.
       tags:
       - Orders
@@ -1403,7 +1403,7 @@ paths:
     post:
       operationId: createReturnEvidenceUpload
       summary: Request private claim evidence upload
-      description: Proposed Serba 99ribu v1 contract; not implemented or deployed. Enforce server validation and
+      description: Implemented-local Serba 99ribu v1 endpoint; not deployed. Enforce server validation and
         caller object scope.
       tags:
       - Returns
@@ -1461,11 +1461,118 @@ paths:
               $ref: '#/components/schemas/EvidenceInput'
       x-proof-group: accounts
       x-implementation: src/app/api/v1/orders/[orderId]/returns/[returnId]/evidence-uploads/route.ts
+  /orders/{orderId}/returns/{returnId}/evidence-uploads/{uploadId}:
+    put:
+      operationId: putReturnEvidenceBytes
+      summary: Store the bytes for a private claim evidence upload grant
+      description: Target of EvidenceUpload.upload_url. Same buyer/guest order authority and uploader scope as the
+        grant. The body must match the granted media type and exact size_bytes; content type is sniffed from magic
+        bytes, sha256 is computed over the stored bytes, and only a stored, scan-ready upload can be attached. A
+        grant accepts bytes once and expires with the grant.
+      tags:
+      - Returns
+      security: *id004
+      x-contract-status: implemented-local
+      x-domain-owner: returns
+      x-primary-requirement: PR-7
+      responses:
+        '200':
+          description: Bytes stored privately; the upload can now be attached.
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties: false
+                required: [id, status, size_bytes, sha256]
+                properties:
+                  id:
+                    $ref: '#/components/schemas/Id'
+                  status:
+                    type: string
+                    enum: [uploaded, pending_scan]
+                  size_bytes:
+                    type: integer
+                    minimum: 1
+                    maximum: 26214400
+                  sha256:
+                    type: string
+                    pattern: ^[0-9a-f]{64}$
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '409':
+          $ref: '#/components/responses/Conflict'
+        '413':
+          description: Body exceeds the granted size_bytes.
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+        '415':
+          description: Content-Type header or sniffed bytes differ from the granted media type.
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+        '422':
+          $ref: '#/components/responses/Unprocessable'
+        '429':
+          $ref: '#/components/responses/TooManyRequests'
+        default:
+          description: Unexpected server/proxy failure; clients tolerate a non-Problem gateway body.
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+        '503':
+          $ref: '#/components/responses/Unavailable'
+      parameters:
+      - name: orderId
+        in: path
+        required: true
+        schema:
+          $ref: '#/components/schemas/Id'
+      - name: returnId
+        in: path
+        required: true
+        schema:
+          $ref: '#/components/schemas/Id'
+      - name: uploadId
+        in: path
+        required: true
+        schema:
+          $ref: '#/components/schemas/Id'
+      requestBody:
+        required: true
+        content:
+          image/jpeg:
+            schema:
+              type: string
+              format: binary
+          image/png:
+            schema:
+              type: string
+              format: binary
+          image/webp:
+            schema:
+              type: string
+              format: binary
+          video/mp4:
+            schema:
+              type: string
+              format: binary
+      x-proof-group: accounts
+      x-implementation: src/app/api/v1/orders/[orderId]/returns/[returnId]/evidence-uploads/[uploadId]/route.ts
   /orders/{orderId}/returns/{returnId}/evidence:
     post:
       operationId: attachReturnEvidence
       summary: Attach validated owned uploads to a claim
-      description: Proposed Serba 99ribu v1 contract; not implemented or deployed. Enforce server validation and
+      description: Implemented-local Serba 99ribu v1 endpoint; not deployed. Enforce server validation and
         caller object scope.
       tags:
       - Returns
@@ -1527,7 +1634,7 @@ paths:
     post:
       operationId: requestGuestOrderAccess
       summary: Request contact verification for guest order access
-      description: Proposed Serba 99ribu v1 contract; not implemented or deployed. Enforce server validation and
+      description: Implemented-local Serba 99ribu v1 endpoint; not deployed. Enforce server validation and
         caller object scope.
       tags:
       - Identity
@@ -1573,7 +1680,7 @@ paths:
     post:
       operationId: verifyGuestOrderAccess
       summary: Verify a single-use guest access challenge
-      description: Proposed Serba 99ribu v1 contract; not implemented or deployed. Enforce server validation and
+      description: Implemented-local Serba 99ribu v1 endpoint; not deployed. Enforce server validation and
         caller object scope.
       tags:
       - Identity
@@ -1619,7 +1726,7 @@ paths:
     post:
       operationId: recordReferralTouch
       summary: Record or retain the first valid affiliate touch
-      description: Proposed Serba 99ribu v1 contract; not implemented or deployed. Enforce server validation and
+      description: Implemented-local Serba 99ribu v1 endpoint; not deployed. Enforce server validation and
         caller object scope.
       tags:
       - Affiliate
@@ -1665,7 +1772,7 @@ paths:
     post:
       operationId: joinAffiliateProgram
       summary: Activate the authenticated affiliate profile
-      description: Proposed Serba 99ribu v1 contract; not implemented or deployed. Enforce server validation and
+      description: Implemented-local Serba 99ribu v1 endpoint; not deployed. Enforce server validation and
         caller object scope.
       tags:
       - Affiliate
@@ -1716,7 +1823,7 @@ paths:
     get:
       operationId: getMyAffiliateProfile
       summary: Read own affiliate profile and referral link
-      description: Proposed Serba 99ribu v1 contract; not implemented or deployed. Enforce server validation and
+      description: Implemented-local Serba 99ribu v1 endpoint; not deployed. Enforce server validation and
         caller object scope.
       tags:
       - Affiliate
@@ -1758,7 +1865,7 @@ paths:
     get:
       operationId: getMyCommissionBalance
       summary: Read disjoint commission balances
-      description: Proposed Serba 99ribu v1 contract; not implemented or deployed. Enforce server validation and
+      description: Implemented-local Serba 99ribu v1 endpoint; not deployed. Enforce server validation and
         caller object scope.
       tags:
       - Affiliate
@@ -1800,7 +1907,7 @@ paths:
     get:
       operationId: listMyCommissions
       summary: Read own item and quantity commission history
-      description: Proposed Serba 99ribu v1 contract; not implemented or deployed. Enforce server validation and
+      description: Implemented-local Serba 99ribu v1 endpoint; not deployed. Enforce server validation and
         caller object scope.
       tags:
       - Affiliate
@@ -1845,7 +1952,7 @@ paths:
     get:
       operationId: listMyPayouts
       summary: Read automatic eligibility and manual transfer progress
-      description: Proposed Serba 99ribu v1 contract; not implemented or deployed. Enforce server validation and
+      description: Implemented-local Serba 99ribu v1 endpoint; not deployed. Enforce server validation and
         caller object scope.
       tags:
       - Affiliate
@@ -1890,7 +1997,7 @@ paths:
     post:
       operationId: requestBeneficiaryChange
       summary: Verify a new affiliate payout destination
-      description: Proposed Serba 99ribu v1 contract; not implemented or deployed. Enforce server validation and
+      description: Implemented-local Serba 99ribu v1 endpoint; not deployed. Enforce server validation and
         caller object scope.
       tags:
       - Affiliate
@@ -4041,7 +4148,7 @@ paths:
     post:
       operationId: reconcilePayoutStatus
       summary: Review and reconcile an existing manual transfer outcome
-      description: Proposed Serba 99ribu v1 contract; not implemented or deployed. Enforce server validation and
+      description: Implemented-local Serba 99ribu v1 endpoint; not deployed. Enforce server validation and
         caller object scope. Manual finance evidence review only for this release. No external transfer is initiated.
         Virgo outbound/disbursement API support is unverified and gated as future work.
       tags:
@@ -4231,13 +4338,19 @@ paths:
               $ref: '#/components/schemas/ProductDraft'
     get:
       operationId: listProductEditingDrafts
-      summary: List scoped inactive product drafts
+      summary: List scoped products with publication summary
       description: Private cookie-only owner/ecommerce_admin catalog operation with session-bound MFA and CSRF/origin
-        validation. Category and physical SKU dictionaries are shared company catalog facts, not stock/cost authority.
-        Product reads/writes require every active offer warehouse in current ecommerce scope; owner has company
-        scope. All product writes are inactive immutable revisions. Actor-scoped retry identity spans catalog mutations;
-        changed operation/body conflicts. Unknown properties, direct price/cost/stock/identity assignment and implicit
-        offer removal are rejected. No publication in S14.
+        validation. Lists the current draft revision of every product in the caller's ecommerce warehouse scope (owner
+        has company scope), ordered by product ID with an opaque ID cursor, optionally filtered by literal name/catalog-ID
+        text `q`, a category (including its descendants) and a derived publication `state`. Each row carries a read-only
+        summary computed in one SQL snapshot without product, stock or cost row locks. `blocker_codes` mirror the publish
+        guard for media, description, active offers, category, default-warehouse activity, complete default-warehouse
+        stock, missing effective HPP/cost assumptions and the contribution floor under the current commercial policy;
+        category fact validation, offer re-validation and calculation limits are evaluated only by the per-product
+        publication state and the publish command, which remain authoritative. Financial values are never returned.
+        Readers are owner (company), ecommerce_admin and warehouse staff (every active offer warehouse within their
+        memberships) and finance with an explicit finance.costs.read grant (company). Warehouse-only readers receive
+        cost/margin/policy blocker codes collapsed to FINANCIAL_REVIEW_REQUIRED.
       tags:
       - Catalog
       security:
@@ -4248,6 +4361,8 @@ paths:
       x-allowed-roles:
       - owner
       - ecommerce_admin
+      - warehouse
+      - finance
       x-proof-group: catalog
       x-implementation: src/app/api/v1/admin/products/route.ts
       responses:
@@ -4283,6 +4398,23 @@ paths:
         schema:
           $ref: '#/components/schemas/CatalogUuid'
       - $ref: '#/components/parameters/Limit'
+      - name: q
+        in: query
+        description: Case-insensitive literal substring of the product name or catalog ID.
+        schema:
+          type: string
+          minLength: 1
+          maxLength: 100
+          pattern: \S
+      - name: category_id
+        in: query
+        description: Category whose own and descendant products are listed.
+        schema:
+          $ref: '#/components/schemas/CatalogUuid'
+      - name: state
+        in: query
+        schema:
+          $ref: '#/components/schemas/CatalogListState'
   /admin/products/{productId}:
     patch:
       operationId: updateProductDraft
@@ -4357,12 +4489,13 @@ paths:
     get:
       operationId: getProductEditingDraft
       summary: Read scoped immutable editing revision
-      description: Private cookie-only owner/ecommerce_admin catalog operation with session-bound MFA and CSRF/origin
-        validation. Category and physical SKU dictionaries are shared company catalog facts, not stock/cost authority.
-        Product reads/writes require every active offer warehouse in current ecommerce scope; owner has company
-        scope. All product writes are inactive immutable revisions. Actor-scoped retry identity spans catalog mutations;
-        changed operation/body conflicts. Unknown properties, direct price/cost/stock/identity assignment and implicit
-        offer removal are rejected. No publication in S14.
+      description: Private cookie-only catalog read with session-bound MFA and CSRF/origin validation. Owner has
+        company scope. ecommerce_admin and warehouse staff read only products whose every active offer warehouse is in
+        their current active warehouse memberships (out-of-scope products are omitted or return 404). Finance reads
+        with an explicit finance.costs.read grant at company scope, matching cost-version reads. Customer service,
+        finance without that grant, buyer and affiliate are refused. Readers without cost/margin authority (warehouse
+        only) receive financial publication blockers as FINANCIAL_REVIEW_REQUIRED; amounts are never returned. Reads
+        mutate nothing; writes remain owner/ecommerce_admin.
       tags:
       - Catalog
       security:
@@ -4373,6 +4506,8 @@ paths:
       x-allowed-roles:
       - owner
       - ecommerce_admin
+      - warehouse
+      - finance
       x-proof-group: catalog
       x-implementation: src/app/api/v1/admin/products/[productId]/route.ts
       responses:
@@ -4416,7 +4551,8 @@ paths:
         complete catalog/facts/media/warehouse stock and current cost/policy sources. Unknown/low contribution blocks
         automatic approval. Only fresh product/session/purpose-bound owner proof can authorize an explicit financial
         exception. Responses expose safe codes/references without financial amounts; later cost changes require
-        fresh review for new sales. Every write/audit/retry/snapshot commits atomically.
+        fresh review for new sales. Every write/audit/retry/snapshot commits atomically. Read roles and scope match
+        getProductEditingDraft; warehouse-only readers see financial blockers as FINANCIAL_REVIEW_REQUIRED.
       tags:
       - Catalog
       security:
@@ -4427,6 +4563,8 @@ paths:
       x-allowed-roles:
       - owner
       - ecommerce_admin
+      - warehouse
+      - finance
       x-proof-group: publication
       x-implementation: src/app/api/v1/admin/products/[productId]/publications/route.ts
       parameters:
@@ -4946,7 +5084,7 @@ paths:
     get:
       operationId: listFinancePayoutQueue
       summary: Read manual finance payout queue
-      description: Proposed restricted finance queue; server allocation starts at the effective configured threshold
+      description: Restricted finance payout queue; server allocation starts at the effective configured threshold
         (initial default IDR99000 inclusive) of mature available commission. Manual claim locks freeze beneficiary
         and amount before transfer. This list grants no ability to alter amounts or payment status.
       tags:
@@ -4995,7 +5133,7 @@ paths:
     post:
       operationId: claimManualPayoutTransfer
       summary: Reserve exclusive manual transfer work
-      description: Proposed first-party manual finance workflow only; not implemented. Owner/finance permission
+      description: First-party manual finance workflow implemented in local runtime. Owner/finance permission
         and payout/claim object scope are mandatory. CSRF/origin controls apply to cookie sessions. Idempotency
         keys bind actor+operation+body; version locks serialize one effect. No transfer provider API is called.
       tags:
@@ -5058,7 +5196,7 @@ paths:
     post:
       operationId: createPayoutEvidenceUpload
       summary: Request private payout evidence upload
-      description: Proposed first-party manual finance workflow only; not implemented. Owner/finance permission
+      description: First-party manual finance workflow implemented in local runtime. Owner/finance permission
         and payout/claim object scope are mandatory. CSRF/origin controls apply to cookie sessions. Idempotency
         keys bind actor+operation+body; version locks serialize one effect. No transfer provider API is called.
         Evidence may be uploaded only by the active claim holder; scope the signed URL to this payout and claim.
@@ -5119,11 +5257,112 @@ paths:
               $ref: '#/components/schemas/PayoutEvidenceInput'
       x-proof-group: payouts
       x-implementation: src/app/api/v1/admin/payouts/[payoutId]/evidence-uploads/route.ts
+  /admin/payouts/{payoutId}/evidence-uploads/{evidenceId}:
+    put:
+      operationId: putPayoutEvidenceBytes
+      summary: Store the bytes for a private payout evidence upload grant
+      description: Target of EvidenceUpload.upload_url from createPayoutEvidenceUpload. Owner/finance permission,
+        the active claim holder who requested the grant, the matching X-Payout-Id header and CSRF/origin controls
+        are mandatory. The body must match the granted media type (PNG, JPEG or PDF, sniffed from magic bytes) and
+        exact size_bytes, at most 10 MiB; sha256 is computed over the privately stored bytes. A grant accepts one
+        byte sequence; an identical replay returns the stored result and different bytes are refused. Manual transfer
+        verification refuses evidence whose bytes were never stored. Never exposed in affiliate payout history.
+      tags:
+      - Finance
+      security:
+      - sessionCookie: []
+      - bearerAuth: []
+      x-contract-status: implemented-local
+      x-domain-owner: payouts
+      x-primary-requirement: PR-10
+      responses:
+        '200':
+          description: Bytes stored privately; the evidence id can now be verified.
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties: false
+                required: [id, size_bytes, sha256]
+                properties:
+                  id:
+                    $ref: '#/components/schemas/Id'
+                  size_bytes:
+                    type: integer
+                    minimum: 1
+                    maximum: 10485760
+                  sha256:
+                    type: string
+                    pattern: ^[0-9a-f]{64}$
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '409':
+          $ref: '#/components/responses/Conflict'
+        '413':
+          description: Body exceeds the 10 MiB evidence limit.
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+        '422':
+          $ref: '#/components/responses/Unprocessable'
+        '429':
+          $ref: '#/components/responses/TooManyRequests'
+        default:
+          description: Unexpected server/proxy failure; clients tolerate a non-Problem gateway body.
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+        '503':
+          $ref: '#/components/responses/Unavailable'
+      x-allowed-roles:
+      - owner
+      - finance
+      parameters:
+      - name: payoutId
+        in: path
+        required: true
+        schema:
+          $ref: '#/components/schemas/Id'
+      - name: evidenceId
+        in: path
+        required: true
+        schema:
+          $ref: '#/components/schemas/Id'
+      - name: X-Payout-Id
+        in: header
+        required: true
+        schema:
+          $ref: '#/components/schemas/Id'
+      requestBody:
+        required: true
+        content:
+          image/jpeg:
+            schema:
+              type: string
+              format: binary
+          image/png:
+            schema:
+              type: string
+              format: binary
+          application/pdf:
+            schema:
+              type: string
+              format: binary
+      x-proof-group: payouts
+      x-implementation: src/app/api/v1/admin/payouts/[payoutId]/evidence-uploads/[evidenceId]/route.ts
   /admin/payouts/{payoutId}/manual-transfer-verifications:
     post:
       operationId: verifyManualPayoutTransfer
       summary: Verify bank evidence and record manual payment
-      description: Proposed first-party manual finance workflow only; not implemented. Owner/finance permission
+      description: First-party manual finance workflow implemented in local runtime. Owner/finance permission
         and payout/claim object scope are mandatory. CSRF/origin controls apply to cookie sessions. Idempotency
         keys bind actor+operation+body; version locks serialize one effect. No transfer provider API is called.
         Only the active claim holder may submit; verify exact reserved amount, immutable beneficiary and successful
@@ -5190,7 +5429,7 @@ paths:
     get:
       operationId: listAdminOrderHistory
       summary: Read scoped order history
-      description: 'Retained order history including completed, cancelled and refunded orders; bounded cursor pages,
+      description: 'Retained order history including partially completed, cancelled and refunded orders; bounded cursor pages,
         not unbounded export. Optional from/to use creation time and require from < to. Owner (UI label Super Admin)
         can inspect all authorized business records. Other listed staff require explicit order-history permission
         and authorization for the entire order. Warehouse role cannot authorize these whole-order endpoints: parent
@@ -5282,10 +5521,8 @@ paths:
           type: string
           enum:
           - pending
-          - confirmed
           - processing
           - partially_completed
-          - completed
           - cancelled
       - name: warehouse_id
         in: query
@@ -5627,7 +5864,7 @@ paths:
     post:
       operationId: createSupportConversation
       summary: Create an owned support conversation
-      description: Proposed first-party native website chat, no external messaging handoff. Authenticated buyer
+      description: Implemented-local first-party native website chat, no external messaging handoff. Authenticated buyer
         or opaque session-bound guest capability must own the conversation; no number-only/customer-contact access.
         Sensitive response is no-store; CSRF/origin, rate/size limits and safe text rendering apply. Audit access
         without logging message bodies/images/secrets. No message or attachment authorizes a financial/order mutation.
@@ -5698,7 +5935,7 @@ paths:
     get:
       operationId: listSupportConversations
       summary: List own support conversations
-      description: Proposed first-party native website chat, no external messaging handoff. Authenticated buyer
+      description: Implemented-local first-party native website chat, no external messaging handoff. Authenticated buyer
         or opaque session-bound guest capability must own the conversation; no number-only/customer-contact access.
         Sensitive response is no-store; CSRF/origin, rate/size limits and safe text rendering apply. Audit access
         without logging message bodies/images/secrets. No message or attachment authorizes a financial/order mutation.
@@ -5768,7 +6005,7 @@ paths:
     get:
       operationId: getSupportConversation
       summary: Read own support conversation
-      description: Proposed first-party native website chat, no external messaging handoff. Authenticated buyer
+      description: Implemented-local first-party native website chat, no external messaging handoff. Authenticated buyer
         or opaque session-bound guest capability must own the conversation; no number-only/customer-contact access.
         Sensitive response is no-store; CSRF/origin, rate/size limits and safe text rendering apply. Audit access
         without logging message bodies/images/secrets. No message or attachment authorizes a financial/order mutation.
@@ -5825,7 +6062,7 @@ paths:
     get:
       operationId: listSupportMessages
       summary: Read bounded public message history
-      description: Proposed first-party native website chat, no external messaging handoff. Authenticated buyer
+      description: Implemented-local first-party native website chat, no external messaging handoff. Authenticated buyer
         or opaque session-bound guest capability must own the conversation; no number-only/customer-contact access.
         Sensitive response is no-store; CSRF/origin, rate/size limits and safe text rendering apply. Audit access
         without logging message bodies/images/secrets. No message or attachment authorizes a financial/order mutation.
@@ -5890,7 +6127,7 @@ paths:
     post:
       operationId: sendSupportMessage
       summary: Commit a durable buyer message
-      description: Proposed first-party native website chat, no external messaging handoff. Authenticated buyer
+      description: Implemented-local first-party native website chat, no external messaging handoff. Authenticated buyer
         or opaque session-bound guest capability must own the conversation; no number-only/customer-contact access.
         Sensitive response is no-store; CSRF/origin, rate/size limits and safe text rendering apply. Audit access
         without logging message bodies/images/secrets. No message or attachment authorizes a financial/order mutation.
@@ -5971,7 +6208,7 @@ paths:
     post:
       operationId: markSupportMessagesRead
       summary: Advance own public read marker
-      description: Proposed first-party native website chat, no external messaging handoff. Authenticated buyer
+      description: Implemented-local first-party native website chat, no external messaging handoff. Authenticated buyer
         or opaque session-bound guest capability must own the conversation; no number-only/customer-contact access.
         Sensitive response is no-store; CSRF/origin, rate/size limits and safe text rendering apply. Audit access
         without logging message bodies/images/secrets. No message or attachment authorizes a financial/order mutation.
@@ -6037,7 +6274,7 @@ paths:
     get:
       operationId: streamSupportEvents
       summary: Resume authorized conversation events
-      description: Proposed first-party native website chat, no external messaging handoff. Authenticated buyer
+      description: Implemented-local first-party native website chat, no external messaging handoff. Authenticated buyer
         or opaque session-bound guest capability must own the conversation; no number-only/customer-contact access.
         Sensitive response is no-store; CSRF/origin, rate/size limits and safe text rendering apply. Audit access
         without logging message bodies/images/secrets. No message or attachment authorizes a financial/order mutation.
@@ -6120,7 +6357,7 @@ paths:
     post:
       operationId: uploadSupportImage
       summary: Upload a private conversation image
-      description: Proposed first-party native website chat, no external messaging handoff. Authenticated buyer
+      description: Implemented-local first-party native website chat, no external messaging handoff. Authenticated buyer
         or opaque session-bound guest capability must own the conversation; no number-only/customer-contact access.
         Sensitive response is no-store; CSRF/origin, rate/size limits and safe text rendering apply. Audit access
         without logging message bodies/images/secrets. No message or attachment authorizes a financial/order mutation.
@@ -6205,7 +6442,7 @@ paths:
     get:
       operationId: getSupportImage
       summary: Read an authorized private chat image
-      description: Proposed first-party native website chat, no external messaging handoff. Authenticated buyer
+      description: Implemented-local first-party native website chat, no external messaging handoff. Authenticated buyer
         or opaque session-bound guest capability must own the conversation; no number-only/customer-contact access.
         Sensitive response is no-store; CSRF/origin, rate/size limits and safe text rendering apply. Audit access
         without logging message bodies/images/secrets. No message or attachment authorizes a financial/order mutation.
@@ -6285,7 +6522,7 @@ paths:
     get:
       operationId: listSupportInbox
       summary: Read bounded CS inbox
-      description: Proposed first-party native website chat, no external messaging handoff. Only owner or explicitly
+      description: Implemented-local first-party native website chat, no external messaging handoff. Only owner or explicitly
         granted customer_service role; inbox object scope, assignment checks and negative authorization required.
         Sensitive response is no-store; CSRF/origin, rate/size limits and safe text rendering apply. Audit access
         without logging message bodies/images/secrets. No message or attachment authorizes a financial/order mutation.
@@ -6382,7 +6619,7 @@ paths:
     post:
       operationId: claimSupportConversation
       summary: Atomically claim a CS conversation
-      description: Proposed first-party native website chat, no external messaging handoff. Only owner or explicitly
+      description: Implemented-local first-party native website chat, no external messaging handoff. Only owner or explicitly
         granted customer_service role; inbox object scope, assignment checks and negative authorization required.
         Sensitive response is no-store; CSRF/origin, rate/size limits and safe text rendering apply. Audit access
         without logging message bodies/images/secrets. No message or attachment authorizes a financial/order mutation.
@@ -6452,7 +6689,7 @@ paths:
     post:
       operationId: assignSupportConversation
       summary: Version-check CS reassignment
-      description: Proposed first-party native website chat, no external messaging handoff. Only owner or explicitly
+      description: Implemented-local first-party native website chat, no external messaging handoff. Only owner or explicitly
         granted customer_service role; inbox object scope, assignment checks and negative authorization required.
         Sensitive response is no-store; CSRF/origin, rate/size limits and safe text rendering apply. Audit access
         without logging message bodies/images/secrets. No message or attachment authorizes a financial/order mutation.
@@ -6522,7 +6759,7 @@ paths:
     post:
       operationId: setSupportConversationStatus
       summary: Version-check conversation status
-      description: Proposed first-party native website chat, no external messaging handoff. Only owner or explicitly
+      description: Implemented-local first-party native website chat, no external messaging handoff. Only owner or explicitly
         granted customer_service role; inbox object scope, assignment checks and negative authorization required.
         Sensitive response is no-store; CSRF/origin, rate/size limits and safe text rendering apply. Audit access
         without logging message bodies/images/secrets. No message or attachment authorizes a financial/order mutation.
@@ -6592,7 +6829,7 @@ paths:
     get:
       operationId: listStaffSupportMessages
       summary: Read scoped public CS message history
-      description: Proposed first-party native website chat, no external messaging handoff. Only owner or explicitly
+      description: Implemented-local first-party native website chat, no external messaging handoff. Only owner or explicitly
         granted customer_service role; inbox object scope, assignment checks and negative authorization required.
         Sensitive response is no-store; CSRF/origin, rate/size limits and safe text rendering apply. Audit access
         without logging message bodies/images/secrets. No message or attachment authorizes a financial/order mutation.
@@ -6659,7 +6896,7 @@ paths:
     post:
       operationId: sendStaffSupportMessage
       summary: Commit an assigned CS reply
-      description: Proposed first-party native website chat, no external messaging handoff. Only owner or explicitly
+      description: Implemented-local first-party native website chat, no external messaging handoff. Only owner or explicitly
         granted customer_service role; inbox object scope, assignment checks and negative authorization required.
         Sensitive response is no-store; CSRF/origin, rate/size limits and safe text rendering apply. Audit access
         without logging message bodies/images/secrets. No message or attachment authorizes a financial/order mutation.
@@ -6742,7 +6979,7 @@ paths:
     get:
       operationId: listSupportInternalNotes
       summary: Read staff-only internal notes
-      description: Proposed first-party native website chat, no external messaging handoff. Only owner or explicitly
+      description: Implemented-local first-party native website chat, no external messaging handoff. Only owner or explicitly
         granted customer_service role; inbox object scope, assignment checks and negative authorization required.
         Sensitive response is no-store; CSRF/origin, rate/size limits and safe text rendering apply. Audit access
         without logging message bodies/images/secrets. No message or attachment authorizes a financial/order mutation.
@@ -6802,7 +7039,7 @@ paths:
     post:
       operationId: addSupportInternalNote
       summary: Append a staff-only internal note
-      description: Proposed first-party native website chat, no external messaging handoff. Only owner or explicitly
+      description: Implemented-local first-party native website chat, no external messaging handoff. Only owner or explicitly
         granted customer_service role; inbox object scope, assignment checks and negative authorization required.
         Sensitive response is no-store; CSRF/origin, rate/size limits and safe text rendering apply. Audit access
         without logging message bodies/images/secrets. No message or attachment authorizes a financial/order mutation.
@@ -6870,7 +7107,7 @@ paths:
     post:
       operationId: markStaffSupportMessagesRead
       summary: Advance CS public read marker
-      description: Proposed first-party native website chat, no external messaging handoff. Only owner or explicitly
+      description: Implemented-local first-party native website chat, no external messaging handoff. Only owner or explicitly
         granted customer_service role; inbox object scope, assignment checks and negative authorization required.
         Sensitive response is no-store; CSRF/origin, rate/size limits and safe text rendering apply. Audit access
         without logging message bodies/images/secrets. No message or attachment authorizes a financial/order mutation.
@@ -7092,7 +7329,7 @@ paths:
     post:
       operationId: createGuestSupportSession
       summary: Create guest support session
-      description: Proposed first-party contract; no implemented endpoint or provider call is claimed. Start presales
+      description: Implemented-local first-party endpoint; external provider effects are simulated at local adapters and no live provider call is claimed. Start presales
         support without registration. Rate-limited same-origin bootstrap creates an opaque guest principal and HttpOnly
         support cookie, not an account/order session. Exact supported issuance/recovery transport is an IAM release
         gate. Enforce actor/object scope on every read, mutation, job and download. Browser writes require CSRF/origin
@@ -7152,7 +7389,7 @@ paths:
     post:
       operationId: searchOwnSupportMessages
       summary: Search own support messages
-      description: Proposed first-party contract; no implemented endpoint or provider call is claimed. Bounded selected-thread
+      description: Implemented-local first-party endpoint; external provider effects are simulated at local adapters and no live provider call is claimed. Bounded selected-thread
         public message-body search; query never in URL/logs/analytics. Search cursor binds actor/query/thread/visibility.
         Recheck every result, reply excerpt and attachment after redaction/access loss. Internal notes are excluded
         even as metadata. Enforce actor/object scope on every read, mutation, job and download. Browser writes require
@@ -7220,7 +7457,7 @@ paths:
     post:
       operationId: searchStaffSupportMessages
       summary: Search staff support messages
-      description: Proposed first-party contract; no implemented endpoint or provider call is claimed. Bounded selected-thread
+      description: Implemented-local first-party endpoint; external provider effects are simulated at local adapters and no live provider call is claimed. Bounded selected-thread
         public message-body search; query never in URL/logs/analytics. Search cursor binds actor/query/thread/visibility.
         Recheck every result, reply excerpt and attachment after redaction/access loss. Internal notes are excluded
         even as metadata. Enforce actor/object scope on every read, mutation, job and download. Browser writes require
@@ -7290,7 +7527,7 @@ paths:
     post:
       operationId: searchPrivateSupportNotes
       summary: Search private support notes
-      description: Proposed first-party contract; no implemented endpoint or provider call is claimed. Explicit
+      description: Implemented-local first-party endpoint; external provider effects are simulated at local adapters and no live provider call is claimed. Explicit
         staff-only note index/projection. Note results never enter customer public search/events/counters; retained
         excerpts obey redaction and scope. Enforce actor/object scope on every read, mutation, job and download.
         Browser writes require CSRF/origin protection; sensitive responses are no-store. Bound rate/body/cursor
@@ -7360,7 +7597,7 @@ paths:
     get:
       operationId: getOwnSupportPreferences
       summary: Get own support preferences
-      description: Proposed first-party contract; no implemented endpoint or provider call is claimed. Only current
+      description: Implemented-local first-party endpoint; external provider effects are simulated at local adapters and no live provider call is claimed. Only current
         participant preferences; optimistic version 0 for first record. Archive does not resolve/reassign/delete
         shared conversation. Atomic/versioned recovery of uncertain writes. Enforce actor/object scope on every
         read, mutation, job and download. Browser writes require CSRF/origin protection; sensitive responses are
@@ -7417,7 +7654,7 @@ paths:
     post:
       operationId: setOwnSupportPreferences
       summary: Set own support preferences
-      description: Proposed first-party contract; no implemented endpoint or provider call is claimed. Only current
+      description: Implemented-local first-party endpoint; external provider effects are simulated at local adapters and no live provider call is claimed. Only current
         participant preferences; optimistic version 0 for first record. Archive does not resolve/reassign/delete
         shared conversation. Atomic/versioned recovery of uncertain writes. Enforce actor/object scope on every
         read, mutation, job and download. Browser writes require CSRF/origin protection; sensitive responses are
@@ -7484,7 +7721,7 @@ paths:
     get:
       operationId: getSupportClassification
       summary: Get support classification
-      description: Proposed first-party contract; no implemented endpoint or provider call is claimed. Only granted
+      description: Implemented-local first-party endpoint; external provider effects are simulated at local adapters and no live provider call is claimed. Only granted
         CS classification scope. Optimistic staff classification version independent from public conversation activity;
         audit reason and tag permission. Enforce actor/object scope on every read, mutation, job and download. Browser
         writes require CSRF/origin protection; sensitive responses are no-store. Bound rate/body/cursor limits;
@@ -7544,7 +7781,7 @@ paths:
     post:
       operationId: setSupportClassification
       summary: Set support classification
-      description: Proposed first-party contract; no implemented endpoint or provider call is claimed. Only granted
+      description: Implemented-local first-party endpoint; external provider effects are simulated at local adapters and no live provider call is claimed. Only granted
         CS classification scope. Optimistic staff classification version independent from public conversation activity;
         audit reason and tag permission. Enforce actor/object scope on every read, mutation, job and download. Browser
         writes require CSRF/origin protection; sensitive responses are no-store. Bound rate/body/cursor limits;
@@ -7614,7 +7851,7 @@ paths:
     get:
       operationId: listSupportSavedReplyDefinitions
       summary: List support saved reply definitions
-      description: Proposed first-party contract; no implemented endpoint or provider call is claimed. Bounded permitted
+      description: Implemented-local first-party endpoint; external provider effects are simulated at local adapters and no live provider call is claimed. Bounded permitted
         staff definitions. Never include another customer data or public-note metadata. Enforce actor/object scope
         on every read, mutation, job and download. Browser writes require CSRF/origin protection; sensitive responses
         are no-store. Bound rate/body/cursor limits; unknown/out-of-scope IDs reveal no private data.
@@ -7670,7 +7907,7 @@ paths:
     post:
       operationId: createSupportSavedReplyDefinition
       summary: Create support saved reply definition
-      description: Proposed first-party contract; no implemented endpoint or provider call is claimed. Owner or
+      description: Implemented-local first-party endpoint; external provider effects are simulated at local adapters and no live provider call is claimed. Owner or
         explicit CS supervisor manage permission only; ordinary CS can use definitions but cannot manage. Creation
         expected_version=0, audit author/reason. Not a public message. Enforce actor/object scope on every read,
         mutation, job and download. Browser writes require CSRF/origin protection; sensitive responses are no-store.
@@ -7735,7 +7972,7 @@ paths:
     post:
       operationId: appendSupportSavedReplyVersion
       summary: Append support saved reply version
-      description: Proposed first-party contract; no implemented endpoint or provider call is claimed. Explicit
+      description: Implemented-local first-party endpoint; external provider effects are simulated at local adapters and no live provider call is claimed. Explicit
         CS management grant; append immutable definition version. Stale current version conflicts; no public activity
         or automatic send. Enforce actor/object scope on every read, mutation, job and download. Browser writes
         require CSRF/origin protection; sensitive responses are no-store. Bound rate/body/cursor limits; unknown/out-of-scope
@@ -7805,7 +8042,7 @@ paths:
     get:
       operationId: listSupportTagDefinitions
       summary: List support tag definitions
-      description: Proposed first-party contract; no implemented endpoint or provider call is claimed. Bounded permitted
+      description: Implemented-local first-party endpoint; external provider effects are simulated at local adapters and no live provider call is claimed. Bounded permitted
         staff definitions. Never include another customer data or public-note metadata. Enforce actor/object scope
         on every read, mutation, job and download. Browser writes require CSRF/origin protection; sensitive responses
         are no-store. Bound rate/body/cursor limits; unknown/out-of-scope IDs reveal no private data.
@@ -7861,7 +8098,7 @@ paths:
     post:
       operationId: createSupportTagDefinition
       summary: Create support tag definition
-      description: Proposed first-party contract; no implemented endpoint or provider call is claimed. Owner or
+      description: Implemented-local first-party endpoint; external provider effects are simulated at local adapters and no live provider call is claimed. Owner or
         explicit CS supervisor manage permission only; ordinary CS can use definitions but cannot manage. Creation
         expected_version=0, audit author/reason. Not a public message. Enforce actor/object scope on every read,
         mutation, job and download. Browser writes require CSRF/origin protection; sensitive responses are no-store.
@@ -7926,7 +8163,7 @@ paths:
     post:
       operationId: appendSupportTagVersion
       summary: Append support tag version
-      description: Proposed first-party contract; no implemented endpoint or provider call is claimed. Explicit
+      description: Implemented-local first-party endpoint; external provider effects are simulated at local adapters and no live provider call is claimed. Explicit
         CS management grant; append immutable definition version. Stale current version conflicts; no public activity
         or automatic send. Enforce actor/object scope on every read, mutation, job and download. Browser writes
         require CSRF/origin protection; sensitive responses are no-store. Bound rate/body/cursor limits; unknown/out-of-scope
@@ -7996,7 +8233,7 @@ paths:
     post:
       operationId: previewSavedSupportReply
       summary: Preview saved support reply
-      description: Proposed first-party contract; no implemented endpoint or provider call is claimed. Render allowlisted
+      description: Implemented-local first-party endpoint; external provider effects are simulated at local adapters and no live provider call is claimed. Render allowlisted
         placeholders against this authorized active thread only; require current sender claim. Returns draft for
         explicit human Send, never creates message/event or marks read. Enforce actor/object scope on every read,
         mutation, job and download. Browser writes require CSRF/origin protection; sensitive responses are no-store.
@@ -8065,7 +8302,7 @@ paths:
     get:
       operationId: getBuyerProfile
       summary: Get buyer profile
-      description: Proposed first-party contract; no implemented endpoint or provider call is claimed. Own signed-in
+      description: Implemented-local first-party endpoint; external provider effects are simulated at local adapters and no live provider call is claimed. Own signed-in
         principal only; version-checked safe name edit. Guest checkout remains available without account/email;
         clear cached profile on logout or principal change. Enforce actor/object scope on every read, mutation,
         job and download. Browser writes require CSRF/origin protection; sensitive responses are no-store. Bound
@@ -8116,7 +8353,7 @@ paths:
     post:
       operationId: updateBuyerProfile
       summary: Update buyer profile
-      description: Proposed first-party contract; no implemented endpoint or provider call is claimed. Own signed-in
+      description: Implemented-local first-party endpoint; external provider effects are simulated at local adapters and no live provider call is claimed. Own signed-in
         principal only; version-checked safe name edit. Guest checkout remains available without account/email;
         clear cached profile on logout or principal change. Enforce actor/object scope on every read, mutation,
         job and download. Browser writes require CSRF/origin protection; sensitive responses are no-store. Bound
@@ -8177,7 +8414,7 @@ paths:
     get:
       operationId: listBuyerAddresses
       summary: List buyer addresses
-      description: Proposed first-party contract; no implemented endpoint or provider call is claimed. Own reusable
+      description: Implemented-local first-party endpoint; external provider effects are simulated at local adapters and no live provider call is claimed. Own reusable
         addresses; canonical hierarchy, explicit default and book version; deleted addresses omitted. No staff/address-book
         enumeration. Enforce actor/object scope on every read, mutation, job and download. Browser writes require
         CSRF/origin protection; sensitive responses are no-store. Bound rate/body/cursor limits; unknown/out-of-scope
@@ -8230,7 +8467,7 @@ paths:
     post:
       operationId: createBuyerAddress
       summary: Create buyer address
-      description: Proposed first-party contract; no implemented endpoint or provider call is claimed. Creation
+      description: Implemented-local first-party endpoint; external provider effects are simulated at local adapters and no live provider call is claimed. Creation
         expected_version=0; validate hierarchy/coverage/phone without assuming address is verified physical location.
         New address does not silently replace a default. Enforce actor/object scope on every read, mutation, job
         and download. Browser writes require CSRF/origin protection; sensitive responses are no-store. Bound rate/body/cursor
@@ -8291,7 +8528,7 @@ paths:
     get:
       operationId: getBuyerAddress
       summary: Get buyer address
-      description: Proposed first-party contract; no implemented endpoint or provider call is claimed. Own active
+      description: Implemented-local first-party endpoint; external provider effects are simulated at local adapters and no live provider call is claimed. Own active
         record; update requires current nonzero version. Parent region changes invalidate dependent selections and
         checkout quotes; old order/ship-to snapshots stay immutable. Enforce actor/object scope on every read, mutation,
         job and download. Browser writes require CSRF/origin protection; sensitive responses are no-store. Bound
@@ -8347,7 +8584,7 @@ paths:
     post:
       operationId: updateBuyerAddress
       summary: Update buyer address
-      description: Proposed first-party contract; no implemented endpoint or provider call is claimed. Own active
+      description: Implemented-local first-party endpoint; external provider effects are simulated at local adapters and no live provider call is claimed. Own active
         record; update requires current nonzero version. Parent region changes invalidate dependent selections and
         checkout quotes; old order/ship-to snapshots stay immutable. Enforce actor/object scope on every read, mutation,
         job and download. Browser writes require CSRF/origin protection; sensitive responses are no-store. Bound
@@ -8413,7 +8650,7 @@ paths:
     post:
       operationId: deleteBuyerAddress
       summary: Delete buyer address
-      description: Proposed first-party contract; no implemented endpoint or provider call is claimed. Soft-delete
+      description: Implemented-local first-party endpoint; external provider effects are simulated at local adapters and no live provider call is claimed. Soft-delete
         current owned address with optimistic version/default replacement check. Preserve orders/history. No silent
         substitution of another default. Enforce actor/object scope on every read, mutation, job and download. Browser
         writes require CSRF/origin protection; sensitive responses are no-store. Bound rate/body/cursor limits;
@@ -8480,7 +8717,7 @@ paths:
     post:
       operationId: setBuyerAddressDefault
       summary: Set buyer address default
-      description: Proposed first-party contract; no implemented endpoint or provider call is claimed. Compare book
+      description: Implemented-local first-party endpoint; external provider effects are simulated at local adapters and no live provider call is claimed. Compare book
         version and commit default selection atomically; exactly one default when selected, explicit none permitted.
         Bound response to current page with book version. Enforce actor/object scope on every read, mutation, job
         and download. Browser writes require CSRF/origin protection; sensitive responses are no-store. Bound rate/body/cursor
@@ -8541,7 +8778,7 @@ paths:
     post:
       operationId: requestBuyerContactChange
       summary: Request buyer contact change
-      description: Proposed first-party contract; no implemented endpoint or provider call is claimed. Generic response
+      description: Implemented-local first-party endpoint; external provider effects are simulated at local adapters and no live provider call is claimed. Generic response
         even for collisions/unmatched contact. Rate-limit and audit; no new contact activated before proof. Preserve
         old verified identity until commit. Enforce actor/object scope on every read, mutation, job and download.
         Browser writes require CSRF/origin protection; sensitive responses are no-store. Bound rate/body/cursor
@@ -8602,7 +8839,7 @@ paths:
     post:
       operationId: verifyBuyerContactChange
       summary: Verify buyer contact change
-      description: Proposed first-party contract; no implemented endpoint or provider call is claimed. Challenge
+      description: Implemented-local first-party endpoint; external provider effects are simulated at local adapters and no live provider call is claimed. Challenge
         binds original principal/version/new-contact; single-use verification commits atomically. Expired/used/wrong
         proof generic failure; old-contact notice and session handling follow selected auth policy. Enforce actor/object
         scope on every read, mutation, job and download. Browser writes require CSRF/origin protection; sensitive
@@ -8668,7 +8905,7 @@ paths:
     post:
       operationId: requestGuestOrderLink
       summary: Request guest order link
-      description: Proposed first-party contract; no implemented endpoint or provider call is claimed. Verify both
+      description: Implemented-local first-party endpoint; external provider effects are simulated at local adapters and no live provider call is claimed. Verify both
         account and guest-order ownership without exposing unmatched order data. Frozen exact order scope, no historical
         account/contact merge or implicit chat linking. Enforce actor/object scope on every read, mutation, job
         and download. Browser writes require CSRF/origin protection; sensitive responses are no-store. Bound rate/body/cursor
@@ -8729,7 +8966,7 @@ paths:
     post:
       operationId: verifyGuestOrderLink
       summary: Verify guest order link
-      description: Proposed first-party contract; no implemented endpoint or provider call is claimed. One-time
+      description: Implemented-local first-party endpoint; external provider effects are simulated at local adapters and no live provider call is claimed. One-time
         actor/order-bound challenge commit; retry returns original link. No linking to another buyer or modifying
         receipt/ship-to history. Reviewable exact-order result only. Enforce actor/object scope on every read, mutation,
         job and download. Browser writes require CSRF/origin protection; sensitive responses are no-store. Bound
@@ -8795,7 +9032,7 @@ paths:
     post:
       operationId: requestSupportSessionRecovery
       summary: Request support session recovery
-      description: Proposed first-party contract; no implemented endpoint or provider call is claimed. Request after
+      description: Implemented-local first-party endpoint; external provider effects are simulated at local adapters and no live provider call is claimed. Request after
         safe session bootstrap or sign-in; generic responses, brute-force limits and reviewed existing-identity
         binding. No auto merge or number-only recovery. Enforce actor/object scope on every read, mutation, job
         and download. Browser writes require CSRF/origin protection; sensitive responses are no-store. Bound rate/body/cursor
@@ -8857,7 +9094,7 @@ paths:
     post:
       operationId: verifySupportSessionRecovery
       summary: Verify support session recovery
-      description: Proposed first-party contract; no implemented endpoint or provider call is claimed. Single-use
+      description: Implemented-local first-party endpoint; external provider effects are simulated at local adapters and no live provider call is claimed. Single-use
         challenge proves original guest conversation identity and current destination session/account. Rotate secure
         cookie and audit; unmatched/unverified identity cannot view old threads. Native secure exchange remains
         IAM gate. Enforce actor/object scope on every read, mutation, job and download. Browser writes require CSRF/origin
@@ -8925,7 +9162,7 @@ paths:
     get:
       operationId: getNotificationPreferences
       summary: Get notification preferences
-      description: Proposed first-party contract; no implemented endpoint or provider call is claimed. Own principal
+      description: Implemented-local first-party endpoint; external provider effects are simulated at local adapters and no live provider call is claimed. Own principal
         only. Notification preferences never block guest checkout, access/history, shipment delivery or alter chat
         read markers. Push is optional capability; deny unsupported enablement with explained validation. Enforce
         actor/object scope on every read, mutation, job and download. Browser writes require CSRF/origin protection;
@@ -8977,7 +9214,7 @@ paths:
     post:
       operationId: setNotificationPreferences
       summary: Set notification preferences
-      description: Proposed first-party contract; no implemented endpoint or provider call is claimed. Own principal
+      description: Implemented-local first-party endpoint; external provider effects are simulated at local adapters and no live provider call is claimed. Own principal
         only. Notification preferences never block guest checkout, access/history, shipment delivery or alter chat
         read markers. Push is optional capability; deny unsupported enablement with explained validation. Enforce
         actor/object scope on every read, mutation, job and download. Browser writes require CSRF/origin protection;
@@ -9039,7 +9276,7 @@ paths:
     post:
       operationId: terminateOwnSessions
       summary: Terminate own sessions
-      description: Proposed first-party contract; no implemented endpoint or provider call is claimed. Supported
+      description: Implemented-local first-party endpoint; external provider effects are simulated at local adapters and no live provider call is claimed. Supported
         auth adapter owns revocation lifecycle. Current logout and optional all-other revocation do not delete order/accounting
         history; reauthentication required for all_other. Enforce actor/object scope on every read, mutation, job
         and download. Browser writes require CSRF/origin protection; sensitive responses are no-store. Bound rate/body/cursor
@@ -9100,7 +9337,7 @@ paths:
     get:
       operationId: listAccountNotifications
       summary: List account notifications
-      description: Proposed first-party contract; no implemented endpoint or provider call is claimed. Only current
+      description: Implemented-local first-party endpoint; external provider effects are simulated at local adapters and no live provider call is claimed. Only current
         recipient; guest support notifications never expose unrelated account/order notifications. Seen/dismiss
         independent of chat read; cursor and counts recipient-scoped. Enforce actor/object scope on every read,
         mutation, job and download. Browser writes require CSRF/origin protection; sensitive responses are no-store.
@@ -9154,7 +9391,7 @@ paths:
     post:
       operationId: setAccountNotificationState
       summary: Set account notification state
-      description: Proposed first-party contract; no implemented endpoint or provider call is claimed. Monotonic
+      description: Implemented-local first-party endpoint; external provider effects are simulated at local adapters and no live provider call is claimed. Monotonic
         own-recipient seen/dismiss update, version checked. Never marks messages read or deletes history; denied/stale
         targets yield generic safe recovery. Enforce actor/object scope on every read, mutation, job and download.
         Browser writes require CSRF/origin protection; sensitive responses are no-store. Bound rate/body/cursor
@@ -9220,7 +9457,7 @@ paths:
     get:
       operationId: listSupportNotifications
       summary: List support notifications
-      description: Proposed first-party contract; no implemented endpoint or provider call is claimed. Only current
+      description: Implemented-local first-party endpoint; external provider effects are simulated at local adapters and no live provider call is claimed. Only current
         recipient; guest support notifications never expose unrelated account/order notifications. Seen/dismiss
         independent of chat read; cursor and counts recipient-scoped. Enforce actor/object scope on every read,
         mutation, job and download. Browser writes require CSRF/origin protection; sensitive responses are no-store.
@@ -9275,7 +9512,7 @@ paths:
     post:
       operationId: setSupportNotificationState
       summary: Set support notification state
-      description: Proposed first-party contract; no implemented endpoint or provider call is claimed. Monotonic
+      description: Implemented-local first-party endpoint; external provider effects are simulated at local adapters and no live provider call is claimed. Monotonic
         own-recipient seen/dismiss update, version checked. Never marks messages read or deletes history; denied/stale
         targets yield generic safe recovery. Enforce actor/object scope on every read, mutation, job and download.
         Browser writes require CSRF/origin protection; sensitive responses are no-store. Bound rate/body/cursor
@@ -9342,7 +9579,7 @@ paths:
     get:
       operationId: getPrivateOrderReceipt
       summary: Get private order receipt
-      description: Proposed first-party contract; no implemented endpoint or provider call is claimed. Authenticated
+      description: Implemented-local first-party endpoint; external provider effects are simulated at local adapters and no live provider call is claimed. Authenticated
         order owner or exact verified guest capability only; no order-reference-only lookup. no-store safe version/as-of
         projection; separate partial parcel/refund/cash states. Next actions supported server-side, no arbitrary
         callback query flags. Page refresh/back never creates advertising Purchase. Enforce actor/object scope on
@@ -9613,7 +9850,7 @@ paths:
     get:
       operationId: listAdvertisingDestinations
       summary: List advertising destinations
-      description: Proposed first-party contract; no implemented endpoint or provider call is claimed. Owner-only
+      description: Implemented-local first-party endpoint; external provider effects are simulated at local adapters and no live provider call is claimed. Owner-only
         configuration inventory. All credentials stay in deployment secret store. Enforce actor/object scope on
         every read, mutation, job and download. Browser writes require CSRF/origin protection; sensitive responses
         are no-store. Bound rate/body/cursor limits; unknown/out-of-scope IDs reveal no private data.
@@ -9667,7 +9904,7 @@ paths:
     post:
       operationId: createAdvertisingDestination
       summary: Create advertising destination
-      description: Proposed first-party contract; no implemented endpoint or provider call is claimed. Owner reauthentication/version/audit;
+      description: Implemented-local first-party endpoint; external provider effects are simulated at local adapters and no live provider call is claimed. Owner reauthentication/version/audit;
         expected_version=0 for create. Validate IDs/source/account/terms; configure does not issue live test event
         or permit browser Purchase. Enforce actor/object scope on every read, mutation, job and download. Browser
         writes require CSRF/origin protection; sensitive responses are no-store. Bound rate/body/cursor limits;
@@ -9730,7 +9967,7 @@ paths:
     post:
       operationId: appendAdvertisingDestinationVersion
       summary: Append advertising destination version
-      description: Proposed first-party contract; no implemented endpoint or provider call is claimed. Owner-only
+      description: Implemented-local first-party endpoint; external provider effects are simulated at local adapters and no live provider call is claimed. Owner-only
         compare-and-append version; cannot rewrite dispatched destination/event mapping. Secrets not read/write
         through HTTP. Enforce actor/object scope on every read, mutation, job and download. Browser writes require
         CSRF/origin protection; sensitive responses are no-store. Bound rate/body/cursor limits; unknown/out-of-scope
@@ -9798,7 +10035,7 @@ paths:
     get:
       operationId: getAdvertisingDiagnostics
       summary: Get advertising diagnostics
-      description: Proposed first-party contract; no implemented endpoint or provider call is claimed. Explicit
+      description: Implemented-local first-party endpoint; external provider effects are simulated at local adapters and no live provider call is claimed. Explicit
         redacted diagnostic read grant; finance role does not imply tracker mutation. Require from<to and maximum366days.
         Source-only unknown processing distinguished; no raw identity exposure. Enforce actor/object scope on every
         read, mutation, job and download. Browser writes require CSRF/origin protection; sensitive responses are
@@ -9870,7 +10107,7 @@ paths:
     post:
       operationId: setAdvertisingPause
       summary: Set advertising pause
-      description: Proposed first-party contract; no implemented endpoint or provider call is claimed. Owner-only
+      description: Implemented-local first-party endpoint; external provider effects are simulated at local adapters and no live provider call is claimed. Owner-only
         audited pause/resume; resume respects current consent/retention and original economic identity. No checkout
         dependency or blind backlog resend. Enforce actor/object scope on every read, mutation, job and download.
         Browser writes require CSRF/origin protection; sensitive responses are no-store. Bound rate/body/cursor
@@ -9938,7 +10175,7 @@ paths:
     post:
       operationId: replayAdvertisingEvent
       summary: Replay advertising event
-      description: Proposed first-party contract; no implemented endpoint or provider call is claimed. Permissioned
+      description: Implemented-local first-party endpoint; external provider effects are simulated at local adapters and no live provider call is claimed. Permissioned
         replay of original event only; no browser Purchase endpoint. Unique verified collection event, not each
         ledger/item/settlement row. Guard dispatch outcome unknown and original adjustments. Jobs reauthorize; diagnostics
         never claim API acceptance proves attribution. Enforce actor/object scope on every read, mutation, job and
@@ -10007,7 +10244,7 @@ paths:
     get:
       operationId: getRoleDashboard
       summary: Get role dashboard
-      description: Proposed first-party contract; no implemented endpoint or provider call is claimed. Validate
+      description: Implemented-local first-party endpoint; external provider effects are simulated at local adapters and no live provider call is claimed. Validate
         workspace against actual grants; supplied workspace/warehouse never increases scope. Bounded<=366day reporting.
         Enforce per-metric role projection; warehouse receives assigned operational counts only, finance explicit
         rights, as-of/complete basis matches linked queue. Enforce actor/object scope on every read, mutation, job
@@ -10097,7 +10334,7 @@ paths:
     get:
       operationId: listRoleWorkQueue
       summary: List role work queue
-      description: Proposed first-party contract; no implemented endpoint or provider call is claimed. Allowlist
+      description: Implemented-local first-party endpoint; external provider effects are simulated at local adapters and no live provider call is claimed. Allowlist
         queue/workspace combination from role contract; warehouse cannot select whole orders/finance, ordinary ecommerce
         cannot select CS/finance without role. Cursor binds filters/actor/time scope. Canonical resources own mutations;
         queue never marks paid/received. Enforce actor/object scope on every read, mutation, job and download. Browser
@@ -10208,7 +10445,7 @@ paths:
     post:
       operationId: freezeScopedExportSelection
       summary: Freeze scoped export selection
-      description: Proposed first-party contract; no implemented endpoint or provider call is claimed. Bounded synchronous
+      description: Implemented-local first-party endpoint; external provider effects are simulated at local adapters and no live provider call is claimed. Bounded synchronous
         snapshot preparation; authorize allowed resource/warehouse/date/filter and role-specific fields. Freeze
         row IDs/version/as-of privately; no job infrastructure unless later measured need. Enforce actor/object
         scope on every read, mutation, job and download. Browser writes require CSRF/origin protection; sensitive
@@ -10276,7 +10513,7 @@ paths:
     post:
       operationId: downloadScopedCsvExport
       summary: Download scoped csv export
-      description: Proposed first-party contract; no implemented endpoint or provider call is claimed. Synchronous
+      description: Implemented-local first-party endpoint; external provider effects are simulated at local adapters and no live provider call is claimed. Synchronous
         CSV<=1000rows; explicit IDs<=100 or frozen filtered selection. Recheck every row and column at execution;
         deny forbidden selection without leaking details. no-store direct authorized bytes, no credential-bearing
         redirect. Escape cells beginning formula-control characters and audit reason/scope. File never edits records.
@@ -10350,7 +10587,7 @@ paths:
     get:
       operationId: listShippingLabelCapabilities
       summary: List shipping label capabilities
-      description: Proposed first-party contract; no implemented endpoint or provider call is claimed. Only authorized
+      description: Implemented-local first-party endpoint; external provider effects are simulated at local adapters and no live provider call is claimed. Only authorized
         carrier/account/warehouse capability view; unverified formats/brand modes not offered as supported. No raw
         provider credentials/evidence PDF by default. Enforce actor/object scope on every read, mutation, job and
         download. Browser writes require CSRF/origin protection; sensitive responses are no-store. Bound rate/body/cursor
@@ -10408,7 +10645,7 @@ paths:
     post:
       operationId: createShippingLabelTemplate
       summary: Create shipping label template
-      description: Proposed first-party contract; no implemented endpoint or provider call is claimed. Owner reauthentication
+      description: Implemented-local first-party endpoint; external provider effects are simulated at local adapters and no live provider call is claimed. Owner reauthentication
         and prospective versioned approval. Existing permission evidence must belong to reviewed carrier/account/renderer.
         Expected_version=0 initial; cannot self-assert provider support. Enforce actor/object scope on every read,
         mutation, job and download. Browser writes require CSRF/origin protection; sensitive responses are no-store.
@@ -10471,7 +10708,7 @@ paths:
     post:
       operationId: appendShippingLabelTemplateVersion
       summary: Append shipping label template version
-      description: Proposed first-party contract; no implemented endpoint or provider call is claimed. Immutable
+      description: Implemented-local first-party endpoint; external provider effects are simulated at local adapters and no live provider call is claimed. Immutable
         successor version/permission evidence; stale version conflicts. Deactivating version never changes old artifact
         provenance; invalidate superseded output explicitly. Enforce actor/object scope on every read, mutation,
         job and download. Browser writes require CSRF/origin protection; sensitive responses are no-store. Bound
@@ -10535,11 +10772,79 @@ paths:
               $ref: '#/components/schemas/ShippingLabelTemplateInput'
       x-proof-group: labels
       x-implementation: src/app/api/v1/admin/shipping-label-templates/[templateId]/versions/route.ts
+  /admin/label-queue:
+    get:
+      operationId: listPrintQueue
+      summary: List print-center parcels by required action
+      description: Implemented-local first-party read for the shipping print center. Returns parcels in the caller's
+        warehouse scope (owner company-wide; warehouse/ecommerce_admin only active warehouse memberships) ordered by
+        what needs action first - active parcels without a valid label by packing deadline, then labelled parcels not
+        yet handed over by handover deadline, then handed-over, exception, cancelled or not-yet-fulfilled parcels -
+        with deadline-less rows last and shipment ID as tie-breaker. Each page carries the label artifacts of its
+        parcels. The cursor is an opaque keyset position; a parcel whose action rank changes between pages moves to
+        its new position. Reads mutate nothing; label generation and print attempts keep their own permissions.
+      tags:
+      - Fulfillment
+      security:
+      - sessionCookie: []
+      - bearerAuth: []
+      x-contract-status: implemented-local
+      x-domain-owner: fulfillment
+      x-primary-requirement: PR-25
+      parameters:
+      - name: cursor
+        in: query
+        description: Opaque cursor from a previous page; never built by clients.
+        schema:
+          type: string
+          maxLength: 64
+          pattern: ^[012]\.(-|[0-9]{1,17})\.[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$
+      - name: limit
+        in: query
+        schema:
+          type: integer
+          minimum: 1
+          maximum: 100
+          default: 30
+      responses:
+        '200':
+          description: Successful response.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PrintQueuePage'
+          headers:
+            Cache-Control:
+              description: Private response; never shared cached.
+              schema:
+                type: string
+                const: no-store
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '503':
+          $ref: '#/components/responses/Unavailable'
+        default:
+          description: Safe application Problem; proxies may return non-Problem failures.
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+      x-allowed-roles:
+      - owner
+      - ecommerce_admin
+      - warehouse
+      x-required-permission: shipping.labels.read
+      x-proof-group: labels
+      x-implementation: src/app/api/v1/admin/label-queue/route.ts
   /admin/shipments/{shipmentId}/label-jobs:
     post:
       operationId: generateShipmentLabel
       summary: Generate shipment label
-      description: Proposed first-party contract; no implemented endpoint or provider call is claimed. Authorize
+      description: Implemented-local first-party endpoint; external provider effects are simulated at local adapters and no live provider call is claimed. Authorize
         assigned warehouse/parcel at request, execution and read. Active AWB/funding/template/format required for
         generation. No label issued for unpaid/unbooked/void shipment; source schema and provider capabilities are
         issued-contract gates. Enforce actor/object scope on every read, mutation, job and download. Browser writes
@@ -10611,7 +10916,7 @@ paths:
     get:
       operationId: getShippingLabelJob
       summary: Get shipping label job
-      description: Proposed first-party contract; no implemented endpoint or provider call is claimed. Authorize
+      description: Implemented-local first-party endpoint; external provider effects are simulated at local adapters and no live provider call is claimed. Authorize
         assigned warehouse/parcel at request, execution and read. Active AWB/funding/template/format required for
         generation. No label issued for unpaid/unbooked/void shipment; source schema and provider capabilities are
         issued-contract gates. Enforce actor/object scope on every read, mutation, job and download. Browser writes
@@ -10674,7 +10979,7 @@ paths:
     get:
       operationId: getShippingLabelArtifact
       summary: Get shipping label artifact
-      description: Proposed first-party contract; no implemented endpoint or provider call is claimed. Authorize
+      description: Implemented-local first-party endpoint; external provider effects are simulated at local adapters and no live provider call is claimed. Authorize
         assigned warehouse/parcel at request, execution and read. Active AWB/funding/template/format required for
         generation. No label issued for unpaid/unbooked/void shipment; source schema and provider capabilities are
         issued-contract gates. Enforce actor/object scope on every read, mutation, job and download. Browser writes
@@ -10737,7 +11042,7 @@ paths:
     get:
       operationId: downloadValidatedLabelArtifact
       summary: Download validated label artifact
-      description: Proposed first-party contract; no implemented endpoint or provider call is claimed. Direct authorized
+      description: Implemented-local first-party endpoint; external provider effects are simulated at local adapters and no live provider call is claimed. Direct authorized
         validated PDF bytes for current nonexpired nonvoid active AWB/template revision only. No redirects with
         tokens/provider secrets. Private no-store, nosniff, safe filename; preview/download is not physical print
         success or handover. Expired/superseded artifact fails safely instead of returning stale PDF. Enforce actor/object
@@ -10801,7 +11106,7 @@ paths:
     post:
       operationId: generateShippingLabelBatch
       summary: Generate shipping label batch
-      description: Proposed first-party contract; no implemented endpoint or provider call is claimed. Bounded existing
+      description: Implemented-local first-party endpoint; external provider effects are simulated at local adapters and no live provider call is claimed. Bounded existing
         parcel selection, authorization/preconditions per item at execution. One stale/forbidden parcel cannot borrow
         another label. Freeze output order and exact item results; no bulk status/financial changes. Enforce actor/object
         scope on every read, mutation, job and download. Browser writes require CSRF/origin protection; sensitive
@@ -10867,7 +11172,7 @@ paths:
     get:
       operationId: getShippingLabelBatch
       summary: Get shipping label batch
-      description: Proposed first-party contract; no implemented endpoint or provider call is claimed. Only permitted
+      description: Implemented-local first-party endpoint; external provider effects are simulated at local adapters and no live provider call is claimed. Only permitted
         batch items/current scope and stable page mapping. Revoked access never reveals prior recipient data; generic
         unavailable outcomes where necessary. Enforce actor/object scope on every read, mutation, job and download.
         Browser writes require CSRF/origin protection; sensitive responses are no-store. Bound rate/body/cursor
@@ -10929,7 +11234,7 @@ paths:
     post:
       operationId: recordShippingPrintAttempt
       summary: Record shipping print attempt
-      description: Proposed first-party contract; no implemented endpoint or provider call is claimed. Only existing
+      description: Implemented-local first-party endpoint; external provider effects are simulated at local adapters and no live provider call is claimed. Only existing
         active artifact for this parcel/revision. Record attempt/reprint actor/time/reason after current scope check;
         operator reported printing never advances shipment milestone or proves physical output. Enforce actor/object
         scope on every read, mutation, job and download. Browser writes require CSRF/origin protection; sensitive
@@ -10999,7 +11304,7 @@ paths:
     get:
       operationId: listShippingPrintAttempts
       summary: List shipping print attempts
-      description: Proposed first-party contract; no implemented endpoint or provider call is claimed. Bounded permitted
+      description: Implemented-local first-party endpoint; external provider effects are simulated at local adapters and no live provider call is claimed. Bounded permitted
         parcel print/reprint audit. No recipient PII/private PDF URLs or another warehouse evidence. Enforce actor/object
         scope on every read, mutation, job and download. Browser writes require CSRF/origin protection; sensitive
         responses are no-store. Bound rate/body/cursor limits; unknown/out-of-scope IDs reveal no private data.
@@ -11382,12 +11687,13 @@ paths:
     get:
       operationId: listCatalogCategories
       summary: List catalog categories
-      description: Private cookie-only owner/ecommerce_admin catalog operation with session-bound MFA and CSRF/origin
-        validation. Category and physical SKU dictionaries are shared company catalog facts, not stock/cost authority.
-        Product reads/writes require every active offer warehouse in current ecommerce scope; owner has company
-        scope. All product writes are inactive immutable revisions. Actor-scoped retry identity spans catalog mutations;
-        changed operation/body conflicts. Unknown properties, direct price/cost/stock/identity assignment and implicit
-        offer removal are rejected. No publication in S14.
+      description: Private cookie-only category dictionary read (no stock/cost facts) with session-bound MFA and CSRF/origin validation. Owner has
+        company scope. ecommerce_admin and warehouse staff read only products whose every active offer warehouse is in
+        their current active warehouse memberships (out-of-scope products are omitted or return 404). Finance reads
+        with an explicit finance.costs.read grant at company scope, matching cost-version reads. Customer service,
+        finance without that grant, buyer and affiliate are refused. Readers without cost/margin authority (warehouse
+        only) receive financial publication blockers as FINANCIAL_REVIEW_REQUIRED; amounts are never returned. Reads
+        mutate nothing; writes remain owner/ecommerce_admin.
       tags:
       - Catalog
       security:
@@ -11398,6 +11704,8 @@ paths:
       x-allowed-roles:
       - owner
       - ecommerce_admin
+      - warehouse
+      - finance
       x-proof-group: catalog
       x-implementation: src/app/api/v1/admin/categories/route.ts
       responses:
@@ -11942,6 +12250,75 @@ paths:
             schema:
               $ref: '#/components/schemas/OfferCostAssumptionInput'
       x-required-permission: finance.costs.write
+  /admin/products/{productId}/publication-retractions:
+    post:
+      operationId: withdrawProductPublication
+      summary: Withdraw the current publication from sale
+      description: Private cookie-only owner/ecommerce_admin operation with session-bound MFA and CSRF/origin validation
+        within the caller's catalog warehouse scope. Appends an immutable, audited withdrawal for the exact current
+        publication version (`expected_publication_version`); publication history is never edited. The product leaves
+        the storefront, carts and quotes for new sales; placed orders keep their snapshots. Republishing is an ordinary
+        publish against the unchanged latest publication version. Actor-scoped Idempotency-Key replays the original
+        result; a changed body under the same key conflicts.
+      tags:
+      - Catalog
+      security:
+      - sessionCookie: []
+      x-contract-status: implemented-local
+      x-domain-owner: catalog
+      x-primary-requirement: PR-19
+      x-allowed-roles:
+      - owner
+      - ecommerce_admin
+      x-proof-group: publication-withdrawal
+      x-implementation: src/app/api/v1/admin/products/[productId]/publication-retractions/route.ts
+      parameters:
+      - name: productId
+        in: path
+        required: true
+        schema:
+          $ref: '#/components/schemas/CatalogUuid'
+      - $ref: '#/components/parameters/IdempotencyKey'
+      responses:
+        '201':
+          description: Withdrawal recorded.
+          headers:
+            Cache-Control:
+              schema:
+                const: no-store
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PublicationWithdrawal'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '409':
+          $ref: '#/components/responses/Conflict'
+        '413':
+          $ref: '#/components/responses/BodyTooLarge'
+        '415':
+          $ref: '#/components/responses/UnsupportedMediaType'
+        '503':
+          $ref: '#/components/responses/Unavailable'
+        default:
+          description: Safe application Problem; a gateway may return non-Problem failure.
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+      x-request-body-limit-bytes: 16384
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/PublicationWithdrawalInput'
   /admin/products/{productId}/contribution-reviews:
     get:
       operationId: getProductContributionReview
@@ -13130,6 +13507,73 @@ paths:
               $ref: '#/components/schemas/ReconcileRecoveryRefundInput'
       x-proof-group: exceptions
       x-implementation: src/app/api/v1/admin/commerce-exceptions/[exceptionId]/refunds/[refundId]/reconciliations/route.ts
+  /admin/commerce-exceptions/{exceptionId}/refunds/{refundId}/retries:
+    post:
+      operationId: retryRecoveryRefund
+      summary: Retry the same original compensation after a known zero-money outcome
+      description: S71 finance retry. Reauthorize current session/MFA and consume the dedicated recovery proof. Allowed
+        only when the current attempt has a verified signed failed bank outcome or its creation job failed before any
+        bank request; queues attempt+1 for the same original refund identity. Ambiguous or settled outcomes are refused
+        with 409 RECOVERY_OUTCOME_STILL_AMBIGUOUS.
+      tags:
+      - Orders
+      security:
+      - sessionCookie: []
+      x-contract-status: implemented-local
+      x-domain-owner: checkout
+      x-primary-requirement: PR-21
+      responses:
+        '201':
+          description: Scoped current record or acknowledged commit, not inferred external cash/physical success.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RecoveryRefund'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '409':
+          $ref: '#/components/responses/Conflict'
+        '422':
+          $ref: '#/components/responses/Unprocessable'
+        '429':
+          $ref: '#/components/responses/TooManyRequests'
+        '503':
+          $ref: '#/components/responses/Unavailable'
+        '413':
+          $ref: '#/components/responses/BodyTooLarge'
+        '415':
+          $ref: '#/components/responses/UnsupportedMediaType'
+      parameters:
+      - name: exceptionId
+        in: path
+        required: true
+        schema:
+          $ref: '#/components/schemas/Id'
+      - name: refundId
+        in: path
+        required: true
+        schema:
+          $ref: '#/components/schemas/Id'
+      - $ref: '#/components/parameters/IdempotencyKey'
+      x-allowed-roles:
+      - owner
+      - finance
+      x-required-permission: finance.refunds.write
+      x-request-body-limit-bytes: 16384
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ReconcileRecoveryRefundInput'
+      x-proof-group: exceptions
+      x-implementation: src/app/api/v1/admin/commerce-exceptions/[exceptionId]/refunds/[refundId]/retries/route.ts
   /orders/{orderId}/recovery-actions:
     get:
       operationId: listBuyerRecoveryActions
@@ -14364,10 +14808,8 @@ components:
           type: string
           enum:
           - pending
-          - confirmed
           - processing
           - partially_completed
-          - completed
           - cancelled
         payment_status:
           type: string
@@ -17836,10 +18278,8 @@ components:
           type: string
           enum:
           - pending
-          - confirmed
           - processing
           - partially_completed
-          - completed
           - cancelled
         payment_status:
           type: string
@@ -20566,16 +21006,169 @@ components:
         version:
           type: integer
           minimum: 1
+        due_at_kind:
+          type:
+          - string
+          - 'null'
+          enum:
+          - payment_deadline
+          - packing_deadline
+          - handover_deadline
+          - created
+          - occurred
+          - updated
+          - null
+          description: What due_at holds for this row (orders fall back from the payment deadline to creation time,
+            fulfillments from the packing/handover deadline to creation time). Null exactly when due_at is null.
+        reference:
+          type:
+          - string
+          - 'null'
+          minLength: 1
+          maxLength: 200
+          description: Human reference the operator already sees elsewhere in scope - order number (orders, returns,
+            delivery exceptions, conversations linked to an order), waybill number or else order number
+            (fulfillments), SKU (stock) or settlement reference (reconciliation). Null when the row has none.
       required:
       - id
       - resource_kind
       - state
       - due_at
+      - due_at_kind
       - warehouse_id
       - version
+      - reference
       additionalProperties: false
       description: Safe operational row, no customer contacts/private labels/costs/whole-order totals. Logical target
         still requires current object authorization.
+    PrintQueueShipment:
+      type: object
+      properties:
+        shipment_id:
+          type: string
+          format: uuid
+        parcel_id:
+          type: string
+          minLength: 1
+          maxLength: 200
+        warehouse_id:
+          type: string
+          format: uuid
+        warehouse_name:
+          type: string
+          minLength: 1
+          maxLength: 200
+        order_number:
+          type: string
+          minLength: 1
+          maxLength: 100
+        tracking_number:
+          type:
+          - string
+          - 'null'
+          maxLength: 100
+        fulfillment_status:
+          type:
+          - string
+          - 'null'
+          enum:
+          - preparing
+          - ready
+          - picking
+          - packed
+          - handover_pending
+          - handed_over
+          - exception
+          - null
+        cod_due:
+          type: integer
+          minimum: 0
+        due_at:
+          type:
+          - string
+          - 'null'
+          format: date-time
+          description: Packing deadline while the parcel has no valid label, handover deadline once labelled.
+      required:
+      - shipment_id
+      - parcel_id
+      - warehouse_id
+      - warehouse_name
+      - order_number
+      - tracking_number
+      - fulfillment_status
+      - cod_due
+      - due_at
+      additionalProperties: false
+    PrintQueueArtifact:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        shipment_id:
+          type: string
+          format: uuid
+        tracking_number:
+          type: string
+          minLength: 1
+          maxLength: 100
+        format:
+          type: string
+          enum:
+          - thermal_100x150
+          - a4
+        template_version:
+          type: integer
+          minimum: 1
+        content_sha256:
+          type: string
+          pattern: ^[a-f0-9]{64}$
+        size_bytes:
+          type: integer
+          minimum: 1
+        status:
+          type: string
+          enum:
+          - valid
+          - invalidated_by_reissue
+          - invalidated_by_cancellation
+          - expired
+        created_at:
+          type: string
+          format: date-time
+      required:
+      - id
+      - shipment_id
+      - tracking_number
+      - format
+      - template_version
+      - content_sha256
+      - size_bytes
+      - status
+      - created_at
+      additionalProperties: false
+    PrintQueuePage:
+      type: object
+      properties:
+        data:
+          type: array
+          maxItems: 100
+          items:
+            $ref: '#/components/schemas/PrintQueueShipment'
+        artifacts:
+          type: array
+          maxItems: 300
+          description: Label artifacts of this page's parcels, newest first; no PDF bytes or recipient data.
+          items:
+            $ref: '#/components/schemas/PrintQueueArtifact'
+        pagination:
+          $ref: '#/components/schemas/Pagination'
+      required:
+      - data
+      - artifacts
+      - pagination
+      additionalProperties: false
     WorkQueueList:
       type: object
       properties:
@@ -22335,6 +22928,16 @@ components:
         until independently validated publication. Stable product/offer/SKU identities persist; retired offers disappear
         from the new draft but remain in immutable revisions. No stock, HPP, finance or order data. Empty listing
         media is allowed in draft and yields a null offer image until publication validation.
+    CatalogListState:
+      type: string
+      enum:
+      - published
+      - withdrawn
+      - ready
+      - blocked
+      description: published = a current, not withdrawn publication exists; withdrawn = the latest publication was
+        withdrawn; otherwise ready/blocked by the summary blocker codes. A ready summary can still be refused by the
+        authoritative publish checks.
     CatalogDraftSummary:
       type: object
       properties:
@@ -22351,12 +22954,97 @@ components:
           type: string
           minLength: 1
           maxLength: 200
+        category_id:
+          anyOf:
+          - $ref: '#/components/schemas/CatalogUuid'
+          - type: 'null'
+        category_path:
+          type:
+          - string
+          - 'null'
+          maxLength: 620
+          description: Ancestor-first category names joined by " › ".
+        image_url:
+          type:
+          - string
+          - 'null'
+          format: uri
+          maxLength: 2000
+        offer_kinds:
+          type: array
+          maxItems: 3
+          uniqueItems: true
+          items:
+            type: string
+            enum:
+            - bundle
+            - multipack
+            - unit
+        offer_count:
+          type: integer
+          minimum: 0
+          maximum: 100
+        stock_ready_offers:
+          type: integer
+          minimum: 0
+          maximum: 100
+          description: Active offers with at least one complete unit in their active default warehouse.
+        price_idr:
+          type: integer
+          const: 99000
+        state:
+          $ref: '#/components/schemas/CatalogListState'
+        latest_publication_version:
+          type: integer
+          minimum: 0
+          maximum: 2147483647
+        published_revision:
+          type:
+          - integer
+          - 'null'
+          minimum: 1
+          maximum: 2147483647
+        ready:
+          type: boolean
+        blocker_codes:
+          type: array
+          maxItems: 20
+          uniqueItems: true
+          items:
+            type: string
+            enum:
+            - MEDIA_REQUIRED
+            - DESCRIPTION_REQUIRED
+            - INVALID_OFFER_COUNT
+            - CATEGORY_REQUIRED
+            - COMPLETE_STOCK_REQUIRED
+            - ACTIVE_WAREHOUSE_REQUIRED
+            - UNKNOWN_HPP
+            - UNKNOWN_PACKAGING_IDR
+            - UNKNOWN_PROVIDER_FEE_IDR
+            - UNKNOWN_SUBSIDY_IDR
+            - UNKNOWN_RETURNS_RESERVE_IDR
+            - BELOW_MARGIN_FLOOR
+            - POLICY_UNCONFIGURED
+            - FINANCIAL_REVIEW_REQUIRED
       required:
       - id
       - catalog_id
       - slug
       - version
       - name
+      - category_id
+      - category_path
+      - image_url
+      - offer_kinds
+      - offer_count
+      - stock_ready_offers
+      - price_idr
+      - state
+      - latest_publication_version
+      - published_revision
+      - ready
+      - blocker_codes
       additionalProperties: false
     CatalogCategoryList:
       type: object
@@ -22920,6 +23608,42 @@ components:
       - exception_applied
       - created_at
       additionalProperties: false
+    PublicationWithdrawalInput:
+      type: object
+      properties:
+        expected_publication_version:
+          type: integer
+          minimum: 1
+          maximum: 2147483647
+        reason:
+          type: string
+          minLength: 1
+          maxLength: 500
+          pattern: \S
+      required:
+      - expected_publication_version
+      - reason
+      additionalProperties: false
+      description: Compare the exact current publication version; the reason is stored with the withdrawal and audit event.
+    PublicationWithdrawal:
+      type: object
+      properties:
+        publication_id:
+          $ref: '#/components/schemas/CatalogUuid'
+        product_id:
+          $ref: '#/components/schemas/CatalogUuid'
+        version:
+          type: integer
+          minimum: 1
+          maximum: 2147483647
+        withdrawn_at:
+          $ref: '#/components/schemas/DateTime'
+      required:
+      - publication_id
+      - product_id
+      - version
+      - withdrawn_at
+      additionalProperties: false
     PublicationBlocker:
       type: object
       properties:
@@ -22943,6 +23667,7 @@ components:
           - BELOW_MARGIN_FLOOR
           - POLICY_UNCONFIGURED
           - COST_CALCULATION_LIMIT
+          - FINANCIAL_REVIEW_REQUIRED
         offer_id:
           type:
           - string
@@ -24372,6 +25097,9 @@ x-proof-groups:
   publication:
     integration: tests/integration/finance-contract.test.ts
     browser: tests/integration/finance-http.test.ts
+  publication-withdrawal:
+    integration: tests/integration/catalog-summary.test.ts
+    browser: tests/integration/catalog-summary.test.ts
   promotions:
     integration: tests/integration/promotion-contract.test.ts
     browser: tests/integration/promotion-http.test.ts

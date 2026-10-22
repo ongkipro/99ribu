@@ -3,14 +3,14 @@
 Adopted at repository root on 2026-10-16; updated 2026-10-21 upon completion of all 68 local slices (`S01`–`S68`) and assembled localhost readiness (`T-39`). External live-provider, physical hardware, and production deployment gates remain separate per `CTX-18`.
 
 Release-ID: LOCAL-20261021-S68
-Base: 02da9f9
+Base: bfecdce
 Environment: local
 Declared-Risk: R3
-Rollback-Ref: 02da9f9
+Rollback-Ref: bfecdce
 Rollback-Command: pg_restore --clean --if-exists --no-owner --no-privileges -d <disposable_restore_db> <backup_artifact.dump>
-Backup-Proof: PASS (S67 isolated pg_dump/pg_restore rehearsal into disposable database 99ribu_restore_<uuid>; 204 tables, stock/money/commission/job/access invariants and fresh-XID finance_tx_open_guard immutability verified)
-Status: LOCAL_ACCEPTED
-Local-Acceptance: PASS (S01-S68, T-39 localhost-readiness integration 2/2 PASS, browser 1/1 PASS)
+Backup-Proof: PASS (2026-10-21: `tests/integration/localhost-readiness.test.ts` subtest 3 runs real `pg_dump -Fc` and `pg_restore` into disposable database `99ribu_restore_<uuid>`, reseals creating-XID triggers, verifies table/row/ledger parity and immutability triggers, and drops the disposable DB on teardown)
+Status: READY_FOR_LOCAL_ACCEPTANCE
+Local-Acceptance: PASS (all S01–S68 slices and post-audit gaps G1–G10 closed and verified on assembled localhost runtime)
 Target: localhost production-mode application with synthetic data and simulated external effects
 
 ## Local acceptance boundary
@@ -19,13 +19,80 @@ Deliver all approved domains through real application/auth/PostgreSQL/worker cod
 
 ## Recovery and evidence
 
-- Rollback reference/command: `git checkout 02da9f9` for source; `pg_dump -Fc` / `pg_restore` into a separate disposable database target (`99ribu_restore_<uuid>`) as exercised in `tests/integration/localhost-readiness.test.ts`.
-- Synthetic backup and restore proof: PASS (`npm run test:integration -- --case=localhost-readiness` `2/2` PASS; verified row parity across orders, receipts, finance transactions/postings, commissions, payouts, support conversations, and label artifacts, plus post-restore `finance_tx_open_guard` enforcement rejecting historical ledger mutation on a fresh transaction ID).
-- OpenAPI and test runner contract: PASS (`python3 docs/spec/scripts/check-openapi-contract.py` -> 173 paths, 207 operations, 6,842 checks PASS; `npm run test:runner-contract` -> 46/46 PASS; `python3 ~/.gemini/config/skills/design-taste/scripts/design-gate.py` -> exit 0).
-- Local production-mode build/start and health evidence: PASS (`npm run build`, `npm run health -- ready` -> HTTP 200 `{ "service": "99ribu", "status": "ready" }`, and `PLAYWRIGHT_CHROMIUM_EXECUTABLE=/snap/bin/chromium npm run test:browser -- --case=localhost-readiness` -> `1/1` PASS).
+- Rollback reference/command: `git checkout bfecdce` for source; `pg_dump -Fc` / `pg_restore` into a separate disposable database target (`99ribu_restore_<uuid>`), exercised end to end in `tests/integration/localhost-readiness.test.ts` (`3/3` PASS).
+- Synthetic backup and restore proof: PASS (`npm run test:integration -- --case=localhost-readiness` -> `3/3` PASS, including real `pg_dump -Fc` and `pg_restore` into `99ribu_restore_<uuid>` with schema, row count, ledger balance, and immutability trigger verification).
+- OpenAPI and test runner contract: PASS (`python3 docs/spec/scripts/check-openapi-contract.py` -> 175 paths, 209 operations, 7197 assertions PASS; `npm run test:integration -- --case=PR-18` -> `4/4` PASS; `npm test` -> `31/31` PASS; `design-gate.py` from the `design-taste` skill, run from that skill's own `scripts/` directory (machine-local install path not recorded) -> exit 0).
+- Local production-mode build/start and health evidence: PASS (`npm run build`, `npm run health -- ready` -> HTTP 200 `{ "service": "99ribu", "status": "ready" }`, `npm run test:smoke` -> `2/2` PASS, and `PLAYWRIGHT_CHROMIUM_EXECUTABLE=/snap/bin/chromium npm run test:browser -- --case=localhost-readiness` -> `1/1` PASS).
 
 Do not run destructive restore against a working database; always rehearse into a separate disposable target.
 
 ## External release gates
 
 Local completion does not authorize provision/deploy/DNS, live provider calls, credentials, real payments/shipments/messages, campaign spend, commit or push. Issued contracts, actual account consent/configuration, physical printer/scanner/carrier approval, remote backup/monitoring and explicit deployment authorization remain separate gates. Use production-gate/release-check only when their repository prerequisites and target are actually configured; never mark DEPLOYED from a localhost test.
+
+Production auth gates (open; local loopback profile only):
+
+- 2FA brute-force budget: TOTP and backup-code verification are each budgeted `5/min` per account, keyed on the HMAC of the user id resolved from Better Auth's pending `two_factor` verification row (`src/modules/access/handler.ts`), so fresh sign-ins no longer reset it; unresolvable cookies share one conservative bucket. Residual: an attacker holding the password still gets up to `5` TOTP plus `5` backup-code guesses per minute per account, bounded further only by Better Auth's default two-factor account lockout (`10` consecutive failures -> `900s`, not separately load-tested here). Review these numbers against load evidence before exposure.
+- Client IP: the sign-in ceiling (`300/min`, `src/modules/access/auth.ts`) and guest bootstrap ceiling (`600/min`, `src/modules/checkout/access.ts`) are global buckets because every request is stamped `127.0.0.1`. Once exposed beyond localhost they are an availability risk (one client can exhaust them for everyone). Production must derive the real client IP from a trusted proxy (never from client-supplied forwarding headers) before those per-IP budgets are meaningful.
+
+## Production migration (Vultr + Coolify)
+
+Planned 2026-10-22; nothing below is executed or authorised. Slices S82–S89 in `TASKS.md` ("Production migration slices"). Hosting choice is ADR-0005 (Vultr `sgp`, `vhp-4c-8gb-amd`, Coolify); catalog content is DEC-005. Goal: the Berlapak catalog and its 708 photos appear in the live storefront and admin exactly as locally, rebuilt on the server from committed content — not copied from the local database.
+
+### Not carried to the server
+
+- The local database (`99ribu_local`, `99ribu_test`) in any form — no dump, no restore, no row copy. It mixes catalog rows with fixture principals, synthetic orders, test publications and local delivery rows.
+- Dummy/synthetic accounts (`<role>@99ribu.test`, `*@example.invalid`, seed operators) and the `fixture`/`login`/`login-codes`/`prune-accounts` commands.
+- Local signing keys (`.local/auth/*.key`), `.local/postgres`, `.local/pgsocket`, local `.local/artifacts` (synthetic evidence/labels) and `.local/catalog-media` (rebuilt by the import from `data/catalog/berlapak/photos/`).
+- `LOCAL_TAILNET_ORIGIN`, the loopback origin `http://127.0.0.1:3099`, `tailscale serve`, and any non-Secure cookie setting.
+- `simulated` adapters and the simulated worker commands (`--confirm-payment`, `--collect-cod`, …): on a real server they would create fake paid orders. Unissued providers are `disabled`.
+- The S69 Berlapak fixture (`public/catalog-local/`, 16 dummy orders) and the raw snapshot in the image or repository (it is uploaded to the server only for S87, then removed unless the owner keeps it).
+
+### Gates (all must hold before the step they guard)
+
+1. S68 local acceptance PASS and the remediation commit exists; `Rollback-Ref` above updated to it.
+2. S82–S84, S86, S87 implemented and verified on this host against a disposable rehearsal target (CODE gate; owner go-ahead for implementation scope).
+3. Owner decisions below answered in `DECISIONS.md` or this file.
+4. Explicit owner authorisation for each DEPLOY step: server/Coolify resource creation, off-host bucket, data load on the server, DNS/TLS cutover. Permission to run a command is not this authorisation.
+5. Existing production auth gates above (2FA budget review, real client IP from the trusted proxy) closed by S82.
+6. A restore drill from the off-host backup into a disposable target has passed (S85/S88) before go-live; a successful backup alone is not proof.
+
+### Runbook (order matters)
+
+1. **Pre-flight (local):** build the image from the release commit; record commit, image tag, migration set `0000`–`0029`, dataset digest from `data/catalog/berlapak/manifest.json`.
+2. **Server and Coolify:** Vultr instance per ADR-0005 with SSH keys only; attach a Vultr Firewall group allowing 22/80/443 (plus Coolify 8000/6001/6002 only until the dashboard has its own domain, then close them there — Docker-published ports bypass UFW); install Coolify, create its admin immediately, keep v4 current.
+3. **PostgreSQL:** Coolify-managed PostgreSQL 18 resource on the internal network, no public port (or the owner's alternative). Run `src/db/bootstrap-production.sql` once as the superuser (roles/database/revokes mirroring `src/db/bootstrap.sql`); store only owner/app role credentials in Coolify env. Web and worker never use the superuser.
+4. **Volume:** one persistent volume for `.local/catalog-media` and `.local/artifacts`, owned by the image's runtime uid with 0700 directories, mounted into web and worker.
+5. **Deploy web and worker** (two Coolify Applications, same image). Web start command runs `db:migrate -- production` (advisory-locked) before `next start`; a failed migration keeps the container unhealthy so Coolify keeps the previous one. Coolify's pre-deployment command is skipped on the first deploy and runs in the old container, and a failing post-deployment command does not fail the deployment, so neither is used for migrations. Dockerfile `HEALTHCHECK` on `/api/health`.
+6. **Backups:** Coolify scheduled backup of the Postgres resource to the off-host S3-compatible target, `pg_dumpall --globals-only`, and a scheduled archive of the media/artifacts volume to the same target. Then one restore drill into a disposable database/volume.
+7. **Staff:** `staff:bootstrap-owner -- production` for the owner with a real email; owner enrols TOTP before anything else; other staff via owner role grants with MFA. No dummy accounts.
+8. **Warehouse:** `warehouse:create -- production` for the real warehouse (name, city, timezone, address per owner decision); note its id.
+9. **Catalog load (idempotent; every step is safe to re-run):**
+   1. `npm run catalog:import -- production <warehouse-id>` — categories, SKUs, offers, bundle contents and photos (stored as `.local/catalog-media/<sha256>.webp`, served at `/media/catalog/`); products stay draft.
+   2. Upload the raw Berlapak snapshot to a read-only path outside the repository, set `BERLAPAK_DATA_DIR`, then `npm run catalog:initial-stock -- production <warehouse-id>` — one receive movement and one HPP version per stock item plus default offer assumptions; refuses a snapshot that is not the dataset's `source_snapshot`.
+   3. `npm run catalog:import -- production <warehouse-id>` again — guarded publication of the products that became ready.
+   4. `npm run catalog:withdraw -- production` (dry run) — must report 0 non-catalog publications on a fresh server.
+   5. Remove the raw snapshot from the server unless the owner chose to keep it.
+10. **Verify** (read-only, values from S87): 12 categories; 368 `B99_*` stock items; 392 `B99_*_OFFER` offers; 708 photo files, each hashing to its name and listed in the manifest; receive movements and HPP versions equal the initial-stock summary; published products equal the import summary; health 200; worker heartbeat fresh; home/category/PDP/admin catalog at 390 and 1440 px match the local build of the same commit.
+11. **Rehearse rollback** before DNS: Coolify Rollback to the previous retained image (only commit-tagged images; it reuses current env and mounts and does not undo migrations or volumes), confirm health, roll forward. Database restore is only for damaged data, never over the live database.
+12. **Cutover:** final off-host backup; DNS/TLS on the chosen domain; external uptime monitor; read-only smoke; record `Release-ID`, `Base`, `Rollback-Ref`, `Backup-Proof` and `Environment: production` here. Never mark DEPLOYED from a localhost test.
+
+Rollback after go-live: Coolify rollback to the previous image when migrations were expand-only; otherwise a reviewed forward fix. Restoring data cannot undo external effects (payments, labels, transfers) — those are reconciled, per `docs/spec/15-DEVOPS-CICD-MIGRATIONS.md`.
+
+### Open owner decisions
+
+| # | Decision | Why it blocks | Default if the owner agrees |
+|---|---|---|---|
+| OD-1 | Domain and hosts: `99ribu.com` for the storefront, admin on the same host or `app.99ribu.com` | Fixes `APP_ORIGIN`, Better Auth URL/trusted origins, cookie scope, and the origin embedded in imported image URLs (changing it later adds one product revision per product) | One origin `https://99ribu.com`, admin under `/admin` |
+| OD-2 | Staging first, or rehearse on the production host before DNS | Staging needs a second database, bucket path, hostname and secrets (spec 15) and roughly doubles setup | Rehearse on the production host behind a non-public hostname (S88), no separate staging until providers arrive |
+| OD-3 | Region/plan confirmation and purchase | ADR-0005 accepted `sgp` + `vhp-4c-8gb-amd`; availability and price must be re-checked at purchase | Keep ADR-0005 |
+| OD-4 | PostgreSQL placement: Coolify-managed container on the same VPS vs Vultr Managed Database | Same VPS = one failure domain; managed DB costs more but moves backups/patching off the team; moving later needs a dump/restore window | Coolify container, same VPS, off-host backups |
+| OD-5 | Off-host backup target (e.g. Vultr Object Storage, S3-compatible, in another region), retention, and who holds the keys | Required before any real data; Coolify uploads to S3-compatible storage | Object storage outside `sgp`, 7 daily + 4 weekly |
+| OD-6 | The real warehouse the catalog binds to: name, city, timezone, full address, and whether stock from all supplier warehouses goes into it (DEC-005 (4) says yes) | Every offer fulfils from this one warehouse; it becomes shipping origin later | One warehouse, all snapshot stock received there |
+| OD-7 | Launch mode: storefront + admin catalog only with checkout closed, or wait for payment/shipping provider gates | Without issued providers there is no real way to take orders; simulated adapters are forbidden in production | Catalog-only launch, checkout closed |
+| OD-8 | Staff email delivery: issued email provider adapter, or operator-assisted verification for the first staff | Better Auth requires email verification; today only synthetic `.test`/`.invalid` recipients are delivered | Email provider through the notification gate before staff onboarding |
+| OD-9 | Edge: Cloudflare proxied DNS vs Cloudflare Tunnel vs no Cloudflare, and the TLS terminator | Decides the single trusted proxy whose header gives the real client IP for rate limits | Cloudflare proxied DNS, origin locked to Cloudflare, Coolify proxy terminates TLS |
+| OD-10 | Keep the raw Berlapak snapshot on the server after the initial load | It holds supplier names, HPP and stock; keeping it widens what a server breach exposes | Delete after S87 verification; keep the owner's offline copy |
+| OD-11 | Photo weight in git (~48 MB, two per item) | Affects clone size and image size, not correctness | Keep as is until the catalog changes |
+
+Coolify facts above were checked on 2026-10-22 against the official docs (coollabsio/coolify-docs: Dockerfile deployment commands, health checks, rollbacks, database backups, application storages); Docker/UFW and Vultr Firewall guidance per the `vultr` skill's official sources. Re-check at execution time.

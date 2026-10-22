@@ -22,7 +22,7 @@ Unknown: direct audience/device research, actual provider checkout interaction, 
 
 ### UX-1 — Buyer purchase and recovery
 
-- Status: Proposal
+- Status: Accepted
 - Owner: Product UX owner
 - Source: CTX-11
 - Statement: Buyers shall discover and configure a physical product, checkout as a guest, review every shipment and payable amount, distinguish payment from order confirmation, and recover tracking/return access without mandatory account creation.
@@ -33,7 +33,7 @@ Unknown: direct audience/device research, actual provider checkout interaction, 
 
 ### UX-2 — Scoped operations and exception handling
 
-- Status: Proposal
+- Status: Accepted
 - Owner: Product UX owner
 - Source: CTX-11
 - Statement: Authorized staff shall process catalog, stock, warehouse fulfillment, return, and finance work through scope-aware queues, detail histories, and guarded actions with explicit pending, conflict and unknown outcomes.
@@ -44,7 +44,7 @@ Unknown: direct audience/device research, actual provider checkout interaction, 
 
 ### UX-3 — Affiliate commission explanation and payout visibility
 
-- Status: Proposal
+- Status: Accepted
 - Owner: Product UX owner
 - Source: CTX-11
 - Statement: Affiliates shall register, obtain a valid referral link, maintain an approved payout destination, and understand each attributed item's commission and payout history without buyer personal information.

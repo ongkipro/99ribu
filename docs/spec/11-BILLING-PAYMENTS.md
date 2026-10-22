@@ -1,17 +1,17 @@
 # Money, Refunds and Affiliate Payouts
 
-Status: Draft — planning only; no application or runtime verification.
+Status: Accepted contract — implementation and acceptance state is owned by root [STATUS.md](../../STATUS.md); external gates remain open.
 
-Owner: Paduka Ongki. Updated: 2026-10-15.
+Owner: Paduka Ongki. Updated: 2026-10-21.
 
 ### BILL-1 — Money lifecycle
-- Status: Proposal
+- Status: Accepted
 - Owner: Finance owner
 - Source: CTX-3
 - Statement: Track buyer charges, provider receivables/cash, refund and affiliate obligations independently with immutable postings.
 - Acceptance: Split-payment totals, subsidy totals, partial refunds and eligible payout balances conserve value across retries and reversals.
 - Constraints: None
-- Evidence: None; execution pending.
+- Evidence: Implementation and local acceptance evidence is tracked in root [STATUS.md](../../STATUS.md); external gates remain open.
 - Changed at: 2026-10-15
 - Change history: Initial planning declaration from owner discussion.
 

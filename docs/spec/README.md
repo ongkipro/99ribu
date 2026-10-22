@@ -1,13 +1,13 @@
 # Serba 99ribu — AI terminal development handoff
 
-Owner: Paduka Ongki. Updated: 2026-10-16.
+Owner: Paduka Ongki. Updated: 2026-10-21.
 
 Current target: complete application behavior on localhost, including a production build served locally with a separate worker. Auth, PostgreSQL, stock/money transactions, chat and UI must be real; only external payment/shipping/ads/notification effects are simulated. Application foundation work has started; root STATUS owns implemented and verified checkpoints. This repository pack is the canonical planning handoff, not a running store or production acceptance. Documentation was promoted on 2026-10-16; root STATUS records actual progress.
 
 ## Start here
 
 1. Read this entrypoint and [current product gates](02-PRD.md#risks-and-open-questions).
-2. Use the [sole task queue and S01–S68 map](../../TASKS.md#execution-semantics--current-localhost-handoff). Existing 39 task IDs remain stable; T-19 future automatic payout is deferred. Each slice has an exact prerequisite checkpoint, deliverable and proof. All remain planned.
+2. Use the [sole task queue and S01–S68 map](../../TASKS.md#execution-semantics--current-localhost-handoff). Existing 39 task IDs remain stable; T-19 future automatic payout is deferred. Each slice has an exact prerequisite checkpoint, deliverable and proof. Implementation and acceptance state is owned by root STATUS.
 3. Review [promotion, runtime and evidence contracts](15-DEVOPS-CICD-MIGRATIONS.md) before implementing the application. The inspected project-init importer requires explicit root-contract/ADR/link reconciliation; document15 now specifies the exact S01 sequence using a pinned generator and existing-repository promotion.
 4. For a selected slice, read its primary requirement and affected data/IAM/API/UX contracts. Do not load every document or start unrelated tasks.
 5. Use repository-root [STATUS](../../STATUS.md), [TASKS](../../TASKS.md) and [README](../../README.md). The former Documents copy is a retained nonauthoritative snapshot.
@@ -67,9 +67,11 @@ These retained templates were adopted at repository root on 2026-10-16. Their co
 | [RELEASE.md](handoff/root/RELEASE.md) | Local artifact/acceptance/restore boundary and separate external release gates |
 | [OBSERVABILITY.md](handoff/root/OBSERVABILITY.md) | Actual configured health, backlog, reconciliation and recovery probes |
 
-The promotion reconciled these templates at root, retained one root decision index, relocated all six ADRs to `docs/adr/`, and repaired Markdown links. See [promotion manifest](promotion-manifest.json) for the original inventory and reconciliation hashes. `.delivery/` remains tool-written. The native scaffold has now run; root STATUS owns S01–S02 checkpoint review and completion.
+The promotion reconciled these templates at root, retained one root decision index, relocated all seven ADRs to `docs/adr/`, and repaired Markdown links. See [promotion manifest](promotion-manifest.json) for the original inventory and reconciliation hashes. `.delivery/` remains tool-written. The native scaffold has now run; root STATUS owns S01–S68 checkpoint review and completion.
 
 ## Canonical specifications
+
+Document numbers 01, 06, 08 and 14 are unassigned; no document, script, fixture or Git history in this repository references them.
 
 | Fact | Owner |
 |---|---|

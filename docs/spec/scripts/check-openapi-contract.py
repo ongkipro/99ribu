@@ -427,8 +427,18 @@ valid('AdReplayInput', {'expected_version': 1, 'event_id': 'immutable-event-1', 
 dashboard_count = {'key': 'fulfillments_due', 'count': None, 'basis': 'snapshot', 'complete': False, 'queue_key': 'fulfillments', 'kind': 'count', 'amount': None, 'currency': None, 'financial_basis': 'not_applicable', 'definition': 'Authorized due fulfillment snapshot', 'as_of': '2030-01-01T00:00:00Z', 'queue_filter_token': 'synthetic-filter-0001', 'filter_version': 1, 'filter_expires_at': '2030-01-01T01:00:00Z'}
 valid('DashboardMetric', dashboard_count)
 valid('DashboardMetric', {'key': 'company_profit', 'count': 1000, 'basis': 'snapshot', 'complete': True, 'queue_key': 'fulfillments'}, False)
-valid('WorkQueueItem', {'id': 'fulfillment-1', 'resource_kind': 'fulfillment', 'state': 'picking', 'due_at': None, 'warehouse_id': 'warehouse-1', 'version': 1})
-valid('WorkQueueItem', {'id': 'fulfillment-1', 'resource_kind': 'fulfillment', 'state': 'picking', 'due_at': None, 'warehouse_id': 'warehouse-1', 'version': 1, 'whole_order_total': 198000}, False)
+queue_row = {'id': 'fulfillment-1', 'resource_kind': 'fulfillment', 'state': 'picking', 'due_at': '2030-01-01T00:00:00.000Z', 'due_at_kind': 'packing_deadline', 'warehouse_id': 'warehouse-1', 'version': 1, 'reference': 'ORD-SYNTHETIC-1'}
+valid('WorkQueueItem', queue_row)
+valid('WorkQueueItem', dict(queue_row, due_at=None, due_at_kind=None, reference=None))
+valid('WorkQueueItem', dict(queue_row, due_at_kind='deadline'), False)
+valid('WorkQueueItem', {k: v for k, v in queue_row.items() if k != 'reference'}, False)
+valid('WorkQueueItem', dict(queue_row, whole_order_total=198000), False)
+print_row = {'shipment_id': '00000000-0000-4000-8000-000000000001', 'parcel_id': 'P-1', 'warehouse_id': '00000000-0000-4000-8000-000000000002',
+    'warehouse_name': 'Synthetic', 'order_number': 'ORD-1', 'tracking_number': None, 'fulfillment_status': 'packed', 'cod_due': 0, 'due_at': None}
+valid('PrintQueuePage', {'data': [print_row], 'artifacts': [], 'pagination': {'next_cursor': None}})
+valid('PrintQueueShipment', dict(print_row, recipient_phone='+620000'), False)
+check(spec['paths']['/admin/label-queue']['get']['x-required-permission'] == 'shipping.labels.read', 'print queue reuses label read permission')
+check('finance' not in spec['paths']['/admin/label-queue']['get']['x-allowed-roles'], 'finance cannot list warehouse parcels by role')
 selection = {'mode': 'explicit_page', 'resource_ids': ['resource-1']}
 valid('BoundedSelection', selection)
 valid('BoundedSelection', {'mode': 'explicit_page', 'resource_ids': ['resource-1', 'resource-1']}, False)
@@ -570,7 +580,13 @@ valid('ProductPatch', {'reason': 'No edit', 'expected_version': 1}, False)
 valid('ProductPatch', dict(product_edit, variant_changes=[]), False)
 valid('ProductPatch', dict(product_edit, variant_changes=[{'operation': 'retire', 'variant_id': '10000000-0000-4000-8000-000000000003'}] * 2), False)
 check(any(p.get('$ref') == '#/components/parameters/IdempotencyKey' for p in spec['paths']['/admin/products/{productId}']['patch']['parameters']), 'new offer edits have durable retry identity in addition to optimistic version')
-check(spec['paths']['/admin/products/{productId}']['get']['x-allowed-roles'] == ['owner', 'ecommerce_admin'], 'private draft recovery restricted to catalog roles')
+check(spec['paths']['/admin/products/{productId}']['get']['x-allowed-roles'] == ['owner', 'ecommerce_admin', 'warehouse', 'finance'], 'scoped catalog read roles are explicit')
+for path in ['/admin/products', '/admin/products/{productId}', '/admin/products/{productId}/publications', '/admin/categories', '/admin/stock-items']:
+    for method, operation in spec['paths'][path].items():
+        if method != 'get':
+            check(operation['x-allowed-roles'] == ['owner', 'ecommerce_admin'], 'catalog writes restricted to catalog editors')
+check(spec['paths']['/admin/stock-items']['get']['x-allowed-roles'] == ['owner', 'ecommerce_admin'], 'physical SKU dictionary stays with catalog editors')
+check('customer_service' not in spec['paths']['/admin/products']['get']['x-allowed-roles'], 'customer service has no private catalog read')
 check('version' in spec['components']['schemas']['Product']['required'], 'catalog draft version is discoverable for optimistic edit/publication')
 
 # Arithmetic, actual authorization and idempotent side effects need later domain/runtime tests.
@@ -659,7 +675,7 @@ for name in ['CommerceException', 'CommerceExceptionUnit', 'BuyerRecoveryCase', 
     check(spec['components']['schemas'][name]['additionalProperties'] is False, 'recovery projections are closed')
     check(not {'buyer_total', 'bank_account', 'signature', 'reauthentication_proof', 'source_transaction_id'} & set(spec['components']['schemas'][name]['properties']), 'operational/buyer recovery excludes whole-order/internal financial data')
 recovery_operations = [(path, op) for path, methods in spec['paths'].items() for op in methods.values() if path.startswith('/admin/commerce-exceptions') or path == '/orders/{orderId}/recovery-actions']
-check(len(recovery_operations) == 10, 'S33 owns its complete ten-operation contract')
+check(len(recovery_operations) == 11, 'S33 owns its complete eleven-operation contract (S71 adds finance retry)')
 for path, op in recovery_operations:
     check(op['x-primary-requirement'] == 'PR-21', 'exception operations trace to accepted PR21')
     expected_security = [{'sessionCookie': []}] if path.startswith('/admin/') else [{'sessionCookie': []}, {'commerceGuest': [], 'orderCookie': []}]
