@@ -1,7 +1,7 @@
 "use client";
 
 import type React from "react";
-import { useEffect, useId, useState } from "react";
+import { useEffect, useId, useLayoutEffect, useRef, useState } from "react";
 
 type StaffUser = {
 	id: string;
@@ -91,6 +91,77 @@ type Classification = {
 	updated_at: string;
 };
 
+// around_sequence returns sequences within +/- limit/2 of the anchor.
+const MESSAGE_WINDOW = 40;
+const MESSAGE_HALF = MESSAGE_WINDOW / 2;
+const CONFLICT_MESSAGE = "Percakapan diperbarui. Coba lagi.";
+
+function mergeMessages(prev: SupportMessage[], incoming: SupportMessage[]) {
+	const byId = new Map(prev.map((m) => [m.id, m]));
+	for (const m of incoming) byId.set(m.id, m);
+	return [...byId.values()].sort((a, b) => a.sequence - b.sequence);
+}
+
+async function fetchMessageWindow(messagesPath: string, around: number) {
+	const params = new URLSearchParams({
+		around_sequence: String(Math.max(1, around)),
+		limit: String(MESSAGE_WINDOW),
+	});
+	const res = await fetch(`${messagesPath}?${params.toString()}`, {
+		headers: { Accept: "application/json" },
+	});
+	if (!res.ok) return null;
+	return ((await res.json()) as { data: SupportMessage[] }).data;
+}
+
+// Walks forward from a possibly stale tail until the window is no longer full.
+async function fetchLatestMessages(messagesPath: string, lastKnown: number) {
+	if (lastKnown < 1) return [];
+	let around = lastKnown;
+	let collected: SupportMessage[] = [];
+	for (let i = 0; i < 10; i++) {
+		const page = await fetchMessageWindow(messagesPath, around);
+		if (!page) return null;
+		collected = mergeMessages(collected, page);
+		const top = page.at(-1)?.sequence ?? 0;
+		if (top < around + MESSAGE_HALF) break;
+		around = top + MESSAGE_HALF;
+	}
+	return collected.slice(-(MESSAGE_HALF + 1));
+}
+
+// lazy: no staff GET for one conversation exists, so scan the "all" inbox; switch to
+// GET /api/v1/admin/support/conversations/{id} if the API adds it.
+async function fetchStaffItem(conversationId: string) {
+	let cursor: string | null = null;
+	for (let i = 0; i < 20; i++) {
+		const params = new URLSearchParams({ assignment: "all", limit: "100" });
+		if (cursor) params.set("cursor", cursor);
+		const res = await fetch(
+			`/api/v1/admin/support/conversations?${params.toString()}`,
+			{ headers: { Accept: "application/json" } },
+		);
+		if (!res.ok) return null;
+		const body = (await res.json()) as {
+			data: SupportStaffConversation[];
+			pagination?: { next_cursor: string | null };
+		};
+		const hit = body.data.find((x) => x.conversation.id === conversationId);
+		if (hit) return hit;
+		cursor = body.pagination?.next_cursor ?? null;
+		if (!cursor) return null;
+	}
+	return null;
+}
+
+async function problemCode(res: Response) {
+	try {
+		return ((await res.json()) as { code?: string }).code ?? null;
+	} catch {
+		return null;
+	}
+}
+
 function makeKey(prefixStr: string) {
 	const rand =
 		typeof crypto !== "undefined" && "randomUUID" in crypto
@@ -146,7 +217,7 @@ export function StaffInboxView({ staffUser }: { staffUser: StaffUser }) {
 	const baseId = useId();
 	const [assignmentFilter, setAssignmentFilter] = useState<
 		"unassigned" | "assigned_to_me" | "all"
-	>("all");
+	>("unassigned");
 	const [statusFilter, setStatusFilter] = useState<string>("");
 	const [priorityFilter, setPriorityFilter] = useState<string>("");
 	const [unreadOnly, setUnreadOnly] = useState<boolean>(false);
@@ -178,6 +249,34 @@ export function StaffInboxView({ staffUser }: { staffUser: StaffUser }) {
 
 	const [feedback, setFeedback] = useState<string | null>(null);
 	const [error, setError] = useState<string | null>(null);
+	const [submitting, setSubmitting] = useState(false);
+	const [pendingReply, setPendingReply] = useState<{
+		key: string;
+		signature: string;
+	} | null>(null);
+	const [pendingNote, setPendingNote] = useState<{
+		key: string;
+		signature: string;
+	} | null>(null);
+	const [loadingOlder, setLoadingOlder] = useState(false);
+	const activeConvRef = useRef<string | null>(null);
+	const logRef = useRef<HTMLDivElement | null>(null);
+	const scrollAnchorRef = useRef<{ height: number; top: number } | null>(null);
+	const scrollToEndRef = useRef(false);
+	const hasOlder = (messages[0]?.sequence ?? 1) > 1;
+
+	useLayoutEffect(() => {
+		const el = logRef.current;
+		if (!el || messages.length === 0) return;
+		const anchor = scrollAnchorRef.current;
+		if (anchor) {
+			el.scrollTop = anchor.top + (el.scrollHeight - anchor.height);
+			scrollAnchorRef.current = null;
+		} else if (scrollToEndRef.current) {
+			el.scrollTop = el.scrollHeight;
+			scrollToEndRef.current = false;
+		}
+	}, [messages]);
 
 	async function loadInbox(
 		nextAssign = assignmentFilter,
@@ -240,36 +339,148 @@ export function StaffInboxView({ staffUser }: { staffUser: StaffUser }) {
 		};
 	}, []);
 
+	function applyStaffItem(item: SupportStaffConversation) {
+		// Revisions only grow; keep the higher one if classification answered first.
+		setSelected((prev) =>
+			prev?.conversation.id === item.conversation.id
+				? {
+						...item,
+						assignment_version: Math.max(
+							item.assignment_version,
+							prev.assignment_version,
+						),
+					}
+				: prev,
+		);
+		setInbox((prev) =>
+			prev.map((x) => (x.conversation.id === item.conversation.id ? item : x)),
+		);
+	}
+
+	async function fetchClassification(cid: string) {
+		const res = await fetch(
+			`/api/v1/admin/support/conversations/${cid}/classification`,
+			{ headers: { Accept: "application/json" } },
+		);
+		if (!res.ok || activeConvRef.current !== cid) return;
+		const c = (await res.json()) as Classification;
+		if (activeConvRef.current !== cid) return;
+		setClassification(c);
+		// Classification carries the current conversation revision used by every staff mutation.
+		setSelected((prev) =>
+			prev?.conversation.id === cid && c.version > prev.assignment_version
+				? { ...prev, assignment_version: c.version }
+				: prev,
+		);
+	}
+
+	async function loadLatestMessages(cid: string, lastKnown: number) {
+		const latest = await fetchLatestMessages(
+			`/api/v1/admin/support/conversations/${cid}/messages`,
+			lastKnown,
+		);
+		if (activeConvRef.current !== cid) return;
+		if (latest === null) {
+			setError("Gagal memuat riwayat pesan.");
+			return;
+		}
+		scrollToEndRef.current = true;
+		setMessages((prev) => {
+			const prevTop = prev.at(-1)?.sequence ?? 0;
+			const gap = (latest[0]?.sequence ?? 0) > prevTop + 1;
+			return gap ? latest : mergeMessages(prev, latest);
+		});
+	}
+
+	// After a conflict: pull current assignment, status, version and newest messages. Never resubmits.
+	async function refreshSelected(cid: string) {
+		const [item] = await Promise.all([
+			fetchStaffItem(cid),
+			fetchClassification(cid),
+		]);
+		if (activeConvRef.current !== cid) return;
+		if (item) applyStaffItem(item);
+		await loadLatestMessages(
+			cid,
+			item?.conversation.last_message_sequence ??
+				messages.at(-1)?.sequence ??
+				0,
+		);
+	}
+
 	async function selectThread(item: SupportStaffConversation) {
+		const cid = item.conversation.id;
+		activeConvRef.current = cid;
 		setSelected(item);
+		setMessages([]);
+		setNotes([]);
+		setClassification(null);
 		setError(null);
 		setFeedback(null);
 		setNoteSearchHits(null);
 		setUnresolvedPlaceholders([]);
-		const cid = item.conversation.id;
-		const [msgRes, noteRes, classRes] = await Promise.all([
-			fetch(`/api/v1/admin/support/conversations/${cid}/messages`, {
-				headers: { Accept: "application/json" },
-			}),
+		const [, noteRes] = await Promise.all([
+			loadLatestMessages(cid, item.conversation.last_message_sequence),
 			fetch(`/api/v1/admin/support/conversations/${cid}/notes`, {
 				headers: { Accept: "application/json" },
 			}),
-			fetch(`/api/v1/admin/support/conversations/${cid}/classification`, {
-				headers: { Accept: "application/json" },
-			}),
+			fetchClassification(cid),
 		]);
-		if (msgRes.ok) {
-			const m = (await msgRes.json()) as { data: SupportMessage[] };
-			setMessages(m.data);
-		}
+		if (activeConvRef.current !== cid) return;
 		if (noteRes.ok) {
 			const n = (await noteRes.json()) as { data: InternalNote[] };
 			setNotes(n.data);
 		}
-		if (classRes.ok) {
-			const c = (await classRes.json()) as Classification;
-			setClassification(c);
+	}
+
+	async function loadOlderMessages() {
+		if (!selected || loadingOlder || !hasOlder) return;
+		const cid = selected.conversation.id;
+		const oldest = messages[0]?.sequence ?? 1;
+		setLoadingOlder(true);
+		setError(null);
+		try {
+			const page = await fetchMessageWindow(
+				`/api/v1/admin/support/conversations/${cid}/messages`,
+				oldest - MESSAGE_HALF - 1,
+			);
+			if (activeConvRef.current !== cid) return;
+			if (!page) {
+				setError("Pesan sebelumnya belum dimuat. Coba lagi.");
+				return;
+			}
+			const older = page.filter((m) => m.sequence < oldest);
+			const el = logRef.current;
+			if (el) {
+				scrollAnchorRef.current = {
+					height: el.scrollHeight,
+					top: el.scrollTop,
+				};
+			}
+			setMessages((prev) => mergeMessages(prev, older));
+			setFeedback(
+				older.length > 0
+					? `${older.length} pesan sebelumnya dimuat.`
+					: "Tidak ada pesan sebelumnya.",
+			);
+			if ((older[0]?.sequence ?? 1) <= 1) logRef.current?.focus();
+		} catch {
+			if (activeConvRef.current === cid) {
+				setError("Pesan sebelumnya belum dimuat. Coba lagi.");
+			}
+		} finally {
+			setLoadingOlder(false);
 		}
+	}
+
+	async function handleConflict(res: Response, cid: string, fallback: string) {
+		const code = await problemCode(res);
+		if (code === "VERSION_CONFLICT" || code === "ALREADY_CLAIMED") {
+			await refreshSelected(cid);
+			setError(code === "ALREADY_CLAIMED" ? fallback : CONFLICT_MESSAGE);
+			return;
+		}
+		setError(fallback);
 	}
 
 	async function claimThread() {
@@ -287,10 +498,11 @@ export function StaffInboxView({ staffUser }: { staffUser: StaffUser }) {
 			},
 		);
 		if (!res.ok) {
-			setError(
-				"Klaim gagal karena percakapan sudah diklaim agen lain atau versi berubah. Draf Anda tetap aman.",
+			await handleConflict(
+				res,
+				selected.conversation.id,
+				"Klaim gagal karena percakapan sudah diklaim agen lain. Draf Anda tetap aman.",
 			);
-			await loadInbox();
 			return;
 		}
 		const updated = (await res.json()) as SupportStaffConversation;
@@ -322,8 +534,10 @@ export function StaffInboxView({ staffUser }: { staffUser: StaffUser }) {
 			},
 		);
 		if (!res.ok) {
-			setError(
-				"Gagal mengubah penugasan. Pastikan target memiliki peran customer_service dan versi sesuai.",
+			await handleConflict(
+				res,
+				selected.conversation.id,
+				"Gagal mengubah penugasan. Pastikan target memiliki peran customer_service.",
 			);
 			return;
 		}
@@ -362,8 +576,10 @@ export function StaffInboxView({ staffUser }: { staffUser: StaffUser }) {
 			},
 		);
 		if (!res.ok) {
-			setError(
-				"Gagal mengubah status percakapan (versi sudah berubah atau belum diklaim).",
+			await handleConflict(
+				res,
+				selected.conversation.id,
+				"Gagal mengubah status percakapan. Pastikan percakapan sudah Anda klaim.",
 			);
 			return;
 		}
@@ -396,59 +612,101 @@ export function StaffInboxView({ staffUser }: { staffUser: StaffUser }) {
 			setError("Isi balasan publik tidak boleh kosong.");
 			return;
 		}
+		if (submitting) return;
 		setError(null);
-		const clientMsgId = makeKey("csmsg");
-		const res = await fetch(
-			`/api/v1/admin/support/conversations/${selected.conversation.id}/messages`,
-			{
-				method: "POST",
-				headers: {
-					"Content-Type": "application/json",
-					"Idempotency-Key": clientMsgId,
+		setFeedback(null);
+		setSubmitting(true);
+		// Reuse the key on retry of the same draft so a lost response cannot duplicate the reply.
+		const signature = JSON.stringify([selected.conversation.id, publicDraft]);
+		const clientMsgId =
+			pendingReply?.signature === signature
+				? pendingReply.key
+				: makeKey("csmsg");
+		setPendingReply({ key: clientMsgId, signature });
+		try {
+			const res = await fetch(
+				`/api/v1/admin/support/conversations/${selected.conversation.id}/messages`,
+				{
+					method: "POST",
+					headers: {
+						"Content-Type": "application/json",
+						"Idempotency-Key": clientMsgId,
+					},
+					body: JSON.stringify({
+						client_message_id: clientMsgId,
+						text: publicDraft,
+						attachment_ids: [],
+					}),
 				},
-				body: JSON.stringify({
-					client_message_id: clientMsgId,
-					text: publicDraft,
-					attachment_ids: [],
-				}),
-			},
-		);
-		if (!res.ok) {
-			setError("Gagal mengirim balasan publik. Draf tetap disimpan.");
-			return;
+			);
+			if (!res.ok) {
+				setError("Gagal mengirim balasan publik. Draf tetap disimpan.");
+				return;
+			}
+			const created = (await res.json()) as SupportMessage;
+			const knownTop = messages.at(-1)?.sequence ?? 0;
+			scrollToEndRef.current = true;
+			setMessages((prev) => mergeMessages(prev, [created]));
+			if (created.sequence > knownTop + 1) {
+				// The buyer wrote meanwhile (revision bumped); refresh version and missing messages.
+				void refreshSelected(selected.conversation.id);
+			}
+			setPublicDraft("");
+			setPendingReply(null);
+			setUnresolvedPlaceholders([]);
+			setFeedback("Balasan publik terkirim ke pelanggan.");
+		} catch {
+			setError(
+				"Koneksi terputus. Balasan belum pasti terkirim; kirim ulang draf yang sama.",
+			);
+		} finally {
+			setSubmitting(false);
 		}
-		const created = (await res.json()) as SupportMessage;
-		setMessages((prev) => [...prev, created]);
-		setPublicDraft("");
-		setUnresolvedPlaceholders([]);
-		setFeedback("Balasan publik terkirim ke pelanggan.");
 	}
 
 	async function sendInternalNote(e: React.FormEvent) {
 		e.preventDefault();
-		if (!selected || !noteDraft.trim()) return;
+		if (!selected || !noteDraft.trim() || submitting) return;
 		setError(null);
-		const res = await fetch(
-			`/api/v1/admin/support/conversations/${selected.conversation.id}/notes`,
-			{
-				method: "POST",
-				headers: {
-					"Content-Type": "application/json",
-					"Idempotency-Key": makeKey("note"),
+		setFeedback(null);
+		setSubmitting(true);
+		const text = noteDraft.trim();
+		const signature = JSON.stringify([selected.conversation.id, text]);
+		const key =
+			pendingNote?.signature === signature ? pendingNote.key : makeKey("note");
+		setPendingNote({ key, signature });
+		try {
+			const res = await fetch(
+				`/api/v1/admin/support/conversations/${selected.conversation.id}/notes`,
+				{
+					method: "POST",
+					headers: {
+						"Content-Type": "application/json",
+						"Idempotency-Key": key,
+					},
+					body: JSON.stringify({ text }),
 				},
-				body: JSON.stringify({ text: noteDraft.trim() }),
-			},
-		);
-		if (!res.ok) {
-			setError("Gagal menyimpan catatan internal.");
-			return;
+			);
+			if (!res.ok) {
+				setError("Gagal menyimpan catatan internal.");
+				return;
+			}
+			const created = (await res.json()) as InternalNote;
+			setNotes((prev) =>
+				prev.some((n) => n.id === created.id) ? prev : [...prev, created],
+			);
+			setNoteDraft("");
+			setPendingNote(null);
+			setFeedback(
+				"Catatan internal staf tersimpan (tidak terlihat oleh pelanggan).",
+			);
+		} catch {
+			setError(
+				"Koneksi terputus. Catatan belum pasti tersimpan; simpan ulang catatan yang sama.",
+			);
+		} finally {
+			setSubmitting(false);
 		}
-		const created = (await res.json()) as InternalNote;
-		setNotes((prev) => [...prev, created]);
-		setNoteDraft("");
-		setFeedback(
-			"Catatan internal staf tersimpan (tidak terlihat oleh pelanggan).",
-		);
 	}
 
 	async function insertSavedReply(sr: SavedReply) {
@@ -486,6 +744,8 @@ export function StaffInboxView({ staffUser }: { staffUser: StaffUser }) {
 
 	async function updatePriority(nextPriority: "low" | "normal" | "high") {
 		if (!selected || !classification) return;
+		setError(null);
+		setFeedback(null);
 		const res = await fetch(
 			`/api/v1/admin/support/conversations/${selected.conversation.id}/classification`,
 			{
@@ -502,13 +762,19 @@ export function StaffInboxView({ staffUser }: { staffUser: StaffUser }) {
 				}),
 			},
 		);
-		if (res.ok) {
-			const updated = (await res.json()) as Classification;
-			setClassification(updated);
-			setSelected((prev) =>
-				prev ? { ...prev, assignment_version: updated.version } : prev,
+		if (!res.ok) {
+			await handleConflict(
+				res,
+				selected.conversation.id,
+				"Gagal memperbarui prioritas. Coba lagi.",
 			);
+			return;
 		}
+		const updated = (await res.json()) as Classification;
+		setClassification(updated);
+		setSelected((prev) =>
+			prev ? { ...prev, assignment_version: updated.version } : prev,
+		);
 	}
 
 	async function markStaffRead() {
@@ -879,9 +1145,26 @@ export function StaffInboxView({ staffUser }: { staffUser: StaffUser }) {
 								</div>
 							</div>
 
+							{hasOlder && (
+								<button
+									type="button"
+									onClick={loadOlderMessages}
+									aria-disabled={loadingOlder}
+									aria-controls={`${baseId}-log`}
+									style={{ ...secondaryBtn, justifySelf: "start" }}
+								>
+									{loadingOlder ? "Memuat pesan..." : "Muat pesan sebelumnya"}
+								</button>
+							)}
+
 							<div
+								ref={logRef}
+								id={`${baseId}-log`}
 								role="log"
 								aria-label="Riwayat pesan publik pelanggan dan CS"
+								aria-busy={loadingOlder}
+								// biome-ignore lint/a11y/noNoninteractiveTabindex: scrollable message history must be keyboard-scrollable
+								tabIndex={0}
 								style={{
 									display: "grid",
 									gap: "8px",
@@ -984,7 +1267,7 @@ export function StaffInboxView({ staffUser }: { staffUser: StaffUser }) {
 								/>
 								<button
 									type="submit"
-									disabled={!isClaimedByMe}
+									disabled={!isClaimedByMe || submitting}
 									style={primaryBtn}
 								>
 									Kirim Balasan Publik
@@ -1019,7 +1302,7 @@ export function StaffInboxView({ staffUser }: { staffUser: StaffUser }) {
 									placeholder="Tulis catatan internal antar staf CS..."
 									style={{ ...fieldInput, minHeight: "68px" }}
 								/>
-								<button type="submit" style={noteBtn}>
+								<button type="submit" disabled={submitting} style={noteBtn}>
 									Simpan Catatan Internal
 								</button>
 							</form>
@@ -1125,9 +1408,14 @@ export function StaffInboxView({ staffUser }: { staffUser: StaffUser }) {
 								<div style={{ display: "flex", flexWrap: "wrap", gap: "6px" }}>
 									<button
 										type="button"
-										onClick={() =>
-											handoffOrRelease(handoffTarget.trim() || null)
-										}
+										onClick={() => {
+											if (!handoffTarget.trim()) {
+												setFeedback(null);
+												setError("Isi ID staf tujuan.");
+												return;
+											}
+											void handoffOrRelease(handoffTarget.trim());
+										}}
 										style={secondaryBtn}
 									>
 										Alihkan Penugasan

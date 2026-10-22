@@ -1,7 +1,8 @@
 "use client";
 
 import type React from "react";
-import { useEffect, useId, useRef, useState } from "react";
+import { useEffect, useId, useLayoutEffect, useRef, useState } from "react";
+import { Icon } from "../storefront/icon";
 
 type SupportConversation = {
 	id: string;
@@ -74,6 +75,52 @@ type SearchHit = {
 	created_at: string;
 };
 
+// around_sequence returns sequences within +/- limit/2 of the anchor.
+const MESSAGE_WINDOW = 40;
+const MESSAGE_HALF = MESSAGE_WINDOW / 2;
+const CONFLICT_MESSAGE = "Percakapan diperbarui. Coba lagi.";
+
+function mergeMessages(prev: SupportMessage[], incoming: SupportMessage[]) {
+	const byId = new Map(prev.map((m) => [m.id, m]));
+	for (const m of incoming) byId.set(m.id, m);
+	return [...byId.values()].sort((a, b) => a.sequence - b.sequence);
+}
+
+async function fetchMessageWindow(messagesPath: string, around: number) {
+	const params = new URLSearchParams({
+		around_sequence: String(Math.max(1, around)),
+		limit: String(MESSAGE_WINDOW),
+	});
+	const res = await fetch(`${messagesPath}?${params.toString()}`, {
+		headers: { Accept: "application/json" },
+	});
+	if (!res.ok) return null;
+	return ((await res.json()) as { data: SupportMessage[] }).data;
+}
+
+// Walks forward from a possibly stale tail until the window is no longer full.
+async function fetchLatestMessages(messagesPath: string, lastKnown: number) {
+	let around = Math.max(1, lastKnown);
+	let collected: SupportMessage[] = [];
+	for (let i = 0; i < 10; i++) {
+		const page = await fetchMessageWindow(messagesPath, around);
+		if (!page) return null;
+		collected = mergeMessages(collected, page);
+		const top = page.at(-1)?.sequence ?? 0;
+		if (top < around + MESSAGE_HALF) break;
+		around = top + MESSAGE_HALF;
+	}
+	return collected.slice(-(MESSAGE_HALF + 1));
+}
+
+async function problemCode(res: Response) {
+	try {
+		return ((await res.json()) as { code?: string }).code ?? null;
+	} catch {
+		return null;
+	}
+}
+
 function makeClientKey(prefixStr: string) {
 	const rand =
 		typeof crypto !== "undefined" && "randomUUID" in crypto
@@ -84,8 +131,8 @@ function makeClientKey(prefixStr: string) {
 
 const btnStyle: React.CSSProperties = {
 	minHeight: "44px",
-	padding: "8px 14px",
-	borderRadius: "6px",
+	padding: "10px 20px",
+	borderRadius: "9999px",
 	border: "1px solid #5b35d5",
 	background: "#5b35d5",
 	color: "#fff",
@@ -98,11 +145,12 @@ const btnStyle: React.CSSProperties = {
 	maxWidth: "100%",
 };
 
+// Same role and look as the storefront .button.secondary (purple outline pill).
 const secondaryBtnStyle: React.CSSProperties = {
 	...btnStyle,
 	background: "#fff",
-	color: "#18181b",
-	border: "1px solid #85858e",
+	color: "#5b35d5",
+	border: "1px solid #5b35d5",
 };
 
 const inputStyle: React.CSSProperties = {
@@ -111,7 +159,7 @@ const inputStyle: React.CSSProperties = {
 	minWidth: 0,
 	maxWidth: "100%",
 	padding: "10px 12px",
-	borderRadius: "6px",
+	borderRadius: "12px",
 	border: "1px solid #85858e",
 	background: "#fff",
 	color: "#18181b",
@@ -157,7 +205,11 @@ export function CustomerChatView() {
 		SupportAttachment[]
 	>([]);
 	const [sending, setSending] = useState(false);
-	const [pendingClientId, setPendingClientId] = useState<string | null>(null);
+	// Retry reuses the key only while the hashed payload is unchanged; any edit is a new message.
+	const [pendingSend, setPendingSend] = useState<{
+		key: string;
+		signature: string;
+	} | null>(null);
 
 	const [threadSearchQuery, setThreadSearchQuery] = useState("");
 	const [threadSearchHits, setThreadSearchHits] = useState<SearchHit[] | null>(
@@ -170,6 +222,25 @@ export function CustomerChatView() {
 	const viewerTriggerRef = useRef<HTMLButtonElement | null>(null);
 	const isComposingRef = useRef(false);
 	const selectedConvId = selectedConv?.id ?? null;
+	const [loadingOlder, setLoadingOlder] = useState(false);
+	const activeConvRef = useRef<string | null>(null);
+	const logRef = useRef<HTMLDivElement | null>(null);
+	const scrollAnchorRef = useRef<{ height: number; top: number } | null>(null);
+	const scrollToEndRef = useRef(false);
+	const hasOlder = (messages[0]?.sequence ?? 1) > 1;
+
+	useLayoutEffect(() => {
+		const el = logRef.current;
+		if (!el || messages.length === 0) return;
+		const anchor = scrollAnchorRef.current;
+		if (anchor) {
+			el.scrollTop = anchor.top + (el.scrollHeight - anchor.height);
+			scrollAnchorRef.current = null;
+		} else if (scrollToEndRef.current) {
+			el.scrollTop = el.scrollHeight;
+			scrollToEndRef.current = false;
+		}
+	}, [messages]);
 
 	useEffect(() => {
 		if (!selectedConvId) return;
@@ -306,30 +377,104 @@ export function CustomerChatView() {
 		}
 	}
 
+	function applyFreshConversation(fresh: SupportConversation) {
+		setSelectedConv((prev) => (prev?.id === fresh.id ? fresh : prev));
+		setConversations((prev) =>
+			prev.map((c) => (c.id === fresh.id ? fresh : c)),
+		);
+	}
+
+	// Refetches the conversation, then the newest message window, and merges it.
+	async function syncLatest(convId: string, scrollToEnd: boolean) {
+		const base = `/api/v1/support/conversations/${convId}`;
+		const convRes = await fetch(base, {
+			headers: { Accept: "application/json" },
+		});
+		if (activeConvRef.current !== convId) return false;
+		if (!convRes.ok) return false;
+		const fresh = (await convRes.json()) as SupportConversation;
+		if (activeConvRef.current !== convId) return false;
+		applyFreshConversation(fresh);
+		const lastKnown = fresh.last_message_sequence;
+		const latest =
+			lastKnown < 1
+				? []
+				: await fetchLatestMessages(`${base}/messages`, lastKnown);
+		if (activeConvRef.current !== convId || latest === null) return false;
+		if (scrollToEnd) scrollToEndRef.current = true;
+		setMessages((prev) => {
+			const prevTop = prev.at(-1)?.sequence ?? 0;
+			const gap = (latest[0]?.sequence ?? 0) > prevTop + 1;
+			return gap ? latest : mergeMessages(prev, latest);
+		});
+		return true;
+	}
+
 	async function openThread(conv: SupportConversation) {
+		activeConvRef.current = conv.id;
 		setSelectedConv(conv);
+		setMessages([]);
+		setPreference(null);
 		setThreadSearchHits(null);
 		setReplyTo(null);
 		setError(null);
 		try {
-			const [msgRes, prefRes] = await Promise.all([
-				fetch(`/api/v1/support/conversations/${conv.id}/messages`, {
-					headers: { Accept: "application/json" },
-				}),
+			const [synced, prefRes] = await Promise.all([
+				syncLatest(conv.id, true),
 				fetch(`/api/v1/support/conversations/${conv.id}/preferences`, {
 					headers: { Accept: "application/json" },
 				}),
 			]);
-			if (msgRes.ok) {
-				const msgData = (await msgRes.json()) as { data: SupportMessage[] };
-				setMessages(msgData.data);
-			}
+			if (activeConvRef.current !== conv.id) return;
+			if (!synced) setError("Gagal memuat riwayat pesan.");
 			if (prefRes.ok) {
 				const prefData = (await prefRes.json()) as SupportPreference;
 				setPreference(prefData);
 			}
 		} catch {
-			setError("Gagal memuat riwayat pesan.");
+			if (activeConvRef.current === conv.id) {
+				setError("Gagal memuat riwayat pesan.");
+			}
+		}
+	}
+
+	async function loadOlderMessages() {
+		if (!selectedConv || loadingOlder || !hasOlder) return;
+		const convId = selectedConv.id;
+		const oldest = messages[0]?.sequence ?? 1;
+		setLoadingOlder(true);
+		setError(null);
+		try {
+			const page = await fetchMessageWindow(
+				`/api/v1/support/conversations/${convId}/messages`,
+				oldest - MESSAGE_HALF - 1,
+			);
+			if (activeConvRef.current !== convId) return;
+			if (!page) {
+				setError("Pesan sebelumnya belum dimuat. Coba lagi.");
+				return;
+			}
+			const older = page.filter((m) => m.sequence < oldest);
+			const el = logRef.current;
+			if (el) {
+				scrollAnchorRef.current = {
+					height: el.scrollHeight,
+					top: el.scrollTop,
+				};
+			}
+			setMessages((prev) => mergeMessages(prev, older));
+			setLiveNotice(
+				older.length > 0
+					? `${older.length} pesan sebelumnya dimuat.`
+					: "Tidak ada pesan sebelumnya.",
+			);
+			if ((older[0]?.sequence ?? 1) <= 1) logRef.current?.focus();
+		} catch {
+			if (activeConvRef.current === convId) {
+				setError("Pesan sebelumnya belum dimuat. Coba lagi.");
+			}
+		} finally {
+			setLoadingOlder(false);
 		}
 	}
 
@@ -351,15 +496,11 @@ export function CustomerChatView() {
 		}
 		setSending(true);
 		setError(null);
-		const clientMsgId = pendingClientId ?? makeClientKey("cmsg");
-		setPendingClientId(clientMsgId);
 		try {
 			const headers: Record<string, string> = {
 				"Content-Type": "application/json",
-				"Idempotency-Key": clientMsgId,
 			};
 			const payload: Record<string, unknown> = {
-				client_message_id: clientMsgId,
 				text: draftText,
 				attachment_ids: readyAttachmentIds,
 			};
@@ -382,12 +523,19 @@ export function CustomerChatView() {
 					}
 				}
 			}
+			const signature = JSON.stringify([selectedConv.id, payload]);
+			const clientMsgId =
+				pendingSend?.signature === signature
+					? pendingSend.key
+					: makeClientKey("cmsg");
+			setPendingSend({ key: clientMsgId, signature });
+			headers["Idempotency-Key"] = clientMsgId;
 			const res = await fetch(
 				`/api/v1/support/conversations/${selectedConv.id}/messages`,
 				{
 					method: "POST",
 					headers,
-					body: JSON.stringify(payload),
+					body: JSON.stringify({ ...payload, client_message_id: clientMsgId }),
 				},
 			);
 			if (!res.ok) {
@@ -396,11 +544,15 @@ export function CustomerChatView() {
 				);
 			}
 			const created = (await res.json()) as SupportMessage;
-			setMessages((prev) =>
-				prev.some((m) => m.id === created.id) ? prev : [...prev, created],
-			);
+			const knownTop = messages.at(-1)?.sequence ?? 0;
+			scrollToEndRef.current = true;
+			setMessages((prev) => mergeMessages(prev, [created]));
+			if (created.sequence > knownTop + 1) {
+				// CS replied meanwhile; pull the missing messages and current conversation.
+				void syncLatest(selectedConv.id, true);
+			}
 			updateDraftText("");
-			setPendingClientId(null);
+			setPendingSend(null);
 			setReplyTo(null);
 			setPendingContext(null);
 			setUploadedAttachments([]);
@@ -498,7 +650,21 @@ export function CustomerChatView() {
 		if (res.ok) {
 			const updated = (await res.json()) as SupportPreference;
 			setPreference(updated);
+			return;
 		}
+		if ((await problemCode(res)) === "VERSION_CONFLICT") {
+			const convId = selectedConv.id;
+			const prefRes = await fetch(
+				`/api/v1/support/conversations/${convId}/preferences`,
+				{ headers: { Accept: "application/json" } },
+			);
+			if (prefRes.ok && activeConvRef.current === convId) {
+				setPreference((await prefRes.json()) as SupportPreference);
+			}
+			setError(CONFLICT_MESSAGE);
+			return;
+		}
+		setError("Pengaturan percakapan belum tersimpan. Coba lagi.");
 	}
 
 	async function runThreadSearch(e: React.FormEvent) {
@@ -563,6 +729,17 @@ export function CustomerChatView() {
 			setNotifications((prev) =>
 				prev.map((n) => (n.id === updated.id ? updated : n)),
 			);
+			return;
+		}
+		if ((await problemCode(res)) === "VERSION_CONFLICT") {
+			const notifRes = await fetch("/api/v1/support/notifications", {
+				headers: { Accept: "application/json" },
+			});
+			if (notifRes.ok) {
+				const body = (await notifRes.json()) as { data: PrivateNotification[] };
+				setNotifications(body.data);
+			}
+			setError(CONFLICT_MESSAGE);
 		}
 	}
 
@@ -571,12 +748,13 @@ export function CustomerChatView() {
 			id="support-chat"
 			aria-labelledby={`${baseId}-heading`}
 			style={{
-				marginTop: "36px",
-				padding: "20px",
-				border: "1px solid #d8d8df",
-				borderRadius: "8px",
-				background: "#faf9fc",
-				maxWidth: "760px",
+				marginTop: "16px",
+				padding: "24px",
+				borderRadius: "20px",
+				background: "#fff",
+				boxShadow:
+					"0 2px 16px rgba(24, 24, 27, 0.05), 0 0 0 1px rgba(24, 24, 27, 0.05)",
+				maxWidth: "100%",
 				width: "100%",
 				boxSizing: "border-box",
 			}}
@@ -596,20 +774,20 @@ export function CustomerChatView() {
 				}}
 			>
 				<h2 id={`${baseId}-heading`} style={{ margin: 0 }}>
-					Chat Bantuan Pelanggan
+					Chat bantuan pelanggan
 				</h2>
-				<span
+				<p
 					style={{
+						margin: 0,
 						fontSize: "0.8125rem",
-						padding: "4px 10px",
-						borderRadius: "999px",
-						background: "#eae3fb",
-						color: "#4524a8",
-						fontWeight: 600,
+						lineHeight: 1.5,
+						color: "#5b5b63",
+						fontWeight: 500,
+						overflowWrap: "anywhere",
 					}}
 				>
-					Pesan diterima 24/7 • Jam operasional CS 08.00–21.00 WIB
-				</span>
+					Pesan diterima kapan saja. CS membalas pukul 08.00–21.00 WIB.
+				</p>
 			</div>
 
 			<p
@@ -630,7 +808,7 @@ export function CustomerChatView() {
 					style={{
 						padding: "12px 14px",
 						marginBottom: "16px",
-						borderRadius: "6px",
+						borderRadius: "12px",
 						borderLeft: "4px solid #8b241d",
 						background: "#fff4f2",
 						color: "#8b241d",
@@ -656,7 +834,7 @@ export function CustomerChatView() {
 					disabled={loading}
 					style={btnStyle}
 				>
-					Mulai Chat Bantuan
+					Mulai chat bantuan
 				</button>
 				<button
 					type="button"
@@ -664,20 +842,23 @@ export function CustomerChatView() {
 					disabled={loading}
 					style={secondaryBtnStyle}
 				>
-					Muat Percakapan Saya
+					Muat percakapan saya
 				</button>
 				{selectedConv && (
 					<button
 						type="button"
-						onClick={() => setSelectedConv(null)}
+						onClick={() => {
+							activeConvRef.current = null;
+							setSelectedConv(null);
+						}}
 						style={secondaryBtnStyle}
 					>
-						Kembali ke Daftar
+						Kembali ke daftar
 					</button>
 				)}
 			</div>
 
-			<details style={{ marginBottom: "16px" }}>
+			<details className="chat-attach" style={{ marginBottom: "16px" }}>
 				<summary
 					style={{
 						minHeight: "44px",
@@ -688,7 +869,8 @@ export function CustomerChatView() {
 						color: "#5b35d5",
 					}}
 				>
-					Lampirkan Konteks Produk atau Pesanan (Opsional)
+					Lampirkan konteks produk atau pesanan (opsional)
+					<Icon name="chevron" />
 				</summary>
 				<div
 					style={{
@@ -697,7 +879,7 @@ export function CustomerChatView() {
 						padding: "12px",
 						marginTop: "8px",
 						border: "1px solid #d8d8df",
-						borderRadius: "6px",
+						borderRadius: "12px",
 						background: "#fff",
 					}}
 				>
@@ -705,7 +887,7 @@ export function CustomerChatView() {
 						htmlFor={`${baseId}-ctx-type`}
 						style={{ fontWeight: 600, fontSize: "0.875rem" }}
 					>
-						Jenis Konteks
+						Jenis konteks
 					</label>
 					<select
 						id={`${baseId}-ctx-type`}
@@ -718,8 +900,8 @@ export function CustomerChatView() {
 						style={inputStyle}
 					>
 						<option value="none">Tanpa konteks</option>
-						<option value="product">Produk Katalog</option>
-						<option value="order">Pesanan Terverifikasi</option>
+						<option value="product">Produk katalog</option>
+						<option value="order">Pesanan terverifikasi</option>
 					</select>
 					{contextTypeInput !== "none" && (
 						<>
@@ -745,7 +927,7 @@ export function CustomerChatView() {
 										htmlFor={`${baseId}-ctx-token`}
 										style={{ fontWeight: 600, fontSize: "0.875rem" }}
 									>
-										Token Akses Pesanan Tamu (Opsional bila via header)
+										Token akses pesanan tamu (opsional bila via header)
 									</label>
 									<input
 										id={`${baseId}-ctx-token`}
@@ -778,7 +960,7 @@ export function CustomerChatView() {
 										}
 									}}
 								>
-									Siapkan Draf Konteks
+									Siapkan draf konteks
 								</button>
 								{pendingContext && (
 									<button
@@ -786,7 +968,7 @@ export function CustomerChatView() {
 										style={secondaryBtnStyle}
 										onClick={() => setPendingContext(null)}
 									>
-										Hapus Konteks
+										Hapus konteks
 									</button>
 								)}
 							</div>
@@ -797,12 +979,12 @@ export function CustomerChatView() {
 
 			{notifications.filter((n) => !n.dismissed_at).length > 0 && (
 				<section
-					aria-label="Notifikasi Bantuan"
+					aria-label="Notifikasi bantuan"
 					style={{
 						marginBottom: "16px",
 						padding: "12px",
 						border: "1px solid #d8cff4",
-						borderRadius: "6px",
+						borderRadius: "12px",
 						background: "#f7f5fd",
 					}}
 				>
@@ -845,7 +1027,7 @@ export function CustomerChatView() {
 												onClick={() => markNotification(n, "seen")}
 												style={secondaryBtnStyle}
 											>
-												Tandai Dilihat
+												Tandai dilihat
 											</button>
 										)}
 										<button
@@ -853,7 +1035,7 @@ export function CustomerChatView() {
 											onClick={() => markNotification(n, "dismissed")}
 											style={secondaryBtnStyle}
 										>
-											Tutup Notifikasi
+											Tutup notifikasi
 										</button>
 									</div>
 								</li>
@@ -903,9 +1085,9 @@ export function CustomerChatView() {
 							}}
 							style={{ ...inputStyle, width: "auto", flex: "0 1 auto" }}
 						>
-							<option value="">Semua Status</option>
+							<option value="">Semua status</option>
 							<option value="open">Terbuka (open)</option>
-							<option value="waiting_customer">Menunggu Pelanggan</option>
+							<option value="waiting_customer">Menunggu pelanggan</option>
 							<option value="resolved">Selesai (resolved)</option>
 						</select>
 						<button type="submit" style={secondaryBtnStyle}>
@@ -917,7 +1099,7 @@ export function CustomerChatView() {
 						<p style={{ margin: "8px 0", color: "#5b5b63" }}>
 							{viewFilter === "archived"
 								? "Belum ada percakapan di arsip."
-								: "Belum ada percakapan aktif. Klik Mulai Chat Bantuan untuk bertanya."}
+								: "Belum ada percakapan aktif. Klik Mulai chat bantuan untuk bertanya."}
 						</p>
 					) : (
 						<ul
@@ -939,7 +1121,7 @@ export function CustomerChatView() {
 										key={c.id}
 										style={{
 											border: "1px solid #d8d8df",
-											borderRadius: "6px",
+											borderRadius: "12px",
 											padding: "12px",
 											background: "#fff",
 											display: "flex",
@@ -961,7 +1143,7 @@ export function CustomerChatView() {
 											onClick={() => openThread(c)}
 											style={secondaryBtnStyle}
 										>
-											Buka Percakapan
+											Buka percakapan
 										</button>
 									</li>
 								);
@@ -975,7 +1157,7 @@ export function CustomerChatView() {
 				<div
 					style={{
 						border: "1px solid #d8d8df",
-						borderRadius: "8px",
+						borderRadius: "16px",
 						background: "#fff",
 						padding: "16px",
 						display: "grid",
@@ -1009,7 +1191,7 @@ export function CustomerChatView() {
 								onClick={markRead}
 								style={secondaryBtnStyle}
 							>
-								Tandai Dibaca
+								Tandai dibaca
 							</button>
 							{preference && (
 								<>
@@ -1018,7 +1200,7 @@ export function CustomerChatView() {
 										onClick={() => togglePreference("archived")}
 										style={secondaryBtnStyle}
 									>
-										{preference.archived ? "Batal Arsipkan" : "Arsipkan"}
+										{preference.archived ? "Batal arsipkan" : "Arsipkan"}
 									</button>
 									<button
 										type="button"
@@ -1026,8 +1208,8 @@ export function CustomerChatView() {
 										style={secondaryBtnStyle}
 									>
 										{preference.muted
-											? "Bunyikan Notifikasi"
-											: "Bisukan Notifikasi"}
+											? "Bunyikan notifikasi"
+											: "Bisukan notifikasi"}
 									</button>
 								</>
 							)}
@@ -1050,7 +1232,7 @@ export function CustomerChatView() {
 							style={{ ...inputStyle, flex: "1 1 12rem" }}
 						/>
 						<button type="submit" style={secondaryBtnStyle}>
-							Cari Pesan
+							Cari pesan
 						</button>
 						{threadSearchHits !== null && (
 							<button
@@ -1061,7 +1243,7 @@ export function CustomerChatView() {
 								}}
 								style={secondaryBtnStyle}
 							>
-								Reset Pencarian
+								Reset pencarian
 							</button>
 						)}
 					</form>
@@ -1070,7 +1252,7 @@ export function CustomerChatView() {
 						<div
 							style={{
 								padding: "10px",
-								borderRadius: "6px",
+								borderRadius: "12px",
 								background: "#f7f5fd",
 								fontSize: "0.875rem",
 							}}
@@ -1092,9 +1274,26 @@ export function CustomerChatView() {
 						</div>
 					)}
 
+					{hasOlder && (
+						<button
+							type="button"
+							onClick={loadOlderMessages}
+							aria-disabled={loadingOlder}
+							aria-controls={`${baseId}-log`}
+							style={{ ...secondaryBtnStyle, justifySelf: "start" }}
+						>
+							{loadingOlder ? "Memuat pesan..." : "Muat pesan sebelumnya"}
+						</button>
+					)}
+
 					<div
+						ref={logRef}
+						id={`${baseId}-log`}
 						role="log"
 						aria-label="Riwayat pesan percakapan"
+						aria-busy={loadingOlder}
+						// biome-ignore lint/a11y/noNoninteractiveTabindex: scrollable message history must be keyboard-scrollable
+						tabIndex={0}
 						style={{
 							display: "grid",
 							gap: "10px",
@@ -1102,7 +1301,7 @@ export function CustomerChatView() {
 							overflowY: "auto",
 							padding: "8px",
 							border: "1px solid #e7e5ed",
-							borderRadius: "6px",
+							borderRadius: "12px",
 							background: "#faf9fc",
 						}}
 					>
@@ -1120,7 +1319,7 @@ export function CustomerChatView() {
 										key={m.id}
 										style={{
 											padding: "10px 12px",
-											borderRadius: "6px",
+											borderRadius: "12px",
 											border: "1px solid #d8d8df",
 											background: m.sender === "buyer" ? "#f3effb" : "#fff",
 											overflowWrap: "anywhere",
@@ -1141,12 +1340,12 @@ export function CustomerChatView() {
 												#{m.sequence} •{" "}
 												{m.sender === "buyer"
 													? "Anda"
-													: "Layanan Pelanggan (CS)"}
+													: "Layanan pelanggan (CS)"}
 											</strong>
 											<span>
 												{m.sender === "buyer"
 													? isReadByCounterparty
-														? "Terkirim • Dibaca CS"
+														? "Terkirim, dibaca CS"
 														: "Terkirim"
 													: "Diterima"}
 											</span>
@@ -1173,7 +1372,7 @@ export function CustomerChatView() {
 												style={{
 													margin: "4px 0 8px",
 													padding: "8px 10px",
-													borderRadius: "4px",
+													borderRadius: "8px",
 													border: "1px solid #c9c7d3",
 													background: "#fff",
 													fontSize: "0.85rem",
@@ -1247,7 +1446,7 @@ export function CustomerChatView() {
 								alignItems: "center",
 								gap: "8px",
 								padding: "8px 12px",
-								borderRadius: "6px",
+								borderRadius: "12px",
 								background: "#f3effb",
 							}}
 						>
@@ -1259,7 +1458,7 @@ export function CustomerChatView() {
 								onClick={() => setReplyTo(null)}
 								style={secondaryBtnStyle}
 							>
-								Batal Balas
+								Batal balas
 							</button>
 						</div>
 					)}
@@ -1273,7 +1472,7 @@ export function CustomerChatView() {
 								alignItems: "center",
 								gap: "8px",
 								padding: "8px 12px",
-								borderRadius: "6px",
+								borderRadius: "12px",
 								background: "#fff8de",
 							}}
 						>
@@ -1288,14 +1487,14 @@ export function CustomerChatView() {
 								onClick={() => setPendingContext(null)}
 								style={secondaryBtnStyle}
 							>
-								Hapus Konteks
+								Hapus konteks
 							</button>
 						</div>
 					)}
 
 					<form onSubmit={sendMessage} style={{ display: "grid", gap: "10px" }}>
 						<label htmlFor={`${baseId}-composer`} style={{ fontWeight: 600 }}>
-							Tulis Pesan (Enter untuk baris baru, tombol Kirim Pesan untuk
+							Tulis pesan (Enter untuk baris baru, tombol Kirim pesan untuk
 							mengirim)
 						</label>
 						<textarea
@@ -1378,7 +1577,7 @@ export function CustomerChatView() {
 											}
 											style={secondaryBtnStyle}
 										>
-											Hapus Lampiran
+											Hapus lampiran
 										</button>
 									</li>
 								))}
@@ -1397,7 +1596,7 @@ export function CustomerChatView() {
 								htmlFor={`${baseId}-file`}
 								style={{ ...secondaryBtnStyle, cursor: "pointer" }}
 							>
-								Unggah Gambar
+								Unggah gambar
 								<input
 									id={`${baseId}-file`}
 									type="file"
@@ -1407,7 +1606,7 @@ export function CustomerChatView() {
 								/>
 							</label>
 							<button type="submit" disabled={sending} style={btnStyle}>
-								{sending ? "Mengirim..." : "Kirim Pesan"}
+								{sending ? "Mengirim..." : "Kirim pesan"}
 							</button>
 						</div>
 					</form>
@@ -1418,7 +1617,7 @@ export function CustomerChatView() {
 				<div
 					role="dialog"
 					aria-modal="true"
-					aria-label="Peninjau Gambar Lampiran"
+					aria-label="Peninjau gambar lampiran"
 					onKeyDown={(e) => {
 						if (e.key === "Escape") {
 							setViewerAttachment(null);
@@ -1429,7 +1628,7 @@ export function CustomerChatView() {
 						marginTop: "12px",
 						padding: "16px",
 						border: "2px solid #5b35d5",
-						borderRadius: "8px",
+						borderRadius: "16px",
 						background: "#fff",
 					}}
 				>
@@ -1466,7 +1665,7 @@ export function CustomerChatView() {
 							onClick={() => setViewerZoom(1)}
 							style={secondaryBtnStyle}
 						>
-							Reset Ukuran (100%)
+							Reset ukuran (100%)
 						</button>
 						<button
 							type="button"
@@ -1476,7 +1675,7 @@ export function CustomerChatView() {
 							}}
 							style={btnStyle}
 						>
-							Tutup Peninjau
+							Tutup peninjau
 						</button>
 					</div>
 					<div style={{ overflow: "auto", maxWidth: "100%" }}>
