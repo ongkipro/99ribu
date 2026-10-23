@@ -282,7 +282,7 @@ test('S99 booking queue: >100 parcels page completely by packing deadline (nulls
  }finally{rateSeam.adapter=localRateAdapter;if(f){for(const user of staff)await closeFulfillmentActor(f.identity,user).catch(()=>{});await f.close();}}
 });
 
-test('S99 R4: after a unit cancellation the booking COD due is the current collection basis, and a Mengantar statement at that amount flags no mismatch',{timeout:300000},async()=>{
+test('S99 R4: after a unit cancellation the booking and the COD statement form show the current collection basis (read without order locks), and a statement at that amount flags no mismatch',{timeout:300000},async()=>{
  const f=await fulfillmentFixture('cod'),sql=f.identity.sql,identity=f.identity,staff:Awaited<ReturnType<typeof actor>>[]=[];
  try{
   const units=await sql`select f.shipment_id,count(*)::int n from app.fulfillment_item f join app.order_shipment s on s.id=f.shipment_id where s.order_id=${f.order.id} group by 1`;
@@ -310,6 +310,17 @@ test('S99 R4: after a unit cancellation the booking COD due is the current colle
   assert.equal(row.booking.cancelled_units,1);
   assert.equal(row.booking.parcel_items.reduce((n:number,i:{quantity:number})=>n+i.quantity,0),Number(basis.unit_ids.length));
 
+  // Reads take no order locks: with a writer holding this order FOR UPDATE (checkout/payment shape),
+  // the queue page still answers. The locking basis function would wait here until statement_timeout.
+  const writer=await sql.reserve();
+  try{
+   await writer`begin`;await writer`select id from app.commerce_order where id=${f.order.id} for update`;
+   const started=Date.now(),read=await Promise.race([call(f.owner,identity,`/api/v1/admin/manual-shipments?queue=to_book&warehouse_id=${parcel.warehouse_id}&limit=100`),
+    new Promise<never>((_,reject)=>setTimeout(()=>reject(new Error('queue read blocked by an order row lock')),4000))]);
+   assert.equal(read.status,200);assert.ok(Date.now()-started<4000);
+   assert.equal(read.payload.data.find((r:{id:string})=>r.id===parcel.id)?.booking.cod_amount_due,Number(basis.amount));
+  }finally{await writer`rollback`;writer.release();}
+
   // Ship and remit exactly the booked amount: no PARCEL_AMOUNT_MISMATCH.
   const shipped=await call(f.owner,identity,`/api/v1/admin/fulfillments/${parcel.id}/manual-shipment`,{expected_version:row.version,courier:'jne',tracking_number:`JR${String(Date.now()).slice(-8)}01`});
   assert.equal(shipped.status,201,JSON.stringify(shipped.payload));
@@ -317,7 +328,12 @@ test('S99 R4: after a unit cancellation the booking COD due is the current colle
   await sql`update app.role_grant set permissions=${['finance.reconciliation.read','finance.reconciliation.write']} where user_id=${finance.id}`;
   const remittanceId=randomUUID(),proofRequest=finance.browser.request('/api/v1/me/reauthentication-proofs',{password:finance.password,action:'finance.reconcile',subject_id:remittanceId});proofRequest.headers.set('idempotency-key',randomUUID());
   const proofResponse=await handleAccess(proofRequest,identity);assert.equal(proofResponse.status,201);
-  const amount=row.booking.cod_amount_due,request=finance.browser.request('/api/v1/admin/cod-remittances',{id:remittanceId,reference:`MGT-S99-${String(Date.now()).slice(-6)}`,statement_at:new Date().toISOString(),lines:[{shipment_id:parcel.shipment_id,amount}],
+  // The finance statement form lists the same current amount (not the frozen cod_due), also lock-free.
+  const collectibleRequest=finance.browser.request(`/api/v1/admin/cod-collectible-parcels?reference=${f.order.number}`);
+  const collectible=await (await handleCodRemittances(collectibleRequest,identity)).json();
+  const listedParcel=collectible.data.find((p:{shipment_id:string})=>p.shipment_id===parcel.shipment_id);assert.ok(listedParcel,JSON.stringify(collectible));
+  assert.equal(listedParcel.cod_due,row.booking.cod_amount_due);assert.ok(listedParcel.cod_due<Number(stored.cod_due));
+  const amount=listedParcel.cod_due,request=finance.browser.request('/api/v1/admin/cod-remittances',{id:remittanceId,reference:`MGT-S99-${String(Date.now()).slice(-6)}`,statement_at:new Date().toISOString(),lines:[{shipment_id:parcel.shipment_id,amount}],
    shipping_deduction:0,cod_fee_deduction:0,other_deduction:0,net_amount:amount,evidence:'Laporan saldo COD dashboard Mengantar',reason:'Penarikan saldo COD',reauthentication_proof:(await proofResponse.json()).proof});
   request.headers.set('idempotency-key',randomUUID());const recorded=await handleCodRemittances(request,identity),payload=await recorded.json();
   assert.equal(recorded.status,201,JSON.stringify(payload));assert.deepEqual(payload.flags,[],'the remittance expects exactly the booked amount');

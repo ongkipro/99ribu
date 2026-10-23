@@ -16034,7 +16034,10 @@ components:
               order_number:
                 type: string
               cod_due:
-                $ref: '#/components/schemas/Money'
+                allOf:
+                - $ref: '#/components/schemas/Money'
+                description: Current COD collection basis (surviving units incl. their COD fee shares), the amount a
+                  statement line is checked against; below order_shipment.cod_due after a unit cancellation.
               handed_over_at:
                 $ref: '#/components/schemas/DateTime'
               courier:

@@ -9,7 +9,7 @@ import {enqueueJob} from '../../jobs/outbox.ts';
 import {lockPaymentOrder} from '../payments/attempts.ts';
 import {financeEnvironment,financeInstant} from '../finance/ledger.ts';
 import {createManualParcelReceiptSource,registerParcelReceiptSource} from '../returns/receipt-source.ts';
-import {codCollectionBasis} from '../finance/receipt-units.ts';
+import {readCodCollectionBasis} from '../finance/receipt-units.ts';
 import {advanceFulfillment,fulfillmentClock,lockFulfillment,projectFulfillment} from './core.ts';
 import {commitHandover,commitPreparation,mutate} from './commands.ts';
 
@@ -142,8 +142,9 @@ async function bookingFacts(tx:TransactionSql,shipmentId:string){
   (select count(*)::int from app.fulfillment_item unit where unit.shipment_id=s.id and exists(select 1 from app.exception_cancellation c where c.fulfillment_item_id=unit.id and c.replacement_link_id is null)) cancelled_units
   from app.order_shipment s join app.commerce_order o on o.id=s.order_id join app.checkout_quote q on q.id=o.quote_id where s.id=${shipmentId}`;
  // R4: the courier collects the CURRENT basis (surviving units incl. their frozen COD fee shares),
- // the same source the COD collection and Mengantar remittance check use, never the frozen cod_due.
- const basis=s.payment_method==='cod'?await codCollectionBasis(tx,shipmentId):null;
+ // the same basis the COD collection and Mengantar remittance check use, never the frozen cod_due.
+ // Non-locking read: a queue page must not lock up to 100 orders (writers keep codCollectionBasis).
+ const basis=s.payment_method==='cod'?await readCodCollectionBasis(tx,shipmentId):null;
  const items=await tx`select i.snapshot->>'name' name,i.snapshot->'offer'->>'label' variant_label,count(*)::int quantity from app.fulfillment_item unit join app.order_item i on i.id=unit.order_item_id
   where unit.shipment_id=${shipmentId} and not exists(select 1 from app.exception_cancellation c where c.fulfillment_item_id=unit.id and c.replacement_link_id is null) group by 1,2 order by 1,2`;
  const rate=(s.snapshot.options as {id:string;courier_name:string;service_name:string}[]).find(option=>option.id===s.snapshot.selected_option_id),measures=s.snapshot.measures,address=s.address;

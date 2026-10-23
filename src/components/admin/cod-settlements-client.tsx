@@ -370,7 +370,7 @@ function RecordDialog({
 								<label htmlFor={`cod-${p.shipment_id}`} className="min-w-40 text-sm">
 									{p.order_number}
 									<span className="block font-mono text-xs text-muted-foreground">
-										{p.tracking_number ?? "—"} · tagihan {rupiah(p.cod_due)}
+										{p.tracking_number ?? "—"} · tagihan saat ini {rupiah(p.cod_due)}
 									</span>
 								</label>
 								{p.shipment_id in amounts && (

@@ -16,6 +16,19 @@ export function collectionUnitTotals(units:readonly Unit[]):CollectionBasis{
  return {unit_ids:normalized.map(unit=>unit.id).sort(),merchandise_amount:Number(merchandise),buyer_shipping:Number(shipping),payment_charge:Number(charge),amount:Number(merchandise+shipping+charge)};
 }
 
+// Read-only display of the current COD basis (queues, statement forms): the same surviving units and
+// the same collectionUnitTotals sum as app.cod_current_collection_basis, but without its FOR UPDATE
+// on the order, so a page of rows never blocks checkout/payment writers. Writers keep the locking
+// codCollectionBasis below; a concurrent cancellation can only make this snapshot stale, never wrong.
+export async function readCodCollectionBasis(tx:TransactionSql,shipmentId:string):Promise<CollectionBasis>{
+ const selected=id(shipmentId);
+ const [parcel]=await tx`select o.payment_method from app.order_shipment s join app.commerce_order o on o.id=s.order_id where s.id=${selected}`;
+ if(parcel?.payment_method!=='cod')throw new AccessError(404,'NOT_FOUND');
+ const units=await tx<{id:string;unit_price:string;buyer_shipping:string;payment_charge:string}[]>`select f.id,i.unit_price,f.buyer_shipping,f.payment_charge from app.fulfillment_item f join app.order_item i on i.id=f.order_item_id
+  where f.shipment_id=${selected} and not exists(select 1 from app.exception_cancellation c where c.fulfillment_item_id=f.id and c.replacement_link_id is null) order by f.id`;
+ return collectionUnitTotals(units.map(unit=>({id:unit.id,unit_price:Number(unit.unit_price),buyer_shipping:Number(unit.buyer_shipping),payment_charge:Number(unit.payment_charge)})));
+}
+
 // Internal facts, not authorization. Caller holds the original order lock.
 // A frozen operation retains its unit set even after later cancellation. Only
 // the current basis excludes units that have already been explicitly retired.
