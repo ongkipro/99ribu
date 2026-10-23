@@ -106,15 +106,23 @@ async function open(cookies: { name: string; value: string; path?: string }[]) {
 const asStaff = (user: User) => open([...user.browser.cookies].map(([name, value]) => ({ name, value })));
 const asBuyer = (client: CommerceClient) => open([...client.cookies.values()]);
 
-async function capture(page: Page, name: string, storefront = false) {
-	await mkdir(output, { recursive: true });
+async function capture(page: Page, name: string, storefront = false, dir = output) {
+	await mkdir(dir, { recursive: true });
 	await page.evaluate(() => document.fonts.ready);
 	await expect(page.getByText("Menyimpan draf…", { exact: true })).not.toBeVisible();
 	if (storefront) assert.doesNotMatch(await page.locator("body").innerText(), /SYNTHETIC|\[s9192-[a-f0-9]+\]/, "Buyer-visible fixture labels stay natural Indonesian");
 	await page.mouse.move(0, 0);
-	await page.screenshot({ path: `${output}/${name}.png`, fullPage: true });
+	await page.screenshot({ path: `${dir}/${name}.png`, fullPage: true });
 	const overflow = await page.evaluate(() => document.documentElement.scrollWidth - document.documentElement.clientWidth);
 	assert.ok(overflow <= 1, `No horizontal overflow on ${name} (${overflow}px)`);
+}
+// S99/S100 console screens: phone, tablet and desktop widths into their own render folder.
+async function captureAll(page: Page, name: string) {
+	for (const width of [390, 768, 1440]) {
+		await page.setViewportSize({ width, height: 900 });
+		await capture(page, `${name}-${width}`, false, `${RENDERS}/s99-s100`);
+	}
+	await page.setViewportSize({ width: 390, height: 900 });
 }
 async function captureBoth(page: Page, name: string, storefront = false) {
 	for (const width of [390, 1440]) {
@@ -337,6 +345,107 @@ test("S91 built browser: scoped warehouse staff records a Berlapak reference and
 		assert.deepEqual(buyer.problems, []);
 	} finally {
 		await buyer.context.close();
+	}
+});
+
+test("S99/S100 built browser: the manual queue shows the booking facts and the buyer's quoted courier, the resi dialog carries the parcel COD due; staff open the order detail from the queue, find an order by resi and from the dashboard", LONG, async () => {
+	await syncClock();
+	const { client, cart } = await guestCart(curated.products.shirt, 1);
+	const quote = await client.call("/api/v1/checkout/quotes", { cart_id: cart, address: ADDRESS, contact: { phone: `+62812${String(Math.floor(Math.random() * 1e8)).padStart(8, "0")}`, email: null }, payment_method: "cod" }, { version: 1 });
+	assert.equal(quote.response.status, 201, JSON.stringify(quote.payload));
+	const submitted = await client.call("/api/v1/orders", { quote_id: quote.payload.id }, { version: 1 });
+	assert.equal(submitted.response.status, 201, JSON.stringify(submitted.payload));
+	const order = submitted.payload.order as { id: string; number: string };
+	orders.add(order.id);
+	const [parcel] = await parcelsOf(order.id);
+	assert.ok(parcel, "one shirt ships as one parcel");
+	const [stored] = await sql`select cod_due,payment_charge,snapshot from app.order_shipment where id=${parcel.shipment_id}`;
+	const rate = (stored.snapshot.options as { id: string; courier_name: string; service_name: string }[]).find((o) => o.id === stored.snapshot.selected_option_id);
+	assert.ok(rate);
+	const codDue = rupiah(Number(stored.cod_due));
+
+	// Order-history grant scoped to this parcel's warehouse: sees the queue and the order link.
+	const admin = await actor(identity, "ecommerce_admin", [String(parcel.warehouse_id)]);
+	users.push(admin);
+	await enroll(admin.browser, admin.password);
+	await sql`update app.role_grant set permissions=${["orders.history.read"]} where user_id=${admin.id}`;
+	const desk = await asStaff(admin);
+	try {
+		const { page } = desk;
+		await page.goto(`${origin}/admin/fulfillment`);
+		await expect(page.getByTestId("manual-scope-rule")).toContainText("hanya melihat gudang yang ditugaskan");
+		const row = page.getByRole("row").filter({ hasText: order.number });
+		await expect(row).toHaveCount(1);
+		await expect(row).toContainText("Penerima Contoh");
+		await expect(row).toContainText(`${rate.courier_name} · ${rate.service_name}`);
+		await expect(row).toContainText(codDue);
+		await expect(row).toContainText("Berat");
+		await captureAll(page, "s99-booking-queue");
+
+		await row.getByRole("button", { name: "Catat resi" }).click();
+		const dialog = page.getByRole("dialog", { name: `Catat resi ${order.number}` });
+		await expect(dialog).toBeVisible();
+		await expect(dialog.getByTestId("booking-cod-due")).toHaveText(codDue);
+		await expect(dialog.getByTestId("booking-sheet")).toContainText("Jalan Contoh 12 RT 01");
+		await expect(dialog.getByText(`Pilihan pembeli: ${rate.courier_name} · ${rate.service_name}`)).toBeVisible();
+		// The local simulator's courier name maps to no Mengantar code, so nothing is pre-selected;
+		// a mapped name (live estimate, gated S95) pre-selects it (integration case "S99 booking queue").
+		await expect(dialog.getByLabel("Kurir", { exact: true })).toHaveValue("");
+		await captureAll(page, "s99-booking-dialog");
+		await dialog.getByRole("button", { name: "Batal" }).click();
+		await expect(dialog).toHaveCount(0);
+
+		// Queue → order detail (same console, client navigation).
+		await row.getByRole("link", { name: order.number }).click();
+		await page.waitForURL(`${origin}/admin/orders/${order.id}`);
+		await expect(page.getByRole("heading", { name: order.number, level: 1 })).toBeVisible();
+		await expect(page.getByTestId("order-payment")).toContainText("Biaya COD (3,33%)");
+		await expect(page.getByTestId("order-shipments")).toContainText("Belum terbit");
+		await expect(page.getByTestId("order-history")).toBeVisible();
+		await captureAll(page, "s100-order-detail");
+		assert.deepEqual(desk.problems, []);
+	} finally {
+		await desk.context.close();
+	}
+
+	// Warehouse staff never read whole orders: the console page says so.
+	const keeper = await asStaff(staff);
+	try {
+		await keeper.page.goto(`${origin}/admin/orders`);
+		await expect(keeper.page.getByRole("heading", { name: "Akses riwayat pesanan diperlukan" })).toBeVisible();
+		assert.equal((await keeper.page.request.get(`${origin}/api/v1/admin/orders/${order.id}`)).status(), 403);
+	} finally {
+		await keeper.context.close();
+	}
+
+	// Super Admin finds the S91 parcel by its resi and sees courier, resi and tracking; the dashboard links the new order.
+	assert.ok(s91, "the S91 case shipped a parcel with a resi");
+	const desk2 = await asStaff(owner);
+	try {
+		const { page } = desk2;
+		await page.goto(`${origin}/admin/orders`);
+		await page.getByLabel("Cari berdasarkan").selectOption("resi");
+		await page.getByLabel("Nomor resi", { exact: true }).fill(s91.resi.toLowerCase());
+		await page.getByRole("button", { name: "Cari" }).click();
+		const hit = page.getByTestId("order-row");
+		await expect(hit).toHaveCount(1);
+		await expect(hit).toContainText(s91.number);
+		await captureAll(page, "s100-order-search");
+		await hit.getByRole("link", { name: s91.number }).click();
+		await page.waitForURL(new RegExp(`/admin/orders/${s91.order}`));
+		await expect(page.getByTestId("order-shipments")).toContainText(s91.resi);
+		await expect(page.getByTestId("order-shipments")).toContainText("Dalam perjalanan");
+		await expect(page.getByTestId("order-shipments")).toContainText("JNE");
+		await captureAll(page, "s100-order-detail-shipped");
+		await page.getByRole("link", { name: "Kembali ke pencarian pesanan" }).click();
+		await expect(page.getByLabel("Nomor resi", { exact: true })).toHaveValue(s91.resi.toLowerCase());
+
+		await page.goto(`${origin}/admin?workspace=owner`);
+		const link = page.getByRole("link", { name: `Buka detail pesanan ${order.number}` });
+		await expect(link).toHaveAttribute("href", `/admin/orders/${order.id}`);
+		assert.deepEqual(desk2.problems, []);
+	} finally {
+		await desk2.context.close();
 	}
 });
 

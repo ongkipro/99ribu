@@ -1,5 +1,6 @@
 import { ManualFulfillmentClient } from "../../../../components/admin/manual-fulfillment-client";
 import { AccessDenied } from "../../../../components/admin/access-denied";
+import { canReadOrders } from "../../../../components/admin/order-model";
 import { readStaffAccess } from "../staff-roles";
 
 export const dynamic = "force-dynamic";
@@ -10,7 +11,7 @@ export const metadata = {
 
 // Navigation gate only; every API call re-checks role, MFA and warehouse scope.
 export default async function ManualFulfillmentPage() {
-	const { roles } = await readStaffAccess();
+	const { roles, permissions } = await readStaffAccess();
 	const allowed = roles.some((r) => ["owner", "ecommerce_admin", "warehouse"].includes(r));
 	if (!allowed)
 		return (
@@ -30,6 +31,7 @@ export default async function ManualFulfillmentPage() {
 			</header>
 			<ManualFulfillmentClient
 				canManageProfiles={roles.some((r) => ["owner", "ecommerce_admin"].includes(r))}
+				canViewOrders={canReadOrders(roles, permissions)}
 			/>
 		</div>
 	);

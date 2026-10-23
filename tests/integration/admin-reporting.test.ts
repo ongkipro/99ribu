@@ -219,6 +219,7 @@ test("T-34: role-scoped dashboards, unknown vs zero cost metrics, drilldown cons
 					"due_at",
 					"due_at_kind",
 					"id",
+					"order_id",
 					"reference",
 					"resource_kind",
 					"state",
@@ -242,6 +243,8 @@ test("T-34: role-scoped dashboards, unknown vs zero cost metrics, drilldown cons
 			const fact = orderFacts.find((o) => o.id === row.id);
 			assert.ok(fact);
 			assert.equal(row.reference, fact.number);
+			// S100: the order detail link target is the order itself.
+			assert.equal(row.order_id, fact.id);
 			assert.equal(
 				row.due_at_kind,
 				fact.expires_at ? "payment_deadline" : "created",
@@ -265,6 +268,7 @@ test("T-34: role-scoped dashboards, unknown vs zero cost metrics, drilldown cons
 			due_at: string | null;
 			due_at_kind: string | null;
 			reference: string | null;
+			order_id: string | null;
 		}[];
 		if (fulfillmentRows.length) {
 			const facts = await f.identity.sql<
@@ -273,8 +277,9 @@ test("T-34: role-scoped dashboards, unknown vs zero cost metrics, drilldown cons
 					reference: string;
 					kind: string;
 					due_at: string;
+					order_id: string;
 				}[]
-			>`select f.id, coalesce(f.tracking_number, o.number) as reference,
+			>`select f.id, o.id::text as order_id, coalesce(f.tracking_number, o.number) as reference,
 				case when d.packing_due_at is not null then 'packing_deadline' when d.handover_due_at is not null then 'handover_deadline' else 'created' end as kind,
 				coalesce(d.packing_due_at, d.handover_due_at, f.created_at) as due_at
 				from app.fulfillment f join app.order_shipment s on s.id = f.shipment_id join app.commerce_order o on o.id = s.order_id
@@ -284,6 +289,7 @@ test("T-34: role-scoped dashboards, unknown vs zero cost metrics, drilldown cons
 				const fact = facts.find((x) => x.id === row.id);
 				assert.ok(fact);
 				assert.equal(row.reference, fact.reference);
+				assert.equal(row.order_id, fact.order_id);
 				assert.equal(row.due_at_kind, fact.kind);
 				assert.equal(row.due_at, new Date(fact.due_at).toISOString());
 			}

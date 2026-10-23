@@ -15,6 +15,8 @@ export type ShippingLine={line_id:string;product_id:string;offer_id:string;publi
 export type ShippingPlan={id:string;payment_method:'prepaid'|'cod';destination_id:string;destination_version:string;expires_at:string;pricing_evaluated_at:string;source:'TEST-ONLY';
   merchandise_total:number;shipping_total:number;default_warehouse_units:number;packages:{id:string;warehouse_id:string;origin_city:string;measures:CompleteUnit['measures'];lines:{line_id:string;quantity:number}[];options:Rate[];selected_option_id:string;merchandise_amount:number;shipping_amount:number}[];
   lines:(ShippingLine&{product_revision:number})[]};
+// Rate adapter seam (the gated live Mengantar estimate, S95, plugs in here); tests swap it in-process.
+export const rateSeam:{adapter:RateAdapter}={adapter:localRateAdapter};
 const hash=(value:unknown)=>createHash('sha256').update(JSON.stringify(value)).digest('hex');
 const compare=(a:string,b:string)=>a<b?-1:a>b?1:0;
 export async function buildShippingPlans(tx:TransactionSql,value:unknown,context:{clock_namespace?:string|null;adapter?:RateAdapter}={}){
@@ -64,7 +66,7 @@ export async function buildShippingPlans(tx:TransactionSql,value:unknown,context
       if(Date.now()>deadline) throw new AccessError(503,'SHIPPING_RATE_TIMEOUT');
       const key=parcelKey({...parcel,lines:[]});let options=rates.get(key);
       const origin=eligible.find((w)=>w.id===parcel.warehouse_id);if(!origin) throw new AccessError(422,'ROUTE_UNCONFIGURED');
-      if(!options){if(rates.size>=500) throw new AccessError(422,'ALLOCATION_REVIEW_REQUIRED');options=await estimateRates(context.adapter??localRateAdapter,{warehouse_id:origin.id,origin:{province:origin.province,city:origin.city,district:origin.district},destination_id:body.destination_id,measures:parcel.measures,now:businessNow},deadline-Date.now());rates.set(key,options);}
+      if(!options){if(rates.size>=500) throw new AccessError(422,'ALLOCATION_REVIEW_REQUIRED');options=await estimateRates(context.adapter??rateSeam.adapter,{warehouse_id:origin.id,origin:{province:origin.province,city:origin.city,district:origin.district},destination_id:body.destination_id,measures:parcel.measures,now:businessNow},deadline-Date.now());rates.set(key,options);}
       if(!options.length) prepaidCandidate=false;
       const supported=options.filter((r)=>method==='prepaid'||r.supports_cod).sort((a,b)=>a.shipping_amount-b.shipping_amount||compare(a.id,b.id));
       if(!supported.length){valid=false;continue;}const selected=supported[0];

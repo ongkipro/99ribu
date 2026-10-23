@@ -97,6 +97,7 @@ interface WorkQueueItem {
 	warehouse_id: string | null;
 	version: number;
 	reference: string | null;
+	order_id: string | null;
 }
 
 type DueAtKind =
@@ -1040,6 +1041,10 @@ export function AdminWorkspacesClient({
 	const exportConfig = QUEUE_EXPORT_CONFIG[queue];
 	const canPrint = workspace === "owner" || workspace === "warehouse";
 	const canSupport = workspace === "owner" || workspace === "customer_service";
+	// S100: whole-order detail; the page and API re-check permission and warehouse scope.
+	const canOrders =
+		!preview &&
+		["owner", "ecommerce_admin", "customer_service", "finance"].includes(workspace);
 	const timezone = dashboard?.timezone ?? "Asia/Jakarta";
 	const dateTime = new Intl.DateTimeFormat("id-ID", {
 		timeZone: timezone,
@@ -1194,9 +1199,19 @@ export function AdminWorkspacesClient({
 			<span className="text-xs text-muted-foreground">
 				{KIND_LABELS[item.resource_kind] ?? item.resource_kind}
 			</span>
-			<span className="font-mono text-sm font-medium break-all" title={item.id}>
-				{referenceText(item)}
-			</span>
+			{canOrders && item.order_id ? (
+				<Link
+					href={`/admin/orders/${item.order_id}`}
+					className="font-mono text-sm font-medium break-all text-primary underline-offset-4 hover:underline"
+					aria-label={`Buka detail pesanan ${referenceText(item)}`}
+				>
+					{referenceText(item)}
+				</Link>
+			) : (
+				<span className="font-mono text-sm font-medium break-all" title={item.id}>
+					{referenceText(item)}
+				</span>
+			)}
 		</div>
 	);
 	const rowTimeLabel = (item: WorkQueueItem) =>

@@ -326,6 +326,8 @@ export interface QueueRowInternal {
 	amount_idr: number | null;
 	/** Human reference: order number, waybill, SKU or settlement reference; null when the row has none. */
 	reference: string | null;
+	/** S100: the order the row belongs to (order detail link target); null for stock and settlement rows. */
+	order_id: string | null;
 }
 
 export type DueAtKind =
@@ -397,6 +399,7 @@ async function queryQueueRows(
 				version: Number(r.revision ?? 1),
 				amount_idr: Number(r.buyer_total ?? 0),
 				reference: String(r.number),
+				order_id: String(r.id),
 			}));
 	}
 
@@ -413,9 +416,11 @@ async function queryQueueRows(
 				created_at: string;
 				tracking_number: string | null;
 				order_number: string;
+				order_id: string;
 			}[]
 		>`
       select f.id,
+             s.order_id::text as order_id,
              f.status,
              f.revision,
              s.warehouse_id::text as warehouse_id,
@@ -447,6 +452,7 @@ async function queryQueueRows(
 				version: Number(r.revision ?? 1),
 				amount_idr: null,
 				reference: String(r.tracking_number ?? r.order_number),
+				order_id: String(r.order_id),
 			}));
 	}
 
@@ -460,9 +466,11 @@ async function queryQueueRows(
 				occurred_at: string;
 				warehouse_id: string | null;
 				order_number: string | null;
+				order_id: string | null;
 			}[]
 		>`
       select e.id,
+             e.order_id::text as order_id,
              e.status,
              e.revision,
              e.kind,
@@ -501,6 +509,7 @@ async function queryQueueRows(
 				version: Number(r.revision ?? 1),
 				amount_idr: null,
 				reference: r.order_number ? String(r.order_number) : null,
+				order_id: r.order_id ? String(r.order_id) : null,
 			}));
 	}
 
@@ -514,9 +523,11 @@ async function queryQueueRows(
 				warehouse_id: string | null;
 				merchandise_amount: string;
 				order_number: string | null;
+				order_id: string | null;
 			}[]
 		>`
       select rc.id,
+             rc.order_id::text as order_id,
              rc.status,
              rc.revision,
              rc.created_at,
@@ -555,6 +566,7 @@ async function queryQueueRows(
 				version: Number(r.revision ?? 1),
 				amount_idr: Number(r.merchandise_amount ?? 0),
 				reference: r.order_number ? String(r.order_number) : null,
+				order_id: r.order_id ? String(r.order_id) : null,
 			}));
 	}
 
@@ -602,6 +614,7 @@ async function queryQueueRows(
 					version: Number(r.revision ?? 1),
 					amount_idr: null,
 					reference: String(r.sku),
+					order_id: null,
 				};
 			})
 			.filter((r) =>
@@ -618,9 +631,11 @@ async function queryQueueRows(
 				revision: number;
 				updated_at: string;
 				order_number: string | null;
+				order_id: string | null;
 			}[]
 		>`
       select c.id,
+             c.primary_order_id::text as order_id,
              c.status,
              c.assigned_user_id,
              c.revision,
@@ -643,6 +658,7 @@ async function queryQueueRows(
 				version: Number(r.revision ?? 1),
 				amount_idr: null,
 				reference: r.order_number ? String(r.order_number) : null,
+				order_id: r.order_id ? String(r.order_id) : null,
 			}));
 	}
 
@@ -681,6 +697,7 @@ async function queryQueueRows(
 				version: Number(r.revision ?? 1),
 				amount_idr: Number(r.net_amount ?? 0),
 				reference: String(r.reference),
+				order_id: null,
 			}));
 	}
 
@@ -1238,6 +1255,7 @@ export async function listWorkQueue(request: Request, identity: LocalAuth) {
 			warehouse_id: row.warehouse_id,
 			version: row.version,
 			reference: row.reference,
+			order_id: row.order_id,
 		})),
 		pagination: {
 			next_cursor: nextCursor,

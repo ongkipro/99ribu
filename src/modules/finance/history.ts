@@ -25,6 +25,8 @@ function cursor(value:string|null,hash:string):Position|null{
 const encode=(row:{stamp:string;id:string},hash:string)=>Buffer.from(JSON.stringify({t:row.stamp,id:row.id,h:hash})).toString('base64url');
 function limit(value:string|null){const raw=value??'20';if(!/^(?:[1-9]|[1-9][0-9]|100)$/.test(raw)) throw invalid();return Number(raw);}
 function parameters(url:URL,allowed:string[]){for(const key of url.searchParams.keys()) if(!allowed.includes(key)||url.searchParams.getAll(key).length!==1) throw invalid();return url.searchParams;}
+// 6–12 digits: enough to narrow a lookup, never a free-text PII search.
+function phoneSuffix(value:string|null){if(value===null||!/^\d{6,12}$/.test(value)) throw invalid();return value;}
 function state(value:string|null,allowed:string[]){if(value!==null&&!allowed.includes(value)) throw invalid();return value;}
 const scope=(p:Principal)=>({id:p.id,roles:[...p.roles].sort(),permissions:[...p.permissions].sort(),warehouses:p.warehouseIds});
 async function currentSession(tx:TransactionSql,p:Principal){if(!(await tx`select id from app.auth_session where id=${p.sessionId} and user_id=${p.id} and expires_at>clock_timestamp()`).length) throw new AccessError(403,'FORBIDDEN');}
@@ -37,26 +39,36 @@ async function referenceLimit(tx:TransactionSql,p:Principal){
 }
 
 export async function listOrderHistory(identity:LocalAuth,principal:Principal,url:URL){
- const p=parameters(url,['cursor','limit','from','to','status','payment_status','warehouse_id','reference','fulfillment_status','return_status']);
+ const p=parameters(url,['cursor','limit','from','to','status','payment_status','warehouse_id','reference','phone_suffix','fulfillment_status','return_status']);
  const filters={from:p.has('from')?financeInstant(p.get('from')):null,to:p.has('to')?financeInstant(p.get('to')):null,
   status:state(p.get('status'),['pending','processing','partially_completed','cancelled']),payment_status:state(p.get('payment_status'),['pending','cod_due','partially_collected','confirmed','expired','failed','partially_refunded','refunded']),
-  warehouse_id:p.has('warehouse_id')?id(p.get('warehouse_id')):null,reference:p.has('reference')?text(p.get('reference'),100):null,
+  warehouse_id:p.has('warehouse_id')?id(p.get('warehouse_id')):null,reference:p.has('reference')?text(p.get('reference'),100):null,phone_suffix:p.has('phone_suffix')?phoneSuffix(p.get('phone_suffix')):null,
   fulfillment_status:state(p.get('fulfillment_status'),['ready','picking','packed','handover_pending','handed_over','exception']),return_status:state(p.get('return_status'),['requested','reviewing','approved','rejected','awaiting_goods','inspecting','refunding','replacing','resolved'])};
  if(filters.from&&filters.to&&filters.from>=filters.to||filters.reference&&/[\p{Cc}\p{Cf}]/u.test(filters.reference)) throw invalid();
  const take=limit(p.get('limit'));
  return identity.sql.begin(async tx=>{
-  const access=await historyAuthority(tx,principal),hash=fingerprint({scope:scope(access),filters}),position=cursor(p.get('cursor'),hash);if(filters.reference) await referenceLimit(tx,access);
+  const access=await historyAuthority(tx,principal),hash=fingerprint({scope:scope(access),filters}),position=cursor(p.get('cursor'),hash);if(filters.reference||filters.phone_suffix) await referenceLimit(tx,access);
   const [installed]=await tx`select to_regclass('app.fulfillment') is not null installed,to_regclass('app.return_case') is not null returns_installed,to_regclass('app.replacement_shipment') is not null replacements_installed`;
   const replacementScope=installed.replacements_installed?tx`not exists(select 1 from app.replacement_shipment s join app.return_case c on c.id=s.case_id where c.order_id=o.id and not (s.warehouse_id=any(${access.warehouseIds}::uuid[])))`:tx`true`;
   const replacementWarehouse=installed.replacements_installed?tx`exists(select 1 from app.replacement_shipment s join app.return_case c on c.id=s.case_id where c.order_id=o.id and s.warehouse_id=${filters.warehouse_id}::uuid)`:tx`false`;
   const fulfillmentMatch=filters.fulfillment_status===null?tx`true`:installed.installed?tx`exists(select 1 from app.fulfillment f join app.order_shipment shipment on shipment.id=f.shipment_id where shipment.order_id=o.id and f.status=${filters.fulfillment_status})`:tx`false`;
   const returnMatch=filters.return_status===null?tx`true`:installed.returns_installed?tx`exists(select 1 from app.return_case c where c.order_id=o.id and c.status=${filters.return_status})`:tx`false`;
+  // S100: reference is an exact order number (any case) or an exact resi, current or superseded
+  // (spaces removed, upper case), of the carrier booking or a manual Mengantar entry.
+  const resi=filters.reference===null?null:filters.reference.replace(/\s+/g,'').toUpperCase();
+  const trackingMatch=resi===null||!installed.installed?tx`false`:tx`exists(select 1 from app.order_shipment s join app.fulfillment f on f.shipment_id=s.id where s.order_id=o.id
+   and (f.tracking_number=${resi} or exists(select 1 from app.manual_tracking mt where mt.fulfillment_id=f.id and mt.tracking_number=${resi})))`;
+  // Exact digit suffix of the buyer contact or recipient phone; never echoed, logged or audited.
+  // lazy: sequential scan of quotes; add an expression index if search latency grows (migration slice).
+  const phoneMatch=filters.phone_suffix===null?tx`true`:tx`exists(select 1 from app.checkout_quote q where q.id=o.quote_id and (
+   right(regexp_replace(coalesce(q.document->'contact'->>'phone',''),'[^0-9]','','g'),${filters.phone_suffix.length})=${filters.phone_suffix}
+   or right(regexp_replace(coalesce(q.document->'address'->>'phone',''),'[^0-9]','','g'),${filters.phone_suffix.length})=${filters.phone_suffix}))`;
   const rows=await tx`select o.*,to_char(o.created_at at time zone 'UTC','YYYY-MM-DD"T"HH24:MI:SS.US"Z"') stamp from app.commerce_order o where o.revision>0
    and (${access.roles.includes('owner')} or (exists(select 1 from app.order_shipment s where s.order_id=o.id) and not exists(select 1 from app.order_shipment s where s.order_id=o.id and not (s.warehouse_id=any(${access.warehouseIds}::uuid[]))) and ${replacementScope}))
    and (${filters.from}::timestamptz is null or o.created_at>=${filters.from}::timestamptz) and (${filters.to}::timestamptz is null or o.created_at<${filters.to}::timestamptz)
    and (${filters.status}::text is null or o.status=${filters.status}) and (${filters.payment_status}::text is null or o.payment_status=${filters.payment_status})
    and (${filters.warehouse_id}::uuid is null or exists(select 1 from app.order_shipment s where s.order_id=o.id and s.warehouse_id=${filters.warehouse_id}::uuid) or ${replacementWarehouse})
-   and (${filters.reference}::text is null or o.number=${filters.reference}) and ${returnMatch} and ${fulfillmentMatch}
+   and (${filters.reference}::text is null or o.number=upper(${filters.reference}) or ${trackingMatch}) and ${phoneMatch} and ${returnMatch} and ${fulfillmentMatch}
    and (${position===null} or (o.created_at,o.id)<(${position?.t??'1970-01-01T00:00:00.000000Z'}::timestamptz,${position?.id??'00000000-0000-0000-0000-000000000000'}::uuid)) order by o.created_at desc,o.id desc limit ${take+1}`;
   const selected=rows.slice(0,take),data=[];
   for(const row of selected){const shipments=await tx`select distinct warehouse_id from app.order_shipment where order_id=${row.id}`;

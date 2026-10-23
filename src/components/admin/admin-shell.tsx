@@ -10,6 +10,7 @@ import {
 	MessagesSquare,
 	Package,
 	Printer,
+	ReceiptText,
 	Store,
 	Truck,
 	Wallet,
@@ -37,6 +38,7 @@ import {
 import { TooltipProvider } from "@/components/ui/tooltip";
 import type { CanonicalWorkspace } from "./admin-workspaces-client";
 import { catalogAccess } from "./catalog-model";
+import { canReadOrders } from "./order-model";
 
 export const WORKSPACE_NAV: Record<
 	CanonicalWorkspace,
@@ -124,12 +126,14 @@ function ActiveWorkspaceLinks({
 
 function ToolLinks({
 	canCatalog,
+	canOrders,
 	canPrint,
 	canSupport,
 	canShip,
 	canCod,
 }: {
 	canCatalog: boolean;
+	canOrders: boolean;
 	canPrint: boolean;
 	canSupport: boolean;
 	canShip: boolean;
@@ -151,6 +155,24 @@ function ToolLinks({
 						>
 							<Package aria-hidden="true" />
 							<span>Katalog</span>
+						</Link>
+					</SidebarMenuButton>
+				</SidebarMenuItem>
+			)}
+			{canOrders && (
+				<SidebarMenuItem>
+					<SidebarMenuButton
+						asChild
+						isActive={pathname.startsWith("/admin/orders")}
+						tooltip="Pesanan"
+					>
+						<Link
+							href="/admin/orders"
+							aria-current={pathname === "/admin/orders" ? "page" : undefined}
+							onClick={close}
+						>
+							<ReceiptText aria-hidden="true" />
+							<span>Pesanan</span>
 						</Link>
 					</SidebarMenuButton>
 				</SidebarMenuItem>
@@ -265,6 +287,7 @@ export function AdminShell({
 	// Same grants the destination pages enforce server-side; this only hides dead ends.
 	const canPrint = roles.includes("owner") || roles.includes("warehouse");
 	const canCatalog = catalogAccess(roles, permissions).read;
+	const canOrders = canReadOrders(roles, permissions);
 	const canSupport =
 		roles.includes("owner") || roles.includes("customer_service");
 	const canShip = ["owner", "ecommerce_admin", "warehouse"].some((r) =>
@@ -309,6 +332,7 @@ export function AdminShell({
 								<SidebarGroupContent>
 									<ToolLinks
 										canCatalog={canCatalog}
+										canOrders={canOrders}
 										canPrint={canPrint}
 										canSupport={canSupport}
 										canShip={canShip}

@@ -6,12 +6,14 @@ import {promisify} from 'node:util';
 import {runOneJob} from '../../src/jobs/worker.ts';
 import {handleFulfillment} from '../../src/modules/fulfillment/routes.ts';
 import {handleManualFulfillment} from '../../src/modules/fulfillment/manual-routes.ts';
-import {fulfillmentMode,pickupReadiness,processTrackingPoll,simulateTrackingObservation,simulatedTrackingAdapter,tracking,trackingNumber} from '../../src/modules/fulfillment/manual.ts';
+import {fulfillmentMode,pickupReadiness,processTrackingPoll,quotedCourierCode,simulateTrackingObservation,simulatedTrackingAdapter,tracking,trackingNumber} from '../../src/modules/fulfillment/manual.ts';
+import {rateSeam} from '../../src/modules/shipping/quotes.ts';
+import {localRateAdapter} from '../../src/modules/shipping/rates.ts';
 import {projectReturnEligibility} from '../../src/modules/returns/receipts.ts';
 import {advanceFulfillment,fulfillmentClock,lockFulfillment} from '../../src/modules/fulfillment/core.ts';
 import {projectOrder} from '../../src/modules/checkout/orders.ts';
 import {actor,enroll} from '../contract/access-fixture.ts';
-import {closeFulfillmentActor,fulfillmentFixture} from './fulfillment-fixture.ts';
+import {closeFulfillmentActor,fulfillmentFixture,installFulfillmentCalendars} from './fulfillment-fixture.ts';
 
 type User={browser:{request:(path:string,body?:Record<string,unknown>)=>Request}};
 async function call(user:User,identity:Parameters<typeof handleManualFulfillment>[1],path:string,body?:Record<string,unknown>,key=randomUUID()){
@@ -108,7 +110,9 @@ test('manual COD parcel: queue by path, resi entry ships once, buyer sees courie
   const [units]=await sql`select count(*)::int n from app.fulfillment_item where shipment_id=${manual.shipment_id}`;
   assert.equal((await sql`select count(*)::int n from app.buyer_receipt b join app.fulfillment_item i on i.id=b.fulfillment_item_id where i.shipment_id=${manual.shipment_id}`)[0].n,units.n);
   order=await sql.begin(tx=>projectOrder(tx,f.order.id));parcel=order.shipments.find(s=>s.id===manual.shipment_id) as Record<string,unknown>;assert.equal(parcel.status,'delivered');
-  const late=await call(f.owner,identity,`/api/v1/admin/fulfillments/${manual.id}/tracking-statuses`,{status:'delivered',occurred_at:new Date().toISOString(),reason:'Cek dashboard Mengantar',evidence:'Status terkirim di dashboard'});
+  // The fixture business clock, not wall time: a wall-clock instant ahead of it is refused as future (422).
+  const lateAt=new Date((await sql`select clock from app.local_fixture_namespace where name=${f.namespace}`)[0].clock).toISOString();
+  const late=await call(f.owner,identity,`/api/v1/admin/fulfillments/${manual.id}/tracking-statuses`,{status:'delivered',occurred_at:lateAt,reason:'Cek dashboard Mengantar',evidence:'Status terkirim di dashboard'});
   assert.equal(late.status,409);
 
   // Private pickup profile: versioned, readiness computed, never in buyer data, audit details or logs.
@@ -217,4 +221,60 @@ test('manual prepaid parcels: calendar missing, one live resi per courier, couri
   const advanced=await host(other.id,'IN_TRANSIT');assert.match(advanced.stdout,/tracking_status=in_transit/);
   assert.deepEqual((await sql`select status,source_kind from app.shipment_tracking_event where fulfillment_id=${other.id}`).map(r=>({...r})),[{status:'in_transit',source_kind:'adapter'}]);
  }finally{tracking.adapter=simulatedTrackingAdapter;for(const user of staff)await closeFulfillmentActor(f.identity,user).catch(()=>{});await f.close();}
+});
+
+test('S99 quoted courier names map to Mengantar codes only when unambiguous',()=>{
+ for(const [name,code] of [['JNE','jne'],['J&T','jnt'],['J&T Express','jnt'],['SiCepat','sicepat'],['Ninja Xpress','ninja'],['ID Express','idexpress'],['Lion Parcel','lion'],['POS Indonesia','pos']] as const)assert.equal(quotedCourierCode(name),code,name);
+ for(const name of ['Pengiriman simulasi','DHL','',null,42])assert.equal(quotedCourierCode(name),null,String(name));
+});
+
+test('S99 booking queue: >100 parcels page completely by packing deadline (nulls last), age, id; booking facts carry the buyer courier and the order_shipment COD due; membership scope and denials hold',{timeout:600000},async()=>{
+ // The buyer quotes a named courier through the rate seam (the gated live estimate adapter's slot).
+ rateSeam.adapter={estimate:async(request,signal)=>(await localRateAdapter.estimate(request,signal)).map(rate=>({...rate,courier_name:'J&T'}))};
+ const staff:Awaited<ReturnType<typeof actor>>[]=[];
+ let f:Awaited<ReturnType<typeof fulfillmentFixture>>|undefined;
+ try{
+  f=await fulfillmentFixture('cod',{calendars:false});const sql=f.identity.sql,identity=f.identity,fixture=f;
+  const warehouses=[...new Set(f.parcels.map(p=>String(p.warehouse_id)))];assert.equal(warehouses.length,2);
+  for(const position of ['fixture-malang:fixture-shirt','fixture-pontianak:fixture-shirt'])await f.move(position,'receive',120);
+  // 40 parcels without a calendar (no resi deadline), then calendars, then 60 parcels with deadlines.
+  const place=async(count:number)=>{for(let n=0;n<count;n++){const placed=await fixture.placeOrder(1,'cod');assert.equal(placed.status,201,JSON.stringify(placed));}};
+  await place(40);await installFulfillmentCalendars(identity,f.owner,f.namespace);await place(60);
+
+  const admin=await actor(identity,'ecommerce_admin',warehouses);staff.push(admin);await enroll(admin.browser,admin.password);
+  const expected=(await sql`select f.id from app.fulfillment f join app.order_shipment s on s.id=f.shipment_id left join app.fulfillment_deadline d on d.id=f.deadline_id
+   where s.warehouse_id=any(${warehouses}::uuid[]) and f.handover_at is null and f.booking_id is null
+   order by d.packing_due_at asc nulls last,f.created_at asc,f.id asc`).map(r=>String(r.id));
+  assert.ok(expected.length>100,`seeded ${expected.length} parcels`);
+  type QueueRow={id:string;order_id:string;shipment_id:string;packing_due_at:string|null;payment_method:string;items:unknown[];booking:{cod_amount_due:number;cod_fee_amount:number;quoted_courier:{courier_name:string;service_name:string;code:string|null}|null;parcel:{weight_grams:number};destination_area:{city:string;postal_code:string};parcel_items:{quantity:number}[]}};
+  const seen:QueueRow[]=[];let cursor:string|null=null,pages=0;
+  do{
+   const page=await call(admin,identity,`/api/v1/admin/manual-shipments?queue=to_book&limit=25${cursor?`&cursor=${cursor}`:''}`);
+   assert.equal(page.status,200,JSON.stringify(page.payload));assert.ok(page.payload.data.length<=25);
+   seen.push(...page.payload.data);cursor=page.payload.pagination.next_cursor;pages++;
+  }while(cursor&&pages<20);
+  assert.equal(cursor,null,'paging terminates');
+  assert.deepEqual(seen.map(r=>r.id),expected,'every parcel exactly once, deadline order with nulls last, then age and id');
+  const dated=seen.findIndex(r=>r.packing_due_at===null);assert.ok(dated>=60,'deadline parcels first');assert.ok(seen.slice(dated).every(r=>r.packing_due_at===null),'no deadline after the first null');
+
+  // Booking facts: COD due is exactly order_shipment.cod_due (merchandise + buyer shipping + COD fee).
+  const stored=new Map((await sql`select id,cod_due,payment_charge,merchandise_amount+buyer_shipping+payment_charge collectible from app.order_shipment where id=any(${seen.map(r=>r.shipment_id)}::uuid[])`).map(r=>[String(r.id),r]));
+  for(const row of seen){
+   const s=stored.get(row.shipment_id);assert.ok(s);
+   assert.equal(row.booking.cod_amount_due,Number(s.cod_due));assert.equal(row.booking.cod_amount_due,Number(s.collectible));assert.equal(row.booking.cod_fee_amount,Number(s.payment_charge));
+   assert.deepEqual(row.booking.quoted_courier&&{name:row.booking.quoted_courier.courier_name,code:row.booking.quoted_courier.code},{name:'J&T',code:'jnt'});
+   assert.ok(row.booking.parcel.weight_grams>0);assert.equal(row.booking.destination_area.city,'Malang');assert.equal(row.booking.destination_area.postal_code,'00001');
+   assert.equal(row.booking.parcel_items.reduce((n,i)=>n+i.quantity,0),row.items.length);
+  }
+
+  // Scope: ecommerce_admin is membership-scoped (not company-wide); others refused; cursors are validated.
+  const outsider=await actor(identity,'ecommerce_admin',[]);staff.push(outsider);await enroll(outsider.browser,outsider.password);
+  const none=await call(outsider,identity,'/api/v1/admin/manual-shipments?queue=to_book&limit=100');assert.equal(none.status,200);
+  assert.ok(!none.payload.data.some((r:QueueRow)=>warehouses.includes(String((r as unknown as {warehouse_id:string}).warehouse_id))),'no membership, no rows of these warehouses');
+  assert.equal((await call(outsider,identity,`/api/v1/admin/manual-shipments?queue=to_book&warehouse_id=${warehouses[0]}`)).status,404);
+  const finance=await actor(identity,'finance',[]);staff.push(finance);await enroll(finance.browser,finance.password);
+  assert.equal((await call(finance,identity,'/api/v1/admin/manual-shipments?queue=to_book')).status,403);
+  for(const bad of ['not-a-cursor!',Buffer.from(JSON.stringify({d:null,c:'2026-01-01',id:randomUUID()})).toString('base64url'),Buffer.from(JSON.stringify({c:'2026-01-01T00:00:00.000000Z',id:randomUUID()})).toString('base64url')])
+   assert.equal((await call(admin,identity,`/api/v1/admin/manual-shipments?queue=to_book&cursor=${encodeURIComponent(bad)}`)).status,400,bad);
+ }finally{rateSeam.adapter=localRateAdapter;if(f){for(const user of staff)await closeFulfillmentActor(f.identity,user).catch(()=>{});await f.close();}}
 });
