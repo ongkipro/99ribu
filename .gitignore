@@ -28,3 +28,8 @@ next-env.d.ts
 
 # Local catalog import copies (npm run fixture -- berlapak)
 /public/catalog-local
+
+# Design-review slice output (regenerated per review round; review-round*.md keep the findings)
+/docs/spec/design/reviews/shop-com-r2/slices-round*/
+# Design-review round counter is cited evidence (exception to *.log).
+!/docs/spec/design/reviews/shop-com-r2/review-rounds.log

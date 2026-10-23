@@ -2,18 +2,49 @@
 
 Indonesian commerce application. The accepted stack is Next.js/TypeScript, PostgreSQL/Drizzle and Better Auth, with shared domain modules and a separate durable worker.
 
-The documentation pack was promoted on 2026-10-16. All 68 ordered localhost development slices (`S01`–`S68`) across the 38 local parent tasks (`T-1` through `T-39`, excluding deferred external `T-19`) and the 2026-10-21 post-S68 architecture & QA remediation (`G1`–`G10`) are implemented, migrated (`0000`–`0025`, 205 PostgreSQL tables), built in `NODE_ENV=production` with `APP_ENV=local`, and verified against isolated local PostgreSQL (`99ribu_local` / `99ribu_test`), real Better Auth + MFA, durable outbox worker, and headless Chromium (`390x844`, `768x1024`, `1440x900`). External live-provider credentials, physical printer/scanner hardware, and production hosting/deployment remain explicitly gated outside localhost acceptance (`RELEASE.md`).
+The documentation pack was promoted on 2026-10-16. The ordered localhost development slices (`S01`–`S81`, `S90`–`S93`; terminal gate `S68` under final review — see [STATUS.md](STATUS.md)) across the 38 local parent tasks (`T-1` through `T-39`, excluding deferred external `T-19`) and the 2026-10-21 post-S68 architecture & QA remediation (`G1`–`G10`) are implemented, migrated (`0000`–`0034`), built in `NODE_ENV=production` with `APP_ENV=local`, and verified against isolated local PostgreSQL (`99ribu_local` / `99ribu_test`), real Better Auth + MFA, durable outbox worker, and headless Chromium (`390x844`, `768x1024`, `1440x900`). External live-provider credentials, physical printer/scanner hardware, and production hosting/deployment remain explicitly gated outside localhost acceptance (`RELEASE.md`).
 
 ## Start here
 
 - [STATUS.md](STATUS.md): current state and exact resume action.
-- [TASKS.md](TASKS.md): sole execution queue, 39 parent tasks and 68 ordered development slices.
+- [TASKS.md](TASKS.md): sole execution queue, 39 parent tasks and 85 ordered development slices, plus the separately gated production (S82–S89) and provider (S94–S98) tables.
 - [PRD.md](PRD.md) and [specification index](docs/spec/README.md): accepted product, API, data, design and UX contracts.
 - [AGENTS.md](AGENTS.md): repository instructions for AI terminal development.
 - [DECISIONS.md](DECISIONS.md): sole decision index, linking accepted decisions and proposals.
 - [BUILD-LOG.md](BUILD-LOG.md): executed evidence and its limits.
 
 Root contracts and `docs/spec/` are canonical. The former Documents staging copy and `docs/spec/handoff/root/` templates are historical inputs. [Promotion inventory](docs/spec/promotion-manifest.json) records original and reconciled hashes.
+
+## Where things live
+
+[ARCHITECTURE.md](ARCHITECTURE.md) is the map of the code as built: runtime topology, [folder structure](ARCHITECTURE.md#folder-structure), [module map](ARCHITECTURE.md#module-map) (one row per `src/modules/*` with tables, routes and jobs), [worker job registry](ARCHITECTURE.md#worker-and-job-registry), request-flow diagrams for checkout, payments, consignment fulfillment and COD remittance, the [catalog pipeline](ARCHITECTURE.md#catalog-pipeline), [roles and MFA](ARCHITECTURE.md#identity-roles-and-access), the [storefront](ARCHITECTURE.md#storefront-architecture) and a [core data ERD](ARCHITECTURE.md#data-domains).
+
+- Pages and route handlers: `src/app/` (`(storefront)/` Indonesian public routes, `admin/` console, `api/v1/` business API, `api/auth/` Better Auth).
+- Business rules and transactions: `src/modules/<domain>/`; durable jobs: `src/jobs/worker.ts` (registry) and `scripts/worker.ts` (adapters, simulator commands).
+- Schema history: `migrations/` (raw SQL, immutable once applied); typed mirror: `src/db/schema.ts`.
+- Catalog content: `data/catalog/berlapak/`; operator commands: `scripts/*.ts` (registered below).
+- Private runtime state: `.local/` (database, socket, signing key, artifacts, catalog photos); never committed.
+
+## Local quick start (end to end)
+
+From a clean checkout on this host (Node 24.21.0, PostgreSQL 18.6; details in the sections below):
+
+```bash
+npm ci --ignore-scripts
+npm run db:up                                   # private Unix-socket cluster, 99ribu_local + 99ribu_test
+npm run db:migrate -- local                     # 0000–0034
+npm run db:migrate -- test
+npm run fixture -- commercial-terms local demo  # commercial policy baseline required for publication (idempotent)
+npm run fixture -- payment-terms local demo     # DEC-008/009 payment terms: manual bank transfer, COD fee
+npm run catalog:import -- local                 # DEC-005 dataset: categories, products, photos, origin warehouses
+npm run catalog:initial-stock -- local          # needs the raw Berlapak snapshot (BERLAPAK_DATA_DIR); see "Live catalog"
+npm run catalog:import -- local                 # guarded publication of products that now have stock and HPP
+npm run fixture -- login local                  # dummy sign-in accounts (table below), staff TOTP enrollment
+npm run build && npm start                      # http://127.0.0.1:3099
+npm run worker                                  # second terminal: durable worker (simulated dispatch)
+```
+
+Without the raw snapshot, `catalog:initial-stock` refuses and the imported products stay draft (blockers `COMPLETE_STOCK_REQUIRED` and unknown HPP): the admin catalog shows them, the storefront does not. Sign in at `/masuk`; staff need the TOTP code from `npm run fixture -- login-codes local`. To open it from your tailnet, see "Open from your tailnet (IP)".
 
 ## Verified planning commands
 
@@ -169,7 +200,7 @@ Run from this worktree with migrations applied to local and test. Use the exact 
 | `npm run check` | Locked dependencies installed | Lint, generated Next types/TypeScript, 31 configuration/startup/runner tests |
 | `npm run build` | Valid local profile | Production build; does not prove UI or database behavior |
 | `npm run test:integration -- --case=foundation` | Isolated test DB migrated and running | 5 files, 24 database/storage/key/auth/worker checks |
-| `npm run test:integration -- --case=all-current` | Isolated test DB migrated (`0000`–`0025`); built web running on `127.0.0.1:3099` | All 80 current runtime integration test files (historical pre-migration candidates live in `tests/historical/`) |
+| `npm run test:integration -- --case=all-current` | Isolated test DB migrated (`0000`–`0034`); built web running on `127.0.0.1:3099`; `PLAYWRIGHT_CHROMIUM_EXECUTABLE` set | All 176 current runtime integration test files (historical pre-migration candidates live in `tests/historical/`) |
 | `npm run test:integration -- --case=localhost-readiness` | Built web + local/test DB migrated | Assembled S65–S68 localhost readiness + real `pg_dump -Fc` / `pg_restore` into disposable DB |
 | `npm start` | Successful build | Web at `http://127.0.0.1:3099` only |
 | `PLAYWRIGHT_CHROMIUM_EXECUTABLE=/snap/bin/chromium npm run test:browser -- --case=foundation` | Built web + local DB; no other local worker; Chromium installed | 2 files, 3 HTTP/cookie/worker-delivery checks |
@@ -181,9 +212,17 @@ Run from this worktree with migrations applied to local and test. Use the exact 
 | `npm run catalog:initial-stock -- local\|test [dataset-dir]` | Raw Berlapak snapshot on this host (`BERLAPAK_DATA_DIR`); catalog and origin warehouses already imported; migrated target DB | S81/S90: one initial `receive` movement into the item's origin warehouse and one component HPP version per catalog stock item from the raw snapshot (nothing committed) plus S69 default assumptions per offer, through the real inventory/finance services as a temporary audited owner; only for items without stock history in any warehouse, so reruns add nothing; refuses a snapshot that is not the dataset's |
 | `npm run catalog:rehome -- local\|test [--apply]` | Migrated target DB (`0030`); committed dataset | S90 (DEC-006 transition): read-only dry run (default) of origin warehouses to create, catalog units held outside their origin warehouse to move (and reserved/quarantined units that stay), open transfers and offers the next import rebinds; `--apply` creates missing origins and moves available units through audited warehouse transfers (create, dispatch, receive) as a temporary audited owner; reruns converge. Run `catalog:import` afterwards |
 | `npm run catalog:withdraw -- local\|test [--apply]` | Migrated target DB (`0029`) | S81: lists (read-only dry run, default) or withdraws (`--apply`, temporary audited owner, real publication service) every current publication outside the committed catalog, grouped by origin |
+| `npm run test:integration -- --case=manual-fulfillment` | Isolated test DB migrated (`0031`) | S91: Berlapak references, manual shipment (own Mengantar resi), tracking statuses/corrections, pickup profile scope |
+| `npm run test:integration -- --case=cod-remittance` | Isolated test DB migrated (`0031`) | S91: COD collectible parcels, remittance matching and settlement |
+| `npm run test:integration -- --case=payment-methods` | Isolated test DB migrated (`0032`) | S92: manual bank transfer (unique code added, 24h), COD fee 3.33% of goods + shipping |
+| `npm run test:integration -- --case=autolaris-payments` | Isolated test DB migrated (`0034`) | S93: AutoLaris VA/QRIS simulated contract, advice, store-borne fee |
+| `npm run fixture -- payment-terms local <ns>` | Migrated local DB | DEC-008/009 payment terms for local checkout (idempotent) |
+| `npm run fixture -- commercial-terms local <ns>` | Migrated local DB | Commercial policy baseline (1000 bps default commission, IDR 99,000 minimum payout) through the owner policy route, required for catalog publication (idempotent) |
+| `npm run worker -- --autolaris-paid <ATTEMPT_ID>` | Local worker profile | Simulate an AutoLaris paid advice for one local attempt (refused outside local/test) |
+| `npm run worker -- --track-parcel <FULFILLMENT_ID> <PROVIDER_STATUS>` | Local worker profile | S91: simulated courier feed reports `PICKED_UP`/`IN_TRANSIT`/`FAILED`/`DELIVERED` for a manual parcel's current resi and runs its due tracking poll (refused outside local/test) |
 | `npm run test:integration -- --case=PR-1` | Isolated test DB migrated | S14 catalog plus S80 `catalog-import` (generator determinism/sanitization, malformed-dataset refusal, idempotent rerun, guarded publication, revisions, preserved staff edits, photo serving), S81 initial stock/HPP, guarded publication, publication withdrawal, test-run teardown and read-only withdraw dry run, and S90 origin warehouses (per-offer origin keys, generic kecamatan names, origin binding, initial stock into origins, `rehome` dry run/apply/convergence and rebinding import) |
 
-The browser executable above is host-specific; use a verified installed path or omit the variable for Playwright-managed Chromium. Missing browser/server is a failure. Keep the auth rate-limit window between repeated browser runs. On suite failure, run its registered native `test:database`, `test:storage`, `test:auth`, `test:worker`, `test:smoke` or `test:auth:http` command to isolate the cause; the aggregate prints bounded test names/counts, not captured child output that may contain private fixtures.
+Browser and storefront suites rewrite their captures under `docs/spec/design/renders/<slice>/` on every run: a dirty render directory after a run is expected, and refreshed renders are committed only with the change they evidence. The S27 design-review baseline (`design/review.md`, `design/review-slices/`) is separate and must stay byte-identical. The browser executable above is host-specific; use a verified installed path or omit the variable for Playwright-managed Chromium. Missing browser/server is a failure. Keep the auth rate-limit window between repeated browser runs. On suite failure, run its registered native `test:database`, `test:storage`, `test:auth`, `test:worker`, `test:smoke` or `test:auth:http` command to isolate the cause; the aggregate prints bounded test names/counts, not captured child output that may contain private fixtures.
 
 `/api/health` reports only current web-to-database/schema availability. It checks access to identity and outbox tables without reading user rows. It does not attest worker liveness, commerce functionality or remote availability. The root `/` renders the storefront home page (`200`). See [OBSERVABILITY.md](OBSERVABILITY.md) for failure and recovery commands. Browser cookie proof is not rendered storefront acceptance.
 
@@ -259,13 +298,13 @@ Sign in at <http://127.0.0.1:3099/masuk>. These stable accounts are separate fro
 | Role | Email | Password | 2FA | Landing after sign-in |
 |---|---|---|---|---|
 | Super Admin (owner) | `owner@99ribu.test` | `Owner-99ribu` | yes (TOTP) | `/admin` |
-| Admin E-Commerce | `ecommerce@99ribu.test` | `Ecommerce-99ribu` | yes (TOTP) | `/admin` |
-| Gudang (warehouse, Gudang contoh Malang [demo]) | `gudang@99ribu.test` | `Gudang-99ribu` | yes (TOTP) | `/admin` |
+| Admin E-Commerce (ecommerce_admin, every active origin warehouse) | `ecommerce@99ribu.test` | `Ecommerce-99ribu` | yes (TOTP) | `/admin` |
+| Gudang (warehouse, every active origin warehouse) | `gudang@99ribu.test` | `Gudang-99ribu` | yes (TOTP) | `/admin` |
 | Layanan Pelanggan (customer_service) | `cs@99ribu.test` | `Layanan-99ribu` | yes (TOTP) | `/admin` |
 | Keuangan (finance) | `keuangan@99ribu.test` | `Keuangan-99ribu` | yes (TOTP) | `/admin` |
-| Pembeli (buyer) | `pembeli@99ribu.test` | `Pembeli-99ribu` | no | `/account` |
-| Pembeli 2 (buyer) | `pembeli2@99ribu.test` | `Pembeli2-99ribu` | no | `/account` |
-| Mitra Afiliasi (affiliate) | `afiliasi@99ribu.test` | `Afiliasi-99ribu` | no | `/account` |
+| Pembeli (buyer) | `pembeli@99ribu.test` | `Pembeli-99ribu` | no | `/akun` |
+| Pembeli 2 (buyer) | `pembeli2@99ribu.test` | `Pembeli2-99ribu` | no | `/akun` |
+| Mitra Afiliasi (affiliate) | `afiliasi@99ribu.test` | `Afiliasi-99ribu` | no | `/akun` |
 
 ```bash
 npm run fixture -- login local                   # create/refresh: passwords, roles, warehouse scope, staff TOTP enrollment
@@ -274,7 +313,7 @@ npm run fixture -- prune-accounts local          # dry run: counts of leftover s
 npm run fixture -- prune-accounts local --apply  # delete them
 ```
 
-Every staff role requires an MFA-verified session, so `login` enrolls TOTP through the real auth handler and prints `totp_uri`/`totp_secret` (add to an authenticator app) and `current_code`; backup codes are printed only on first enrollment, and reruns keep the enrollment. After the password, `/masuk` asks for the authenticator code (or a backup code). A validated same-origin `?next=` overrides the landing page. Staff get the permissions their workspace needs (labels/exports/order history/finance); `gudang@` is scoped to the `demo` namespace's Malang warehouse (else the oldest active Malang warehouse). The command is subject to the normal per-account sign-in limit (5 per minute).
+Every staff role requires an MFA-verified session, so `login` enrolls TOTP through the real auth handler and prints `totp_uri`/`totp_secret` (add to an authenticator app) and `current_code`; backup codes are printed only on first enrollment, and reruns keep the enrollment. After the password, `/masuk` asks for the authenticator code (or a backup code). A validated same-origin `?next=` overrides the landing page. Staff get the permissions their workspace needs (labels/exports/order history/finance); `gudang@` and `ecommerce@` are scoped to every active origin warehouse once the catalog is imported (S90), else to the `demo` namespace's Malang warehouse (or the oldest active Malang warehouse). The command is subject to the normal per-account sign-in limit (5 per minute).
 
 `prune-accounts` only considers `@example.invalid`/`@example.test` users: unmapped test users (`access-*`, `browser-*`, orphan seed operators) and principals of per-run fixture namespaces (8-hex run suffix, plus the retired `signin-check`). It keeps any user still referenced by orders, carts, audit, operations, support or buyer/affiliate data, every principal of a fixed namespace (`demo`, `berlapak`, `commerce-demo`, ...; their seed reruns need the full mapping), and users created in the last 15 minutes; an FK refusal skips the user. All commands refuse the `test` target and any non-local profile. Browser check: `PLAYWRIGHT_CHROMIUM_EXECUTABLE=/snap/bin/chromium npm run test:browser -- --case=foundation`.
 
@@ -326,7 +365,7 @@ S13 scheduling bound: prospective activation uses database wall time and rejects
 
 ## Deploying the catalog (S80, DEC-005)
 
-The Berlapak snapshot is the production starting catalog. `data/catalog/berlapak/` is committed content, reviewed like code: `catalog.json` (12 categories, 368 physical SKU identities, 392 IDR 99,000 offers: 122 unit, 244 multipack, 26 bundles), `manifest.json` (catalog digest plus SHA-256/size/dimensions of every photo) and 708 hash-named WebP photos (~48 MB). It holds public names only; the generator refuses output that names a supplier or supplier warehouse in product text, and contains no HPP, stock, supplier name or supplier warehouse id/name. DEC-006 (`99ribu.catalog/v2`): each offer names its origin warehouse by an opaque hashed key, and `warehouses` lists 49 generic `Gudang <Kecamatan>, <Kota>` warehouses with province/city/district only. Regenerate only on a host with the raw snapshot (`npm run catalog:dataset`), review the diff, then commit.
+The Berlapak snapshot is the production starting catalog. `data/catalog/berlapak/` is committed content, reviewed like code: `catalog.json` (14 departments, 368 physical SKU identities, 392 IDR 99,000 offers: 122 unit, 244 multipack, 26 bundles), `manifest.json` (catalog digest plus SHA-256/size/dimensions of every photo) and 708 hash-named WebP photos (~48 MB). It holds public names only; the generator refuses output that names a supplier or supplier warehouse in product text, and contains no HPP, stock, supplier name or supplier warehouse id/name. DEC-006 (`99ribu.catalog/v2`): each offer names its origin warehouse by an opaque hashed key, and `warehouses` lists 49 generic `Gudang <Kecamatan>, <Kota>` warehouses with province/city/district only. Departments are marketplace-style (`DEPARTMENTS` in `src/modules/local/berlapak-dataset.ts`, e.g. `fashion-pria` "Fashion Pria", `kesehatan` "Kesehatan"); every product is classified by what it is, not by the supplier's category: `DEPARTMENT_RULES` match product-type phrases in the uncut public name and variant (earliest match wins, so the head noun decides), the supplier department is only a weak prior (unisex fashion gender, fallback), a bundle follows its dominant component purpose, and `CATEGORY_OVERRIDES` holds reviewed exceptions. The generator refuses an unclassified product, a department under 8 products and an override naming no product. Each department and, where a rule names a more specific node, each product carries a `google_product_category` id pinned from the official Google Product Taxonomy (version 2021-09-21, `GOOGLE_CATEGORIES`; unknown ids refuse generation); the local feed (`src/modules/catalog/feed.ts`) emits it with the Indonesian department path as `product_type`. Product titles are one-line card titles of at most 40 characters (48 for a few listed overrides) (`cardTitle`: supplier noise removed, multipack count as `N pcs`, the offer's own variant after a comma, e.g. `Papan Tulis Tab untuk Anak, Hijau`; the generator refuses invented words, equal titles within a department and a title that loses its product-type phrase, and `TITLE_OVERRIDES` holds the reviewed exceptions). Descriptions are the offer contents plus the supplier's marketplace description tidied by `cleanDetails` (seller promises, contact/links, stock/shipping notes, store/maker names, emoji and shouting removed; facts kept; claim terms kept as written and reported for the DEC-013 backlog). Photo alt text is the card title (`, foto N` from the second photo; a bundle photo names its component, claim words left out); the importer serves photos as `/media/catalog/<title-slug>-<first 12 hex>.webp` while storage stays content-addressed. The full public name stays in the offer contents (stock item name) and, for a shortened bundle, the first description line. Regenerate only on a host with the raw snapshot (`npm run catalog:dataset`), review the diff, then commit.
 
 Deploy step, after migrations, on the target host from the repository root:
 
@@ -337,7 +376,7 @@ npm run catalog:import -- local
 The command verifies the whole dataset (digest, exact photo set, per-photo hash/size/WebP header) before any write, stores photos through the storage module in `.local/catalog-media/<sha256>.webp` (same path locally and on the server, outside `public/`; served by `GET /media/catalog/<sha256>.webp`), then runs as a temporary audited MFA owner (the S18 seed operator, removed afterwards) through `createCategory`/`createStockItem`/`createProduct`/`patchProduct`/`publishProduct`. Every offer uses its dataset origin warehouse as its default fulfilment warehouse (DEC-006): missing origin warehouses are created once (audited `catalog.warehouse.create`), existing ones are reused by `origin_key`, and a stored origin with a different name/location or inactive refuses the import before any write. One `catalog.import` audit row is written per run that changes anything; product revisions whose actor is such a run are importer-owned.
 
 - Idempotent and resumable: category slug, stock-item SKU (`B99_<rank>`) and offer SKU (`B99_<key>_OFFER`) are the checkpoint. A rerun with the same dataset writes no catalog row; a run interrupted mid-way converges on the next run. Concurrent runs are refused by an advisory lock.
-- Revisions: a changed dataset appends a new product revision through `patchProduct`; published and older revisions stay immutable. A product whose current revision was written by staff is preserved and listed in `products.preserved`. Existing categories and stock items are immutable: a renamed one refuses the whole import before any write. Offers removed from the dataset are left untouched.
+- Revisions: a changed dataset appends a new product revision through `patchProduct`; published and older revisions stay immutable. A product whose current revision was written by staff is preserved and listed in `products.preserved`. Existing categories and stock items are immutable: a different name under an existing slug or SKU refuses the whole import before any write. Renaming a department therefore means a new slug: the import creates the new category and moves importer-owned products to it in their next revision (republished in the same run when ready); the old category row stays, unused, and leaves the storefront once it has no public product. Offers removed from the dataset are left untouched.
 - Publication: drafts are published only through the real guard. On a fresh server every product reports blockers (`COMPLETE_STOCK_REQUIRED`, unknown HPP, missing assumptions/policy). Load initial stock and HPP (below), then rerun the import to publish the products that became ready.
 - Image URLs embed `APP_ORIGIN` at import time; a changed origin produces one new revision per product on the next import.
 - Include `.local/catalog-media/` in backups alongside private artifacts.
@@ -384,13 +423,13 @@ One switch and one route table decide indexing. `SITE_INDEXING` (`src/config/sit
 
 | Route | Robots | Canonical / notes |
 | --- | --- | --- |
-| `/`, `/categories`, `/help` | index, follow | self |
-| `/category/<slug>` | index, follow; listing state (filter, sort, cursor): noindex, follow | clean category URL; tracking parameters (`utm_*`, `gclid`, `fbclid`) are ignored; pagination stays on `/category/<slug>?cursor=`; BreadcrumbList |
-| `/product/<id>` | index, follow | `/product/<id>` without `?offer=`/`?from=`; Product (one offer) or ProductGroup (several) + BreadcrumbList |
-| `/search` (any query) | noindex, follow | none; not in the sitemap |
-| `/cart`, `/checkout/**`, `/orders/**`, `/account`, `/affiliate`, `/masuk`, `/admin/**` | noindex, nofollow | `robots.txt` Disallow (plus `/api/`) |
+| `/`, `/kategori`, `/bantuan` | index, follow | self |
+| `/kategori/<slug>` | index, follow; listing state (filter, sort, cursor): noindex, follow | clean category URL; tracking parameters (`utm_*`, `gclid`, `fbclid`) are ignored; pagination stays on `/kategori/<slug>?cursor=`; BreadcrumbList |
+| `/produk/<title>-<id>` | index, follow | `/produk/<title>-<id>` without `?offer=`/`?from=` (the id resolves the page; a stale title part 308s to the canonical slug, query kept); Product (one offer) or ProductGroup (several) + BreadcrumbList |
+| `/cari` (any query) | noindex, follow | none; not in the sitemap |
+| `/keranjang`, `/checkout/**`, `/pesanan/**`, `/akun`, `/afiliasi`, `/masuk`, `/admin/**` | noindex, nofollow | `robots.txt` Disallow (plus `/api/`) |
 
-`/sitemap.xml` and `/robots.txt` are request-time. The sitemap lists home, `/categories`, `/help` (no lastmod claimed), categories with a sellable product, and every product whose current publication passes the sale guard, with the publication time as lastmod and its photos; withdrawn publications drop out. Missing products and categories redirect to the server-rendered `/404` page (status 404, noindex); Next 16.4 renders an in-page `notFound()` as an empty shell that needs JavaScript. The Merchant feed links a single-offer product to its canonical URL and keeps `?offer=` only when a product has several offers. Titles (55–70 characters with ` - 99ribu`) and descriptions (120–155, ending with a full stop) are generated by `seo.ts`. Proof: `npm run test:integration -- --case=PR-15` (`tests/integration/storefront-seo.test.ts`).
+`/sitemap.xml` and `/robots.txt` are request-time. The sitemap lists home, `/kategori`, `/bantuan` (no lastmod claimed), categories with a sellable product, and every product whose current publication passes the sale guard, with the publication time as lastmod and its photos; withdrawn publications drop out. Missing products and categories redirect to the server-rendered `/404` page (status 404, noindex); Next 16.4 renders an in-page `notFound()` as an empty shell that needs JavaScript. The Merchant feed links a single-offer product to its canonical URL and keeps `?offer=` only when a product has several offers. Titles (55–70 characters with ` - 99ribu`) and descriptions (120–155, ending with a full stop) are generated by `seo.ts`. Proof: `npm run test:integration -- --case=PR-15` (`tests/integration/storefront-seo.test.ts`).
 
 ## Inactive catalog checkpoint (S14)
 

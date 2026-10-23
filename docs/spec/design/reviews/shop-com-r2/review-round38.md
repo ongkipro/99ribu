@@ -1,0 +1,48 @@
+Reviewer: claude via visual-review.py
+Review-Context: separate ai-ask invocation
+Model: unavailable: ai-ask does not report the resolved model/provider
+Screenshots: docs/spec/design/renders/shop-com-r2-20261022/cart-filled-1440.png, docs/spec/design/renders/shop-com-r2-20261022/cart-filled-390.png, docs/spec/design/renders/shop-com-r2-20261022/categories-1440.png, docs/spec/design/renders/shop-com-r2-20261022/category-1024.png, docs/spec/design/renders/shop-com-r2-20261022/category-320-text200.png, docs/spec/design/renders/shop-com-r2-20261022/favicon-sheet.png, docs/spec/design/renders/shop-com-r2-20261022/footer-1440.png, docs/spec/design/renders/shop-com-r2-20261022/footer-320-text200.png, docs/spec/design/renders/shop-com-r2-20261022/footer-390.png, docs/spec/design/renders/shop-com-r2-20261022/header-cart-items-1440.png, docs/spec/design/renders/shop-com-r2-20261022/header-signed-in-390.png, docs/spec/design/renders/shop-com-r2-20261022/hero-1440-motion.png, docs/spec/design/renders/shop-com-r2-20261022/hero-1440.png, docs/spec/design/renders/shop-com-r2-20261022/hero-320-text200.png, docs/spec/design/renders/shop-com-r2-20261022/hero-390.png, docs/spec/design/renders/shop-com-r2-20261022/hero-signed-in-390.png, docs/spec/design/renders/shop-com-r2-20261022/home-1440.png, docs/spec/design/renders/shop-com-r2-20261022/home-320-text200.png, docs/spec/design/renders/shop-com-r2-20261022/home-390.png, docs/spec/design/renders/shop-com-r2-20261022/home-768.png, docs/spec/design/renders/shop-com-r2-20261022/home-categories-1440.png, docs/spec/design/renders/shop-com-r2-20261022/home-categories-390.png, docs/spec/design/renders/shop-com-r2-20261022/masuk-error-390.png, docs/spec/design/renders/shop-com-r2-20261022/omnibox-opening-1440.png, docs/spec/design/renders/shop-com-r2-20261022/omnibox-opening-390.png, docs/spec/design/renders/shop-com-r2-20261022/omnibox-suggestions-1440.png, docs/spec/design/renders/shop-com-r2-20261022/omnibox-suggestions-390.png, docs/spec/design/renders/shop-com-r2-20261022/omnibox-typing-1440.png, docs/spec/design/renders/shop-com-r2-20261022/pdp-1440.png, docs/spec/design/renders/shop-com-r2-20261022/pdp-320-text200.png, docs/spec/design/renders/shop-com-r2-20261022/pdp-390.png, docs/spec/design/renders/shop-com-r2-20261022/pdp-bundle-open-1440.png, docs/spec/design/renders/shop-com-r2-20261022/pills-focus-1440.png, docs/spec/design/renders/shop-com-r2-20261022/pills-focus-320-text200.png, docs/spec/design/renders/shop-com-r2-20261022/pills-hover-390.png, docs/spec/design/renders/shop-com-r2-20261022/placeholder-tentang-390.png, docs/spec/design/renders/shop-com-r2-20261022/promo-1440.png, docs/spec/design/renders/shop-com-r2-20261022/promo-390.png, docs/spec/design/renders/shop-com-r2-20261022/search-1440.png, docs/spec/design/renders/shop-com-r2-20261022/search-390.png
+References: docs/spec/design/references/shop-com/2026-10-22-cart/1440.png, docs/spec/design/references/shop-com/2026-10-22-cart/390.png, docs/spec/design/references/shop-com/2026-10-22-help/1440.png, docs/spec/design/references/shop-com/2026-10-22-help/390.png, docs/spec/design/references/shop-com/2026-10-22-home/1440.png, docs/spec/design/references/shop-com/2026-10-22-home/390.png, docs/spec/design/references/shop-com/2026-10-22-pdp-1440.png, docs/spec/design/references/shop-com/2026-10-22-pdp-390-scrolled.png, docs/spec/design/references/shop-com/2026-10-22-pdp-390.png, docs/spec/design/references/shop-com/2026-10-22-search-1440.png, docs/spec/design/references/shop-com/2026-10-22-search-390.png, docs/spec/design/references/shop-com/2026-10-22-search-filters-390.png, docs/spec/design/references/shop-com/2026-10-23-home-1440-full.png, docs/spec/design/references/shop-com/2026-10-23-home-390-full.png
+Prompt-SHA: 4ae0ce2195b477c4
+Context-SHA: 4364594d5189c3b5
+Images-SHA: e2b2110f0ce28a89
+Output-SHA: de44d317f0dcf249
+
+Paduka Ongki, saya sudah buka dan periksa langsung ke-117 gambarnya. Ringkasnya: tampilannya sudah dirancang sendiri dan sesuai referensi shop.com. Ada satu cacat konten yang kelihatan di saran pencarian, dan dua halaman belum ada rendernya. Review lengkap di bawah (bahasa Inggris, karena ini dokumen teknis).
+
+## Section lines (top to bottom)
+
+- **Env banner + header** | authored | shop.com omnibox (white pill, soft shadow, round purple submit, centred) | none. At 320/200% "Cari prod…" truncates; that is an accepted single-line field.
+- **Category pills** | authored | shop.com pill row (36px photo circles, 16/600 labels, grid link) | Kesehatan and Perlengkapan Ibadah have no pill photo to check (they are not in the top 5). The focus ring in `pills-focus-1440` is drawn whole around the pill.
+- **Hero** | authored | shop.com "Shop is all about you" card (photo collage right, 64/800 heading bottom-left, primary + white secondary) | none. Tiles bleed only at the sides. At 320/200% the card grows and "Rp99.000" stays on one line. "Lihat produk" swaps in correctly when signed in.
+- **Kategori grid (home + `/kategori`)** | authored | shop.com Categories tiles, with a justified swap: tint + tilted white photo card instead of full-bleed art, because our white-ground photos would put a white label on white | re-pick two photos on `/kategori`. **Kesehatan** shows two tiny people and **Perlengkapan Ibadah** a small standing man. At tile size neither product reads, unlike brushes, pliers or earbuds.
+- **Terbaru shelf** | authored | shop.com department shelf (7 whole cards at 1440, a cut card at 768/390, 1:1 frames) | none. The one-line "Paket …" titles are the owner's decision.
+- **Category switcher** | authored | shop.com 96px switcher (medallion above the selected name, greyed neighbours with edge fade) | none. Showing the same brush photo three times (pill, tile, medallion) is the recorded round-26 decision.
+- **Omnibox open/typing** | authored | shop.com glass suggestions panel (32px radius, blur, 12px caption, 20px icons) | **fix the suggestion list.** `omnibox-suggestions-1440/390` show **"Pcs"** as the 6th "Saran pencarian" row, and "Alat" as a generic second row. The contract promises product-type phrases with pack prefixes stripped. A unit word in the first search affordance makes the feature look broken. The typing state is fine: the bold match on "Sa**ru**ng" / "B**ru**sh" and the final "Cari “ru”" row.
+- **Search / category listing** | authored | shop.com Results grid (6 cols at 1440/1024, 2 on phones, 20px frames, 14/600 titles) | none. Filters are 4 across at 1024/1440. The current pill takes the lavender fill on `/kategori/kecantikan`. At 320/200% it drops to one column with full titles.
+- **PDP (single + bundle)** | authored | shop.com PDP (white media panel, narrow buy box, 52px primary pill, chevron accordions between hairlines) | none. "Tambah ke keranjang" is in the first screen at 1440. The bundle disclosure shows 3 items and then "Sembunyikan barang lainnya". One photo for a 4- or 7-item bundle is accepted scope.
+- **Cart filled** | authored | R7 (unboxed line, white summary card, 52px "Lanjut ke checkout") | none.
+- **/masuk error** | authored | R8 centred card | none. The alert takes focus (purple ring), and the invalid fields have red edges.
+- **Promo** | authored | reuses the listing grid | none. This is accepted overlap.
+- **Placeholder /tentang** | authored | shop.com empty-state pattern | none.
+- **Footer** | authored | shop.com column footer | none. 3 menus at desktop, 2 columns at 390, 1 column at 320/200%, and nothing is clipped.
+- **Dock** | authored | shop.com active grey pill → lavender | none. At 320/200% it splits into 2×2, which is the documented short-viewport rule.
+- **Favicon** | authored | — | none. The "99." monogram still reads at 16px.
+
+## Observations against the references
+
+- **Rhythm:** the home order is header → hero → Kategori → Terbaru → switcher → footer. That maps to shop.com's value card → Categories → shelf → switcher (`56ae2fb…-full-01/02`). Sections with no data behind them (stores, editorial) are skipped, as recorded.
+- **Density:** the 1440 shelves show 7 cards, and search shows 6 columns. Both match the measured shop.com counts.
+- **No template signals:** no dark hero, no eyebrow labels, no icon-tile card rows, no `→` on every button, and no unsourced stat figures. "Rp99.000" is the real price rule, not a decorative stat.
+- **Merchant photo claims** ("TERBUKTI AMPUH", before/after, "Wajah Glow Up") show on search, category and promo. These are the owner's accepted backlog and out of scope here.
+
+## Evidence gaps
+
+- `/bantuan` (R11) and the empty cart (R8) are listed in the direction's scope, but neither has a 99ribu render in this set. Only the shop.com references (`27b2…`, `6c37…`, `f256…`, `9f3f…`) are included.
+- The brand-reveal renders cited in round 37 are also missing from the list.
+
+**Most important change:** take "Pcs" (and generic tokens like "Alat") out of the header search suggestions. In `searchSuggestions` (`src/modules/storefront/catalog.ts:139-150`), strip unit/pack tokens (pcs, pc, set, isi, pack) from the lead words, not only a `\d+ pcs` prefix. Then recapture `omnibox-suggestions-*` and add `/bantuan` and the empty `/keranjang` to the capture set.
+
+**Verdict: REVISE**
+
+This is a visual review only, not proof that interaction or accessibility work. I made no code changes; the review is also saved at `/home/ongki/.claude/plans/you-review-a-web-mossy-pie.md`.

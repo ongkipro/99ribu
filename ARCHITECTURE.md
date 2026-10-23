@@ -1,136 +1,643 @@
 # Architecture — Serba 99ribu
 
-Adopted at repository root on 2026-10-16; updated 2026-10-21 upon completion of all 68 local slices (`S01`–`S68`, migrations `0000`–`0025`, 205 application tables, 175 OpenAPI paths / 209 operations) and the 2026-10-21 post-S68 architecture & QA remediation (`G1`–`G10`), implemented and verified in assembled localhost production mode (`NODE_ENV=production`, `APP_ENV=local`). External live-provider, physical carrier/printer hardware, and production deployment gates remain separate per `CTX-18`.
+This file records the application **as implemented on disk** on 2026-10-23 (migrations `0000`–`0034`, 219 `app` tables, 192 `/api/v1` route files). It is read from `src/`, `scripts/`, `migrations/` and `tests/`, not from the selected design. Selected design stays in [docs/spec/04-SYSTEM-ARCHITECTURE.md](docs/spec/04-SYSTEM-ARCHITECTURE.md) and the [ADRs](docs/adr/); owner decisions live in [DECISIONS.md](DECISIONS.md); workflow state lives only in [STATUS.md](STATUS.md); delivery gates live in [RELEASE.md](RELEASE.md). Where this file and the spec differ, this file describes the code, and [Known differences](#known-differences-between-code-and-decisions) lists the gap.
 
-## Selected boundaries
+Contents: [Runtime topology](#runtime-topology) · [System map](#system-map) · [Folder structure](#folder-structure) · [Module map](#module-map) · [Worker and jobs](#worker-and-job-registry) · [Request flows](#request-flows) · [Catalog pipeline](#catalog-pipeline) · [Identity and roles](#identity-roles-and-access) · [Storefront](#storefront-architecture) · [Data domains](#data-domains) · [State machines and money flow](#state-machines-and-money-flow) · [Known differences](#known-differences-between-code-and-decisions) · [Slice notes (historical)](#appendix-slice-implementation-notes-historical)
 
-One Next.js/TypeScript application contains role-scoped buyer/staff/affiliate surfaces and shared domain modules. PostgreSQL/Drizzle owns transactional stock, money, identity references and durable jobs. Better Auth supplies verified local email/password identity with mandatory email verification and cookie sessions. A separate worker processes committed outbox work outside database locks.
+## Runtime topology
 
-External payment/shipping/ads/notification/manual-transfer effects use deterministic local test adapters for current delivery. Production credentials and endpoints are not required for these simulators. Preserve real domain validation, authorization, idempotency, money allocation and restart recovery; fake adapters do not establish provider compatibility.
+One Next.js 16 / TypeScript codebase runs as two processes that share the domain modules in `src/modules/` and one PostgreSQL database (ADR-0001, ADR-0004). Every external effect goes through a simulated adapter in the local profile.
 
-## Actual implementation
+| Part | Entry point | What it does |
+| --- | --- | --- |
+| Web | `scripts/run-local.ts` (`npm run dev` / `build` / `start`) | Spawns `next` on the fixed loopback listener `127.0.0.1:3099`. Serves storefront pages, the admin console, `/api/auth/*` (Better Auth), `/api/v1/*` (versioned API), `/api/health` and `/media/catalog/*`. Optional second browser origin: `LOCAL_TAILNET_ORIGIN` (Tailscale IPv4, same port). |
+| Worker | `scripts/worker.ts local` (`npm run worker`) | Polls `app.outbox_job` (500 ms idle sleep), runs database jobs inside a transaction and leased adapter jobs outside it. The same script exposes host-only simulator commands (`--confirm-payment`, `--autolaris-paid`, `--collect-cod`, `--track-parcel`, `--observe-settlement`, …). |
+| Database | `compose.yaml` service `database` (`npm run db:up`) | PostgreSQL 18.6 container with `network_mode: none`, read-only root, TCP disabled (`listen_addresses=`); reachable only through the owner-only Unix socket `.local/pgsocket/.s.PGSQL.5432`. Two databases, `99ribu_local` and `99ribu_test`, each with an `app` role (runtime) and an `owner` role (migrations), created by `src/db/bootstrap.sql`. |
+| Connection | `src/db/client.ts:connectDatabase(target, access)` | `postgres` driver + Drizzle over the socket, pool 5, `statement_timeout` 10 s. Database writes are raw SQL tagged templates; `src/db/schema.ts` mirrors the migrations for typing and `drizzle-kit generate`. |
+| Migrations | `scripts/migrate.ts` (`npm run db:migrate -- local\|test`) | Applies the immutable `migrations/0000`–`0034` journal as the owner role. |
+| Operator CLIs | `scripts/catalog.ts`, `scripts/seed.ts`, `scripts/check-health.ts`, `scripts/database.ts` | Catalog dataset/import/stock/rehome/withdraw, local fixtures and dummy logins, readiness probe, database container control. |
+| Test runner | `scripts/check-tests.ts` | Registered `--case=` selectors over `tests/integration/` and `tests/browser/`; refuses empty, skipped or unknown selections. |
 
-The repository contains the root contracts, `docs/spec/`, seven ADRs in `docs/adr/`, and the tool-generated `.delivery/` ledger. `src/config/local.ts` validates the local-only environment and accepted Next listener arguments. `scripts/run-local.ts` launches the pinned Next runtime on the canonical loopback listener (`http://127.0.0.1:3099`). `package.json`/`package-lock.json` pin the Node/Next/React/data/auth/tool chain. PostgreSQL 18.6 runs in an isolated Docker container with `network_mode: none` and a private Unix socket. The connection owner is `src/db/client.ts`; `local`/`test` databases and `app`/`owner` roles are distinct. Drizzle migrations (`0000`–`0025`) own the 205-table `app` schema history. `src/storage/private.ts` and `src/storage/media-sniff.ts` own private filesystem artifacts (`0600` under `0700` `.local/artifacts/`) outside the web root with magic-byte sniffing and payload scanning. `src/modules/access` owns the real Better Auth adapter, private local signing material, fixed-window DB rate limiter (`src/modules/access/rate-limit.ts`), and reviewed HTTP boundary; `src/app/api/auth` mounts auth routes and `src/app/api/v1` mounts all 175 OpenAPI paths / 209 operations. Synthetic delivery intents persist privately in PostgreSQL. Cookies stay `HttpOnly` and auth JSON excludes session tokens; unreviewed vendor endpoints are denied. `src/jobs/outbox.ts` writes delivery intents through the caller transaction; `src/jobs/worker.ts` and `scripts/worker.ts` consume real PostgreSQL rows in a separate process across auth notifications, inventory/promotion/order/quote/payment expiry, shipping/payment/settlement/refund/return/replacement/exception callbacks, affiliate commission lifecycle (`commission.accrue`, `commission.receipt`, `commission.claim`, `commission.void`, `commission.mature`) with automatic payout queueing (`affiliate.payout.queue`), and advertising platform dispatch. `S09` adds persisted grants and warehouse membership, session-bound TOTP/recovery MFA, scoped identity/warehouse APIs, short-lived reauthentication and transactional role replacement with immutable audit.
+`src/config/local.ts:readLocalConfig` guards every process: it requires `APP_ENV=local`, `APP_ORIGIN=http://127.0.0.1:3099`, `PAYMENT_/SHIPPING_/ADS_/NOTIFICATION_/PAYOUT_ADAPTER=simulated` and `EXTERNAL_DISPATCH=disabled`, and refuses provider-prefixed variables (`VIRGO_`, `MENGANTAR_`, `META_`, `FACEBOOK_`, `GOOGLE_ADS_`, `TIKTOK_`, `SMTP_`, `RESEND_`, `SENDGRID_`, `TWILIO_`), auth secret overrides and `DATABASE_URL`/`PG*` overrides.
 
-The `S06` command wrapper (`scripts/check-tests.ts`) selects fixed Node-native integration and browser suites (including `--case=all-current` for all 80 current runtime integration test files while historical pre-migration candidates live under `tests/historical/`), verifies real test events per file and refuses incomplete/empty selections. `/api/health` checks identity/outbox schema access through the restricted local application role and returns only a bounded ready/unavailable envelope.
+Private storage (`src/config/local.ts:privateDirectory`) lives under `.local/`, each directory `0700`, owner-only, no symlinks:
 
-## Module and directory map
-
-File-level inventory under `src/` as of 2026-10-21; each row names what the files export, not planned scope. `routes.ts` files mount handlers under `src/app/api/v1`.
-
-| Path | Purpose |
-| --- | --- |
-| `src/modules/access` | Better Auth adapter, grants and policy checks, local signing key, DB rate limiter, HTTP boundary |
-| `src/modules/accounts` | Buyer account workspace, verification codes, buyer notifications |
-| `src/modules/advertising` | Commerce signal capture and funnel events, diagnostics, Google offline clicks, Meta/TikTok adapters, dispatch worker |
-| `src/modules/affiliates` | Affiliate join/profile, beneficiary masking and change input, commission rates |
-| `src/modules/catalog` | Catalog drafts, publication, feed, validation |
-| `src/modules/checkout` | Carts, quotes, orders, expiry, access; `exceptions/` holds collection, refund, replacement and stock exception cases |
-| `src/modules/commissions` | Commission accrual/receipt/claim/void/maturity jobs and service |
-| `src/modules/consent` | Consent choices, context, receipts |
-| `src/modules/documents` | Print center workspace and shipping labels |
-| `src/modules/finance` | Ledger, costs, contribution, receipts and history; `settlements/` holds statements, reconciliation and recovery |
-| `src/modules/fulfillment` | Fulfillment commands, calendar and deadlines, cancellations, worker |
-| `src/modules/integrations` | Local simulated outbound dispatch |
-| `src/modules/inventory` | Physical stock positions, reservations, transfers, expiry |
-| `src/modules/local` | Local fixture seeding, fixture clock, storefront preparation |
-| `src/modules/orders` | Order receipt path, phone masking, receipt cookies |
-| `src/modules/payments` | Prepaid attempts and events, COD collection, recovery, worker |
-| `src/modules/payouts` | Affiliate payout queueing and reads |
-| `src/modules/promotions` | Promotion configuration, allocation, reservations |
-| `src/modules/reporting` | Dashboard snapshot, work queue, export selection |
-| `src/modules/returns` | Return cases, inspection, receipts, refunds, replacements and their recovery, worker |
-| `src/modules/settings` | Versioned policy resolution and append |
-| `src/modules/shipping` | Address, rates, quotes, allocation, contribution |
-| `src/modules/storefront` | Storefront cart, catalog, checkout draft/order/signals, navigation |
-| `src/modules/support` | Support staff cookie/challenge and service |
-| `src/jobs` | `outbox.ts` enqueue, `leases.ts` claim/expire, `worker.ts` dispatch, `probes.ts` operational probes |
-| `src/storage` | `private.ts` private artifacts, `media-sniff.ts` magic-byte checks |
-| `src/app/(storefront)` | Buyer pages: account, affiliate, cart, categories, checkout, help, orders, product, search |
-| `src/app/admin` | `print-center` and `support` pages |
-| `src/app/api` | `auth/[...all]`, `health`, `v1/*` (admin, carts, checkout, consent, orders, products, support, and others) |
-| `src/config`, `src/db`, `src/components` | Local environment validation, DB client, shared UI components |
+| Directory | Owner | Contents |
+| --- | --- | --- |
+| `.local/postgres` | `compose.yaml` | PostgreSQL data files |
+| `.local/pgsocket` | `compose.yaml`, `src/db/client.ts` | Unix socket |
+| `.local/auth` | `src/modules/access/local-key.ts` | Per-target signing key `<target>.key` (`0600`) |
+| `.local/artifacts` | `src/storage/private.ts` | Private files: label PDFs, payout/return evidence, support attachments, checkout drafts (`checkout-drafts/`) |
+| `.local/catalog-media` | `src/storage/catalog-media.ts` | Public catalog photos, content-addressed `<sha256>.webp`, served only through `/media/catalog/` |
 
 ## System map
 
-Four views of the code as built on 2026-10-21, read from `src/`, `scripts/` and `migrations/` rather than from the selected design. Where a view and `docs/spec/04-SYSTEM-ARCHITECTURE.md` differ, this section describes the code.
-
-### Runtime context
-
-Solid lines are live local paths. Simulators are PostgreSQL-local tables and host functions; dashed nodes are external providers that the local profile refuses to configure (`EXTERNAL_DISPATCH=disabled`, every `*_ADAPTER=simulated`, provider env prefixes rejected).
+Container-level view. Solid arrows are local paths that run today. Every external system is behind a simulated adapter; the dashed boundary shows what stays gated until its `RELEASE.md` provider gate (S94–S98) or production gate (S82–S89) closes.
 
 ```mermaid
 flowchart LR
-  subgraph Browser["Browser on loopback"]
-    Buyer["Buyer or guest storefront"]
-    Affiliate["Affiliate workspace /affiliate"]
-    Staff["Staff /admin, /admin/print-center, /admin/support"]
+  subgraph People["People and clients"]
+    Buyer["Buyer or guest<br/>storefront"]
+    Affiliate["Affiliate<br/>/afiliasi"]
+    Staff["Staff<br/>/admin console"]
+    Operator["Operator<br/>host CLIs"]
   end
-  subgraph Web["Next.js web, 127.0.0.1:3099, scripts/run-local.ts"]
-    Pages["src/app/(storefront) and src/app/admin pages"]
-    V1["/api/v1 route handlers, 176 paths"]
-    Auth["/api/auth via Better Auth, src/modules/access"]
-    Health["/api/health"]
-    Modules["src/modules domain services"]
-    Outbox["src/jobs/outbox.ts enqueueJob in caller tx"]
+
+  subgraph App["99ribu application (one codebase)"]
+    Web["Next.js web<br/>127.0.0.1:3099"]
+    Worker["Worker process<br/>scripts/worker.ts"]
+    Modules["Domain modules<br/>src/modules"]
+    Sims["Simulated adapters<br/>local_* tables"]
   end
-  DB[("PostgreSQL 18.6 schema app, Unix socket, network none")]
-  Storage[["src/storage private.ts, .local/artifacts 0700"]]
-  subgraph Worker["Worker process"]
-    WorkerCli["scripts/worker.ts loop and simulator commands"]
-    Dispatch["src/jobs/worker.ts runOneJob, in-tx kinds"]
-    Leases["src/jobs/leases.ts claim, fence, settle"]
+
+  DB[("PostgreSQL 18.6<br/>schema app<br/>Unix socket only")]
+  Files[["Private storage<br/>.local/artifacts<br/>.local/catalog-media"]]
+  Dataset[["Committed dataset<br/>data/catalog/berlapak"]]
+
+  subgraph Gated["External systems (gated live, not called)"]
+    Mengantar["Mengantar<br/>rates, booking, tracking, COD remittance"]
+    AutoLaris["AutoLaris H2H<br/>VA and QRIS"]
+    Bank["Company bank account<br/>manual transfer"]
+    Ads["Meta, Google, TikTok<br/>conversion APIs"]
+    Mail["Email and notifications"]
+    Raw["Berlapak raw snapshot<br/>BERLAPAK_DATA_DIR"]
   end
-  subgraph Sim["Simulated adapters, database-local"]
-    PaySim["Payment and COD simulators, local_payment_*, local_cod_*"]
-    ShipSim["Waybill, cancellation, parcel receipt, local_waybill_*, local_parcel_*"]
-    FinSim["Settlement and refund bank, local_settlement_*, local_refund_*, local_recovery_*"]
-    AdSink["Ad sink local_ad_sink, Meta, Google, TikTok mappings"]
-    Inbox["Notification inbox local_delivery"]
-  end
-  subgraph Gated["External, gated off"]
-    Virgo["Virgo payments"]
-    Mengantar["Mengantar shipping"]
-    AdsLive["Meta CAPI, Google Data Manager, TikTok Events API"]
-    Mail["SMTP, Resend, SendGrid, Twilio"]
-  end
-  Buyer --> Pages
-  Affiliate --> Pages
-  Staff --> Pages
-  Pages --> V1
-  Pages --> Auth
-  V1 --> Modules
-  Auth --> Modules
-  Health --> DB
+
+  Buyer --> Web
+  Affiliate --> Web
+  Staff --> Web
+  Operator --> Worker
+  Operator --> Dataset
+  Web --> Modules
+  Worker --> Modules
   Modules --> DB
-  Modules --> Outbox
-  Outbox --> DB
-  Modules --> Storage
-  WorkerCli --> Dispatch
-  WorkerCli --> Leases
-  Dispatch --> DB
-  Leases --> DB
-  Leases --> PaySim
-  Leases --> ShipSim
-  Leases --> FinSim
-  Leases --> AdSink
-  Dispatch --> Inbox
-  PaySim --> DB
-  ShipSim --> DB
-  FinSim --> DB
-  AdSink --> DB
-  Inbox --> DB
-  PaySim -.-> Virgo
-  ShipSim -.-> Mengantar
-  AdSink -.-> AdsLive
-  Inbox -.-> Mail
+  Modules --> Files
+  Modules --> Sims
+  Sims --> DB
+  Dataset --> Modules
+  Raw -. "catalog:dataset, host only" .-> Dataset
+  Raw -. "catalog:initial-stock reads at run time" .-> Modules
+  Sims -. "manual dashboard today, API gated S94 S95 S98" .-> Mengantar
+  Sims -. "simulated client, live gated S97" .-> AutoLaris
+  Staff -. "finance confirms from bank statement" .-> Bank
+  Sims -. "local_ad_sink, live dispatch disabled" .-> Ads
+  Sims -. "local_delivery inbox, synthetic recipients only" .-> Mail
+
   classDef gated stroke-dasharray: 5 5
-  class Virgo,Mengantar,AdsLive,Mail gated
+  class Mengantar,AutoLaris,Bank,Ads,Mail,Raw gated
 ```
 
-Source: `src/config/local.ts`, `scripts/run-local.ts`, `scripts/worker.ts`, `src/jobs/{outbox,worker,leases}.ts`, `src/modules/integrations/local.ts`, `src/modules/advertising/worker.ts`, `src/modules/{payments,fulfillment,returns}/*local*.ts`, `src/modules/finance/settlements/local.ts`, `src/storage/private.ts`, `src/app/` tree, `compose.yaml`.
+| External | Local stand-in today | Live gate (RELEASE.md) |
+| --- | --- | --- |
+| Mengantar rates | `src/modules/shipping/rates.ts:localRateAdapter`, `source: 'TEST-ONLY'` | S95; no live adapter code exists yet |
+| Mengantar booking | Operator books in the Mengantar dashboard and types courier + resi (`fulfillment/manual.ts:shipManually`); the older `shipping.create` simulator still serves suites | S94; `MENGANTAR_API_BOOKING_ENABLED=false` in `fulfillment/manual.ts` |
+| Mengantar tracking | `fulfillment/manual.ts:simulatedTrackingAdapter` reading `local_tracking_observation`; operator fallback `recordTrackingStatus` | S98 |
+| Mengantar COD remittance | Finance types the statement (`finance/cod-remittance.ts:recordCodRemittance`) | Manual by design (DEC-007) |
+| AutoLaris VA/QRIS | `payments/autolaris.ts:simulatedAutolaris` (DB-backed `local_autolaris_transaction`); `autolarisClientFor` throws `AUTOLARIS_LIVE_GATED` for any non-local target | S97 plus static egress IP whitelist |
+| Manual bank transfer | Real flow; confirmation is a finance action with evidence | None beyond configured accounts in the `payment` policy |
+| Ads (Meta CAPI, Google Data Manager, TikTok Events API) | `advertising/worker.ts:advertisingAdapter` writing `local_ad_sink` | Consent/destination activation; `EXTERNAL_DISPATCH=disabled` |
+| Email / notifications | `integrations/local.ts:dispatchLocal` writing `local_delivery`; Better Auth only accepts `*.test` / `*.invalid` | OD-8 email provider gate |
+| Berlapak data | Committed sanitized dataset; raw snapshot read only by host commands | DEC-005; raw snapshot never served or committed |
+
+## Folder structure
+
+```text
+99ribu/
+├── src/                     application code (shared by web and worker)
+│   ├── app/                 Next.js App Router: pages, route handlers, metadata routes
+│   │   ├── (storefront)/    public Indonesian routes (DEC-010), server components + Server Actions
+│   │   ├── admin/           (console)/ shadcn staff console; support/ CS inbox outside the console
+│   │   ├── api/             auth/[...all] (Better Auth), health, v1/** (versioned business API)
+│   │   ├── media/catalog/   public catalog photo route (SEO names → content-addressed files)
+│   │   └── layout.tsx, not-found.tsx, robots.ts, sitemap.ts, globals.css, icons
+│   ├── components/          storefront/ (shell + client islands), admin/ (console clients), support/, ui/ (shadcn)
+│   ├── config/              local.ts (profile guard, private dirs), site.ts (origin, SITE_INDEXING)
+│   ├── db/                  client.ts (socket connection), schema.ts (Drizzle mirror), bootstrap SQL for roles
+│   ├── jobs/                outbox.ts (enqueue), leases.ts (claim/fence), worker.ts (job registry), probes.ts
+│   ├── modules/             24 domain modules, see Module map
+│   └── storage/             private.ts (artifacts), catalog-media.ts (photos), media-sniff.ts (magic bytes)
+├── migrations/              0000–0034 SQL + drizzle meta journal/snapshots (immutable once applied)
+├── scripts/                 run-local, worker, migrate, database, seed, catalog, check-tests, check-health
+├── data/catalog/berlapak/   committed catalog dataset: catalog.json, manifest.json, photos/<sha256>.webp
+├── tests/                   integration/ (177 files + fixtures), browser/ (15), contract/, historical/, top-level unit tests
+├── public/                  brand/, fonts/ (self-hosted Inter), catalog-local/ (S69 fixture copies), fixtures/, prototypes/
+├── docs/                    spec/ (canonical design), adr/ (ADR-0001..0007), history/ (archived narrative)
+├── design/                  design working files
+├── .delivery/               tool-written execution evidence (not hand-edited)
+└── .local/                  private runtime state, never committed (see Runtime topology)
+```
+
+## Module map
+
+One row per `src/modules/<name>`. "Tables" are the main tables the module writes; "Routes" are the `/api/v1` groups and pages that call it; "Jobs" are outbox kinds it enqueues (E), handles in the database registry (H) or serves as a leased adapter (L). Route handlers are thin: each `route.ts` calls the module's `handleX(request, getLocalAuth())`.
+
+| Module | Owns | Main tables | Routes / pages | Jobs |
+| --- | --- | --- | --- | --- |
+| `access` | Better Auth wiring, principal/roles/permissions, Origin and body checks, rate limits, staff grants, reauthentication proofs | `role_grant`, `warehouse_membership`, `mfa_session`, `access_proof`, `access_operation`, `audit_event`, `auth_rate_limit` | `/api/auth/*`, `me`, `me/reauthentication-proofs`, `admin/role-grants`, `admin/warehouses`, `admin/policy-versions` | E `local.notification` |
+| `accounts` | Buyer profile, address book, notification preferences, contact-change and guest-order-link challenges, return evidence | `buyer_profile`, `buyer_address`, `buyer_identity_challenge`, `buyer_notification_preference`, `return_evidence` | `me/*`, `guest-order-access/*`; page `/akun` | — |
+| `advertising` | Commerce events, funnel intake, Meta/Google/TikTok payload mapping to the local sink, destinations, diagnostics/replay | `commerce_event`, `ad_event_outbox`, `ad_delivery_attempt`, `ad_destination_config`, `order_ad_attribution`, `local_ad_sink` | `admin/advertising/**`, `consent/receipt`, `funnel/events`, `visitor-sessions` | E/L `advertising.dispatch` |
+| `affiliates` | Affiliate enrollment and profile, beneficiary changes, referral touches, order attribution, rate versions | `affiliate_account`, `affiliate_profile`, `referral_touch`, `order_attribution`, `affiliate_rate_version` | `me/affiliate`, `referral-touches`, `admin/affiliates/*/rates`; page `/afiliasi` | E `affiliate.payout.queue` |
+| `catalog` | Categories, stock items, products/offers and revisions, publication and withdrawal, dataset import, feed builder; `validation.ts` is shared | `category`, `stock_item`, `product`, `product_revision`, `offer`, `offer_component`, `publication_head`, `publication_version`, `publication_withdrawal` | `admin/categories`, `admin/products/**`, `admin/stock-items`; admin page `/admin/catalog` | — |
+| `checkout` | Guest/cart/order access cookies, carts, quotes, order submission and expiry; `exceptions/` holds commerce exceptions and recovery refunds | `commerce_guest_context`, `cart`, `cart_line`, `checkout_quote`, `commerce_order`, `order_item`, `order_shipment`, `fulfillment_item`, `order_event`, `order_access`, `commerce_exception` | `carts/**`, `checkout/quotes/**`, `orders`, `orders/{id}`, `destinations`, `admin/commerce-exceptions/**` | E/H `checkout.order.expire`, E/H `recovery.refund.callback`, E/L `recovery.refund.create` |
+| `commissions` | Commission accrual, receipt-anchored H+10 maturity, holds, voids, affiliate balances | `commission_entry`, `commission_adjustment` | `me/affiliate/{balance,commissions}` | E/H `commission.accrue`, `.receipt`, `.claim`, `.void`, `.mature`, `affiliate.payout.queue` |
+| `consent` | Visitor session bootstrap and consent receipts | `visitor_session`, `visitor_bootstrap_request`, `consent_receipt` | reached through `advertising` | — |
+| `documents` | Label templates, label jobs and private TEST PDFs, print batches and attempts | `shipping_label_template(_version)`, `shipping_label_job`, `shipping_label_artifact`, `shipping_print_batch`, `shipping_print_attempt` | `admin/label-*`, `admin/shipments/*/label*`, `admin/shipping-label-templates`; page `/admin/print-center` | — |
+| `finance` | Ledger and economic receipts, costs and contribution, order history; `settlements/` (statement, match, recovery); manual bank confirmation; AutoLaris queue and callback intake; COD remittance | `finance_transaction`, `finance_posting`, `economic_receipt`, `provider_settlement`, `settlement_match`, `manual_bank_confirmation`, `manual_bank_reference`, `autolaris_observation`, `autolaris_callback`, `cod_remittance`, `cod_remittance_line`, `component_cost_version` | `admin/reconciliation/**`, `admin/settlements`, `admin/finance`, `admin/orders`, `admin/manual-transfers/**`, `admin/autolaris-payments/**`, `admin/cod-remittances/**`, `admin/cod-collectible-parcels`, `payments/autolaris/callbacks`; pages `/admin/payments`, `/admin/cod-settlements` | E/H `settlement.callback`, E/H `cod.remittance.match` |
+| `fulfillment` | Fulfillment lifecycle, calendar deadlines and notices, booking/handover, waybill cancellation; `manual.ts`: warehouse mode, pickup profile, manual resi, Berlapak reference, tracking adapter and poll | `fulfillment`, `fulfillment_event`, `fulfillment_deadline`, `shipment_booking`, `shipment_cancellation`, `warehouse_pickup_profile`, `manual_tracking`, `fulfillment_purchase_reference`, `shipment_tracking_event` | `admin/fulfillments/**`, `admin/manual-shipments`, `admin/shipments`, `admin/warehouses/*/pickup-profile`; page `/admin/fulfillment` | E/L `shipping.create`, `shipping.cancel.create`; E/H `shipping.callback`, `shipping.cancel.callback`, `fulfillment.deadline`, `fulfillment.notice`, `fulfillment.tracking.poll` |
+| `integrations` | Local notification dispatcher (no network sender) | `local_delivery` | — | H `local.notification` |
+| `inventory` | Positions, lots, movements, reservations and expiry, warehouse transfers | `inventory_balance`, `inventory_lot`, `stock_movement`, `stock_reservation(_item/_component)`, `warehouse_transfer`, `transfer_receipt` | `admin/inventory/**` | E/H `inventory.reservation.expire` |
+| `local` | Local fixtures, fixture clock, dummy logins, Berlapak dataset generator, initial stock, origin rehome | `local_fixture_namespace`, `local_fixture_principal`, `local_fixture_warehouse` (plus seed writes through other modules) | scripts and tests only | — |
+| `orders` | Buyer order receipt/continuity projection and receipt cookies | — (reads) | `orders/{id}/receipt`; page `/pesanan/[orderId]` | — |
+| `payments` | Payment channels and terms, attempts, local prepaid simulator, COD confirmation and collection, AutoLaris client/simulator and advice polling | `payment_attempt`, `payment_attempt_event`, `payment_provider_event`, `payment_event_result`, `local_payment_operation`, `cod_confirmation`, `cod_event_result`, `autolaris_payment`, `local_autolaris_transaction` | `orders/{id}/payment-attempts/**`, `orders/{id}/cod-collections` | E/L `payment.create`, `payment.autolaris.advice`; E/H `payment.callback`, `cod.callback` |
+| `payouts` | Affiliate payout queue, manual transfer claim/verify, evidence upload | `affiliate_payout`, `affiliate_payout_entry`, `affiliate_payout_event`, `affiliate_payout_evidence` | `admin/payouts/**`, `me/affiliate/payouts` | — |
+| `promotions` | Shipping promotion configuration, reservations, allocation, expiry | `promotion`, `promotion_version`, `promotion_reservation`, `promotion_movement`, `promotion_allocation` | `admin/shipping-promotions/**` | E/H `promotion.reservation.expire` |
+| `reporting` | Dashboard snapshot, work queues, CSV exports, operation status | `admin_export_selection` | `admin/dashboard`, `admin/work-queues`, `admin/export-selections`, `admin/exports`, `operations/{id}` | — |
+| `returns` | Return cases and inspection, parcel receipts, refunds, replacements and their recovery | `return_case`, `return_item`, `buyer_receipt`, `refund`, `refund_allocation`, `replacement_shipment`, `replacement_booking` | `admin/returns/**`, `admin/refunds/**`, `admin/replacements/**`, `orders/{id}/returns/**`, `orders/{id}/refunds/**` | E/L `refund.create`, `replacement.shipping.create`; E/H `parcel.receipt.callback`, `refund.callback`, `replacement.shipping.callback`, `replacement.receipt.callback` |
+| `settings` | Versioned company/warehouse policies (`commercial`, `payment`, `warehouse_calendar`) | `policy_head`, `policy_version` | served through `access` at `admin/policy-versions` | — |
+| `shipping` | Address normalisation, destinations, parcel allocation, simulated rates, shipping-benefit check (pure) | — | used by checkout, accounts, storefront | — |
+| `storefront` | Server-side storefront reads, cart/checkout BFF, draft files, SEO, navigation | — (reads; drafts in `.local/artifacts`) | `products`, `products/{id}`, `categories`; every `(storefront)` page, `layout.tsx`, `robots.ts`, `sitemap.ts` | — |
+| `support` | Buyer/guest/staff conversations, challenges, attachments, notes, tags, saved replies, SSE stream | `support_conversation`, `support_message`, `support_attachment`, `support_challenge`, `guest_support_identity`, `support_assignment_event` | `support/**`, `admin/support/**`, `guest-support-sessions`; page `/admin/support` | — |
+
+Shared infrastructure outside `src/modules/`: `src/jobs/` (outbox, leases, registry, probes), `src/storage/`, `src/config/`, `src/db/`.
+
+## Worker and job registry
+
+Every job is an `app.outbox_job` row written in the caller's domain transaction (`src/jobs/outbox.ts:enqueueJob`). Two lanes exist:
+
+- **Database jobs** (`src/jobs/worker.ts:DATABASE_JOBS`, the sole registry): run inside one transaction with a savepoint; effect and job completion commit together. Seal kinds: `complete`, `defer` (handler may reschedule) and `expiry` (order ownership resolved first). Retryable errors (`40P01`, `55P03`, `57014`, `PAYMENT_RECONCILIATION_PENDING`, `TRACKING_ADAPTER_UNAVAILABLE`, `COD_COLLECTION_PENDING`) back off up to 60 s; others dead-letter.
+- **Leased adapter jobs** (`scripts/worker.ts` adapter map, `src/jobs/leases.ts`): claim with a fencing token and 30 s lease, dispatch outside database locks, settle by token; uncertain outcomes are reconciled by looking up the original identity, never by blind retry.
+
+| Lane | Kinds |
+| --- | --- |
+| Database | `local.notification`, `inventory.reservation.expire`, `promotion.reservation.expire`, `checkout.order.expire`, `payment.callback`, `cod.callback`, `settlement.callback`, `parcel.receipt.callback`, `refund.callback`, `recovery.refund.callback`, `replacement.shipping.callback`, `replacement.receipt.callback`, `shipping.callback`, `shipping.cancel.callback`, `fulfillment.deadline`, `fulfillment.notice`, `fulfillment.tracking.poll`, `cod.remittance.match`, `commission.accrue`, `commission.receipt`, `commission.claim`, `commission.void`, `commission.mature`, `affiliate.payout.queue` |
+| Leased adapter | `payment.create`, `payment.autolaris.advice`, `advertising.dispatch`, `shipping.create`, `shipping.cancel.create`, `refund.create`, `recovery.refund.create`, `replacement.shipping.create` |
+| Housekeeping (throttled, once per minute per process) | `deleteExpiredGuestContexts` (DEC-002), `redactAutolarisCallbacks` (raw callback bodies emptied after 30 days) |
+
+## Request flows
+
+Storefront Server Actions do not make HTTP calls: `src/modules/storefront/*` builds a `Request` and calls the same route handler (`handleCheckout`, `handlePayments`) in process, so `/api/v1/...` paths below are logical routes. Cookie names carry the prefix `99ribu-local.` or `99ribu-test.`.
+
+### Guest checkout to order
+
+```mermaid
+sequenceDiagram
+  autonumber
+  actor B as Guest buyer
+  participant SA as Server Actions<br/>keranjang, checkout
+  participant CO as checkout module
+  participant SH as shipping module
+  participant INV as inventory and promotions
+  participant DB as PostgreSQL
+  B->>SA: add offer to cart (changeCart)
+  SA->>CO: POST /api/v1/carts (no guest cookie)
+  CO->>DB: insert commerce_guest_context
+  CO-->>SA: 401 GUEST_CONTEXT_REQUIRED plus commerce_guest cookie
+  SA->>CO: retry POST /api/v1/carts, then lines
+  CO->>INV: offerAvailability (advisory, no hold)
+  CO->>DB: insert cart, cart_line, commerce_operation
+  CO-->>B: cart_access cookie
+  B->>SA: contact, address, payment method (changeCheckout)
+  Note over SA: draft saved as a private file in .local/artifacts/checkout-drafts
+  SA->>CO: POST /api/v1/checkout/quotes
+  CO->>SH: buildShippingPlans with localRateAdapter (TEST-ONLY rates)
+  CO->>DB: paymentTerms from payment policy, freeze cod_fee_bps
+  CO->>DB: insert checkout_quote (COD fee per parcel, buyer_total)
+  B->>SA: choose parcel services, then place order
+  SA->>CO: POST /api/v1/orders (submitOrder, one transaction)
+  CO->>INV: reservePromotions and reserveOffers
+  INV->>DB: stock_reservation plus expire jobs
+  CO->>DB: commerce_order, order_item, order_shipment, fulfillment_item, order_event, order_access
+  Note over CO,DB: manual-bank gets transfer_code 1-999 and 24 h expiry, other channels 30 min
+  CO->>DB: enqueue checkout.order.expire at expires_at
+  CO-->>SA: order plus order_access token
+  SA-->>B: order_access and checkout_access cookies, redirect /checkout/order/id
+```
+
+Order expiry (`checkout/expiry.ts:expireOwnedOrderJob`) releases stock and promotion holds and sets `status=cancelled, payment_status=expired`, unless the order is paid or COD-confirmed. It defers while a manual transfer can still be confirmed (12 h grace after the 24 h window) or while a final AutoLaris advice read is pending (30 min).
+
+### Payment: manual bank, COD, AutoLaris
+
+The channel is chosen at checkout and frozen on the order (`commerce_order.payment_channel`: `local-prepaid`, `manual-bank`, `autolaris`, `cod`; `payments/methods.ts:PAYMENT_CHANNELS`). All prepaid channels end in the same `payment.callback` processing that posts the economic receipt.
+
+```mermaid
+sequenceDiagram
+  autonumber
+  actor B as Buyer
+  actor F as Finance staff
+  participant PAY as payments module
+  participant W as Worker
+  participant SIM as Simulated provider<br/>local_payment, local_autolaris
+  participant FIN as finance module
+  participant DB as PostgreSQL
+  alt COD (fee 3.33 percent, buyer-paid)
+    Note over PAY: submitOrder already froze per-parcel fee = ceil(base x 333 / 10000)
+    PAY->>DB: confirmCodOrder: cod_confirmation, payment_status cod_due
+    PAY->>DB: initializeFulfillments, enqueue commission.accrue
+    Note over PAY: collection happens later through the COD remittance flow
+  else Manual bank transfer with unique code
+    B->>PAY: POST payment-attempts (createAttempt)
+    PAY->>DB: payment_attempt, expected_amount = total + transfer_code
+    W->>SIM: payment.create opens a local operation
+    B-->>F: transfers to a policy bank account (outside the system)
+    F->>FIN: POST /admin/manual-transfers/id/confirmations plus reauth proof
+    FIN->>DB: manual_bank_confirmation, manual_bank_reference (unique per account)
+    FIN->>SIM: settleLocalOperation, enqueue payment.callback
+  else AutoLaris VA or QRIS (simulated)
+    B->>PAY: POST payment-attempts with channel
+    PAY->>DB: payment_attempt, autolaris_payment (reff_id)
+    W->>SIM: payment.create: listPayment, createPayment
+    SIM-->>W: trx_id plus VA number or QR, admin fee store-borne
+    loop every 5 min, bounded
+      W->>SIM: payment.autolaris.advice
+      SIM-->>W: rc 00 PAID settles, 02 stays pending
+    end
+    Note over PAY: POST /payments/autolaris/callbacks only stores raw bodies and never marks paid
+    opt dashboard check
+      F->>FIN: POST /admin/autolaris-payments/id/confirmations plus reauth proof
+    end
+    W->>SIM: settled, enqueue payment.callback
+  end
+  W->>PAY: payment.callback (processPaymentEvent)
+  PAY->>FIN: postEconomicReceipt, Dr provider_receivable, Cr buyer_funds_liability
+  PAY->>DB: payment_status confirmed, initializeFulfillments, commission.accrue, Purchase
+```
+
+A mismatched or late amount is not dropped: it posts a recovery adjustment, sets the attempt to `unknown` and opens a `commerce_exception` for finance. The legacy `local-prepaid` channel is settled by `scripts/worker.ts --confirm-payment`; `--autolaris-paid` makes the simulated AutoLaris account report paid.
+
+### Consignment fulfillment (manual Mengantar booking)
+
+Every warehouse is in `manual_dashboard` mode today: `fulfillment/manual.ts:fulfillmentMode` returns `mengantar_api` only for a complete pickup profile with `MENGANTAR_API_BOOKING_ENABLED`, which is hard-coded `false`.
+
+```mermaid
+sequenceDiagram
+  autonumber
+  actor O as Warehouse or ecommerce admin
+  participant UI as /admin/fulfillment
+  participant FUL as fulfillment module
+  participant W as Worker
+  participant TA as Tracking adapter<br/>simulated
+  participant RET as returns and commissions
+  participant DB as PostgreSQL
+  Note over FUL,DB: payment confirmed or COD confirmed: initializeFulfillments creates fulfillment ready plus deadline
+  O->>UI: open queue Perlu dipesan kurir
+  UI->>FUL: GET /admin/manual-shipments?queue=to_book
+  O->>O: buy goods from the Berlapak seller and book in 99ribu Mengantar dashboard
+  opt record purchase reference
+    UI->>FUL: POST /admin/fulfillments/id/berlapak-references
+    FUL->>DB: fulfillment_purchase_reference (versioned)
+  end
+  O->>UI: enter courier plus resi
+  UI->>FUL: POST /admin/fulfillments/id/manual-shipment (shipManually)
+  FUL->>DB: fulfillment packed (manual_issued), manual_tracking v1
+  FUL->>DB: commitHandover: handed_over, stock_movement consume once
+  FUL->>DB: enqueue fulfillment.tracking.poll
+  opt wrong resi
+    UI->>FUL: POST tracking-corrections with reason
+    FUL->>DB: manual_tracking v n+1, tracking_corrected event, new poll
+  end
+  loop every 30 min until delivered or 30 days stale
+    W->>TA: fulfillment.tracking.poll (processTrackingPoll)
+    TA-->>W: PICKED_UP, IN_TRANSIT, FAILED or DELIVERED
+    W->>DB: shipment_tracking_event (monotonic, failed is not terminal)
+  end
+  Note over O,FUL: operator fallback POST tracking-statuses with reason and evidence
+  W->>RET: delivered: parcel receipt source, parcel.receipt.callback
+  RET->>DB: buyer_receipt per unit, commission.receipt (H+10 maturity), 7-day return window
+```
+
+### COD remittance and settlement
+
+```mermaid
+sequenceDiagram
+  autonumber
+  actor F as Finance staff
+  participant UI as /admin/cod-settlements
+  participant CR as finance cod-remittance
+  participant PAY as payments cod
+  participant W as Worker
+  participant ST as finance settlements
+  participant DB as PostgreSQL
+  F->>UI: enter Mengantar COD statement reference
+  UI->>CR: GET /admin/cod-collectible-parcels
+  CR-->>UI: shipped manual COD parcels not yet remitted
+  F->>UI: gross, shipping deduction, COD fee deduction, other, net, parcel lines
+  UI->>CR: POST /admin/cod-remittances plus reauth proof
+  Note over CR: gross must equal net + deductions, else 422 STATEMENT_TOTAL_MISMATCH
+  CR->>PAY: per line codSourceEvent, enqueue cod.callback
+  CR->>ST: settlement source (carrier_fee = shipping + COD fee), enqueue settlement.callback
+  CR->>DB: cod_remittance, cod_remittance_line, enqueue cod.remittance.match
+  W->>PAY: cod.callback (processCodEvent)
+  PAY->>DB: economic_receipt cod, Dr provider_receivable, Cr buyer_funds_liability
+  PAY->>DB: payment_status partially_collected or confirmed
+  W->>ST: settlement.callback
+  ST->>DB: Dr company_cash, Dr carrier_expense and provider_fee_expense, Cr settlement_clearing
+  W->>CR: cod.remittance.match after every line has a result
+  CR->>ST: createSettlementMatch, Dr settlement_clearing, Cr provider_receivable
+  UI->>CR: GET /admin/cod-remittances/id
+  CR-->>F: expected net = gross - shipping - COD fee, mismatch flags
+```
+
+## Catalog pipeline
+
+```mermaid
+flowchart TD
+  Raw["Raw Berlapak snapshot<br/>BERLAPAK_DATA_DIR, host only<br/>data-json, images, Google taxonomy"]
+  Gen["npm run catalog:dataset<br/>local/berlapak-dataset.ts<br/>buildBerlapakDataset"]
+  DS[["data/catalog/berlapak<br/>catalog.json 99ribu.catalog/v2<br/>manifest.json, photos/sha256.webp"]]
+  Imp["npm run catalog:import<br/>catalog/dataset.ts importCatalog<br/>as temporary MFA owner"]
+  Stock["npm run catalog:initial-stock<br/>receive movements plus HPP<br/>reads raw snapshot again"]
+  Pub["publishProduct<br/>publication_version<br/>guarded by stock, cost, policy"]
+  WD["catalog:withdraw<br/>publication_withdrawal"]
+  Media[(".local/catalog-media<br/>sha256.webp")]
+  DB[("PostgreSQL<br/>warehouse, category, product,<br/>offer, publication")]
+  Store["Storefront reads<br/>storefront/catalog.ts"]
+  Route["/media/catalog/title-slug-12hex.webp<br/>308 for stale names"]
+  Feed["catalog/feed.ts<br/>google_product_category, product_type<br/>module only, no route"]
+  SEO["sitemap.xml, JSON-LD, metadata"]
+
+  Raw --> Gen
+  Gen --> DS
+  DS --> Imp
+  Imp --> DB
+  Imp --> Media
+  Raw --> Stock
+  Stock --> DB
+  Imp --> Pub
+  Pub --> DB
+  WD --> DB
+  DB --> Store
+  DB --> Feed
+  Media --> Route
+  Store --> Route
+  Store --> SEO
+```
+
+- **Generator** (`src/modules/local/berlapak-dataset.ts`): classifies every product into the 14 DEC-011 departments (`DEPARTMENTS`, ordered `DEPARTMENT_RULES`, `CATEGORY_OVERRIDES`; refuses unclassified products, stale overrides and departments under 8 products), pins Google product categories (taxonomy `2021-09-21`), cleans descriptions (`cleanDetails`, claim terms kept and reported per DEC-013), writes alt text (clean title, `, foto N` after the first) and derives warehouse origin keys (first 32 hex of SHA-256 of `99ribu:berlapak-warehouse:<id>`). Output carries no supplier names, HPP or stock.
+- **Import** (`src/modules/catalog/dataset.ts:importCatalog`): creates missing origin warehouses (`warehouse.origin_key`, audited `catalog.warehouse.create`), categories, stock items, products/offers bound to their origin warehouse and bundle contents; stores each photo with `src/storage/catalog-media.ts:saveCatalogMedia` (WebP only, ≤ 512 KB, content-addressed, atomic hard link) and records image URLs as `<origin>/media/catalog/<title-slug>-<12 hex>.webp`; then publishes ready products through `publishProduct`. Rerunning is idempotent.
+- **Operator commands** (`scripts/catalog.ts`): `initial-stock` (one `receive` and one cost version per never-stocked item, into its origin warehouse), `rehome` (dry run, or `--apply` moves stock to origin warehouses through audited transfers), `withdraw` (dry run, or `--apply` withdraws current publications outside the committed dataset).
+- **Public reads** honour only current, non-withdrawn publications (`not exists publication_withdrawal`). The photo route (`src/app/media/catalog/[file]/route.ts`) resolves the 12-hex prefix to exactly one file, 308-redirects stale or bare-hash names to the canonical name and serves the canonical file with a one-year immutable cache, `nosniff` and `sandbox` CSP.
+- **Feed**: `catalogFeed`/`feedXml` build a Google Merchant RSS item list with `google_product_category` (per SKU, else department default from the dataset) and `product_type` (Indonesian category path). It is called only by tests today; no route serves it.
+
+## Identity, roles and access
+
+Better Auth (`src/modules/access/auth.ts:createLocalAuth`) runs email/password with mandatory email verification and the `twoFactor` plugin (TOTP plus backup codes), cookie sessions of 7 days, mounted at `/api/auth/[...all]` behind `access/handler.ts:handleAuth`, which allowlists twelve endpoints, enforces JSON ≤ 16 KB, strips session tokens from bodies and applies per-account limits (sign-in and TOTP 5/min). Roles live in `app.role_grant.roles` (checked list); warehouse scope lives in `app.warehouse_membership`.
+
+| Role | Scope | Console pages | MFA |
+| --- | --- | --- | --- |
+| `owner` | Company, all warehouses | All, plus `/admin/support`; only role that grants roles and appends policies | Required; fresh MFA (≤ 5 min) plus reauthentication proof for owner writes |
+| `ecommerce_admin` | Assigned warehouses | Catalog (edit), fulfillment (incl. pickup profiles), print center | Required |
+| `warehouse` | Assigned origin warehouses (at least one) | Catalog (stock view), fulfillment, print center | Required |
+| `customer_service` | Not warehouse-scoped; replies only on claimed conversations | `/admin/support` | Required |
+| `finance` | Company-wide finance; order history needs warehouse scope | Payments, COD settlements, catalog costs (with `finance.costs.read`) | Required; reauthentication proof for reconcile/refund/confirm actions |
+| `buyer` | Own resources (default when no grant row) | — | No |
+| `affiliate` | Own profile, balances, payouts | — (`/afiliasi`) | No; beneficiary change needs a reauthentication proof |
+
+```mermaid
+sequenceDiagram
+  autonumber
+  actor S as Staff user
+  participant BA as /api/auth (Better Auth)
+  participant ACC as access module
+  participant API as /api/v1/admin handler
+  participant DB as PostgreSQL
+  S->>BA: POST sign-in/email
+  BA-->>S: two_factor cookie (pending second factor)
+  S->>BA: POST verify-totp
+  BA->>DB: session plus mfa_session(session_id, verified_at)
+  BA-->>S: session_token cookie (HttpOnly, Lax)
+  S->>API: admin request with exact Origin
+  API->>ACC: getPrincipal: roles, warehouses, mfaAt
+  alt staff without MFA on this session
+    ACC-->>S: 403 MFA_REQUIRED
+  else sensitive write
+    S->>ACC: POST /me/reauthentication-proofs (password, purpose)
+    ACC->>DB: access_proof, single use, 5 min
+    S->>API: write with proof
+    API->>DB: consumeAccessProof, domain effect, audit_event in one transaction
+  end
+```
+
+Guest commerce authority (ADR-0007) uses HttpOnly capability cookies, never URL tokens: `commerce_guest` (7 days), `cart_access`, `order_access` (path `/api/v1/orders/<id>`), and the alias `checkout_access` (path `/checkout/order/<id>`); verified guest-order access goes through `guest-order-access/challenges`. Sign-in and sign-out revoke the guest context. The console navigation (`src/app/admin/(console)/staff-roles.ts`) is only a convenience gate; every API handler rechecks role, warehouse scope and MFA.
+
+## Storefront architecture
+
+- **Routes** (`src/app/(storefront)/`, DEC-010): `/`, `/kategori`, `/kategori/[slug]`, `/produk/[slug]`, `/cari`, `/keranjang`, `/checkout`, `/checkout/order/[orderId]`, `/pesanan/[orderId]`, `/akun`, `/afiliasi`, `/promo`, `/bantuan`, `/tentang`, `/kontak`, `/privasi`, `/syarat`, `/masuk`. All pages are async server components wrapped in `components/storefront/shell.tsx:Shell` (the group has no `layout.tsx`); most declare `dynamic = 'force-dynamic'`. `/produk/<title>-<uuid>` resolves by id and `permanentRedirect`s (308) a stale title.
+- **Data access**: pages call `src/modules/storefront/*` directly with the app database role; cart and checkout mutations are Server Actions (`keranjang/actions.ts`, `checkout/actions.ts`) that call the API handlers in process. Forms use `useActionState` and keep working without JavaScript.
+- **Client islands** (`"use client"`, small and optional): `search-box` (combobox over a GET form), `category-switcher`, `shelf-arrows`, `hero-video`, `navigation` (`ProductLink`, `TaskBack`), `cart-forms`, `checkout-forms`, `checkout-exit`, `order-receipt`, `sign-in-form`, `sign-out-button`, `buyer-account-client` (the only islands that `fetch` `/api/auth/*` or `/api/v1/me/*`), plus `(storefront)/error.tsx`.
+- **Caching**: the header data (departments, pill photos, search suggestions, promo flag) is a module-level in-process promise cache refreshed after 30 s (`shell.tsx:chrome`); the PDP deduplicates its load between `generateMetadata` and the page with React `cache()`. No `unstable_cache`, `"use cache"` or tag revalidation is used; Server Actions call `revalidatePath`.
+- **Images**: `next.config.ts` limits the optimizer to `localPatterns` `/media/catalog/**`, quality 60, `imageSizes` 64–384, `deviceSizes` 640–1920; `components/storefront/media.ts:responsiveImage` emits plain `<img srcset>` pointing at `/_next/image` (no `next/image`).
+- **Fonts and SEO**: Inter 4.1 self-hosted from `public/fonts` via `@font-face` (Latin subset preloaded); `modules/storefront/seo.ts` owns route indexability, canonical/OpenGraph metadata, JSON-LD (Organization, WebSite, BreadcrumbList, Product/ProductGroup), `robots.txt` and `sitemap.xml`, switched by `SITE_INDEXING` (`src/config/site.ts`).
+- **Not found**: `src/app/not-found.tsx`; PDP and category pages redirect to `/404` instead of calling `notFound()` (Next 16.4 empty-body issue, see appendix S21 note).
+- **Admin console isolation** (DEC-004): `src/app/admin/(console)/layout.tsx` alone imports `admin.css` (Tailwind v4 + shadcn `radix-vega`); `/admin/support` and the storefront never load it. Console pages render client components that call `/api/v1/admin/*`; only print center and support read modules server-side.
+
+## Data domains
+
+Core tables only (30 of 219), names from `src/db/schema.ts`. Event, operation, simulator (`local_*`), returns/replacement, exception, affiliate, support and advertising tables are omitted.
+
+```mermaid
+erDiagram
+  auth_user ||--o| role_grant : "has roles"
+  auth_user ||--o{ warehouse_membership : "scoped to"
+  warehouse ||--o{ warehouse_membership : "staffed by"
+  warehouse ||--o{ inventory_balance : "holds"
+  stock_item ||--o{ inventory_balance : "counted in"
+  category ||--o{ category : "parent of"
+  product ||--o{ offer : "sells"
+  offer ||--o{ offer_component : "contains"
+  stock_item ||--o{ offer_component : "used in"
+  product ||--o{ publication_version : "published as"
+  publication_version ||--o| publication_withdrawal : "withdrawn by"
+  cart ||--o{ cart_line : "lines"
+  publication_version ||--o{ cart_line : "frozen offer"
+  cart ||--o{ checkout_quote : "quotes"
+  checkout_quote ||--o| commerce_order : "submitted as"
+  commerce_order ||--o{ order_item : "items"
+  commerce_order ||--o{ order_shipment : "parcels"
+  warehouse ||--o{ order_shipment : "ships from"
+  order_item ||--o{ fulfillment_item : "units"
+  order_shipment ||--o{ fulfillment_item : "packs"
+  commerce_order ||--o{ payment_attempt : "paid by"
+  payment_attempt ||--o| manual_bank_confirmation : "confirmed by"
+  payment_attempt ||--o| autolaris_payment : "AutoLaris identity"
+  order_shipment ||--o{ fulfillment : "fulfilled by"
+  fulfillment ||--o{ manual_tracking : "resi versions"
+  fulfillment ||--o{ shipment_tracking_event : "tracking"
+  order_shipment ||--o{ cod_remittance_line : "remitted in"
+  cod_remittance ||--o{ cod_remittance_line : "lines"
+  commerce_order ||--o{ finance_transaction : "journals"
+  finance_transaction ||--|{ finance_posting : "balanced postings"
+  finance_transaction ||--o| economic_receipt : "receipt"
+  order_shipment ||--o{ economic_receipt : "per parcel"
+
+  auth_user {
+    text id PK
+    text email
+    boolean two_factor_enabled
+  }
+  role_grant {
+    uuid id PK
+    text user_id FK
+    text_array roles
+    text_array permissions
+  }
+  warehouse_membership {
+    text user_id FK
+    uuid warehouse_id FK
+  }
+  warehouse {
+    uuid id PK
+    text name
+    text city
+    text district
+    text origin_key
+  }
+  stock_item {
+    uuid id PK
+    text sku
+  }
+  inventory_balance {
+    uuid id PK
+    uuid warehouse_id FK
+    uuid stock_item_id FK
+    bigint on_hand
+    bigint reserved
+  }
+  category {
+    uuid id PK
+    text slug
+    uuid parent_id FK
+  }
+  product {
+    uuid id PK
+    text slug
+    int revision
+  }
+  offer {
+    uuid id PK
+    uuid product_id FK
+    text sku
+  }
+  offer_component {
+    uuid offer_id FK
+    uuid stock_item_id FK
+    int quantity
+  }
+  publication_version {
+    uuid id PK
+    uuid product_id FK
+  }
+  publication_withdrawal {
+    uuid publication_id FK
+    text reason
+  }
+  cart {
+    uuid id PK
+    text owner_user_id FK
+    uuid owner_guest_id FK
+    text state
+  }
+  cart_line {
+    uuid id PK
+    uuid cart_id FK
+    uuid publication_id FK
+    int quantity
+  }
+  checkout_quote {
+    uuid id PK
+    uuid cart_id FK
+    text payment_channel
+    int cod_fee_bps
+  }
+  commerce_order {
+    uuid id PK
+    uuid quote_id FK
+    text status
+    text payment_status
+    text payment_channel
+    int transfer_code
+  }
+  order_item {
+    uuid id PK
+    uuid order_id FK
+    uuid publication_id FK
+  }
+  order_shipment {
+    uuid id PK
+    uuid order_id FK
+    uuid warehouse_id FK
+    bigint cod_due
+  }
+  fulfillment_item {
+    uuid id PK
+    uuid order_item_id FK
+    uuid shipment_id FK
+    bigint payment_charge
+  }
+  payment_attempt {
+    uuid id PK
+    uuid order_id FK
+    text method_id
+    text status
+  }
+  manual_bank_confirmation {
+    uuid attempt_id FK
+    text bank_reference
+  }
+  autolaris_payment {
+    uuid attempt_id FK
+    text reff_id
+    text channel_code
+  }
+  fulfillment {
+    uuid id PK
+    uuid shipment_id FK
+    text status
+  }
+  manual_tracking {
+    uuid id PK
+    uuid fulfillment_id FK
+    int version
+    text tracking_number
+  }
+  shipment_tracking_event {
+    uuid id PK
+    uuid fulfillment_id FK
+    text status
+  }
+  cod_remittance {
+    uuid id PK
+    text reference
+    bigint net_amount
+  }
+  cod_remittance_line {
+    uuid remittance_id FK
+    uuid shipment_id FK
+    bigint amount
+  }
+  finance_transaction {
+    uuid id PK
+    text kind
+    uuid order_id FK
+  }
+  finance_posting {
+    uuid transaction_id FK
+    text account
+    text side
+    bigint amount
+  }
+  economic_receipt {
+    uuid id PK
+    uuid transaction_id FK
+    uuid shipment_id FK
+    text kind
+  }
+```
+
+## State machines and money flow
 
 ### Order lifecycle state machines
+
+Carried forward from the 2026-10-21 review and rechecked against migrations `0026`–`0034`: those migrations add tables and event kinds (`manual_issued`, `tracking_corrected`) but no new `commerce_order`, `payment_attempt` or `fulfillment` status values. Manual-bank and AutoLaris attempts use the same prepaid attempt states; the manual path goes `ready → picking → packed → handed_over` in one `shipManually` command. Delivery after handover is tracked separately in `shipment_tracking_event` (`picked_up`, `in_transit`, `failed`, `delivered`).
 
 Payment, COD collection, delivery and printing are separate columns and tables; no single order status combines them. `commerce_order.status` itself only moves `preparing → pending → processing | partially_completed | cancelled` (latest `commerce_order_state_check`, `migrations/0023_commerce_exceptions.sql`); `partially_completed` is set when every surviving original unit has a buyer receipt (`src/modules/returns/receipts.ts`).
 
@@ -182,6 +689,7 @@ stateDiagram-v2
   ready --> picking: prepare command
   picking --> picking: bookShipment enqueues shipping.create
   picking --> packed: shipping.callback waybill issued
+  picking --> packed: manual resi entered, kind manual_issued
   picking --> exception: shipping.callback waybill failed
   exception --> picking: rebook after failed or cancelled booking
   packed --> handover_pending: packed command
@@ -245,93 +753,50 @@ flowchart LR
 
 Source: `migrations/0014_immutable_finance.sql`, `migrations/0025_affiliate_ledger.sql` (`finance_posting_value_check`), `src/modules/finance/{ledger,receipts}.ts`, `src/modules/finance/settlements/core.ts`, `src/modules/payments/{events,cod}.ts`, `src/modules/returns/{refunds,worker}.ts`, `src/modules/checkout/exceptions/{refunds,refund-callback}.ts`, `src/modules/commissions/service.ts`, `src/modules/payouts/service.ts`.
 
-### Worker job map
+## Known differences between code and decisions
 
-Every job is an `app.outbox_job` row written in the domain transaction. In-transaction kinds run inside `runOneJob`; leased kinds run through `runLeasedJob` with the adapters registered in `scripts/worker.ts`. Each label names the job kind and the function that enqueues it.
+Recorded 2026-10-23 from the code on disk. The decision text is not changed here; each item needs an owner or coordinator call (fix the code, or amend the decision).
 
-```mermaid
-flowchart LR
-  subgraph Access["access"]
-    N1["local.notification<br/>Better Auth deliver"]
-  end
-  subgraph Holds["inventory, promotions, checkout"]
-    H1["inventory.reservation.expire<br/>reserveOffers"]
-    H2["promotion.reservation.expire<br/>reservePromotions"]
-    H3["checkout.order.expire<br/>submitOrder"]
-  end
-  subgraph Pay["payments"]
-    P1["payment.create, leased<br/>createAttempt"]
-    P2["payment.callback<br/>ingestProviderEvent"]
-    P3["cod.callback<br/>registerCodEvent"]
-  end
-  subgraph Ful["fulfillment"]
-    F1["shipping.create, leased<br/>bookShipment"]
-    F2["shipping.callback<br/>registerWaybillEvent"]
-    F3["shipping.cancel.create, leased<br/>requestWaybillCancellation"]
-    F4["shipping.cancel.callback<br/>registerWaybillCancellationEvent"]
-    F5["fulfillment.deadline and fulfillment.notice<br/>appendDeadline, appendNotice"]
-  end
-  subgraph Fin["finance"]
-    S1["settlement.callback<br/>registerSettlementEvent"]
-  end
-  subgraph Ret["returns"]
-    R1["parcel.receipt.callback<br/>registerParcelReceiptSource"]
-    R2["refund.create, leased<br/>queueRefund, acceptRefundDestination, recoverRefund"]
-    R3["refund.callback<br/>registerRefundSourceEvent"]
-    R4["replacement.shipping.create, leased<br/>actOnReplacement"]
-    R5["replacement.shipping.callback and replacement.receipt.callback<br/>register replacement sources"]
-  end
-  subgraph Com["commissions and affiliates"]
-    C1["commission.accrue<br/>enqueueCommissionAccrual"]
-    C2["commission.receipt"]
-    C3["commission.claim<br/>appendReturnEvent"]
-    C4["commission.void<br/>applyException"]
-    C5["commission.mature<br/>scheduleMaturity, then queues payouts inline"]
-    C6["affiliate.payout.queue<br/>changeAffiliateBeneficiary"]
-  end
-  subgraph Ads["advertising"]
-    A1["advertising.dispatch, leased<br/>appendCommerceEvent, replayAdvertisingEvent"]
-  end
-  subgraph Exc["checkout exceptions"]
-    X1["recovery.refund.create, leased<br/>queueRecoveryRefund, acceptRecoveryDestination"]
-    X2["recovery.refund.callback<br/>registerRecoverySourceEvent"]
-  end
-  P1 --> P2
-  P2 -->|"processPaymentEvent confirmed"| C1
-  P3 -->|"confirmCodOrder"| C1
-  F1 --> F2
-  F3 --> F4
-  R1 -->|"processParcelReceipt"| C2
-  R2 --> R3
-  R4 --> R5
-  C2 -->|"receipt anchors H+10"| C5
-  C3 -->|"hold released or replacement re-anchors"| C5
-  X1 --> X2
-```
+| # | Decision says | Code does |
+| --- | --- | --- |
+| 1 | DEC-011 and slice S56: the feed emits `google_product_category` / `product_type`, served at `/api/v1/catalog/feeds/{channel}` | `src/modules/catalog/feed.ts` builds the feed, but no route, script or page calls it (tests only), and neither `src/app/api/v1` nor `docs/spec/openapi.yaml` has a feeds path. |
+| 2 | DEC-007 (2): live Mengantar estimate adapter is gated (S95) | No Mengantar rate adapter, flag or gate exists; `shipping/rates.ts:estimateRates` accepts only `source: 'TEST-ONLY'` rates. The gate is "not implemented" rather than "implemented and off". |
+| 3 | DEC-008 (5): one payment adapter seam (`manual_bank`, `autolaris`, local) | `PAYMENT_CHANNELS[*].adapter` is never read; `payments/worker.ts:paymentAdapter` branches only on `autolaris`, and manual bank reuses the local simulator operation (`createLocalOperation`/`settleLocalOperation`) as its settlement carrier. |
+| 4 | DEC-008 (4): unique code 1–999 per transfer | Codes are unique only among open manual-bank orders (unique index in `0032`), 99 codes are held in reserve (`MANUAL_BANK_BUSY`), and each actor may hold at most 2 open manual-bank orders (`MANUAL_BANK_OPEN_LIMIT`). These limits are not in the decision text. |
+| 5 | DEC-008 (2): AutoLaris API key as a server secret; live gated | Live use is blocked only in code (`autolarisClientFor` → `AUTOLARIS_LIVE_GATED`); `src/config/local.ts` does not reject `AUTOLARIS_*` variables the way it rejects `MENGANTAR_*` and the others. |
+| 6 | DEC-008 (1): AutoLaris methods rendered from runtime `list_payment` | Rendered from `listPayment`, but filtered by a fixed allowlist `AUTOLARIS_CHANNELS` (five VA banks and QRIS). Consistent with the decision's method list; noted because a new channel needs a code change. |
+| 7 | DEC-008 (3): store-borne AutoLaris admin fee recorded as a payment cost when deducted from settlement | Only the host-only simulator `simulateAutolarisSettlement` produces such a settlement; no job creates it from AutoLaris data. |
+| 8 | DEC-007 (7): a statement whose gross ≠ net + deductions is flagged `SETTLEMENT_TOTAL_MISMATCH` | `recordCodRemittance` refuses it with 422 `STATEMENT_TOTAL_MISMATCH` and stores nothing, so the projection flag of the same name cannot fire. |
+| 9 | DEC-009 (2): COD fee base is merchandise after merchandise reductions | The base is gross parcel merchandise plus net shipping. Equal today because promotions only subsidise shipping. |
+| 10 | Access contract: `finance.recovery_refund` proof purpose | Handlers in `checkout/exceptions/refunds.ts` consume that purpose, but `access/grants.ts:issueAccessProof` cannot issue it; only tests insert such proofs directly. |
+| 11 | Affiliate enrollment (`/api/v1/me/affiliate`) | Enrollment requires the `affiliate` role to exist already; no API grants it (only local seed code does). |
+| 12 | RELEASE.md production runbook step 10: "12 categories" | DEC-011 and the generator define 14 departments. |
 
-Source: `src/jobs/worker.ts` (in-transaction kind list), `scripts/worker.ts` (leased adapter map), `src/jobs/{outbox,leases}.ts`, `src/modules/commissions/jobs.ts`, and each `enqueueJob` call site in `src/modules/{access,inventory,promotions,checkout,payments,fulfillment,finance/settlements,returns,affiliates,advertising}`.
+## Appendix: slice implementation notes (historical)
 
-## Acceptance boundary
+Kept from earlier revisions of this file. Each note describes what a slice added when it was accepted; later slices may have changed it (for example S80–S93 replaced the English storefront paths, Virgo and the single import warehouse). The sections above win where they disagree. Narrative checkpoints that were already archived live in [docs/history/](docs/history/).
+
+### Acceptance boundary
 
 Current acceptance targets a production-mode localhost web/worker with real disposable PostgreSQL and synthetic fixtures. Required proof includes public API behavior, durable stock/money effects, authorization negatives, restart/restore and rendered UI journeys. Provider sandbox/live acceptance, physical carrier-label approval and remote operations remain separate. A successful build alone proves none of those behaviors.
 
 
-## Versioned API contract boundary
+### Versioned API contract boundary
 
 The S10 access boundary validates local cookie transport, exact mutation Origin, JSON media/size, input/query limits, retry identity and safe private Problems before exposing domain results. OpenAPI is the canonical schema and operation-ownership registry; implemented-local entries map exactly to current /api/v1 Route Handlers. Planned transports/operations carry no runtime authority. Test probes validate in-memory synthetic exchanges against the same OAS, while real PostgreSQL and Chromium prove persistence/session behavior. No separate schema framework or runtime dependency was introduced.
 
 
-## Local fixture ownership and time
+### Local fixture ownership and time
 
 Additive migration 0006 defines local_fixture_namespace, local_fixture_principal and local_fixture_warehouse. Unique mapped IDs and restrictive foreign keys prevent a namespace from adopting another fixture's identities; first creation serializes on its namespace row. The explicit seed command uses the fixed isolated database profile and installed Better Auth password hashing, without minting sessions or MFA proofs. The local harness reads delivered inbox messages only after namespace/principal matching. Namespace clock version updates are atomic and separate from real authentication time. No new HTTP route or external sender is introduced.
 
 
-## Durable job lease and reconciliation boundary
+### Durable job lease and reconciliation boundary
 
 S12 extends the existing PostgreSQL OutboxJob rather than adding another queue. Auth notification effects stay inside their completion transaction. Registered outside-transaction adapters use claim/dispatch-marker/settlement with token fencing,30-second leases, a25-second abortable deadline and finite backoff. Expired unstarted claims retry; started/uncertain claims require a lookup of their original identity. Unresolved lookups are delayed 30 seconds. Dead letters retain failed job facts, and unknown economic effects never become failed solely through an attempt cap. Adapter handlers register through the existing worker function; current non-notification adapters are controlled test fixtures only. Business/vendor validation and public operation-recovery authorization remain owned by their consuming slices.
 
 
-## Versioned policy implementation
+### Versioned policy implementation
 
 S13 adds policy_head and append-only policy_version. A unique company/warehouse scope plus locked head revision serializes concurrent owners. Version insertion, revision advancement, proof consumption, immutable audit and retry outcome commit together. Database triggers reject version update/delete, scope relabeling and revision advancement without its appended version. GET history uses one repeatable-read snapshot; latest stream revision and effective version remain distinct. Trusted server consumers resolve immutable versions at the business event time and freeze their IDs/values in actual domain records when implemented.
 
@@ -339,7 +804,7 @@ The existing cookie/Origin/body/error boundary mounts two owner-only policy hand
 
 S13 scheduling bound: prospective activation uses database wall time and rejects dates more than 366 days ahead with 400 POLICY_SCHEDULE_TOO_DISTANT. Earlier-than-last scheduled appends return 409 SCHEDULE_CONFLICT; failures roll back proof consumption. This bounded append-only schedule has no cancellation endpoint. Shipping consumers must independently verify calendar-year coverage for every calculated business day; S13 does not calculate shipping deadlines. Scenario setup must append its own explicit policy inputs rather than relying on policies left by earlier tests.
 
-## S14 inactive catalog
+### S14 inactive catalog
 
 Seven catalog tables add company taxonomy, physical SKU identities, product and offer identities, immutable product/offer revisions and physical components. Product catalog IDs use a disjoint p_ prefix and offers v_; each namespace is unique, so IDs cannot collide across entity kinds. IDs, SKUs and slugs do not change. No product is published by S14, and every projected offer remains unavailable at exactly integer IDR 99000.
 
@@ -474,7 +939,7 @@ S26 current form correction: issued allocation choices and each parcel's service
 
 S26 implicit submit correction: the first form-associated non-exit control submits closed navigate=stay. The server maps it from the existing intent kind to contact lookup, shipping or review, requalifies current quote/contact/version, and saves only derivative progress. Explicit lookup/Back and exact financial requests keep their separate intents. Native/browser regressions prove no quote/order creation and retained issued radio choices after Enter with JS enabled and disabled. Multi-origin fixture cases establish their own approved-offer reservation through reserveOffers, release only their exact hold and remove only its ready expiry job. Capture output is keyed by actual .next/BUILD_ID so concurrent review can retain earlier PNG bytes. Acceptance remains in STATUS.
 
-## S33–S68 completed local domain, UI, and assembled readiness slices
+### S33–S68 completed local domain, UI, and assembled readiness slices
 
 - **S33–S34 (Commerce exception recovery & realized contribution reporting):** Applied migrations `0023_commerce_exceptions.sql`, `0024_remaining_domains.sql`, and `0025_affiliate_ledger.sql` (205 application tables total across local and test databases). `S33` completes late-payment recovery, stock-discrepancy investigation, COD refusal, mixed delivery, and ambiguous external waybill/cancellation recovery across `/api/v1/admin/exceptions/**` and `/api/v1/orders/{orderId}/exceptions/**`. `S34` implements actual contribution margin calculation, explicit unknown-cost vs zero-cost separation, historical HPP/expense adjustment lineage, and period-close reconciliation reporting (`--case=PR-21`, `--case=PR-19`, `--case=PR-12` PASS).
 - **S35–S40 (Affiliate referral, commission maturity & manual payouts):** Implements affiliate identity/profile enrollment, beneficiary verification and change controls, 7-day non-extending referral attribution (`S35`), production outbox-driven (`commission.accrue`, `commission.receipt`, `commission.claim`, `commission.void`, `commission.mature`) quantity-scoped commission accrual/claim/receipt/void with receipt-based H+10 maturity (`S36`), automatic inclusive IDR 99,000 eligibility queueing (`queueEligibleAffiliatePayouts`), double-entry ledger postings (`Dr commission_expense / Cr affiliate_payable` on maturity and `Dr affiliate_payable / Cr company_cash` on verified payout via `0025_affiliate_ledger.sql`), exclusive finance manual-transfer claim, real `PUT /api/v1/admin/payouts/{payoutId}/evidence-uploads/{evidenceId}` byte upload with magic-byte sniffing and server-computed SHA-256 over uploaded bytes (`S37`), plus the responsive `/affiliate` workspace and finance evidence visibility boundaries (`S38`–`S40`; `--case=PR-8`, `--case=PR-9`, `--case=PR-10` integration & browser PASS).

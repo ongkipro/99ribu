@@ -2,7 +2,7 @@
 
 Adopted at repository root on 2026-10-16; updated 2026-10-21 upon completion of all 68 local slices (`S01`–`S68`) and assembled localhost readiness (`T-39`). External live-provider, physical hardware, and production deployment gates remain separate per `CTX-18`.
 
-Release-ID: LOCAL-20261021-S68
+Release-ID: LOCAL-20261024-S68
 Base: bfecdce
 Environment: local
 Declared-Risk: R3
@@ -10,7 +10,7 @@ Rollback-Ref: bfecdce
 Rollback-Command: pg_restore --clean --if-exists --no-owner --no-privileges -d <disposable_restore_db> <backup_artifact.dump>
 Backup-Proof: PASS (2026-10-21: `tests/integration/localhost-readiness.test.ts` subtest 3 runs real `pg_dump -Fc` and `pg_restore` into disposable database `99ribu_restore_<uuid>`, reseals creating-XID triggers, verifies table/row/ledger parity and immutability triggers, and drops the disposable DB on teardown)
 Status: READY_FOR_LOCAL_ACCEPTANCE
-Local-Acceptance: PASS (all S01–S68 slices and post-audit gaps G1–G10 closed and verified on assembled localhost runtime)
+Local-Acceptance: PASS 2026-10-24 (S01–S81, S90–S93 and post-audit gaps G1–G10 on the assembled localhost runtime; evidence in STATUS.md)
 Target: localhost production-mode application with synthetic data and simulated external effects
 
 ## Local acceptance boundary
@@ -66,7 +66,7 @@ Planned 2026-10-22; nothing below is executed or authorised. Slices S82–S89 in
 
 ### Runbook (order matters)
 
-1. **Pre-flight (local):** build the image from the release commit; record commit, image tag, migration set `0000`–`0030`, dataset digest from `data/catalog/berlapak/manifest.json`.
+1. **Pre-flight (local):** build the image from the release commit; record commit, image tag, migration set `0000`–`0034`, dataset digest from `data/catalog/berlapak/manifest.json`.
 2. **Server and Coolify:** Vultr instance per ADR-0005 with SSH keys only; attach a Vultr Firewall group allowing 22/80/443 (plus Coolify 8000/6001/6002 only until the dashboard has its own domain, then close them there — Docker-published ports bypass UFW); install Coolify, create its admin immediately, keep v4 current.
 3. **PostgreSQL:** Coolify-managed PostgreSQL 18 resource on the internal network, no public port (or the owner's alternative). Run `src/db/bootstrap-production.sql` once as the superuser (roles/database/revokes mirroring `src/db/bootstrap.sql`); store only owner/app role credentials in Coolify env. Web and worker never use the superuser.
 4. **Volume:** one persistent volume for `.local/catalog-media` and `.local/artifacts`, owned by the image's runtime uid with 0700 directories, mounted into web and worker.
@@ -80,7 +80,7 @@ Planned 2026-10-22; nothing below is executed or authorised. Slices S82–S89 in
    3. `npm run catalog:import -- production` again — guarded publication of the products that became ready.
    4. `npm run catalog:withdraw -- production` (dry run) — must report 0 non-catalog publications on a fresh server.
    5. Remove the raw snapshot from the server unless the owner chose to keep it.
-10. **Verify** (read-only, values from S87): 12 categories; 49 warehouses with `origin_key` (each offer's default warehouse is its dataset origin); 368 `B99_*` stock items; 392 `B99_*_OFFER` offers; 708 photo files, each hashing to its name and listed in the manifest; receive movements and HPP versions equal the initial-stock summary; published products equal the import summary; health 200; worker heartbeat fresh; home/category/PDP/admin catalog at 390 and 1440 px match the local build of the same commit.
+10. **Verify** (read-only, values from S87): 14 departments (DEC-011); 49 warehouses with `origin_key` (each offer's default warehouse is its dataset origin); 368 `B99_*` stock items; 392 `B99_*_OFFER` offers; 708 photo files, each hashing to its name and listed in the manifest; receive movements and HPP versions equal the initial-stock summary; published products equal the import summary; health 200; worker heartbeat fresh; home/category/PDP/admin catalog at 390 and 1440 px match the local build of the same commit.
 11. **Rehearse rollback** before DNS: Coolify Rollback to the previous retained image (only commit-tagged images; it reuses current env and mounts and does not undo migrations or volumes), confirm health, roll forward. Database restore is only for damaged data, never over the live database.
 12. **Cutover:** final off-host backup; DNS/TLS on the chosen domain; external uptime monitor; read-only smoke; record `Release-ID`, `Base`, `Rollback-Ref`, `Backup-Proof` and `Environment: production` here. Never mark DEPLOYED from a localhost test.
 

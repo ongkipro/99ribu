@@ -78,6 +78,7 @@ Document numbers 01, 06, 08 and 14 are unassigned; no document, script, fixture 
 | Owner decisions, observed evidence and open assumptions | [Context](CONTEXT-RECORD.md), [decision index](../../DECISIONS.md) |
 | Product behavior, acceptance and open policy gates | [PRD](02-PRD.md) |
 | Domain flows and selected application boundaries | [Technical design](03-TECHNICAL-DESIGN.md), [architecture](04-SYSTEM-ARCHITECTURE.md) |
+| Implementation as built: runtime, modules, jobs, flows, data domains, known code/decision differences | [Root architecture](../../ARCHITECTURE.md) (records the code; selected design stays in document 04 and the ADRs) |
 | Entities, versioning, stock and historical snapshots | [Data model](05-DATA-MODEL.md) |
 | Roles, guest access and field/object boundaries | [IAM](07-IAM-RBAC-ABAC.md) |
 | First-party wire schemas and implementation gaps | [API notes](09-API-SPECIFICATION.md), [OpenAPI](openapi.yaml) |

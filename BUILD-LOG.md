@@ -1,5 +1,13 @@
 # Build log — Serba 99ribu
 
+## 2026-10-24 — S68 re-verification, storefront rounds 16–41, marketplace taxonomy, review fixes
+
+- **Storefront (DEC-010, DEC-012)**: Indonesian public routes; shop.com interaction/layout contracts observed read-only (omnibox, category pills, home hero, category grid, switcher, product card, carousel arrows, footer, header actions Promo → Keranjang → Akun, logo reveal), 1250px container, curated department photos, next/image resizing, favicon/logo/OG assets, `/promo` with real promotions and bundles, legal placeholders (noindex). Design gate PASS round 41; Lighthouse home mobile 99, desktop 100, `/cari` 97, PDP 98.
+- **Catalog (DEC-011)**: 14 marketplace departments by rule-based classification, Google product category ids pinned from the official taxonomy (2021-09-21), titles screened against original names (no head-noun loss, variant conflict or meaning shift), tidied descriptions, SEO image names and alt text; dataset regenerated twice byte-identical; local import 392 republished, rerun no-op.
+- **S68 review fixes (R4)**: pickup profile warehouse scoping and replay revision; bounded COD remittance retry with finance flags; `commercial-terms`/`payment-terms` fixtures fill-only; `--track-parcel` local tracking; ecommerce@ origin scope; browser `consignment-payments` S91/S92 proof; test runner `forceExit` (hang root cause); test captures to `.local/test-renders` unless `CAPTURE_EVIDENCE=1`.
+- **Evidence (final build)**: integration all-current 500/500, browser all-current 65/65, localhost-readiness 5/5 + 1/1, PR-18 5/5, foundation 30/30 + 9/9, worker 10/10, auth 13/13, S91–S93 selectors green. Ledger run `RUN-20261023T083839Z-5689a721` BLOCKED on render overlap only (STATUS.md "S68 closure").
+- **Docs**: ARCHITECTURE.md rewritten (system map, flows, ERD, known differences); README quick start and selector registry; TASKS launch-readiness slices S99–S108 and audit additions to S82/S83/S85.
+
 ## 2026-10-23 — S90–S93 consignment and payments, SEO, storefront rounds 11–15
 
 - **S90–S93** (`215fcd8`): origin warehouses, manual consignment fulfillment with own Mengantar waybills, COD remittance, manual bank transfer with unique code, COD fee, AutoLaris VA/QRIS (simulated); migrations `0030`–`0034`; R4 reviews PASS.
@@ -7,7 +15,7 @@
 - **Storefront**: rounds 11–15 (round 15 PASS, gate exit 0); shop.com interaction contract recorded in `docs/spec/design/references/shop-com/visual-context.md`; CLS fix in `filter-panel.tsx`.
 - **Evidence**: integration all-current 494/494, browser all-current 62/62, lint and typecheck clean.
 
-## 2026-10-22 — UI round, sign-in, S80 catalog, test isolation (uncommitted)
+## 2026-10-22 — UI round, sign-in, S80 catalog, test isolation
 
 - **Test runtime**: `scripts/check-tests.ts` holds a per-database advisory lock for a whole run (concurrent runs queue; fixes the `settlement-recovery` job-stealing flake) and creates the commercial policy baseline in an empty test database; failure causes are printed. `promotion-http` retires its campaign; T-30 and S34 own their data. Pristine `99ribu_test`: integration 458/458, browser 61/61.
 - **S74**: `tests/browser/support-live.test.ts` proves the real chat/inbox components on the built app (newest-first, older paging, at most one conflict after a buyer reply).
@@ -16,7 +24,7 @@
 - **Storefront**: shop.com parity round 2, design gate PASS; category filter follows the public cursor.
 - **Catalog (S80, DEC-005)**: committed sanitized Berlapak dataset, idempotent import through domain services, photos via content-addressed storage at `/media/catalog/<sha256>.webp`; imported products stay draft until stock and costs exist.
 
-## 2026-10-22 — Follow-up slices S69–S79 (`R4`, uncommitted)
+## 2026-10-22 — Follow-up slices S69–S79 (`R4`)
 
 - **Money path (S70/S71)**: recovery refunds processed by the worker; host reconcile; owner-audited re-arm of failed callbacks bound to the current transaction (`xmin`); retry of failed bank outcomes over `POST /api/v1/admin/commerce-exceptions/{exceptionId}/refunds/{refundId}/retries`. Migrations `0026`, `0028`. Independent R4 review found no double-posting path.
 - **Guest data (S76)**: expired, unreferenced guest contexts deleted in bounded, per-row-savepoint batches (`0027`, indexes and FKs in `0028`), throttled once per minute per worker and never fatal to job processing (S78).
@@ -34,7 +42,7 @@ Adapted `https://shop.com/`'s visual geometry and mobile ergonomics with Indones
 - **`shop.com` × Kearifan Lokal Surface Geometry (`src/app/globals.css`)**: Pill search omnibox (`.search-form` `border-radius: 9999px` with soft purple circular submit button), floating category pill chips (`.departments a` `border-radius: 9999px`), warm value card (`.price-statement` `border-radius: 20px`), `20px` department bento cards (`.department-photo`), `1:1` `18px` rounded-square product media frames (`.photo-slot`, `.product-image`), `14px` variant picker cards (`.offer-picker label`), pill primary/secondary buttons (`.button` `border-radius: 9999px`), and mobile rounded-top bottom navigation dock (`.shopping-tabs` `border-radius: 20px 20px 0 0`).
 - **Verification**: `npm run check` (`611` files linted, `31/31` unit tests PASS), `npm run build` PASS, and Playwright suites (`storefront-http.test.ts` `6/6`, `storefront.test.ts` `1/1`, `storefront-filter-recovery.test.ts` `2/2`, `storefront-continuity.test.ts` `1/1`, `storefront-cart.test.ts` `16/16`, `buyer-account.test.ts` `1/1`, `affiliate-workspace.test.ts` `1/1` — `28/28` PASS including `320px/200%` text zoom and no-JS checks).
 
-## 2026-10-21 — Follow-up audit, recovery refund wiring, berlapak importer (`R3`, uncommitted)
+## 2026-10-21 — Follow-up audit, recovery refund wiring, berlapak importer (`R3`)
 
 - **Auth limits**: per-account budgets in `src/modules/access/handler.ts` (`ACCOUNT_LIMITS`) replace the single shared loopback bucket that let any client lock out every login; 2FA keyed on the exact Better Auth cookie. Verified `test:auth` 11/11, `test:auth:http` 1/1, `jobs` 15/15, `commerce-fixture` 7/7.
 - **Recovery refunds**: `recovery.refund.create`/`recovery.refund.callback` registered (`src/jobs/worker.ts`, `scripts/worker.ts`); previously enqueued and never processed. `tests/integration/recovery-refund-worker.test.ts` 2/2.
