@@ -11,6 +11,7 @@ import {releaseReservation} from '../../src/modules/inventory/reservations.ts';
 import {seedCommerce} from '../../src/modules/local/commerce.ts';
 import {catalogQuery,listProducts} from '../../src/modules/storefront/catalog.ts';
 import {actor,cleanup,enroll} from '../contract/access-fixture.ts';
+import {RENDERS} from '../render-root.ts';
 
 const origin='http://127.0.0.1:3099',namespace='s21-filter-recovery',query='S21 filter recovery';
 const identity=createLocalAuth('local');
@@ -60,14 +61,14 @@ test('an actual empty bounded scan continues with the same filters instead of de
  const browser=await chromium.launch({executablePath:process.env.PLAYWRIGHT_CHROMIUM_EXECUTABLE});
  try{for(const width of [390,1440]){
   const page=await browser.newPage({viewport:{width,height:900},javaScriptEnabled:false});page.setDefaultTimeout(10000);
-  assert.equal((await page.goto(`${origin}/search?${params}`))?.status(),200);
+  assert.equal((await page.goto(`${origin}/cari?${params}`))?.status(),200);
   await expect(page.getByRole('heading',{name:'Belum ada kecocokan di halaman ini',exact:true})).toBeVisible();
   await expect(page.getByRole('heading',{name:'Belum ada produk yang sesuai',exact:true})).toHaveCount(0);
   const next=page.getByRole('link',{name:'Halaman berikutnya',exact:true});await expect(next).toHaveCount(1);
   const href=new URL(await next.getAttribute('href') as string,origin);assert.equal(href.searchParams.get('attributes'),params.get('attributes'));assert.equal(href.searchParams.get('category_id'),sizeCategory);assert.ok(href.searchParams.get('cursor'));
-  await page.evaluate(()=>document.fonts.ready);await checkReflow(page);await page.screenshot({path:`docs/spec/design/renders/s21/continuation-${width}.png`,fullPage:true});
-  if(width===390){await page.setViewportSize({width:320,height:900});await page.evaluate(()=>{document.documentElement.style.fontSize='200%';});await checkReflow(page);await page.screenshot({path:'docs/spec/design/renders/s21/continuation-text-200-320.png',fullPage:true});}
-  await next.click();const matchingCard=page.locator(`.product-link[href^="/product/${matchingProduct}?offer="]`);await expect(matchingCard).toBeVisible();assert.ok(new URL(await matchingCard.getAttribute('href') as string,origin).searchParams.get('offer'));await page.close();
+  await page.evaluate(()=>document.fonts.ready);await checkReflow(page);await page.screenshot({path:`${RENDERS}/s21/continuation-${width}.png`,fullPage:true});
+  if(width===390){await page.setViewportSize({width:320,height:900});await page.evaluate(()=>{document.documentElement.style.fontSize='200%';});await checkReflow(page);await page.screenshot({path:`${RENDERS}/s21/continuation-text-200-320.png`,fullPage:true});}
+  await next.click();const matchingCard=page.locator(`.product-link[href^="/produk/"][href*="${matchingProduct}?offer="]`);await expect(matchingCard).toBeVisible();assert.ok(new URL(await matchingCard.getAttribute('href') as string,origin).searchParams.get('offer'));await page.close();
  }}finally{await browser.close();}
 });
 test('native category switching drops stale facets and repeated checkbox values remain valid',async()=>{
@@ -75,18 +76,18 @@ test('native category switching drops stale facets and repeated checkbox values 
  try{for(const width of [390,1440]){
   const page=await browser.newPage({viewport:{width,height:900},javaScriptEnabled:false});page.setDefaultTimeout(10000);
   const initial=new URLSearchParams({q:query,category_id:sizeCategory,attributes:JSON.stringify({size:['M']})});
-  await page.goto(`${origin}/search?${initial}`);await openFilters(page);await page.getByLabel('Kategori',{exact:true}).selectOption(colorCategory);
+  await page.goto(`${origin}/cari?${initial}`);await openFilters(page);await page.getByLabel('Kategori',{exact:true}).selectOption(colorCategory);
   await page.getByRole('button',{name:'Lihat kategori',exact:true}).click();
   let url=new URL(page.url());assert.equal(url.searchParams.get('category_id'),colorCategory);assert.equal(url.searchParams.get('q'),query);assert.equal(url.searchParams.has('attributes'),false);assert.equal([...url.searchParams.keys()].some(k=>k.startsWith('filter.')),false);
   await expect(page.locator('.product')).toHaveCount(1);await expect(page.getByRole('heading',{name:'Filter belum bisa digunakan'})).toHaveCount(0);
-  await page.goto(`${origin}/search?${initial}`);await openFilters(page);await page.getByLabel('Kategori',{exact:true}).selectOption('');await page.getByRole('button',{name:'Lihat kategori',exact:true}).click();
+  await page.goto(`${origin}/cari?${initial}`);await openFilters(page);await page.getByLabel('Kategori',{exact:true}).selectOption('');await page.getByRole('button',{name:'Lihat kategori',exact:true}).click();
   url=new URL(page.url());assert.equal(url.searchParams.get('category_id'),'');assert.equal(url.searchParams.has('attributes'),false);await expect(page.locator('.product')).toHaveCount(7);
-  await page.goto(`${origin}/search?${new URLSearchParams({q:query,category_id:sizeCategory})}`);await openFilters(page);
+  await page.goto(`${origin}/cari?${new URLSearchParams({q:query,category_id:sizeCategory})}`);await openFilters(page);
   await page.locator('input[name="filter.size"][value="M"]').check();await page.locator('input[name="filter.size"][value="L"]').check();
   await page.getByRole('button',{name:'Terapkan filter',exact:true}).click();await expect(page.locator('.product')).toHaveCount(6);await openFilters(page);
   await expect(page.locator('input[name="filter.size"]:checked')).toHaveCount(2);await expect(page.getByRole('heading',{name:'Filter belum bisa digunakan'})).toHaveCount(0);
-  await page.evaluate(()=>document.fonts.ready);await checkReflow(page);await page.screenshot({path:`docs/spec/design/renders/s21/attributed-filters-${width}.png`,fullPage:true});
-  if(width===390){await page.setViewportSize({width:320,height:900});await page.evaluate(()=>{document.documentElement.style.fontSize='200%';});await checkReflow(page);await page.locator('.facet').evaluate(element=>element.scrollIntoView({block:'start'}));await page.screenshot({path:'docs/spec/design/renders/s21/attributed-filters-text-200-320.png'});}
+  await page.evaluate(()=>document.fonts.ready);await checkReflow(page);await page.screenshot({path:`${RENDERS}/s21/attributed-filters-${width}.png`,fullPage:true});
+  if(width===390){await page.setViewportSize({width:320,height:900});await page.evaluate(()=>{document.documentElement.style.fontSize='200%';});await checkReflow(page);await page.locator('.facet').evaluate(element=>element.scrollIntoView({block:'start'}));await page.screenshot({path:`${RENDERS}/s21/attributed-filters-text-200-320.png`});}
   await page.close();
  }}finally{await browser.close();}
 });

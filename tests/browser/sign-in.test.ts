@@ -22,11 +22,11 @@ test("return destination accepts only same-origin relative paths and routes by r
 	for (const hostile of ["https://evil.invalid/", "//evil.invalid/admin", "/\\evil.invalid", "javascript:alert(1)", "/admin\n", "/api/auth/sign-out", "/masuk?next=/admin", "admin", "", 42, ["/admin"]]) {
 		assert.equal(safeReturnPath(hostile), null, String(hostile));
 	}
-	assert.equal(safeReturnPath("/orders/abc?tab=1#x"), "/orders/abc?tab=1#x");
+	assert.equal(safeReturnPath("/pesanan/abc?tab=1#x"), "/pesanan/abc?tab=1#x");
 	assert.equal(signInDestination(null, true), "/admin");
-	assert.equal(signInDestination(null, false), "/account");
-	assert.equal(signInDestination("/admin/print-center", false), "/account");
-	assert.equal(signInDestination("/affiliate", false), "/affiliate");
+	assert.equal(signInDestination(null, false), "/akun");
+	assert.equal(signInDestination("/admin/print-center", false), "/akun");
+	assert.equal(signInDestination("/afiliasi", false), "/afiliasi");
 });
 
 test("local account commands refuse every non-local target without printing credentials", async () => {
@@ -104,7 +104,7 @@ test("buyer signs in without MFA, ignores an off-site next and lands on /account
 		await page.getByLabel("Email").fill(buyer.email);
 		await page.getByLabel("Kata sandi").fill(buyer.password);
 		await page.getByRole("button", { name: "Masuk", exact: true }).click();
-		await page.waitForURL(`${origin}/account`);
+		await page.waitForURL(`${origin}/akun`);
 		await page.getByTestId("sign-out-button").waitFor();
 		// A buyer asked to return to the console is offered an account switch, not a staff session.
 		await page.goto(`${origin}/masuk?next=%2Fadmin`);

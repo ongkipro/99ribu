@@ -26,12 +26,12 @@ test('every page route is classified, and only index-class routes opt into index
   if(!policy.index) assert.match(source,/privateMetadata\(|searchMetadata\(|robots:\s*\{\s*index:\s*false/,`${route} declares its noindex robots explicitly`);
  }
  assert.deepEqual(seo.rootMetadata(config).robots,{index:false,follow:false},'unclassified routes inherit noindex');
- for(const path of ['/admin','/api/','/cart','/checkout','/account','/orders','/masuk','/affiliate']) assert.ok((seo.disallowedPaths as readonly string[]).includes(path));
+ for(const path of ['/admin','/api/','/keranjang','/checkout','/akun','/pesanan','/masuk','/afiliasi']) assert.ok((seo.disallowedPaths as readonly string[]).includes(path));
 });
 
 test('robots.txt allows the catalog, disallows private areas and points at the sitemap; the switch closes the site',()=>{
  assert.deepEqual(seo.robotsFile(config),{rules:{userAgent:'*',allow:'/',disallow:[...seo.disallowedPaths]},sitemap:`${origin}/sitemap.xml`});
- for(const path of seo.disallowedPaths) assert.ok(!['/','/categories','/category/','/product/','/help','/media/','/search'].some(p=>p.startsWith(path)),`${path} never blocks a public path`);
+ for(const path of seo.disallowedPaths) assert.ok(!['/','/kategori','/kategori/','/produk/','/bantuan','/media/','/cari'].some(p=>p.startsWith(path)),`${path} never blocks a public path`);
  assert.deepEqual(seo.robotsFile(closed),{rules:{userAgent:'*',disallow:'/'}});
  assert.equal(siteConfig({...process.env,SITE_INDEXING:undefined}).indexing,true,'index is the default in every profile');
  assert.equal(siteConfig({...process.env,SITE_INDEXING:'noindex'}).indexing,false);
@@ -39,13 +39,13 @@ test('robots.txt allows the catalog, disallows private areas and points at the s
 });
 
 test('public metadata: absolute self canonical, index robots and social cards; variants and the switch are noindex',()=>{
- const meta=seo.publicMetadata(config,{path:'/product/abc',title:'T',description:'D',image:{url:'http://127.0.0.1:3099/media/catalog/x.webp',alt:'Foto',width:800,height:800}});
- assert.deepEqual(meta.alternates,{canonical:`${origin}/product/abc`});
+ const meta=seo.publicMetadata(config,{path:'/produk/abc',title:'T',description:'D',image:{url:'http://127.0.0.1:3099/media/catalog/x.webp',alt:'Foto',width:800,height:800}});
+ assert.deepEqual(meta.alternates,{canonical:`${origin}/produk/abc`});
  assert.equal((meta.robots as {index:boolean}).index,true);
  assert.deepEqual((meta.openGraph as {images:unknown}).images,[{url:`${origin}/media/catalog/x.webp`,alt:'Foto',width:800,height:800}]);
  assert.equal((meta.openGraph as {locale:string}).locale,'id_ID');
  assert.equal((meta.twitter as {card:string}).card,'summary_large_image');
- const filtered=seo.publicMetadata(config,{path:'/category/x',title:'T',description:'D',indexable:false});
+ const filtered=seo.publicMetadata(config,{path:'/kategori/x',title:'T',description:'D',indexable:false});
  assert.deepEqual([filtered.robots,filtered.alternates],[{index:false,follow:true},undefined],'parameterised listing: noindex, follow, no canonical');
  assert.deepEqual(seo.publicMetadata(closed,{path:'/',title:'T',description:'D'}).robots,{index:false,follow:false});
  assert.deepEqual(seo.searchMetadata('Cari produk').robots,{index:false,follow:true});
@@ -86,8 +86,8 @@ function assertOffer(node:Record<string,unknown>,url:string){
 }
 
 test('JSON-LD parses back and carries the required Product, Offer, ProductGroup and BreadcrumbList fields',()=>{
- const url=`${origin}/product/00000000-0000-4000-8000-0000000000aa`;
- const html=seo.serializeJsonLd(seo.jsonLdGraph(seo.productJsonLd(config,product([{},]),category),seo.breadcrumbJsonLd(config,[{name:'Beranda',path:'/'},{name:category.name,path:'/category/perkakas'},{name:'Paket Lem',path:'/product/00000000-0000-4000-8000-0000000000aa'}])));
+ const url=`${origin}${seo.productPath('00000000-0000-4000-8000-0000000000aa',product([{},]).name)}`;
+ const html=seo.serializeJsonLd(seo.jsonLdGraph(seo.productJsonLd(config,product([{},]),category),seo.breadcrumbJsonLd(config,[{name:'Beranda',path:'/'},{name:category.name,path:'/kategori/perkakas'},{name:'Paket Lem',path:'/produk/00000000-0000-4000-8000-0000000000aa'}])));
  assert.ok(!html.includes('<'),'"<" is escaped inside the script element');
  const graph=JSON.parse(html) as {'@context':string;'@graph':Record<string,unknown>[]};
  assert.equal(graph['@context'],'https://schema.org');
@@ -114,19 +114,20 @@ test('sitemap lists sellable publications at their canonical URL with publicatio
   const published=Object.entries(f.seeded.publications).filter(([,p])=>p.id).map(([key])=>f.seeded.products[key]);assert.ok(published.length>=2);
   const urls=async(c=config)=>new Map((await seo.sitemapEntries(f.identity.sql,c)).map(e=>[e.url,e]));
   let entries=await urls();
-  for(const path of ['/','/categories','/help']) assert.ok(entries.has(`${origin}${path}`),path);
-  assert.ok(![...entries.keys()].some(u=>/[?#]|\/search|\/cart|\/checkout|\/account|\/orders|\/masuk|\/affiliate|\/admin|\/api\//.test(u)),'only canonical public URLs');
-  const target=published[0],url=`${origin}/product/${target}`;assert.ok(entries.has(url));
+  for(const path of ['/','/kategori','/bantuan','/promo']) assert.ok(entries.has(`${origin}${path}`),path);
+  assert.ok(![...entries.keys()].some(u=>/[?#]|\/cari|\/keranjang|\/checkout|\/akun|\/pesanan|\/masuk|\/afiliasi|\/admin|\/api\//.test(u)),'only canonical public URLs');
+  const productUrl=(id:string)=>[...entries.keys()].find(u=>u.startsWith(`${origin}/produk/`)&&u.endsWith(`-${id}`));
+  const target=published[0],url=productUrl(target)??'';assert.ok(url,'the product is listed at /produk/<title>-<id>');
   const [created]=await f.identity.sql`select v.created_at from app.publication_head h join app.publication_version v on v.product_id=h.product_id and v.revision=h.revision where h.product_id=${target}`;
   assert.equal(new Date(entries.get(url)?.lastModified??0).toISOString(),new Date(created.created_at).toISOString(),'lastmod is the publication time');
   const [{slug}]=await f.identity.sql`select c.slug from app.product_revision r join app.publication_version v on v.product_id=r.product_id and v.product_revision=r.revision
    join app.publication_head h on h.product_id=v.product_id and h.revision=v.revision join app.category c on c.id=r.category_id where r.product_id=${target}`;
-  assert.ok(entries.has(`${origin}/category/${slug}`),'the product category is listed');
+  assert.ok(entries.has(`${origin}/kategori/${slug}`),'the product category is listed');
 
   const head=await readPublicationState(f.identity,f.principal,target);assert.ok(head.current);
   const request=f.request();request.headers.set('idempotency-key',randomUUID());
   await withdrawPublication(request,f.identity,f.principal,target,{expected_publication_version:head.latest_version,reason:'Synthetic sitemap withdrawal'});
-  entries=await urls();assert.ok(!entries.has(url),'a withdrawn publication leaves the sitemap');assert.ok(entries.has(`${origin}/product/${published[1]}`));
+  entries=await urls();assert.ok(!entries.has(url),'a withdrawn publication leaves the sitemap');assert.ok(productUrl(published[1]));
   assert.deepEqual(await seo.sitemapEntries(f.identity.sql,closed),[],'the closed site publishes no sitemap URLs');
  }finally{await f.close();}
 });

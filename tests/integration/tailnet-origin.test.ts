@@ -117,10 +117,10 @@ test("tailnet origin: guest order access mutation issues a non-prefixed capabili
 		assert.ok(cookie);
 		assert.match(cookie, /; Path=\/; HttpOnly; SameSite=Lax; Max-Age=604800$/);
 
-		const receipt = await readOrderReceipt(browser(tailnetHost, null, `/orders/${f.order.id}`, undefined, pair(cookie)), identity, f.order.id);
+		const receipt = await readOrderReceipt(browser(tailnetHost, null, `/pesanan/${f.order.id}`, undefined, pair(cookie)), identity, f.order.id);
 		assert.equal(receipt.kind, "ready");
 		assert.equal(receipt.receipt?.order.id, f.order.id);
-		const anonymous = await readOrderReceipt(browser(tailnetHost, null, `/orders/${f.order.id}`), identity, f.order.id);
+		const anonymous = await readOrderReceipt(browser(tailnetHost, null, `/pesanan/${f.order.id}`), identity, f.order.id);
 		assert.equal(anonymous.kind, "denied");
 	} finally {
 		await identity.sql`delete from app.auth_rate_limit where key like ${`rl:%:${f.order.id}`}`;

@@ -10,7 +10,9 @@ export async function checkFiles(files: readonly string[]) {
   let failed = 0;
   let incomplete = 0;
   let summaryPassed = false;
-  for await (const event of run({ files, concurrency: false, isolation: "process", timeout: 30000, execArgv: [] })) {
+  // forceExit: a timed-out test never reaches its finally, so a leaked browser or SQL pool would keep
+  // the file's process (and this whole run) alive; the timeout is reported as a failure instead.
+  for await (const event of run({ files, concurrency: false, isolation: "process", timeout: 30000, forceExit: true, execArgv: [] })) {
     if (event.type === "test:pass" || event.type === "test:fail") {
       const { data } = event;
       if (data.skip || data.todo) incomplete++;
@@ -53,10 +55,10 @@ if (import.meta.main) {
     "--case=T-26", "--case=T-27", "--case=T-28", "--case=T-29", "--case=T-30", "--case=T-31", "--case=T-32", "--case=T-33",
     "--case=T-34", "--case=T-35", "--case=T-36", "--case=T-37", "--case=T-38", "--case=localhost-readiness",
     "--case=S29-candidate", "--case=S30-candidate", "--case=S31-candidate", "--case=seed-foundation", "--case=seed-commerce",
-    "--case=seed-berlapak", "--case=manual-fulfillment", "--case=cod-remittance", "--case=payment-methods", "--case=autolaris-payments", "--case=all-current",
+    "--case=seed-berlapak", "--case=manual-fulfillment", "--case=cod-remittance", "--case=payment-methods", "--case=autolaris-payments", "--case=consignment-payments", "--case=all-current",
   ];
   const integrationOnlySelectors = ["--case=seed-foundation", "--case=seed-berlapak", "--case=manual-fulfillment", "--case=cod-remittance", "--case=payment-methods", "--case=autolaris-payments", "--case=PR-3", "--case=S29-candidate", "--case=S30-candidate", "--case=S31-candidate", "--case=T-38"];
-  if (!["integration", "browser"].includes(mode) || !validSelectors.includes(selector) || extra.length || (mode === "browser" && integrationOnlySelectors.includes(selector))) {
+  if (!["integration", "browser"].includes(mode) || !validSelectors.includes(selector) || extra.length || (mode === "browser" && integrationOnlySelectors.includes(selector)) || (mode === "integration" && selector === "--case=consignment-payments")) {
     console.error("Use check-tests.ts integration|browser with a registered --case=... selector. Unknown, missing and extra selectors are refused.");
     process.exitCode = 1;
   } else {
@@ -157,6 +159,8 @@ if (import.meta.main) {
       ? ["tests/integration/payment-methods.test.ts"]
       : selector === "--case=autolaris-payments"
       ? ["tests/integration/autolaris-payments.test.ts"]
+      : selector === "--case=consignment-payments"
+      ? ["tests/browser/consignment-payments.test.ts"]
       : selector === "--case=seed-commerce"
       ? [mode === "integration" ? "tests/integration/commerce-fixture.test.ts" : "tests/integration/commerce-fixture-http.test.ts"]
       : selector === "--case=PR-11"
@@ -166,7 +170,7 @@ if (import.meta.main) {
       : selector === "--case=PR-2"
       ? mode === "integration" ? ["tests/integration/inventory-migration.test.ts", "tests/integration/inventory.test.ts", "tests/integration/inventory-reservations.test.ts", "tests/integration/inventory-transfers.test.ts"] : ["tests/integration/inventory-http.test.ts"]
       : selector === "--case=PR-1"
-      ? mode === "integration" ? ["tests/integration/catalog.test.ts", "tests/integration/catalog-import.test.ts", "tests/integration/catalog-summary.test.ts"] : ["tests/integration/catalog-http.test.ts"]
+      ? mode === "integration" ? ["tests/integration/catalog.test.ts", "tests/integration/catalog-import.test.ts", "tests/integration/catalog-summary.test.ts", "tests/integration/catalog-media.test.ts"] : ["tests/integration/catalog-http.test.ts"]
       : selector === "--case=PR-20"
       ? [mode === "integration" ? "tests/integration/settings.test.ts" : "tests/integration/settings-http.test.ts"]
       : selector === "--case=PR-16"

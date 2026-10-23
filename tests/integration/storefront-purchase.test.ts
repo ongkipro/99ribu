@@ -39,10 +39,10 @@ test('native cart forms reject ambiguous, missing, binary and extra trust-bounda
 });
 
 test('public product return paths keep catalog context and remove private or unrelated fields',()=>{
- const source=`/category/shop-commerce-demo-busana?q=Kaos&availability=available&filter.size=M&filter.size=L#product-${category}`;
- assert.equal(publicReturnPath(source),source);assert.equal(publicReturnPath('/'),'/');assert.equal(publicReturnPath('/cart?cart_access=secret'),'/cart');
- assert.equal(publicReturnPath('/search?q=Kaos&x-order-token=secret&utm_campaign=sample#private-draft'),'/search?q=Kaos');
- const href=new URL(productHref(category,category,source),'http://localhost');assert.equal(href.pathname,`/product/${category}`);assert.equal(href.searchParams.get('offer'),category);assert.equal(href.searchParams.get('from'),source);
- for(const value of [undefined,null,[],['/search'],'https://outside.invalid/search','//outside.invalid/search','/\\outside.invalid/search','javascript:alert(1)','/api/v1/orders/'+category,'/search?q=a%0Ab','/search?q=\u202e','/search?q='+'x'.repeat(16384)])assert.equal(publicReturnPath(value),null);
+ const source=`/kategori/shop-commerce-demo-busana?q=Kaos&availability=available&filter.size=M&filter.size=L#product-${category}`;
+ assert.equal(publicReturnPath(source),source);assert.equal(publicReturnPath('/'),'/');assert.equal(publicReturnPath('/keranjang?cart_access=secret'),'/keranjang');
+ assert.equal(publicReturnPath('/cari?q=Kaos&x-order-token=secret&utm_campaign=sample#private-draft'),'/cari?q=Kaos');
+ const href=new URL(productHref(category,category,source),'http://localhost');assert.equal(href.pathname,`/produk/${category}`);assert.equal(href.searchParams.get('offer'),category);assert.equal(href.searchParams.get('from'),source);
+ for(const value of [undefined,null,[],['/cari'],'https://outside.invalid/search','//outside.invalid/search','/\\outside.invalid/search','javascript:alert(1)','/api/v1/orders/'+category,'/cari?q=a%0Ab','/cari?q=\u202e','/cari?q='+'x'.repeat(16384)])assert.equal(publicReturnPath(value),null);
  assert.equal(new URL(productHref(category,category,'//outside.invalid/'),'http://localhost').searchParams.has('from'),false);
 });

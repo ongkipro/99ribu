@@ -194,7 +194,7 @@ test("S38-S40 browser: affiliate workspace renders referral link, masked benefic
 			});
 		});
 
-		// 3. Spin up an in-process HTTP server bound to 127.0.0.1 to serve /affiliate and /api/v1/me/affiliate*
+		// 3. Spin up an in-process HTTP server bound to 127.0.0.1 to serve /afiliasi and /api/v1/me/affiliate*
 		server = createServer(async (req, res) => {
 			try {
 				const host = `http://${req.headers.host ?? "127.0.0.1"}`;
@@ -208,7 +208,7 @@ test("S38-S40 browser: affiliate workspace renders referral link, masked benefic
 					headers,
 				});
 
-				if (url.pathname === "/affiliate") {
+				if (url.pathname === "/afiliasi") {
 					let principal = null;
 					try {
 						principal = await getPrincipal(webReq, identity);
@@ -301,7 +301,7 @@ test("S38-S40 browser: affiliate workspace renders referral link, masked benefic
 			await context.addCookies(parsedCookies);
 
 			const page = await context.newPage();
-			await page.goto(`${baseUrl}/affiliate`);
+			await page.goto(`${baseUrl}/afiliasi`);
 
 			await expect(
 				page.getByRole("heading", {

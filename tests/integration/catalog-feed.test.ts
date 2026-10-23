@@ -3,6 +3,7 @@ import {randomUUID} from 'node:crypto';
 import test from 'node:test';
 import {readLocalConfig} from '../../src/config/local.ts';
 import {catalogFeed,feedXml} from '../../src/modules/catalog/feed.ts';
+import {productSlug} from '../../src/modules/storefront/navigation.ts';
 import {patchProduct,readCatalogRevision} from '../../src/modules/catalog/catalog.ts';
 import {appendCostVersion} from '../../src/modules/finance/costs.ts';
 import {prepareStorefront} from '../../src/modules/local/storefront.ts';
@@ -33,7 +34,7 @@ test('PR-15 local feed exports published offers only, with permanent IDs, exact 
   for(const item of items){
    const offer=item.id===unit.catalog_id?unit:pair;
    assert.deepEqual(item,{id:offer.catalog_id,item_group_id:created.catalog_id,title:`Synthetic feed shirt - ${offer.label}`,description:'Synthetic complete feed offer',
-    link:`${origin}/product/${created.id}?offer=${offer.id}`,image_link:images[0].url,availability:'in_stock',price:'99000.00 IDR',brand:'Merek Uji',product_type:'Synthetic feed department > Synthetic feed leaf'});
+    link:`${origin}/produk/${productSlug(created.id,'Synthetic feed shirt')}?offer=${offer.id}`,image_link:images[0].url,availability:'in_stock',price:'99000.00 IDR',brand:'Merek Uji',product_type:'Synthetic feed department > Synthetic feed leaf'});
   }
   const ids=new Set(feed.items.map(i=>i.id));
   assert.ok(!draftOnly.variants.some((v:{catalog_id:string})=>ids.has(v.catalog_id)),'draft-only product is excluded');
@@ -59,6 +60,6 @@ test('PR-15 local feed exports published offers only, with permanent IDs, exact 
 
   await patch(4,{variant_changes:[{operation:'retire',variant_id:pair.id}]});await publish(5,2);
   ({items}=await mine());assert.deepEqual(items.map(i=>i.id),[unit.catalog_id],'a retired offer leaves the feed; the surviving ID is unchanged');
-  assert.equal(items[0].link,`${origin}/product/${created.id}`,'the single remaining offer links to the canonical product page');
+  assert.equal(items[0].link,`${origin}/produk/${productSlug(created.id,'Synthetic renamed shirt')}`,'the single remaining offer links to the canonical product page');
  }finally{await f.close();}
 });

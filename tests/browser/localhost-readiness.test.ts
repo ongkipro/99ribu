@@ -783,7 +783,7 @@ test("S65, S66 & S67 browser: assembled localhost multi-role journey, responsive
 
 				if (url.pathname === "/readiness/affiliate" && req.method === "GET") {
 					const principal = await getPrincipal(
-						affiliateActor.browser.request("/affiliate"),
+						affiliateActor.browser.request("/afiliasi"),
 						identity,
 					);
 					const workspace = await sql.begin(async (tx) => {

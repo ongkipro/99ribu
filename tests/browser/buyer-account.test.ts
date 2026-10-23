@@ -94,7 +94,7 @@ li{border-top:1px solid #e7e5e4;padding-top:.5rem;word-break:break-word}
 				${workspace.orders
 					.map(
 						(o) =>
-							`<li data-testid="order-row-${o.id}"><a href="/orders/${o.id}">${o.number}</a> · ${o.status}</li>`,
+							`<li data-testid="order-row-${o.id}"><a href="/pesanan/${o.id}">${o.number}</a> · ${o.status}</li>`,
 					)
 					.join("")}
 			</ul>
@@ -282,7 +282,7 @@ test("S46-S48 browser: buyer account profile (mononym + no email), address book 
 			}),
 		);
 
-		// Link guest order f.order.id to buyer account so it appears in /account and /orders/[orderId]
+		// Link guest order f.order.id to buyer account so it appears in /akun and /pesanan/[orderId]
 		const [quoteDoc] = await sql<{ phone: string }[]>`
 			select q.document->'contact'->>'phone' as phone
 			from app.commerce_order o
@@ -337,13 +337,13 @@ test("S46-S48 browser: buyer account profile (mononym + no email), address book 
 							: undefined,
 				});
 
-				if (url.pathname === "/account") {
+				if (url.pathname === "/akun") {
 					const ws = await readBuyerAccountWorkspace(webReq, identity);
 					res.writeHead(200, { "content-type": "text/html; charset=utf-8" });
 					res.end(renderAccountHtml(ws));
 					return;
 				}
-				const orderPageMatch = /^\/orders\/([^/]+)$/.exec(url.pathname);
+				const orderPageMatch = /^\/pesanan\/([^/]+)$/.exec(url.pathname);
 				if (orderPageMatch) {
 					const orderId = orderPageMatch[1];
 					const view = await readOrderReceipt(webReq, identity, orderId);
@@ -435,7 +435,7 @@ test("S46-S48 browser: buyer account profile (mononym + no email), address book 
 				pageErrors.push(String(err));
 			});
 
-			await page.goto(`${baseUrl}/account`);
+			await page.goto(`${baseUrl}/akun`);
 			await expect(page.getByTestId("buyer-account-heading")).toBeVisible();
 
 			// 1. Update profile to mononym without email ("Sukarno", empty email)
@@ -463,7 +463,7 @@ test("S46-S48 browser: buyer account profile (mononym + no email), address book 
 				"Notifikasi ditandai dibaca",
 			);
 
-			// 4. Verify responsive layout at 390x844 and 1440x900 on /account
+			// 4. Verify responsive layout at 390x844 and 1440x900 on /akun
 			for (const vp of [
 				{ width: 390, height: 844 },
 				{ width: 1440, height: 900 },
@@ -476,12 +476,12 @@ test("S46-S48 browser: buyer account profile (mononym + no email), address book 
 				);
 				assert.ok(
 					overflow <= 1,
-					`Zero horizontal overflow on /account at ${vp.width}x${vp.height} (overflow=${overflow})`,
+					`Zero horizontal overflow on /akun at ${vp.width}x${vp.height} (overflow=${overflow})`,
 				);
 			}
 
-			// 5. Navigate to linked order continuity page (/orders/[orderId])
-			await page.goto(`${baseUrl}/orders/${f.order.id}`);
+			// 5. Navigate to linked order continuity page (/pesanan/[orderId])
+			await page.goto(`${baseUrl}/pesanan/${f.order.id}`);
 			await expect(page.getByTestId("order-continuity-heading")).toContainText(
 				f.order.number,
 			);
@@ -505,7 +505,7 @@ test("S46-S48 browser: buyer account profile (mononym + no email), address book 
 				);
 				assert.ok(
 					overflow <= 1,
-					`Zero horizontal overflow on /orders/[orderId] at ${vp.width}x${vp.height} (overflow=${overflow})`,
+					`Zero horizontal overflow on /pesanan/[orderId] at ${vp.width}x${vp.height} (overflow=${overflow})`,
 				);
 			}
 
@@ -557,7 +557,7 @@ test("S72 browser: recovered prepaid guest stores the __Host-99ribu_order cookie
 							? Buffer.concat(chunks)
 							: undefined,
 				});
-				const orderPageMatch = /^\/orders\/([^/]+)$/.exec(url.pathname);
+				const orderPageMatch = /^\/pesanan\/([^/]+)$/.exec(url.pathname);
 				if (orderPageMatch) {
 					const view = await readOrderReceipt(
 						webReq,
@@ -672,7 +672,7 @@ test("S72 browser: recovered prepaid guest stores the __Host-99ribu_order cookie
 				false,
 			);
 
-			await page.goto(`${baseUrl}/orders/${encodeURIComponent(f.order.id)}`);
+			await page.goto(`${baseUrl}/pesanan/${encodeURIComponent(f.order.id)}`);
 			assert.equal(new URL(page.url()).search, "");
 			await expect(page.getByTestId("order-continuity-heading")).toContainText(
 				f.order.number,
@@ -681,7 +681,7 @@ test("S72 browser: recovered prepaid guest stores the __Host-99ribu_order cookie
 			const stranger = await browser.newContext({ reducedMotion: "reduce" });
 			const strangerPage = await stranger.newPage();
 			await strangerPage.goto(
-				`${baseUrl}/orders/${f.order.id}?token=${encodeURIComponent(verified.payload.order_access_token)}`,
+				`${baseUrl}/pesanan/${f.order.id}?token=${encodeURIComponent(verified.payload.order_access_token)}`,
 			);
 			await expect(strangerPage.getByTestId("order-denied")).toBeVisible();
 			await expect(

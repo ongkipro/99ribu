@@ -8,12 +8,13 @@ test("built localhost server renders the public storefront without claiming comp
   
   assert.equal(response.headers.get("x-powered-by"), null);
   const html=await response.text();
-  assert.match(html, /<html lang="id"/);
-  assert.match(html, /name="robots" content="noindex, nofollow"/);
-  assert.match(html, /Pilihan lengkap/);
+  assert.match(html, /<html lang="id(-ID)?"/);
+  // Follows the site-wide SITE_INDEXING switch (default "index" per the owner's live-ready SEO decision).
+  assert.match(html, process.env.SITE_INDEXING === "noindex" ? /name="robots" content="noindex, nofollow"/ : /name="robots" content="index, follow"/);
+  assert.match(html, /Rp99\.000/);
   assert.match(html, /Data contoh/);
   const favicon=await fetch('http://127.0.0.1:3099/favicon.ico');
-  assert.equal(favicon.status,204);assert.equal(await favicon.text(),'');
+  assert.equal(favicon.status,200);assert.match(favicon.headers.get('content-type')??'',/image\/(x-icon|vnd\.microsoft\.icon)/);
 });
 
 test("public readiness checks the local schema without exposing internal or user data", async () => {

@@ -103,7 +103,7 @@ test("S74 built browser: customer and staff open on the newest messages, page ol
 			await browser.newContext({ reducedMotion: "reduce" }),
 			buyer.browser,
 		);
-		await customer.page.goto(`${origin}/help`);
+		await customer.page.goto(`${origin}/bantuan`);
 		await customer.page
 			.getByRole("button", { name: "Muat Percakapan Saya" })
 			.click();

@@ -205,18 +205,20 @@ test("S61 browser: responsive mobile/short-IME/desktop shell, category-preservin
 					const cartLabel = badgeCount
 						? `Keranjang, ${badgeCount} pilihan`
 						: "Keranjang";
+					// Mirrors the shell markup (icon-only search button and utilities, category pills) so the
+					// shared stylesheet is measured against the same structure.
 					const header = opts.task
-						? `<header class="task-header wrap"><a class="task-back" href="${escapeHtml(opts.backTo ?? "/search")}"><span>Kembali</span></a><a href="/" class="brand" aria-label="99ribu, beranda">99<span>ribu</span><i aria-hidden="true">.</i></a><a href="/cart" class="task-cart" aria-label="${escapeHtml(cartLabel)}">${badgeCount > 0 ? `<span class="cart-count">${badgeCount}</span>` : ""}</a></header>`
-						: `<header class="store-header"><div class="header-main wrap"><a href="/" class="brand" aria-label="99ribu, beranda">99<span>ribu</span><i aria-hidden="true">.</i></a><search class="search-region"><form action="/search" class="search-form"><label class="sr-only" for="site-search">Cari produk</label><input type="search" id="site-search" name="q" placeholder="Cari produk" value="${escapeHtml(opts.q ?? "")}" maxlength="200"/><button type="submit" aria-label="Cari produk">Cari</button></form></search><nav class="utilities" aria-label="Belanja"><a href="/cart" aria-label="${escapeHtml(cartLabel)}"${opts.active === "cart" ? ' aria-current="page"' : ""}><span class="utility-label">Keranjang</span>${badgeCount > 0 ? `<b class="cart-count utility-count">${badgeCount}</b>` : ""}</a><a href="/account"${opts.active === "account" ? ' aria-current="page"' : ""}><span>Akun</span></a></nav></div><nav class="departments wrap" aria-label="Kategori produk"><a href="/search">Semua produk</a><a href="/category/shop-commerce-demo-busana">Busana</a><a href="/category/shop-commerce-demo-perawatan">Perawatan</a></nav></header>`;
+						? `<header class="task-header wrap"><a class="task-back" href="${escapeHtml(opts.backTo ?? "/cari")}"><span>Kembali</span></a><a href="/" class="brand" aria-label="99ribu, beranda">99<span>ribu</span><i aria-hidden="true">.</i></a><a href="/keranjang" class="task-cart" aria-label="${escapeHtml(cartLabel)}">${badgeCount > 0 ? `<span class="cart-count">${badgeCount}</span>` : ""}</a></header>`
+						: `<header class="store-header"><div class="header-main wrap"><a href="/" class="brand" aria-label="99ribu, beranda">99<span>ribu</span><i aria-hidden="true">.</i></a><search class="search-region"><form action="/cari" class="search-form"><label class="sr-only" for="site-search">Cari produk</label><input type="search" id="site-search" name="q" placeholder="Cari produk" value="${escapeHtml(opts.q ?? "")}" maxlength="200"/><button type="submit" aria-label="Cari produk"></button></form></search><nav class="utilities" aria-label="Belanja"><a href="/keranjang" aria-label="${escapeHtml(cartLabel)}"${opts.active === "cart" ? ' aria-current="page"' : ""}>${badgeCount > 0 ? `<b class="cart-count utility-count">${badgeCount}</b>` : ""}</a><a href="/akun" aria-label="Akun"${opts.active === "account" ? ' aria-current="page"' : ""}></a></nav></div><nav class="category-pills" aria-label="Kategori produk"><ul><li><a href="/kategori/shop-commerce-demo-busana"><span class="pill-art" data-tint="rose"></span><span class="pill-label">Busana</span></a></li><li><a href="/kategori/shop-commerce-demo-perawatan"><span class="pill-art" data-tint="blue"></span><span class="pill-label">Perawatan</span></a></li><li><a class="pill-all" aria-label="Semua kategori" href="/kategori"></a></li></ul></nav></header>`;
 					const tabs = opts.task
 						? ""
-						: `<nav class="shopping-tabs" aria-label="Navigasi belanja"><a href="/"${opts.active === "home" ? ' aria-current="page"' : ""}><span>Beranda</span></a><a href="/categories"${opts.active === "category" ? ' aria-current="page"' : ""}><span>Kategori</span></a><a href="/cart"${badgeCount > 0 ? ` data-count="${badgeCount}"` : ""} aria-label="${escapeHtml(cartLabel)}"${opts.active === "cart" ? ' aria-current="page"' : ""}><span>Keranjang</span></a><a href="/account"${opts.active === "account" ? ' aria-current="page"' : ""}><span>Akun</span></a></nav>`;
-					return `<!doctype html><html lang="id"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>${escapeHtml(opts.title)}</title><style>${css}</style></head><body><a class="skip" href="#main">Lewati ke konten</a><div class="local-notice">Data contoh. Pesanan dan pengiriman simulasi.</div>${header}${tabs}${opts.main}<footer class="store-footer wrap"><p class="brand footer-name">99<span>ribu</span><i aria-hidden="true">.</i></p><div><a href="/help#returns">Cara pesan dan pengembalian</a></div></footer></body></html>`;
+						: `<nav class="shopping-tabs" aria-label="Navigasi belanja"><a href="/"${opts.active === "home" ? ' aria-current="page"' : ""}><span>Beranda</span></a><a href="/kategori"${opts.active === "category" ? ' aria-current="page"' : ""}><span>Kategori</span></a><a href="/keranjang"${badgeCount > 0 ? ` data-count="${badgeCount}"` : ""} aria-label="${escapeHtml(cartLabel)}"${opts.active === "cart" ? ' aria-current="page"' : ""}><span>Keranjang</span></a><a href="/akun"${opts.active === "account" ? ' aria-current="page"' : ""}><span>Akun</span></a></nav>`;
+					return `<!doctype html><html lang="id"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>${escapeHtml(opts.title)}</title><style>${css}</style></head><body><a class="skip" href="#main">Lewati ke konten</a><div class="local-notice">Data contoh. Pesanan dan pengiriman simulasi.</div>${header}${tabs}${opts.main}<footer class="store-footer wrap"><p class="brand footer-name">99<span>ribu</span><i aria-hidden="true">.</i></p><div><a href="/bantuan#returns">Cara pesan dan pengembalian</a></div></footer></body></html>`;
 				};
 
 				if (
-					url.pathname === "/search" ||
-					url.pathname.startsWith("/category/")
+					url.pathname === "/cari" ||
+					url.pathname.startsWith("/kategori/")
 				) {
 					const params = new URLSearchParams(url.searchParams);
 					for (const campaignKey of [
@@ -229,8 +231,8 @@ test("S61 browser: responsive mobile/short-IME/desktop shell, category-preservin
 					]) {
 						params.delete(campaignKey);
 					}
-					if (url.pathname.startsWith("/category/")) {
-						const slug = url.pathname.slice("/category/".length);
+					if (url.pathname.startsWith("/kategori/")) {
+						const slug = url.pathname.slice("/kategori/".length);
 						const cat = await publicCategory(identity.sql, slug, "slug");
 						if (!cat) {
 							res.writeHead(404, { "content-type": "text/html" });
@@ -275,15 +277,15 @@ test("S61 browser: responsive mobile/short-IME/desktop shell, category-preservin
 						if (Object.keys(v.attributes).length) {
 							p.set("attributes", JSON.stringify(v.attributes));
 						}
-						return `/search?${p}`;
+						return `/cari?${p}`;
 					};
 					const resetParams = new URLSearchParams();
 					if (input.q) resetParams.set("q", input.q);
 					if (input.category_id)
 						resetParams.set("category_id", input.category_id);
 					const resetHref = resetParams.toString()
-						? `/search?${resetParams}`
-						: "/search";
+						? `/cari?${resetParams}`
+						: "/cari";
 
 					const currentPathWithQuery = `${url.pathname}${url.search}`;
 					const cards = result.data
@@ -295,7 +297,7 @@ test("S61 browser: responsive mobile/short-IME/desktop shell, category-preservin
 								offer: offer.id,
 								from,
 							});
-							return `<li id="product-${escapeHtml(p.id)}" tabindex="-1" class="product"><a class="product-link" href="/product/${escapeHtml(p.id)}?${escapeHtml(pParams.toString())}"><h3>${escapeHtml(p.name)}</h3><p class="product-price">${escapeHtml(rupiah(offer.price))}<span>/ pilihan lengkap</span></p></a></li>`;
+							return `<li id="product-${escapeHtml(p.id)}" tabindex="-1" class="product"><a class="product-link" href="/produk/${escapeHtml(p.id)}?${escapeHtml(pParams.toString())}"><h3>${escapeHtml(p.name)}</h3><p class="product-price">${escapeHtml(rupiah(offer.price))}<span>/ pilihan lengkap</span></p></a></li>`;
 						})
 						.join("");
 
@@ -307,26 +309,26 @@ test("S61 browser: responsive mobile/short-IME/desktop shell, category-preservin
 						title: "Cari produk",
 						q: input.q,
 						active: input.category_id && !input.q ? "category" : "none",
-						main: `<main id="main" class="wrap listing-main"><h1>${escapeHtml(input.q ? `Hasil untuk “${input.q}”` : (cat?.name ?? "Semua produk"))}</h1><div class="listing-layout"><details class="filters" open><summary>Filter dan urutan</summary><form action="/search" aria-label="Filter produk">${input.q ? `<input type="hidden" name="q" value="${escapeHtml(input.q)}"/>` : ""}<label for="category-filter">Kategori</label><select id="category-filter" name="category_id"><option value="">Semua kategori</option>${categories.data.map((c) => `<option value="${escapeHtml(c.id)}"${c.id === input.category_id ? " selected" : ""}>${escapeHtml(c.name)}</option>`).join("")}</select><input type="hidden" name="limit" value="${input.limit}"/><label for="kind-filter">Isi pilihan</label><select id="kind-filter" name="offer_kind"><option value="">Semua pilihan</option><option value="unit"${input.offer_kind === "unit" ? " selected" : ""}>Satuan</option><option value="multipack"${input.offer_kind === "multipack" ? " selected" : ""}>Paket barang yang sama</option><option value="bundle"${input.offer_kind === "bundle" ? " selected" : ""}>Paket campuran</option></select><label for="stock-filter">Ketersediaan</label><select id="stock-filter" name="availability"><option value="">Semua stok</option><option value="available"${input.availability === "available" ? " selected" : ""}>Tersedia</option><option value="unavailable"${input.availability === "unavailable" ? " selected" : ""}>Belum tersedia</option></select><label for="sort-filter">Urutan</label><select id="sort-filter" name="sort"><option value="relevance"${input.sort === "relevance" ? " selected" : ""}>Paling sesuai</option><option value="newest"${input.sort === "newest" ? " selected" : ""}>Publikasi terbaru</option></select><button class="button" type="submit">Terapkan filter</button><a class="reset-link" href="${escapeHtml(resetHref)}">Hapus filter</a></form></details><section aria-label="Hasil produk"><ul class="product-grid">${cards}</ul>${nextLink}</section></div></main>`,
+						main: `<main id="main" class="wrap listing-main"><h1>${escapeHtml(input.q ? `Hasil untuk “${input.q}”` : (cat?.name ?? "Semua produk"))}</h1><div class="listing-layout"><details class="filters" open><summary>Filter dan urutan</summary><form action="/cari" aria-label="Filter produk">${input.q ? `<input type="hidden" name="q" value="${escapeHtml(input.q)}"/>` : ""}<label for="category-filter">Kategori</label><select id="category-filter" name="category_id"><option value="">Semua kategori</option>${categories.data.map((c) => `<option value="${escapeHtml(c.id)}"${c.id === input.category_id ? " selected" : ""}>${escapeHtml(c.name)}</option>`).join("")}</select><input type="hidden" name="limit" value="${input.limit}"/><label for="kind-filter">Isi pilihan</label><select id="kind-filter" name="offer_kind"><option value="">Semua pilihan</option><option value="unit"${input.offer_kind === "unit" ? " selected" : ""}>Satuan</option><option value="multipack"${input.offer_kind === "multipack" ? " selected" : ""}>Paket barang yang sama</option><option value="bundle"${input.offer_kind === "bundle" ? " selected" : ""}>Paket campuran</option></select><label for="stock-filter">Ketersediaan</label><select id="stock-filter" name="availability"><option value="">Semua stok</option><option value="available"${input.availability === "available" ? " selected" : ""}>Tersedia</option><option value="unavailable"${input.availability === "unavailable" ? " selected" : ""}>Belum tersedia</option></select><label for="sort-filter">Urutan</label><select id="sort-filter" name="sort"><option value="relevance"${input.sort === "relevance" ? " selected" : ""}>Paling sesuai</option><option value="newest"${input.sort === "newest" ? " selected" : ""}>Publikasi terbaru</option></select><button class="button" type="submit">Terapkan filter</button><a class="reset-link" href="${escapeHtml(resetHref)}">Hapus filter</a></form></details><section aria-label="Hasil produk"><ul class="product-grid">${cards}</ul>${nextLink}</section></div></main>`,
 					});
 					res.writeHead(200, { "content-type": "text/html; charset=utf-8" });
 					res.end(html);
 					return;
 				}
 
-				if (url.pathname.startsWith("/product/")) {
-					const productId = url.pathname.slice("/product/".length);
+				if (url.pathname.startsWith("/produk/")) {
+					const productId = url.pathname.slice("/produk/".length);
 					const prod = await identity.sql.begin((tx) =>
 						publicProduct(tx, productId),
 					);
 					assert.ok(prod);
-					const rawFrom = url.searchParams.get("from") ?? "/search";
+					const rawFrom = url.searchParams.get("from") ?? "/cari";
 					const safeFrom =
 						rawFrom.startsWith("/") &&
 						!rawFrom.startsWith("//") &&
 						!rawFrom.startsWith("/api/")
 							? rawFrom
-							: "/search";
+							: "/cari";
 					const offerId =
 						url.searchParams.get("offer") ?? prod.variants[0]?.id ?? "";
 					const offer =
@@ -335,14 +337,14 @@ test("S61 browser: responsive mobile/short-IME/desktop shell, category-preservin
 						title: prod.name,
 						task: true,
 						backTo: safeFrom,
-						main: `<main id="main" class="wrap detail-main"><h1>${escapeHtml(prod.name)}</h1><section class="offer-detail"><p class="detail-price">${escapeHtml(rupiah(offer?.price ?? 99000))}</p><form action="/cart" method="get" class="cart-mutation"><label>Jumlah pilihan<input aria-label="Jumlah pilihan" type="number" name="quantity" min="1" max="50" value="1"/></label><button class="button" type="submit">Tambah ke keranjang</button></form></section></main>`,
+						main: `<main id="main" class="wrap detail-main"><h1>${escapeHtml(prod.name)}</h1><section class="offer-detail"><p class="detail-price">${escapeHtml(rupiah(offer?.price ?? 99000))}</p><form action="/keranjang" method="get" class="cart-mutation"><label>Jumlah pilihan<input aria-label="Jumlah pilihan" type="number" name="quantity" min="1" max="50" value="1"/></label><button class="button" type="submit">Tambah ke keranjang</button></form></section></main>`,
 					});
 					res.writeHead(200, { "content-type": "text/html; charset=utf-8" });
 					res.end(html);
 					return;
 				}
 
-				if (url.pathname === "/cart") {
+				if (url.pathname === "/keranjang") {
 					if (req.method === "POST") {
 						simulateLostLineError = true;
 					}
@@ -354,12 +356,12 @@ test("S61 browser: responsive mobile/short-IME/desktop shell, category-preservin
 							? activeCart.lines
 									.map(
 										(l) =>
-											`<li class="cart-line"><h2>${escapeHtml(l.name)}</h2><p class="line-total">${l.quantity} pilihan · ${escapeHtml(rupiah(l.line_total))}</p><form method="post" action="/cart" class="cart-mutation"><label>Jumlah pilihan<input aria-label="Jumlah ${escapeHtml(l.name)}" type="number" name="quantity" value="${l.quantity}"/></label><button class="button secondary" type="submit">Perbarui jumlah</button></form></li>`,
+											`<li class="cart-line"><h2>${escapeHtml(l.name)}</h2><p class="line-total">${l.quantity} pilihan · ${escapeHtml(rupiah(l.line_total))}</p><form method="post" action="/keranjang" class="cart-mutation"><label>Jumlah pilihan<input aria-label="Jumlah ${escapeHtml(l.name)}" type="number" name="quantity" value="${l.quantity}"/></label><button class="button secondary" type="submit">Perbarui jumlah</button></form></li>`,
 									)
 									.join("")
 							: "";
 					const bodyMain = signedOut
-						? `<main id="main" class="wrap empty-state"><h1>Keranjang masih kosong</h1><a class="button" href="/search">Lihat produk</a></main>`
+						? `<main id="main" class="wrap empty-state"><h1>Keranjang masih kosong</h1><a class="button" href="/cari">Lihat produk</a></main>`
 						: `<main id="main" class="wrap cart-main"><h1>${activeCart && badgeCount === 0 && activeCart.lines.length > 0 ? "Keranjang kedaluwarsa" : activeCart?.lines.length ? "Keranjang" : "Keranjang masih kosong"}</h1>${feedback}<ul class="cart-lines">${linesHtml}</ul></main>`;
 					res.writeHead(200, { "content-type": "text/html; charset=utf-8" });
 					res.end(
@@ -372,7 +374,7 @@ test("S61 browser: responsive mobile/short-IME/desktop shell, category-preservin
 					return;
 				}
 
-				if (url.pathname === "/account") {
+				if (url.pathname === "/akun") {
 					const main = signedOut
 						? `<main id="main" class="wrap"><h1>Akun Pembeli</h1><p>Anda belum masuk. Pesanan tamu dan data pribadi tidak ditampilkan lintas sesi.</p></main>`
 						: `<main id="main" class="wrap"><h1>Akun Pembeli</h1><p data-testid="buyer-session-state">Sesi aktif</p></main>`;
@@ -419,7 +421,7 @@ test("S61 browser: responsive mobile/short-IME/desktop shell, category-preservin
 				.status,
 			401,
 		);
-		const guestActor = await commerceActor(client.request("/cart"), identity);
+		const guestActor = await commerceActor(client.request("/keranjang"), identity);
 		assert.ok(guestActor?.kind === "guest");
 		const created = await identity.sql.begin((tx) =>
 			createCart(
@@ -467,7 +469,7 @@ test("S61 browser: responsive mobile/short-IME/desktop shell, category-preservin
 			assert.ok(busana);
 
 			await page.goto(
-				`${baseUrl}/category/shop-${namespace}-busana?offer_kind=multipack&sort=newest&utm_source=meta&fbclid=SYNTH_FB_1&ref=MITRA99`,
+				`${baseUrl}/kategori/shop-${namespace}-busana?offer_kind=multipack&sort=newest&utm_source=meta&fbclid=SYNTH_FB_1&ref=MITRA99`,
 			);
 			await expect(
 				page.getByRole("heading", { level: 1, name: "Busana" }),
@@ -513,7 +515,7 @@ test("S61 browser: responsive mobile/short-IME/desktop shell, category-preservin
 			assert.equal(new URL(page.url()).searchParams.has("offer_kind"), false);
 
 			// 5. Pagination ("Halaman berikutnya") and browser Back continuity
-			await page.goto(`${baseUrl}/search?q=Contoh&limit=1`);
+			await page.goto(`${baseUrl}/cari?q=Contoh&limit=1`);
 			const firstPageUrl = page.url();
 			const firstCardHref = await page
 				.locator(".product-link")
@@ -579,7 +581,7 @@ test("S61 browser: responsive mobile/short-IME/desktop shell, category-preservin
 			});
 
 			// 8. Disappeared cart line error announcement (lostTarget -> role="alert")
-			await page.goto(`${baseUrl}/cart`);
+			await page.goto(`${baseUrl}/keranjang`);
 			await expect(page.locator(".cart-line")).toHaveCount(1);
 			// Remove the line in the database (simulating concurrent removal in another tab) then submit update
 			await identity.sql`delete from app.cart_line where cart_id = ${created.cart.id}`;
@@ -602,7 +604,7 @@ test("S61 browser: responsive mobile/short-IME/desktop shell, category-preservin
 				) + 5,
 				clock.version,
 			);
-			await page.goto(`${baseUrl}/search`);
+			await page.goto(`${baseUrl}/cari`);
 			await expect(page.locator(".shopping-tabs a[data-count]")).toHaveCount(0);
 
 			// 10. Sign-out clears private session & cart state without cross-session leakage
@@ -610,7 +612,7 @@ test("S61 browser: responsive mobile/short-IME/desktop shell, category-preservin
 				`${baseUrl}/api/auth/sign-out`,
 			);
 			assert.equal(signOutRes.status(), 200);
-			await page.goto(`${baseUrl}/account`);
+			await page.goto(`${baseUrl}/akun`);
 			await expect(page.getByTestId("buyer-session-state")).toHaveCount(0);
 			await expect(
 				page.getByText(

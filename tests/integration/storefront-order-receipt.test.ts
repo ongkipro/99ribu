@@ -58,7 +58,7 @@ test('private order receipt projects canonical OrderReceipt schema, masks ship-t
   const submitted=await f.client.call('/api/v1/orders',{quote_id:quote.payload.id},{version:1});
   assert.equal(submitted.response.status,201);
   const orderId=submitted.payload.order.id as string,uiPath=orderReceiptPath(orderId);
-  assert.equal(uiPath,`/orders/${orderId}`);
+  assert.equal(uiPath,`/pesanan/${orderId}`);
 
   // API-scoped order_access cookie alone must not authorize the /orders/{orderId} BFF surface.
   assert.equal((await readOrderReceipt(f.client.request(uiPath),f.identity,orderId)).kind,'denied');

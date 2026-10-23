@@ -8,7 +8,7 @@ import {checkoutFixture,CommerceClient} from './checkout-fixture.ts';
 
 type Fixture=Awaited<ReturnType<typeof checkoutFixture>>;
 const intent=(f:Fixture,offer='fixture-offer-shirt')=>{const publication=f.seeded.publications[offer].id;assert.ok(publication);return initialCartIntent({product:f.seeded.products[offer],variant:f.seeded.offers[offer],publication});};
-const mutate=(f:Fixture,input:CartIntent,headers:Record<string,string>={})=>mutateBrowserCart(f.client.request('/cart',{}, {headers}),f.identity,input);
+const mutate=(f:Fixture,input:CartIntent,headers:Record<string,string>={})=>mutateBrowserCart(f.client.request('/keranjang',{}, {headers}),f.identity,input);
 function absorb(client:CommerceClient,cookies:string[]){const response=new Response();for(const cookie of cookies)response.headers.append('set-cookie',cookie);client.absorb(response);}
 
 test('acknowledged guest plus stable empty-cart initialization recovers lost creation and add acknowledgement once',async()=>{
@@ -21,7 +21,7 @@ test('acknowledged guest plus stable empty-cart initialization recovers lost cre
   // previously acknowledged guest and exact original intent remain.
   const recovered=await mutate(f,input);assert.equal(recovered.state.phase,'success');assert.equal(recovered.state.intent.cart,saved.state.intent.cart);assert.equal(recovered.state.total,99000);assert.equal(recovered.state.count,1);absorb(f.client,recovered.cookies);
   const bodyLost=await mutate(f,input);assert.equal(bodyLost.state.phase,'success');assert.equal(bodyLost.state.count,1);
-  const actor=await commerceActor(f.client.request('/cart'),f.identity);assert.ok(actor?.kind==='guest');
+  const actor=await commerceActor(f.client.request('/keranjang'),f.identity);assert.ok(actor?.kind==='guest');
   const [counts]=await f.identity.sql`select (select count(*)::int from app.cart where owner_guest_id=${actor.id}) carts,(select count(*)::int from app.commerce_operation where actor_scope=${actorScope(actor)}) operations`;
   assert.deepEqual(counts,{carts:1,operations:2});
   const current=await f.client.call('/api/v1/carts/current');assert.equal(current.response.status,200);assert.equal(current.payload.lines.length,1);assert.equal(current.payload.lines[0].quantity,1);
@@ -66,8 +66,8 @@ test('signed-buyer removal replay names the original line after the active cart 
   assert.equal((await client.auth('/sign-in/email',{email:buyer.email,password:buyer.password})).status,200);
   const first=await client.call('/api/v1/carts',{lines:[f.line('fixture-offer-shirt')]});assert.equal(first.response.status,201);const cart=first.payload.cart,line=cart.lines[0];
   const input=initialCartIntent({kind:'remove',product:line.product_id,variant:line.variant_id,publication:line.publication_id,quantity:String(line.quantity),cart:cart.id,version:String(cart.version),line:line.id});
-  const removed=await mutateBrowserCart(client.request('/cart',{}),f.identity,input);assert.equal(removed.state.phase,'success');assert.ok(removed.state.message.includes(line.name));
+  const removed=await mutateBrowserCart(client.request('/keranjang',{}),f.identity,input);assert.equal(removed.state.phase,'success');assert.ok(removed.state.message.includes(line.name));
   const second=await client.call('/api/v1/carts',{lines:[f.line('fixture-offer-cream-pack')]});assert.equal(second.response.status,201);assert.notEqual(second.payload.cart.id,cart.id);
-  const replay=await mutateBrowserCart(client.request('/cart',{}),f.identity,input);assert.equal(replay.state.phase,'success');assert.equal(replay.state.message,removed.state.message);assert.equal(replay.state.intent.cart,second.payload.cart.id);assert.equal(replay.state.count,1);assert.equal(replay.state.total,99000);
+  const replay=await mutateBrowserCart(client.request('/keranjang',{}),f.identity,input);assert.equal(replay.state.phase,'success');assert.equal(replay.state.message,removed.state.message);assert.equal(replay.state.intent.cart,second.payload.cart.id);assert.equal(replay.state.count,1);assert.equal(replay.state.total,99000);
  }finally{try{assert.equal((await client.auth('/sign-out',{})).status,200);assert.equal((await buyer.browser.auth('/sign-out',{})).status,200);}finally{await f.close();}}
 });

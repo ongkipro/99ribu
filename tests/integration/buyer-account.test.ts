@@ -745,7 +745,7 @@ test("S72 integration: recovered prepaid guest receipt is authorised by the orde
 		const orderCookie = guestOrderCookie(verified);
 		const page = (search: string, cookie?: string) =>
 			readOrderReceipt(
-				new Request(`${origin}/orders/${f.order.id}${search}`, {
+				new Request(`${origin}/pesanan/${f.order.id}${search}`, {
 					headers: cookie ? { origin, cookie } : { origin },
 				}),
 				identity,

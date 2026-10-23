@@ -338,7 +338,7 @@ test("S44-S45 browser: customer support chat on /help and staff CS workbench on 
 			try {
 				const host = `http://${req.headers.host ?? "127.0.0.1"}`;
 				const url = new URL(req.url ?? "/", host);
-				if (url.pathname === "/help") {
+				if (url.pathname === "/bantuan") {
 					res.writeHead(200, { "content-type": "text/html; charset=utf-8" });
 					res.end(renderHelpPageHtml());
 					return;
@@ -425,7 +425,7 @@ test("S44-S45 browser: customer support chat on /help and staff CS workbench on 
 				if (r.status() >= 400) badResponses.push(r.status());
 			});
 
-			await customerPage.goto(`${baseUrl}/help`);
+			await customerPage.goto(`${baseUrl}/bantuan`);
 			assert.equal(
 				badResponses.length,
 				0,

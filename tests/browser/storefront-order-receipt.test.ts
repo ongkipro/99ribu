@@ -22,8 +22,9 @@ import {rupiah} from '../../src/modules/storefront/format.ts';
 import {actor,cleanup,enroll} from '../contract/access-fixture.ts';
 import {grantedChoices} from '../integration/advertising-fixture.ts';
 import {CommerceClient} from '../integration/checkout-fixture.ts';
+import {RENDERS} from '../render-root.ts';
 
-const origin='http://127.0.0.1:3099',buildId=readFileSync('.next/BUILD_ID','utf8').trim(),rootOutput='docs/spec/design/renders/s27',output=`${rootOutput}/${buildId}`,namespace=`s27-${randomUUID().slice(0,8)}`;
+const origin='http://127.0.0.1:3099',buildId=readFileSync('.next/BUILD_ID','utf8').trim(),rootOutput=`${RENDERS}/s27`,output=`${rootOutput}/${buildId}`,namespace=`s27-${randomUUID().slice(0,8)}`;
 const identity=createLocalAuth('local'),carts=new Set<string>();
 let owner:Awaited<ReturnType<typeof actor>>,seeded:Awaited<ReturnType<typeof seedCommerce>>,curated:Awaited<ReturnType<typeof prepareStorefront>>;
 
@@ -333,7 +334,7 @@ test('no-JS receipt payment, expired unpaid order receipt, and denied access rec
   await capture(f.page,'receipt-expired-390');
 
   const strangerOrderId=randomUUID();
-  await f.page.goto(`${origin}/orders/${strangerOrderId}`);
+  await f.page.goto(`${origin}/pesanan/${strangerOrderId}`);
   await expect(f.page.getByRole('heading',{name:'Akses pesanan perlu diperiksa',exact:true})).toBeVisible();
   await expect(f.page.locator('.checkout-charges')).toHaveCount(0);
   assert.ok(!(await f.page.content()).includes('Penerima Contoh')&&!(await f.page.content()).includes('Jalan Contoh'),'Denied receipt exposes no private recipient or address');
