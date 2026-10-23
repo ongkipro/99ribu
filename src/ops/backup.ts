@@ -384,8 +384,8 @@ export function signV4(input: {
 const EMPTY_SHA256 = sha256("");
 function s3Store(config: { endpoint: URL; bucket: string; prefix: string; region: string; accessKeyId: string; secretAccessKey: string }): ObjectStore {
   const objectUrl = (key: string) => new URL(`${config.endpoint.origin}/${config.bucket}/${[config.prefix, checkKey(key)].filter(Boolean).join("/")}`);
-  async function send(method: string, url: URL, payloadHash = EMPTY_SHA256, body?: Buffer) {
-    const headers = signV4({ method, url, headers: {}, payloadHash, accessKeyId: config.accessKeyId, secretAccessKey: config.secretAccessKey, region: config.region, now: new Date() });
+  async function send(method: string, url: URL, payloadHash = EMPTY_SHA256, body?: Buffer, extra: Record<string, string> = {}) {
+    const headers = signV4({ method, url, headers: extra, payloadHash, accessKeyId: config.accessKeyId, secretAccessKey: config.secretAccessKey, region: config.region, now: new Date() });
     delete (headers as Record<string, string>).host;
     const response = await fetch(url, { method, headers, body: body ? new Uint8Array(body) : undefined, signal: AbortSignal.timeout(300000) });
     if (!response.ok) {
@@ -397,7 +397,15 @@ function s3Store(config: { endpoint: URL; bucket: string; prefix: string; region
   return {
     async put(key, source, digest) {
       // lazy: single PUT reads the object into memory (sets are tens of MB); multipart upload is the upgrade path past ~1 GB.
-      await send("PUT", objectUrl(key), digest.sha256, await readFile(source));
+      const bytes = await readFile(source);
+      if (sha256(bytes) !== digest.sha256) throw new Error("Backup object changed before upload.");
+      // Object Lock buckets require Content-MD5 or x-amz-sdk-checksum-algorithm on PutObject (AWS S3 API
+      // reference, PutObject). Send both, plus the SHA-256 checksum S3 verifies server-side; all are signed.
+      await send("PUT", objectUrl(key), digest.sha256, bytes, {
+        "content-md5": createHash("md5").update(bytes).digest("base64"),
+        "x-amz-checksum-sha256": Buffer.from(digest.sha256, "hex").toString("base64"),
+        "x-amz-sdk-checksum-algorithm": "SHA256",
+      });
     },
     async get(key, target) {
       const response = await send("GET", objectUrl(key));

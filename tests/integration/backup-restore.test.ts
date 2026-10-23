@@ -11,6 +11,11 @@ import { privateDirectory } from "../../src/config/local.ts";
 import { connectDatabase } from "../../src/db/client.ts";
 import { localSigningKey } from "../../src/modules/access/local-key.ts";
 import { parseManifest } from "../../src/ops/backup.ts";
+import { checkArtifactReferences } from "../../scripts/backup.ts";
+import { handleShippingLabels } from "../../src/modules/documents/labels.ts";
+import { ingestWaybillEvent, simulateWaybillIssue } from "../../src/modules/fulfillment/local.ts";
+import { actor, enroll } from "../contract/access-fixture.ts";
+import { closeFulfillmentActor, fulfillmentFixture } from "./fulfillment-fixture.ts";
 import { saveCatalogMedia } from "../../src/storage/catalog-media.ts";
 
 // S85 CODE: backup set + restore drill against the shared test database. Every restore goes into a
@@ -186,4 +191,45 @@ test("S85 drill interrupted by SIGTERM drops its restore database", async () => 
   assert.equal(result.code, 143, result.stderr);
   assert.match(result.stderr, /interrupted by SIGTERM/);
   assert.deepEqual(await restoreDatabases(), before, "the interrupted drill dropped its restore database");
+});
+
+test("S85 artifact references: a printed label's file key is checked, label-job artifact ids (row FKs) are not, and a missing label file is reported and fails non-test targets", async () => {
+  const f = await fulfillmentFixture("cod");
+  const [parcel] = f.parcels;
+  assert.ok(parcel);
+  const staff = await actor(f.identity, "warehouse", [String(parcel.warehouse_id)]);
+  await enroll(staff.browser, staff.password);
+  try {
+    const booking = await f.book(parcel);
+    await f.run(booking.creation_job_id);
+    for (const callback of await f.identity.sql`select callback_job_id from app.waybill_provider_event where booking_id = ${booking.id}`) await f.run(callback.callback_job_id);
+    await f.run(await ingestWaybillEvent(f.identity.sql, await simulateWaybillIssue(f.identity.sql, "test", booking.id)));
+    const request = staff.browser.request(`/api/v1/admin/shipments/${parcel.shipment_id}/label-jobs`, { format: "thermal_100x150" });
+    request.headers.set("idempotency-key", randomUUID());
+    const job = await handleShippingLabels(request, f.identity);
+    assert.equal(job.status, 202);
+    const [label] = await sql<{ job_artifact: string; storage_key: string }[]>`
+      select j.artifact_id::text as job_artifact, a.storage_key from app.shipping_label_job j
+      join app.shipping_label_artifact a on a.id = j.artifact_id where j.shipment_id = ${parcel.shipment_id} order by j.created_at desc limit 1`;
+    assert.ok(label && label.job_artifact !== label.storage_key, "the job's artifact_id is a row id, not the file key");
+
+    const store = join(root, "labels");
+    const created = await backup(["create", "test"], store);
+    assert.equal(created.code, 0, created.stderr);
+    const manifest = parseManifest(await readFile(join(store, JSON.parse(created.stdout).backup, "manifest.json")));
+    const archived = new Set(manifest.files.map((file) => file.path));
+    assert.ok(archived.has(`artifacts/${label.storage_key}`), "the label PDF is in the backup set");
+
+    const present = await checkArtifactReferences(sql, archived, "test");
+    assert.ok(present.referenced.includes(label.storage_key));
+    assert.ok(!present.referenced.includes(label.job_artifact));
+    assert.ok(!present.missing.includes(label.storage_key));
+
+    const withoutLabel = new Set([...archived].filter((path) => path !== `artifacts/${label.storage_key}`));
+    assert.ok((await checkArtifactReferences(sql, withoutLabel, "test")).missing.includes(label.storage_key), "reported for test sets");
+    await assert.rejects(checkArtifactReferences(sql, withoutLabel, "production"), /referenced private artifact\(s\) are missing/);
+  } finally {
+    await closeFulfillmentActor(f.identity, staff);
+    await f.close();
+  }
 });

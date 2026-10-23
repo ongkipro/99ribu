@@ -1,5 +1,5 @@
 import assert from "node:assert/strict";
-import { generateKeyPairSync } from "node:crypto";
+import { createHash, generateKeyPairSync } from "node:crypto";
 import { mkdir, mkdtemp, readdir, readFile, rm, stat, writeFile } from "node:fs/promises";
 import { createServer } from "node:http";
 import type { AddressInfo } from "node:net";
@@ -191,8 +191,16 @@ test("S3 store speaks signed path-style requests, pages listings and never leaks
     const amzDate = String(request.headers["x-amz-date"]);
     const payloadHash = String(request.headers["x-amz-content-sha256"]);
     const now = new Date(`${amzDate.slice(0, 4)}-${amzDate.slice(4, 6)}-${amzDate.slice(6, 8)}T${amzDate.slice(9, 11)}:${amzDate.slice(11, 13)}:${amzDate.slice(13, 15)}Z`);
-    const expected = signV4({ ...credentials, method: request.method ?? "", url, headers: {}, payloadHash, now }).authorization;
-    if (request.headers.authorization !== expected || (request.method === "PUT" && sha256(body) !== payloadHash) || failNext) {
+    // Re-sign with exactly the extra headers the client says it signed.
+    const signed = /SignedHeaders=([^,]+)/.exec(String(request.headers.authorization))?.[1].split(";") ?? [];
+    const extra = Object.fromEntries(signed.filter((name) => !["host", "x-amz-date", "x-amz-content-sha256"].includes(name)).map((name) => [name, String(request.headers[name])]));
+    const expected = signV4({ ...credentials, method: request.method ?? "", url, headers: extra, payloadHash, now }).authorization;
+    // Like an Object Lock bucket: a PUT needs a matching Content-MD5 and SHA-256 checksum, both signed.
+    const checksummed = request.method !== "PUT" || (
+      signed.includes("content-md5") && signed.includes("x-amz-checksum-sha256") && request.headers["x-amz-sdk-checksum-algorithm"] === "SHA256" &&
+      request.headers["content-md5"] === createHash("md5").update(body).digest("base64") &&
+      request.headers["x-amz-checksum-sha256"] === createHash("sha256").update(body).digest("base64"));
+    if (request.headers.authorization !== expected || (request.method === "PUT" && sha256(body) !== payloadHash) || !checksummed || failNext) {
       failNext = false;
       response.writeHead(403).end("<Error><Code>SignatureDoesNotMatch</Code></Error>");
       return;

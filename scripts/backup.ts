@@ -208,6 +208,28 @@ async function prune(apply: boolean) {
   console.log(JSON.stringify({ prune: apply ? "applied" : "dry-run", retention, keep, remove, stale_incomplete: stale }));
 }
 
+// Columns that hold a savePrivateArtifact() key (file name under .local/artifacts), each checked against its
+// writer. Not file keys: shipping_label_job / shipping_print_attempt / shipping_print_batch_item.artifact_id,
+// which reference shipping_label_artifact.id (0024). Checkout drafts are files no row references.
+export const ARTIFACT_KEY_COLUMNS = [
+  ["return_evidence", "storage_key"], // accounts/service.ts: savePrivateArtifact -> update ... set storage_key ('' while pending_upload)
+  ["shipping_label_artifact", "storage_key"], // documents/labels.ts: savePrivateArtifact -> insert ... storage_key
+  ["support_attachment", "storage_key"], // support/service.ts: savePrivateArtifact -> insert ... storage_key
+  ["affiliate_payout_evidence", "artifact_id"], // payouts/service.ts: savePrivateArtifact -> update ... set artifact_id
+] as const;
+
+// `archived` holds manifest paths (artifacts/<key>). Throws for non-test targets when a referenced file is missing.
+export async function checkArtifactReferences(db: Sql, archived: ReadonlySet<string>, target: Target) {
+  const referenced: string[] = [];
+  for (const [table, column] of ARTIFACT_KEY_COLUMNS) {
+    const rows = await db.unsafe<{ key: string }[]>(`select distinct ${quote(column)}::text as key from app.${quote(table)} where ${quote(column)} is not null and ${quote(column)}::text <> ''`);
+    referenced.push(...rows.map((row) => row.key));
+  }
+  const missing = referenced.filter((key) => !UUID.test(key) || !archived.has(`artifacts/${key}`));
+  if (missing.length && target !== "test") throw new Error(`${missing.length} referenced private artifact(s) are missing from the restored volume.`);
+  return { referenced, missing };
+}
+
 async function drill(requested: string, privateKeyPath: string) {
   const started = Date.now();
   const store = openStore(env);
@@ -294,8 +316,9 @@ async function drill(requested: string, privateKeyPath: string) {
     if (roles.length) throw new Error(`Role globals are missing ${roles.join(", ")}.`);
 
     // 4. Database: S67 restore with the creating-XID reseal between data and post-data.
-    await maintenance.unsafe(`create database ${quote(restoreDatabase)}`);
+    // Marked first: a SIGTERM while CREATE DATABASE is in flight still drops it (drop ... if exists is safe).
     created = true;
+    await maintenance.unsafe(`create database ${quote(restoreDatabase)}`);
     const restoreArgs = [`--dbname=${restoreDatabase}`, "--exit-on-error", "--no-owner", "--no-privileges"];
     await pg.tool("pg_restore", [...restoreArgs, "--section=pre-data", "--section=data"], { stdin: join(work, "database.dump") });
     restored = pg.connect(restoreDatabase);
@@ -330,22 +353,10 @@ async function drill(requested: string, privateKeyPath: string) {
     for (const { name } of referenced) if (!name || !(await resolveCatalogMedia(name, mediaDirectory))) missing++;
     if (missing && manifest.target !== "test") throw new Error(`${missing} referenced catalog photo(s) are missing from the restored volume.`);
 
-    // 5b. Every private artifact a row points at (label PDFs, payout/return evidence, support attachments:
-    //     any app column named storage_key or artifact_id) is in the restored volume. Same `test` exception.
-    const artifactFiles = new Set(manifest.files.filter((file) => file.path.startsWith("artifacts/")).map((file) => file.path.slice("artifacts/".length)));
-    const artifactColumns = await db<{ table_name: string; column_name: string }[]>`
-      select table_name, column_name from information_schema.columns
-      where table_schema = 'app' and column_name in ('storage_key', 'artifact_id') order by 1, 2`;
-    let artifactReferences = 0;
-    let missingArtifacts = 0;
-    for (const { table_name, column_name } of artifactColumns) {
-      const rows = await db.unsafe<{ id: string }[]>(`select distinct ${quote(column_name)}::text as id from app.${quote(table_name)} where ${quote(column_name)} is not null`);
-      for (const { id: artifact } of rows) {
-        artifactReferences++;
-        if (!UUID.test(artifact) || !artifactFiles.has(artifact)) missingArtifacts++;
-      }
-    }
-    if (missingArtifacts && manifest.target !== "test") throw new Error(`${missingArtifacts} referenced private artifact(s) are missing from the restored volume.`);
+    // 5b. Every private artifact file a row points at is in the restored volume. Same `test` exception.
+    const artifacts = await checkArtifactReferences(db, new Set(manifest.files.map((file) => file.path)), manifest.target);
+    const artifactReferences = artifacts.referenced.length;
+    const missingArtifacts = artifacts.missing.length;
 
     // 6. Staff MFA survives the restore: every stored TOTP secret and backup-code set decrypts with the
     //    escrowed secret, exactly as Better Auth's two-factor plugin reads them.
