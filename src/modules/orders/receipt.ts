@@ -119,7 +119,7 @@ export type OrderReceiptView =
 			code: string;
 	  };
 
-export const orderReceiptPath = (orderId: string) => `/orders/${id(orderId)}`;
+export const orderReceiptPath = (orderId: string) => `/pesanan/${id(orderId)}`;
 export const maskReceiptPhone = (phone: string) => `+62••••${phone.slice(-4)}`;
 
 export async function receiptIssuedCookies(

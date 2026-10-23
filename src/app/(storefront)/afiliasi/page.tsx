@@ -67,7 +67,7 @@ export default async function AffiliateWorkspacePage() {
 	const identity = getLocalAuth();
 	let principal: Principal | null = null;
 	try {
-		const req = await storefrontRequest("GET", "/affiliate");
+		const req = await storefrontRequest("GET", "/afiliasi");
 		principal = await getPrincipal(req, identity);
 	} catch {
 		principal = null;
@@ -131,10 +131,10 @@ export default async function AffiliateWorkspacePage() {
 								riwayat pencairan otomatis.
 							</p>
 							<div className="notice-actions">
-								<Link className="button" href="/masuk?next=%2Faffiliate">
+								<Link className="button" href="/masuk?next=%2Fafiliasi">
 									Masuk ke Akun
 								</Link>
-								<Link className="button button-secondary" href="/search">
+								<Link className="button button-secondary" href="/cari">
 									Lihat katalog produk
 								</Link>
 							</div>
@@ -178,7 +178,7 @@ export default async function AffiliateWorkspacePage() {
 							minimal Rp99.000.
 						</p>
 						<div className="notice-actions">
-							<Link className="button" href="/search">
+							<Link className="button" href="/cari">
 								Jelajahi produk 99ribu
 							</Link>
 						</div>

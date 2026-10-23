@@ -45,7 +45,7 @@ export async function CatalogListing({
 		),
 	);
 	if (pinned) raw.category_id = pinned.id;
-	const basePath = pinned ? `/category/${pinned.slug}` : "/search",
+	const basePath = pinned ? `/kategori/${pinned.slug}` : "/cari",
 		params = new URLSearchParams();
 	for (const [key, value] of Object.entries(raw)) {
 		if (Array.isArray(value)) for (const v of value) params.append(key, v);
@@ -131,7 +131,7 @@ export async function CatalogListing({
 						className="button"
 						href={
 							safeQuery
-								? `/search?q=${encodeURIComponent(safeQuery)}`
+								? `/cari?q=${encodeURIComponent(safeQuery)}`
 								: basePath
 						}
 					>

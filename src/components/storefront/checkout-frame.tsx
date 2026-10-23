@@ -4,12 +4,12 @@ import {CheckoutExit} from './checkout-exit';
 
 export function CheckoutFrame({children,saveDraft=false,back='cart',payment=false}:{children:React.ReactNode;saveDraft?:boolean;back?:'cart'|'catalog';payment?:boolean}){
  const wrap=payment?'checkout-wrap checkout-payment-wrap':'checkout-wrap';
- return <><a className="skip" href="#main">Lewati ke konten</a><div className="local-notice">Data contoh: pesanan, pembayaran, dan pengiriman masih simulasi lokal.</div>
+ return <><a className="skip" href="#main">Lewati ke konten</a><div className="local-notice"><span className="notice-long">Data contoh: pesanan, pembayaran, dan pengiriman masih simulasi lokal.</span><span className="notice-short">Data contoh: simulasi lokal.</span></div>
   {/* A form-associated header exit must never become the implicit Enter action. */}
   {saveDraft&&<button type="submit" form="checkout-form" name="navigate" value="stay" className="sr-only" tabIndex={-1}>Periksa langkah checkout</button>}
-  <header className={`checkout-header ${wrap}`}>{saveDraft?<CheckoutExit/>:<Link href={back==='catalog'?'/search':'/cart'} className="checkout-back"><Icon name="chevron"/><span>{back==='catalog'?'Katalog':'Keranjang'}</span></Link>}{saveDraft?<CheckoutExit home/>:<Link href="/" className="brand" aria-label="99rb - 99ribu, beranda">99<span>rb</span><i aria-hidden="true">.</i></Link>}<a href="#checkout-help" className="checkout-help-link" aria-label="Bantuan"><span>Bantuan</span></a></header>
+  <header className={`checkout-header ${wrap}`}>{saveDraft?<CheckoutExit/>:<Link href={back==='catalog'?'/cari':'/keranjang'} className="checkout-back"><Icon name="chevron"/><span>{back==='catalog'?'Katalog':'Keranjang'}</span></Link>}{saveDraft?<CheckoutExit home/>:<Link href="/" className="brand" aria-label="99rb - 99ribu, beranda">99<span>rb</span><i aria-hidden="true">.</i></Link>}<a href="#checkout-help" className="checkout-help-link" aria-label="Bantuan"><span>Bantuan</span></a></header>
   <main id="main" className={wrap}>{children}</main>
-  <footer className={`checkout-footer ${wrap}`}><p>Satu pilihan lengkap Rp99.000. Ongkir mengikuti paket dan tujuan yang dipilih.</p><nav aria-label="Kebijakan belanja"><Link href="/help#returns" target="_blank" rel="noopener noreferrer">Pengiriman dan pengembalian<span className="sr-only"> (tab baru)</span></Link><Link href="/help#privacy" target="_blank" rel="noopener noreferrer">Privasi<span className="sr-only"> (tab baru)</span></Link></nav></footer>
+  <footer className={`checkout-footer ${wrap}`}><p>Satu pilihan lengkap Rp99.000. Ongkir mengikuti paket dan tujuan yang dipilih.</p><nav aria-label="Kebijakan belanja"><Link href="/bantuan#returns" target="_blank" rel="noopener noreferrer">Pengiriman dan pengembalian<span className="sr-only"> (tab baru)</span></Link><Link href="/bantuan#privacy" target="_blank" rel="noopener noreferrer">Privasi<span className="sr-only"> (tab baru)</span></Link></nav></footer>
  </>;
 }
 

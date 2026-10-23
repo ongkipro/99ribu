@@ -13,7 +13,7 @@ export const metadata = {
 };
 
 export default async function AccountPage() {
-	const req = await storefrontRequest("GET", "/account");
+	const req = await storefrontRequest("GET", "/akun");
 	const identity = getLocalAuth();
 	const workspace = await readBuyerAccountWorkspace(req, identity);
 	return (
@@ -40,13 +40,13 @@ export default async function AccountPage() {
 						<Link className="button" href="/">
 							Belanja produk
 						</Link>
-						<Link className="button button-secondary" href="/help">
+						<Link className="button button-secondary" href="/bantuan">
 							Bantuan pesanan
 						</Link>
 						{workspace.authenticated ? (
 							<SignOutButton to="/" />
 						) : (
-							<Link className="button button-secondary" href="/masuk?next=%2Faccount">
+							<Link className="button button-secondary" href="/masuk?next=%2Fakun">
 								Masuk
 							</Link>
 						)}

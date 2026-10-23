@@ -77,7 +77,7 @@ export default async function AdminSupportPage() {
 						<a className="button button-secondary" href="/admin">
 							Ke Konsol Operasional
 						</a>
-						<a className="button button-secondary" href="/help">
+						<a className="button button-secondary" href="/bantuan">
 							Halaman Bantuan Publik
 						</a>
 					</div>

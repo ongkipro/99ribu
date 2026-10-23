@@ -10,7 +10,7 @@ import {
 
 export function generateMetadata() {
 	return publicMetadata(siteConfig(), {
-		path: "/help",
+		path: "/bantuan",
 		title: helpTitle,
 		description: helpDescription,
 	});
@@ -52,7 +52,7 @@ export default function Help() {
 					</section>
 				</div>
 				<CustomerChatView />
-				<Link className="button secondary" href="/search">
+				<Link className="button secondary" href="/cari">
 					Kembali ke katalog
 				</Link>
 			</main>

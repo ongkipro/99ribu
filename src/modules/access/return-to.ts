@@ -18,5 +18,5 @@ export const isAdminPath = (path: string) => path === "/admin" || path.startsWit
 // Staff go to their console, buyers and affiliates to their account; a validated `next` wins when the role can use it.
 export function signInDestination(next: string | null, staff: boolean) {
   if (next && (staff || !isAdminPath(next))) return next;
-  return staff ? "/admin" : "/account";
+  return staff ? "/admin" : "/akun";
 }

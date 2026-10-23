@@ -49,7 +49,7 @@ export async function changeCheckout(_previous:CheckoutState,data:FormData):Prom
    return {...initialCheckoutState(view),phase:'error',step:saved.kind==='denied'?'contact':intent.kind==='order'?'review':intent.kind==='shipping'?'shipping':'contact',intent:saved.kind==='denied'?initialCheckoutIntent():intent,blocked:saved.kind==='denied',draftConflict:saved.kind==='conflict',message:saved.message};
   }
   intent={...intent,draft_revision:String(saved.revision)};
-  if(intent.navigate==='cart'||intent.navigate==='home')redirect(intent.navigate==='cart'?'/cart':'/');
+  if(intent.navigate==='cart'||intent.navigate==='home')redirect(intent.navigate==='cart'?'/keranjang':'/');
  }
  if(!intent.navigate)await captureCheckoutMilestones(request,identity,{cart:intent.cart,version:Number(intent.version),stage:'started'});
  const reply=await mutateCheckout(request,identity,intent);

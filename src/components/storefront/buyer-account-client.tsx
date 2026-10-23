@@ -172,7 +172,7 @@ export function BuyerAccountClient({
 				headers: { "content-type": "application/json" },
 				body: "{}",
 			}).catch(() => null);
-			window.location.assign("/account");
+			window.location.assign("/akun");
 			return;
 		}
 		if (res.ok) {
@@ -353,7 +353,7 @@ export function BuyerAccountClient({
 								>
 									{orders.map((ord) => (
 										<li key={ord.id} data-testid={`buyer-order-row-${ord.id}`}>
-											<a href={`/orders/${ord.id}`}>
+											<a href={`/pesanan/${ord.id}`}>
 												<strong>{ord.number}</strong> · {ord.status} ·{" "}
 												{rupiah(ord.buyer_total)}
 											</a>
@@ -533,7 +533,7 @@ export function BuyerAccountClient({
 					<p className="checkout-hint">
 						<a
 							data-testid="guest-recovered-receipt-link"
-							href={`/orders/${encodeURIComponent(recoveredOrderId)}`}
+							href={`/pesanan/${encodeURIComponent(recoveredOrderId)}`}
 						>
 							Buka tanda terima pesanan tamu sekarang
 						</a>

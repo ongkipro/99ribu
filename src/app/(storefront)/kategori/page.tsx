@@ -1,9 +1,12 @@
 import Link from "next/link";
 import { redirect } from "next/navigation";
 import {
+	CategoryGrid,
 	type Department,
-	Departments,
 } from "../../../components/storefront/departments";
+import { departmentTint } from "../../../components/storefront/category-pills";
+import { sameOrigin } from "../../../components/storefront/products";
+import { departmentPhotos } from "../../../modules/storefront/department-photos";
 import { Shell } from "../../../components/storefront/shell";
 import { getLocalAuth } from "../../../modules/access/auth";
 import { AccessError } from "../../../modules/access/policy";
@@ -25,7 +28,7 @@ export async function generateMetadata({
 	searchParams: Promise<Record<string, string | string[] | undefined>>;
 }) {
 	return publicMetadata(siteConfig(), {
-		path: "/categories",
+		path: "/kategori",
 		title: categoriesTitle,
 		description: categoriesDescription,
 		indexable: !("cursor" in (await searchParams)),
@@ -51,6 +54,18 @@ export default async function Categories({
 	const categories = result.data as Department[];
 	// Every top-level department is a tile; subcategories stay visible as links.
 	const departments = await featuredDepartments(identity, 100);
+	// Same tile and same curated photo as the home grid and the header pills.
+	const photos = await departmentPhotos(identity, departments);
+	const tiles = departments.map((department, index) => {
+		const photo = photos.get(department.id);
+		return {
+			department,
+			tint: departmentTint(department.name, index),
+			photo: photo
+				? { src: sameOrigin(photo.url), width: photo.width, height: photo.height }
+				: null,
+		};
+	});
 	const others = categories.filter(
 		(c) => !departments.some((d) => d.id === c.id),
 	);
@@ -59,7 +74,7 @@ export default async function Categories({
 			<main id="main" className="wrap categories-main">
 				<h1>Kategori produk</h1>
 				<p>Pilih kategori untuk melihat isi dan harga setiap pilihan.</p>
-				<Departments categories={departments} />
+				<CategoryGrid tiles={tiles} />
 				{others.length > 0 && (
 					<section
 						className="subcategories"
@@ -69,7 +84,7 @@ export default async function Categories({
 						<ul>
 							{others.map((c) => (
 								<li key={c.id}>
-									<Link href={`/category/${c.slug}`}>{c.name}</Link>
+									<Link href={`/kategori/${c.slug}`}>{c.name}</Link>
 								</li>
 							))}
 						</ul>
@@ -78,7 +93,7 @@ export default async function Categories({
 				{result.pagination.next_cursor && (
 					<Link
 						className="button secondary"
-						href={`/categories?cursor=${result.pagination.next_cursor}`}
+						href={`/kategori?cursor=${result.pagination.next_cursor}`}
 					>
 						Kategori berikutnya
 					</Link>

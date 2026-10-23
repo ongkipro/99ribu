@@ -128,7 +128,7 @@ export function SignInForm({ next }: { next: string | null }) {
 					<Link className="button button-secondary" href={next ?? "/"}>Batal</Link>
 				</div>
 				<p className="signin-hint">Akun staf meminta kode verifikasi dua langkah setelah kata sandi.</p>
-				<p className="signin-hint">Belanja tetap bisa tanpa akun. Pesanan tamu dapat dibuka dari halaman <Link href="/account">Akun</Link>.</p>
+				<p className="signin-hint">Belanja tetap bisa tanpa akun. Pesanan tamu dapat dibuka dari halaman <Link href="/akun">Akun</Link>.</p>
 			</form>
 		);
 	}

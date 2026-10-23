@@ -3,15 +3,15 @@
 import {useEffect,useRef} from 'react';
 import Link from 'next/link';
 import {usePathname,useRouter,useSearchParams} from 'next/navigation';
-import {productHref,publicReturnPath} from '../../modules/storefront/navigation';
+import {productHref,productSlug,publicReturnPath} from '../../modules/storefront/navigation';
 import {Icon} from './icon';
 
 let pending:{path:string;from:string}|null=null;
 
-export function ProductLink({product,offer,className,children}:{product:string;offer:string;className?:string;children:React.ReactNode}){
+export function ProductLink({product,name,offer,className,children}:{product:string;name?:string|null;offer:string;className?:string;children:React.ReactNode}){
  const path=usePathname(),query=useSearchParams().toString();
- const from=publicReturnPath(`${path}${query?`?${query}`:''}${path==='/cart'?'':`#product-${product}`}`)??'/search';
- return <Link className={className} prefetch={false} href={productHref(product,offer,from)} onNavigate={()=>{pending={path:`/product/${product}`,from};}}>{children}</Link>;
+ const from=publicReturnPath(`${path}${query?`?${query}`:''}${path==='/keranjang'?'':`#product-${product}`}`)??'/cari';
+ return <Link className={className} prefetch={false} href={productHref(product,offer,from,name)} onNavigate={()=>{pending={path:`/produk/${productSlug(product,name)}`,from};}}>{children}</Link>;
 }
 
 export function TaskBack({from}:{from:string|null}){
@@ -24,7 +24,7 @@ export function TaskBack({from}:{from:string|null}){
   // our recorded same-tab entry, including across a later document reload.
   if(from&&own.current?.path===path&&own.current.from===from&&(existing?.path!==path||existing.from!==from))window.history.replaceState({...window.history.state,productReturn:{path,from}},'');
  });
- return <Link href={from??'/search'} className="task-back" onNavigate={event=>{
+ return <Link href={from??'/cari'} className="task-back" onNavigate={event=>{
   const entry=window.history.state?.productReturn;
   if(from&&entry?.path===path&&entry.from===from){event.preventDefault();router.back();}
  }}><Icon name="chevron"/><span>{from?'Kembali':'Katalog'}</span></Link>;

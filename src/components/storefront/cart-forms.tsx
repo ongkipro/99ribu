@@ -3,7 +3,7 @@
 import {Component,createContext,startTransition,useActionState,useContext,useEffect,useId,useRef,useState} from 'react';
 import Link from 'next/link';
 import {useFormStatus} from 'react-dom';
-import {changeCart,restartShopping} from '../../app/(storefront)/cart/actions';
+import {changeCart,restartShopping} from '../../app/(storefront)/keranjang/actions';
 import type {CartIntent,CartMutationState} from '../../modules/storefront/cart';
 import {Icon} from './icon';
 import {rupiah} from '../../modules/storefront/format';
@@ -21,7 +21,7 @@ class MutationBoundary extends Component<{children:(capture:(intent:CartIntent)=
  static getDerivedStateFromError(){return {failed:true};}
  capture=(intent:CartIntent)=>{this.submitted.set(intent.key,intent);};
  render(){
-  if(this.state.failed)return <section className="cart-feedback" data-phase="unknown" role="alert"><h2><Icon name="alert"/>Hasil tindakan belum diketahui</h2><p>Periksa keranjang atau ulangi tindakan yang sama. Jumlah tidak ditambahkan dua kali.</p><button className="button" type="button" onClick={()=>this.setState(s=>({failed:false,revision:s.revision+1,retry:[...this.submitted.values()]}))}>Ulangi tindakan yang sama</button><Link href="/cart">Periksa keranjang</Link></section>;
+  if(this.state.failed)return <section className="cart-feedback" data-phase="unknown" role="alert"><h2><Icon name="alert"/>Hasil tindakan belum diketahui</h2><p>Periksa keranjang atau ulangi tindakan yang sama. Jumlah tidak ditambahkan dua kali.</p><button className="button" type="button" onClick={()=>this.setState(s=>({failed:false,revision:s.revision+1,retry:[...this.submitted.values()]}))}>Ulangi tindakan yang sama</button><Link href="/keranjang">Periksa keranjang</Link></section>;
   return <div key={this.state.revision}>{this.props.children(this.capture,key=>this.submitted.delete(key),this.state.retry)}</div>;
  }
 }
@@ -41,7 +41,7 @@ function Controller({initial,permalink,children,capture,settle,retry,activeLines
  },[retry,action]);
  useEffect(()=>{if(recovering&&replayed.current&&!pending&&['success','error'].includes(state.phase))setRecovering(false);},[recovering,pending,state.phase]);
  const lostTarget=state.phase==='error'&&state.intent.line&&activeLines&&!activeLines.includes(state.intent.line);
- return <Context value={{state,action,pending,recovering,capture,feedbackId}}><div id={feedbackId} className="cart-feedback" data-phase={state.phase} role={state.phase==='unknown'||lostTarget?'alert':'status'} aria-live="polite" aria-atomic="true">{state.message&&(state.phase!=='error'||lostTarget)&&<><h2><Icon name={state.phase==='success'||state.phase==='bootstrap'?'check':'alert'}/>{state.phase==='success'?'Keranjang diperbarui':state.phase==='bootstrap'?'Sesi siap':state.phase==='unknown'?'Hasil tindakan belum diketahui':'Perubahan belum tersimpan'}</h2><p>{state.message}</p>{state.phase==='success'&&state.total!==null&&(state.count??0)>0&&<p>{state.count} pilihan · {rupiah(state.total)}</p>}{state.phase==='unknown'&&<Link className="detail-help" href="/cart">Periksa keranjang</Link>}</>}</div>{children}{showCartLink&&state.phase!=='unknown'&&<Link className="detail-help" href="/cart">Lihat keranjang</Link>}</Context>;
+ return <Context value={{state,action,pending,recovering,capture,feedbackId}}><div id={feedbackId} className="cart-feedback" data-phase={state.phase} role={state.phase==='unknown'||lostTarget?'alert':'status'} aria-live="polite" aria-atomic="true">{state.message&&(state.phase!=='error'||lostTarget)&&<><h2><Icon name={state.phase==='success'||state.phase==='bootstrap'?'check':'alert'}/>{state.phase==='success'?'Keranjang diperbarui':state.phase==='bootstrap'?'Sesi siap':state.phase==='unknown'?'Hasil tindakan belum diketahui':'Perubahan belum tersimpan'}</h2><p>{state.message}</p>{state.phase==='success'&&state.total!==null&&(state.count??0)>0&&<p>{state.count} pilihan · {rupiah(state.total)}</p>}{state.phase==='unknown'&&<Link className="detail-help" href="/keranjang">Periksa keranjang</Link>}</>}</div>{children}{showCartLink&&state.phase==='success'&&<Link className="detail-help" href="/keranjang">Lihat keranjang</Link>}</Context>;
 }
 export function CartMutations({initial,permalink,children,activeLines,showCartLink=false}:{initial:CartMutationState;permalink:string;children:React.ReactNode;activeLines?:string[];showCartLink?:boolean}){
  return <MutationBoundary>{(capture,settle,retry)=><Controller initial={initial} permalink={permalink} capture={capture} settle={settle} retry={retry} activeLines={activeLines} showCartLink={showCartLink}>{children}</Controller>}</MutationBoundary>;
@@ -85,6 +85,6 @@ export function CartProgression({children,checkout=false}:{children:React.ReactN
 }
 
 export function RestartShopping(){
- const [state,action,pending]=useActionState(restartShopping,{message:''},'/cart');
+ const [state,action,pending]=useActionState(restartShopping,{message:''},'/keranjang');
  return <form action={action} className="session-recovery"><p>Tindakan ini mengakhiri sesi akun dan belanja sebelumnya. Keranjang lama tidak dihapus; aksesnya tidak dipindahkan ke sesi baru.</p><button className="button danger" type="submit" disabled={pending}>{pending?'Mengakhiri sesi…':'Akhiri sesi dan mulai ulang'}</button><p role="status">{state.message}</p></form>;
 }

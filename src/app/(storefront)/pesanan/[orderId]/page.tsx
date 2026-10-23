@@ -398,7 +398,7 @@ export default async function OrderReceiptPage({
 							Muat ulang tanda terima
 						</a>
 					)}
-					<Link className="detail-help" href="/cart">
+					<Link className="detail-help" href="/keranjang">
 						Periksa sesi belanja
 					</Link>
 					<CheckoutHelp
@@ -830,7 +830,7 @@ export default async function OrderReceiptPage({
 									<p className="checkout-hint">
 										Pilih produk dari katalog untuk memulai pesanan baru.
 									</p>
-									<Link className="button" href="/search">
+									<Link className="button" href="/cari">
 										Lihat produk
 									</Link>
 								</div>
@@ -1155,7 +1155,7 @@ export default async function OrderReceiptPage({
 											retur sesuai{" "}
 											<Link
 												className="receipt-inline-link"
-												href="/help#returns"
+												href="/bantuan#returns"
 											>
 												kebijakan pengiriman dan pengembalian
 											</Link>{" "}
@@ -1171,7 +1171,7 @@ export default async function OrderReceiptPage({
 							<p className="checkout-hint">
 								<Link
 									className="receipt-inline-link"
-									href={`/help?orderId=${order.id}`}
+									href={`/bantuan?orderId=${order.id}`}
 								>
 									Buka percakapan bantuan pesanan (
 									{extras.support_conversation_id.slice(0, 8)})

@@ -94,7 +94,7 @@ export async function mutateBrowserCart(request:Request,identity:LocalAuth,value
  const failed=async(status:number,code:string):Promise<{state:CartMutationState;cookies:string[]}>=>{
   const unknown=status>=500;let next=intent,count:number|null=null,total:number|null=null;
   if(!unknown&&![401,403].includes(status)&&code!=='IDEMPOTENCY_CONFLICT'){
-   const current=await readBrowserCart(apiRequest(request,'/cart','GET',headers),identity);
+   const current=await readBrowserCart(apiRequest(request,'/keranjang','GET',headers),identity);
    if(current.kind==='ready'){count=cartUnits(current.cart);total=current.cart.merchandise_total;next={...intent,cart:current.cart.id,version:String(current.cart.version)};}
   }
   const knownMessage=code==='CART_VERSION_CONFLICT'&&count!==null?`Keranjang diperbarui dari halaman lain. Saat diperiksa, keranjang memuat ${count} pilihan lengkap. Periksa kembali pilihan Anda.`:messages[code]??'Keranjang belum dapat diperbarui. Periksa kembali pilihan Anda.';
@@ -118,7 +118,7 @@ export async function mutateBrowserCart(request:Request,identity:LocalAuth,value
    intent.kind==='update'?{quantity:Number(intent.quantity),expected_version:Number(version),expected_publication_id:intent.publication}:undefined;
   const result=await call(path,intent.kind==='add'?'POST':intent.kind==='update'?'PATCH':'DELETE',body,intent.key,version);
   if(!result.response.ok)return await failed(result.response.status,result.data.code);
-  const current=await readBrowserCart(apiRequest(request,'/cart','GET',headers),identity);
+  const current=await readBrowserCart(apiRequest(request,'/keranjang','GET',headers),identity);
   if(current.kind!=='ready')return await failed(503,'SERVICE_UNAVAILABLE');
   const saved=current.cart,count=cartUnits(saved),committed=result.data as BrowserCart,line=committed.lines.find(l=>l.variant_id===intent.variant);
   let message=intent.kind==='update'?`Jumlah ${line?`${line.name} (${line.variant_label})`:'pilihan'} menjadi ${intent.quantity}.`:`${intent.quantity} pilihan ${line?`${line.name} (${line.variant_label})`:''} ditambahkan ke keranjang.`;

@@ -1,9 +1,22 @@
+/* Inter 4.1 (SIL OFL, see public/fonts/inter-4.1/LICENSE.txt). The storefront loads a 44KB Latin
+   subset made with fontTools 4.55.3 from the full variable file (pyftsubset: Latin ranges below,
+   default features plus tnum; varLib.instancer: opsz axis dropped, pinned to its 14pt default, wght
+   kept 100-900). The full 352KB file is only fetched for characters outside the subset. */
 @font-face {
 	font-family: Inter;
 	src: url("/fonts/inter-4.1/InterVariable.woff2") format("woff2");
 	font-style: normal;
 	font-weight: 100 900;
 	font-display: swap;
+}
+/* Declared last so it wins inside its unicode-range (later faces are tried first). */
+@font-face {
+	font-family: Inter;
+	src: url("/fonts/inter-4.1/InterVariable-latin.woff2") format("woff2");
+	font-style: normal;
+	font-weight: 100 900;
+	font-display: swap;
+	unicode-range: U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+2000-206F, U+20AC, U+2122, U+2190-2193, U+2212, U+2215, U+FEFF, U+FFFD;
 }
 :root {
 	font-family: Inter, system-ui, sans-serif;
@@ -36,11 +49,6 @@
 :where(.stock-status) svg {
 	margin-top: 0.2em;
 }
-:where(.search-form button) svg {
-	width: max(1.25rem, 1em);
-	height: max(1.25rem, 1em);
-	flex: none;
-}
 :where(.cart-form-error) > span {
 	min-width: 0;
 	overflow-wrap: anywhere;
@@ -68,7 +76,6 @@ h1 {
 	font-size: var(--page-size);
 	line-height: var(--page-leading);
 }
-.price-statement strong,
 .product-price,
 .detail-price {
 	font-size: var(--price-size);
@@ -127,8 +134,34 @@ summary:focus-visible {
 html {
 	scroll-padding-bottom: calc(var(--bottom) + 20px);
 }
+:root {
+	/* shop.com page gutters (observed 2026-10-23): 16px to 1023px, 32px from 1024px, 48px
+	   from 1440px, 64px from 1920px, 96px from 2560px. Content caps at 1250px (owner decision,
+	   narrower than shop.com's full-width pages), so the larger gutters only matter below that. */
+	--gutter: 16px;
+}
+@media (min-width: 1024px) {
+	:root {
+		--gutter: 32px;
+	}
+}
+@media (min-width: 1440px) {
+	:root {
+		--gutter: 48px;
+	}
+}
+@media (min-width: 1920px) {
+	:root {
+		--gutter: 64px;
+	}
+}
+@media (min-width: 2560px) {
+	:root {
+		--gutter: 96px;
+	}
+}
 .wrap {
-	width: min(1200px, calc(100% - 80px));
+	width: min(1250px, calc(100% - 2 * var(--gutter)));
 	margin-inline: auto;
 }
 .sr-only {
@@ -156,6 +189,18 @@ html {
 	clip-path: none;
 	transform: none;
 }
+.local-notice .notice-short {
+	display: none;
+}
+/* Below 360px the environment note shortens to one line. */
+@media (max-width: 359px) {
+	.local-notice .notice-long {
+		display: none;
+	}
+	.local-notice .notice-short {
+		display: inline;
+	}
+}
 .local-notice {
 	font-size: 0.75rem;
 	text-align: center;
@@ -178,7 +223,7 @@ html {
 	display: inline-flex;
 	align-items: baseline;
 }
-.brand span {
+.brand > span:not(.grow) {
 	font-size: 0.56em;
 	font-weight: 800;
 	letter-spacing: -0.02em;
@@ -201,108 +246,30 @@ html {
 body:has(> .store-header, > .task-header) {
 	background: #fafafa;
 }
-.search-form {
-	display: flex;
-	align-items: center;
-	background: #ffffff;
-	border: 1px solid rgba(5, 41, 77, 0.1);
-	border-radius: 9999px;
-	/* Observed shop.com field/chip elevation: one 2px/8px shadow at 6%. */
-	box-shadow: 0 2px 8px rgba(0, 0, 0, 0.06);
-	padding: 4px;
-	min-width: 0;
-}
-.search-form input {
-	border: 0;
-	background: transparent;
-	min-width: 6ch;
-	width: 100%;
-	padding: 12px 18px;
-	border-radius: 9999px;
-	color: inherit;
-	font-size: 1rem;
-	outline-offset: -3px;
-}
-.search-form button {
-	display: flex;
-	align-items: center;
-	justify-content: center;
-	min-width: 44px;
-	min-height: max(44px, 2em);
-	/* Compact at enlarged text so the field keeps room for its placeholder. */
-	padding: 0 0.4em;
-	flex-shrink: 0;
-	border: 0;
-	background: var(--purple);
-	border-radius: 9999px;
-	color: #fff;
-}
-.search-form button:hover {
-	background: #4823b6;
-}
 .utilities {
 	display: flex;
 	gap: 24px;
 	font-size: 0.8rem;
 }
 .utilities a {
+	position: relative;
 	display: flex;
 	gap: 8px;
 	align-items: center;
 	min-height: 44px;
+}
+/* The cart count sits on the icon, so a count never changes the header widths
+   (the search pill keeps one width on every page). */
+.utilities .utility-count {
+	position: absolute;
+	top: 2px;
+	left: 14px;
 }
 .utilities a[aria-current] {
 	color: var(--purple);
 	font-weight: 600;
 }
 
-.departments {
-	display: flex;
-	gap: 8px;
-	/* One horizontally scrolling chip row at every width (shop.com chip row). */
-	flex-wrap: nowrap;
-	overflow-x: auto;
-	scrollbar-width: none;
-	overscroll-behavior-x: contain;
-	padding-block: 2px 14px;
-	/* Scroll affordance: the row fades out at its end edge. The end padding and
-	   scroll padding let the last chip, and any focused chip, rest clear of the fade. */
-	padding-inline-end: 72px;
-	scroll-padding-inline: 0 72px;
-	/* A 64px fade: long enough to read as "more" even over white chips on the
-	   near-white canvas at phone widths. */
-	mask-image: linear-gradient(to right, #000 calc(100% - 64px), transparent);
-}
-/* A thin scrollbar appears for pointer and keyboard users. */
-.departments:hover,
-.departments:focus-within {
-	scrollbar-width: thin;
-}
-.departments a {
-	display: flex;
-	flex: none;
-	align-items: center;
-	font-size: 0.875rem;
-	min-height: 44px;
-	padding: 6px 16px;
-	border-radius: 9999px;
-	background: #fff;
-	border: 1px solid rgba(24, 24, 27, 0.1);
-	font-weight: 600;
-}
-.departments a:hover {
-	border-color: rgba(24, 24, 27, 0.32);
-	text-decoration: none;
-}
-/* Inset focus ring: the scrolling chip row clips anything drawn outside a chip. */
-.departments a:focus-visible {
-	outline-offset: -4px;
-}
-/* R3 selected chip: charcoal edge marks the current department. */
-.departments a[aria-current] {
-	border-color: #18181b;
-	box-shadow: inset 0 0 0 0.5px #18181b;
-}
 .shopping-tabs,
 .shopping-tabs-space {
 	display: none;
@@ -310,86 +277,6 @@ body:has(> .store-header, > .task-header) {
 
 .home-main {
 	padding-top: 24px;
-}
-.home-entry {
-	display: grid;
-	grid-template-columns: minmax(0, 1fr);
-	gap: 40px;
-	margin-bottom: 40px;
-}
-.price-intro {
-	display: grid;
-	/* Desktop: title beside a bounded price card instead of a 1200px-wide band. */
-	grid-template-columns: minmax(0, 1fr) minmax(0, 34rem);
-	align-items: center;
-	gap: 16px 48px;
-	min-width: 0;
-}
-.price-intro h1 {
-	margin: 12px 0 16px;
-}
-.price-statement {
-	background: var(--yellow);
-	border: 1px solid #ebd778;
-	border-radius: 20px;
-	padding: 18px 22px;
-	align-self: stretch;
-	display: grid;
-	grid-template-columns: minmax(0, 1fr) auto;
-	gap: 8px 16px;
-	align-items: center;
-}
-.price-statement strong {
-	justify-self: end;
-}
-.price-statement > span {
-	font-size: 0.9rem;
-	font-weight: 600;
-}
-.price-statement a {
-	display: inline-flex;
-	align-items: center;
-	min-height: 44px;
-	font-size: 0.875rem;
-	font-weight: 600;
-	color: var(--purple);
-}
-:where(.price-statement) p {
-	font-size: 0.85rem;
-	line-height: 1.5;
-	color: #393124;
-}
-.section-heading {
-	display: flex;
-	justify-content: space-between;
-	align-items: center;
-	flex-wrap: wrap;
-	gap: 8px 16px;
-	margin-bottom: 16px;
-}
-.section-heading > :first-child {
-	flex: 1 1 12rem;
-	min-width: 0;
-}
-/* R12: shelf link as a white pill with a forward chevron. */
-.section-heading > a {
-	/* Shelf "see all": a plain text link with a chevron (shop.com "Women ›"), not a pill. */
-	display: inline-flex;
-	gap: 4px;
-	align-items: center;
-	min-height: 44px;
-	color: #18181b;
-	font-size: 0.875rem;
-	font-weight: 600;
-}
-.section-heading > a:hover {
-	color: var(--purple);
-}
-:where(.section-heading) svg {
-	width: 1.125em;
-	height: 1.125em;
-	flex: none;
-	transform: rotate(180deg);
 }
 :where(.filters summary) svg {
 	width: 1em;
@@ -408,13 +295,6 @@ body:has(> .store-header, > .task-header) {
 	padding: 0;
 	margin: 0;
 }
-/* Home shelf: at most four per row so a short featured set never leaves a gap. */
-.discovery .product-grid {
-	grid-template-columns: repeat(
-		auto-fill,
-		minmax(min(100%, max(12.5rem, calc((100% - 48px) / 4))), 1fr)
-	);
-}
 /* Each card spans four shared rows (media, title, price, stock note) through
    subgrid, so prices line up across a row whatever the title length. */
 .product {
@@ -429,16 +309,10 @@ body:has(> .store-header, > .task-header) {
 	margin: 12px 0 4px;
 	font-size: 1rem;
 	line-height: 1.375;
-	font-weight: 600;
+	/* Owner call (round 16): regular title weight; the price carries the emphasis. */
+	font-weight: 400;
 	letter-spacing: -0.01em;
 	overflow-wrap: anywhere;
-	/* At most three lines (same-family names stay distinguishable); the full
-	   name stays in the DOM and the link's accessible name. */
-	display: -webkit-box;
-	-webkit-box-orient: vertical;
-	-webkit-line-clamp: 3;
-	line-clamp: 3;
-	overflow: hidden;
 }
 .photo-slot {
 	aspect-ratio: 1;
@@ -504,67 +378,6 @@ body:has(> .store-header, > .task-header) {
 	color: #5c4f37;
 }
 /* R9: brand + note left, labelled link column right (shop.com footer rhythm). */
-.store-footer {
-	display: flex;
-	flex-wrap: wrap;
-	justify-content: space-between;
-	gap: 32px 64px;
-	padding-block: 48px 40px;
-	margin-top: 64px;
-	border-top: 1px solid rgba(24, 24, 27, 0.08);
-}
-.footer-brand {
-	flex: 1 1 16rem;
-	max-width: 24rem;
-}
-.footer-links {
-	flex: 0 1 16rem;
-}
-.footer-name {
-	font-size: 1.8rem;
-	font-weight: 850;
-	letter-spacing: -0.08em;
-}
-.store-footer a {
-	display: inline-flex;
-	align-items: center;
-	min-height: 44px;
-	font-size: 0.875rem;
-	line-height: 1.25rem;
-	color: var(--purple);
-	text-decoration: underline;
-	text-underline-offset: 4px;
-}
-:where(.store-footer) p:not(:where(.footer-name)) {
-	font-size: 0.75rem;
-	line-height: 1.7;
-	color: var(--muted);
-	margin-top: 8px;
-}
-.local-footnote {
-	margin: 8px 0 0;
-}
-.footer-links > p {
-	color: #18181b;
-	font-size: 0.875rem;
-	line-height: 1.25rem;
-	font-weight: 600;
-	margin-bottom: 4px;
-}
-.footer-links ul {
-	list-style: none;
-	margin: 0;
-	padding: 0;
-	display: grid;
-	gap: 8px;
-}
-.footer-links a {
-	color: #3f3d48;
-	text-decoration: none;
-}
-.footer-links a:hover {
-	color: var(--purple);
-}
 .listing-main {
 	padding-top: 36px;
 }
@@ -627,8 +440,14 @@ body:has(> .store-header, > .task-header) {
 .filter-field {
 	display: grid;
 	gap: 6px;
-	flex: 1 1 14rem;
-	min-width: 0;
+	/* Four filters: one row of four from 1024px, two by two below it (never three plus one). */
+	flex: 1 1 calc(25% - 12px);
+	min-width: min(100%, 10rem);
+}
+@media (max-width: 1023px) {
+	.filter-field {
+		flex-basis: calc(50% - 8px);
+	}
 }
 .filters label {
 	font-size: 0.8125rem;
@@ -724,6 +543,11 @@ body:has(> .store-header, > .task-header) {
 	min-height: 52px;
 	font-size: 1rem;
 }
+/* Storefront buttons (observed shop.com typography): 16px weight 600 at -0.5px. */
+:is(.home-main, .listing-main, .product-detail, .cart-page, .help-main, .categories-main, .signin-main) .button {
+	font-size: 1rem;
+	letter-spacing: -0.5px;
+}
 .pagination {
 	margin-block: 40px;
 	text-align: center;
@@ -735,13 +559,6 @@ body:has(> .store-header, > .task-header) {
 }
 .product-detail {
 	padding-top: 24px;
-}
-.back-link {
-	font-size: 0.85rem;
-	display: inline-block;
-	padding-block: 12px;
-	margin-bottom: 20px;
-	color: var(--purple);
 }
 /* R6: wide media panel beside a narrow buy box (shop.com PDP). */
 .detail-layout {
@@ -778,16 +595,7 @@ body:has(> .store-header, > .task-header) {
 	line-height: 1.7;
 	overflow-wrap: anywhere;
 }
-.pending-note {
-	margin-top: 24px;
-	background: #f7f6fa;
-	padding: 16px;
-	font-size: 0.85rem;
-}
 @media (max-width: 1050px) {
-	.wrap {
-		width: calc(100% - 48px);
-	}
 	.header-main {
 		gap: 24px;
 	}
@@ -796,12 +604,6 @@ body:has(> .store-header, > .task-header) {
 	}
 	.utilities {
 		gap: 16px;
-	}
-	.home-entry {
-		gap: 32px;
-	}
-	.price-intro {
-		grid-template-columns: minmax(0, 1fr);
 	}
 	.detail-layout {
 		gap: 32px;
@@ -819,9 +621,6 @@ body:has(> .store-header, > .task-header) {
 	html {
 		scroll-padding-bottom: max(4.25rem, calc(14rem - 25vw));
 	}
-	.wrap {
-		width: calc(100% - 32px);
-	}
 	.local-notice {
 		font-size: 0.65rem;
 		padding-block: 6px;
@@ -838,10 +637,6 @@ body:has(> .store-header, > .task-header) {
 		order: 3;
 		flex-basis: 100%;
 	}
-	.search-form input {
-		font-size: 1rem;
-		padding: 12px;
-	}
 	.utilities {
 		margin-left: auto;
 	}
@@ -849,50 +644,11 @@ body:has(> .store-header, > .task-header) {
 		width: 44px;
 		justify-content: center;
 	}
-	.departments {
-		padding-bottom: 10px;
-	}
-	.departments a {
-		font-size: 0.8125rem;
-		min-height: 44px;
-		padding: 4px 12px;
-	}
-	.home-entry {
-		margin-bottom: 32px;
-	}
-	.price-intro {
-		display: block;
-	}
-	.price-intro h1 {
-		margin-block: 8px 12px;
-	}
-	.price-statement {
-		margin-top: 20px;
-		padding: 18px 20px;
-		grid-template-columns: repeat(auto-fit, minmax(min(100%, 8rem), 1fr));
-	}
-	.price-statement > span {
-		font-size: 0.75rem;
-	}
-	.price-statement a {
-		grid-column: 1 / -1;
-	}
-	:where(.price-statement) p {
-		grid-column: 1 / -1;
-		font-size: 0.75rem;
-		max-width: none;
-	}
-	.section-heading > a {
-		font-size: 0.75rem;
-		gap: 4px;
-		text-align: left;
-	}
 	.active-filters li {
 		flex: 0 1 auto;
 		max-width: 100%;
 	}
-	.product-grid,
-	.discovery .product-grid {
+	.product-grid {
 		grid-template-columns: repeat(
 				auto-fill,
 				minmax(min(100%, max(8rem, calc(50% - 6px))), 1fr)
@@ -901,18 +657,6 @@ body:has(> .store-header, > .task-header) {
 	}
 	.photo-slot {
 		padding: 14px 8px;
-	}
-	.product h3 {
-		margin-top: 12px;
-		/* Phones (two-up): five lines show the words that tell same-family names
-		   apart; the card subgrid keeps prices aligned. */
-		-webkit-line-clamp: 5;
-		line-clamp: 5;
-	}
-	.store-footer {
-		gap: 20px;
-		padding-block: 32px 24px;
-		margin-top: 40px;
 	}
 	.listing-main {
 		padding-top: 24px;
@@ -950,9 +694,6 @@ body:has(> .store-header, > .task-header) {
 	.detail-description,
 	.offer-detail ul {
 		font-size: 0.9rem;
-	}
-	.pending-note {
-		margin-bottom: 24px;
 	}
 }
 @media (prefers-reduced-motion: reduce) {
@@ -1028,93 +769,6 @@ body:has(> .store-header, > .task-header) {
 	text-decoration: none;
 }
 
-.department-tiles {
-	list-style: none;
-	padding: 0;
-	margin: 0;
-	display: grid;
-	gap: 24px 16px;
-	/* Four per row from tablet up (short tiles before the shelf), two on phones.
-	   The minimum is in em, so enlarged text reduces the column count instead of
-	   pushing long Indonesian names out of a narrow tile. */
-	grid-template-columns: repeat(
-		auto-fill,
-		minmax(min(100%, max(9em, calc((100% - 48px) / 4))), 1fr)
-	);
-}
-/* Each tile spans two shared rows (media, label) through subgrid, so every
-   label in a row starts on one baseline even when an enlarged brief grows one
-   slot or names wrap to different line counts. */
-/* Category tiles read as categories, not products: a tinted lavender card with the
-   name first and a shorter 4:3 photo inside it (shop.com department mosaic tile). */
-.department-tiles a {
-	background: #f1edfd;
-	border-radius: 20px;
-	padding: 14px;
-	font-weight: 600;
-	display: grid;
-	grid-row: span 2;
-	grid-template-rows: subgrid;
-	row-gap: 12px;
-	align-content: start;
-	min-width: 0;
-}
-.department-photo {
-	grid-row: 2;
-	min-width: 0;
-	max-width: 100%;
-	background: #f4f3f8;
-	border-radius: 14px;
-	padding: 12px;
-	width: 100%;
-	display: grid;
-	grid-template-areas: "photo";
-	align-items: center;
-	min-height: 0;
-}
-.department-photo small {
-	font-weight: 600;
-	font-size: 0.75rem;
-	color: var(--muted);
-}
-.department-photo p {
-	font-weight: 400;
-	font-size: 0.75rem;
-	line-height: 1.5;
-	color: var(--muted);
-}
-.shopping-help {
-	display: grid;
-	grid-template-columns: repeat(4, minmax(0, 1fr));
-	gap: 16px;
-	margin-block: 40px;
-}
-/* Text starts on the shelf's second card column. */
-.shopping-help > div {
-	grid-column: 2 / -1;
-}
-@media (max-width: 1050px) {
-	.shopping-help {
-		display: block;
-	}
-	.shopping-help h2 {
-		margin-bottom: 16px;
-	}
-}
-.shopping-help p {
-	font-size: 0.9rem;
-	line-height: 1.7;
-	margin-bottom: 12px;
-	color: var(--muted);
-}
-.shopping-help a {
-	color: var(--purple);
-	font-size: 0.875rem;
-	font-weight: 600;
-	display: inline-flex;
-	align-items: center;
-	min-height: 44px;
-}
 .filters summary {
 	list-style: none;
 	display: flex;
@@ -1201,7 +855,7 @@ body:has(> .store-header, > .task-header) {
 	align-self: start;
 	background: #fff;
 	border-radius: 20px;
-	padding: 20px 24px;
+	padding: 20px clamp(14px, 5vw, 24px);
 	border: 1px solid rgba(5, 41, 77, 0.1);
 	scroll-margin-top: 16px;
 }
@@ -1223,39 +877,8 @@ body:has(> .store-header, > .task-header) {
 	.utilities {
 		display: none;
 	}
-	.department-tiles {
-		gap: 20px 16px;
-		/* Two per row at ordinary text; one per row once a tile would be under 8em. */
-		grid-template-columns: repeat(
-			auto-fill,
-			minmax(min(100%, max(8em, calc((100% - 16px) / 2))), 1fr)
-		);
-	}
-	.department-tiles a {
-		row-gap: 10px;
-		font-size: 0.85rem;
-	}
-	.shopping-help {
-		margin-block: 32px;
-	}
 }
 
-.department-tiles li {
-	display: grid;
-	grid-row: span 2;
-	grid-template-rows: subgrid;
-	row-gap: 0;
-	min-width: 0;
-}
-.department-tiles a > span {
-	grid-row: 1;
-	display: block;
-	min-width: 0;
-	font-weight: 600;
-	line-height: 1.3;
-	overflow-wrap: anywhere;
-	hyphens: auto;
-}
 @media (max-width: 700px) {
 	.shopping-tabs,
 	.shopping-tabs-space {
@@ -1311,38 +934,6 @@ body:has(> .store-header, > .task-header) {
 	}
 }
 
-/* A square minimum with room for enlarged shot briefs; no forced text crop. */
-.department-photo::before {
-	content: "";
-	grid-area: photo;
-	width: 100%;
-	aspect-ratio: 4 / 3;
-}
-/* Real category photo: full-bleed square inside the tile (shop.com mosaic tile). */
-.department-photo.has-photo {
-	padding: 0;
-	overflow: hidden;
-	background: #fff;
-}
-:where(.department-photo.has-photo) > img {
-	grid-area: photo;
-	display: block;
-	width: 100%;
-	height: 100%;
-	aspect-ratio: 4 / 3;
-	object-fit: contain;
-}
-.department-shot {
-	grid-area: photo;
-	align-self: center;
-	align-items: center;
-	text-align: center;
-	display: flex;
-	flex-direction: column;
-	justify-content: center;
-	gap: 8px;
-	min-width: 0;
-}
 
 /* Purchase task chrome stays in flow so short/enlarged views retain controls. */
 .task-header {
@@ -1473,9 +1064,6 @@ body:has(> .store-header, > .task-header) {
 	font-size: 0.85rem;
 	line-height: 1.7;
 }
-.stock-ready {
-	font-size: 0.85rem;
-}
 .cart-mutation {
 	display: flex;
 	flex-wrap: wrap;
@@ -1602,6 +1190,8 @@ body:has(> .store-header, > .task-header) {
 	padding-left: 18px;
 	margin: 0;
 	font-size: 0.85rem;
+	/* Same filled bullets as the PDP contents list, also inside the disclosure. */
+	list-style: disc;
 }
 .cart-line-actions {
 	display: flex;
@@ -1647,12 +1237,6 @@ body:has(> .store-header, > .task-header) {
 	margin-inline-start: auto;
 	text-align: right;
 	font-weight: 600;
-}
-.cart-summary .pending-note {
-	padding: 16px 0 0;
-	margin-bottom: 0;
-	border-top: 1px solid var(--line);
-	background: transparent;
 }
 @media (max-width: 1050px) {
 	.cart-layout {
@@ -1703,6 +1287,11 @@ body:has(> .store-header, > .task-header) {
 	}
 	.cart-line-actions .cart-mutation {
 		flex-basis: 100%;
+	}
+	/* A 5.5rem quantity pill lets "Perbarui jumlah" sit beside it in the 264px line column at 390,
+	   which brings the summary 58px higher; narrower columns and larger text still wrap. */
+	.cart-line-actions .cart-mutation input[type="number"] {
+		width: 5.5rem;
 	}
 }
 
@@ -2194,8 +1783,6 @@ body:has(> .store-header, > .task-header) {
 .checkout-progress [aria-current="step"] {
 	font-weight: 600;
 	color: var(--purple);
-	text-decoration: underline;
-	text-underline-offset: 6px;
 }
 .checkout-fields > h2 {
 	margin-bottom: 20px;
@@ -2798,6 +2385,11 @@ body:has(> .store-header, > .task-header) {
 @media (max-width: 22rem) {
 	.checkout-back svg {
 		display: none;
+	}
+	/* Back and Help fill the second row exactly at 320px/200% text (152 + 124 of 288px), so the
+	   column gap narrows to keep them on one row. */
+	.checkout-header {
+		column-gap: 8px;
 	}
 	.checkout-header .brand {
 		order: -1;
@@ -3907,72 +3499,6 @@ body:has(> .store-header, > .task-header) {
 		padding: 18px;
 	}
 }
-.s08-operator-shell {
-	display: grid;
-	grid-template-columns: 248px minmax(0, 1fr);
-	min-height: calc(100vh - 33px);
-	background: #fcfcfd;
-	color: var(--ink);
-}
-.s08-operator-nav {
-	border-right: 1px solid var(--line);
-	background: #f5f6f8;
-	padding: 20px 16px;
-	display: flex;
-	flex-direction: column;
-	gap: 16px;
-}
-.s08-operator-main {
-	padding: 24px 32px 48px;
-	display: grid;
-	align-content: start;
-	gap: 24px;
-	min-width: 0;
-}
-:where(.s08-operator-main .receipt-badge) {
-	white-space: nowrap;
-	flex-shrink: 0;
-}
-.s08-role-btn {
-	width: 100%;
-	min-height: 44px;
-	padding: 9px 12px;
-	border-radius: 6px;
-	border: 1px solid transparent;
-	background: transparent;
-	color: var(--ink);
-	font: inherit;
-	font-size: 0.85rem;
-	font-weight: 600;
-	text-align: left;
-	display: flex;
-	align-items: center;
-	justify-content: space-between;
-	gap: 8px;
-	cursor: pointer;
-}
-.s08-role-btn:hover {
-	background: #eceef2;
-}
-.s08-role-btn[aria-pressed="true"] {
-	background: #f4f0ff;
-	border-color: #d9d0fb;
-	color: var(--purple);
-}
-@media (max-width: 960px) {
-	.s08-operator-shell {
-		grid-template-columns: minmax(0, 1fr);
-	}
-	.s08-operator-nav {
-		border-right: 0;
-		border-bottom: 1px solid var(--line);
-		padding: 16px;
-	}
-	.s08-operator-main {
-		padding: 20px 16px 40px;
-	}
-}
-
 /* shop.com parity R6/R7: full-width 52px primary pill (Add to cart, checkout).
    Kept last so its higher specificity never precedes other .button rules. */
 .cart-summary .button {
@@ -4113,11 +3639,7 @@ body:has(> .store-header, > .task-header) {
 .keep-hyphen {
 	white-space: nowrap;
 }
-/* Long bundles on the PDP: count, first three items, the rest behind a disclosure. */
-.contents-count {
-	font-size: 0.875rem;
-	color: var(--muted);
-}
+/* Long bundles on the PDP: the first three items, the rest behind a disclosure. */
 :where(.contents-more > summary) {
 	/* Block flow keeps the chevron right after the label even when it wraps. */
 	display: block;
@@ -4190,13 +3712,6 @@ body:has(> .store-header, > .task-header) {
 		overflow: visible;
 	}
 }
-/* Home shelf at tablet (three per row): show six of the eight, so no row ends
-   with an empty slot; desktop shows all eight four-up, phones two-up. */
-@media (min-width: 701px) and (max-width: 1050px) {
-	.discovery .product:nth-child(n + 7) {
-		display: none;
-	}
-}
 :where(.contents-more > summary svg) {
 	display: inline-block;
 	vertical-align: middle;
@@ -4211,15 +3726,6 @@ body:has(> .store-header, > .task-header) {
 :where(.signin-actions) > .button.button-secondary:hover {
 	background: #f2eefc;
 }
-/* Desktop footer links: pointer-sized targets keep a tighter list rhythm. */
-@media (min-width: 701px) {
-	.footer-links ul {
-		gap: 0;
-	}
-	.footer-links a {
-		min-height: 32px;
-	}
-}
 
 /* ===== Interaction contract (observed on shop.com 2026-10-23) =====
    Scope: storefront, checkout, receipt and sign-in shells only (admin untouched). */
@@ -4229,7 +3735,7 @@ body:has(> .store-header, > .task-header) {
 	text-decoration: underline;
 }
 /* Standalone links: colour feedback on hover. */
-:is(.detail-help, .price-statement a, .shopping-help a, .cart-heading > a):hover {
+:is(.detail-help, .cart-heading > a):hover {
 	color: #4823b6;
 }
 /* Light motion (owner: "light, without sacrificing PageSpeed"): CSS only, transform and
@@ -4309,14 +3815,1402 @@ body:has(> .store-header, > .task-header) {
 		inset 0 0 0 1px var(--error),
 		0 0 0 3px rgba(139, 36, 29, 0.15);
 }
-/* Header search: the pill itself carries the focus state; placeholder at shop.com's 56% ink. */
-.search-form:focus-within {
-	border-color: #18181b;
-	box-shadow: 0 0 0 3px rgba(24, 24, 27, 0.12);
+
+/* ===== Home composition mirroring shop.com (round 16) ===== */
+/* Shelf heading (shop.com "Home ›"): the title itself is the "see all" link. */
+.shelf-heading {
+	margin-bottom: 16px;
 }
-#site-search:focus {
+.shelf-heading a {
+	display: inline-flex;
+	align-items: center;
+	gap: 4px;
+	min-height: 44px;
+	color: #18181b;
+}
+:is(.home-main, .home-shelf) .shelf-heading a:hover {
+	color: var(--purple);
+}
+:where(.shelf-heading svg) {
+	width: 1em;
+	height: 1em;
+	flex: none;
+}
+.home-shelf {
+	margin-top: 48px;
+}
+/* Product shelf (shop.com product row): one horizontally scrolling row, seven
+   cards visible at desktop, about two and a half on phones; cards keep the
+   four-row subgrid so prices align across the row. */
+.shelf-row {
+	list-style: none;
+	margin: 0;
+	padding: 0 0 8px;
+	display: grid;
+	grid-auto-flow: column;
+	grid-template-rows: repeat(4, auto);
+	/* shop.com product carousel (observed 2026-10-23): seven whole cards from 1280px,
+	   five from 701px, 2.3 on phones; 16px apart (8px on phones); smooth scroll and
+	   mandatory snap to each card's start from 701px. */
+	grid-auto-columns: calc((100% - 6 * 16px) / 7);
+	column-gap: 16px;
+	overflow-x: auto;
+	scroll-behavior: smooth;
+	scroll-snap-type: x mandatory;
+	/* No visible scrollbar in any state (owner round 21, as shop.com); the cut
+	   card at the edge is the cue, and native scrolling and Tab still work. */
+	scrollbar-width: none;
+	overscroll-behavior-x: contain;
+}
+.shelf-row::-webkit-scrollbar {
+	display: none;
+}
+.shelf-row > .product {
+	scroll-snap-align: start;
+}
+/* 701-1279px: 4.6 cards, so a cut card shows the row scrolls (the arrows only appear on hover). */
+@media (max-width: 1279px) {
+	.shelf-row {
+		grid-auto-columns: calc((100% - 4 * 16px) / 4.6);
+	}
+}
+/* Phones (our own app-like composition): the row bleeds to the screen edges with the
+   gutter as inner padding, 2.3 cards in view, 8px apart, free scrolling (no snap, as
+   shop.com below sm). At least 9em per card so enlarged text widens the card. */
+@media (max-width: 700px) {
+	.shelf-row {
+		margin-inline: calc(-1 * var(--gutter));
+		padding-inline: var(--gutter);
+		scroll-padding-inline: var(--gutter);
+		column-gap: 8px;
+		grid-auto-columns: max(calc((100% - 2 * 8px) / 2.3), min(85%, 9em));
+		scroll-snap-type: none;
+	}
+}
+
+/* ===== Typography contract (observed on shop.com 2026-10-23, round 21) =====
+   shop.com sets GT Standard (Grilli Type, a commercial licence), so it is not
+   copied or hotlinked. The closest open-licence grotesque already self-hosted
+   here is Inter (SIL OFL, public/fonts/inter-4.1), and the observed metrics are
+   matched 1:1: size, weight, line-height and tracking. Storefront shells only. */
+body:has(> .store-header, > .task-header) {
+	line-height: 1.375;
+	letter-spacing: -0.5px;
+}
+/* Section headings: 20/22 weight 600 at -1px; 18/20 at -0.5px on phones. */
+.home-main .shelf-heading {
+	font-size: 1.25rem;
+	line-height: 1.375rem;
+	font-weight: 600;
+	letter-spacing: -1px;
+}
+@media (max-width: 700px) {
+	.home-main .shelf-heading {
+		font-size: 1.125rem;
+		line-height: 1.25rem;
+		letter-spacing: -0.5px;
+	}
+}
+/* Product cards (shop.com bodyTitleSmall / captionBold): title 14/18 weight 600 at -0.2px
+   on one line, price 12/16 weight 600 at -0.2px in full ink. */
+.product-grid .product h3,
+.shelf-row .product h3 {
+	font-size: 0.875rem;
+	line-height: 1.125rem;
+	font-weight: 600;
+	letter-spacing: -0.2px;
+}
+.product-grid .product-price,
+.shelf-row .product-price {
+	font-size: 0.75rem;
+	line-height: 1rem;
+	font-weight: 600;
+	letter-spacing: -0.2px;
+	color: #18181b;
+	margin-top: 2px;
+}
+
+/* ===== Category pill row (shop.com, observed 2026-10-23, round 21) =====
+   Navigation under the header: one horizontally scrolling row, hidden scrollbar, snap to
+   each pill's start, centred while it fits ("safe center"), edge bleed. Each pill is a 36px
+   tinted circle with a line icon, then the label (buttonLarge 16/20 weight 600 at -0.5px);
+   the row ends with a grid icon linking to every category. Links keep a 44px target. */
+.category-pills ul {
+	display: flex;
+	gap: 24px;
+	justify-content: safe center;
+	list-style: none;
+	margin: 0;
+	/* 6px above: room for the 2px focus ring and its 2px offset inside the scroller. */
+	/* +2px at the start so a focused first pill's ring clears the gutter edge. */
+	padding: 6px max(var(--gutter), calc((100% - 1250px) / 2)) 12px calc(max(var(--gutter), calc((100% - 1250px) / 2)) + 2px);
+	/* Same start offset as the padding: a 2px mismatch made the row snap (scroll) on load. */
+	scroll-padding-inline: calc(max(var(--gutter), calc((100% - 1250px) / 2)) + 2px) max(var(--gutter), calc((100% - 1250px) / 2));
+	overflow-x: auto;
+	scroll-snap-type: x mandatory;
+	scroll-behavior: smooth;
+	scrollbar-width: none;
+	overscroll-behavior-x: contain;
+}
+.category-pills ul::-webkit-scrollbar {
+	display: none;
+}
+.category-pills li {
+	flex: none;
+	scroll-snap-align: start;
+}
+.store-header .category-pills a {
+	display: flex;
+	align-items: center;
+	gap: 8px;
+	min-height: 44px;
+	padding-block: 4px;
+	padding-inline-end: 12px;
+	border-radius: 9999px;
+	color: #18181b;
+	font-size: 1rem;
+	line-height: 1.25rem;
+	font-weight: 600;
+	letter-spacing: -0.5px;
+	white-space: nowrap;
+}
+.store-header .category-pills a:hover {
+	text-decoration: none;
+}
+.store-header .category-pills a:focus-visible {
+	outline: 2px solid #18181b;
+	outline-offset: 2px;
+}
+.pill-art {
+	position: relative;
+	display: block;
+	flex: none;
+	width: 36px;
+	height: 36px;
+	border-radius: 24px;
+	overflow: hidden;
+}
+/* shop.com's 0.5px edge, drawn over the photo. */
+.pill-art::after {
+	content: "";
+	position: absolute;
+	inset: 0;
+	border: 0.5px solid rgba(24, 59, 78, 0.12);
+	border-radius: inherit;
+}
+.pill-art img {
+	display: block;
+	width: 100%;
+	height: 100%;
+	/* Whole curated photo (no crop, so no merchant text is cut), its white ground multiplied
+	   into the tint. */
+	object-fit: cover;
+	mix-blend-mode: multiply;
+	transition: scale 150ms ease-out;
+}
+.category-pills a:is(:hover, :focus-visible) .pill-art img {
+	scale: 1.08;
+}
+/* Department tints behind the photo (and the whole circle when a department has none). */
+.pill-art[data-tint="rose"] {
+	background: #fde8ec;
+	color: #9f1239;
+}
+.pill-art[data-tint="amber"] {
+	background: #fdf0d5;
+	color: #92400e;
+}
+.pill-art[data-tint="green"] {
+	background: #e2f3e5;
+	color: #166534;
+}
+.pill-art[data-tint="blue"] {
+	background: #e2ecfb;
+	color: #1e40af;
+}
+.pill-art[data-tint="violet"] {
+	background: #ede7fd;
+	color: #5b21b6;
+}
+.pill-art[data-tint="teal"] {
+	background: #ddf3ef;
+	color: #115e59;
+}
+.pill-art[data-tint="slate"] {
+	background: #ececef;
+	color: #3f3f46;
+}
+/* Current department (owner, round 35): the header's soft lavender current fill on the pill, with
+   no underline and no border change (shop.com's home pills have no selected state to copy). */
+.store-header .category-pills a[aria-current] {
+	background: rgba(91, 53, 213, 0.08);
+}
+.store-header .category-pills .pill-all {
+	justify-content: center;
+	width: 44px;
+	padding-inline-end: 0;
+}
+:where(.pill-all svg) {
+	width: 24px;
+	height: 24px;
+}
+.store-header .category-pills .pill-all[aria-current] {
+	background: rgba(91, 53, 213, 0.08);
+}
+/* Below 1024px the five pills usually overflow: a short end fade says the row scrolls. */
+@media (max-width: 1023px) {
+	.category-pills ul {
+		-webkit-mask-image: linear-gradient(90deg, #000 calc(100% - 64px), transparent);
+		mask-image: linear-gradient(90deg, #000 calc(100% - 64px), transparent);
+	}
+}
+@media (prefers-reduced-motion: reduce) {
+	.pill-art img {
+		transition: none;
+	}
+	.category-pills a:is(:hover, :focus-visible) .pill-art img {
+		scale: none;
+	}
+}
+
+/* ===== Omnibox (shop.com header search, observed 2026-10-23, round 21) =====
+   The form keeps one fixed height. The glass surface (.omnibox-panel) sits behind the field
+   at exactly the field's height and grows downward over the page into "Saran pencarian"
+   when the combobox opens, so opening never moves the layout. */
+.search-form {
+	--field: max(44px, calc(1.375rem + 22px));
+	position: relative;
+	max-width: 512px;
+	margin-inline: auto;
+	height: calc(var(--field) + 20px);
+}
+.search-form[data-open] {
+	z-index: 30;
+}
+.omnibox-field {
+	position: relative;
+	z-index: 1;
+	padding: 10px;
+}
+:where(.omnibox-field > svg) {
+	position: absolute;
+	top: 10px;
+	left: 10px;
+	width: 40px;
+	height: var(--field);
+	padding-inline: 10px;
+	color: #6b6b73;
+	stroke-width: 2.67;
+	pointer-events: none;
+}
+#site-search {
+	display: block;
+	width: 100%;
+	height: var(--field);
+	padding: 0 54px 0 46px;
+	border: 0;
+	border-radius: 9999px;
+	background: transparent;
+	color: #18181b;
+	font-size: 1rem;
+	line-height: 1.375rem;
+	letter-spacing: -0.5px;
+	text-overflow: ellipsis;
 	outline: none;
 }
 #site-search::placeholder {
 	color: #6b6b73;
+}
+/* No native clear glyph (a blue UA "x" beside the submit arrow); Escape and select-all still clear. */
+#site-search::-webkit-search-cancel-button {
+	appearance: none;
+}
+.omnibox-field button {
+	position: absolute;
+	top: 10px;
+	right: 10px;
+	display: grid;
+	place-items: center;
+	width: 44px;
+	height: var(--field);
+	border: 0;
+	border-radius: 9999px;
+	background: var(--purple);
+	color: #fff;
+}
+.omnibox-field button:hover {
+	background: #4823b6;
+}
+:where(.omnibox-field button svg) {
+	width: 20px;
+	height: 20px;
+}
+.omnibox-panel {
+	position: absolute;
+	top: 0;
+	inset-inline: 0;
+	/* One surface: the field sits over its top; the body row animates 0fr -> 1fr (no JS measuring). */
+	display: grid;
+	grid-template-rows: 0fr;
+	padding-top: calc(var(--field) + 20px);
+	overflow: hidden;
+	border-radius: 32px;
+	background: #fff;
+	box-shadow:
+		0 0 1px rgba(0, 0, 0, 0.12),
+		0 12px 64px rgba(0, 0, 0, 0.2);
+	transition:
+		grid-template-rows 320ms cubic-bezier(0.2, 0, 0, 1),
+		inset 320ms cubic-bezier(0.2, 0, 0, 1),
+		box-shadow 320ms cubic-bezier(0.2, 0, 0, 1);
+}
+@supports (backdrop-filter: blur(16px)) or (-webkit-backdrop-filter: blur(16px)) {
+	.omnibox-panel {
+		background: rgba(255, 255, 255, 0.75);
+		-webkit-backdrop-filter: blur(16px);
+		backdrop-filter: blur(16px);
+	}
+}
+/* Focus per the field contract: an ink edge and a soft 3px ring around the closed pill; once the
+   panel is open the ring moves to the field row (the open surface keeps shop.com's soft shadow). */
+.search-form:focus-within:where(:not([data-open])) .omnibox-panel {
+	box-shadow:
+		0 0 0 1px #18181b,
+		0 0 0 4px rgba(24, 24, 27, 0.12),
+		0 12px 64px rgba(0, 0, 0, 0.2);
+}
+.omnibox-body {
+	min-height: 0;
+	overflow: hidden;
+}
+.omnibox-scroll {
+	max-height: calc(45dvh - var(--field) - 20px);
+	overflow-y: auto;
+	scrollbar-width: none;
+	padding-bottom: 8px;
+	opacity: 0;
+	translate: 0 -6px;
+	transition:
+		opacity 120ms ease-out,
+		translate 120ms ease-out;
+}
+.omnibox-scroll mark {
+	background: none;
+	color: inherit;
+	font-weight: 600;
+}
+.search-form[data-open] .omnibox-panel {
+	grid-template-rows: 1fr;
+}
+.search-form[data-open] .omnibox-scroll {
+	opacity: 1;
+	translate: 0 0;
+	transition:
+		opacity 200ms ease-out 60ms,
+		translate 200ms ease-out 60ms;
+}
+.search-form[data-open] .omnibox-field {
+	border-radius: 32px;
+}
+.search-form[data-open] .omnibox-field:focus-within {
+	box-shadow:
+		inset 0 0 0 1px #18181b,
+		0 0 0 3px rgba(24, 24, 27, 0.12);
+}
+.omnibox-caption {
+	margin: 8px 16px 4px;
+	color: rgba(0, 0, 0, 0.56);
+	font-size: 0.75rem;
+	line-height: 1rem;
+	font-weight: 500;
+}
+.omnibox-panel [role="listbox"] {
+	display: flex;
+	flex-direction: column;
+	gap: 4px;
+	list-style: none;
+	margin: 0;
+	padding: 0 8px;
+}
+.omnibox-panel [role="option"] {
+	display: flex;
+	align-items: center;
+	gap: 16px;
+	min-height: 44px;
+	padding: 6px;
+	border-radius: 9999px;
+	font-size: 1rem;
+	line-height: 1.375rem;
+	letter-spacing: -0.5px;
+	cursor: pointer;
+}
+:where(.omnibox-panel [role="option"] svg) {
+	flex: none;
+	width: 32px;
+	height: 20px;
+	opacity: 0.6;
+}
+:where(.omnibox-panel [role="option"] span) {
+	min-width: 0;
+	overflow: hidden;
+	text-overflow: ellipsis;
+	white-space: nowrap;
+}
+.omnibox-panel [role="option"]:hover {
+	background: rgba(0, 0, 0, 0.04);
+}
+.omnibox-panel [role="option"][aria-selected="true"] {
+	background: rgba(0, 0, 0, 0.06);
+	box-shadow: inset 0 0 0 2px #18181b;
+}
+/* Desktop: the open surface also widens 32px each side, as shop.com's does (512 to 576). */
+@media (min-width: 1051px) {
+	.search-form[data-open] .omnibox-panel {
+		inset-inline: -32px;
+	}
+}
+@media (max-width: 700px) {
+	.search-form {
+		max-width: none;
+	}
+	/* Phones: the list scrolls under a short top fade. */
+	.omnibox-scroll {
+		-webkit-mask-image: linear-gradient(to bottom, transparent 0, #000 12px);
+		mask-image: linear-gradient(to bottom, transparent 0, #000 12px);
+	}
+	@supports (backdrop-filter: blur(10px)) or (-webkit-backdrop-filter: blur(10px)) {
+		.search-form[data-open] .omnibox-panel {
+			background: rgba(255, 255, 255, 0.9);
+			-webkit-backdrop-filter: blur(10px);
+			backdrop-filter: blur(10px);
+		}
+	}
+}
+@media (prefers-reduced-motion: reduce) {
+	.omnibox-panel,
+	.omnibox-scroll,
+	.search-form[data-open] .omnibox-scroll {
+		transition: none;
+	}
+}
+
+/* ===== Category switcher (shop.com home, observed 2026-10-23, round 21) =====
+   Very large department names in one scrolling row (96/96 weight 800 at -1px, 64px apart;
+   42/42 and 40px on phones), the selected one in ink with a 156px (68px) product medallion
+   centred over it, the others in grey. No scroll snap (shop.com has none, and a
+   name wider than the row would snap its centre past the start). The edges fade over 120px (40px). Its panel is a
+   product shelf 24px (16px) below. Inactive names use #858585 (3.7:1, large text) instead of
+   shop.com's #b0b0b0, which fails contrast. */
+.switcher-row {
+	position: relative;
+	display: flex;
+	gap: 64px;
+	/* Room above the names for the medallion, which sits over the selected name rather than on it.
+	   The first name starts clear of the 120px edge fade; half-width end padding lets later names
+	   centre when chosen. */
+	padding: 136px 50% 24px 120px;
+	overflow-x: auto;
+	scrollbar-width: none;
+	overscroll-behavior-x: contain;
+	-webkit-mask-image: linear-gradient(90deg, transparent 0, #000 120px, #000 calc(100% - 120px), transparent 100%);
+	mask-image: linear-gradient(90deg, transparent 0, #000 120px, #000 calc(100% - 120px), transparent 100%);
+}
+.switcher-row::-webkit-scrollbar {
+	display: none;
+}
+.switcher-row > :is(a, button) {
+	position: relative;
+	flex: none;
+	padding: 0;
+	border: 0;
+	border-radius: 8px;
+	background: none;
+	color: #858585;
+	font: inherit;
+	font-size: 6rem;
+	line-height: 6rem;
+	font-weight: 800;
+	letter-spacing: -1px;
+	white-space: nowrap;
+	cursor: pointer;
+	transition: color 300ms cubic-bezier(0.16, 1, 0.3, 1);
+}
+.switcher-row > :is(a, button):hover {
+	color: #5b5b63;
+	text-decoration: none;
+}
+.switcher-row > :is([aria-selected="true"], [aria-current]) {
+	color: #18181b;
+}
+.switcher-label {
+	position: relative;
+}
+.switcher-art {
+	position: absolute;
+	z-index: 1;
+	bottom: calc(100% + 8px);
+	left: 50%;
+	width: 112px;
+	height: 112px;
+	translate: -50% 0;
+	transform-origin: 50% 100%;
+	scale: 0;
+	opacity: 0;
+	pointer-events: none;
+	transition:
+		opacity 300ms cubic-bezier(0.16, 1, 0.3, 1),
+		scale 300ms cubic-bezier(0.16, 1, 0.3, 1);
+}
+.switcher-row > :is([aria-selected="true"], [aria-current]) .switcher-art {
+	scale: 1;
+	opacity: 1;
+}
+:where(.switcher-art img) {
+	width: 100%;
+	height: 100%;
+	object-fit: cover;
+	border-radius: 50%;
+	background: #fff;
+	box-shadow: 0 12px 32px rgba(0, 0, 0, 0.18);
+}
+.switcher-panel {
+	margin-top: 24px;
+}
+/* 701-1023px: an intermediate 64px label, so the next name shows beside the selected one. */
+@media (min-width: 701px) and (max-width: 1023px) {
+	.switcher-row > :is(a, button) {
+		font-size: 4rem;
+		line-height: 4rem;
+	}
+}
+@media (max-width: 700px) {
+	.switcher-row {
+		gap: 40px;
+		padding: 72px 50% 12px 40px;
+		-webkit-mask-image: linear-gradient(90deg, transparent 0, #000 40px, #000 calc(100% - 40px), transparent 100%);
+		mask-image: linear-gradient(90deg, transparent 0, #000 40px, #000 calc(100% - 40px), transparent 100%);
+	}
+	.switcher-row > :is(a, button) {
+		/* Capped to the screen so the selected name fits at enlarged text (320px at 200%). */
+		font-size: min(2.625rem, 11vw);
+		line-height: 1;
+	}
+	.switcher-art {
+		width: 56px;
+		height: 56px;
+	}
+	.switcher-panel {
+		margin-top: 16px;
+	}
+}
+@media (prefers-reduced-motion: reduce) {
+	.switcher-row > :is(a, button),
+	.switcher-art {
+		transition: none;
+	}
+}
+
+/* ===== Product card contract (shop.com, observed 2026-10-23, round 21) =====
+   Card: image frame then text, 8px apart. Frame: square, 20px radius, white fill, the
+   soft 2px/8px shadow and a 0.5px inner edge (rgba(5,41,77,.1)) drawn over the photo;
+   the photo covers the frame and scales to 1.05 while the card is hovered. Text: 4px
+   inset, title on one line, price 2px below. No vendor line, badge, rating or favourite
+   (no data or feature behind them). */
+.product-frame {
+	position: relative;
+	display: block;
+	aspect-ratio: 1;
+	overflow: hidden;
+	border-radius: 20px;
+	background: #fff;
+	box-shadow: 0 2px 8px rgba(0, 0, 0, 0.06);
+}
+.product-frame::after {
+	content: "";
+	position: absolute;
+	inset: 0;
+	border: 0.5px solid rgba(5, 41, 77, 0.1);
+	border-radius: inherit;
+	pointer-events: none;
+}
+.product-frame .product-image {
+	height: 100%;
+	object-fit: cover;
+	border-radius: 0;
+	box-shadow: none;
+	transition: scale 300ms ease-out;
+}
+.product-frame .photo-slot {
+	height: 100%;
+	border-radius: 0;
+}
+.product-link:hover .product-frame .product-image {
+	scale: 1.05;
+}
+.product-grid .product h3,
+.shelf-row .product h3 {
+	margin: 8px 0 0;
+	padding-left: 4px;
+	white-space: nowrap;
+	overflow: hidden;
+	text-overflow: ellipsis;
+	overflow-wrap: normal;
+}
+.product-grid .product-price,
+.shelf-row .product-price,
+.product-grid .unavailable,
+.shelf-row .unavailable {
+	padding-left: 4px;
+}
+/* Enlarged text in a one-column grid: show the whole name (nothing to align with). */
+@media (max-width: calc(16rem + 44px)) {
+	.product-grid .product h3 {
+		white-space: normal;
+		overflow-wrap: anywhere;
+	}
+}
+@media (prefers-reduced-motion: reduce) {
+	.product-frame .product-image {
+		transition: none;
+	}
+	.product-link:hover .product-frame .product-image {
+		scale: none;
+	}
+}
+
+/* Search and category grid (shop.com: 1/2, sm 1/3, md 1/4, lg 1/6; 8px gaps, 16px from md). */
+.product-grid {
+	grid-template-columns: repeat(6, minmax(0, 1fr));
+	gap: 16px;
+}
+@media (max-width: 1023px) {
+	.product-grid {
+		grid-template-columns: repeat(4, minmax(0, 1fr));
+	}
+}
+@media (max-width: 767px) {
+	.product-grid {
+		grid-template-columns: repeat(3, minmax(0, 1fr));
+		gap: 8px;
+	}
+}
+@media (max-width: 700px) {
+	.product-grid {
+		grid-template-columns: repeat(auto-fill, minmax(min(100%, 8rem), 1fr));
+	}
+}
+
+/* Shelf arrows (shop.com desktop carousel): 42px round white buttons with the soft
+   0 4px 24px shadow, centred on the photo row and 16px outside the track; shown from
+   701px while the shelf is hovered or holds focus, and only when there is somewhere to
+   go. Touch and phones scroll natively. */
+.shelf {
+	position: relative;
+	container-type: inline-size;
+}
+.shelf-arrow {
+	position: absolute;
+	z-index: 2;
+	/* Middle of the square photo: half a card width (7 cards from 1280px, 5 below). */
+	top: calc((100cqw - 6 * 16px) / 14);
+	display: none;
+	place-items: center;
+	width: 44px;
+	height: 44px;
+	padding: 10px;
+	border: 1px solid rgba(5, 41, 77, 0.1);
+	border-radius: 9999px;
+	background: #fff;
+	color: #18181b;
+	box-shadow: 0 4px 24px rgba(0, 0, 0, 0.12);
+	translate: 0 -50%;
+	opacity: 0;
+	transition: opacity 150ms ease-out;
+}
+.shelf-arrow[data-side="previous"] {
+	left: -16px;
+}
+.shelf-arrow[data-side="next"] {
+	right: -16px;
+}
+:where(.shelf-arrow svg) {
+	width: 20px;
+	height: 20px;
+}
+@media (max-width: 1279px) {
+	.shelf-arrow {
+		top: calc((100cqw - 4 * 16px) / 9.2);
+	}
+}
+@media (min-width: 701px) and (hover: hover) {
+	.shelf-arrow {
+		display: grid;
+	}
+	.shelf:is(:hover, :focus-within) .shelf-arrow:not(:disabled) {
+		opacity: 1;
+	}
+}
+.shelf-arrow:disabled {
+	visibility: hidden;
+}
+.shelf-arrow:focus-visible {
+	opacity: 1;
+}
+@media (prefers-reduced-motion: reduce) {
+	.shelf-arrow {
+		transition: none;
+	}
+}
+
+/* ===== Header layout (round 21) =====
+   Tablet and desktop: three columns (1fr | omnibox | 1fr), so the omnibox centre is the
+   viewport centre at every width; brand left, icon-only actions right (shop.com keeps
+   cart and account as bare 24px icons in round 56px hit areas). Phones keep their own
+   composition: brand and search in one wrapping row, cart and account in the bottom dock. */
+@media (min-width: 701px) {
+	.header-main {
+		display: grid;
+		/* Equal side columns at least 10rem (three 48px icons), so the omnibox shrinks first at
+		   tablet widths and stays exactly centred. */
+		grid-template-columns: minmax(10rem, 1fr) minmax(0, 512px) minmax(10rem, 1fr);
+		gap: 24px;
+	}
+	.header-main > .brand {
+		justify-self: start;
+	}
+	.header-main > .utilities {
+		justify-self: end;
+	}
+}
+.store-header .utilities {
+	gap: 8px;
+}
+.store-header .utilities a {
+	justify-content: center;
+	width: 48px;
+	height: 48px;
+	border-radius: 9999px;
+	transition: background-color 150ms ease-out;
+}
+.store-header .utilities a:hover {
+	background: rgba(0, 0, 0, 0.04);
+}
+.store-header .utilities a[aria-current] {
+	background: rgba(91, 53, 213, 0.08);
+}
+:where(.store-header .utilities svg) {
+	width: 24px;
+	height: 24px;
+}
+.store-header .utilities .utility-count {
+	top: 4px;
+	left: auto;
+	right: 2px;
+}
+@media (max-width: 700px) {
+	.header-main {
+		flex-wrap: wrap;
+		gap: 8px 16px;
+	}
+	.header-main > .search-region {
+		order: 0;
+		flex: 1 1 12rem;
+	}
+}
+
+/* ===== Home hero (shop.com hero card, observed 2026-10-23, round 21) =====
+   Phones: a 500px card inside the gutters; 701px up: 440px; 1280px up: 2.75:1, at most 685px.
+   36px radius, shadow 0 8px 40px rgba(0,0,0,.24). Copy sits bottom-left over a light scrim
+   (posterXS 36/38 -> posterLarge 64/58, weight 800, -1px; body 16/22). The media layer is our own
+   product photos drifting on a brand tint; heights are fixed per breakpoint, so nothing shifts. */
+.home-hero {
+	position: relative;
+	/* Phones: at least 500px; enlarged text grows the card instead of clipping the copy. */
+	display: flex;
+	flex-direction: column;
+	justify-content: flex-end;
+	min-height: 500px;
+	margin-top: 8px;
+	overflow: hidden;
+	border-radius: 36px;
+	background:
+		radial-gradient(circle at 80% 20%, #f6d96b 0, transparent 45%),
+		radial-gradient(circle at 20% 90%, #d9cdfb 0, transparent 55%),
+		#efe9fd;
+	box-shadow: 0 8px 40px rgba(0, 0, 0, 0.24);
+}
+@media (min-width: 701px) {
+	.home-hero {
+		display: block;
+		min-height: 0;
+		height: 440px;
+	}
+}
+@media (min-width: 1280px) {
+	.home-hero {
+		height: auto;
+		aspect-ratio: 2.75 / 1;
+		max-height: 685px;
+	}
+}
+.hero-media {
+	position: absolute;
+	inset: 0;
+	pointer-events: none;
+}
+/* Phones: the photos live in a fixed 236px band above the copy, whatever the copy's height. */
+@media (max-width: 700px) {
+	.hero-media {
+		bottom: auto;
+		height: 236px;
+	}
+}
+.hero-video {
+	width: 100%;
+	height: 100%;
+	object-fit: cover;
+}
+.hero-photo {
+	position: absolute;
+	width: var(--size);
+	aspect-ratio: 1;
+	overflow: hidden;
+	border-radius: 20px;
+	background: #fff;
+	box-shadow: 0 12px 32px rgba(24, 24, 27, 0.16);
+	rotate: var(--tilt);
+	animation: hero-drift var(--time) ease-in-out var(--delay) infinite alternate;
+}
+:where(.hero-photo img) {
+	display: block;
+	width: 100%;
+	height: 100%;
+	object-fit: cover;
+}
+/* Phones: the photos fill the upper card; the copy owns the lower half. */
+/* Each phone photo (at most 24% of the card, ~86px, ~95px with its tilt) stays smaller than the
+   heading text, so the heading (painted with the first frame, font-display: swap) is the LCP
+   element; a photo LCP would wait behind the 350KB variable font in a throttled load. */
+.hero-photo[data-slot="0"] { --size: 24%; --tilt: -6deg; --time: 9s; --delay: 0s; top: 13%; left: 6%; }
+.hero-photo[data-slot="1"] { --size: 23%; --tilt: 5deg; --time: 11s; --delay: -3s; top: 8%; right: 6%; }
+.hero-photo[data-slot="2"] { --size: 22%; --tilt: 8deg; --time: 13s; --delay: -6s; top: 51%; left: 44%; }
+.hero-photo[data-slot="3"] { --size: 21%; --tilt: -9deg; --time: 10s; --delay: -2s; top: 47%; right: -6%; }
+.hero-photo[data-slot="4"] { --size: 20%; --tilt: 4deg; --time: 12s; --delay: -5s; top: 55%; left: -4%; }
+.hero-photo:is([data-slot="5"], [data-slot="6"], [data-slot="7"]) { display: none; }
+/* 701px up: a loose cluster on the right half; the copy keeps the left. Sizes follow the card width. */
+@media (min-width: 701px) {
+	.hero-photo[data-slot="0"] { --size: 19%; top: 14%; left: auto; right: 30%; }
+	.hero-photo[data-slot="1"] { --size: 16%; top: 8%; right: 7%; }
+	.hero-photo[data-slot="2"] { --size: 14%; top: 56%; left: auto; right: 15%; }
+	.hero-photo[data-slot="3"] { --size: 11%; top: 44%; right: -2%; }
+	.hero-photo[data-slot="4"] { --size: 11%; top: 64%; left: auto; right: 34%; }
+	.hero-photo:is([data-slot="5"], [data-slot="6"], [data-slot="7"]) { display: block; }
+	.hero-photo[data-slot="5"] { --size: 9%; --tilt: -5deg; --time: 14s; --delay: -7s; top: 4%; right: 24%; }
+	.hero-photo[data-slot="6"] { --size: 8%; --tilt: 10deg; --time: 9s; --delay: -4s; top: 80%; right: 4%; }
+	.hero-photo[data-slot="7"] { --size: 8%; --tilt: -12deg; --time: 12s; --delay: -1s; top: 10%; right: 50%; }
+}
+@keyframes hero-drift {
+	from {
+		translate: 0 0;
+	}
+	to {
+		translate: 0 -14px;
+	}
+}
+.hero-copy {
+	position: relative;
+	z-index: 1;
+	display: flex;
+	flex-direction: column;
+	justify-content: flex-end;
+	gap: 20px;
+	/* The top padding keeps the photo band clear above the copy on phones. */
+	padding: 236px 16px 16px;
+	/* Scrim: the copy area is near-opaque canvas, so ink text keeps >= 4.5:1 over any photo. */
+	background: linear-gradient(to top, rgba(250, 250, 250, 0.96) 0, rgba(250, 250, 250, 0.92) 50%, rgba(250, 250, 250, 0) 58%);
+	color: #000;
+}
+.hero-copy h1 {
+	margin: 0;
+	/* The price never breaks: at enlarged text on narrow screens the heading scales to the width,
+	   and the leading follows the size (36/38 at the default). */
+	font-size: min(2.25rem, 12.5vw);
+	line-height: 1.055;
+	font-weight: 800;
+	letter-spacing: -1px;
+}
+.hero-price {
+	white-space: nowrap;
+}
+.home-hero .hero-copy p {
+	margin: 0;
+	font-size: 1rem;
+	line-height: 1.375rem;
+	text-wrap: balance;
+}
+.hero-actions {
+	display: grid;
+	/* Stacked full width on phones (each label stays on one line); side by side from 701px. */
+	grid-template-columns: minmax(0, 1fr);
+	gap: 8px;
+}
+.home-hero .hero-actions a {
+	display: inline-flex;
+	align-items: center;
+	justify-content: center;
+	gap: 6px;
+	min-height: 44px;
+	padding: 12px;
+	border-radius: 9999px;
+	font-size: 1rem;
+	line-height: 1.25rem;
+	font-weight: 600;
+	letter-spacing: -0.5px;
+	text-align: center;
+	transition: scale 150ms ease-out;
+}
+.home-hero .hero-actions a > span {
+	min-width: 0;
+}
+.home-hero .hero-actions a:hover {
+	text-decoration: none;
+}
+.home-hero .hero-actions a:active {
+	scale: 0.99;
+}
+.hero-actions .hero-primary {
+	background: var(--purple);
+	color: #fff;
+	box-shadow: inset -0.5px -0.5px 1px rgba(255, 255, 255, 0.32);
+}
+.hero-actions .hero-primary:hover {
+	background: #4823b6;
+}
+.hero-actions .hero-secondary {
+	background: #fff;
+	color: #18181b;
+	box-shadow: 0 2px 8px rgba(0, 0, 0, 0.06);
+}
+:where(.hero-secondary svg) {
+	/* Inline with the label, so a wrapped label keeps its arrow on the first line. */
+	display: inline-block;
+	width: 0.875em;
+	height: 0.875em;
+	margin-right: 6px;
+	vertical-align: -0.1em;
+}
+@media (min-width: 701px) {
+	.hero-copy {
+		position: absolute;
+		inset: 0;
+		right: auto;
+		width: min(46rem, 58%);
+		justify-content: flex-end;
+		gap: 24px;
+		padding: 32px;
+		background: linear-gradient(to right, rgba(250, 250, 250, 0.94) 0, rgba(250, 250, 250, 0.86) 60%, rgba(250, 250, 250, 0) 100%);
+	}
+	.hero-copy h1 {
+		font-size: 4rem;
+		line-height: 3.625rem;
+	}
+	.hero-actions {
+		display: flex;
+	}
+}
+@media (prefers-reduced-motion: reduce) {
+	.hero-photo {
+		animation: none;
+	}
+	.home-hero .hero-actions a {
+		transition: none;
+	}
+}
+
+/* ===== Home category grid (shop.com "Categories", observed 2026-10-23, round 21) =====
+   2 columns, 3 from 641px, 4 from 768px, 5 from 1024px; 8px gaps (16px from 768px). Tiles are
+   72 / 84 / 100 / 112px tall with a 16px radius. Ours: the department tint, a dark label, and the
+   department's own product photo clipped into the end of the tile; the photo scales to 1.05 on
+   hover (shop.com's art does), not under reduced motion. */
+.category-grid {
+	/* Column count per breakpoint, but never narrower than 10em: enlarged text gets fewer,
+	   wider tiles (one per row at 320/200%) instead of names broken inside words. */
+	--cols: 2;
+	--gap: 8px;
+	list-style: none;
+	margin: 0;
+	padding: 0;
+	display: grid;
+	grid-template-columns: repeat(auto-fill, minmax(min(100%, max(10em, calc((100% - (var(--cols) - 1) * var(--gap)) / var(--cols)))), 1fr));
+	gap: var(--gap);
+}
+@media (min-width: 641px) {
+	.category-grid {
+		--cols: 3;
+	}
+}
+/* 768-1023px stays at three columns: four 170px tiles cannot fit a name beside the photo card. */
+@media (min-width: 768px) {
+	.category-grid {
+		--gap: 16px;
+	}
+}
+@media (min-width: 1024px) {
+	.category-grid {
+		--cols: 4;
+	}
+}
+/* Five across from 1280px, where a tile is wide enough for the name beside its photo card. */
+@media (min-width: 1280px) {
+	.category-grid {
+		--cols: 5;
+	}
+}
+/* Phones: six tiles, so "Terbaru" starts near the second screen (all departments stay on /kategori). */
+@media (max-width: 700px) {
+	.home-main .category-grid li:nth-child(n + 7) {
+		display: none;
+	}
+}
+/* Home shows whole rows only: 9 tiles at three columns, 8 at four (the full list is on /kategori). */
+@media (min-width: 641px) and (max-width: 767px) {
+	.home-main .category-grid li:nth-child(n + 10) {
+		display: none;
+	}
+}
+@media (min-width: 768px) and (max-width: 1023px) {
+	.home-main .category-grid li:nth-child(n + 10) {
+		display: none;
+	}
+}
+@media (min-width: 1024px) and (max-width: 1279px) {
+	.home-main .category-grid li:nth-child(n + 9) {
+		display: none;
+	}
+}
+.category-grid li {
+	display: flex;
+	min-width: 0;
+}
+:is(.home-main, .categories-main) .category-grid a {
+	/* Photo card side: the tile's minimum height less a 10px inset each side (tilt included). */
+	--art: 50px;
+	position: relative;
+	display: flex;
+	align-items: center;
+	flex: 1;
+	min-height: 72px;
+	padding: 8px 12px;
+	overflow: hidden;
+	border-radius: 16px;
+	color: #18181b;
+}
+:is(.home-main, .categories-main) .category-grid a:hover {
+	text-decoration: none;
+}
+:is(.home-main, .categories-main) .category-grid a:focus-visible {
+	outline: 2px solid #18181b;
+	outline-offset: 2px;
+}
+.category-tile-label {
+	position: relative;
+	z-index: 1;
+	/* The label owns everything left of the photo card (plus a 12px gap) at every size. */
+	max-width: calc(100% - var(--art) - 12px);
+	text-wrap: balance;
+	font-size: 0.875rem;
+	line-height: 1.125rem;
+	font-weight: 600;
+	letter-spacing: -0.2px;
+}
+.category-tile-art {
+	position: absolute;
+	/* Square, sized to the tile's own height, so the tilted card stays inside the tile. */
+	top: 50%;
+	right: 10px;
+	width: var(--art);
+	aspect-ratio: 1;
+	overflow: hidden;
+	border-radius: 12px;
+	background: #fff;
+	box-shadow: 0 4px 12px rgba(24, 24, 27, 0.12);
+	translate: 0 -50%;
+	rotate: -6deg;
+}
+:where(.category-tile-art img) {
+	display: block;
+	width: 100%;
+	height: 100%;
+	/* Whole curated photo, no crop, so nothing in it is cut. */
+	object-fit: cover;
+	transition: scale 300ms ease-out;
+}
+:is(.home-main, .categories-main) .category-grid a:hover .category-tile-art img {
+	scale: 1.05;
+}
+:is(.home-main, .categories-main) .category-grid a[data-tint="rose"] { background: #fde8ec; }
+:is(.home-main, .categories-main) .category-grid a[data-tint="amber"] { background: #fdf0d5; }
+:is(.home-main, .categories-main) .category-grid a[data-tint="green"] { background: #e2f3e5; }
+:is(.home-main, .categories-main) .category-grid a[data-tint="blue"] { background: #e2ecfb; }
+:is(.home-main, .categories-main) .category-grid a[data-tint="violet"] { background: #ede7fd; }
+:is(.home-main, .categories-main) .category-grid a[data-tint="teal"] { background: #ddf3ef; }
+:is(.home-main, .categories-main) .category-grid a[data-tint="slate"] { background: #ececef; }
+@media (min-width: 768px) {
+	:is(.home-main, .categories-main) .category-grid a {
+		--art: 62px;
+		min-height: 84px;
+		padding-inline: 16px;
+	}
+	.category-tile-label {
+		font-size: 1rem;
+		line-height: 1.375rem;
+		letter-spacing: -0.5px;
+	}
+}
+@media (min-width: 1024px) {
+	:is(.home-main, .categories-main) .category-grid a {
+		--art: 76px;
+		min-height: 100px;
+	}
+}
+@media (min-width: 1280px) {
+	:is(.home-main, .categories-main) .category-grid a {
+		--art: 88px;
+		min-height: 112px;
+	}
+}
+@media (prefers-reduced-motion: reduce) {
+	.category-tile-art img {
+		transition: none;
+	}
+	:is(.home-main, .categories-main) .category-grid a:hover .category-tile-art img {
+		scale: none;
+	}
+}
+
+/* ===== Footer (shop.com footer, observed 2026-10-23, round 21) =====
+   White band below the canvas. Brand block left (mark, 14/18 tagline in tertiary ink); menus
+   right as columns with a 14/18 weight-500 heading 16px above a 12px-gap list of 16/18 links;
+   bottom row with the copyright (14/18 tertiary) and the legal links. Phones: brand, then the
+   menus in two columns (40px / 24px gaps), no accordion, then the bottom row; the dock spacer
+   keeps it clear of the bottom navigation. */
+.store-footer {
+	margin-top: 64px;
+	background: #fff;
+}
+.footer-inner {
+	display: grid;
+	grid-template-columns: minmax(0, 1fr) auto;
+	gap: 40px 48px;
+	padding-block: 48px 32px;
+}
+.footer-name {
+	margin: 0;
+	font-size: 1.8rem;
+	font-weight: 850;
+	letter-spacing: -0.08em;
+}
+.store-footer .footer-brand p:not(.footer-name) {
+	margin: 12px 0 0;
+	max-width: 30rem;
+	text-wrap: pretty;
+	font-size: 0.875rem;
+	line-height: 1.125rem;
+	letter-spacing: -0.2px;
+	color: #6b6b73;
+}
+.footer-menus {
+	display: grid;
+	grid-template-columns: repeat(3, max-content);
+	gap: 24px 48px;
+}
+.store-footer .footer-menus h2 {
+	margin: 0 0 4px;
+	font-size: 0.875rem;
+	line-height: 1.125rem;
+	font-weight: 500;
+	letter-spacing: -0.2px;
+	color: #18181b;
+}
+.store-footer ul {
+	list-style: none;
+	margin: 0;
+	padding: 0;
+}
+.store-footer .footer-menus a,
+.store-footer .footer-legal a {
+	display: inline-flex;
+	align-items: center;
+	min-height: 30px;
+	font-size: 1rem;
+	line-height: 1.125rem;
+	letter-spacing: -0.5px;
+	color: #18181b;
+}
+.store-footer .footer-menus a:hover,
+.store-footer .footer-legal a:hover {
+	color: var(--purple);
+	text-decoration: none;
+}
+.footer-bottom {
+	grid-column: 1 / -1;
+	display: flex;
+	flex-wrap: wrap;
+	align-items: center;
+	justify-content: space-between;
+	gap: 8px 24px;
+}
+.store-footer .footer-bottom > p {
+	margin: 0;
+	font-size: 0.875rem;
+	line-height: 1.125rem;
+	color: #6b6b73;
+}
+.footer-legal ul {
+	display: flex;
+	flex-wrap: wrap;
+	gap: 0 24px;
+}
+@media (max-width: 1023px) {
+	.footer-inner {
+		grid-template-columns: minmax(0, 1fr);
+	}
+}
+@media (max-width: 700px) {
+	.store-footer {
+		margin-top: 40px;
+	}
+	.footer-inner {
+		padding-block: 32px 24px;
+	}
+	.footer-menus {
+		grid-template-columns: repeat(auto-fill, minmax(min(100%, 9rem), 1fr));
+		gap: 40px 24px;
+	}
+	/* Touch targets on phones. */
+	.store-footer .footer-menus a,
+	.store-footer .footer-legal a {
+		min-height: 44px;
+	}
+	.store-footer .footer-menus ul {
+		display: grid;
+		/* No extra gap at the default size; enlarged text gets a half-line gap so a wrapped name
+		   does not read as two links. */
+		gap: max(0px, calc((1em - 16px) / 2));
+	}
+}
+
+/* ===== /promo (round 21): page heading, two sections, promotion terms as quiet cards. ===== */
+.promo-main {
+	padding-top: 36px;
+}
+.promo-main h1 {
+	margin: 0;
+}
+.promo-section {
+	margin-top: 40px;
+}
+.promo-main .promo-section > h2 {
+	margin: 0 0 12px;
+	font-size: 1.25rem;
+	line-height: 1.375rem;
+	font-weight: 600;
+	letter-spacing: -1px;
+}
+.promo-main .promo-section > p {
+	margin: 0 0 16px;
+	color: #5b5b63;
+}
+.promo-list {
+	list-style: none;
+	margin: 0;
+	padding: 0;
+	display: grid;
+	grid-template-columns: repeat(auto-fill, minmax(min(100%, 20rem), 1fr));
+	gap: 16px;
+}
+.promo-list li {
+	padding: 20px;
+	border-radius: 20px;
+	background: #fff;
+	box-shadow: 0 2px 8px rgba(0, 0, 0, 0.06);
+}
+.promo-main .promo-list h3 {
+	margin: 0 0 8px;
+	font-size: 1rem;
+	line-height: 1.375rem;
+	font-weight: 600;
+}
+.promo-main .promo-list p {
+	margin: 4px 0 0;
+	font-size: 0.875rem;
+	line-height: 1.25rem;
+	color: #3f3d48;
+}
+@media (max-width: 700px) {
+	.promo-main {
+		padding-top: 24px;
+	}
+	.promo-main .promo-section > h2 {
+		font-size: 1.125rem;
+		line-height: 1.25rem;
+		letter-spacing: -0.5px;
+	}
+}
+
+/* Home sections below the hero are skipped for layout and paint until they near the viewport, so
+   their lazy images are not requested during the first render (the phone LCP is the hero heading).
+   `auto` remembers each section's real height once rendered. */
+.home-main > .home-shelf {
+	content-visibility: auto;
+	contain-intrinsic-size: auto 520px;
+}
+
+/* ===== Header wordmark reveal (owner, round 37) =====
+   On a fine pointer, hover or keyboard focus grows "99rb." into "Serba 99ribu": each hidden
+   part opens from a 0fr grid track while its glyphs fade in from 4px; the "." fades out. CSS
+   only, 240ms in and 180ms out on cubic-bezier(.2,0,0,1). The logo sits in the header's left
+   1fr column, so the omnibox stays centred; the reveal starts at 1024px, where that column fits
+   the full name (111px wider, leaving at least 44px before the omnibox). Touch and screens below
+   1024px keep the static "99rb."; reduced motion swaps it without the transition. */
+.brand-reveal .grow {
+	display: inline-grid;
+	grid-template-columns: 0fr;
+	vertical-align: baseline;
+	transition: grid-template-columns 180ms cubic-bezier(0.2, 0, 0, 1);
+}
+.store-header .brand-reveal .grow > span {
+	min-width: 0;
+	overflow: hidden;
+	white-space: pre;
+	opacity: 0;
+	translate: -4px 0;
+	transition:
+		opacity 180ms cubic-bezier(0.2, 0, 0, 1),
+		translate 180ms cubic-bezier(0.2, 0, 0, 1);
+}
+.brand-reveal i {
+	transition: opacity 180ms cubic-bezier(0.2, 0, 0, 1);
+}
+@media (hover: hover) and (pointer: fine) and (min-width: 1024px) {
+	.brand-reveal:is(:hover, :focus-visible) .grow {
+		grid-template-columns: 1fr;
+		transition-duration: 240ms;
+	}
+	.store-header .brand-reveal:is(:hover, :focus-visible) .grow > span {
+		opacity: 1;
+		translate: 0 0;
+		transition-duration: 240ms;
+	}
+	.brand-reveal:is(:hover, :focus-visible) i {
+		opacity: 0;
+		transition-duration: 240ms;
+	}
+}
+@media (prefers-reduced-motion: reduce) {
+	.brand-reveal .grow,
+	.brand-reveal .grow > span,
+	.brand-reveal i {
+		transition: none;
+	}
 }

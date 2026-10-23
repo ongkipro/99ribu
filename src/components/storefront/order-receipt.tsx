@@ -45,11 +45,11 @@ export function OrderReceiptSummary({subtitle,total,children}:{subtitle:string;t
 }
 
 export function OrderReceiptPaymentForm({initial,recover=false}:{initial:CheckoutPaymentState;recover?:boolean}){
- return <ReceiptBoundary href={`/orders/${initial.order}`}>{(capture,retry)=><ReceiptPaymentController key={initial.key} initial={initial} recover={recover} capture={capture} retry={retry}/>}</ReceiptBoundary>;
+ return <ReceiptBoundary href={`/pesanan/${initial.order}`}>{(capture,retry)=><ReceiptPaymentController key={initial.key} initial={initial} recover={recover} capture={capture} retry={retry}/>}</ReceiptBoundary>;
 }
 
 function ReceiptPaymentController({initial,recover,capture,retry}:{initial:CheckoutPaymentState;recover:boolean;capture:(data:FormData|null)=>void;retry:FormData|null}){
- const path=`/orders/${initial.order}`,[state,action,pending]=useActionState(recover?recoverReceiptAccess:prepareReceiptPayment,initial,path),[recovering,setRecovering]=useState(Boolean(retry)),replayed=useRef(false);
+ const path=`/pesanan/${initial.order}`,[state,action,pending]=useActionState(recover?recoverReceiptAccess:prepareReceiptPayment,initial,path),[recovering,setRecovering]=useState(Boolean(retry)),replayed=useRef(false);
  useEffect(()=>{if(retry&&!replayed.current){replayed.current=true;startTransition(()=>action(retry));}},[retry,action]);
  useEffect(()=>{if(state.phase!=='idle'){setRecovering(false);if(state.phase!=='unknown')capture(null);}},[state,capture]);
  return <form action={action} autoComplete="off" className="checkout-payment-action" onSubmit={event=>capture(submittedData(event))}><input type="hidden" name="order" value={state.order}/><input key={state.key} type="hidden" name="key" value={state.key}/>{state.message&&<p role={state.phase==='error'||state.phase==='unknown'?'alert':'status'} className={state.phase==='error'||state.phase==='unknown'?'checkout-field-error':'checkout-hint'}>{state.message}</p>}<button className="button" type="submit" disabled={pending||recovering||state.blocked}>{pending||recovering?'Memeriksa…':state.phase==='unknown'?'Ulangi permintaan yang sama':recover?'Pulihkan akses pesanan':'Siapkan instruksi pembayaran'}</button></form>;

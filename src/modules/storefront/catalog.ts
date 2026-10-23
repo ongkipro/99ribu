@@ -5,6 +5,7 @@ import {AccessError} from '../access/policy.ts';
 import {salePublication} from '../catalog/publication.ts';
 import {id,invalid,object,text} from '../catalog/validation.ts';
 import {offerAvailability} from '../inventory/reservations.ts';
+import {hasClaimTerm} from './department-photos.ts';
 
 type Filters=Record<string,string[]>;
 export type PublicCategory={id:string;name:string;slug:string;parent_id:string|null};
@@ -130,11 +131,37 @@ export async function listCategories(identity:LocalAuth,params:URLSearchParams){
 export async function featuredProducts(identity:LocalAuth,limit=8){
  return (await listProducts(identity,catalogQuery(new URLSearchParams({sort:'newest',limit:String(limit)})))).data;
 }
-// Category tile photo: first image of the department's newest current publication, read through the
-// same guarded public reader (deterministic for a given catalog); null keeps the labelled placeholder.
-// `exclude` skips products already shown nearby (the home shelf) so a tile does not repeat a card photo.
-export async function departmentPhoto(identity:LocalAuth,categoryId:string,exclude:readonly string[]=[]){
- const limit=String(Math.min(40,exclude.length+1));
- const products=(await listProducts(identity,catalogQuery(new URLSearchParams({category_id:categoryId,sort:'newest',limit})))).data;
- return (products.find(p=>!exclude.includes(p.id))??products[0])?.images[0]??null;
+// Header search suggestions from the live catalog only: the product-type phrases that open
+// product titles ("Kaos", "Teko Teh Kaca", "Tas Water Proof"), i.e. the first one to three words
+// after pack prefixes ("Paket", "2 pcs"), ranked by how many current products start with them.
+// A longer phrase wins over its own prefix when both cover the same products. Department names
+// and claim terms (homeSafe) are left out. No invented terms, no personalisation.
+// Cleaned titles may open with a pack multiplier ("2 × 5 pcs Daster"), which is stripped too.
+const LEAD=/^(?:paket\s+)?(?:\d+\s*[×x]\s*)?(?:(?:isi\s+)?\d+\s*(?:pcs|pc|x|in1|in-1)\s+)?/i;
+const GENERIC_HEADS=new Set(['alat','set','paket','isi','pcs']);
+export async function searchSuggestions(identity:LocalAuth,departments:readonly {name:string}[]=[],limit=30){
+ const rows=await identity.sql<{name:string;category_id:string}[]>`select r.name,r.category_id from app.publication_head h join app.publication_version v on v.product_id=h.product_id and v.revision=h.revision
+  join app.product_revision r on r.product_id=v.product_id and r.revision=v.product_revision
+  where not exists (select 1 from app.publication_withdrawal w where w.publication_id=v.id)`;
+ const departmentKeys=new Set(departments.map(d=>d.name.toLocaleLowerCase('id')));
+ const counts=new Map<string,{text:string;n:number;words:number;categories:Set<string>}>();
+ for(const {name,category_id} of rows){
+  if(hasClaimTerm(name)) continue;
+  const words=name.replace(LEAD,'').split(/\s+/).map(w=>w.replace(/[^\p{L}-]/gu,'')).filter(Boolean);
+  // Mixed-case words ("GlowHome") are brand names: the phrase stops before them.
+  const lead:string[]=[];for(const w of words){if(!/^\p{L}{3,}(?:-\p{L}+)?$/u.test(w)||/\p{Ll}\p{Lu}/u.test(w)||lead.length===3) break;lead.push(w);}
+  for(let k=1;k<=lead.length;k++){
+   const text=lead.slice(0,k).map(w=>w===w.toLocaleUpperCase('id')&&w.length<=4?w:w[0].toLocaleUpperCase('id')+w.slice(1).toLocaleLowerCase('id')).join(' '),key=text.toLocaleLowerCase('id');
+   const seen=counts.get(key);if(seen){seen.n++;seen.categories.add(category_id);}else counts.set(key,{text,n:1,words:k,categories:new Set([category_id])});
+  }
+ }
+ // A phrase used in two or more categories is a product type ("Kaos", "Lampu"); one seen in a
+ // single category is usually a brand or a single shop's line, so it is left out.
+ // A longer phrase also qualifies when it covers every product of its first word ("Waist Bag" for
+ // "Waist"), and a generic head ("Alat", "Set") is only shown inside a longer phrase.
+ const qualifies=(key:string,c:{n:number;words:number})=>c.words===1?c.n>1&&!GENERIC_HEADS.has(key):c.n>2||(c.n>1&&counts.get(key.split(' ')[0])?.n===c.n);
+ const ranked=[...counts.entries()].filter(([key,c])=>qualifies(key,c)&&c.categories.size>1&&!departmentKeys.has(key)).sort(([,a],[,b])=>b.n-a.n||b.words-a.words||a.text.localeCompare(b.text,'id'));
+ const out:{key:string;n:number}[]=[];
+ for(const [key,c] of ranked){if(out.some(o=>o.n===c.n&&(o.key.startsWith(`${key} `)||key.startsWith(`${o.key} `)))) continue;out.push({key,n:c.n});if(out.length===limit) break;}
+ return out.map(o=>(counts.get(o.key) as {text:string}).text);
 }

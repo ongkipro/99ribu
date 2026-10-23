@@ -1,4 +1,6 @@
 import {ProductLink} from './navigation';
+import {ShelfArrows} from './shelf-arrows';
+import {responsiveImage} from './media';
 import {matchingVariant,type CatalogQuery,type PublicProduct} from '../../modules/storefront/catalog';
 import {rupiah} from '../../modules/storefront/format';
 
@@ -18,21 +20,24 @@ export function keepHyphens(name:string){
  let n=0;
  return name.split(/(\S{1,6}-\S{1,12})/).map(part=>/-/.test(part)&&!/\s/.test(part)?<span key={`${part}#${n++}`} className="keep-hyphen">{part}</span>:part);
 }
-export function Media({product,offer,caption=false}:{product:PublicProduct;offer?:PublicProduct['variants'][number];caption?:boolean}){
+export function Media({product,offer,caption=false,eager=false,sizes}:{product:PublicProduct;offer?:PublicProduct['variants'][number];caption?:boolean;eager?:boolean;sizes?:string}){
  const selected=offer??product.variants[0],image=offer?.image??product.images[0];const sample=isSampleUrl(image?.url);
  if(sample){const brief=`Foto seluruh isi: ${(selected?.contents??[]).map(c=>`${c.quantity} ${contentName(product,c.name)}`).join(' + ')}, tampak depan.`;
   const slot=<div className="photo-slot" role="img" aria-label={`Slot foto ${product.name}; foto produk asli belum tersedia`}><span>Foto belum tersedia</span>{!caption&&<small>{brief}</small>}</div>;
   return caption?<figure className="product-media">{slot}<figcaption>{brief}</figcaption></figure>:slot;
  }
- // Published remote media is deliberately native: no unapproved image proxy.
- // biome-ignore lint/performance/noImgElement: preserve the supplied media URL without a new external processing service.
- return image?<img className="product-image" src={sameOrigin(image.url)} alt={image.alt} width={image.width} height={image.height} loading="lazy" referrerPolicy="no-referrer"/>:<div className="photo-slot">Foto belum tersedia</div>;
+ // Local catalog photos are resized by Next's built-in optimizer (media.ts); other media stays native.
+ // biome-ignore lint/performance/noImgElement: server-rendered srcset; next/image would add a client component.
+ return image?<img className="product-image" {...(caption?responsiveImage(sameOrigin(image.url),sizes??'(max-width: 700px) 100vw, 50vw',1080,384):responsiveImage(sameOrigin(image.url),sizes??'(max-width: 700px) 50vw, 240px',384,256))} alt={image.alt} width={image.width} height={image.height} loading={eager?'eager':'lazy'} fetchPriority={eager?'high':undefined} referrerPolicy="no-referrer"/>:<div className="photo-slot">Foto belum tersedia</div>;
 }
-export function ProductGrid({products,input}:{products:PublicProduct[];input?:CatalogQuery}){
- return <ul className="product-grid">{products.map(product=>{
+// `eager`: the first cards are above the fold on the home (the phone LCP image), so they load
+// eagerly at high priority instead of waiting for lazy-load layout.
+export function ProductGrid({products,input,shelf=false,eager=0}:{products:PublicProduct[];input?:CatalogQuery;shelf?:boolean;eager?:number}){
+ const list=<ul className={shelf?'shelf-row':'product-grid'}>{products.map((product,index)=>{
   const offer=matchingVariant(product,input);if(!offer) return null;const available=offer.availability==='available';
-  return <li key={product.id} id={`product-${product.id}`} tabIndex={-1} className="product" data-contents={offer.contents.length} data-options={product.variants.length}><ProductLink className="product-link" product={product.id} offer={offer.id}><Media product={product} offer={offer}/><h3>{keepHyphens(product.name)}</h3>
-   <p className="product-price">{rupiah(offer.price)} <span>/ pilihan lengkap</span></p>{!available&&<p className="unavailable">Stok pilihan belum tersedia</p>}
+  return <li key={product.id} id={`product-${product.id}`} tabIndex={-1} className="product" data-contents={offer.contents.length} data-options={product.variants.length}><ProductLink className="product-link" product={product.id} name={product.name} offer={offer.id}><span className="product-frame"><Media product={product} offer={offer} eager={index<eager} sizes={shelf?'(max-width: 700px) 44vw, (max-width: 1279px) 22vw, 180px':'(max-width: 359px) 90vw, (max-width: 700px) 50vw, (max-width: 1023px) 25vw, 210px'}/></span><h3>{keepHyphens(product.name)}</h3>
+   <p className="product-price">{rupiah(offer.price)}</p>{!available&&<p className="unavailable">Stok pilihan belum tersedia</p>}
   </ProductLink></li>;
  })}</ul>;
+ return shelf?<div className="shelf">{list}<ShelfArrows/></div>:list;
 }
