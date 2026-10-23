@@ -427,7 +427,7 @@ test("S99/S100 built browser: the manual queue shows the booking facts and the b
 		// A phone suffix stays out of every URL: the address bar and the detail link's `dari`.
 		await page.getByLabel("Cari berdasarkan").selectOption("hp");
 		await page.getByLabel("Akhiran nomor HP", { exact: true }).fill("00000000");
-		await page.getByRole("button", { name: "Cari" }).click();
+		await page.getByRole("button", { name: "Cari", exact: true }).click();
 		await expect(page).toHaveURL(`${origin}/admin/orders?jenis=hp`);
 		await expect(page.getByRole("heading", { name: /Hasil untuk akhiran nomor hp/i })).toBeVisible();
 		for (const href of await page.getByTestId("order-row").getByRole("link").evaluateAll((links) => links.map((l) => l.getAttribute("href") ?? "")))
@@ -435,7 +435,7 @@ test("S99/S100 built browser: the manual queue shows the booking facts and the b
 		assert.ok(!page.url().includes("00000000"));
 		await page.getByLabel("Cari berdasarkan").selectOption("resi");
 		await page.getByLabel("Nomor resi", { exact: true }).fill(s91.resi.toLowerCase());
-		await page.getByRole("button", { name: "Cari" }).click();
+		await page.getByRole("button", { name: "Cari", exact: true }).click();
 		const hit = page.getByTestId("order-row");
 		await expect(hit).toHaveCount(1);
 		await expect(hit).toContainText(s91.number);
@@ -630,7 +630,7 @@ test("S92 built browser: COD checkout discloses the frozen 3.33% fee line and th
 		assert.ok(s91, "the S91 case shipped a manual COD parcel");
 		const parcel = dialog.getByRole("checkbox", { name: new RegExp(s91.number) });
 		await expect(parcel).toHaveCount(1);
-		await expect(dialog.locator(`label[for="cod-${s91.shipment}"]`)).toContainText(`${s91.resi} · tagihan ${rupiah(s91.codDue)}`);
+		await expect(dialog.locator(`label[for="cod-${s91.shipment}"]`)).toContainText(`${s91.resi} · tagihan saat ini ${rupiah(s91.codDue)}`);
 		const [due] = await sql`select merchandise_amount,buyer_shipping,payment_charge,cod_due from app.order_shipment where id=${s91.shipment}`;
 		const base = Number(due.merchandise_amount) + Number(due.buyer_shipping);
 		assert.equal(Number(due.payment_charge), Math.ceil((base * 333) / 10000));

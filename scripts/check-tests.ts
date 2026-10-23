@@ -225,6 +225,12 @@ if (import.meta.main) {
             const { ensureCommercialBaseline } = await import("../tests/integration/commercial-baseline.ts");
             if (await ensureCommercialBaseline()) console.error("Created the commercial policy baseline in the empty test database.");
           }
+          if (selector !== "--case=S29-candidate" && selector !== "--case=S30-candidate" && selector !== "--case=S31-candidate") {
+            // Under this lock no fixture is alive, so an owned campaign still running was leaked by an interrupted run.
+            const { closeLeakedShippingCampaigns } = await import("../tests/integration/checkout-fixture.ts");
+            const closed = await closeLeakedShippingCampaigns();
+            if (closed) console.error(`Closed ${closed} owned checkout campaign(s) left active by an interrupted test run.`);
+          }
           // Browser suites and the integration *-http files share the owner's LOCAL database and built storefront:
           // publications this run's synthetic principals made are withdrawn afterwards (pass or fail) so fixtures never stay public.
           const [started] = await connection.sql`select clock_timestamp()::text as at`;

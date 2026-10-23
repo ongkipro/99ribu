@@ -20,7 +20,8 @@ async function sourceFiles(dir: URL): Promise<URL[]> {
 // on import, so read its literal keys instead of importing it.
 async function leasedKinds() {
   const script = await readFile(new URL("scripts/worker.ts", root), "utf8");
-  const map = /const adapters=\{([^}]*)\};/.exec(script);
+  // Production gets an empty map (every adapter disabled, S82); the local/test map lists every leased kind.
+  const map = /const adapters[^=]*=(?:[^?;]*\?\{\}:)?\{([^}]*)\};/.exec(script);
   assert.ok(map, "scripts/worker.ts must declare its leased adapter map");
   return new Set([...map[1].matchAll(/['"]([a-z][a-z0-9_.-]*)['"]\s*:/g)].map((m) => m[1]));
 }

@@ -489,15 +489,20 @@ test("S65 & S66 integration: assembled localhost journey across all domains enfo
 
 		// 5. Canonical Signals & Meta/Google/TikTok Local Sinks + Owner Diagnostics (S25, S57–S60)
 		const outboxRows = await sql<
-			{ id: string; platform: string; job_id: string; status: string }[]
+			{ id: string; platform: string; job_id: string; status: string; reason: string }[]
 		>`
-			select o.id, o.platform, o.job_id, o.status
+			select o.id, o.platform, o.job_id, o.status, o.reason
 			from app.ad_event_outbox o
 			join app.commerce_event e on e.id = o.event_id
 			where e.order_id = ${submitted.order.id} and e.name = 'Purchase'
 			order by o.platform
 		`;
 		assert.equal(outboxRows.length, 3);
+		assert.deepEqual(
+			outboxRows.map((row) => row.reason),
+			["eligible", "eligible", "eligible"],
+			"Consented Purchase must be dispatch-eligible; source_not_eligible means the fixture clock ran ahead of the database clock",
+		);
 		for (const row of outboxRows) {
 			assert.equal(
 				await runOneJob(
@@ -1029,15 +1034,20 @@ test("S67 integration: independent web/worker restart converges pending and unkn
 
 		// 2. Simulate Web & Worker Restart with Completed, Unknown (after-commit lost ack), and Interrupted Processing Jobs
 		const outboxRows = await sql<
-			{ id: string; platform: string; job_id: string }[]
+			{ id: string; platform: string; job_id: string; reason: string }[]
 		>`
-			select o.id, o.platform, o.job_id
+			select o.id, o.platform, o.job_id, o.reason
 			from app.ad_event_outbox o
 			join app.commerce_event e on e.id = o.event_id
 			where e.order_id = ${submitted.order.id} and e.name = 'Purchase'
 			order by o.platform
 		`;
 		assert.equal(outboxRows.length, 3);
+		assert.deepEqual(
+			outboxRows.map((row) => row.reason),
+			["eligible", "eligible", "eligible"],
+			"Consented Purchase must be dispatch-eligible; source_not_eligible means the fixture clock ran ahead of the database clock",
+		);
 		const [googleJob, metaJob, tiktokJob] = outboxRows;
 		assert.ok(googleJob && metaJob && tiktokJob);
 
@@ -1474,7 +1484,8 @@ test("S67 integration: independent web/worker restart converges pending and unkn
 	}
 });
 
-test("S67 integration: pg_dump -Fc of the isolated test database restores into a disposable 99ribu_restore_<uuid> database with schema/trigger/row parity, resealed creating-XID guards and enforcing real app.* immutability triggers", async () => {
+test("S67 integration: pg_dump -Fc of the isolated test database restores into a disposable 99ribu_restore_<uuid> database with schema/trigger/row parity, resealed creating-XID guards and enforcing real app.* immutability triggers", { timeout: 180_000 }, async () => {
+	// Dumps and restores the whole shared test database (hundreds of MB), which outgrows the runner's 30 s default.
 	const f = await fulfillmentFixture("prepaid");
 	const sql = f.identity.sql;
 	const maintenance = superuserConnection("postgres");

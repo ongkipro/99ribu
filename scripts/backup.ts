@@ -221,6 +221,11 @@ export const ARTIFACT_KEY_COLUMNS = [
 ] as const;
 
 // `archived` holds manifest paths (artifacts/<key>). Throws for non-test targets when a referenced file is missing.
+// Drill step 6 verdict: any undecryptable factor fails a real set; a `test` set fails only when none decrypts.
+export function totpVerdict(target: Target, total: number, undecryptable: number) {
+  return target === "test" ? total === 0 || undecryptable < total : undecryptable === 0;
+}
+
 export async function checkArtifactReferences(db: Sql, archived: ReadonlySet<string>, target: Target) {
   const referenced: string[] = [];
   for (const { table, column } of ARTIFACT_KEY_COLUMNS) {
@@ -362,14 +367,18 @@ async function drill(requested: string, privateKeyPath: string) {
 
     // 6. Staff MFA survives the restore: every stored TOTP secret and backup-code set decrypts with the
     //    escrowed secret, exactly as Better Auth's two-factor plugin reads them.
+    //    The shared test database can hold synthetic factors written under another checkout's key, so a
+    //    `test` set only reports those and fails when none decrypts (a wrong escrow); any other target is strict.
     const factors = await db<{ secret: string; backup_codes: string }[]>`select secret, backup_codes from app.auth_two_factor`;
+    let undecryptableFactors = 0;
     for (const factor of factors) {
       try {
         if (!(await symmetricDecrypt({ key: secret, data: factor.secret })) || !(await symmetricDecrypt({ key: secret, data: factor.backup_codes }))) throw new Error("empty");
       } catch {
-        throw new Error("A restored staff TOTP secret does not decrypt with the escrowed auth secret.");
+        undecryptableFactors++;
       }
     }
+    if (!totpVerdict(manifest.target, factors.length, undecryptableFactors)) throw new Error("A restored staff TOTP secret does not decrypt with the escrowed auth secret.");
 
     // DEC-005 catalog counts for comparison with the S87 load summary (reported, not asserted here).
     const [catalog] = await db<{ categories: number; origin_warehouses: number; b99_stock_items: number; b99_offers: number }[]>`
@@ -380,7 +389,7 @@ async function drill(requested: string, privateKeyPath: string) {
     console.log(JSON.stringify({
       drill: "PASS", backup: id, source_target: manifest.target, restored_database: restoreDatabase, tables: Object.keys(counts).length,
       rows: Object.values(counts).reduce((sum, n) => sum + n, 0), unbalanced_journals: 0, files: manifest.files.length, photos: photos.length,
-      referenced_photos: referenced.length, missing_photos: missing, referenced_artifacts: artifactReferences, missing_artifacts: missingArtifacts, totp_factors: factors.length, catalog, elapsed_ms: Date.now() - started,
+      referenced_photos: referenced.length, missing_photos: missing, referenced_artifacts: artifactReferences, missing_artifacts: missingArtifacts, totp_factors: factors.length, undecryptable_totp_factors: undecryptableFactors, catalog, elapsed_ms: Date.now() - started,
     }));
   } finally {
     process.off("SIGTERM", interrupted);
