@@ -244,3 +244,22 @@ test("S3 store speaks signed path-style requests, pages listings and never leaks
     await rm(root, { recursive: true, force: true });
   }
 });
+
+test("every savePrivateArtifact() call site under src/ is a writer named in the drill's ARTIFACT_KEY_COLUMNS", async () => {
+  const { ARTIFACT_KEY_COLUMNS } = await import("../scripts/backup.ts");
+  const sites: string[] = [];
+  const walk = async (directory: string) => {
+    for (const entry of await readdir(directory, { withFileTypes: true })) {
+      const path = `${directory}/${entry.name}`;
+      if (entry.isDirectory()) await walk(path);
+      else if (/\.tsx?$/.test(entry.name)) {
+        for (const line of (await readFile(path, "utf8")).split("\n")) {
+          if (line.includes("savePrivateArtifact(") && !line.includes("function savePrivateArtifact(")) sites.push(path);
+        }
+      }
+    }
+  };
+  await walk("src");
+  assert.deepEqual(sites.sort(), ARTIFACT_KEY_COLUMNS.map((entry) => entry.writer).sort(),
+    "savePrivateArtifact() call sites changed: add the table/column that stores the new key (with its writer) to ARTIFACT_KEY_COLUMNS in scripts/backup.ts, or remove the stale entry, so the restore drill checks those files.");
+});

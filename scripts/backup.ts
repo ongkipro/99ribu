@@ -211,17 +211,19 @@ async function prune(apply: boolean) {
 // Columns that hold a savePrivateArtifact() key (file name under .local/artifacts), each checked against its
 // writer. Not file keys: shipping_label_job / shipping_print_attempt / shipping_print_batch_item.artifact_id,
 // which reference shipping_label_artifact.id (0024). Checkout drafts are files no row references.
+// `writer` is the savePrivateArtifact() call site that fills the column; tests/backup.test.ts fails when
+// a call site appears that this list does not name.
 export const ARTIFACT_KEY_COLUMNS = [
-  ["return_evidence", "storage_key"], // accounts/service.ts: savePrivateArtifact -> update ... set storage_key ('' while pending_upload)
-  ["shipping_label_artifact", "storage_key"], // documents/labels.ts: savePrivateArtifact -> insert ... storage_key
-  ["support_attachment", "storage_key"], // support/service.ts: savePrivateArtifact -> insert ... storage_key
-  ["affiliate_payout_evidence", "artifact_id"], // payouts/service.ts: savePrivateArtifact -> update ... set artifact_id
+  { table: "return_evidence", column: "storage_key", writer: "src/modules/accounts/service.ts" }, // update ... set storage_key ('' while pending_upload)
+  { table: "shipping_label_artifact", column: "storage_key", writer: "src/modules/documents/labels.ts" }, // insert ... storage_key
+  { table: "support_attachment", column: "storage_key", writer: "src/modules/support/service.ts" }, // insert ... storage_key
+  { table: "affiliate_payout_evidence", column: "artifact_id", writer: "src/modules/payouts/service.ts" }, // update ... set artifact_id
 ] as const;
 
 // `archived` holds manifest paths (artifacts/<key>). Throws for non-test targets when a referenced file is missing.
 export async function checkArtifactReferences(db: Sql, archived: ReadonlySet<string>, target: Target) {
   const referenced: string[] = [];
-  for (const [table, column] of ARTIFACT_KEY_COLUMNS) {
+  for (const { table, column } of ARTIFACT_KEY_COLUMNS) {
     const rows = await db.unsafe<{ key: string }[]>(`select distinct ${quote(column)}::text as key from app.${quote(table)} where ${quote(column)} is not null and ${quote(column)}::text <> ''`);
     referenced.push(...rows.map((row) => row.key));
   }
