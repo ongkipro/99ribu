@@ -23031,13 +23031,18 @@ components:
           type: string
           enum:
           - orders_pending
+          - orders_by_payment_method
           - fulfillments_due
+          - manual_booking_pending
           - delivery_exceptions
           - returns_pending
           - stock_alerts
           - support_unassigned
           - finance_unmatched
+          - transfers_near_deadline
+          - autolaris_pending
           - cod_receivable
+          - cod_remitted
           - refund_liability
           - affiliate_liability
           - estimated_contribution
@@ -23106,6 +23111,40 @@ components:
           minimum: 1
         filter_expires_at:
           $ref: '#/components/schemas/DateTime'
+        action_href:
+          type:
+          - string
+          - 'null'
+          pattern: ^/admin(/[a-z-]+)*$
+          maxLength: 200
+          description: Existing console screen where staff act on this number; null when the drilldown queue is
+            the working screen.
+        breakdown:
+          type:
+          - array
+          - 'null'
+          maxItems: 100
+          items:
+            type: object
+            properties:
+              key:
+                type: string
+                minLength: 1
+                maxLength: 80
+              label:
+                type: string
+                minLength: 1
+                maxLength: 200
+              count:
+                type: integer
+                minimum: 0
+            required:
+            - key
+            - label
+            - count
+            additionalProperties: false
+          description: Count split of the same rows (orders by payment channel; low stock per origin warehouse);
+            null when the metric has none.
       required:
       - key
       - count
@@ -23132,12 +23171,16 @@ components:
             key:
               enum:
               - orders_pending
+              - orders_by_payment_method
               - fulfillments_due
+              - manual_booking_pending
               - delivery_exceptions
               - returns_pending
               - stock_alerts
               - support_unassigned
               - finance_unmatched
+              - transfers_near_deadline
+              - autolaris_pending
         then:
           properties:
             kind:
@@ -23153,6 +23196,7 @@ components:
             key:
               enum:
               - cod_receivable
+              - cod_remitted
               - refund_liability
               - affiliate_liability
               - estimated_contribution
@@ -23213,6 +23257,7 @@ components:
             key:
               enum:
               - cod_receivable
+              - cod_remitted
               - refund_liability
               - affiliate_liability
               - net_merchandise_revenue
@@ -23283,6 +23328,7 @@ components:
                   key:
                     enum:
                     - fulfillments_due
+                    - manual_booking_pending
                     - delivery_exceptions
                     - returns_pending
                     - stock_alerts
@@ -23313,7 +23359,9 @@ components:
                   key:
                     enum:
                     - orders_pending
+                    - orders_by_payment_method
                     - fulfillments_due
+                    - manual_booking_pending
                     - delivery_exceptions
                     - returns_pending
                     - stock_alerts
@@ -23329,7 +23377,11 @@ components:
                   key:
                     enum:
                     - finance_unmatched
+                    - orders_by_payment_method
+                    - transfers_near_deadline
+                    - autolaris_pending
                     - cod_receivable
+                    - cod_remitted
                     - refund_liability
                     - affiliate_liability
                     - estimated_contribution

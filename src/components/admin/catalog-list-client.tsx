@@ -17,6 +17,7 @@ import {
 	TableHeader,
 	TableRow,
 } from "@/components/ui/table";
+import { rupiah } from "@/modules/storefront/format";
 import { failureText, getJson } from "./admin-errors";
 import {
 	blockerLabel,
@@ -24,7 +25,6 @@ import {
 	type Category,
 	categoryPath,
 	type catalogAccess,
-	idr,
 	OFFER_KIND_LABELS,
 	PRICE_IDR,
 	type Page,
@@ -226,7 +226,7 @@ export function CatalogListClient({
 				<p className="max-w-prose text-sm text-muted-foreground">
 					{access.company ? "Semua produk" : "Produk dari gudang Anda"},
 					termasuk draf dan yang ditarik dari toko. Harga{" "}
-					{idr.format(PRICE_IDR)} per varian.
+					{rupiah(PRICE_IDR)} per varian.
 					{access.edit
 						? " Produk bisa terbit setelah stok lengkap, HPP, dan asumsi biaya tercatat."
 						: access.costs
@@ -423,7 +423,7 @@ export function CatalogListClient({
 											<TableCell>{kinds(r)}</TableCell>
 											{!uniformPrice && (
 												<TableCell className="text-right tabular-nums">
-													{idr.format(r.price_idr)}
+													{rupiah(r.price_idr)}
 												</TableCell>
 											)}
 											<TableCell>{stock(r)}</TableCell>

@@ -23,7 +23,7 @@ import {
 	TableRow,
 } from "@/components/ui/table";
 import { Textarea } from "@/components/ui/textarea";
-import { rupiah } from "@/modules/storefront/format";
+import { rupiah, wibDateTime, wibInputToIso } from "@/modules/storefront/format";
 import { describeFailure, failureText, getJson, readFailure } from "./admin-errors";
 
 // DEC-008 manual bank transfers (finance queue) and DEC-008/009 payment terms (owner).
@@ -61,11 +61,6 @@ const text = (status: number, code: string | null) =>
 	code && CODE_MESSAGES[code]
 		? `${CODE_MESSAGES[code]} (kode: ${code})`
 		: failureText(describeFailure(status, code));
-const wib = new Intl.DateTimeFormat("id-ID", {
-	dateStyle: "medium",
-	timeStyle: "short",
-	timeZone: "Asia/Jakarta",
-});
 async function post(url: string, body: unknown) {
 	try {
 		const res = await fetch(url, {
@@ -174,7 +169,7 @@ export function PaymentsClient({ canManageTerms }: { canManageTerms: boolean }) 
 								{rows.map((row) => (
 									<TableRow key={row.id}>
 										<TableCell className="font-medium">{row.order_number}</TableCell>
-										<TableCell className="text-right">{rupiah(row.expected_amount)}</TableCell>
+										<TableCell className="text-right tabular-nums">{rupiah(row.expected_amount)}</TableCell>
 										<TableCell>{row.transfer_code}</TableCell>
 										<TableCell>
 											{row.confirmation ? (
@@ -185,7 +180,7 @@ export function PaymentsClient({ canManageTerms }: { canManageTerms: boolean }) 
 													{row.confirmation.mismatch && <Badge variant="destructive">Nominal berbeda</Badge>}
 												</div>
 											) : (
-												`${wib.format(new Date(row.expires_at))} WIB`
+												wibDateTime(row.expires_at)
 											)}
 										</TableCell>
 										<TableCell className="text-right">
@@ -226,8 +221,11 @@ function ConfirmDialog({ transfer, onClose, onDone }: { transfer: Transfer; onCl
 	const set = (field: keyof typeof form) => (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => setForm({ ...form, [field]: e.target.value });
 	async function submit() {
 		if (!form.amount || !form.reference || !form.account || !form.time || !form.evidence || !form.reason || !form.password) return setError("Lengkapi semua isian.");
+		// Bank statements show WIB: the entered time is WIB whatever the device timezone.
+		const transferredAt = wibInputToIso(form.time);
+		if (!transferredAt) return setError("Waktu transfer tidak valid.");
 		// The transfer time decides timeliness; a late transfer must be acknowledged explicitly (spec 11).
-		if (form.late !== new Date(form.time).getTime() >= Date.parse(transfer.expires_at))
+		if (form.late !== Date.parse(transferredAt) >= Date.parse(transfer.expires_at))
 			return setError(form.late ? "Waktu transfer masih sebelum batas; hapus tanda terlambat." : "Waktu transfer setelah batas: centang transfer terlambat dan jelaskan di alasan.");
 		setPending(true);
 		setError(null);
@@ -240,7 +238,7 @@ function ConfirmDialog({ transfer, onClose, onDone }: { transfer: Transfer; onCl
 			amount: Number(form.amount),
 			bank_reference: form.reference.trim(),
 			account_number: form.account,
-			transferred_at: new Date(form.time).toISOString(),
+			transferred_at: transferredAt,
 			late_transfer: form.late,
 			evidence: form.evidence.trim(),
 			reason: form.reason.trim(),
@@ -275,7 +273,7 @@ function ConfirmDialog({ transfer, onClose, onDone }: { transfer: Transfer; onCl
 					{field("transfer-amount", "Nominal diterima", <Input id="transfer-amount" inputMode="numeric" value={form.amount} onChange={set("amount")} />)}
 					{field("transfer-reference", "Referensi mutasi bank", <Input id="transfer-reference" value={form.reference} maxLength={80} onChange={set("reference")} />)}
 					{field("transfer-account", "Rekening penerima", <select id="transfer-account" className="h-9 rounded-md border bg-background px-3 text-sm" value={form.account} onChange={(e) => setForm({ ...form, account: e.target.value })}>{transfer.accounts.map((a) => <option key={a.account_number} value={a.account_number}>{a.bank_name} {a.account_number}</option>)}</select>)}
-					{field("transfer-time", `Waktu transfer (jam perangkat; batas ${wib.format(new Date(transfer.expires_at))} WIB)`, <Input id="transfer-time" type="datetime-local" value={form.time} onChange={set("time")} />)}
+					{field("transfer-time", `Waktu transfer (WIB; batas ${wibDateTime(transfer.expires_at)})`, <Input id="transfer-time" type="datetime-local" value={form.time} onChange={set("time")} />)}
 					<label className="flex items-center gap-2 text-sm"><input type="checkbox" checked={form.late} onChange={(e) => setForm({ ...form, late: e.target.checked })} />Transfer dilakukan setelah batas waktu (masuk tinjauan, bukan lunas)</label>
 					{field("transfer-evidence", "Bukti", <Textarea id="transfer-evidence" value={form.evidence} maxLength={500} onChange={set("evidence")} />)}
 					{field("transfer-reason", "Alasan", <Input id="transfer-reason" value={form.reason} maxLength={200} onChange={set("reason")} />)}
@@ -383,8 +381,8 @@ function AutolarisPayments({ onNotice }: { onNotice: (message: string) => void }
 								<TableRow key={row.id}>
 									<TableCell className="font-medium">{row.order_number}</TableCell>
 									<TableCell>{row.channel_code}</TableCell>
-									<TableCell className="text-right">{rupiah(row.expected_amount)}</TableCell>
-									<TableCell className="text-right">{row.admin_fee === null ? "—" : rupiah(row.admin_fee)}</TableCell>
+									<TableCell className="text-right tabular-nums">{rupiah(row.expected_amount)}</TableCell>
+									<TableCell className="text-right tabular-nums">{row.admin_fee === null ? "—" : rupiah(row.admin_fee)}</TableCell>
 									<TableCell>
 										{row.refusal_code ? (
 											<Badge variant="destructive">Ditolak: total tidak sama</Badge>
@@ -428,6 +426,8 @@ function AutolarisConfirmDialog({ payment, onClose, onDone }: { payment: Autolar
 	const set = (field: keyof typeof form) => (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => setForm({ ...form, [field]: e.target.value });
 	async function submit() {
 		if (!form.amount || !form.time || !form.evidence || !form.reason || !form.password) return setError("Lengkapi semua isian.");
+		const paidAt = wibInputToIso(form.time);
+		if (!paidAt) return setError("Waktu bayar tidak valid.");
 		setPending(true);
 		setError(null);
 		const issued = await proof(form.password, "finance.reconcile", payment.id);
@@ -437,7 +437,7 @@ function AutolarisConfirmDialog({ payment, onClose, onDone }: { payment: Autolar
 		}
 		const result = await post(`/api/v1/admin/autolaris-payments/${payment.id}/confirmations`, {
 			amount: Number(form.amount),
-			paid_at: new Date(form.time).toISOString(),
+			paid_at: paidAt,
 			evidence: form.evidence.trim(),
 			reason: form.reason.trim(),
 			reauthentication_proof: issued.data.proof,
@@ -465,7 +465,7 @@ function AutolarisConfirmDialog({ payment, onClose, onDone }: { payment: Autolar
 						</DialogDescription>
 					</DialogHeader>
 					{field("autolaris-amount", "Nominal dibayar pembeli", <Input id="autolaris-amount" inputMode="numeric" value={form.amount} onChange={set("amount")} />)}
-					{field("autolaris-time", "Waktu bayar (jam perangkat)", <Input id="autolaris-time" type="datetime-local" value={form.time} onChange={set("time")} />)}
+					{field("autolaris-time", "Waktu bayar (WIB)", <Input id="autolaris-time" type="datetime-local" value={form.time} onChange={set("time")} />)}
 					{field("autolaris-evidence", "Bukti dari dashboard", <Textarea id="autolaris-evidence" value={form.evidence} maxLength={500} onChange={set("evidence")} />)}
 					{field("autolaris-reason", "Alasan", <Input id="autolaris-reason" value={form.reason} maxLength={200} onChange={set("reason")} />)}
 					{field("autolaris-password", "Konfirmasi kata sandi", <Input id="autolaris-password" type="password" autoComplete="current-password" value={form.password} onChange={set("password")} />)}

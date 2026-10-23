@@ -23,7 +23,7 @@ import {
 	TableRow,
 } from "@/components/ui/table";
 import { Textarea } from "@/components/ui/textarea";
-import { rupiah } from "@/modules/storefront/format";
+import { rupiah, wibDate, wibInput, wibInputToIso } from "@/modules/storefront/format";
 import { describeFailure, failureText, getJson, readFailure } from "./admin-errors";
 
 // DEC-007: Mengantar collects COD on 99ribu's own account and remits through its
@@ -89,10 +89,6 @@ const text = (status: number, code: string | null) =>
 	code && CODE_MESSAGES[code]
 		? `${CODE_MESSAGES[code]} (kode: ${code})`
 		: failureText(describeFailure(status, code));
-const date = new Intl.DateTimeFormat("id-ID", {
-	dateStyle: "medium",
-	timeZone: "Asia/Jakarta",
-});
 
 async function post(url: string, body: unknown, key: string) {
 	try {
@@ -194,10 +190,10 @@ export function CodSettlementsClient() {
 											{row.lines.length} paket
 										</span>
 									</TableCell>
-									<TableCell>{date.format(new Date(row.statement_at))}</TableCell>
-									<TableCell className="text-right">{rupiah(row.gross_amount)}</TableCell>
-									<TableCell className="text-right">{rupiah(row.net_amount)}</TableCell>
-									<TableCell className="text-right">
+									<TableCell>{wibDate(row.statement_at)}</TableCell>
+									<TableCell className="text-right tabular-nums">{rupiah(row.gross_amount)}</TableCell>
+									<TableCell className="text-right tabular-nums">{rupiah(row.net_amount)}</TableCell>
+									<TableCell className="text-right tabular-nums">
 										{rupiah(row.expected_net_amount)}
 									</TableCell>
 									<TableCell>
@@ -276,6 +272,9 @@ function RecordDialog({
 		if (!chosen.length) return setError("Pilih minimal satu paket.");
 		if (!form.reference || !form.statementAt || form.net === "" || !form.evidence || !form.reason || !form.password)
 			return setError("Lengkapi semua isian wajib.");
+		// The statement date is a WIB calendar day (00.00 WIB), not the device's midnight.
+		const statementAt = wibInputToIso(form.statementAt);
+		if (!statementAt) return setError("Tanggal laporan tidak valid.");
 		setPending(true);
 		setError(null);
 		const proof = await post(
@@ -292,7 +291,7 @@ function RecordDialog({
 			{
 				id: statementId.current,
 				reference: form.reference.trim(),
-				statement_at: new Date(form.statementAt).toISOString(),
+				statement_at: statementAt,
 				lines: chosen.map(([shipment_id, v]) => ({ shipment_id, amount: Number(v) })),
 				shipping_deduction: Number(form.shipping) || 0,
 				cod_fee_deduction: Number(form.codFee) || 0,
@@ -396,9 +395,9 @@ function RecordDialog({
 						</div>
 						<div className="flex flex-col gap-1">
 							<label htmlFor="cod-field-2" className="text-sm font-medium">
-								Tanggal laporan
+								Tanggal laporan (WIB)
 							</label>
-							<Input id="cod-field-2" type="date" value={form.statementAt} onChange={set("statementAt")} />
+							<Input id="cod-field-2" type="date" max={wibInput(Date.now()).slice(0, 10)} value={form.statementAt} onChange={set("statementAt")} />
 						</div>
 						<div className="flex flex-col gap-1">
 							<label htmlFor="cod-field-3" className="text-sm font-medium">
