@@ -113,12 +113,6 @@ export function catalogAccess(
 	return { read: stock || costs, edit, stock, costs, company: costs };
 }
 
-export const idr = new Intl.NumberFormat("id-ID", {
-	style: "currency",
-	currency: "IDR",
-	maximumFractionDigits: 0,
-});
-
 export const OFFER_KIND_LABELS: Record<OfferKind, string> = {
 	unit: "Satuan",
 	multipack: "Multipak",

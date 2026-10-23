@@ -23,7 +23,7 @@ import type {
 	ShippingLabelTemplateResponse,
 	ShippingPrintAttemptResponse,
 } from "@/modules/documents/labels";
-import { rupiah } from "@/modules/storefront/format";
+import { rupiah, wibDateTime } from "@/modules/storefront/format";
 import { describeFailure, failureText, readFailure } from "./admin-errors";
 
 type ShipmentItem = PrintQueueShipment;
@@ -78,12 +78,6 @@ const ATTEMPT_OUTCOME_LABELS: Record<
 };
 
 type Notice = { kind: "info" | "error"; message: string };
-
-const dateTime = new Intl.DateTimeFormat("id-ID", {
-	timeZone: "Asia/Jakarta",
-	dateStyle: "medium",
-	timeStyle: "short",
-});
 
 const NETWORK_ERROR = failureText(describeFailure(0));
 
@@ -344,7 +338,7 @@ export function PrintCenterClient({
 					data-testid={`shipment-due-${s.shipment_id}`}
 					className="text-xs text-muted-foreground tabular-nums"
 				>
-					Batas {dateTime.format(new Date(s.due_at))}
+					Batas {wibDateTime(s.due_at)}
 				</span>
 			)}
 		</div>
@@ -812,7 +806,7 @@ export function PrintCenterClient({
 									<TableCell>{ATTEMPT_OUTCOME_LABELS[att.outcome]}</TableCell>
 									<TableCell>{parcelName(att.shipment_id)}</TableCell>
 									<TableCell className="tabular-nums">
-										{dateTime.format(new Date(att.created_at))}
+										{wibDateTime(att.created_at)}
 									</TableCell>
 									<TableCell className="whitespace-normal text-muted-foreground">
 										{att.reason ?? "—"}

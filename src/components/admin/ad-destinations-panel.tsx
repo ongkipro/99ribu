@@ -14,6 +14,7 @@ import {
 import { Input } from "@/components/ui/input";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Textarea } from "@/components/ui/textarea";
+import { rupiah } from "@/modules/storefront/format";
 import { failureText, readFailure } from "./admin-errors";
 
 export interface AdDestinationItem {
@@ -66,12 +67,6 @@ const PLATFORM_NAMES: Record<AdDestinationItem["platform"], string> = {
 
 const UUID_RE =
 	/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
-
-const idr = new Intl.NumberFormat("id-ID", {
-	style: "currency",
-	currency: "IDR",
-	maximumFractionDigits: 0,
-});
 
 type Action = { kind: "pause" | "replay"; dest: AdDestinationItem };
 
@@ -300,18 +295,18 @@ export function AdDestinationsPanel({
 									{dest.purchase_collection_instances} vs {dest.unique_orders}
 								</Pair>
 								<Pair label="Penerimaan kotor">
-									{idr.format(dest.reconciliation.gross_merchandise_amount_idr)}
+									{rupiah(dest.reconciliation.gross_merchandise_amount_idr)}
 								</Pair>
 								<Pair label="Pengembalian dana">
-									{idr.format(
+									{rupiah(
 										dest.reconciliation.refunded_merchandise_amount_idr,
 									)}
 								</Pair>
 								<Pair label="Penerimaan bersih">
-									{idr.format(dest.reconciliation.net_merchandise_amount_idr)}
+									{rupiah(dest.reconciliation.net_merchandise_amount_idr)}
 								</Pair>
 								<Pair label="Nilai sinyal pembelian terkirim">
-									{idr.format(
+									{rupiah(
 										dest.reconciliation.dispatched_purchase_signal_amount_idr,
 									)}
 								</Pair>

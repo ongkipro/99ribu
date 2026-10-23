@@ -35,6 +35,7 @@ import {
 	TableRow,
 } from "@/components/ui/table";
 import { Textarea } from "@/components/ui/textarea";
+import { rupiah, wibDateTime } from "@/modules/storefront/format";
 import {
 	type AdDestinationItem,
 	AdDestinationsPanel,
@@ -76,6 +77,9 @@ interface DashboardMetric {
 	queue_filter_token: string;
 	filter_version: number;
 	filter_expires_at: string;
+	/** Existing console screen where staff act on the number. */
+	action_href?: string | null;
+	breakdown?: { key: string; label: string; count: number }[] | null;
 }
 
 interface DashboardSnapshot {
@@ -136,17 +140,22 @@ const WORKSPACE_LABELS: Record<
 	},
 };
 
-// Counts are every row of the metric's queue in the period and scope
-// (the API does not exclude finished rows), so labels say exactly that.
+// Each count is the exact filtered queue behind it (S103); the API's
+// definition text says which states are left out.
 const METRIC_LABELS: Record<string, string> = {
-	orders_pending: "Pesanan",
-	fulfillments_due: "Pemenuhan gudang",
-	delivery_exceptions: "Kendala pengiriman",
-	returns_pending: "Retur",
-	stock_alerts: "Peringatan stok",
-	support_unassigned: "Percakapan",
-	finance_unmatched: "Mutasi penyelesaian",
-	cod_receivable: "Piutang COD",
+	orders_pending: "Pesanan aktif",
+	orders_by_payment_method: "Pesanan per metode bayar",
+	fulfillments_due: "Paket belum diserahkan",
+	manual_booking_pending: "Perlu dipesan kurir",
+	delivery_exceptions: "Kendala pengiriman terbuka",
+	returns_pending: "Retur terbuka",
+	stock_alerts: "Stok rendah",
+	support_unassigned: "Percakapan belum ditugaskan",
+	finance_unmatched: "Mutasi belum cocok",
+	transfers_near_deadline: "Transfer mendekati batas",
+	autolaris_pending: "AutoLaris menunggu bayar",
+	cod_receivable: "COD belum disetor",
+	cod_remitted: "COD sudah disetor",
 	refund_liability: "Kewajiban pengembalian dana",
 	affiliate_liability: "Kewajiban komisi afiliasi",
 	estimated_contribution: "Estimasi kontribusi margin",
@@ -162,7 +171,20 @@ const METRIC_UNITS: Record<string, string> = {
 	stock_alerts: "SKU",
 	support_unassigned: "percakapan",
 	finance_unmatched: "mutasi",
+	orders_by_payment_method: "pesanan",
+	manual_booking_pending: "paket",
+	transfers_near_deadline: "transfer",
+	autolaris_pending: "pesanan",
 };
+
+// Screens the API may point a metric at (existing console routes only).
+const ACTION_LABELS: Record<string, string> = {
+	"/admin/fulfillment": "Buka Pengiriman Manual",
+	"/admin/payments": "Buka Pembayaran",
+	"/admin/cod-settlements": "Buka Setoran COD",
+};
+// Low stock per warehouse shows the largest few; payment methods show all.
+const BREAKDOWN_SHOWN = 3;
 
 const BASIS_LABELS: Record<DashboardMetric["financial_basis"], string> = {
 	actual: "Aktual",
@@ -544,6 +566,25 @@ const PREVIEW_METRICS: Record<CanonicalWorkspace, DashboardMetric[]> = {
 			queue_filter_token: "preview-token-finance-cod",
 			filter_version: 1,
 			filter_expires_at: "2026-10-21T12:30:00.000Z",
+			action_href: "/admin/cod-settlements",
+		},
+		{
+			key: "cod_remitted",
+			count: null,
+			basis: "event_period",
+			complete: true,
+			queue_key: "reconciliation",
+			kind: "money",
+			amount: 432000,
+			currency: "IDR",
+			financial_basis: "actual",
+			definition:
+				"COD per paket pada laporan setoran Mengantar dalam periode, sebelum potongan ongkir dan biaya COD.",
+			as_of: "2026-10-21T12:00:00.000Z",
+			queue_filter_token: "preview-token-finance-cod-remitted",
+			filter_version: 1,
+			filter_expires_at: "2026-10-21T12:30:00.000Z",
+			action_href: "/admin/cod-settlements",
 		},
 		{
 			key: "affiliate_liability",
@@ -716,12 +757,6 @@ type ExportResult = {
 	csv: string;
 	url: string;
 };
-
-const idr = new Intl.NumberFormat("id-ID", {
-	style: "currency",
-	currency: "IDR",
-	maximumFractionDigits: 0,
-});
 
 function queueQuery(
 	ws: CanonicalWorkspace,
@@ -1033,21 +1068,17 @@ export function AdminWorkspacesClient({
 	const moneyMetrics = canSeeMoney
 		? metrics.filter((m) => m.kind === "money")
 		: [];
-	// Metric counts are the full row count of the same queue, period and scope.
-	const queueTotal =
-		countMetrics.find((m) => m.queue_key === queue)?.count ?? null;
 	const activeMetric = metrics.find((m) => m.key === metricKey) ?? null;
+	// A count metric's number is the exact row total of its filtered drilldown.
+	const queueTotal =
+		activeMetric?.kind === "count" && activeMetric.queue_key === queue
+			? activeMetric.count
+			: null;
 	const exportConfig = QUEUE_EXPORT_CONFIG[queue];
 	const canPrint = workspace === "owner" || workspace === "warehouse";
 	const canSupport = workspace === "owner" || workspace === "customer_service";
-	const timezone = dashboard?.timezone ?? "Asia/Jakarta";
-	const dateTime = new Intl.DateTimeFormat("id-ID", {
-		timeZone: timezone,
-		dateStyle: "medium",
-		timeStyle: "short",
-	});
-	const formatTime = (iso: string | null) =>
-		iso ? dateTime.format(new Date(iso)) : "—";
+	// The API reports Asia/Jakarta; every time below is shown and labeled as WIB.
+	const formatTime = (iso: string | null) => (iso ? wibDateTime(iso) : "—");
 	const allSelected = rows.length > 0 && selectedIds.length === rows.length;
 	const someSelected = selectedIds.length > 0 && !allSelected;
 
@@ -1255,7 +1286,7 @@ export function AdminWorkspacesClient({
 						{WORKSPACE_LABELS[workspace].subtitle}
 					</p>
 					<p className="text-xs text-muted-foreground">
-						Zona waktu {timezone}
+						Waktu dalam WIB (Asia/Jakarta)
 						{dashboard?.warehouse_ids?.length
 							? ` · ${dashboard.warehouse_ids.length} gudang dalam cakupan`
 							: ""}
@@ -1345,8 +1376,18 @@ export function AdminWorkspacesClient({
 						<ul data-testid="kpi-cards-grid" className="flex flex-wrap gap-2">
 							{countMetrics.map((m) => {
 								const active = metricKey === m.key;
+								const shown =
+									m.breakdown?.slice(
+										0,
+										m.key === "stock_alerts" ? BREAKDOWN_SHOWN : undefined,
+									) ?? [];
+								const hidden = (m.breakdown?.length ?? 0) - shown.length;
 								return (
-									<li key={m.key} data-testid={`kpi-card-${m.key}`}>
+									<li
+										key={m.key}
+										data-testid={`kpi-card-${m.key}`}
+										className="flex max-w-64 flex-col gap-1"
+									>
 										<Button
 											type="button"
 											variant="outline"
@@ -1375,6 +1416,24 @@ export function AdminWorkspacesClient({
 												{!m.complete && " · belum lengkap"}
 											</span>
 										</Button>
+										{shown.length > 0 && (
+											<p
+												data-testid={`kpi-breakdown-${m.key}`}
+												className="px-1 text-xs text-muted-foreground tabular-nums"
+											>
+												{shown.map((b) => `${b.label} ${b.count}`).join(" · ")}
+												{hidden > 0 && ` · +${hidden} gudang lain`}
+											</p>
+										)}
+										{m.action_href && ACTION_LABELS[m.action_href] && (
+											<Link
+												href={m.action_href}
+												data-testid={`kpi-action-${m.key}`}
+												className="px-1 text-xs font-medium text-primary underline-offset-4 hover:underline focus-visible:rounded-sm focus-visible:outline-2 focus-visible:outline-ring"
+											>
+												{ACTION_LABELS[m.action_href]}
+											</Link>
+										)}
 									</li>
 								);
 							})}
@@ -1423,8 +1482,10 @@ export function AdminWorkspacesClient({
 										? `${rows.length} dari ${queueTotal} baris`
 										: `${rows.length} baris${nextCursor ? ", masih ada berikutnya" : ""}`
 									: null,
-								"semua status dalam periode",
-								`waktu dalam ${timezone}`,
+								activeMetric?.kind === "count"
+									? `filter ${(METRIC_LABELS[activeMetric.key] ?? activeMetric.key).toLowerCase()}`
+									: "semua status dalam periode",
+								"waktu dalam WIB",
 							]
 								.filter(Boolean)
 								.join(" · ")}
@@ -1449,7 +1510,10 @@ export function AdminWorkspacesClient({
 								onClick={() => openExport("filter")}
 							>
 								<Download data-icon="inline-start" aria-hidden="true" />
-								Ekspor hasil filter
+								{/* The period export does not carry a KPI card's filter; say so. */}
+								{activeMetric?.kind === "count"
+									? "Ekspor semua baris periode"
+									: "Ekspor hasil filter"}
 							</Button>
 						)}
 					</div>
@@ -1749,7 +1813,7 @@ export function AdminWorkspacesClient({
 									)}
 								>
 									{m.complete && m.amount !== null
-										? idr.format(m.amount)
+										? rupiah(m.amount)
 										: "Belum lengkap"}
 								</p>
 								<p className="text-xs leading-relaxed text-muted-foreground">
@@ -1770,6 +1834,15 @@ export function AdminWorkspacesClient({
 								>
 									Lihat antrean {QUEUE_LABELS[m.queue_key].toLowerCase()}
 								</Button>
+								{m.action_href && ACTION_LABELS[m.action_href] && (
+									<Link
+										href={m.action_href}
+										data-testid={`kpi-action-${m.key}`}
+										className="-mt-2 self-start text-sm font-medium text-primary underline-offset-4 hover:underline focus-visible:rounded-sm focus-visible:outline-2 focus-visible:outline-ring"
+									>
+										{ACTION_LABELS[m.action_href]}
+									</Link>
+								)}
 							</article>
 						))}
 					</div>
@@ -1816,7 +1889,7 @@ export function AdminWorkspacesClient({
 							<DialogDescription>
 								{exportMode === "selection"
 									? `${selectedIds.length} baris yang dipilih di halaman ini.`
-									: `Semua baris ${QUEUE_LABELS[queue].toLowerCase()} pada ${WINDOW_LABELS[windowRange]} dalam cakupan Anda, maksimal 1.000 baris.`}{" "}
+									: `Semua baris ${QUEUE_LABELS[queue].toLowerCase()} pada ${WINDOW_LABELS[windowRange]} dalam cakupan Anda, maksimal 1.000 baris${activeMetric?.kind === "count" ? ", tanpa filter kartu" : ""}.`}{" "}
 								Rumus spreadsheet dinetralkan dan ekspor tercatat di audit.
 							</DialogDescription>
 						</DialogHeader>

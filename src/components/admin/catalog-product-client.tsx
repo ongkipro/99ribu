@@ -31,6 +31,7 @@ import {
 	TableRow,
 } from "@/components/ui/table";
 import { Textarea } from "@/components/ui/textarea";
+import { rupiah, wibDateTime } from "@/modules/storefront/format";
 import { failureText, getJson, readFailure } from "./admin-errors";
 import {
 	BLOCKER_LABELS,
@@ -40,7 +41,6 @@ import {
 	type Category,
 	catalogStatus,
 	categoryPath,
-	idr,
 	mapLimit,
 	OFFER_KIND_LABELS,
 	PRICE_IDR,
@@ -100,14 +100,9 @@ const ASSUMPTION_LABELS: Record<AssumptionField, string> = {
 	returns_reserve_idr: "Cadangan retur",
 };
 
-const dateTime = new Intl.DateTimeFormat("id-ID", {
-	timeZone: "Asia/Jakarta",
-	dateStyle: "medium",
-	timeStyle: "short",
-});
-const when = (iso: string) => `${dateTime.format(new Date(iso))} WIB`;
+const when = wibDateTime;
 const money = (v: number | null) =>
-	v === null ? "Belum diisi" : idr.format(v);
+	v === null ? "Belum diisi" : rupiah(v);
 
 function SectionError({
 	label,
@@ -351,7 +346,7 @@ export function CatalogProductClient({
 										<Skeleton className="h-5 w-24" />
 									)}
 									<span className="text-sm font-medium tabular-nums">
-										{idr.format(PRICE_IDR)} per varian
+										{rupiah(PRICE_IDR)} per varian
 									</span>
 								</div>
 							</div>
@@ -548,7 +543,7 @@ export function CatalogProductClient({
 										<p className="text-xs text-muted-foreground">
 											Komisi afiliasi {costs.data.commission_bps / 100}% · batas
 											kontribusi minimum{" "}
-											{idr.format(costs.data.minimum_contribution_idr)} ·
+											{rupiah(costs.data.minimum_contribution_idr)} ·
 											dihitung {when(costs.data.evaluated_at)}
 										</p>
 										<ul className="flex flex-col gap-3">
@@ -598,13 +593,13 @@ export function CatalogProductClient({
 															Komisi afiliasi
 														</dt>
 														<dd className="text-right tabular-nums">
-															{idr.format(o.commission_idr)}
+															{rupiah(o.commission_idr)}
 														</dd>
 														<dt className="font-medium">Estimasi kontribusi</dt>
 														<dd className="text-right font-semibold tabular-nums">
 															{o.estimated_contribution === null
 																? "Belum lengkap"
-																: idr.format(o.estimated_contribution)}
+																: rupiah(o.estimated_contribution)}
 														</dd>
 													</dl>
 													<VersionHistory
