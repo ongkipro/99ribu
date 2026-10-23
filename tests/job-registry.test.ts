@@ -1,9 +1,10 @@
 import assert from "node:assert/strict";
 import { readdir, readFile } from "node:fs/promises";
 import test from "node:test";
-import type { TransactionSql } from "postgres";
+import type { Sql, TransactionSql } from "postgres";
 import { AccessError } from "../src/modules/access/policy.ts";
-import { DATABASE_JOBS, processDatabaseJob } from "../src/jobs/worker.ts";
+import { RETENTION_JOBS } from "../src/jobs/retention.ts";
+import { DATABASE_JOBS, processDatabaseJob, sweepExpiredGuestContexts } from "../src/jobs/worker.ts";
 
 const root = new URL("../", import.meta.url);
 
@@ -45,5 +46,30 @@ test("unknown and inherited kinds are refused before any database effect", async
   for (const kind of ["unknown.kind", "constructor", "toString"]) {
     await assert.rejects(processDatabaseJob(tx, { id: "00000000-0000-4000-8000-000000000000", kind, payload: {}, attempts: 0, max_attempts: 5 }),
       (error) => error instanceof AccessError && error.status === 400 && error.message === "INVALID_DATABASE_JOB");
+  }
+});
+
+// S105: the housekeeping lane is the retention registry; this keeps both truthful without a database.
+test("the housekeeping sweep runs every retention registry entry once per throttle window and isolates failures", async (t) => {
+  const names = Object.keys(RETENTION_JOBS);
+  for (const name of ["guest_context.expired", "autolaris_callback.body", "outbox.completed", "access_operation.replay", "auth.session", "auth.verification", "auth.rate_limit", "visitor.history"]) {
+    assert.ok(names.includes(name), `${name} is registered`);
+  }
+  for (const job of Object.values(RETENTION_JOBS)) assert.ok(job.table && job.window, "each entry documents its table and window");
+  const calls: string[] = []; const logged: string[] = [];
+  t.mock.method(console, "error", (line: string) => { logged.push(line); });
+  const originals = new Map(Object.entries(RETENTION_JOBS).map(([name, job]) => [name, job.run]));
+  try {
+    for (const [name, job] of Object.entries(RETENTION_JOBS)) job.run = async () => { calls.push(name); throw Object.assign(new Error("secret row value"), { code: "23503" }); };
+    const sql = {} as Sql;
+    await sweepExpiredGuestContexts(sql);
+    await sweepExpiredGuestContexts(sql);
+    assert.deepEqual(calls, names, "one failing entry never stops the others; a second call inside a minute runs nothing");
+    const events = logged.map((line) => JSON.parse(line));
+    assert.deepEqual(events.find((e) => e.job === "outbox.completed"), { event: "jobs.retention_failed", job: "outbox.completed", error: "Error", sqlstate: "23503" });
+    assert.ok(events.some((e) => e.event === "jobs.guest_cleanup_failed") && events.some((e) => e.event === "jobs.autolaris_callback_retention_failed"));
+    assert.ok(!logged.join("").includes("secret row value"));
+  } finally {
+    for (const [name, job] of Object.entries(RETENTION_JOBS)) job.run = originals.get(name) as typeof job.run;
   }
 });

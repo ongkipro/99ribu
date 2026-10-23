@@ -11,10 +11,10 @@ One Next.js 16 / TypeScript codebase runs as two processes that share the domain
 | Part | Entry point | What it does |
 | --- | --- | --- |
 | Web | `scripts/run-local.ts` (`npm run dev` / `build` / `start`) | Spawns `next` on the fixed loopback listener `127.0.0.1:3099`. Serves storefront pages, the admin console, `/api/auth/*` (Better Auth), `/api/v1/*` (versioned API), `/api/health` and `/media/catalog/*`. Optional second browser origin: `LOCAL_TAILNET_ORIGIN` (Tailscale IPv4, same port). |
-| Worker | `scripts/worker.ts local` (`npm run worker`) | Polls `app.outbox_job` (500 ms idle sleep), runs database jobs inside a transaction and leased adapter jobs outside it. The same script exposes host-only simulator commands (`--confirm-payment`, `--autolaris-paid`, `--collect-cod`, `--track-parcel`, `--observe-settlement`, …). |
+| Worker | `scripts/worker.ts local` (`npm run worker`) | Polls `app.outbox_job` (500 ms idle sleep), runs database jobs inside a transaction and leased adapter jobs outside it, and once per minute the retention registry (`src/jobs/retention.ts`, S105). The same script exposes host-only simulator commands (`--confirm-payment`, `--autolaris-paid`, `--collect-cod`, `--track-parcel`, `--observe-settlement`, …). |
 | Database | `compose.yaml` service `database` (`npm run db:up`) | PostgreSQL 18.6 container with `network_mode: none`, read-only root, TCP disabled (`listen_addresses=`); reachable only through the owner-only Unix socket `.local/pgsocket/.s.PGSQL.5432`. Two databases, `99ribu_local` and `99ribu_test`, each with an `app` role (runtime) and an `owner` role (migrations), created by `src/db/bootstrap.sql`. |
 | Connection | `src/db/client.ts:connectDatabase(target, access)` | `postgres` driver + Drizzle over the socket, pool 5, `statement_timeout` 10 s. Database writes are raw SQL tagged templates; `src/db/schema.ts` mirrors the migrations for typing and `drizzle-kit generate`. |
-| Migrations | `scripts/migrate.ts` (`npm run db:migrate -- local\|test\|production`) | Applies the immutable `migrations/0000`–`0035` journal as the owner role under a PostgreSQL advisory lock (concurrent runs serialise). |
+| Migrations | `scripts/migrate.ts` (`npm run db:migrate -- local\|test\|production`) | Applies the immutable `migrations/0000`–`0037` journal as the owner role under a PostgreSQL advisory lock (concurrent runs serialise). |
 | Operator CLIs | `scripts/catalog.ts`, `scripts/seed.ts`, `scripts/check-health.ts`, `scripts/database.ts` | Catalog dataset/import/stock/rehome/withdraw, local fixtures and dummy logins, readiness probe, database container control. |
 | Test runner | `scripts/check-tests.ts` | Registered `--case=` selectors over `tests/integration/` and `tests/browser/`; refuses empty, skipped or unknown selections. |
 | Container image (S84; CODE, CMD on the S82/S83 production profile) | `Dockerfile`, `compose.production.yaml`, `scripts/healthcheck.ts`, `scripts/image-audit.ts` | One digest-pinned image (PID 1 `tini`) for a one-shot migrate service (the only holder of the owner password), web (`next start` on `0.0.0.0:$PORT`, after migrate succeeds) and worker (`scripts/worker.ts production`, heartbeat file); non-root uid `10001`; `/app/.local` is the persistent volume. Storefront pages render per request (`Shell` calls `connection()`; the cart readers rethrow Next's internal errors with `unstable_rethrow`), so the build needs no database. The default command needs the S82/S83 production `migrate.ts`/listener. Not deployed; topology in `RELEASE.md`. |
@@ -117,7 +117,7 @@ flowchart LR
 │   ├── components/          storefront/ (shell + client islands), admin/ (console clients), support/, ui/ (shadcn)
 │   ├── config/              local.ts (profile guard, private dirs), site.ts (origin, SITE_INDEXING)
 │   ├── db/                  client.ts (socket connection), schema.ts (Drizzle mirror), bootstrap SQL for roles
-│   ├── jobs/                outbox.ts (enqueue), leases.ts (claim/fence), worker.ts (job registry), probes.ts
+│   ├── jobs/                outbox.ts (enqueue), leases.ts (claim/fence), worker.ts (job registry), retention.ts (retention registry), probes.ts
 │   ├── modules/             24 domain modules, see Module map
 │   └── storage/             private.ts (artifacts), catalog-media.ts (photos), media-sniff.ts (magic bytes)
 ├── migrations/              0000–0034 SQL + drizzle meta journal/snapshots (immutable once applied)
@@ -175,7 +175,24 @@ Every job is an `app.outbox_job` row written in the caller's domain transaction 
 | --- | --- |
 | Database | `local.notification`, `inventory.reservation.expire`, `promotion.reservation.expire`, `checkout.order.expire`, `payment.callback`, `cod.callback`, `settlement.callback`, `parcel.receipt.callback`, `refund.callback`, `recovery.refund.callback`, `replacement.shipping.callback`, `replacement.receipt.callback`, `shipping.callback`, `shipping.cancel.callback`, `fulfillment.deadline`, `fulfillment.notice`, `fulfillment.tracking.poll`, `cod.remittance.match`, `commission.accrue`, `commission.receipt`, `commission.claim`, `commission.void`, `commission.mature`, `affiliate.payout.queue` |
 | Leased adapter | `payment.create`, `payment.autolaris.advice`, `advertising.dispatch`, `shipping.create`, `shipping.cancel.create`, `refund.create`, `recovery.refund.create`, `replacement.shipping.create` |
-| Housekeeping (throttled, once per minute per process) | `deleteExpiredGuestContexts` (DEC-002), `redactAutolarisCallbacks` (raw callback bodies emptied after 30 days) |
+| Housekeeping (throttled, once per minute per process) | every entry of `src/jobs/retention.ts:RETENTION_JOBS` (table below) |
+
+### Retention registry (S105)
+
+`src/jobs/retention.ts:RETENTION_JOBS` is the sole list; `sweepExpiredGuestContexts` in `src/jobs/worker.ts` runs each entry once per minute per worker process, each as one statement of at most `RETENTION_BATCH` = 500 rows in its own transaction (`for update skip locked`, so concurrent workers split the work and a rerun only sees the next batch). A failure is logged redacted (`jobs.retention_failed` with the entry name, or the two pre-S105 event names) and never stops jobs or the other entries. Windows are engineering defaults pending the PRIV-1 retention decision (`docs/spec/13-COMPLIANCE-PRIVACY.md`).
+
+| Entry | Table | Removed | Never removed |
+| --- | --- | --- | --- |
+| `guest_context.expired` | `commerce_guest_context` | at expiry, unreferenced (DEC-002, unchanged) | contexts referenced by carts, orders, operations, support, referrals |
+| `autolaris_callback.body` | `autolaris_callback` | body emptied after 30 days (row, digest, time kept) | — |
+| `outbox.completed` | `outbox_job` | `completed` > 30 days, kinds `local.notification`, `inventory/promotion.reservation.expire`, `checkout.order.expire`, `fulfillment.deadline/notice/tracking.poll`, `advertising.dispatch` | pending/processing/unknown/failed jobs; money, carrier, refund, replacement, commission kinds (guards or recovery code read them); any job referenced by a foreign key (read from `pg_constraint` each run) |
+| `access_operation.replay` | `access_operation` | `created_at` > 90 days, replay-only actions `buyer.*`, `guest_order_access.*`, `support.*`, `shipping.label.*`, `shipping.template.*`, `catalog.mutate`, `catalog.publication[.withdraw]`, `inventory.mutate`, `staff_roles.proof:*` | finance, payout, affiliate, fulfillment, policy, role-grant, promotion operations; any FK-referenced operation |
+| `auth.session` | `auth_session` (+ `mfa_session`, `access_proof` by cascade) | 30 days after expiry | live sessions |
+| `auth.verification` | `auth_verification` | 7 days after expiry | — |
+| `auth.rate_limit` | `auth_rate_limit` | 1 day after the last request (windows are ≤ 15 min) | — |
+| `visitor.history` | `visitor_session` graph: `consent_receipt`, `visitor_bootstrap_request`, `funnel_intake`, `commerce_event`, `ad_event_outbox`, `ad_delivery_attempt`, `local_ad_sink` | 90 days after visitor expiry, through `app.purge_expired_visitor_history` (SECURITY DEFINER, owner) | visitors with `order_ad_attribution`, an event naming an order or receipt, or an ad decision other than `suppressed`/`cancelled` (accepted, queued, quarantined) |
+
+Ledger and audit history (`finance_transaction`, `finance_posting`, `economic_receipt`, every `*_event` history, `audit_event`, policy and catalog revisions, provider-event dedup rows) has no entry. The visitor/consent/funnel/ad tables stay append-only for the app role: 0037 routes their delete paths through `app.retention_purge_allowed(relid)`, which requires both the transaction-local `app.retention_purge=on` (set only inside the purge function) and the table owner as `current_user`; triggers were replaced in place (`CREATE OR REPLACE TRIGGER`), never disabled. `migrate.ts` grants the app role `EXECUTE` on the purge function only (0037 revokes it from `PUBLIC`).
 
 ## Request flows
 
@@ -645,6 +662,26 @@ erDiagram
     text kind
   }
 ```
+
+### Hot-path and retention indexes (S104/S105)
+
+Indexes added by `0036_db_hot_paths` / `0037_retention`, each tied to the query it serves (plans and timings in BUILD-LOG 2026-10-24 S104/S105):
+
+| Index | Serves |
+| --- | --- |
+| `inventory_balance_stock_item_idx (stock_item_id, warehouse_id)` | storefront/cart availability by stock item (`storefront/catalog.ts:publicProduct`, `checkout/carts.ts`) |
+| `outbox_kind_due_idx (kind, run_at, created_at, id) WHERE status IN ('pending','unknown')` | leased claim per kind (`jobs/leases.ts:claimJob`) |
+| `outbox_lease_idx (lease_until) WHERE status='processing'` | lease expiry (`expireLeases`, every worker poll) |
+| `outbox_completed_idx (completed_at) WHERE status='completed'` | `outbox.completed` retention |
+| `support_conversation_inbox_idx (coalesce(last_public_message_at, created_at), id)`, `support_conversation_assignee_inbox_idx (assigned_user_id, …)` | staff inbox keyset paging (`support/service.ts:listStaffSupportInbox`, limit+1, cursor = last conversation id) |
+| `shipping_label_artifact_shipment_idx (shipment_id, status)`, `order_shipment_warehouse_idx (warehouse_id)` | print queue rank probe, artifact lookup, warehouse-scoped queues |
+| `payment_attempt_open_method_idx (method_id, expires_at) WHERE status IN ('preparing','pending','unknown')` | S103 KPIs and finance queues for open attempts |
+| `fulfillment_tracking_number_idx WHERE tracking_number IS NOT NULL` | staff order search by resi (`finance/history.ts`, id-set form) |
+| `checkout_quote_{contact,address}_phone_suffix_idx` (reversed digits, `text_pattern_ops`) | staff phone-suffix search as a reversed prefix (DEC-014) |
+| `commerce_order_transfer_code_recent_idx (expires_at, transfer_code) WHERE payment_channel='manual-bank'` | transfer-code quarantine (`checkout/orders.ts:reservedTransferCodes`, 72 h after the deadline) |
+| `access_operation_created_idx`, `auth_session_expires_idx`, `auth_verification_expires_idx`, `visitor_session_expires_idx`, `commerce_event_visitor_idx`, `order_ad_attribution_visitor_idx` | retention candidate scans and the visitor purge's reference probes |
+
+`schema.ts` also declares the two objects hand-written in 0019 (`fulfillment_causal_source_unique`, `shipment_booking_operation_fk`; the FK stays `DEFERRABLE INITIALLY DEFERRED` in the database, which Drizzle cannot express), so `drizzle-kit generate` reports no changes. Admin `/admin/categories` lists only categories used by a product's current draft or live publication plus their ancestors (DEC-011 immutable rows stay in the table).
 
 ## State machines and money flow
 

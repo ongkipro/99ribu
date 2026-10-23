@@ -205,8 +205,16 @@ export async function readCatalog(identity: LocalAuth, principal: Principal, url
     if (productId) { const state = await readCatalogRevision(tx, id(productId)); assertScope(state, access); return project(state); }
     if (!page) throw invalid();
     const path = url.pathname;
-    const rows = path.endsWith("/categories") ? await tx`select id,name,slug,parent_id,depth,attribute_definitions from app.category
-      where (${page.cursor}::uuid is null or id>${page.cursor}::uuid) order by id limit ${page.limit + 1}`
+    // S104: categories are immutable rows (DEC-011 renames create new ones), so only categories used by a
+    // product's current draft or live publication, plus their ancestors, are listed; old rows stay readable by id.
+    const rows = path.endsWith("/categories") ? await tx`with recursive used(id) as (
+        select r.category_id from app.product p join app.product_revision r on r.product_id=p.id and r.revision=p.revision
+        union select r.category_id from app.publication_head h join app.publication_version v on v.product_id=h.product_id and v.revision=h.revision
+          join app.product_revision r on r.product_id=v.product_id and r.revision=v.product_revision
+          where h.revision>0 and not exists (select 1 from app.publication_withdrawal w where w.publication_id=v.id)
+        union select c.parent_id from app.category c join used u on u.id=c.id where c.parent_id is not null)
+      select id,name,slug,parent_id,depth,attribute_definitions from app.category
+      where id in (select id from used) and (${page.cursor}::uuid is null or id>${page.cursor}::uuid) order by id limit ${page.limit + 1}`
       : path.endsWith("/stock-items") ? await tx`select id,sku,name from app.stock_item
         where (${page.cursor}::uuid is null or id>${page.cursor}::uuid) order by id limit ${page.limit + 1}`
       : await tx`select p.id,p.catalog_id,p.slug,p.revision as version,r.name from app.product p

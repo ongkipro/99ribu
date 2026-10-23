@@ -5,7 +5,6 @@ import { expireLeases, type JobAdapter, runLeasedJob } from "./leases.ts";
 import { expireReservationJob } from "../modules/inventory/expiry.ts";
 import { expirePromotionJob } from "../modules/promotions/reservations.ts";
 import { expireOwnedOrderJob } from "../modules/checkout/expiry.ts";
-import {deleteExpiredGuestContexts} from '../modules/checkout/access.ts';
 import { AccessError } from "../modules/access/policy.ts";
 import {id} from '../modules/catalog/validation.ts';
 import {processPaymentEvent} from '../modules/payments/events.ts';
@@ -21,7 +20,7 @@ import {processWaybillCancellationEvent} from '../modules/fulfillment/cancellati
 import {COMMISSION_JOB_KINDS,processCommissionJob} from '../modules/commissions/jobs.ts';
 import {processTrackingPoll} from '../modules/fulfillment/manual.ts';
 import {processCodRemittanceMatch} from '../modules/finance/cod-remittance.ts';
-import {redactAutolarisCallbacks} from '../modules/payments/autolaris.ts';
+import { guestCleanup, RETENTION_JOBS } from "./retention.ts";
 
 export type DatabaseJob = { id: string; kind: string; payload: unknown; attempts: number; max_attempts: number };
 
@@ -109,28 +108,27 @@ export async function processDatabaseJob(tx: TransactionSql, job: DatabaseJob) {
 }
 
 let guestCleanupAt = Number.NEGATIVE_INFINITY;
-// Single seam so tests can inject a failing cleanup without intercepting the job transaction.
-export const guestCleanup = { run: deleteExpiredGuestContexts };
-// Guest-context cleanup is housekeeping: at most once per minute per process (monotonic clock),
-// and a failure is logged (redacted: class + SQLSTATE) without stopping jobs.
+export { guestCleanup };
+// Event names that predate the S105 registry stay stable for existing log consumers.
+const RETENTION_FAILURE_EVENTS: Readonly<Record<string, string>> = {
+  "guest_context.expired": "jobs.guest_cleanup_failed", "autolaris_callback.body": "jobs.autolaris_callback_retention_failed",
+};
+
+// Housekeeping lane: every RETENTION_JOBS entry (src/jobs/retention.ts) at most once per minute per process
+// (monotonic clock). Each failure is logged redacted (class + SQLSTATE) and never stops jobs or other entries.
 export async function sweepExpiredGuestContexts(sql: Sql) {
   if (performance.now() - guestCleanupAt < 60000) return;
   guestCleanupAt = performance.now();
-  try { await guestCleanup.run(sql); }
-  catch (error) {
-    console.error(JSON.stringify({ event: "jobs.guest_cleanup_failed",
-      error: error instanceof Error ? error.name : typeof error,
-      sqlstate: typeof (error as { code?: unknown })?.code === "string" ? (error as { code: string }).code : undefined }));
-  }
-  // Same throttled housekeeping lane: AutoLaris raw callback retention (R4, spec 11).
-  try { await redactAutolarisCallbacks(sql); }
-  catch (error) {
-    console.error(JSON.stringify({ event: "jobs.autolaris_callback_retention_failed",
-      error: error instanceof Error ? error.name : typeof error,
-      sqlstate: typeof (error as { code?: unknown })?.code === "string" ? (error as { code: string }).code : undefined }));
+  for (const [name, job] of Object.entries(RETENTION_JOBS)) {
+    try { await job.run(sql); }
+    catch (error) {
+      const legacy = Object.hasOwn(RETENTION_FAILURE_EVENTS, name);
+      console.error(JSON.stringify({ event: legacy ? RETENTION_FAILURE_EVENTS[name] : "jobs.retention_failed", ...(legacy ? {} : { job: name }),
+        error: error instanceof Error ? error.name : typeof error,
+        sqlstate: typeof (error as { code?: unknown })?.code === "string" ? (error as { code: string }).code : undefined }));
+    }
   }
 }
-
 export async function runOneJob(sql: Sql, adapters: Readonly<Record<string, JobAdapter>> = {},onlyJobId?:string) {
   readRuntimeConfig(process.env);
   if(onlyJobId!==undefined) id(onlyJobId);
