@@ -503,6 +503,23 @@ test("S92 built browser: manual bank checkout adds the unique code and a 24 h de
 		await expect(instructions).toContainText(`kode unik ${code} rupiah`);
 		await expect(instructions).toContainText(ACCOUNT.account_number);
 		await captureBoth(page, "s92-receipt-transfer-instructions", true);
+		// Copy controls (receipt page) name what they copy, and report success only when the clipboard accepted it.
+		const receipt = await page.context().newPage();
+		await receipt.goto(`${origin}/pesanan/${order.id}`);
+		const receiptInstructions = receipt.getByTestId("bank-transfer-instructions");
+		await expect(receiptInstructions.getByRole("heading", { name: "Transfer bank" })).toBeVisible();
+		await page.context().grantPermissions(["clipboard-read", "clipboard-write"], { origin });
+		await receiptInstructions.getByRole("button", { name: "Salin nominal", exact: true }).click();
+		await expect(receiptInstructions.getByRole("button", { name: "Nominal disalin", exact: true })).toBeVisible();
+		assert.equal(await receipt.evaluate(() => navigator.clipboard.readText()), String(due));
+		// Without a Clipboard API (an http tailnet origin) the value is selected for a manual copy, and
+		// the button does not claim a copy.
+		await receipt.evaluate(() => Object.defineProperty(navigator, "clipboard", { value: undefined, configurable: true }));
+		await receiptInstructions.getByRole("button", { name: "Nominal disalin", exact: true }).click();
+		await expect(receiptInstructions.getByRole("status").filter({ hasText: "salin manual" })).toBeVisible();
+		await expect(receiptInstructions.getByRole("button", { name: "Salin nominal", exact: true })).toBeVisible();
+		assert.equal(await receipt.evaluate(() => window.getSelection()?.toString()), String(due));
+		await receipt.close();
 
 		// Denial: warehouse staff has no finance queue, neither the page nor the API.
 		const keeper = await asStaff(staff);
@@ -565,7 +582,8 @@ test("S92 built browser: manual bank checkout adds the unique code and a 24 h de
 			assert.equal(Number(receipt.payment_charge), code, "the code posts as its own receipt component");
 			assert.equal((await sql`select coalesce(sum(merchandise_amount),0)::int value from app.commerce_event where order_id=${order.id} and name='Purchase'`)[0].value, Number(receipt.merchandise_amount), "Purchase stays merchandise-only");
 
-			await fp.getByRole("tab", { name: "Sudah dicatat" }).click();
+			await fp.getByRole("button", { name: "Sudah dicatat" }).click();
+			await expect(fp.getByRole("button", { name: "Sudah dicatat" })).toHaveAttribute("aria-pressed", "true");
 			const resolved = fp.getByTestId("manual-transfers").getByRole("row").filter({ hasText: order.number });
 			await expect(resolved).toContainText("Lunas");
 			await fp.setViewportSize({ width: 1440, height: 900 });
