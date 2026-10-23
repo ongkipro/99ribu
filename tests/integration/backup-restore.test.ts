@@ -6,6 +6,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { after, before, test } from "node:test";
 import { symmetricEncrypt } from "better-auth/crypto";
+import postgres from "postgres";
 import { privateDirectory } from "../../src/config/local.ts";
 import { connectDatabase } from "../../src/db/client.ts";
 import { localSigningKey } from "../../src/modules/access/local-key.ts";
@@ -22,16 +23,17 @@ let photoPath: string | null = null;
 const users: string[] = [];
 let publicKey = "";
 
-function backup(args: string[], store: string) {
-  return new Promise<{ code: number | null; stdout: string; stderr: string }>((done) => {
+function backup(args: string[], store: string, onStart?: (child: ReturnType<typeof spawn>) => void) {
+  return new Promise<{ code: number | null; signal: NodeJS.Signals | null; stdout: string; stderr: string }>((done) => {
     const child = spawn(process.execPath, ["scripts/backup.ts", ...args], {
       env: { ...process.env, BACKUP_STORE: `file://${store}`, BACKUP_ESCROW_PUBLIC_KEY: publicKey },
     });
+    onStart?.(child);
     let stdout = "";
     let stderr = "";
     child.stdout.on("data", (chunk) => { stdout += chunk; });
     child.stderr.on("data", (chunk) => { stderr += chunk; });
-    child.on("close", (code) => done({ code, stdout, stderr }));
+    child.on("close", (code, signal) => done({ code, signal, stdout, stderr }));
   });
 }
 const restoreDatabases = async () => (await sql<{ datname: string }[]>`select datname from pg_database where datname like '99ribu\_restore\_%' order by 1`).map((row) => row.datname);
@@ -142,4 +144,46 @@ test("S85 drill fails when a restored staff TOTP secret does not decrypt with th
   const pruned = JSON.parse((await backup(["prune"], store)).stdout);
   assert.equal(pruned.prune, "dry-run");
   assert.deepEqual(pruned.remove, []);
+});
+
+test("S85 drill refuses a restore server that holds 99ribu_production", async () => {
+  // The compose cluster stands in for a server holding the live database. Created only if absent and
+  // dropped only if this test created it.
+  const admin = postgres({ path: join(privateDirectory("pgsocket"), ".s.PGSQL.5432"), database: "postgres", username: "bootstrap", max: 1, onnotice: () => {} });
+  let created = false;
+  try {
+    const before = await restoreDatabases();
+    const [existing] = await admin`select 1 from pg_database where datname = '99ribu_production'`;
+    if (!existing) {
+      await admin.unsafe('create database "99ribu_production"');
+      created = true;
+    }
+    const refused = await backup(["drill", "latest", "--escrow-private-key", join(root, "escrow.pem")], join(root, "store"));
+    assert.notEqual(refused.code, 0);
+    assert.match(refused.stderr, /holds 99ribu_production; drills run only on a disposable server/);
+    assert.deepEqual(await restoreDatabases(), before);
+  } finally {
+    try {
+      if (created) await admin.unsafe('drop database if exists "99ribu_production" with (force)');
+    } finally {
+      await admin.end();
+    }
+  }
+});
+
+test("S85 drill interrupted by SIGTERM drops its restore database", async () => {
+  const before = await restoreDatabases();
+  let poll: NodeJS.Timeout | undefined;
+  const result = await backup(["drill", "latest", "--escrow-private-key", join(root, "escrow.pem")], join(root, "store"), (child) => {
+    poll = setInterval(async () => {
+      if ((await restoreDatabases()).length > before.length) {
+        clearInterval(poll);
+        child.kill("SIGTERM");
+      }
+    }, 100);
+  });
+  clearInterval(poll);
+  assert.equal(result.code, 143, result.stderr);
+  assert.match(result.stderr, /interrupted by SIGTERM/);
+  assert.deepEqual(await restoreDatabases(), before, "the interrupted drill dropped its restore database");
 });

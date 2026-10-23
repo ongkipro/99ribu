@@ -44,6 +44,11 @@ test("auth escrow: only the owner's private key recovers the secret, and it must
   assert.equal(recoverSecret(escrowSecret(secret, owner.publicKey.replace(/\n/g, "\\n")).ciphertext, owner.privateKey, authFingerprint(secret)), secret);
   assert.throws(() => escrowSecret(secret, rsa(2048).publicKey), /3072/);
   assert.throws(() => escrowSecret("short", owner.publicKey), /too short/);
+  // Bounds are bytes: 20 two-byte characters escrow fine, 319 bytes exceed RSA-3072 OAEP-SHA256 (318).
+  assert.equal(recoverSecret(escrowSecret("é".repeat(20), owner.publicKey).ciphertext, owner.privateKey, authFingerprint("é".repeat(20))), "é".repeat(20));
+  assert.throws(() => escrowSecret("é".repeat(15), owner.publicKey), /too short/);
+  assert.throws(() => escrowSecret("x".repeat(319), owner.publicKey), /too long/);
+  escrowSecret("x".repeat(318), owner.publicKey);
 });
 
 test("files archive: exact manifest round trip with private modes; tampering, links and unsafe paths are refused", async () => {

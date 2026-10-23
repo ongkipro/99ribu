@@ -85,8 +85,11 @@ function escrowPublicKey(value: string): KeyObject {
 }
 
 export function escrowSecret(secret: string, publicKey: string) {
-  if (secret.length < 32) throw new Error("The auth secret to escrow is too short.");
   const key = escrowPublicKey(publicKey);
+  // RSA-OAEP-SHA256 carries at most k - 2*32 - 2 bytes (318 for 3072-bit keys); measure bytes, not UTF-16 units.
+  const bytes = Buffer.byteLength(secret, "utf8");
+  if (bytes < 32) throw new Error("The auth secret to escrow is too short.");
+  if (bytes > (key.asymmetricKeyDetails?.modulusLength ?? 0) / 8 - 66) throw new Error("The auth secret is too long for this escrow key.");
   const ciphertext = publicEncrypt({ key, padding: cryptoConstants.RSA_PKCS1_OAEP_PADDING, oaepHash: "sha256" }, Buffer.from(secret, "utf8"));
   return { ciphertext, escrowKey: sha256(key.export({ format: "der", type: "spki" })) };
 }

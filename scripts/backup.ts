@@ -34,10 +34,14 @@ type Pg = {
 
 const env = process.env;
 const RESTORE_DB = /^99ribu_restore_[0-9a-f]{32}$/;
+const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/;
+// Running pg tools, so a SIGTERM/SIGINT during a drill can stop them before the restore database is dropped.
+const children = new Set<ReturnType<typeof spawn>>();
 
 function run(command: string, args: string[], childEnv: Record<string, string | undefined>, io: { stdin?: string; stdout?: string }) {
   return new Promise<void>((done, fail) => {
     const child = spawn(command, args, { env: childEnv as NodeJS.ProcessEnv, stdio: [io.stdin ? "pipe" : "ignore", io.stdout ? "pipe" : "ignore", "pipe"] });
+    children.add(child);
     const errors: Buffer[] = [];
     child.stderr?.on("data", (chunk: Buffer) => errors.push(chunk));
     const out = io.stdout ? createWriteStream(io.stdout, { mode: 0o600, flags: "wx" }) : null;
@@ -48,6 +52,7 @@ function run(command: string, args: string[], childEnv: Record<string, string | 
     }
     child.on("error", fail);
     child.on("close", (code) => {
+      children.delete(child);
       const finish = () => code === 0 ? done() : fail(new Error(`${args.find((a) => a.startsWith("pg_")) ?? command} exited ${code}: ${Buffer.concat(errors).toString().slice(0, 2000)}`));
       if (out && !out.closed) out.on("close", finish); else finish();
     });
@@ -102,7 +107,7 @@ function sourcePg(target: Target) {
 async function authSecret(target: Target) {
   if (target === "production") {
     const secret = env.BETTER_AUTH_SECRET ?? "";
-    if (secret.length < 32) throw new Error("BETTER_AUTH_SECRET is missing or too short; nothing to escrow.");
+    if (Buffer.byteLength(secret) < 32) throw new Error("BETTER_AUTH_SECRET is missing or too short; nothing to escrow.");
     return secret;
   }
   const { localSigningKey } = await import("../src/modules/access/local-key.ts");
@@ -223,7 +228,48 @@ async function drill(requested: string, privateKeyPath: string) {
   const maintenance = pg.connect(pg.database);
   let created = false;
   let restored: Sql | null = null;
+  // Runs once: from the finally below, or from SIGTERM/SIGINT (container stop, operator Ctrl-C), so an
+  // interrupted drill never leaves its restore database or decrypted temporary files behind.
+  let cleaning: Promise<void> | null = null;
+  const cleanup = () => {
+    cleaning ??= (async () => {
+      for (const child of children) child.kill("SIGTERM");
+      try {
+        await restored?.end({ timeout: 5 });
+        // Only the disposable database this drill created is ever dropped.
+        if (created && RESTORE_DB.test(restoreDatabase)) await maintenance.unsafe(`drop database if exists ${quote(restoreDatabase)} with (force)`);
+      } finally {
+        await maintenance.end({ timeout: 5 });
+        await rm(work, { recursive: true, force: true });
+      }
+    })();
+    return cleaning;
+  };
+  const interrupted = (signal: NodeJS.Signals) => {
+    console.error(`Drill interrupted by ${signal}; dropping the restore database.`);
+    cleanup().finally(() => process.exit(signal === "SIGINT" ? 130 : 143));
+  };
+  process.once("SIGTERM", interrupted);
+  process.once("SIGINT", interrupted);
   try {
+    // A disposable server never holds the production database, and is never the live cluster itself
+    // (same system identifier), whatever host name or port the URLs use.
+    const [{ live }] = await maintenance<{ live: boolean }[]>`select exists (select 1 from pg_database where datname = '99ribu_production') as live`;
+    if (live) throw new Error("The restore server holds 99ribu_production; drills run only on a disposable server.");
+    if (env.RESTORE_ADMIN_URL && env.BACKUP_DATABASE_URL) {
+      const livePg = directPg("BACKUP_DATABASE_URL");
+      const liveSql = livePg.connect(livePg.database);
+      try {
+        const identifier = async (db: Sql) => (await db<{ id: string }[]>`select system_identifier::text as id from pg_control_system()`)[0].id;
+        const [restoreId, liveId] = await Promise.all([identifier(maintenance), identifier(liveSql)]);
+        if (restoreId === liveId) throw new Error("RESTORE_ADMIN_URL reaches the live database cluster; drills run only on a disposable server.");
+      } catch (error) {
+        if (error instanceof Error && error.message.includes("live database cluster")) throw error;
+        throw new Error("Cannot confirm that RESTORE_ADMIN_URL is not the live cluster (system identifier unreadable); drill refused.");
+      } finally {
+        await liveSql.end({ timeout: 5 });
+      }
+    }
     await store.get(`${id}/manifest.json`, join(work, "manifest.json"));
     const manifest = parseManifest(await readFile(join(work, "manifest.json")));
     if (manifest.id !== id) throw new Error("Backup manifest id does not match its set.");
@@ -284,6 +330,23 @@ async function drill(requested: string, privateKeyPath: string) {
     for (const { name } of referenced) if (!name || !(await resolveCatalogMedia(name, mediaDirectory))) missing++;
     if (missing && manifest.target !== "test") throw new Error(`${missing} referenced catalog photo(s) are missing from the restored volume.`);
 
+    // 5b. Every private artifact a row points at (label PDFs, payout/return evidence, support attachments:
+    //     any app column named storage_key or artifact_id) is in the restored volume. Same `test` exception.
+    const artifactFiles = new Set(manifest.files.filter((file) => file.path.startsWith("artifacts/")).map((file) => file.path.slice("artifacts/".length)));
+    const artifactColumns = await db<{ table_name: string; column_name: string }[]>`
+      select table_name, column_name from information_schema.columns
+      where table_schema = 'app' and column_name in ('storage_key', 'artifact_id') order by 1, 2`;
+    let artifactReferences = 0;
+    let missingArtifacts = 0;
+    for (const { table_name, column_name } of artifactColumns) {
+      const rows = await db.unsafe<{ id: string }[]>(`select distinct ${quote(column_name)}::text as id from app.${quote(table_name)} where ${quote(column_name)} is not null`);
+      for (const { id: artifact } of rows) {
+        artifactReferences++;
+        if (!UUID.test(artifact) || !artifactFiles.has(artifact)) missingArtifacts++;
+      }
+    }
+    if (missingArtifacts && manifest.target !== "test") throw new Error(`${missingArtifacts} referenced private artifact(s) are missing from the restored volume.`);
+
     // 6. Staff MFA survives the restore: every stored TOTP secret and backup-code set decrypts with the
     //    escrowed secret, exactly as Better Auth's two-factor plugin reads them.
     const factors = await db<{ secret: string; backup_codes: string }[]>`select secret, backup_codes from app.auth_two_factor`;
@@ -304,17 +367,12 @@ async function drill(requested: string, privateKeyPath: string) {
     console.log(JSON.stringify({
       drill: "PASS", backup: id, source_target: manifest.target, restored_database: restoreDatabase, tables: Object.keys(counts).length,
       rows: Object.values(counts).reduce((sum, n) => sum + n, 0), unbalanced_journals: 0, files: manifest.files.length, photos: photos.length,
-      referenced_photos: referenced.length, missing_photos: missing, totp_factors: factors.length, catalog, elapsed_ms: Date.now() - started,
+      referenced_photos: referenced.length, missing_photos: missing, referenced_artifacts: artifactReferences, missing_artifacts: missingArtifacts, totp_factors: factors.length, catalog, elapsed_ms: Date.now() - started,
     }));
   } finally {
-    try {
-      await restored?.end();
-      // Only the disposable database this drill created is ever dropped.
-      if (created && RESTORE_DB.test(restoreDatabase)) await maintenance.unsafe(`drop database if exists ${quote(restoreDatabase)} with (force)`);
-    } finally {
-      await maintenance.end();
-      await rm(work, { recursive: true, force: true });
-    }
+    process.off("SIGTERM", interrupted);
+    process.off("SIGINT", interrupted);
+    await cleanup();
   }
 }
 
