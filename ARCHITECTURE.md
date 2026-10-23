@@ -392,9 +392,9 @@ Better Auth (`src/modules/access/auth.ts:createLocalAuth`) runs email/password w
 | `ecommerce_admin` | Assigned warehouses | Catalog (edit), fulfillment (incl. pickup profiles), print center (sidebar entry since the 2026-10-24 owner decision) | Required |
 | `warehouse` | Assigned origin warehouses (at least one) | Catalog (stock view), fulfillment, print center | Required |
 | `customer_service` | Not warehouse-scoped; replies only on claimed conversations | `/admin/support` | Required |
-| `finance` | Company-wide finance; order history needs warehouse scope | Payments, COD settlements (with `finance.reconciliation.read`; confirm/record controls need `finance.reconciliation.write`, otherwise disabled with a reason), catalog costs (with `finance.costs.read`) | Required; reauthentication proof for reconcile/refund/confirm actions |
+| `finance` | Company-wide finance; order history needs warehouse scope | Payments, COD settlements (with `finance.reconciliation.read`; confirm/record controls need `finance.reconciliation.write`, otherwise disabled with a reason), catalog costs (with `finance.costs.read`) | Required; reauthentication proof for reconcile/refund/confirm and payout claim/verify actions |
 | `buyer` | Own resources (default when no grant row) | — | No |
-| `affiliate` | Own profile, balances, payouts | — (`/afiliasi`) | No; beneficiary change needs a reauthentication proof |
+| `affiliate` | Own profile, balances, payouts | — (`/afiliasi`) | No; beneficiary change needs an `affiliate.beneficiary_change` proof (password reauthentication) |
 
 ```mermaid
 sequenceDiagram
@@ -420,6 +420,15 @@ sequenceDiagram
     API->>DB: consumeAccessProof, domain effect, audit_event in one transaction
   end
 ```
+
+Step-up proofs have one implementation: `access/grants.ts:issueAccessProof` issues and `consumeAccessProof` verifies. A proof is an HMAC (keyed by the auth secret) over session, action, subject and idempotency key. Only its digest is stored, it expires after 5 minutes, and the mutation's transaction consumes it once, scoped to the same session, action and subject. Anything else is refused with 403 `REAUTHENTICATION_REQUIRED`, and a failed mutation rolls the consumption back. Purposes and their issuers:
+
+- **Owner only:** `staff_roles.replace`, the policy, calendar and publication purposes, and `affiliate_rate.version`.
+- **Finance with both read and write grants:** `finance.reconcile` uses the reconciliation grants. `finance.refund` and `finance.recovery_refund` use the refund grants.
+- **Owner or finance role:** `payout.claim` and `payout.verify`, with the payout UUID as subject.
+- **Password only, no MFA:** `affiliate.beneficiary_change` binds the caller's own affiliate account UUID. `support.contact_rebind` binds the caller's own user id.
+
+Staff purposes also require MFA verified within the last 5 minutes. Admin reporting filter and drilldown tokens are signed with `checkout/access.ts:mac(identity, 'reporting-filter', …)`. They are keyed by the running profile's auth secret and have no fallback key. The export endpoints check permissions on the server. `POST /admin/export-selections` needs `exports.read` and `POST /admin/exports` (the CSV download) needs `exports.download`. The owner role holds both through `hasPermission`.
 
 Guest commerce authority (ADR-0007) uses HttpOnly capability cookies, never URL tokens: `commerce_guest` (7 days), `cart_access`, `order_access` (path `/api/v1/orders/<id>`), and the alias `checkout_access` (path `/checkout/order/<id>`); verified guest-order access goes through `guest-order-access/challenges`. Sign-in and sign-out revoke the guest context. The console navigation (`src/app/admin/(console)/staff-roles.ts`) is only a convenience gate; `src/components/admin/console-access.ts:consoleAccess` derives the sidebar entries, finance write controls, CSV export (`exports.download`) and KPI shortcuts from the same roles and grants, and the signed-out preview offers no actions. Every API handler rechecks role, warehouse scope and MFA.
 
@@ -772,9 +781,10 @@ Recorded 2026-10-23 from the code on disk. The decision text is not changed here
 | 7 | DEC-008 (3): store-borne AutoLaris admin fee recorded as a payment cost when deducted from settlement | Only the host-only simulator `simulateAutolarisSettlement` produces such a settlement; no job creates it from AutoLaris data. |
 | 8 | DEC-007 (7): a statement whose gross ≠ net + deductions is flagged `SETTLEMENT_TOTAL_MISMATCH` | `recordCodRemittance` refuses it with 422 `STATEMENT_TOTAL_MISMATCH` and stores nothing, so the projection flag of the same name cannot fire. |
 | 9 | DEC-009 (2): COD fee base is merchandise after merchandise reductions | The base is gross parcel merchandise plus net shipping. Equal today because promotions only subsidise shipping. |
-| 10 | Access contract: `finance.recovery_refund` proof purpose | Handlers in `checkout/exceptions/refunds.ts` consume that purpose, but `access/grants.ts:issueAccessProof` cannot issue it; only tests insert such proofs directly. |
+| 10 | Access contract: `finance.recovery_refund` proof purpose | Resolved on branch `security-step-up-proofs`: `issueAccessProof` issues it to owner or finance holding `finance.refunds.read` + `.write`. Existing recovery-refund tests still insert proof rows directly; they could now use the issuance route. |
 | 11 | Affiliate enrollment (`/api/v1/me/affiliate`) | Enrollment requires the `affiliate` role to exist already; no API grants it (only local seed code does). |
 | 12 | RELEASE.md production runbook step 10: "12 categories" | DEC-011 and the generator define 14 departments. |
+| 13 | Support contact replacement requires "original-identity reauthentication" (openapi `SupportContactBindingInput`) | Guest: no password session and no reviewed reauthentication method, so contact replacement (`expected_version ≥ 1`) is refused with 403 `REAUTHENTICATION_REQUIRED`. Verification writes only a first binding (`contact_verified_at is null`), so a second challenge staged at version 0 returns 409 `VERSION_CONFLICT` and cannot overwrite a contact verified meanwhile. Initial binding is unchanged; a guest old-contact challenge needs an IAM/product decision. Signed-in user: a `support.contact_rebind` proof gates only challenge issuance. Verifying a user challenge writes no user-side binding, and the version is read from `buyer_profile.phone_verified_at`, which this flow never sets. So for users the flow creates and verifies a challenge but stores no recovery contact. |
 
 ## Appendix: slice implementation notes (historical)
 

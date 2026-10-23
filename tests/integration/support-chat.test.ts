@@ -1,7 +1,8 @@
 import assert from "node:assert/strict";
 import { randomUUID } from "node:crypto";
 import test from "node:test";
-import type { LocalAuth } from "../../src/modules/access/auth.ts";
+import { createLocalAuth, type LocalAuth } from "../../src/modules/access/auth.ts";
+import { handleAccess } from "../../src/modules/access/routes.ts";
 import {
 	bootstrapGuest,
 	capability,
@@ -1006,5 +1007,134 @@ test("S41-S43 integration: native customer support chat, verified order/product 
 		} finally {
 			await f.close();
 		}
+	}
+});
+
+test("S41 contact rebinding requires a real session/action/subject-bound single-use reauthentication proof", async () => {
+	const identity = createLocalAuth("test");
+	const sql = identity.sql;
+	const buyer = await actor(identity, "buyer", []);
+	const otherBuyer = await actor(identity, "buyer", []);
+	const guest = new SupportClient(identity);
+	try {
+		await sql`insert into app.buyer_profile (user_id, display_name, email, phone, phone_verified_at)
+			values (${buyer.id}, 'Synthetic Rebind', ${buyer.email}, '+6281300000001', clock_timestamp())`;
+		const issue = (who: typeof buyer, subjectId: string) => {
+			const request = who.browser.request("/api/v1/me/reauthentication-proofs", {
+				password: who.password,
+				action: "support.contact_rebind",
+				subject_id: subjectId,
+			});
+			request.headers.set("idempotency-key", randomUUID());
+			return handleAccess(request, identity);
+		};
+		const proofFor = async (who: typeof buyer) => {
+			const response = await issue(who, who.id);
+			assert.equal(response.status, 201, "self rebind proof issuance");
+			return String((await response.json()).proof);
+		};
+		const rebind = (proof: string) => {
+			const request = buyer.browser.request("/api/v1/support/contact-challenges", {
+				expected_version: 1,
+				contact: { kind: "phone", phone: "+6281300000002" },
+				reauthentication_proof: proof,
+			});
+			request.headers.set("idempotency-key", randomUUID());
+			return handleSupport(request, identity);
+		};
+		const rejected = async (proof: string, scenario: string) => {
+			const response = await rebind(proof);
+			assert.equal(response.status, 403, scenario);
+			assert.equal((await response.json()).code, "REAUTHENTICATION_REQUIRED", scenario);
+		};
+		const challengeCount = async () =>
+			Number((await sql`select count(*)::int n from app.support_challenge where actor_scope=${`user:${buyer.id}`}`)[0].n);
+
+		// Issuance only binds the caller's own identity.
+		const foreign = await issue(buyer, otherBuyer.id);
+		assert.equal(foreign.status, 403);
+		assert.equal((await foreign.json()).code, "FORBIDDEN");
+
+		await rejected(`random-${randomUUID()}`, "random unissued string");
+		await rejected(await proofFor(otherBuyer), "another user's session proof");
+		const otherAction = await proofFor(buyer);
+		await sql`update app.access_proof set action='affiliate.beneficiary_change'
+			where subject_id=${buyer.id} and action='support.contact_rebind' and consumed_at is null`;
+		await rejected(otherAction, "proof bound to another action");
+		const otherSubject = await proofFor(buyer);
+		await sql`update app.access_proof set subject_id=${otherBuyer.id}
+			where subject_id=${buyer.id} and action='support.contact_rebind' and consumed_at is null`;
+		await rejected(otherSubject, "proof bound to another subject");
+		const expired = await proofFor(buyer);
+		await sql`update app.access_proof set expires_at=clock_timestamp()-interval '1 second'
+			where subject_id=${buyer.id} and action='support.contact_rebind' and consumed_at is null`;
+		await rejected(expired, "expired proof");
+		assert.equal(await challengeCount(), 0, "rejected proofs create no challenge");
+
+		const valid = await proofFor(buyer);
+		const accepted = await rebind(valid);
+		assert.equal(accepted.status, 201);
+		assert.ok((await accepted.json()).challenge_id);
+		await rejected(valid, "consumed proof cannot be replayed");
+		assert.equal(await challengeCount(), 1);
+
+		// A guest support identity has no password session: replacement fails closed.
+		await guest.call("/api/v1/guest-support-sessions", {
+			body: { client_request_id: `req-${randomUUID()}` },
+		});
+		const randomPhone = () =>
+			`+62813${String(Math.floor(Math.random() * 1e8)).padStart(8, "0")}`;
+		const phone = randomPhone();
+		const stagedPhone = randomPhone();
+		const challenge = async (contactPhone: string) => {
+			const res = await guest.call("/api/v1/support/contact-challenges", {
+				body: { expected_version: 0, contact: { kind: "phone", phone: contactPhone } },
+			});
+			assert.equal(res.response.status, 201);
+			return res.payload.challenge_id as string;
+		};
+		const verify = async (challengeId: string, contactPhone: string) =>
+			guest.call(`/api/v1/support/contact-challenges/${challengeId}/verifications`, {
+				body: {
+					proof: await supportChallengeProof(
+						identity,
+						challengeId,
+						"contact_binding",
+						`phone:${contactPhone}`,
+					),
+				},
+			});
+		// Both challenges are staged at version 0 before either is verified.
+		const first = await challenge(phone);
+		const staged = await challenge(stagedPhone);
+		assert.equal((await verify(first, phone)).response.status, 201);
+		// The staged version-0 challenge cannot replace the contact verified meanwhile.
+		const overwrite = await verify(staged, stagedPhone);
+		assert.equal(overwrite.response.status, 409);
+		assert.equal(JSON.parse(String(overwrite.payload)).code, "VERSION_CONFLICT");
+		const guestId = String(guest.cookies.get([...guest.cookies.keys()].find((name) => name.endsWith(".support_guest")) ?? "")).split(".")[0];
+		const [boundContact] = await sql`select contact_value from app.guest_support_identity where id=${guestId}`;
+		assert.equal(boundContact.contact_value, `phone:${phone}`, "verified contact unchanged");
+		const [stagedRow] = await sql`select verified_at from app.support_challenge where id=${staged}`;
+		assert.equal(stagedRow.verified_at, null, "refused verification does not consume the challenge seal");
+		const guestRebind = await guest.call("/api/v1/support/contact-challenges", {
+			body: {
+				expected_version: 1,
+				contact: { kind: "phone", phone: "+6281300000003" },
+				reauthentication_proof: `forged-${randomUUID()}`,
+			},
+		});
+		assert.equal(guestRebind.response.status, 403);
+		assert.equal(
+			JSON.parse(String(guestRebind.payload)).code,
+			"REAUTHENTICATION_REQUIRED",
+		);
+	} finally {
+		const scopes = [`user:${buyer.id}`, `user:${otherBuyer.id}`];
+		await sql`delete from app.support_challenge where actor_scope in ${sql(scopes)}`;
+		await sql`delete from app.access_operation where actor_id in ${sql(scopes)}`;
+		await sql`delete from app.buyer_profile where user_id=${buyer.id}`;
+		await cleanup(identity, [buyer, otherBuyer]);
+		await sql.end();
 	}
 });

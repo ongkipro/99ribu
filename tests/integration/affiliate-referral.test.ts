@@ -17,6 +17,7 @@ import { createCart } from "../../src/modules/checkout/carts.ts";
 import { submitOrder } from "../../src/modules/checkout/orders.ts";
 import { createQuote } from "../../src/modules/checkout/quotes.ts";
 import { LIMITS } from "../../src/modules/access/rate-limit.ts";
+import { handleAccess } from "../../src/modules/access/routes.ts";
 import { actor } from "../contract/access-fixture.ts";
 import { CommerceClient } from "./checkout-fixture.ts";
 import { closeFulfillmentActor } from "./fulfillment-fixture.ts";
@@ -96,36 +97,114 @@ test("PR-8: affiliate enrollment, beneficiary verification, sticky first-touch r
 		const profileB = await enrollResB.json();
 		assert.notEqual(profileA.id, profileB.id);
 
-		// 3. Beneficiary change requires step-up proof and masks account number
-		const badProofReq = affiliateA.browser.request(
-			"/api/v1/me/affiliate/beneficiary-changes",
-			{
-				bank_code: "BCA",
-				account_number: "1234567890",
-				account_holder_name: "Mitra A",
-				reauthentication_proof: "invalid-proof",
-			},
-		);
-		badProofReq.headers.set("idempotency-key", randomUUID());
-		const badProofRes = await handleAffiliateProfile(badProofReq, identity);
-		assert.equal(badProofRes.status, 403);
+		// 3. Beneficiary change requires a real password-reauthentication proof bound to
+		// this session, action and the caller's own affiliate account; masks account number.
+		const issueProof = async (
+			who: typeof affiliateA,
+			action: string,
+			subjectId: string,
+		) => {
+			const request = who.browser.request("/api/v1/me/reauthentication-proofs", {
+				password: who.password,
+				action,
+				subject_id: subjectId,
+			});
+			request.headers.set("idempotency-key", randomUUID());
+			return handleAccess(request, identity);
+		};
+		const proofFor = async (
+			who: typeof affiliateA,
+			action: string,
+			subjectId: string,
+		) => {
+			const response = await issueProof(who, action, subjectId);
+			assert.equal(response.status, 201, `${action} proof issuance`);
+			return String((await response.json()).proof);
+		};
+		const changeBeneficiary = (proof: string) => {
+			const request = affiliateA.browser.request(
+				"/api/v1/me/affiliate/beneficiary-changes",
+				{
+					bank_code: "BCA",
+					account_number: "1234567890",
+					account_holder_name: "Mitra A",
+					reauthentication_proof: proof,
+				},
+			);
+			request.headers.set("idempotency-key", randomUUID());
+			return handleAffiliateProfile(request, identity);
+		};
+		const rejected = async (proof: string, scenario: string) => {
+			const response = await changeBeneficiary(proof);
+			assert.equal(response.status, 403, scenario);
+			assert.equal(
+				(await response.json()).code,
+				"REAUTHENTICATION_REQUIRED",
+				scenario,
+			);
+		};
+		const beneficiaryRevision = async () =>
+			(
+				await sql`select beneficiary_revision from app.affiliate_profile where affiliate_id=${profileA.id}`
+			)[0].beneficiary_revision;
+		const revisionBefore = await beneficiaryRevision();
 
-		const validBenReq = affiliateA.browser.request(
-			"/api/v1/me/affiliate/beneficiary-changes",
-			{
-				bank_code: "BCA",
-				account_number: "1234567890",
-				account_holder_name: "Mitra A",
-				reauthentication_proof: `proof-${randomUUID()}`,
-			},
+		await rejected("invalid-proof", "shape-only rejection still holds");
+		await rejected(`proof-${randomUUID()}`, "random unissued string");
+		await rejected(
+			await proofFor(affiliateA, "support.contact_rebind", affiliateA.id),
+			"proof issued for another action",
 		);
-		validBenReq.headers.set("idempotency-key", randomUUID());
-		const validBenRes = await handleAffiliateProfile(validBenReq, identity);
+		await rejected(
+			await proofFor(
+				affiliateB,
+				"affiliate.beneficiary_change",
+				profileB.id,
+			),
+			"another affiliate's session/account proof",
+		);
+		// Issuance never binds another affiliate's account to the caller.
+		const foreignIssue = await issueProof(
+			affiliateA,
+			"affiliate.beneficiary_change",
+			profileB.id,
+		);
+		assert.equal(foreignIssue.status, 403);
+		assert.equal((await foreignIssue.json()).code, "FORBIDDEN");
+		const expired = await proofFor(
+			affiliateA,
+			"affiliate.beneficiary_change",
+			profileA.id,
+		);
+		await sql`update app.access_proof set expires_at=clock_timestamp()-interval '1 second'
+			where subject_id=${profileA.id} and action='affiliate.beneficiary_change' and consumed_at is null`;
+		await rejected(expired, "expired proof");
+		const otherSubject = await proofFor(
+			affiliateA,
+			"affiliate.beneficiary_change",
+			profileA.id,
+		);
+		await sql`update app.access_proof set subject_id=${randomUUID()}
+			where subject_id=${profileA.id} and action='affiliate.beneficiary_change' and consumed_at is null and expires_at>clock_timestamp()`;
+		await rejected(otherSubject, "proof bound to another subject");
+		assert.equal(
+			await beneficiaryRevision(),
+			revisionBefore,
+			"rejected proofs leave the payout destination unchanged",
+		);
+
+		const validProof = await proofFor(
+			affiliateA,
+			"affiliate.beneficiary_change",
+			profileA.id,
+		);
+		const validBenRes = await changeBeneficiary(validProof);
 		assert.equal(validBenRes.status, 202);
 		const benBody = await validBenRes.json();
 		assert.equal(benBody.bank_name, "BCA");
 		assert.equal(benBody.masked_account, "••••7890");
 		assert.equal(benBody.status, "verified");
+		await rejected(validProof, "consumed proof cannot be replayed");
 
 		// 4. Sticky first-touch attribution: Affiliate A touch is recorded; later Affiliate B touch is retained_existing
 		const visitorId = randomUUID();

@@ -272,3 +272,34 @@ test("grant commit serializes against independent owner demotion and session del
     }
   } finally { await cleanup(identity, users); await identity.sql.end(); }
 });
+
+test("reviewed proof purposes: recovery-refund and payout proofs are issuable only to their authority; self purposes bind the caller", async () => {
+  const identity = createLocalAuth("test"); const users: { id: string; email: string }[] = [];
+  try {
+    const refunds = await actor(identity, "finance", []); users.push(refunds); await enroll(refunds.browser, refunds.password);
+    const plainFinance = await actor(identity, "finance", []); users.push(plainFinance); await enroll(plainFinance.browser, plainFinance.password);
+    const warehouse = await actor(identity, "warehouse", []); users.push(warehouse); await enroll(warehouse.browser, warehouse.password);
+    const buyer = await actor(identity, "buyer", []); users.push(buyer);
+    const other = await actor(identity, "buyer", []); users.push(other);
+    await identity.sql`update app.role_grant set permissions=${["finance.refunds.read", "finance.refunds.write"]} where user_id=${refunds.id}`;
+    const issue = async (who: typeof buyer, action: string, subjectId: string, password = who.password) => {
+      const request = who.browser.request("/api/v1/me/reauthentication-proofs", { password, action, subject_id: subjectId });
+      request.headers.set("idempotency-key", randomUUID());
+      const response = await handleAccess(request, identity);
+      return { status: response.status, code: (await response.json()).code as string | undefined };
+    };
+    const subject = randomUUID();
+    assert.equal((await issue(refunds, "finance.recovery_refund", subject.toUpperCase())).status, 201, "recovery refund proof was previously unissuable");
+    const [stored] = await identity.sql`select action,subject_id from app.access_proof where subject_id=${subject}`;
+    assert.deepEqual({ ...stored }, { action: "finance.recovery_refund", subject_id: subject }, "UUID subject canonicalized");
+    assert.equal((await issue(plainFinance, "finance.recovery_refund", subject)).status, 403, "refund grants required");
+    assert.equal((await issue(plainFinance, "payout.claim", subject)).status, 201, "finance role may claim payouts");
+    assert.equal((await issue(plainFinance, "payout.verify", "not-a-uuid")).status, 400);
+    assert.equal((await issue(warehouse, "payout.claim", subject)).status, 403);
+    assert.equal((await issue(buyer, "payout.claim", subject)).status, 403);
+    assert.equal((await issue(buyer, "affiliate.beneficiary_change", subject)).status, 403, "affiliate role required");
+    assert.equal((await issue(buyer, "support.contact_rebind", other.id)).status, 403, "only the caller's own identity");
+    assert.deepEqual(await issue(buyer, "support.contact_rebind", buyer.id, "incorrect-synthetic-password"), { status: 403, code: "REAUTHENTICATION_REQUIRED" });
+    assert.equal((await issue(buyer, "support.contact_rebind", buyer.id)).status, 201, "buyer reauthenticates by password without MFA");
+  } finally { await cleanup(identity, users); await identity.sql.end(); }
+});

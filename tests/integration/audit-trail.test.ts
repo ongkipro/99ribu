@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import { randomUUID } from "node:crypto";
 import test from "node:test";
 import type { LocalAuth } from "../../src/modules/access/auth.ts";
+import { handleAccess } from "../../src/modules/access/routes.ts";
 import { handleAdvertisingDiagnostics } from "../../src/modules/advertising/diagnostics.ts";
 import { handleAffiliateProfile } from "../../src/modules/affiliates/profile.ts";
 import {
@@ -399,9 +400,16 @@ test("S73: registering a payout evidence slot audits the replaced evidence refer
 		);
 		assert.ok(payout);
 
+		const proofReq = finance.browser.request(
+			"/api/v1/me/reauthentication-proofs",
+			{ password: finance.password, action: "payout.claim", subject_id: payout.id },
+		);
+		proofReq.headers.set("idempotency-key", randomUUID());
+		const proofRes = await handleAccess(proofReq, identity);
+		assert.equal(proofRes.status, 201);
 		const claimReq = finance.browser.request(
 			`/api/v1/admin/payouts/${payout.id}/manual-transfer-claims`,
-			{ expected_version: 1, reauthentication_proof: `audit-${randomUUID()}` },
+			{ expected_version: 1, reauthentication_proof: (await proofRes.json()).proof },
 		);
 		claimReq.headers.set("idempotency-key", randomUUID());
 		assert.equal((await handlePayouts(claimReq, identity)).status, 200);
