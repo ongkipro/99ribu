@@ -32,7 +32,7 @@ From a clean checkout on this host (Node 24.21.0, PostgreSQL 18.6; details in th
 ```bash
 npm ci --ignore-scripts
 npm run db:up                                   # private Unix-socket cluster, 99ribu_local + 99ribu_test
-npm run db:migrate -- local                     # 0000–0034
+npm run db:migrate -- local                     # 0000–0035
 npm run db:migrate -- test
 npm run fixture -- commercial-terms local demo  # commercial policy baseline required for publication (idempotent)
 npm run fixture -- payment-terms local demo     # DEC-008/009 payment terms: manual bank transfer, COD fee
@@ -125,9 +125,9 @@ npm run db:status
 npm run db:stop
 ```
 
-`db:up` is idempotent for this worktree; `db:stop` preserves its data. No reset/drop/delete command is provided. Existing project containers are untouched. `db:generate -- --name=<change>` creates migration SQL for review; it does not apply it. `db:migrate` accepts only local/test, uses the owner role, and records applied history through Drizzle. Domain table definitions belong in `src/db/schema.ts` or their imported modules; existing applied SQL is never edited.
+`db:up` is idempotent for this worktree; `db:stop` preserves its data. No reset/drop/delete command is provided. Existing project containers are untouched. `db:generate -- --name=<change>` creates migration SQL for review; it does not apply it. `db:migrate` accepts `local`/`test` (this socket profile) and `production` (S83, see "Production profile"), uses the owner role, holds a PostgreSQL advisory lock for the whole run so concurrent runs serialise (the second applies nothing), prints `newly applied: <n>`, and records applied history through Drizzle. Domain table definitions belong in `src/db/schema.ts` or their imported modules; existing applied SQL is never edited.
 
-Application roles can use the app schema and its data but cannot create schema objects or connect to the other database. The client refuses DATABASE_URL and PG* connection overrides; only the validated private socket/profile is used. Database tests must fail if that service is unavailable. Storage routines write immutable random UUID artifacts at 0600 under private `.local/artifacts/`, reject traversal/symlinks/broad permissions and expose no HTTP route. Future domain endpoints must authorize each artifact read/write before calling these routines.
+Application roles can use the app schema and its data but cannot create schema objects or connect to the other database. The client refuses DATABASE_URL and PG* connection overrides; only the validated private socket/profile (or, under `APP_ENV=production`, the validated TCP target) is used, and a database target that does not match `APP_ENV` is refused. Database tests must fail if that service is unavailable. Storage routines write immutable random UUID artifacts at 0600 under private `.local/artifacts/`, reject traversal/symlinks/broad permissions and expose no HTTP route. Future domain endpoints must authorize each artifact read/write before calling these routines.
 
 Migration 0000 initializes the private app schema. Migration 0001 records that already-created schema in the generated Drizzle snapshot with an idempotent statement; the previously-applied 0000 history stays intact. No commerce tables are claimed by this namespace foundation.
 
@@ -191,16 +191,57 @@ Append-only migration 0004 preserves pre-S05 inbox deliveries by copying created
 Locking semantics: [PostgreSQL18 SELECT locking clause](https://www.postgresql.org/docs/18/sql-select.html#SQL-FOR-UPDATE-SHARE). Future release orchestration and restart supervision remain separate tasks.
 
 
+## Production profile (S82/S83)
+
+`APP_ENV=production` is a second runtime profile beside the unchanged local profile (`src/config/runtime.ts`). It exists for the Vultr + Coolify migration (`RELEASE.md` "Production migration"); nothing here deploys anything. Every value comes from the container environment; nothing is read from `.local/`, and no value is ever printed (validation errors name the variable, never its value).
+
+| Variable | Rule |
+|---|---|
+| `APP_ENV` | `production` |
+| `APP_ORIGIN` | Exact `https://` origin of a public DNS host (OD-1: `https://99ribu.com`): no path, trailing slash, query, credentials, IP literal, `localhost`, `*.ts.net`, `.local`/`.internal` |
+| `BETTER_AUTH_URL` | Required, equal to `APP_ORIGIN`; `BETTER_AUTH_TRUSTED_ORIGINS`, if set, must also equal it (no second origin) |
+| `BETTER_AUTH_SECRET` | ≥32 random bytes, base64/base64url/hex (`openssl rand -base64 48`); `BETTER_AUTH_SECRETS`/`AUTH_SECRET` refused. It also encrypts staff TOTP secrets: escrow it with the backups (S85) |
+| `PAYMENT_ADAPTER`, `SHIPPING_ADAPTER`, `ADS_ADAPTER`, `NOTIFICATION_ADAPTER`, `PAYOUT_ADAPTER` | Each exactly `disabled`. `simulated` would create fake effects; any live value is refused until that provider's gate passes |
+| `EXTERNAL_DISPATCH` | `disabled` |
+| `CLIENT_IP_HEADER` | The one trusted proxy's client-address header: `x-real-ip` (Coolify proxy) or `cf-connecting-ip` (Cloudflare, origin locked to Cloudflare); OD-9 picks one. `X-Forwarded-For` is never read |
+| `DATABASE_HOST`, `DATABASE_PORT` | Private-network database host (Docker service name or IP) and port (default 5432); `DATABASE_URL` and `PG*` are refused |
+| `DATABASE_APP_PASSWORD`, `DATABASE_OWNER_PASSWORD` | SCRAM passwords of `99ribu_production_app` (web, worker) and `99ribu_production_owner` (migrations only), ≥16 characters |
+| `PORT` | Listener port inside the container (default 3000); the listener is `0.0.0.0:<PORT>` |
+
+Also refused: `LOCAL_TAILNET_ORIGIN`, provider credentials (`AUTOLARIS_`, `MENGANTAR_`, `META_`, …). The process environment wins over the `--env-file=.env.example` that the npm scripts pass, and every adapter must be set explicitly, so a missing variable fails closed.
+
+What the profile does: Better Auth uses the env secret, `__Secure-` Secure cookies and the configured origin as its only trusted origin; app cookies (`commerce_guest`, `cart_access`, …) share the `__Secure-99ribu-production` prefix. Mutations need the exact `APP_ORIGIN` Host and Origin. Sign-in, guest bootstrap and the Better Auth ceilings key on the trusted proxy's client IP (`503 CLIENT_IP_UNAVAILABLE` without it). Order placement answers `503 CHECKOUT_CLOSED` and money postings `PRODUCTION_MONEY_PATH_GATED` (OD-7: catalog-only launch); sign-up, password reset and verification email answer `503 NOTIFICATION_DISABLED` (S86/OD-8). `public/prototypes/` is rewritten to the 404 page. Every `src/modules/local/*` command, the in-process `local-fixture-command` flows, `fixture`/`login`/`login-codes`/`prune-accounts` and the simulated worker commands keep calling the local reader and refuse. The worker runs only its job loop with every adapter disabled.
+
+Database (S83), once per server, as the PostgreSQL superuser (no password in the file, a shell argument or history):
+
+```bash
+psql -v ON_ERROR_STOP=1 -U postgres -f src/db/bootstrap-production.sql   # roles + 99ribu_production + revokes; a second run fails
+psql -U postgres -c '\password "99ribu_production_owner"'                # SCRAM verifier, typed interactively
+psql -U postgres -c '\password "99ribu_production_app"'
+```
+
+Commands inside the container (production environment set):
+
+```bash
+npm run db:migrate -- production     # owner role over TCP, advisory-locked, expand-only migrations 0000–0035
+npm run build                        # NODE_ENV=production; no database needed at build time
+npm start                            # next start on 0.0.0.0:$PORT (no dev server in this profile)
+node --env-file=.env.example scripts/worker.ts production   # job loop only, dispatch=disabled
+npm run health -- ready              # probes http://127.0.0.1:$PORT/api/health inside the container
+```
+
+The production pool is 5 connections with `statement_timeout` 10 s, `lock_timeout` 5 s and `idle_in_transaction_session_timeout` 30 s; `/api/health` reuses the web process's app pool. TLS to the database is not used on the private network. Migration `0035` adds `'production'` to the 19 money-table `environment` CHECKs (expand-only; nothing else in those constraints changes). Still open before exposure: whether the chosen proxy overwrites a client-sent `X-Real-Ip`/`CF-Connecting-IP` (S84/S88), the 2FA budget review against load evidence, the container image and topology (S84), backups (S85), real staff accounts (S86) and the production catalog load (S87).
+
 ## Acceptance command registry
 
 Run from this worktree with migrations applied to local and test. Use the exact commands below; selectors from later task procedures remain unimplemented until their owning slices add verified cases. Each implemented selector is documented in its checkpoint section below. The small wrapper selects Node-native test files and checks their events; it introduces no separate test framework. Missing/unknown/duplicate/extra selectors, skipped/TODO/cancelled tests, empty files and failed checks produce a nonzero exit. A missing database fails preflight before tests run. Files run serially; do not run another acceptance process against the same databases concurrently.
 
 | Command | Required state | Executed scope |
 |---|---|---|
-| `npm run check` | Locked dependencies installed | Lint, generated Next types/TypeScript, 31 configuration/startup/runner tests |
+| `npm run check` | Locked dependencies installed | Lint, generated Next types/TypeScript, 105 configuration/startup/runner tests (including the S82 production-profile refusals) |
 | `npm run build` | Valid local profile | Production build; does not prove UI or database behavior |
 | `npm run test:integration -- --case=foundation` | Isolated test DB migrated and running | 5 files, 24 database/storage/key/auth/worker checks |
-| `npm run test:integration -- --case=all-current` | Isolated test DB migrated (`0000`–`0034`); built web running on `127.0.0.1:3099`; `PLAYWRIGHT_CHROMIUM_EXECUTABLE` set | All 176 current runtime integration test files (historical pre-migration candidates live in `tests/historical/`) |
+| `npm run test:integration -- --case=all-current` | Isolated test DB migrated (`0000`–`0035`); built web running on `127.0.0.1:3099`; `PLAYWRIGHT_CHROMIUM_EXECUTABLE` set | All 178 current runtime integration test files (historical pre-migration candidates live in `tests/historical/`) |
 | `npm run test:integration -- --case=localhost-readiness` | Built web + local/test DB migrated | Assembled S65–S68 localhost readiness + real `pg_dump -Fc` / `pg_restore` into disposable DB |
 | `npm start` | Successful build | Web at `http://127.0.0.1:3099` only |
 | `PLAYWRIGHT_CHROMIUM_EXECUTABLE=/snap/bin/chromium npm run test:browser -- --case=foundation` | Built web + local DB; no other local worker; Chromium installed | 2 files, 3 HTTP/cookie/worker-delivery checks |
@@ -215,6 +256,7 @@ Run from this worktree with migrations applied to local and test. Use the exact 
 | `npm run test:integration -- --case=manual-fulfillment` | Isolated test DB migrated (`0031`) | S91: Berlapak references, manual shipment (own Mengantar resi), tracking statuses/corrections, pickup profile scope |
 | `npm run test:integration -- --case=cod-remittance` | Isolated test DB migrated (`0031`) | S91: COD collectible parcels, remittance matching and settlement |
 | `npm run test:integration -- --case=payment-methods` | Isolated test DB migrated (`0032`) | S92: manual bank transfer (unique code added, 24h), COD fee 3.33% of goods + shipping |
+| `npm run test:integration -- --case=production-profile` | Isolated test DB migrated (`0035`); Docker with the pinned `postgres:18.6` image | S83: `0035` recorded and a test-DB re-run applies nothing; all 19 money-table `environment` CHECKs accept exactly `local`/`test`/`production`; plus a disposable TCP + SCRAM container: `bootstrap-production.sql` applies once (second run fails, nothing changed), two concurrent `db:migrate -- production` runs both exit 0 with one applying, app role refused DDL/`TRUNCATE`/other databases, production worker starts with dispatch disabled; container removed afterwards |
 | `npm run test:integration -- --case=autolaris-payments` | Isolated test DB migrated (`0034`) | S93: AutoLaris VA/QRIS simulated contract, advice, store-borne fee |
 | `npm run fixture -- payment-terms local <ns>` | Migrated local DB | DEC-008/009 payment terms for local checkout (idempotent) |
 | `npm run fixture -- commercial-terms local <ns>` | Migrated local DB | Commercial policy baseline (1000 bps default commission, IDR 99,000 minimum payout) through the owner policy route, required for catalog publication (idempotent) |
