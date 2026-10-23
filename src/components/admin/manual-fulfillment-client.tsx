@@ -26,6 +26,7 @@ import {
 } from "@/components/ui/table";
 import { Textarea } from "@/components/ui/textarea";
 import { describeFailure, failureText, getJson, readFailure } from "./admin-errors";
+import { wibInputToIso } from "@/modules/admin/wib";
 import { formatCm, formatKg, formatWib, rupiah } from "./format";
 
 // DEC-007: every resi comes from 99ribu's own Mengantar account. Operators book
@@ -649,6 +650,8 @@ function ActionDialog({
 		if (kind !== "status" && !resi.trim()) next.resi = "Nomor resi wajib diisi.";
 		if (kind !== "ship" && !reason.trim()) next.reason = "Alasan wajib diisi.";
 		if (kind === "status" && !occurred) next.occurred = "Isi waktu status.";
+		else if (kind === "status" && !wibInputToIso(occurred))
+			next.occurred = "Waktu status tidak valid.";
 		if (kind === "status" && !evidence.trim())
 			next.evidence = "Tulis bukti dari dashboard Mengantar.";
 		setErrors(next);
@@ -684,7 +687,8 @@ function ActionDialog({
 							`${base}/tracking-statuses`,
 							{
 								status,
-								occurred_at: new Date(occurred).toISOString(),
+								// Read as WIB whatever the device timezone (validated above).
+								occurred_at: wibInputToIso(occurred),
 								reason: reason.trim(),
 								evidence: evidence.trim(),
 							},
@@ -825,14 +829,21 @@ function ActionDialog({
 									))}
 								</select>
 							</Field>
-							<Field id="manual-occurred" label="Waktu status (jam perangkat)" error={errors.occurred}>
+							<Field
+								id="manual-occurred"
+								label="Waktu status (WIB)"
+								hint="Jam WIB seperti di dashboard Mengantar, tidak boleh di masa depan."
+								error={errors.occurred}
+							>
 								<Input
 									id="manual-occurred"
 									type="datetime-local"
 									value={occurred}
 									onChange={(e) => setOccurred(e.target.value)}
 									aria-invalid={errors.occurred ? true : undefined}
-									aria-describedby={describe("manual-occurred")}
+									aria-describedby={
+										errors.occurred ? "manual-occurred-error" : "manual-occurred-hint"
+									}
 								/>
 							</Field>
 							<Field id="manual-evidence" label="Bukti dari dashboard Mengantar" error={errors.evidence}>
