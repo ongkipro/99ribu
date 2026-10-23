@@ -1,5 +1,11 @@
 # Build log — Serba 99ribu
 
+## 2026-10-24 — S84 container image and S85 backups/restore drill (CODE only)
+
+- **S84**: digest-pinned multi-stage `Dockerfile` (Node 24.21.0, npm 12.2.0 `npm ci`, `npm run build`, dev deps pruned, PostgreSQL 18.6 client from the same image as `compose.yaml`, uid/gid `10001`, `HEALTHCHECK` via `scripts/healthcheck.ts`), `.dockerignore`, `scripts/image-audit.ts`, worker heartbeat (`WORKER_HEARTBEAT_FILE`). `Shell` now renders per request (`connection()`): the image build failed while prerendering `/_not-found` and `/bantuan`, which queried the database at build time. Topology, volume, env names and assumed S82/S83 interfaces in `RELEASE.md`.
+- **S85 CODE**: `scripts/backup.ts` (`create`, `list`, `prune`, `drill`, `extract`) and `src/ops/backup.ts` (manifest, ustar archive reader/writer that refuses links and unsafe paths, RSA-OAEP escrow of `BETTER_AUTH_SECRET`, retention, `file://` and SigV4 S3 stores). Drill verifies checksums, archive, photo hashes and modes, globals, per-table counts, journal balance, immutability triggers, referenced photos and staff TOTP decryption, then drops its database.
+- **Evidence**: `npm run check` PASS (49 tests); `docker build` PASS; image audit 0 findings; container smoke (local profile) web/worker healthy, media 200, SIGTERM graceful; `--case=backup-restore` 3/3; `--case=localhost-readiness` 5/5; `--case=PR-16` 19/19; `test:worker` 10/10; drills PASS on a catalog-loaded local set and, inside the image, against throwaway `postgres:18.6` containers over TCP. Not run: production-profile container smoke (needs S82/S83), real bucket upload, browser/`*-http` suites after the `Shell` change.
+
 ## 2026-10-24 — S68 re-verification, storefront rounds 16–41, marketplace taxonomy, review fixes
 
 - **Storefront (DEC-010, DEC-012)**: Indonesian public routes; shop.com interaction/layout contracts observed read-only (omnibox, category pills, home hero, category grid, switcher, product card, carousel arrows, footer, header actions Promo → Keranjang → Akun, logo reveal), 1250px container, curated department photos, next/image resizing, favicon/logo/OG assets, `/promo` with real promotions and bundles, legal placeholders (noindex). Design gate PASS round 41; Lighthouse home mobile 99, desktop 100, `/cari` 97, PDP 98.
