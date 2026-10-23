@@ -3,10 +3,10 @@
 Adopted at repository root on 2026-10-16; updated 2026-10-21 upon completion of all 68 local slices (`S01`–`S68`) and assembled localhost readiness (`T-39`). External live-provider, physical hardware, and production deployment gates remain separate per `CTX-18`.
 
 Release-ID: LOCAL-20261024-S68
-Base: bfecdce
+Base: 6f9f288
 Environment: local
 Declared-Risk: R3
-Rollback-Ref: bfecdce
+Rollback-Ref: 410c2a4
 Rollback-Command: pg_restore --clean --if-exists --no-owner --no-privileges -d <disposable_restore_db> <backup_artifact.dump>
 Backup-Proof: PASS (2026-10-21: `tests/integration/localhost-readiness.test.ts` subtest 3 runs real `pg_dump -Fc` and `pg_restore` into disposable database `99ribu_restore_<uuid>`, reseals creating-XID triggers, verifies table/row/ledger parity and immutability triggers, and drops the disposable DB on teardown)
 Status: READY_FOR_LOCAL_ACCEPTANCE
