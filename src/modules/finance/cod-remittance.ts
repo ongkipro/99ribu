@@ -84,7 +84,8 @@ export async function processCodRemittanceMatch(tx:TransactionSql,job:{id:string
  const lines=await tx`select l.amount,l.cod_operation_id,r.outcome,r.transaction_id,j.status job_status from app.cod_remittance_line l join app.local_cod_event e on e.operation_id=l.cod_operation_id
   join app.cod_provider_event p on p.id=e.id join app.outbox_job j on j.id=p.callback_job_id left join app.cod_event_result r on r.event_id=e.id where l.remittance_id=${remittanceId} order by l.ordinal`;
  if(lines.some(line=>line.job_status==='failed'))return {status:'collection_callback_failed'};
- if(lines.some(line=>!line.outcome))return {status:'awaiting_collection',deferMs:2000};
+ // Retryable: the worker's bounded backoff (max_attempts) applies, then the job fails and is flagged.
+ if(lines.some(line=>!line.outcome))throw new AccessError(409,'COD_COLLECTION_PENDING');
  const claims=lines.filter(line=>line.transaction_id).map(line=>({receivable_transaction_id:String(line.transaction_id),gross_amount:Number(line.amount),reopens_allocation_id:null}));
  if(!claims.length)return {status:'no_receivable'};
  const [current]=await tx`select gross_amount,carrier_fee,provider_fee from app.local_settlement_statement where operation_id=${remittance.settlement_operation_id} and revision=1`;
@@ -96,12 +97,14 @@ export async function processCodRemittanceMatch(tx:TransactionSql,job:{id:string
 // Expected-vs-received view. Flags are derived from stored facts, never inputs.
 export async function projectCodRemittance(tx:TransactionSql,remittanceId:string){
  const [r]=await tx`select * from app.cod_remittance where id=${id(remittanceId)}`;if(!r)throw new AccessError(404,'NOT_FOUND');
- const lines=await tx`select l.*,o.number order_number,r.outcome,r.reason result_reason from app.cod_remittance_line l join app.order_shipment s on s.id=l.shipment_id join app.commerce_order o on o.id=s.order_id
-  left join app.local_cod_event e on e.operation_id=l.cod_operation_id left join app.cod_event_result r on r.event_id=e.id where l.remittance_id=${r.id} order by l.ordinal`;
+ const lines=await tx`select l.*,o.number order_number,r.outcome,r.reason result_reason,j.status callback_status from app.cod_remittance_line l join app.order_shipment s on s.id=l.shipment_id join app.commerce_order o on o.id=s.order_id
+  left join app.local_cod_event e on e.operation_id=l.cod_operation_id left join app.cod_event_result r on r.event_id=e.id
+  left join app.cod_provider_event p on p.id=e.id left join app.outbox_job j on j.id=p.callback_job_id where l.remittance_id=${r.id} order by l.ordinal`;
  const [settlement]=await tx`select p.id,p.status,p.problem_code from app.provider_settlement p where p.operation_id=${r.settlement_operation_id}`;
  const gross=Number(r.gross_amount),deductions=Number(r.shipping_deduction)+Number(r.cod_fee_deduction)+Number(r.other_deduction),expectedNet=gross-Number(r.shipping_deduction)-Number(r.cod_fee_deduction);
  const flags=[...lines.some(line=>Number(line.amount)!==Number(line.expected_amount))?['PARCEL_AMOUNT_MISMATCH']:[],...gross!==Number(r.net_amount)+deductions?['STATEMENT_TOTAL_MISMATCH']:[],
-  ...Number(r.other_deduction)>0?['OTHER_DEDUCTION_REVIEW']:[]];
+  ...Number(r.other_deduction)>0?['OTHER_DEDUCTION_REVIEW']:[],...lines.some(line=>line.callback_status==='failed')?['COLLECTION_CALLBACK_FAILED']:[],
+  ...(await tx`select 1 from app.outbox_job where id=${r.match_job_id} and status='failed'`).length?['COLLECTION_MATCH_FAILED']:[]];
  return {id:String(r.id),reference:String(r.reference),statement_at:new Date(r.statement_at).toISOString(),currency:'IDR' as const,gross_amount:gross,shipping_deduction:Number(r.shipping_deduction),cod_fee_deduction:Number(r.cod_fee_deduction),
   other_deduction:Number(r.other_deduction),net_amount:Number(r.net_amount),expected_net_amount:expectedNet,evidence:String(r.evidence),flags,
   settlement:settlement?{id:String(settlement.id),status:String(settlement.status),problem_code:settlement.problem_code===null?null:String(settlement.problem_code)}:null,

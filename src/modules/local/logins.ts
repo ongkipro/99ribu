@@ -17,11 +17,13 @@ export const LOCAL_ACCOUNTS: readonly { email: string; name: string; role: Role;
   { email: "gudang@99ribu.test", name: "Staf Gudang", role: "warehouse", password: "Gudang-99ribu", permissions: [...labels, ...exportsAll], landing: "/admin" },
   { email: "cs@99ribu.test", name: "Layanan Pelanggan", role: "customer_service", password: "Layanan-99ribu", permissions: ["orders.history.read"], landing: "/admin" },
   { email: "keuangan@99ribu.test", name: "Keuangan", role: "finance", password: "Keuangan-99ribu", permissions: [...finance, "orders.history.read", ...exportsAll], landing: "/admin" },
-  { email: "pembeli@99ribu.test", name: "Pembeli Satu", role: "buyer", password: "Pembeli-99ribu", permissions: [], landing: "/account" },
-  { email: "pembeli2@99ribu.test", name: "Pembeli Dua", role: "buyer", password: "Pembeli2-99ribu", permissions: [], landing: "/account" },
-  { email: "afiliasi@99ribu.test", name: "Mitra Afiliasi", role: "affiliate", password: "Afiliasi-99ribu", permissions: [], landing: "/account" },
+  { email: "pembeli@99ribu.test", name: "Pembeli Satu", role: "buyer", password: "Pembeli-99ribu", permissions: [], landing: "/akun" },
+  { email: "pembeli2@99ribu.test", name: "Pembeli Dua", role: "buyer", password: "Pembeli2-99ribu", permissions: [], landing: "/akun" },
+  { email: "afiliasi@99ribu.test", name: "Mitra Afiliasi", role: "affiliate", password: "Afiliasi-99ribu", permissions: [], landing: "/akun" },
 ];
 const STAFF = new Set<Role>(["owner", "ecommerce_admin", "warehouse", "customer_service", "finance"]);
+// Membership-scoped staff (S91 manual queue, pickup profile) share the catalog origin warehouses.
+const SCOPED = new Set<Role>(["ecommerce_admin", "warehouse"]);
 // Namespaces created per test run end in an 8-hex run id; fixed names (demo, berlapak, ...) are reused by
 // seed/berlapak reruns, which require the full principal mapping, so they are never pruned.
 const DISPOSABLE_NAMESPACE = /-[0-9a-f]{8}(?:-[0-9a-f])?$/;
@@ -46,7 +48,7 @@ async function storedTotpUri(identity: LocalAuth, userId: string, email: string)
   return `otpauth://totp/99ribu:${encodeURIComponent(email)}?${new URLSearchParams({ secret: base32(secret), issuer: "99ribu", digits: "6", period: "30" })}`;
 }
 
-// gudang@ works where the catalog stock lives: every active S90 origin warehouse; before the catalog
+// gudang@ and ecommerce@ work where the catalog stock lives: every active S90 origin warehouse; before the catalog
 // is imported, the `demo` namespace's Malang warehouse (else the oldest active Malang one).
 async function localWarehouses(identity: LocalAuth) {
   const origins = await identity.sql<{ id: string; name: string }[]>`select id,name from app.warehouse where active and origin_key is not null order by name`;
@@ -79,9 +81,9 @@ export async function provisionLocalAccounts(target: string) {
         await tx`insert into app.role_grant (user_id,roles,permissions) values (${user.id},${[account.role]},${account.permissions})
           on conflict (user_id) do update set roles=excluded.roles,permissions=excluded.permissions,revision=app.role_grant.revision+1
           where (app.role_grant.roles,app.role_grant.permissions) is distinct from (excluded.roles,excluded.permissions)`;
-        if (account.role !== "warehouse") await tx`delete from app.warehouse_membership where user_id=${user.id}`;
+        if (!SCOPED.has(account.role)) await tx`delete from app.warehouse_membership where user_id=${user.id}`;
         else await tx`delete from app.warehouse_membership where user_id=${user.id} and not (warehouse_id = any(${scope}::uuid[]))`;
-        if (account.role === "warehouse") for (const id of scope) await tx`insert into app.warehouse_membership (user_id,warehouse_id) values (${user.id},${id}) on conflict do nothing`;
+        if (SCOPED.has(account.role)) for (const id of scope) await tx`insert into app.warehouse_membership (user_id,warehouse_id) values (${user.id},${id}) on conflict do nothing`;
       });
       const mfa = STAFF.has(account.role);
       let uri = mfa ? await storedTotpUri(identity, user.id, account.email) : null;
@@ -97,7 +99,7 @@ export async function provisionLocalAccounts(target: string) {
         uri = setup.totpURI; backupCodes = setup.backupCodes;
       }
       accounts.push({ role: account.name, email: account.email, password: account.password, mfa, landing: account.landing,
-        ...(account.role === "warehouse" ? { warehouses: warehouses.length === 1 ? warehouses[0].name : `${warehouses.length} gudang asal katalog` } : {}),
+        ...(SCOPED.has(account.role) ? { warehouses: warehouses.length === 1 ? warehouses[0].name : `${warehouses.length} gudang asal katalog` } : {}),
         ...(uri ? { totp_uri: uri, totp_secret: new URL(uri).searchParams.get("secret"), current_code: totp(uri) } : {}),
         ...(backupCodes ? { backup_codes: backupCodes } : {}) });
     }

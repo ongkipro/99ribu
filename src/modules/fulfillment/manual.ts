@@ -47,8 +47,9 @@ async function profileAuthority(tx:TransactionSql,principal:Principal){
  if(!access.roles.some((role:string)=>['owner','ecommerce_admin'].includes(role)))throw new AccessError(403,'FORBIDDEN');
  return access;
 }
-async function latestProfile(tx:TransactionSql,warehouseId:string){
- const [row]=await tx`select * from app.warehouse_pickup_profile where warehouse_id=${warehouseId} order by revision desc limit 1`;return row??null;
+async function latestProfile(tx:TransactionSql,warehouseId:string,revision?:number){
+ const [row]=revision===undefined?await tx`select * from app.warehouse_pickup_profile where warehouse_id=${warehouseId} order by revision desc limit 1`
+  :await tx`select * from app.warehouse_pickup_profile where warehouse_id=${warehouseId} and revision=${revision}`;return row??null;
 }
 export async function warehouseMode(tx:TransactionSql,warehouseId:string){
  const profile=await latestProfile(tx,warehouseId),readiness=pickupReadiness(profile as never);return {readiness,mode:fulfillmentMode(readiness)};
@@ -62,7 +63,7 @@ function projectProfile(warehouse:{id:string;name:string},row:Record<string,unkn
 export async function readPickupProfile(identity:LocalAuth,principal:Principal,warehouseId:string){
  const selected=id(warehouseId);
  return identity.sql.begin(async tx=>{
-  await profileAuthority(tx,principal);const [warehouse]=await tx`select id,name from app.warehouse where id=${selected}`;if(!warehouse)throw new AccessError(404,'NOT_FOUND');
+  await assertInventoryWarehouse(tx,selected,await profileAuthority(tx,principal),false);const [warehouse]=await tx`select id,name from app.warehouse where id=${selected}`;if(!warehouse)throw new AccessError(404,'NOT_FOUND');
   return projectProfile(warehouse as never,await latestProfile(tx,selected));
  });
 }
@@ -77,10 +78,12 @@ export async function writePickupProfile(request:Request,identity:LocalAuth,prin
  if(input.latitude_e6!==null&&(input.latitude_e6<-11000000||input.latitude_e6>6000000||(input.longitude_e6 as number)<95000000||(input.longitude_e6 as number)>141000000))throw new AccessError(422,'INVALID_PINPOINT');
  const hash=hashOf({warehouse_id:selected,...input});
  return identity.sql.begin(async tx=>{
-  await profileAuthority(tx,principal);
+  // Same membership scope as the manual queue: non-owners see only their warehouses.
+  await assertInventoryWarehouse(tx,selected,await profileAuthority(tx,principal),false);
   const [previous]=await tx`select request_hash,response from app.access_operation where actor_id=${principal.id} and action='warehouse.pickup_profile' and key=${key}`;
-  if(previous){if(previous.request_hash!==hash)throw new AccessError(409,'IDEMPOTENCY_CONFLICT');return previous.response;}
   const [warehouse]=await tx`select id,name from app.warehouse where id=${selected} for update`;if(!warehouse)throw new AccessError(404,'NOT_FOUND');
+  // Replay re-projects the revision this key wrote (the stored response holds no personal data).
+  if(previous){if(previous.request_hash!==hash)throw new AccessError(409,'IDEMPOTENCY_CONFLICT');return projectProfile(warehouse as never,await latestProfile(tx,selected,Number(previous.response.version)));}
   const current=await latestProfile(tx,selected);if((current?Number(current.revision):0)!==input.expected_version)throw new AccessError(409,'VERSION_CONFLICT');
   await tx`insert into app.warehouse_pickup_profile (warehouse_id,revision,street_address,pic_name,pic_phone,latitude_e6,longitude_e6,actor_id,reason)
    values (${selected},${input.expected_version+1},${input.street_address},${input.pic_name},${input.pic_phone},${input.latitude_e6},${input.longitude_e6},${principal.id},${input.reason})`;

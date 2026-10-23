@@ -58,7 +58,7 @@ export const DATABASE_JOBS: Readonly<Record<string, DatabaseJobDefinition>> = {
   "fulfillment.deadline": { seal: "defer", error: "INVALID_FULFILLMENT_STATE", run: processFulfillmentDeadline },
   "fulfillment.notice": { seal: "defer", error: "INVALID_FULFILLMENT_STATE", run: processFulfillmentNotice },
   "fulfillment.tracking.poll": { seal: "defer", error: "INVALID_TRACKING_STATE", run: processTrackingPoll },
-  "cod.remittance.match": { seal: "defer", error: "INVALID_COD_REMITTANCE_STATE", run: processCodRemittanceMatch },
+  "cod.remittance.match": { seal: "complete", error: "INVALID_COD_REMITTANCE_STATE", run: processCodRemittanceMatch },
   ...Object.fromEntries(COMMISSION_JOB_KINDS.map((kind) => [kind, { seal: "defer", error: "INVALID_COMMISSION_STATE", run: processCommissionJob } satisfies DatabaseJobDefinition])),
 };
 const SELECTED_KINDS = ["local.notification", ...Object.keys(DATABASE_JOBS)];
@@ -98,10 +98,10 @@ export async function processDatabaseJob(tx: TransactionSql, job: DatabaseJob) {
       result=${JSON.stringify({...(job.kind==='checkout.order.expire'?{}:{reservation_id:result.reservationId}),...('orderId' in result?{order_id:result.orderId}:{}),status:result.status})}::jsonb where id=${job.id}`;
   } catch (error) {
     const code = error && typeof error === "object" && "code" in error ? String(error.code) : "";
-    const retryable = ["40P01", "55P03", "57014", "PAYMENT_RECONCILIATION_PENDING", "TRACKING_ADAPTER_UNAVAILABLE"].includes(code);
+    const retryable = ["40P01", "55P03", "57014", "PAYMENT_RECONCILIATION_PENDING", "TRACKING_ADAPTER_UNAVAILABLE", "COD_COLLECTION_PENDING"].includes(code);
     const attempts = job.attempts + 1; const failed = !retryable || attempts >= job.max_attempts;
     const message = error instanceof AccessError && [400,404].includes(error.status) ? "INVALID_PAYLOAD"
-      : retryable ? (code === "TRACKING_ADAPTER_UNAVAILABLE" ? code : "TEMPORARY_DATABASE_FAILURE") : definition.error;
+      : retryable ? (["TRACKING_ADAPTER_UNAVAILABLE", "COD_COLLECTION_PENDING"].includes(code) ? code : "TEMPORARY_DATABASE_FAILURE") : definition.error;
     const delay = Math.min(60, 2 ** Math.max(0, attempts-1));
     await tx`update app.outbox_job set status=${failed ? "failed" : "pending"},attempts=${attempts},last_error=${message},
       run_at=clock_timestamp()+${delay}*interval '1 second',completed_at=case when ${failed} then clock_timestamp() else null end where id=${job.id}`;

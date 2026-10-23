@@ -1,5 +1,4 @@
 import {createHash,randomBytes,randomUUID} from 'node:crypto';
-import {isDeepStrictEqual} from 'node:util';
 import {connectDatabase} from '../../db/client.ts';
 import {runOneJob} from '../../jobs/worker.ts';
 import {createLocalAuth,type LocalAuth} from '../access/auth.ts';
@@ -158,18 +157,24 @@ export async function createBerlapakOrders(identity:LocalAuth,target:Target,name
 // real owner reauthentication + policy-version routes. Takes effect now (wall
 // clock); a cart on a fixture clock namespace sees it once that clock passes now.
 export const LOCAL_PAYMENT_TERMS={cod_fee_bps:333,manual_bank_accounts:[{bank_name:'Bank SINTETIS',account_number:'1234567890',account_holder:'PT SINTETIS 99RIBU'}]};
-export function runPaymentTermsFixture(target:Target,namespace:string){
-  if(target!=='local') throw new Error('Payment terms fixture is local-only.');
+// Local baseline commercial policy so a fresh local DB can publish the imported
+// catalog (10% default commission, IDR 99,000 minimum payout), same owner route.
+export const LOCAL_COMMERCIAL_TERMS={default_commission_bps:1000,minimum_payout_idr:99000};
+export const runPaymentTermsFixture=(target:Target,namespace:string)=>runPolicyFixture(target,namespace,'payment',LOCAL_PAYMENT_TERMS,'payment_policy.version','company-payment','SYNTHETIC local developer payment terms (COD fee 333 bps, synthetic manual bank)');
+export const runCommercialTermsFixture=(target:Target,namespace:string)=>runPolicyFixture(target,namespace,'commercial',LOCAL_COMMERCIAL_TERMS,'company_policy.version','company-commercial','SYNTHETIC local developer commercial baseline (1000 bps commission, IDR 99,000 minimum payout)');
+function runPolicyFixture(target:Target,namespace:string,kind:'payment'|'commercial',values:Record<string,unknown>,action:string,subject:string,reason:string){
+  if(target!=='local') throw new Error(`${kind} terms fixture is local-only.`);
   return withSeedOwner(target,namespace,async(_request,identity,signal,{browser,password})=>{
     const [database]=await identity.sql`select current_database() as name`;need(database.name==='99ribu_local','SEED_TARGET_REFUSED');
     const call=async(path:string,body:Record<string,unknown>)=>{const request=browser.request(`/api/v1${path}`,body);request.headers.set('idempotency-key',randomUUID());
       const response=await handleAccess(request,identity);const payload=await response.json();if(response.status!==201) throw new AccessError(409,`SEED_${payload.code??response.status}`);return payload;};
-    const history=await (await browser.access('/admin/policy-versions?kind=payment')).json() as {latest_version:number;current:{values:Record<string,unknown>}|null};
+    const history=await (await browser.access(`/admin/policy-versions?kind=${kind}`)).json() as {latest_version:number;current:{values:Record<string,unknown>}|null};
     signal.throwIfAborted();
-    if(isDeepStrictEqual(history.current?.values,LOCAL_PAYMENT_TERMS)) return {kind:'payment',changed:false,version:history.latest_version,values:LOCAL_PAYMENT_TERMS};
-    const proof=(await call('/me/reauthentication-proofs',{password,action:'payment_policy.version',subject_id:'company-payment'})).proof;signal.throwIfAborted();
-    await call('/admin/policy-versions',{kind:'payment',warehouse_id:null,expected_version:history.latest_version,effective_at:null,values:LOCAL_PAYMENT_TERMS,reason:'SYNTHETIC local developer payment terms (COD fee 333 bps, synthetic manual bank)',reauthentication_proof:proof});
-    return {kind:'payment',changed:true,version:history.latest_version+1,values:LOCAL_PAYMENT_TERMS};
+    // A baseline only fills a gap: an existing current version (owner-set or earlier run) is never overwritten.
+    if(history.current) return {kind,changed:false,version:history.latest_version,values:history.current.values};
+    const proof=(await call('/me/reauthentication-proofs',{password,action,subject_id:subject})).proof;signal.throwIfAborted();
+    await call('/admin/policy-versions',{kind,warehouse_id:null,expected_version:history.latest_version,effective_at:null,values,reason,reauthentication_proof:proof});
+    return {kind,changed:true,version:history.latest_version+1,values};
   });
 }
 

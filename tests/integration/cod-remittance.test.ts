@@ -1,6 +1,7 @@
 import assert from 'node:assert/strict';
 import {randomUUID} from 'node:crypto';
 import test from 'node:test';
+import {runOneJob} from '../../src/jobs/worker.ts';
 import {handleAccess} from '../../src/modules/access/routes.ts';
 import {handleCodRemittances} from '../../src/modules/finance/cod-remittance-routes.ts';
 import {handleManualFulfillment} from '../../src/modules/fulfillment/manual-routes.ts';
@@ -106,4 +107,27 @@ test('statements refuse unbalanced totals, future dates, unshipped, simulator-bo
   const read=await handleCodRemittances(finance.browser.request(`/api/v1/admin/cod-remittances/${id}`),f.identity);assert.equal(read.status,200);
   assert.equal((await read.json()).lines[0].collection_status,'recovery');
  }finally{for(const user of users)await closeFulfillmentActor(f.identity,user).catch(()=>{});try{await prepaid?.close();}finally{await f.close();}}
+});
+
+test('matching waits for COD callbacks with bounded backoff, then fails; failed matching and callbacks are flagged for finance',async()=>{
+ const f=await fulfillmentFixture('cod'),sql=f.identity.sql,users:Awaited<ReturnType<typeof actor>>[]=[];
+ try{
+  const stamp=String(Date.now()).slice(-8),[parcel]=f.parcels;await shipManually(f,parcel,`JP${stamp}31`);
+  const finance=await financeUser(f);users.push(finance);
+  const [due]=await sql`select cod_due from app.order_shipment where id=${parcel.shipment_id}`,amount=Number(due.cod_due),id=randomUUID();
+  const body={id,reference:`MGT-${stamp}-C`,statement_at:new Date(Date.now()-60000).toISOString(),lines:[{shipment_id:parcel.shipment_id,amount}],shipping_deduction:0,cod_fee_deduction:0,other_deduction:0,net_amount:amount,evidence:'Laporan',reason:'Uji'};
+  assert.equal((await post(finance,f,{...body,reauthentication_proof:await proof(finance,f,id)})).status,201);
+  const [{match_job_id:job}]=await sql`select match_job_id from app.cod_remittance where id=${id}`;
+  // The collection callback has not run: the match retries with backoff instead of re-deferring forever.
+  assert.equal(await runOneJob(sql,{},job),true);
+  const [waiting]=await sql`select status,attempts,last_error,run_at>clock_timestamp() later from app.outbox_job where id=${job}`;
+  assert.deepEqual({...waiting},{status:'pending',attempts:1,last_error:'COD_COLLECTION_PENDING',later:true});
+  await sql`update app.outbox_job set max_attempts=2,run_at=clock_timestamp() where id=${job}`;assert.equal(await runOneJob(sql,{},job),true);
+  assert.deepEqual({...(await sql`select status,attempts,last_error from app.outbox_job where id=${job}`)[0]},{status:'failed',attempts:2,last_error:'COD_COLLECTION_PENDING'});
+  const read=async()=>(await (await handleCodRemittances(finance.browser.request(`/api/v1/admin/cod-remittances/${id}`),f.identity)).json()).flags as string[];
+  assert.deepEqual(await read(),['COLLECTION_MATCH_FAILED']);
+  // SYNTHETIC: an exhausted collection callback is surfaced too.
+  await sql`update app.outbox_job set status='failed',completed_at=clock_timestamp() where id=(select p.callback_job_id from app.cod_remittance_line l join app.local_cod_event e on e.operation_id=l.cod_operation_id join app.cod_provider_event p on p.id=e.id where l.remittance_id=${id})`;
+  assert.deepEqual(await read(),['COLLECTION_CALLBACK_FAILED','COLLECTION_MATCH_FAILED']);
+ }finally{for(const user of users)await closeFulfillmentActor(f.identity,user).catch(()=>{});await f.close();}
 });

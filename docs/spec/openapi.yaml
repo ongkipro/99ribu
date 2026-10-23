@@ -3365,7 +3365,8 @@ paths:
     get:
       operationId: readPickupProfile
       summary: Read a private warehouse pickup profile
-      description: Owner/ecommerce_admin only. Readiness and the per-warehouse fulfillment mode are computed.
+      description: Owner/ecommerce_admin only; a non-owner must be a member of the warehouse (other warehouses return
+        404). Readiness and the per-warehouse fulfillment mode are computed.
       tags:
       - Fulfillment
       security:
@@ -3417,8 +3418,9 @@ paths:
     post:
       operationId: versionPickupProfile
       summary: Append a pickup profile revision
-      description: Append-only revision with expected version and reason; audit details list changed field names,
-        never personal-data values.
+      description: Owner/ecommerce_admin only; a non-owner must be a member of the warehouse (other warehouses return
+        404, checked before idempotent replay). Append-only revision with expected version and reason; a replay returns
+        the revision its key wrote; audit details list changed field names, never personal-data values.
       tags:
       - Fulfillment
       security:
@@ -15730,6 +15732,8 @@ components:
             - STATEMENT_TOTAL_MISMATCH
             - OTHER_DEDUCTION_REVIEW
             - NET_BELOW_EXPECTED
+            - COLLECTION_CALLBACK_FAILED
+            - COLLECTION_MATCH_FAILED
         settlement:
           anyOf:
           - type: object

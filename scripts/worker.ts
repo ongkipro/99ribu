@@ -27,6 +27,7 @@ import {simulateReplacementReceipt} from '../src/modules/returns/replacement-rec
 import {reconcileReplacementShippingNow,reconcileReplacementReceiptNow} from '../src/modules/returns/replacement-recovery.ts';
 import {shippingCancellationAdapter,reconcileWaybillCancellationNow} from '../src/modules/fulfillment/cancellations.ts';
 import {simulateWaybillCancellation,ingestWaybillCancellationEvent} from '../src/modules/fulfillment/cancellation-source.ts';
+import {simulateTrackingObservation} from '../src/modules/fulfillment/manual.ts';
 
 async function sourceInput(){
   if(process.stdin.isTTY)throw invalid();const chunks:Buffer[]=[];let size=0;
@@ -45,9 +46,10 @@ const refundCommand=['--verify-refund-destination','--confirm-refund','--fail-re
 const recoveryRefundCommand=['--verify-recovery-destination','--confirm-recovery-refund','--fail-recovery-refund','--reconcile-recovery-refund'].includes(mode);
 const replacementShippingCommand=['--issue-replacement-waybill','--fail-replacement-waybill','--reconcile-replacement-shipping'].includes(mode);
 const replacementReceiptCommand=mode==='--receive-replacement'||mode==='--reconcile-replacement-receipt';
-const expectedExtra=mode==='--once'&&extra.length===1?1:mode==='--revise-settlement'?2:mode==='--reconcile-settlement'||mode==='--reconcile-parcel-receipt'||mode==='--reconcile-replacement-receipt'||paymentCommand||codCommand||shippingCommand||cancellationCommand||initializeCommand||refundCommand||recoveryRefundCommand||replacementShippingCommand?1:0;
-if ((target !== 'local' && target !== 'test') || (mode !== undefined && mode !== '--once'&&!paymentCommand&&!codCommand&&!shippingCommand&&!cancellationCommand&&!initializeCommand&&!settlementCommand&&!receiptCommand&&!refundCommand&&!recoveryRefundCommand&&!replacementShippingCommand&&!replacementReceiptCommand) || extra.length!==expectedExtra) {
-  throw new Error('Use worker.ts local|test [--once [JOB_ID] | --confirm-payment ATTEMPT_ID | --reconcile-payment ATTEMPT_ID | --autolaris-paid ATTEMPT_ID | --collect-cod SHIPMENT_ID | --refuse-cod SHIPMENT_ID | --reconcile-cod SHIPMENT_ID | --issue-waybill BOOKING_ID | --fail-waybill BOOKING_ID | --reconcile-shipping BOOKING_ID | --cancel-waybill CANCELLATION_ID | --reject-waybill-cancellation CANCELLATION_ID | --reconcile-waybill-cancellation CANCELLATION_ID | --initialize-fulfillment ORDER_ID | --observe-settlement < JSON | --revise-settlement SOURCE_ID EXPECTED_VERSION < JSON | --reconcile-settlement SOURCE_ID | --receive-parcel < JSON | --reconcile-parcel-receipt SOURCE_ID | --verify-refund-destination REFUND_ID | --confirm-refund REFUND_ID | --fail-refund REFUND_ID | --reconcile-refund REFUND_ID | --verify-recovery-destination RECOVERY_REFUND_ID | --confirm-recovery-refund RECOVERY_REFUND_ID | --fail-recovery-refund RECOVERY_REFUND_ID | --reconcile-recovery-refund RECOVERY_REFUND_ID | --issue-replacement-waybill BOOKING_ID | --fail-replacement-waybill BOOKING_ID | --reconcile-replacement-shipping BOOKING_ID | --receive-replacement < JSON | --reconcile-replacement-receipt SOURCE_ID].');
+const trackingCommand=mode==='--track-parcel';
+const expectedExtra=mode==='--once'&&extra.length===1?1:mode==='--revise-settlement'||trackingCommand?2:mode==='--reconcile-settlement'||mode==='--reconcile-parcel-receipt'||mode==='--reconcile-replacement-receipt'||paymentCommand||codCommand||shippingCommand||cancellationCommand||initializeCommand||refundCommand||recoveryRefundCommand||replacementShippingCommand?1:0;
+if ((target !== 'local' && target !== 'test') || (mode !== undefined && mode !== '--once'&&!paymentCommand&&!codCommand&&!shippingCommand&&!cancellationCommand&&!initializeCommand&&!settlementCommand&&!receiptCommand&&!refundCommand&&!recoveryRefundCommand&&!replacementShippingCommand&&!replacementReceiptCommand&&!trackingCommand) || extra.length!==expectedExtra) {
+  throw new Error('Use worker.ts local|test [--once [JOB_ID] | --confirm-payment ATTEMPT_ID | --reconcile-payment ATTEMPT_ID | --autolaris-paid ATTEMPT_ID | --collect-cod SHIPMENT_ID | --refuse-cod SHIPMENT_ID | --reconcile-cod SHIPMENT_ID | --issue-waybill BOOKING_ID | --fail-waybill BOOKING_ID | --reconcile-shipping BOOKING_ID | --cancel-waybill CANCELLATION_ID | --reject-waybill-cancellation CANCELLATION_ID | --reconcile-waybill-cancellation CANCELLATION_ID | --initialize-fulfillment ORDER_ID | --observe-settlement < JSON | --revise-settlement SOURCE_ID EXPECTED_VERSION < JSON | --reconcile-settlement SOURCE_ID | --receive-parcel < JSON | --reconcile-parcel-receipt SOURCE_ID | --verify-refund-destination REFUND_ID | --confirm-refund REFUND_ID | --fail-refund REFUND_ID | --reconcile-refund REFUND_ID | --verify-recovery-destination RECOVERY_REFUND_ID | --confirm-recovery-refund RECOVERY_REFUND_ID | --fail-recovery-refund RECOVERY_REFUND_ID | --reconcile-recovery-refund RECOVERY_REFUND_ID | --issue-replacement-waybill BOOKING_ID | --fail-replacement-waybill BOOKING_ID | --reconcile-replacement-shipping BOOKING_ID | --receive-replacement < JSON | --reconcile-replacement-receipt SOURCE_ID | --track-parcel FULFILLMENT_ID PROVIDER_STATUS].');
 }
 const onlyJobId=mode==='--once'&&extra.length===1?id(extra[0]):undefined;
 let settlementId=settlementCommand&&mode!=='--observe-settlement'?id(extra[0]):null;
@@ -58,6 +60,7 @@ const shipmentId=codCommand?id(extra[0]):null;
 const bookingId=shippingCommand?id(extra[0]):null,orderId=initializeCommand?id(extra[0]):null;
 const cancellationId=cancellationCommand?id(extra[0]):null;
 const replacementBookingId=replacementShippingCommand?id(extra[0]):null;
+const trackedFulfillmentId=trackingCommand?id(extra[0]):null;
 readLocalConfig(process.env);
 const { sql } = connectDatabase(target);
 const adapters={'payment.create':paymentAdapter(sql,target),'payment.autolaris.advice':autolarisAdviceAdapter(sql,target),'advertising.dispatch':advertisingAdapter(sql,target),'shipping.create':shippingAdapter(sql,target),'shipping.cancel.create':shippingCancellationAdapter(sql,target),'refund.create':refundAdapter(sql,target),'recovery.refund.create':recoveryRefundAdapter(sql,target),'replacement.shipping.create':replacementShippingAdapter(sql,target)};
@@ -67,7 +70,14 @@ process.once("SIGINT", shutdown); process.once("SIGTERM", shutdown);
 try {
   // Report readiness only after the actual database/schema can be reached.
   await sql`select id from app.outbox_job limit 0`;
-  if(cancellationId){
+  if(trackedFulfillmentId){
+    // S91: the simulated courier feed reports a status for the parcel's current manual resi; its poll (made due now) observes it.
+    const [current]=await sql`select courier,tracking_number from app.manual_tracking where fulfillment_id=${trackedFulfillmentId} order by version desc limit 1`;if(!current)throw invalid();
+    await simulateTrackingObservation(sql,target,{courier:String(current.courier),tracking_number:String(current.tracking_number),provider_status:extra[1]});
+    let processed=0;for(const poll of await sql`update app.outbox_job set run_at=now() where kind='fulfillment.tracking.poll' and payload->>'fulfillmentId'=${trackedFulfillmentId} and status='pending' returning id`)if(await runOneJob(sql,adapters,poll.id))processed++;
+    const [latest]=await sql`select status from app.shipment_tracking_event where fulfillment_id=${trackedFulfillmentId} order by occurred_at desc,recorded_at desc limit 1`;
+    console.log(`local_tracking_command target=${target} fulfillment_id=${trackedFulfillmentId} provider_status=${extra[1]} polls=${processed} tracking_status=${latest?.status??'none'}`);
+  }else if(cancellationId){
     let processed=0;for(const job of await reconcileWaybillCancellationNow(sql,cancellationId))if(await runOneJob(sql,adapters,job))processed++;
     if(mode!=='--reconcile-waybill-cancellation')await ingestWaybillCancellationEvent(sql,await simulateWaybillCancellation(sql,target,cancellationId,mode==='--reject-waybill-cancellation'?'failed':'cancelled'));
     const jobs=await reconcileWaybillCancellationNow(sql,cancellationId);for(const job of jobs)if(await runOneJob(sql,adapters,job))processed++;

@@ -61,6 +61,8 @@ const FLAG_LABELS: Record<string, string> = {
 	STATEMENT_TOTAL_MISMATCH: "Total tidak seimbang",
 	OTHER_DEDUCTION_REVIEW: "Potongan lain perlu ditinjau",
 	NET_BELOW_EXPECTED: "Dana bersih di bawah perkiraan",
+	COLLECTION_CALLBACK_FAILED: "Pencatatan COD gagal",
+	COLLECTION_MATCH_FAILED: "Pencocokan saldo gagal",
 };
 const SETTLEMENT_LABELS: Record<string, string> = {
 	pending: "Menunggu pencocokan",

@@ -1,6 +1,8 @@
 import assert from 'node:assert/strict';
+import {execFile} from 'node:child_process';
 import {randomUUID} from 'node:crypto';
 import test from 'node:test';
+import {promisify} from 'node:util';
 import {runOneJob} from '../../src/jobs/worker.ts';
 import {handleFulfillment} from '../../src/modules/fulfillment/routes.ts';
 import {handleManualFulfillment} from '../../src/modules/fulfillment/manual-routes.ts';
@@ -112,14 +114,23 @@ test('manual COD parcel: queue by path, resi entry ships once, buyer sees courie
   // Private pickup profile: versioned, readiness computed, never in buyer data, audit details or logs.
   const profilePath=`/api/v1/admin/warehouses/${manual.warehouse_id}/pickup-profile`,secret=`Jl. Rahasia ${randomUUID().slice(0,8)} No. 7`,picName=`PIC ${randomUUID().slice(0,6)}`;
   const empty=await call(f.owner,identity,profilePath);assert.equal(empty.status,200);
+  const savedKey=randomUUID();let savedBody:Record<string,unknown>={};
   const {result:saved,lines}=await captureLogs(async()=>{
    const partial=await call(f.owner,identity,profilePath,{expected_version:empty.payload.version,street_address:secret,pic_name:picName,pic_phone:null,pinpoint:null,reason:'Data pickup awal'});
    assert.equal(partial.status,201,JSON.stringify(partial.payload));assert.equal(partial.payload.readiness,'incomplete');
    assert.equal((await call(f.owner,identity,profilePath,{expected_version:empty.payload.version,street_address:secret,pic_name:picName,pic_phone:'0812 3456 7890',pinpoint:null,reason:'Lengkap'})).payload.code,'VERSION_CONFLICT');
    assert.equal((await call(f.owner,identity,profilePath,{expected_version:partial.payload.version,street_address:secret,pic_name:picName,pic_phone:'12345',pinpoint:null,reason:'Lengkap'})).payload.code,'INVALID_PIC_PHONE');
-   return call(f.owner,identity,profilePath,{expected_version:partial.payload.version,street_address:secret,pic_name:picName,pic_phone:'0812 3456 7890',pinpoint:{latitude:-6.2,longitude:106.8},reason:'Lengkap'});
+   savedBody={expected_version:partial.payload.version,street_address:secret,pic_name:picName,pic_phone:'0812 3456 7890',pinpoint:{latitude:-6.2,longitude:106.8},reason:'Lengkap'};
+   return call(f.owner,identity,profilePath,savedBody,savedKey);
   });
   assert.equal(saved.status,201);assert.equal(saved.payload.readiness,'complete');assert.equal(saved.payload.mode,'manual_dashboard');assert.equal(saved.payload.pic_phone,'6281234567890');
+  assert.deepEqual((await call(f.owner,identity,profilePath,savedBody,savedKey)).payload,saved.payload,'a replay returns the same full profile shape');
+  // An ecommerce_admin of another warehouse can neither read nor write this private profile.
+  const outsider=await actor(identity,'ecommerce_admin',[booked.warehouse_id]);staff.push(outsider);await enroll(outsider.browser,outsider.password);
+  assert.equal((await call(outsider,identity,`/api/v1/admin/warehouses/${booked.warehouse_id}/pickup-profile`)).status,200,'own warehouse stays readable');
+  for(const denied of [await call(outsider,identity,profilePath),await call(outsider,identity,profilePath,{...savedBody,expected_version:saved.payload.version,reason:'Bukan gudang saya'})]){
+   assert.equal(denied.status,404);assert.ok(!JSON.stringify(denied.payload).includes(picName));
+  }
   assert.ok(!lines.some(line=>line.includes(secret)||line.includes(picName)||line.includes('6281234567890')));
   const audits=JSON.stringify(await sql`select reason,details from app.audit_event where subject_id=${manual.warehouse_id} and action='warehouse.pickup_profile'`);
   assert.ok(audits.includes('changed_fields'));assert.ok(!audits.includes(secret)&&!audits.includes(picName)&&!audits.includes('6281234567890'));
@@ -200,5 +211,10 @@ test('manual prepaid parcels: calendar missing, one live resi per courier, couri
   assert.equal((await sql`select count(*)::int n from app.shipment_tracking_event where fulfillment_id=${parcel.id} and status='delivered'`)[0].n,1);
   order=await sql.begin(tx=>projectOrder(tx,f.order.id));buyerParcel=order.shipments.find(x=>x.id===parcel.shipment_id) as Record<string,unknown>;assert.equal(buyerParcel.status,'delivered');
   const legacy=await handleFulfillment(f.owner.browser.request(`/api/v1/admin/fulfillments/${parcel.id}`),identity);assert.equal(legacy.status,200);
+  // Host-only operator command advances the other parcel's current resi through the simulated feed and its due poll.
+  const host=(...args:string[])=>promisify(execFile)(process.execPath,['--env-file=.env.example','scripts/worker.ts','test','--track-parcel',...args],{timeout:15000,maxBuffer:4096});
+  await assert.rejects(host(other.id,'in transit'));
+  const advanced=await host(other.id,'IN_TRANSIT');assert.match(advanced.stdout,/tracking_status=in_transit/);
+  assert.deepEqual((await sql`select status,source_kind from app.shipment_tracking_event where fulfillment_id=${other.id}`).map(r=>({...r})),[{status:'in_transit',source_kind:'adapter'}]);
  }finally{tracking.adapter=simulatedTrackingAdapter;for(const user of staff)await closeFulfillmentActor(f.identity,user).catch(()=>{});await f.close();}
 });

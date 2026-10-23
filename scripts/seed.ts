@@ -2,9 +2,9 @@ import { existsSync } from "node:fs";
 import { advanceFixtureClock, readFixtureClock, readFixtureInbox, seedLocal } from "../src/modules/local/fixtures.ts";
 
 const [command, target, namespace, ...args] = process.argv.slice(2);
-const usage = "Use fixture seed|commerce|storefront|berlapak|clock|inbox local|test namespace; payment-terms local namespace; clock advance needs seconds/version; inbox needs principal ID; local-only accounts: login|login-codes local, prune-accounts local [--apply]. No reset command exists.";
+const usage = "Use fixture seed|commerce|storefront|berlapak|clock|inbox local|test namespace; payment-terms|commercial-terms local namespace; clock advance needs seconds/version; inbox needs principal ID; local-only accounts: login|login-codes local, prune-accounts local [--apply]. No reset command exists.";
 const accountCommand = ["login", "login-codes", "prune-accounts"].includes(command);
-if ((!namespace && !accountCommand) || !["local", "test"].includes(target) || !["seed", "commerce", "storefront", "berlapak", "payment-terms", "clock", "inbox", "login", "login-codes", "prune-accounts"].includes(command)) {
+if ((!namespace && !accountCommand) || !["local", "test"].includes(target) || !["seed", "commerce", "storefront", "berlapak", "payment-terms", "commercial-terms", "clock", "inbox", "login", "login-codes", "prune-accounts"].includes(command)) {
   console.error(usage); process.exitCode = 1;
 } else {
   const selected = target as "local" | "test";
@@ -27,9 +27,9 @@ if ((!namespace && !accountCommand) || !["local", "test"].includes(target) || ![
       const {runBerlapakFixture}=await import("../src/modules/local/seed-runtime.ts");
       console.log(JSON.stringify(await runBerlapakFixture(selected,namespace)));
     }
-    else if (command === "payment-terms" && target === "local" && !args.length) {
-      const {runPaymentTermsFixture}=await import("../src/modules/local/seed-runtime.ts");
-      console.log(JSON.stringify(await runPaymentTermsFixture("local",namespace)));
+    else if ((command === "payment-terms" || command === "commercial-terms") && target === "local" && !args.length) {
+      const {runPaymentTermsFixture,runCommercialTermsFixture}=await import("../src/modules/local/seed-runtime.ts");
+      console.log(JSON.stringify(await (command === "payment-terms" ? runPaymentTermsFixture : runCommercialTermsFixture)("local",namespace)));
     }
     else if (command === "clock" && !args.length) console.log(JSON.stringify(await readFixtureClock(selected, namespace)));
     else if (command === "clock" && args.length === 3 && args[0] === "advance" && args.slice(1).every((v) => /^[1-9][0-9]*$/.test(v))) {
