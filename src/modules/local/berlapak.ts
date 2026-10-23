@@ -56,24 +56,28 @@ const wordCount=(value:string)=>value.replace(SPAM,' ').split(/\s+/).filter((w)=
 // Marketplace titles put the product after the first '|' when the first segment is only a
 // brand: segments are added until the name has two words. `fallback` (a product fact such as
 // the subcategory) is appended only when every segment still leaves a single word.
-export function publicName(raw:string,suppliers:readonly RegExp[],limit=NAME_LIMIT,fallback?:string){
+// `models`: keep repeated model codes and numbers ("KLX 150 / DT 150", "CRF 150 model CRF 250"); used for
+// the uncut card-title source only, so stock item names (immutable rows) stay unchanged.
+export function publicName(raw:string,suppliers:readonly RegExp[],limit=NAME_LIMIT,fallback?:string,models=false){
   const segments=raw.split('|');let result='';
-  for(let i=1;i<=segments.length&&(wordCount(result)<2||result.length<8);i++) result=cleanName(segments.slice(0,i).join(' '),suppliers,limit);
-  if(fallback&&wordCount(result)===1) result=cleanName(`${result} ${fallback}`,suppliers,limit);
+  for(let i=1;i<=segments.length&&(wordCount(result)<2||result.length<8);i++) result=cleanName(segments.slice(0,i).join(' '),suppliers,limit,models);
+  if(fallback&&wordCount(result)===1) result=cleanName(`${result} ${fallback}`,suppliers,limit,models);
   if(!result) throw invalid();return result;
 }
 // Supplier names are often brand or common words too: strip one only when two words remain.
 // A name that is nothing but a supplier name is unusable ('').
-function cleanName(raw:string,suppliers:readonly RegExp[],limit:number){
+function cleanName(raw:string,suppliers:readonly RegExp[],limit:number,models=false){
   let value=raw.replace(/\[[^\]]*\]|【[^】]*】/g,' ');
   for(const pattern of suppliers){const stripped=value.replace(pattern,' ');if(stripped===value) continue;
     const left=wordCount(stripped);if(!left) return '';if(left>=2) value=stripped;}
   value=value.replace(SPAM,' ').replace(/\(\s*\)/g,' ');
   const seen=new Set<string>();const words:string[]=[];
-  for(const word of value.split(/\s+/).filter(Boolean)){
+  const tokens=value.split(/\s+/).filter(Boolean);
+  for(const [i,word] of tokens.entries()){
     const plain=word.toLowerCase().replace(/[^\p{L}\p{N}]/gu,'');
     if(!plain&&!/^[&+/-]$/.test(word)) continue;
-    if(plain.length>=3&&seen.has(plain)) continue;seen.add(plain);
+    const model=models&&(/^\d+$/.test(plain)||/^\p{Lu}{2,5}$/u.test(word)&&/^\d+$/.test(tokens[i+1]??''));
+    if(plain.length>=3&&seen.has(plain)&&!model) continue;seen.add(plain);
     const shouting=/^[\p{Lu}]{4,}$/u.test(word.replace(/[^\p{L}]/gu,''))&&!/\d/.test(word);
     words.push(shouting?word.charAt(0)+word.slice(1).toLowerCase():word);
   }
@@ -92,7 +96,7 @@ const slugify=(value:string)=>value.normalize('NFKD').toLowerCase().replace(/&/g
 export const cube=(grams:number)=>Math.min(1000,Math.max(50,Math.ceil(Math.cbrt(grams*6000))));
 
 type Image={file:string;source:string;width:number;height:number};
-type StockSource={rank:number;name:string;hpp:number;stock:number;unitGrams:number;weightDefaulted:boolean;warehouse:{id:string;name:string;province:string;city:string;district:string};category:string;images:Image[];qty:number};
+type StockSource={rank:number;name:string;title:string;variant:string|null;details:string;hpp:number;stock:number;unitGrams:number;weightDefaulted:boolean;warehouse:{id:string;name:string;province:string;city:string;district:string};category:string;images:Image[];qty:number};
 type OfferSource={key:string;name:string;description:string;category:string;kind:'unit'|'multipack'|'bundle';label:string;parts:{rank:number;quantity:number}[];warehouse:string;grams:number;images:{rank:number;file:string;alt:string}[]};
 
 export function readBerlapakSource(directory:string){
@@ -136,10 +140,14 @@ export function readBerlapakSource(directory:string){
       const grams=Number.isSafeInteger(inventory.weight_gram)&&Number(inventory.weight_gram)>0?Number(inventory.weight_gram)
         :typeof inventory.weight_kg==='number'&&inventory.weight_kg>0?Math.ceil(inventory.weight_kg*1000):null;
       const code=text(category.storefront_category_code,20);if(!categories.some((c)=>c.code===code)){skip('category-unmapped');continue;}
-      const base=publicName(text(row.name,500),suppliers,NAME_LIMIT,optionalText(category.storefront_subcategory,100)??undefined);
-      const name=variantName?`${base} - ${publicName(variantName,suppliers,60)}`:base;
-      stocks.set(rank,{rank,name:text(name,200),hpp,stock,unitGrams:grams??FALLBACK_UNIT_GRAMS,weightDefaulted:grams===null,
-        warehouse:{id:warehouseId,name:text(place.warehouse_name,150),province:placeName(place.province),city:placeName(place.city),district:placeName(place.district)},category:code,images,qty});
+      const fallback=optionalText(category.storefront_subcategory,100)??undefined;
+      const base=publicName(text(row.name,500),suppliers,NAME_LIMIT,fallback);const variant=variantName?publicName(variantName,suppliers,60):null;
+      // Raw marketplace description: cleaned by the DEC-005 generator before anything is published.
+      let details='';try{details=optionalText(row.description,20000)??'';}catch{/* unusable text: no details */}
+      const name=variant?`${base} - ${variant}`:base;
+      // `title`/`variant`: the uncut public name and variant, for the DEC-005 dataset's short card titles.
+      stocks.set(rank,{rank,name:text(name,200),title:publicName(text(row.name,500),suppliers,500,fallback,true),variant,hpp,stock,unitGrams:grams??FALLBACK_UNIT_GRAMS,weightDefaulted:grams===null,
+        warehouse:{id:warehouseId,name:text(place.warehouse_name,150),province:placeName(place.province),city:placeName(place.city),district:placeName(place.district)},category:code,details,images,qty});
     }catch{skip('invalid-record');}
   }
   const offers:OfferSource[]=[];

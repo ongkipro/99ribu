@@ -16,11 +16,11 @@ import {appendCostVersion} from '../../src/modules/finance/costs.ts';
 import {createMovement} from '../../src/modules/inventory/positions.ts';
 import {handleInventory} from '../../src/modules/inventory/routes.ts';
 import {DEFAULT_OFFER_ASSUMPTIONS} from '../../src/modules/local/berlapak.ts';
-import {applyOriginTransition,buildBerlapakDataset,loadInitialStock,originKey,planOriginTransition,summarizeTransition,writeBerlapakDataset} from '../../src/modules/local/berlapak-dataset.ts';
+import {applyOriginTransition,buildBerlapakDataset,cardTitle,cardTitles,classifyName,loadInitialStock,originKey,planOriginTransition,summarizeTransition,writeBerlapakDataset} from '../../src/modules/local/berlapak-dataset.ts';
 import {withdrawTestPublications} from '../../src/modules/local/seed-runtime.ts';
 import {catalogQuery,listProducts,publicProduct} from '../../src/modules/storefront/catalog.ts';
 import {buildShippingPlans} from '../../src/modules/shipping/quotes.ts';
-import {serveCatalogMedia} from '../../src/storage/catalog-media.ts';
+import {catalogMediaFileName,serveCatalogMedia} from '../../src/storage/catalog-media.ts';
 import {actor,cleanup,enroll} from '../contract/access-fixture.ts';
 
 // Header-only WebP plus unique trailing bytes: distinct content hashes per run, so this suite
@@ -36,7 +36,7 @@ const raw=(rank:number,o:{name:string;hpp:number;qty:number;ready?:boolean;place
   warehouse_and_shipping:{warehouse_id:o.place.id,warehouse_name:WAREHOUSE,address_id:'5fc64914f8f44b34aa4ce853',district:o.place.district,city:'TANGERANG SELATAN',province:'BANTEN'},category_mapping:{storefront_category_code:'CAT-02'}});
 function snapshot(extra:(main:Place)=>ReturnType<typeof raw>[]=()=>[],bundles:{code:string;ranks:number[]}[]=[]){
   const dir=mkdtempSync(join(tmpdir(),'catalog-raw-'));mkdirSync(join(dir,'data-json'));const place={id:SOURCE_WAREHOUSE(),district:'SERPONG'};
-  const products=[raw(1,{name:`${SUPPLIER} Lem Perekat Super Kuat VIRAL Original COD`,hpp:HPP,qty:2,place}),raw(2,{name:'Botol Mahal',hpp:51000,qty:2,place}),
+  const products=[raw(1,{name:`${SUPPLIER} Pembersih Lantai Super Kuat VIRAL Original COD`,hpp:HPP,qty:2,place}),raw(2,{name:'Botol Mahal',hpp:51000,qty:2,place}),
     raw(3,{name:'Sapu Belum Ready',hpp:5000,qty:2,ready:false,place}),raw(4,{name:'Spons Cuci Piring',hpp:23456,qty:1,place}),...extra(place)];
   const json=(name:string,value:unknown)=>writeFileSync(join(dir,'data-json',name),JSON.stringify(value));
   json('products-up-to-49k-ready-stock.json',{updated_at:'2026-10-15T00:00:00Z',products});
@@ -56,25 +56,37 @@ function writeDataset(dir:string,catalog:CatalogDocument,photos:Map<string,{byte
     photos:[...photos].sort(([a],[b])=>a<b?-1:1).map(([sha256,p])=>({sha256,bytes:p.bytes.length,width:p.width,height:p.height}))}));
   return dir;
 }
-const unique=(catalog:CatalogDocument,run:string):CatalogDocument=>JSON.parse(JSON.stringify(catalog).replaceAll('"B99_',`"B99${run}_`).replaceAll('rumah-tangga-dan-kebersihan',`rumah-tangga-dan-kebersihan-${run.toLowerCase()}`));
+// The fixture snapshot is three products in one department, below the production minimum of 8, and
+// holds none of the reviewed category override keys.
+const SMALL={minimumPerCategory:1,requireOverrides:false};
+const unique=(catalog:CatalogDocument,run:string):CatalogDocument=>JSON.parse(JSON.stringify(catalog).replaceAll('"B99_',`"B99${run}_`).replaceAll('"rumah-tangga"',`"rumah-tangga-${run.toLowerCase()}"`));
 
 test('generator: deterministic sanitized dataset; malformed datasets are refused before any write',()=>{
   const rawDir=snapshot();const out=mkdtempSync(join(tmpdir(),'catalog-out-'));
   try{
-    const first=buildBerlapakDataset(rawDir),second=buildBerlapakDataset(rawDir);
+    const first=buildBerlapakDataset(rawDir,SMALL),second=buildBerlapakDataset(rawDir,SMALL);
     assert.equal(first.text,second.text);assert.deepEqual(first.manifest,second.manifest);
     assert.deepEqual(first.catalog.products.map((p)=>[p.key,p.offer.kind]),[['1','multipack'],['4','unit'],['BND-01','bundle']]);
+    // Short department name/slug and one-line card titles (owner decision 2026-10-23).
+    // Marketplace departments classified from product names (owner decision 2026-10-23), with the
+    // department's Google product category and a more specific node where a rule names one.
+    assert.deepEqual(first.catalog.categories,[{slug:'rumah-tangga',name:'Rumah Tangga',google_product_category:536}]);
+    assert.deepEqual(first.catalog.products.map((p)=>[p.name,p.category,p.google_product_category]),[['2 pcs Pembersih Lantai Super Kuat','rumah-tangga',7330],['Spons Cuci Piring','rumah-tangga',undefined],['Paket Dapur Bersih','rumah-tangga',undefined]]);
+    // Photo alt text is the clean title (", foto N" from the second photo); a bundle photo names its component.
+    assert.deepEqual(first.catalog.products.map((p)=>p.photos.map((ph)=>ph.alt)),[['2 pcs Pembersih Lantai Super Kuat','2 pcs Pembersih Lantai Super Kuat, foto 2'],['Spons Cuci Piring','Spons Cuci Piring, foto 2'],['Pembersih Lantai Super Kuat','Spons Cuci Piring']]);
+    assert.throws(()=>buildBerlapakDataset(rawDir),/Category override BND-17 names no offer/);
+    assert.throws(()=>buildBerlapakDataset(rawDir,{requireOverrides:false}),/Departments below the minimum of 8 products: rumah-tangga \(3\)/);
     const raws=JSON.parse(readFileSync(join(rawDir,'data-json','products-up-to-49k-ready-stock.json'),'utf8')).products as {warehouse_and_shipping:{warehouse_id:string}}[];
     for(const banned of ['rahasia',raws[0].warehouse_and_shipping.warehouse_id,'5fc64914f8f44b34aa4ce853','hpp',String(HPP),'23456','total_stock','supplier','warehouse_id','address'])
       assert.ok(!first.text.toLowerCase().includes(banned),`dataset leaks ${banned}`);
-    const written=writeBerlapakDataset(rawDir,out);assert.equal(written.photos_written,4);
+    const written=writeBerlapakDataset(rawDir,out,SMALL);assert.equal(written.photos_written,4);
     const files=['catalog.json','manifest.json'].map((f)=>readFileSync(join(out,f),'utf8'));
-    const again=writeBerlapakDataset(rawDir,out);assert.equal(again.photos_written,0);assert.equal(again.catalog_sha256,written.catalog_sha256);
+    const again=writeBerlapakDataset(rawDir,out,SMALL);assert.equal(again.photos_written,0);assert.equal(again.catalog_sha256,written.catalog_sha256);
     assert.deepEqual(['catalog.json','manifest.json'].map((f)=>readFileSync(join(out,f),'utf8')),files);
     assert.equal(readCatalogDataset(out).catalog.products.length,3);
     // Each corruption is caught by the reader, which performs no database work.
     const refused=(mutate:()=>void,pattern:RegExp)=>{const dir=mkdtempSync(join(tmpdir(),'catalog-bad-'));
-      try{writeBerlapakDataset(rawDir,dir);const restore=process.cwd();process.chdir(dir);try{mutate();}finally{process.chdir(restore);}
+      try{writeBerlapakDataset(rawDir,dir,SMALL);const restore=process.cwd();process.chdir(dir);try{mutate();}finally{process.chdir(restore);}
         assert.throws(()=>readCatalogDataset(dir),(e)=>e instanceof CatalogDatasetError&&pattern.test(e.message));}finally{rmSync(dir,{recursive:true,force:true});}};
     const edit=(f:(c:Record<string,unknown>)=>void,resign=true)=>()=>{const c=JSON.parse(readFileSync('catalog.json','utf8'));f(c);const text=`${JSON.stringify(c,null,2)}\n`;writeFileSync('catalog.json',text);
       if(resign){const m=JSON.parse(readFileSync('manifest.json','utf8'));m.catalog_sha256=createHash('sha256').update(text).digest('hex');writeFileSync('manifest.json',JSON.stringify(m));}};
@@ -86,12 +98,48 @@ test('generator: deterministic sanitized dataset; malformed datasets are refused
   }finally{rmSync(rawDir,{recursive:true,force:true});rmSync(out,{recursive:true,force:true});}
 });
 
+test('card titles: one line, real attributes only, same-category collisions resolved or refused',()=>{
+  assert.equal(cardTitle('Kaos Kata Lucu Sindiran Bacot Sablon Depan Belakang TC Combed Size S sampai 5XL',{variant:'Hitam / S Atau M',count:2,item:true}),'2 pcs Kaos Bacot');
+  assert.equal(cardTitle('TAS Water Proof Ocean BAG 2 Liter, 5 10 15 20',{variant:'5 Liter'}),'Tas Water Proof Ocean Bag, 5 liter');
+  assert.equal(cardTitle('One Two Cups Teko Teh Kaca Borosilikat Saringan Tahan Panas Teapot 750ml'),'One Two Cups Teko Teh Kaca, 750ml');
+  assert.equal(cardTitle('Jawline Exerciser GEN 4 Medium Alat Latihan Rahang Pembentuk Wajah',{variant:'Biru',count:6,item:true}),'6 pcs Jawline Exerciser GEN 4, Biru');
+  const source=(names:string[])=>({stocks:names.map((title,i)=>({rank:i+1,title,variant:'50 ml'})),
+    offers:names.map((name,i)=>({key:String(i+1),name,category:'CAT-01',kind:'unit',parts:[{rank:i+1,quantity:1}]}))}) as unknown as Parameters<typeof cardTitles>[0];
+  const foam=(flavor:string)=>`Gendes Feminine Wash Foam ${flavor} 5 Miracle Bioactives`;
+  assert.deepEqual([...cardTitles(source([foam('Coco Pandan'),foam('Grape'),foam('Vanilla')])).values()],
+    ['Gendes Feminine Wash Foam Coco, 50 ml','Gendes Feminine Wash Foam Grape, 50 ml','Gendes Feminine Wash Foam Vanilla, 50 ml']);
+  assert.throws(()=>cardTitles(source([foam('Grape'),foam('Grape')])),/Duplicate card title/);
+  // Equal cuts are told apart by the words unique to each listing.
+  const long=(flavor:string)=>`Gendes Feminine Wash Foam Aroma Segar Tahan Lama ${flavor}`;
+  assert.deepEqual([...cardTitles(source([long('Grape'),long('Vanilla')])).values()],['Gendes Feminine Wash Foam Grape, 50 ml','Gendes Feminine Wash Foam Vanilla, 50 ml']);
+  // A title that loses its product type (here "mobil") is refused until a reviewed override exists.
+  const dent=({stocks:[{rank:1,title:'Alat Penyok Perbaikan Penyot Mobil Sedot Kempot Ringan Bodi Suction Cup',variant:null}],
+    offers:[{key:'901',name:'x',category:'CAT-01',kind:'multipack',parts:[{rank:1,quantity:10}]}]}) as unknown as Parameters<typeof cardTitles>[0];
+  assert.throws(()=>cardTitles(dent),/lose their product type.*901/);
+});
+
+test('departments: products are classified by what they are, head noun first',()=>{
+  const dept=(name:string,prior:Parameters<typeof classifyName>[1]=null)=>classifyName(name,prior)?.slug;
+  assert.equal(dept('Sarung Tangan Karet Mekanik'),'perkakas');
+  assert.equal(dept('Sarung Instan Dewasa Model Rok Pinggang Karet'),'ibadah');
+  assert.equal(dept('Kaos Kaki Terapi Pemanas Penghangat Foot Support'),'kesehatan');
+  assert.equal(dept('Kacamata Baca Plus Auto Focus'),'kesehatan');
+  assert.equal(dept('Kaos Kata Kata Dibalik Suksesku Ada Doa Anak dan Istri'),'fashion-pria');
+  assert.equal(dept('Harder Kaos Jersey Anak Berkerah Super Kids'),'ibu-anak');
+  assert.equal(dept('Parfum Mobil Kopi Bali Spray 30ml Pengharum Ruangan'),'otomotif');
+  assert.equal(dept('Pengharum Ruangan & Mobil Botol Apel 10ml'),'rumah-tangga');
+  assert.equal(dept('Korset Pelangsing Perut Pria Wanita'),'fashion-wanita');
+  assert.equal(dept('Dompet Model Panjang Kulit Pria Wanita','fashion-pria'),'fashion-pria');
+  assert.equal(dept('Waist Bag Unicorn Tas Pinggang Selempang Anak'),'ibu-anak');
+  assert.equal(dept('Spons Cuci Piring'),undefined);assert.equal(dept('Spons Cuci Piring','rumah-tangga'),'rumah-tangga');
+});
+
 test('catalog import: catalog-only rows, served photos, idempotent rerun, guarded publication, revisions and preserved staff edits',async()=>{
   const identity=createLocalAuth('test');const sql=identity.sql;
   const owner=await actor(identity,'owner',[]);await enroll(owner.browser,owner.password);
   const editor=await actor(identity,'owner',[]);await enroll(editor.browser,editor.password);
   const rawDir=snapshot();const run=randomUUID().slice(0,8).toUpperCase();const dir=mkdtempSync(join(tmpdir(),'catalog-ds-'));
-  const built=buildBerlapakDataset(rawDir);const catalog=unique(built.catalog,run);const prefix=`B99${run}_`;
+  const built=buildBerlapakDataset(rawDir,SMALL);const catalog=unique(built.catalog,run);const prefix=`B99${run}_`;
   const origin=catalog.warehouses[0];
   // A pre-existing origin row with a different kecamatan is refused before any catalog write.
   const [wh]=await sql`insert into app.warehouse (name,province,city,district,origin_key) values (${origin.name},${origin.province},${origin.city},'Kecamatan Lain',${origin.key}) returning id`;
@@ -99,7 +147,7 @@ test('catalog import: catalog-only rows, served photos, idempotent rerun, guarde
     const load=(c:CatalogDocument)=>readCatalogDataset(writeDataset(dir,c,built.photos));
     const importNow=(c:CatalogDocument)=>importCatalog(owner.browser.request('/api/v1/admin/products'),identity,load(c));
     const offerSkus=catalog.products.map((p)=>p.offer.sku);
-    const counts=async()=>(await sql`select (select count(*)::int from app.category where slug=${`rumah-tangga-dan-kebersihan-${run.toLowerCase()}`}) categories,
+    const counts=async()=>(await sql`select (select count(*)::int from app.category where slug=${`rumah-tangga-${run.toLowerCase()}`}) categories,
       (select count(*)::int from app.stock_item where sku like ${`${prefix}%`}) stock_items,(select count(*)::int from app.offer where sku in ${sql(offerSkus)}) offers,
       (select count(*)::int from app.product_revision r where r.product_id in (select product_id from app.offer where sku in ${sql(offerSkus)})) revisions,
       (select count(*)::int from app.publication_version v where v.product_id in (select product_id from app.offer where sku in ${sql(offerSkus)})) publications,
@@ -128,10 +176,14 @@ test('catalog import: catalog-only rows, served photos, idempotent rerun, guarde
     const publicText=JSON.stringify(drafts.map((d)=>({name:d.name,description:d.description,images:d.images,variants:d.variants.map((v)=>({label:v.label,contents:v.contents}))}))).toLowerCase();
     for(const banned of ['rahasia','gudang','tangerang',String(HPP)]) assert.ok(!publicText.includes(banned),`DB public field leaks ${banned}`);
     assert.equal((await sql`select count(*)::int n from app.warehouse where origin_key=${origin.key}`)[0].n,1);
-    const image=drafts.find((d)=>d.id===unit)?.images[0] as {url:string;width:number};assert.match(image.url,/^http:\/\/127\.0\.0\.1:3099\/media\/catalog\/[0-9a-f]{64}\.webp$/);
+    // SEO file name: title slug + first 12 hex of the content hash; storage stays content-addressed.
+    const unitDraftNow=drafts.find((d)=>d.id===unit);const image=unitDraftNow?.images[0] as {url:string;width:number;alt:string};
+    const sha=catalog.products.find((p)=>p.key==='4')?.photos[0].sha256 as string;
+    assert.equal(image.url,`http://127.0.0.1:3099/media/catalog/${catalogMediaFileName(unitDraftNow?.name as string,sha)}`);assert.match(image.url,/\/media\/catalog\/spons-cuci-piring-[0-9a-f]{12}\.webp$/);
+    assert.equal(image.alt,unitDraftNow?.name);assert.ok(drafts.every((d)=>d.images.every((i)=>i.alt.trim().length>0)),'every product photo has an alt');
     const name=image.url.split('/').at(-1) as string;const served=await serveCatalogMedia(name);
     assert.equal(served.status,200);assert.equal(served.headers.get('content-type'),'image/webp');
-    assert.ok(Buffer.from(await served.arrayBuffer()).equals(built.photos.get(name.slice(0,64))?.bytes as Buffer));
+    assert.ok(Buffer.from(await served.arrayBuffer()).equals(built.photos.get(sha)?.bytes as Buffer));
     assert.equal((await serveCatalogMedia(`${'0'.repeat(64)}.webp`)).status,404);assert.equal((await serveCatalogMedia('../manifest.json')).status,404);
 
     // Rerun: zero new catalog rows and no run audit.
@@ -166,6 +218,18 @@ test('catalog import: catalog-only rows, served photos, idempotent rerun, guarde
     assert.equal((await readCatalogRevision(sql,multi)).name,`${catalog.products[0].name} Edisi Baru`);
     assert.equal((await readCatalogRevision(sql,bundle)).description,'Staff-written description.');
     assert.equal((await importNow(changed)).changed,false);
+
+    // A renamed category is a new slug: it is created through the category service, importer-owned
+    // products move to it in one revision (a ready one is republished in the same run), and the
+    // staff-edited product and the immutable old category row stay as they are.
+    const slug=catalog.categories[0].slug;const [old]=await sql`select id from app.category where slug=${slug}`;
+    const renamed=JSON.parse(JSON.stringify(changed).replaceAll(`"${slug}"`,`"${slug}-baru"`)) as CatalogDocument;renamed.categories[0].name='Rumah Tangga Baru';
+    const fifth=await importNow(renamed);
+    assert.deepEqual({created:fifth.categories.created,revised:fifth.products.revised,preserved:fifth.products.preserved,published_now:fifth.published_now,published:fifth.published},
+      {created:1,revised:2,preserved:['BND-01'],published_now:1,published:1});
+    const [moved]=await sql`select id,name from app.category where slug=${`${slug}-baru`}`;assert.equal(moved.name,'Rumah Tangga Baru');
+    assert.deepEqual([(await readCatalogRevision(sql,unit)).category_id,(await readCatalogRevision(sql,multi)).category_id,(await readCatalogRevision(sql,bundle)).category_id],[moved.id,moved.id,old.id]);
+    assert.equal((await importNow(renamed)).changed,false);
   }finally{
     rmSync(rawDir,{recursive:true,force:true});rmSync(dir,{recursive:true,force:true});
     for(const hash of built.photos.keys()) try{unlinkSync(join(privateDirectory('catalog-media'),`${hash}.webp`));}catch{/* not stored */}
@@ -175,7 +239,7 @@ test('catalog import: catalog-only rows, served photos, idempotent rerun, guarde
 
 test('deploy command: refuses a malformed dataset, imports as a removed temporary owner and reruns without changes',async()=>{
   const identity=createLocalAuth('test');const sql=identity.sql;const rawDir=snapshot();const run=randomUUID().slice(0,8).toUpperCase();
-  const dir=mkdtempSync(join(tmpdir(),'catalog-cli-'));const built=buildBerlapakDataset(rawDir);writeDataset(dir,unique(built.catalog,run),built.photos);
+  const dir=mkdtempSync(join(tmpdir(),'catalog-cli-'));const built=buildBerlapakDataset(rawDir,SMALL);writeDataset(dir,unique(built.catalog,run),built.photos);
   const key=built.catalog.warehouses[0].key;
   const cli=(...args:string[])=>spawnSync(process.execPath,['--env-file=.env.example','scripts/catalog.ts','import','test',...args],{encoding:'utf8',timeout:60000});
   try{
@@ -206,7 +270,7 @@ test('initial stock and HPP from the raw snapshot, guarded publication, withdraw
   const identity=createLocalAuth('test');const sql=identity.sql;
   const owner=await actor(identity,'owner',[]);await enroll(owner.browser,owner.password);
   const rawDir=snapshot();const run=randomUUID().slice(0,8).toUpperCase();const dir=mkdtempSync(join(tmpdir(),'catalog-stock-'));const stale=mkdtempSync(join(tmpdir(),'catalog-stale-'));
-  const built=buildBerlapakDataset(rawDir);const catalog=unique(built.catalog,run);const prefix=`B99${run}_`;writeDataset(dir,catalog,built.photos);
+  const built=buildBerlapakDataset(rawDir,SMALL);const catalog=unique(built.catalog,run);const prefix=`B99${run}_`;writeDataset(dir,catalog,built.photos);
   writeDataset(stale,{...catalog,source_snapshot:'2026-01-01T00:00:00Z'},built.photos);
   const [{at:since}]=await sql`select clock_timestamp()::text as at`;
   const request=(path='/api/v1/admin/products')=>{const r=owner.browser.request(path,{});r.headers.set('idempotency-key',randomUUID());return r;};
@@ -304,7 +368,7 @@ test('DEC-006 generator: per-offer origin keys, generic kecamatan names, no supp
   const rawDir=snapshot(()=>[raw(5,{name:'Ember Plastik Lipat',hpp:20000,qty:1,place:{id:second,district:'SERPONG'}}),raw(6,{name:'Gayung Mandi Bulat',hpp:15000,qty:2,place:{id:third,district:'CIPUTAT'}})],
     [{code:'BND-02',ranks:[4,6]}]);
   try{
-    const first=buildBerlapakDataset(rawDir);assert.equal(first.text,buildBerlapakDataset(rawDir).text);
+    const first=buildBerlapakDataset(rawDir,SMALL);assert.equal(first.text,buildBerlapakDataset(rawDir,SMALL).text);
     assert.equal(first.skipped['bundle-mixed-warehouse'],1);assert.ok(!first.catalog.products.some((p)=>p.key==='BND-02'));
     const raws=JSON.parse(readFileSync(join(rawDir,'data-json','products-up-to-49k-ready-stock.json'),'utf8')).products as {rank:number;warehouse_and_shipping:{warehouse_id:string}}[];
     const sourceOf=(rank:number)=>(raws.find((r)=>r.rank===rank) as {warehouse_and_shipping:{warehouse_id:string}}).warehouse_and_shipping.warehouse_id;
@@ -327,7 +391,7 @@ test('DEC-006 local transition: dry run is read-only; apply moves available stoc
   const identity=createLocalAuth('test');const sql=identity.sql;
   const owner=await actor(identity,'owner',[]);await enroll(owner.browser,owner.password);
   const rawDir=snapshot();const run=randomUUID().slice(0,8).toUpperCase();const dir=mkdtempSync(join(tmpdir(),'catalog-rehome-'));
-  const built=buildBerlapakDataset(rawDir);const catalog=unique(built.catalog,run);const prefix=`B99${run}_`;writeDataset(dir,catalog,built.photos);
+  const built=buildBerlapakDataset(rawDir,SMALL);const catalog=unique(built.catalog,run);const prefix=`B99${run}_`;writeDataset(dir,catalog,built.photos);
   const [legacy]=await sql`insert into app.warehouse (name,city) values ('Synthetic pre-DEC-006 import warehouse','Malang') returning id,name`;
   const request=(path='/api/v1/admin/products')=>{const r=owner.browser.request(path,{});r.headers.set('idempotency-key',randomUUID());return r;};
   const principal=await getPrincipal(request('/api/v1/me'),identity);

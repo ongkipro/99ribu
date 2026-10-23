@@ -4,7 +4,7 @@ import { join } from "node:path";
 import { isDeepStrictEqual } from "node:util";
 import type { Sql, TransactionSql } from "postgres";
 import { readLocalConfig } from "../../config/local.ts";
-import { CATALOG_MEDIA_LIMIT, catalogMediaName, saveCatalogMedia } from "../../storage/catalog-media.ts";
+import { CATALOG_MEDIA_LIMIT, catalogMediaFileName, catalogMediaName, saveCatalogMedia } from "../../storage/catalog-media.ts";
 import type { LocalAuth } from "../access/auth.ts";
 import { assertCurrentOwner } from "../access/grants.ts";
 import { assertOrigin } from "../access/http.ts";
@@ -20,6 +20,8 @@ import { array, integer, object, sku, text } from "./validation.ts";
 // location only. importCatalog loads it through the real catalog and publication services,
 // creating the origin warehouses; it never writes stock, cost or order rows.
 export const CATALOG_FORMAT = "99ribu.catalog/v2";
+// The committed dataset (repository-relative), also read by the local feed for Google categories.
+export const defaultCatalogDatasetDir = new URL("../../../data/catalog/berlapak/", import.meta.url).pathname;
 export const MANIFEST_FORMAT = "99ribu.catalog-manifest/v1";
 const PRICE = 99000, JSON_LIMIT = 16 * 1024 * 1024, SHA = /^[0-9a-f]{64}$/, SLUG = /^[a-z0-9]+(-[a-z0-9]+)*$/, ORIGIN_KEY = /^[0-9a-f]{32}$/;
 export const IMPORT_ACTION = "catalog.import";
@@ -33,21 +35,25 @@ function field<T>(where: string, parse: () => T): T {
 
 type Content = { stock_item: string; quantity: number };
 type Offer = { sku: string; label: string; kind: "unit" | "multipack" | "bundle"; warehouse: string; weight_grams: number; length_mm: number; width_mm: number; height_mm: number; contents: Content[] };
-type Product = { key: string; name: string; description: string; category: string; photos: { sha256: string; alt: string }[]; offer: Offer };
+type Product = { key: string; name: string; description: string; category: string; google_product_category?: number; photos: { sha256: string; alt: string }[]; offer: Offer };
 export type OriginWarehouse = { key: string; name: string; province: string; city: string; district: string };
 export type CatalogDocument = { format: string; source: string; source_snapshot: string; price_idr: number;
-  categories: { slug: string; name: string }[]; warehouses: OriginWarehouse[]; stock_items: { sku: string; name: string }[]; products: Product[] };
+  categories: { slug: string; name: string; google_product_category?: number }[]; warehouses: OriginWarehouse[]; stock_items: { sku: string; name: string }[]; products: Product[] };
 export type ManifestDocument = { format: string; catalog_sha256: string; photos: { sha256: string; bytes: number; width: number; height: number }[] };
 export type CatalogDataset = { catalog: CatalogDocument; catalogSha256: string; photos: Map<string, { bytes: Buffer; width: number; height: number }> };
+
+// Google product category id (Google Product Taxonomy); optional, department default on the
+// category and a more specific node on a product. The generator pins and validates the ids.
+const google = (value: unknown) => value === undefined ? {} : { google_product_category: integer(value, 1, 99999999) };
 
 export function parseCatalog(value: unknown): CatalogDocument {
   const data = field("catalog root", () => object(value, ["format", "source", "source_snapshot", "price_idr", "categories", "warehouses", "stock_items", "products"]));
   if (data.format !== CATALOG_FORMAT) refuse("Unsupported catalog dataset format.");
   if (data.price_idr !== PRICE) refuse("Every catalog offer must be IDR 99,000.");
   const categories = field("categories", () => array(data.categories, (v) => {
-    const row = object(v, ["slug", "name"]); const slug = text(row.slug, 100);
+    const row = object(v, ["slug", "name", "google_product_category"]); const slug = text(row.slug, 100);
     if (slug !== row.slug || !SLUG.test(slug)) throw new Error();
-    return { slug, name: text(row.name, 200) };
+    return { slug, name: text(row.name, 200), ...google(row.google_product_category) };
   }, 1, 100));
   const warehouses = field("warehouses", () => array(data.warehouses, (v) => {
     const row = object(v, ["key", "name", "province", "city", "district"]); if (typeof row.key !== "string" || !ORIGIN_KEY.test(row.key)) throw new Error();
@@ -57,7 +63,7 @@ export function parseCatalog(value: unknown): CatalogDocument {
     const row = object(v, ["sku", "name"]); return { sku: sku(row.sku), name: text(row.name, 200) };
   }, 1, 10000));
   const products = field("products", () => array(data.products, (v) => v, 1, 10000)).map((v, index) => field(`products[${index}]`, () => {
-    const row = object(v, ["key", "name", "description", "category", "photos", "offer"]);
+    const row = object(v, ["key", "name", "description", "category", "google_product_category", "photos", "offer"]);
     const key = text(row.key, 40); if (key !== row.key || !/^[A-Za-z0-9-]+$/.test(key)) throw new Error();
     const photos = array(row.photos, (p) => {
       const photo = object(p, ["sha256", "alt"]); if (typeof photo.sha256 !== "string" || !SHA.test(photo.sha256)) throw new Error();
@@ -72,7 +78,7 @@ export function parseCatalog(value: unknown): CatalogDocument {
     if ((kind === "unit" && (contents.length !== 1 || contents[0].quantity !== 1)) || (kind === "multipack" && (contents.length !== 1 || contents[0].quantity < 2)) ||
       (kind === "bundle" && contents.length < 2) || !["unit", "multipack", "bundle"].includes(kind as string)) throw new Error();
     if (new Set(contents.map((c) => c.stock_item)).size !== contents.length) throw new Error();
-    return { key, name: text(row.name, 200), description: text(row.description, 10000), category: text(row.category, 100), photos,
+    return { key, name: text(row.name, 200), description: text(row.description, 10000), category: text(row.category, 100), ...google(row.google_product_category), photos,
       offer: { sku: sku(o.sku), label: text(o.label, 200), kind: kind as Offer["kind"], warehouse: o.warehouse, weight_grams: integer(o.weight_grams, 1, 1000000),
         length_mm: integer(o.length_mm, 1, 10000), width_mm: integer(o.width_mm, 1, 10000), height_mm: integer(o.height_mm, 1, 10000), contents } };
   }));
@@ -260,10 +266,14 @@ export async function importCatalog(request: Request, identity: LocalAuth, datas
         const row = await createStockItem(command(`stock:${item.sku}`), identity, principal, { sku: item.sku, name: item.name });
         stocks.set(item.sku, { id: row.id, name: row.name }); summary.stock_items.created++;
       }
+      // Public photo names carry the title of the first product (dataset order) that shows the
+      // photo; storage stays content-addressed (`/media/catalog/<slug>-<12 hex>.webp`).
+      const photoNames = new Map<string, string>();
+      for (const product of catalog.products) for (const photo of product.photos) if (!photoNames.has(photo.sha256)) photoNames.set(photo.sha256, catalogMediaFileName(product.name, photo.sha256));
       for (const product of catalog.products) {
         signal?.throwIfAborted();
         const images = product.photos.map((photo) => { const meta = dataset.photos.get(photo.sha256) as { width: number; height: number };
-          return { url: `${config.origin}/media/catalog/${photo.sha256}.webp`, alt: photo.alt, width: meta.width, height: meta.height }; });
+          return { url: `${config.origin}/media/catalog/${photoNames.get(photo.sha256) as string}`, alt: photo.alt, width: meta.width, height: meta.height }; });
         const variant = { label: product.offer.label, attributes: [], offer_kind: product.offer.kind, weight_grams: product.offer.weight_grams, length_mm: product.offer.length_mm,
           width_mm: product.offer.width_mm, height_mm: product.offer.height_mm, default_warehouse_id: warehouses.ids.get(product.offer.warehouse) as string,
           contents: product.offer.contents.map((c) => { const stock = stocks.get(c.stock_item) as { id: string; name: string }; return { stock_item_id: stock.id, name: stock.name, quantity: c.quantity }; })
