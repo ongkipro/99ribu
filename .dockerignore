@@ -1,0 +1,29 @@
+# S84 build context: what `npm ci` + `npm run build` and the runtime stage need, nothing private.
+# The runtime stage copies an explicit allow-list; this file keeps the rest out of the build too.
+.git
+**/node_modules
+.next
+.local
+.delivery
+.env
+.env.*
+!.env.example
+**/*.pem
+**/*.key
+tests
+# The test runner imports tests/ and is not a runtime command.
+scripts/check-tests.ts
+docs
+!docs/spec/fixtures/shipping-local.json
+design
+public/prototypes
+public/catalog-local
+public/berlapak-images
+coverage
+playwright-report
+test-results
+*.log
+*.md
+Dockerfile
+.dockerignore
+compose.yaml
