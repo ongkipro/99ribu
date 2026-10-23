@@ -13,13 +13,17 @@ CREATE INDEX IF NOT EXISTS "visitor_session_expires_idx" ON "app"."visitor_sessi
 -- Visitor/consent/funnel/advertising rows are append-only by trigger. They may now be deleted only by the
 -- table owner inside app.purge_expired_visitor_history, which runs SECURITY DEFINER and sets the transaction-
 -- local setting app.retention_purge=on only around its own deletes. The app role can set the setting but is never the table owner,
--- so a direct DELETE still fails with the original 23514 messages. No trigger is disabled.
-CREATE FUNCTION app.retention_purge_allowed(relation oid) RETURNS boolean LANGUAGE sql STABLE AS $$
- SELECT coalesce(current_setting('app.retention_purge', true), '') = 'on'
-  AND current_user = (SELECT pg_get_userbyid(c.relowner) FROM pg_class c WHERE c.oid = relation)
+-- so a direct DELETE still fails with the original 23514 messages. No trigger is disabled. Every function this
+-- migration creates or replaces pins search_path to pg_catalog, pg_temp (all app objects are schema-qualified).
+-- A pinned search_path and pg_catalog-qualified names: a caller's temporary pg_class (pg_temp is searched
+-- before pg_catalog on an unpinned path) cannot impersonate the catalog's owner column.
+CREATE FUNCTION app.retention_purge_allowed(relation oid) RETURNS boolean LANGUAGE sql STABLE
+SET search_path = pg_catalog, pg_temp AS $$
+ SELECT coalesce(pg_catalog.current_setting('app.retention_purge', true), '') = 'on'
+  AND CURRENT_USER = (SELECT pg_catalog.pg_get_userbyid(c.relowner) FROM pg_catalog.pg_class c WHERE c.oid = relation)
 $$;
 --> statement-breakpoint
-CREATE FUNCTION app.reject_signal_mutation() RETURNS trigger LANGUAGE plpgsql AS $$
+CREATE FUNCTION app.reject_signal_mutation() RETURNS trigger LANGUAGE plpgsql SET search_path = pg_catalog, pg_temp AS $$
 BEGIN
  IF TG_OP='DELETE' AND app.retention_purge_allowed(TG_RELID) THEN RETURN OLD; END IF;
  RAISE EXCEPTION 'Catalog identities and revision history are immutable' USING ERRCODE='23514';
@@ -41,6 +45,7 @@ CREATE OR REPLACE TRIGGER local_ad_sink_immutable BEFORE DELETE OR UPDATE ON app
 CREATE OR REPLACE FUNCTION app.guard_visitor_session()
  RETURNS trigger
  LANGUAGE plpgsql
+ SET search_path = pg_catalog, pg_temp
 AS $function$
 DECLARE receipt app.consent_receipt%ROWTYPE;
 BEGIN
@@ -79,6 +84,7 @@ $function$;
 CREATE OR REPLACE FUNCTION app.guard_ad_event_outbox()
  RETURNS trigger
  LANGUAGE plpgsql
+ SET search_path = pg_catalog, pg_temp
 AS $function$
 DECLARE event app.commerce_event%ROWTYPE; visitor app.visitor_session%ROWTYPE; captured app.consent_receipt%ROWTYPE; reason text;
 BEGIN

@@ -93,6 +93,7 @@ Rollback after go-live: Coolify rollback to the previous image when migrations w
 - Every index statement is `CREATE INDEX IF NOT EXISTS`. When a table is much larger (rule of thumb: a build over 5 s on a rehearsal copy), pre-build that index with `CREATE INDEX CONCURRENTLY` using the exact name and definition from the migration file, from an owner session with `statement_timeout=0`, and check it is valid (`pg_index.indisvalid`; drop and rebuild an invalid one); the migration then skips it. Do not run the migrator with longer timeouts against live traffic.
 - After migrating, the worker starts deleting expired rows within a minute (500 per table per run per worker); first runs after a long backlog take several minutes to drain. Back up before the first production deploy that contains 0037 (runbook step 6), as always.
 - `scripts/migrate.ts` grants the app role `EXECUTE` on `app.purge_expired_visitor_history(integer, interval)` after every run; 0037 revokes it from `PUBLIC`.
+- **Pending owner decision (S104 transfer-code hold):** a manual-bank code stays reserved while its order is open and 72 h past its 24 h deadline. With 999 codes and a reserve of 99, about 900 codes cover a ~96 h window, so roughly 225 manual-bank orders per day before checkout answers `409 MANUAL_BANK_BUSY`; abandoned guest orders (capped at 2 open per buyer) hold codes for the full window, which makes exhausting the pool cheaper. Behaviour is unchanged until the owner chooses a shorter hold, a larger code space, or per-account limits.
 
 ### Container topology (S84)
 

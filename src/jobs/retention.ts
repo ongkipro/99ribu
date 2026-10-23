@@ -23,9 +23,10 @@ export const OUTBOX_RETENTION_KINDS = [
 // Idempotency replay records whose operation id is never stored elsewhere; the durable record of each of
 // these actions is its domain row plus audit_event. Finance, payout, affiliate, fulfillment, policy, role
 // and promotion operations are kept (their ids are referenced as sources or guarded by triggers).
-export const ACCESS_OPERATION_RETENTION_ACTIONS = [
-  "buyer.%", "guest_order_access.%", "support.%", "shipping.label.%", "shipping.template.%",
-  "catalog.mutate", "catalog.publication", "catalog.publication.withdraw", "inventory.mutate", "staff_roles.proof:%",
+// Exact actions, plus prefixes matched with starts_with (no LIKE wildcards, so `_` stays literal).
+export const ACCESS_OPERATION_RETENTION_ACTIONS = ["catalog.mutate", "catalog.publication", "catalog.publication.withdraw", "inventory.mutate"] as const;
+export const ACCESS_OPERATION_RETENTION_PREFIXES = [
+  "buyer.", "guest_order_access.", "support.", "shipping.label.", "shipping.template.", "staff_roles.proof:",
 ] as const;
 
 // Every single-column foreign key that points at app.<table>, read from the catalog on each run so a new
@@ -52,7 +53,7 @@ export const RETENTION_JOBS: Readonly<Record<string, RetentionJob>> = {
       and ${(await unreferenced(sql, "outbox_job")).clause} order by t.completed_at limit ${RETENTION_BATCH} for update skip locked)`).count },
   "access_operation.replay": { table: "access_operation", window: "created 90 days ago, allowlisted actions, unreferenced",
     run: async (sql) => (await sql`delete from app.access_operation where id in (select t.id from app.access_operation t
-      where t.created_at<clock_timestamp()-interval '90 days' and t.action like any(${[...ACCESS_OPERATION_RETENTION_ACTIONS]}::text[])
+      where t.created_at<clock_timestamp()-interval '90 days' and (t.action=any(${[...ACCESS_OPERATION_RETENTION_ACTIONS]}::text[]) or exists (select 1 from unnest(${[...ACCESS_OPERATION_RETENTION_PREFIXES]}::text[]) p where starts_with(t.action, p)))
       and ${(await unreferenced(sql, "access_operation")).clause} order by t.created_at limit ${RETENTION_BATCH} for update skip locked)`).count },
   // mfa_session and access_proof rows go with their session (ON DELETE CASCADE).
   "auth.session": { table: "auth_session", window: "30 days after expiry (with its mfa_session and access_proof rows)",

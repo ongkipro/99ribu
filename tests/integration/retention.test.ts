@@ -52,14 +52,18 @@ test("S105 outbox and access-operation retention: bounded batches, idempotent re
       const op = async (action: string, age: string) => (await tx`insert into app.access_operation (actor_id,action,key,request_hash,response,created_at)
         values (${`retention-${run}`}, ${action}, ${randomUUID()}, 'x', '{}'::jsonb, clock_timestamp()-${age}::interval) returning id`)[0].id as string;
       const replay = await op("buyer.profile.update", days(91));
+      const prefixed = await op(`staff_roles.proof:${randomUUID()}`, days(91));
       const young = await op("buyer.profile.update", days(89));
       const finance = await op("finance.costs.append", days(400));
       const linked = await op("support.conversation.create", days(400));
+      // `_` is literal: prefixes match with starts_with, never as a LIKE wildcard.
+      const lookalike = await op("guestXorder_access.verify", days(400));
       await tx`insert into app.retention_probe_ref (operation_id) values (${linked})`;
       await drain(tx as unknown as Sql, "access_operation.replay");
       const ops = new Set((await tx`select id from app.access_operation where actor_id=${`retention-${run}`}`).map((r) => r.id));
       assert.ok(!ops.has(replay), "an old replay record of an allowlisted action is deleted");
-      for (const [label, id] of Object.entries({ young, finance, linked })) assert.ok(ops.has(id), `${label} operation is kept`);
+      for (const [label, id] of Object.entries({ young, finance, linked, lookalike })) assert.ok(ops.has(id), `${label} operation is kept`);
+      assert.ok(!ops.has(prefixed), "a staff_roles.proof:<session> replay record is deleted by prefix");
       throw rollback;
     }), (error) => error === rollback);
   } finally { await sql.end(); }
@@ -162,6 +166,17 @@ test("S105 visitor history purge: an unreferenced expired visitor graph goes; or
         await assert.rejects(tx.savepoint((s) => s`delete from ${s(`app.${table}`)} where visitor_id=${id}`), { code: "23514" }, `${table} stays append-only`);
       }
       await assert.rejects(tx.savepoint((s) => s`delete from app.visitor_session where id=${id}`), { code: "23514" });
+      // R4 review F1: a temporary pg_class that names the app role as owner of every app table must not
+      // satisfy the owner check (pg_temp precedes pg_catalog on an unpinned search_path).
+      await tx`create temp table pg_class (oid oid, relowner oid) on commit drop`;
+      await tx`insert into pg_temp.pg_class select c.oid, r.oid from pg_catalog.pg_class c, pg_catalog.pg_roles r
+        where c.relnamespace='app'::regnamespace and r.rolname=current_user`;
+      await tx`set local search_path = pg_temp, pg_catalog, app, public`;
+      for (const table of ["funnel_intake", "commerce_event", "consent_receipt", "visitor_bootstrap_request"]) {
+        await assert.rejects(tx.savepoint((s) => s`delete from ${s(`app.${table}`)} where visitor_id=${id}`), { code: "23514" }, `${table} resists a spoofed pg_class`);
+      }
+      await assert.rejects(tx.savepoint((s) => s`delete from app.visitor_session where id=${id}`), { code: "23514" }, "visitor_session resists a spoofed pg_class");
+      assert.deepEqual({ ...(await graph(tx, id)) }, { sessions: 1, receipts: 1, bootstraps: 1, intakes: 1, events: 1 }, "the visitor graph is still present");
       throw rollback;
     }), (error) => error === rollback);
   } finally { await owner.sql.end(); await app.sql.end(); await f.close(); }
