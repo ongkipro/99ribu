@@ -177,10 +177,11 @@ Run from this worktree with migrations applied to local and test. Use the exact 
 | `npm run health -- ready` | Built web + local DB | Exact 200 readiness envelope and no-store |
 | `npm run health -- unavailable` | Built web running; owned DB intentionally stopped | Exact 503 unavailable envelope and no-store |
 | `npm run catalog:dataset` | Raw Berlapak snapshot on this host (`BERLAPAK_DATA_DIR`, default `/data/99ribu-berlapak-data`) | Regenerates the committed DEC-005 dataset `data/catalog/berlapak/` (catalog.json, manifest.json, photos/<sha256>.webp); deterministic, a rerun on the same snapshot changes no file |
-| `npm run catalog:import -- local\|test <warehouse-id>` | Migrated target DB; existing active warehouse; current commercial policy for publication | Idempotent import of the committed dataset through the real catalog/publication services; never creates stock, cost or order rows (see "Deploying the catalog") |
-| `npm run catalog:initial-stock -- local\|test <warehouse-id>` | Raw Berlapak snapshot on this host (`BERLAPAK_DATA_DIR`); catalog already imported; migrated target DB | S81: one initial `receive` movement and one component HPP version per catalog stock item from the raw snapshot (nothing committed) plus S69 default assumptions per offer, through the real inventory/finance services as a temporary audited owner; only where none exists, so reruns add nothing; refuses a snapshot that is not the dataset's |
+| `npm run catalog:import -- local\|test [dataset-dir]` | Migrated target DB (`0030`); current commercial policy for publication | Idempotent import of the committed dataset through the real catalog/publication services; creates/reuses the DEC-006 origin warehouses by `origin_key` and binds each offer to its origin; never creates stock, cost or order rows (see "Deploying the catalog") |
+| `npm run catalog:initial-stock -- local\|test [dataset-dir]` | Raw Berlapak snapshot on this host (`BERLAPAK_DATA_DIR`); catalog and origin warehouses already imported; migrated target DB | S81/S90: one initial `receive` movement into the item's origin warehouse and one component HPP version per catalog stock item from the raw snapshot (nothing committed) plus S69 default assumptions per offer, through the real inventory/finance services as a temporary audited owner; only for items without stock history in any warehouse, so reruns add nothing; refuses a snapshot that is not the dataset's |
+| `npm run catalog:rehome -- local\|test [--apply]` | Migrated target DB (`0030`); committed dataset | S90 (DEC-006 transition): read-only dry run (default) of origin warehouses to create, catalog units held outside their origin warehouse to move (and reserved/quarantined units that stay), open transfers and offers the next import rebinds; `--apply` creates missing origins and moves available units through audited warehouse transfers (create, dispatch, receive) as a temporary audited owner; reruns converge. Run `catalog:import` afterwards |
 | `npm run catalog:withdraw -- local\|test [--apply]` | Migrated target DB (`0029`) | S81: lists (read-only dry run, default) or withdraws (`--apply`, temporary audited owner, real publication service) every current publication outside the committed catalog, grouped by origin |
-| `npm run test:integration -- --case=PR-1` | Isolated test DB migrated | S14 catalog plus S80 `catalog-import` (generator determinism/sanitization, malformed-dataset refusal, idempotent rerun, guarded publication, revisions, preserved staff edits, photo serving) and S81 initial stock/HPP, guarded publication, publication withdrawal, test-run teardown and read-only withdraw dry run |
+| `npm run test:integration -- --case=PR-1` | Isolated test DB migrated | S14 catalog plus S80 `catalog-import` (generator determinism/sanitization, malformed-dataset refusal, idempotent rerun, guarded publication, revisions, preserved staff edits, photo serving), S81 initial stock/HPP, guarded publication, publication withdrawal, test-run teardown and read-only withdraw dry run, and S90 origin warehouses (per-offer origin keys, generic kecamatan names, origin binding, initial stock into origins, `rehome` dry run/apply/convergence and rebinding import) |
 
 The browser executable above is host-specific; use a verified installed path or omit the variable for Playwright-managed Chromium. Missing browser/server is a failure. Keep the auth rate-limit window between repeated browser runs. On suite failure, run its registered native `test:database`, `test:storage`, `test:auth`, `test:worker`, `test:smoke` or `test:auth:http` command to isolate the cause; the aggregate prints bounded test names/counts, not captured child output that may contain private fixtures.
 
@@ -325,15 +326,15 @@ S13 scheduling bound: prospective activation uses database wall time and rejects
 
 ## Deploying the catalog (S80, DEC-005)
 
-The Berlapak snapshot is the production starting catalog. `data/catalog/berlapak/` is committed content, reviewed like code: `catalog.json` (12 categories, 368 physical SKU identities, 392 IDR 99,000 offers: 122 unit, 244 multipack, 26 bundles), `manifest.json` (catalog digest plus SHA-256/size/dimensions of every photo) and 708 hash-named WebP photos (~48 MB). It holds public names only; the generator refuses output that names a supplier or supplier warehouse, and contains no HPP, stock or supplier/warehouse identity. Regenerate only on a host with the raw snapshot (`npm run catalog:dataset`), review the diff, then commit.
+The Berlapak snapshot is the production starting catalog. `data/catalog/berlapak/` is committed content, reviewed like code: `catalog.json` (12 categories, 368 physical SKU identities, 392 IDR 99,000 offers: 122 unit, 244 multipack, 26 bundles), `manifest.json` (catalog digest plus SHA-256/size/dimensions of every photo) and 708 hash-named WebP photos (~48 MB). It holds public names only; the generator refuses output that names a supplier or supplier warehouse in product text, and contains no HPP, stock, supplier name or supplier warehouse id/name. DEC-006 (`99ribu.catalog/v2`): each offer names its origin warehouse by an opaque hashed key, and `warehouses` lists 49 generic `Gudang <Kecamatan>, <Kota>` warehouses with province/city/district only. Regenerate only on a host with the raw snapshot (`npm run catalog:dataset`), review the diff, then commit.
 
 Deploy step, after migrations, on the target host from the repository root:
 
 ```bash
-npm run catalog:import -- local <warehouse-id>
+npm run catalog:import -- local
 ```
 
-The command verifies the whole dataset (digest, exact photo set, per-photo hash/size/WebP header) before any write, stores photos through the storage module in `.local/catalog-media/<sha256>.webp` (same path locally and on the server, outside `public/`; served by `GET /media/catalog/<sha256>.webp`), then runs as a temporary audited MFA owner (the S18 seed operator, removed afterwards) through `createCategory`/`createStockItem`/`createProduct`/`patchProduct`/`publishProduct`. Every offer uses the given warehouse as its default fulfilment warehouse; the dataset carries no warehouse. One `catalog.import` audit row is written per run that changes anything; product revisions whose actor is such a run are importer-owned.
+The command verifies the whole dataset (digest, exact photo set, per-photo hash/size/WebP header) before any write, stores photos through the storage module in `.local/catalog-media/<sha256>.webp` (same path locally and on the server, outside `public/`; served by `GET /media/catalog/<sha256>.webp`), then runs as a temporary audited MFA owner (the S18 seed operator, removed afterwards) through `createCategory`/`createStockItem`/`createProduct`/`patchProduct`/`publishProduct`. Every offer uses its dataset origin warehouse as its default fulfilment warehouse (DEC-006): missing origin warehouses are created once (audited `catalog.warehouse.create`), existing ones are reused by `origin_key`, and a stored origin with a different name/location or inactive refuses the import before any write. One `catalog.import` audit row is written per run that changes anything; product revisions whose actor is such a run are importer-owned.
 
 - Idempotent and resumable: category slug, stock-item SKU (`B99_<rank>`) and offer SKU (`B99_<key>_OFFER`) are the checkpoint. A rerun with the same dataset writes no catalog row; a run interrupted mid-way converges on the next run. Concurrent runs are refused by an advisory lock.
 - Revisions: a changed dataset appends a new product revision through `patchProduct`; published and older revisions stay immutable. A product whose current revision was written by staff is preserved and listed in `products.preserved`. Existing categories and stock items are immutable: a renamed one refuses the whole import before any write. Offers removed from the dataset are left untouched.
@@ -346,19 +347,50 @@ The command verifies the whole dataset (digest, exact photo set, per-photo hash/
 Initial stock and HPP come from the raw snapshot at run time and are never committed. Ordered steps on a host with the snapshot, after migrations (`npm run db:migrate -- <target>`, includes `0029_publication_withdrawal`):
 
 ```bash
-npm run catalog:import -- local <warehouse-id>          # catalog rows (no-op when unchanged)
-npm run catalog:initial-stock -- local <warehouse-id>   # receive + HPP + default assumptions, once per item/offer
-npm run catalog:import -- local <warehouse-id>          # guarded publication of ready products
+npm run catalog:import -- local                         # origin warehouses + catalog rows (no-op when unchanged)
+npm run catalog:initial-stock -- local                  # receive into origin + HPP + default assumptions, once per item/offer
+npm run catalog:import -- local                         # guarded publication of ready products
 npm run catalog:withdraw -- local                       # dry run: non-catalog publications still public
 npm run catalog:withdraw -- local --apply               # withdraw them through the publication service
 ```
 
-- Every supplier warehouse's quantity of an item is received into the one import warehouse the offers fulfil from. A position or cost that already has history is skipped: a rerun or a newer snapshot never double-receives or overwrites HPP; `differs_from_snapshot` counts drift to correct through normal receiving/adjustment/cost flows. A raw snapshot other than the dataset's `source_snapshot` is refused before any write (regenerate the dataset and import first).
+- Each item is received into its origin warehouse (DEC-006). An item that already has stock history in any warehouse, or a cost with history, is skipped: a rerun or a newer snapshot never double-receives or overwrites HPP; `differs_from_snapshot` counts drift to correct through normal receiving/adjustment/cost flows. A raw snapshot other than the dataset's `source_snapshot` is refused before any write (regenerate the dataset and import first).
 - The storefront shows only current publications: home lists the newest publications and the departments with the most published products; header, categories and search have no fixed SKUs or slugs. Product photos are served same-origin from `/media/catalog/<sha256>.webp`.
 - Withdrawal (`withdrawPublication`) appends an immutable, audited `publication_withdrawal` for the current publication; carts flag the change, quotes and new carts refuse it, placed orders keep their snapshots. Republishing is an ordinary guarded publication against the unchanged `latest_version`.
 - Browser suites use the local database: `npm run test:browser` ends with a `teardown` summary after withdrawing the non-catalog publications that synthetic or removed principals made during that run. Publications from runs started directly with `node --test`, or by an interrupted runner, are found by the withdraw dry run.
 
+### Origin warehouses (S90, DEC-006)
+
+A database whose catalog was imported before DEC-006 has every offer and all initial stock in one import warehouse. Transition it through domain services only (no history is edited; HPP is per stock item and does not move):
+
+```bash
+npm run db:migrate -- local                 # 0030_warehouse_origin (expand-only)
+npm run catalog:rehome -- local             # read-only plan: origins to create, units to move/held, offers to rebind
+npm run catalog:rehome -- local --apply     # create origins; audited transfers create -> dispatch -> receive per position
+npm run catalog:rehome -- local             # expect units.to_move 0
+npm run catalog:import -- local             # new revision binds each importer-owned offer to its origin; guarded republish
+npm run catalog:rehome -- local             # expect offers.to_rebind 0
+```
+
+Reserved or quarantined units stay where they are (open orders keep their shipments). Staff-edited drafts are reported in `offers.preserved` and keep their warehouse. Each origin warehouse still needs an owner-approved `warehouse_calendar` policy version before fulfillment deadlines apply.
+
 The S69 `npm run fixture -- berlapak` command stays a local-only fixture tool (namespaced copies with stock, HPP and dummy orders, images under `public/catalog-local/`); it is not used for deployment.
+
+## Search indexing
+
+One switch and one route table decide indexing. `SITE_INDEXING` (`src/config/site.ts`) is `index` when unset in every profile, including the S82 production profile; set `SITE_INDEXING=noindex` on a rehearsal or staging host to make every page `noindex, nofollow` and serve `robots.txt` as `Disallow: /` with an empty sitemap. Any other value throws. Canonical, Open Graph, sitemap and JSON-LD URLs derive from `APP_ORIGIN`, never a hard-coded domain.
+
+`routePolicy` in `src/modules/storefront/seo.ts` classifies every page route. The root layout defaults to `noindex, nofollow`, so an unclassified route stays private.
+
+| Route | Robots | Canonical / notes |
+| --- | --- | --- |
+| `/`, `/categories`, `/help` | index, follow | self |
+| `/category/<slug>` | index, follow; listing state (filter, sort, cursor): noindex, follow | clean category URL; tracking parameters (`utm_*`, `gclid`, `fbclid`) are ignored; pagination stays on `/category/<slug>?cursor=`; BreadcrumbList |
+| `/product/<id>` | index, follow | `/product/<id>` without `?offer=`/`?from=`; Product (one offer) or ProductGroup (several) + BreadcrumbList |
+| `/search` (any query) | noindex, follow | none; not in the sitemap |
+| `/cart`, `/checkout/**`, `/orders/**`, `/account`, `/affiliate`, `/masuk`, `/admin/**` | noindex, nofollow | `robots.txt` Disallow (plus `/api/`) |
+
+`/sitemap.xml` and `/robots.txt` are request-time. The sitemap lists home, `/categories`, `/help` (no lastmod claimed), categories with a sellable product, and every product whose current publication passes the sale guard, with the publication time as lastmod and its photos; withdrawn publications drop out. Missing products and categories redirect to the server-rendered `/404` page (status 404, noindex); Next 16.4 renders an in-page `notFound()` as an empty shell that needs JavaScript. The Merchant feed links a single-offer product to its canonical URL and keeps `?offer=` only when a product has several offers. Titles (55–70 characters with ` - 99ribu`) and descriptions (120–155, ending with a full stop) are generated by `seo.ts`. Proof: `npm run test:integration -- --case=PR-15` (`tests/integration/storefront-seo.test.ts`).
 
 ## Inactive catalog checkpoint (S14)
 

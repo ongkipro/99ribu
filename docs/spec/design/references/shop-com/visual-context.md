@@ -77,6 +77,8 @@ These are round-2 captures from the coordinator's production build of source tha
   - Results: text is genuinely doubled; headings, prices, pills and the sign-in alert wrap without clipping; the price basis drops as one phrase; the dock (labelled 2×2 at this size) sits after the footer in the full-length capture instead of covering content.
 - Not found: `docs/spec/design/renders/shop-com-r2-20261022/notfound-390.png`, `docs/spec/design/renders/shop-com-r2-20261022/notfound-768.png`, `docs/spec/design/renders/shop-com-r2-20261022/notfound-1440.png`. Centred recovery state with a single primary action.
 
+- Round-11 additions, captured from the clean catalog: the real bundle PDP `docs/spec/design/renders/shop-com-r2-20261022/pdp-bundle-390.png`, `docs/spec/design/renders/shop-com-r2-20261022/pdp-bundle-768.png`, `docs/spec/design/renders/shop-com-r2-20261022/pdp-bundle-1440.png` and `docs/spec/design/renders/shop-com-r2-20261022/pdp-bundle-320-text200.png` (collapsed "Deskripsi" and "Lihat N barang lainnya"), plus `docs/spec/design/renders/shop-com-r2-20261022/pdp-bundle-open-390.png` and `docs/spec/design/renders/shop-com-r2-20261022/pdp-bundle-open-1440.png` (both opened). Category pages: `docs/spec/design/renders/shop-com-r2-20261022/categories-390.png`, `docs/spec/design/renders/shop-com-r2-20261022/categories-768.png`, `docs/spec/design/renders/shop-com-r2-20261022/categories-1440.png`, `docs/spec/design/renders/shop-com-r2-20261022/categories-320-text200.png`.
+
 Not inspected this round: cart with lines (needs a guest-cart DB write; the S22 renders remain the last evidence), multi-option PDP, checkout and receipt (unchanged S26/S27 compositions).
 
 ## Independent review round 1 and response
@@ -236,3 +238,109 @@ Round 9 is `docs/spec/design/reviews/shop-com-r2/review-round9.md`, verdict REVI
 - Department chip row: a 40px end-edge fade signals that the row scrolls. End padding and scroll padding let the last chip, and any focused chip, rest clear of the fade, and a thin scrollbar appears on hover or keyboard focus. The nine real department names (roughly 1,800px of chips) cannot fit one 1200px row even with tighter padding, so the row scrolls at every width rather than imitating shop.com's fully visible row.
 - Help topic cards are top-aligned, so the short "Pengembalian" card is not stretched to the height of its neighbour.
 - Omnibox: the search icon is 1.25em inside an em-padded button with a minimum height of `max(44px, 2.25em)`, so at 320/200% the icon keeps clear space inside the purple button.
+
+## Round 11 (owner-authorised: "ya jalankan, audit, juga validasi dan lakukan penyempurnaan", relayed by the coordinator)
+
+Round 10 is `docs/spec/design/reviews/shop-com-r2/review-round10.md`, verdict REVISE. Its main finding was contaminated evidence: integration fixtures were published in the captured catalog, so home, listing and the captured PDP showed fixture products, and no real bundle PDP was rendered. The coordinator now captures only on a verified-clean catalog (withdraw dry-run 0 immediately before capture). The capture script also refuses to continue on contamination.
+
+Design fixes for round 11, which supersede earlier notes where they conflict:
+- Price rows: every product card spans five shared rows (media, title, contents, price, stock note) through `subgrid`. Prices line up across a row whatever the title or contents length, so the round-10 two-line title reservation is removed. In a one-column grid (320/200%), each row fits its own card, with no reserved blank line.
+- Omnibox at 320/200%: the search icon is `max(1.25rem, 1em)` in a compact em-padded button (minimum height `max(44px, 2em)`), and the field keeps at least 6ch. "Cari produk" no longer truncates beside the enlarged button.
+- Help chat hours line: regular weight in the muted colour, so it no longer competes with the H2.
+
+Evidence method for round 11 (`shots-r2.mjs`):
+- 390 and 768 use the document-tall viewport method (previously only 320), so the fixed mobile dock sits over its reserved spacer instead of covering cart summary rows mid-page.
+- `/categories` is captured at all widths.
+- A real B99 bundle PDP is chosen deterministically: the published product with the most contents lines, ties broken by URL, found by scanning every listing page. It is captured with "Deskripsi" and "Lihat N barang lainnya" collapsed (`pdp-bundle-*`) and opened (`pdp-bundle-open-390`, `pdp-bundle-open-1440`). The run aborts if that product has no collapsed contents disclosure.
+- Contamination guard: the run aborts with a clear error if any rendered product name on a captured page matches `/^Contoh |SYNTHETIC|\[s2\d-|S21 filter/`.
+
+## Round 12 (owner standing approval "lanjutkan … sempurnakan", relayed by the coordinator)
+
+Round 11 is `docs/spec/design/reviews/shop-com-r2/review-round11.md`, verdict REVISE. It confirmed the clean catalog, the real 7-item bundle PDP with "Tambah ke keranjang" inside the first 900px at 1440, the subgrid price alignment and the shell and pages. Fixes for round 12 supersede earlier notes where they conflict:
+- `/categories`: every top-level department is a tile (photo, or the labelled placeholder), and the "Kategori lainnya" disclosure is removed. Any subcategories are listed openly as wrapping pill links under "Subkategori". The header chip row lists every department too, so the two always match.
+- Product cards now span four shared rows: media, a title-and-contents text block, price, and stock note. The spare height in a row falls below the text block, above the price, so there is no blank line between a one-line title and its contents, and prices still align.
+- PDP extra-contents disclosure: the label reads "Lihat N barang lainnya" when closed and "Sembunyikan barang lainnya" when open. This is CSS on `details[open]`, so the summary's accessible name follows the visible label.
+- Minor:
+  - the chip row's end padding (56px) is now wider than its 40px fade;
+  - footer links are 8px apart;
+  - the help chat card ends on its own 24px padding (the attachment disclosure spaces only what follows it), and its notification heading is sentence case.
+- Evidence: `search-active-390` and `search-filters-open-390` now use the document-tall viewport method like every other narrow capture, so the fixed dock no longer covers "Terapkan filter".
+- Test alignment: `storefront-http` expected exactly four `/categories` tiles (the old featured cap). It now expects one tile per department link in the header chip row (all chips minus "Semua produk"), because both come from the same department list.
+
+## Round 13 (owner standing approval "lanjutkan … sempurnakan"; the builder ran build, capture and review this round)
+
+Round 12 is `docs/spec/design/reviews/shop-com-r2/review-round12.md`, verdict REVISE. Its gate also failed `critique` because the coordinator's CLS change to `src/components/storefront/filter-panel.tsx` (an inline pre-paint script that opens the filter panel on wide screens, verified by Lighthouse; no CSP is configured) landed after that capture. That change is kept as is.
+
+Fixes for round 13, superseding earlier notes where they conflict:
+- Search card distinguishability: an offer whose contents are a single item (the titled product itself; 366 of the 392 published offers) shows only its quantity, "Isi: N pcs", derived from the data. Mixed bundles keep their item list. On phones (≤700px) titles may use three lines, so same-family names such as "Paket 2 pcs Kaos Kata Lucu Sindiran …" keep their distinguishing words.
+- Grid rhythm: card rows are 12px apart (R4), measured on this build as 930 → 942 at 1440. Inside a card, the subgrid tracks add no gap. An empty stock-note track has no height, so it collapses in rows without a note; this is pure CSS, with no script-driven layout shift.
+- Home shelf: three cards per row at 768 (minimum 12.5rem), four at desktop, two on phones.
+- Chip row: the end fade is now 64px, with 72px of end padding and scroll padding, so the cue is visible at 390 and 320 as well.
+- Cart line: bundle items fold after the third, with the same "Lihat N barang lainnya" / "Sembunyikan barang lainnya" disclosure as the PDP.
+- Footer note: "Pesanan, pembayaran, dan pengiriman masih simulasi lokal." The unsourced "katalog dan foto produk asli" claim is removed.
+- `/categories` chip state: no chip is marked current there, and this is deliberate. Every chip links to `/search` or a category listing, so `aria-current="page"` on any of them would be false on `/categories`. The dock's "Kategori" tab carries the current-page state for this page.
+- Evidence: the ordinary `pdp-*` capture is now a different product from `pdp-bundle-*` (the first listed product that is not the bundle, preferring three items or fewer).
+- R3/R6 option pills: not verifiable with the current data. A full scan of all 392 published products on this build found none announcing more than one option, so no option-pill state can be captured. This remains UNVERIFIED by data, not by omission.
+
+## Round 14 (coordinator accepted round 13 including the `/categories` aria-current reasoning; owner standing approval)
+
+Round 13 is `docs/spec/design/reviews/shop-com-r2/review-round13.md`, verdict REVISE. All seven findings are fixed. These entries supersede earlier notes where they conflict:
+- Product card titles: up to three lines at every width, so the 24 "Paket 2 pcs Kaos Kata Lucu Sindiran …" cards keep their distinguishing words. When the grid is a single column (a very narrow screen or enlarged browser text, where two columns of at least 8rem no longer fit, i.e. `max-width: calc(16rem + 44px)`), titles are unclamped. The four-row card subgrid still aligns prices wherever cards share a row, without layout shift.
+- Home shelf: at tablet (three per row) it shows six of the eight newest products, so no row ends with an empty slot. Desktop shows all eight four-up, phones two-up.
+- PDP bundle: the redundant "N jenis barang dalam pilihan ini" line is removed. The title and "Pilihan lengkap" already state the size, and the "Lihat N barang lainnya" disclosure still follows the first three items.
+- The disclosure chevron flows inline right after its label (block summary with an inline icon), so it stays attached when the label wraps at 320/200%.
+- Cart "Perbarui jumlah" uses the shared secondary button size and sizing; the cart-only 0.8rem and 14rem overrides are removed.
+- `/masuk` "Batal" is a quiet text action (transparent fill and border, lavender hover), clearly secondary to the filled 52px "Masuk".
+- Category tile names use a 1.3 line-height. Desktop footer links use 32px pointer targets with no extra gap; phones keep the 44px targets and 8px gap.
+
+### Round 14 owner scope: "reduce over-design", "make it clean, with effects like shop.com"
+
+Interaction contract (observed 2026-10-23 on shop.com search and home at 1440 and 390; read-only, chrome-devtools MCP; scratchpad evidence `shop-search-focus-1440.png`):
+- Product card hover: no visible change. Media, title link and price showed no underline, shadow change, transform, opacity or filter (computed styles compared hovered and unhovered).
+- Product media at rest: white, 20px radius, no border, one shadow `0 2px 8px rgba(0,0,0,.06)`. Title 14px/600 in black; price 12px/600; struck reference price at 56% ink.
+- Filter chips: full pill, 40px tall, 1px `rgba(5,41,77,.1)` border with the same 2px/8px shadow, label 14px/600. Hover showed no visible change.
+- Buttons: hover is a background fill change only (primary to a darker brand fill, outlined to a light fill); the primary is a 52px pill. No lift or scale.
+- Transitions: 150ms `cubic-bezier(0.4, 0, 0.2, 1)` on colour, background, border and shadow; 200ms on the search field.
+- Search field: a pill (white with a 1px border and the 2px/8px shadow at rest). Focus opens a suggestions panel instead of a ring: white at 75% over a 16px backdrop blur, 32px radius, `0 0 1px rgba(0,0,0,.12), 0 12px 64px rgba(0,0,0,.24)`. Placeholder at 56% ink; round purple submit or clear button. No suggestions endpoint exists here, so 99ribu transfers only the field look and gives focus a ring on the pill.
+- Headings 600, never heavier; no hover underlines anywhere except running text.
+
+Section composition: shop.com heads each shelf with a title and a "›" link and keeps sections in a flat rhythm. 99ribu mirrors that with plain "Semua kategori ›" / "Semua produk ›" text links in place of pills. No sections are invented for data the catalog lacks. The header layout, logo, nav and dock are owner-approved and unchanged; only the search field's look and focus state changed.
+
+Removed or changed patterns (before → after), all in `src/app/globals.css` unless noted:
+- Hover underlines on UI links (the global `a:hover`, `.product-link:hover h3`, `.footer-links a:hover`, breadcrumb and "Lanjut pilih produk" rest underlines) → no underline in the storefront, checkout, receipt and sign-in shells, with colour feedback only. Links in running prose keep the underline (WCAG 1.4.1); the admin keeps its hover underline.
+- Field focus (a 3px purple outline offset 4px, and 1px → 2px invalid borders in four places) → one contract: 1px `#85858e` border (3:1), 12px radius, 44px minimum; focus = ink `#18181b` border plus a `0 0 0 3px rgba(24,24,27,.12)` ring. Invalid = error border plus a 1px inset, so the box never shifts. `CustomerChatView.tsx`'s inline field border is removed so the contract applies.
+- Selects (native double arrows, filter selects as full pills) → `appearance: none`, one inline SVG chevron, 12px radius, 44px tall, padding clear of the chevron.
+- Filter panel open state (24px radius plus a two-layer shadow) → flat white, 20px radius, one hairline.
+- Shadow stacks on the help topic cards, cart summary, sign-in card and chat card → one `rgba(5,41,77,.1)` hairline, no shadow.
+- The price card's yellow glow shadow → removed.
+- Placeholder slot gradients (`.photo-slot`, `.department-photo`) and their borders → flat `#f4f3f8`.
+- Product media: lavender fill plus a 1px border → the observed white 20px media with one 2px/8px shadow.
+- Product cards: the contents/description line ("Isi: …", item lists, "· N pilihan") → removed. A card is image, title (three lines, unclamped in one column), price, and a stock note only when relevant (`products.tsx`).
+- Card price weight 700 → 600 (observed).
+- Shelf "see all" pills → plain text links with a chevron.
+- Motion: none before → the observed 150ms colour/border/shadow transition only (disabled under reduced motion). No lifts, scale or animated underlines.
+- Header search: double shadow, no border and a purple outline on the input → one hairline plus one 2px/8px shadow, a focus ring on the pill, and the placeholder at `#6b6b73` (shop.com 56% ink).
+
+Kept on purpose:
+- Pills where shop.com uses them: chips, buttons, the search field and option pills.
+- The stock note, which has decision value.
+- Owner-authored and state copy.
+- The approved header and dock.
+- The 44px touch targets, visible focus, and prose link underlines.
+
+Round 14 also carries the seven round-13 fixes listed above.
+
+## Round 15 (round 14 REVISE follow-up, plus owner-allowed light motion)
+
+Round 14 is `docs/spec/design/reviews/shop-com-r2/review-round14.md`, verdict REVISE. It confirmed the de-over-design pass and the observed interaction contract. Fixes, superseding earlier notes where they conflict:
+- Phone listing titles: in the two-up grid, titles clamp at five lines. Same-family names ("Paket 2 pcs Kaos Kata Lucu Sindiran …") then show their distinguishing words, and the card subgrid keeps prices aligned per row. Titles are three lines from tablet up and unclamped in a single column.
+- One rule for standalone text links (not inside running prose): purple, weight 600, no underline, with a darker purple on hover. This covers "Lihat keranjang", "Pengiriman dan pengembalian", "Cara pesan dan pengembalian", "Lihat paket campuran", "Lanjut pilih produk", "Semua … ›" and "Lihat N barang lainnya". Links inside prose keep the underline.
+- Header current page: colour and weight only (the underline on "Keranjang" is removed), the same on every page.
+- Help chat disclosure: the chevron stays inline after its label at every width, as on the PDP.
+
+Light motion (owner: "light animation … if possible and light, without sacrificing PageSpeed"). CSS only, transform and opacity, 150–250ms ease-out, as state feedback:
+- Disclosure chevrons rotate in 200ms.
+- After a successful add to cart, the success message settles in (200ms opacity plus a 4px rise) and its check icon draws itself (stroke-dashoffset, 250ms).
+- Colour, border and shadow transitions run at the observed 150ms.
+
+Everything above is disabled under `prefers-reduced-motion`, nothing animates on load or on the LCP image, and nothing moves layout. No GSAP use case exists that CSS cannot cover (no sequenced timelines or scroll-linked reveals are needed), so GSAP is not installed and the initial JavaScript is unchanged.

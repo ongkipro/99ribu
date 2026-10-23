@@ -1,5 +1,12 @@
 # Build log — Serba 99ribu
 
+## 2026-10-23 — S90–S93 consignment and payments, SEO, storefront rounds 11–15
+
+- **S90–S93** (`215fcd8`): origin warehouses, manual consignment fulfillment with own Mengantar waybills, COD remittance, manual bank transfer with unique code, COD fee, AutoLaris VA/QRIS (simulated); migrations `0030`–`0034`; R4 reviews PASS.
+- **SEO**: `src/config/site.ts`, `robots.ts`, `sitemap.ts`, JSON-LD; `tests/integration/storefront-seo.test.ts`.
+- **Storefront**: rounds 11–15 (round 15 PASS, gate exit 0); shop.com interaction contract recorded in `docs/spec/design/references/shop-com/visual-context.md`; CLS fix in `filter-panel.tsx`.
+- **Evidence**: integration all-current 494/494, browser all-current 62/62, lint and typecheck clean.
+
 ## 2026-10-22 — UI round, sign-in, S80 catalog, test isolation (uncommitted)
 
 - **Test runtime**: `scripts/check-tests.ts` holds a per-database advisory lock for a whole run (concurrent runs queue; fixes the `settlement-recovery` job-stealing flake) and creates the commercial policy baseline in an empty test database; failure causes are printed. `promotion-http` retires its campaign; T-30 and S34 own their data. Pristine `99ribu_test`: integration 458/458, browser 61/61.
