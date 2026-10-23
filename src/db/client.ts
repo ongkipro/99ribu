@@ -1,6 +1,6 @@
 import postgres from "postgres";
 import { drizzle } from "drizzle-orm/postgres-js";
-import { join, relative } from "node:path";
+import { join } from "node:path";
 import { privateDirectory } from "../config/local.ts";
 import { productionDatabase, readRuntimeConfig } from "../config/runtime.ts";
 
@@ -19,7 +19,7 @@ export function connectDatabase(target: DatabaseTarget, access: "app" | "owner" 
   }
   const endpoint = target === "production"
     ? { ...productionDatabase(process.env, access), ssl: false as const }
-    : { path: localSocketPath() };
+    : { path: join(privateDirectory("pgsocket"), ".s.PGSQL.5432") };
   const sql = postgres({
     ...endpoint,
     database: `99ribu_${target}`,
@@ -35,10 +35,4 @@ export function connectDatabase(target: DatabaseTarget, access: "app" | "owner" 
     onnotice: () => {},
   });
   return { sql, db: drizzle(sql) };
-}
-
-// Unix socket paths are limited to ~107 bytes; resolve relative to the working directory (as privateDirectory does)
-// so a long checkout path still connects.
-export function localSocketPath() {
-  return join(relative(process.cwd(), privateDirectory("pgsocket")), ".s.PGSQL.5432");
 }

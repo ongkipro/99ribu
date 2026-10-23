@@ -1,9 +1,11 @@
 import assert from "node:assert/strict";
 import test from "node:test";
+import { join } from "node:path";
 import { readFileSync } from "node:fs";
 import { createHash } from "node:crypto";
 import postgres from "postgres";
-import { connectDatabase, localSocketPath } from "../src/db/client.ts";
+import { connectDatabase } from "../src/db/client.ts";
+import { privateDirectory } from "../src/config/local.ts";
 
 test("local and test databases reconnect under restricted application roles", async () => {
   for (const target of ["local", "test"] as const) {
@@ -35,7 +37,7 @@ test("local and test databases reconnect under restricted application roles", as
 
 test("local and test application identities cannot connect to each other's databases", async () => {
   for (const [role, database] of [["99ribu_local_app", "99ribu_test"], ["99ribu_test_app", "99ribu_local"]]) {
-    const sql = postgres({ path: localSocketPath(), username: role, database, max: 1, connect_timeout: 3 });
+    const sql = postgres({ path: join(privateDirectory("pgsocket"), ".s.PGSQL.5432"), username: role, database, max: 1, connect_timeout: 3 });
     try {
       await assert.rejects(sql`SELECT 1`, { code: "42501" });
     } finally {

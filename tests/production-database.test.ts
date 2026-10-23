@@ -127,6 +127,24 @@ test("the production app role connects over TCP with its limits and is refused D
   try { await assert.rejects(wrong`select 1`, { code: "28P01" }); } finally { await wrong.end(); }
 });
 
+test("on the production database a real-flow money table accepts 'production' and a simulator store refuses it", async () => {
+  const saved = process.env;
+  process.env = { ...production } as NodeJS.ProcessEnv;
+  const { sql } = connectDatabase("production");
+  const probe = (write: (tx: postgres.TransactionSql) => Promise<unknown>) => sql.begin(async (tx) => {
+    await write(tx);
+    throw Object.assign(new Error("rollback"), { code: "ROLLBACK_PROBE" }); // never keep probe rows
+  });
+  try {
+    // DEC-007 COD remittance writes this settlement source (finance/cod-remittance.ts) with environment = this database.
+    await assert.rejects(probe((tx) => tx`insert into app.local_settlement_operation (provider,environment,reference,direction,net_amount,occurred_at,request_hash)
+      values ('local.cod','production','mengantar-cod:S83-REHEARSAL','credit',1,clock_timestamp()-interval '1 second',${"a".repeat(64)})`), { code: "ROLLBACK_PROBE" });
+    // The simulated courier feed's store keeps its DB-level local/test guarantee.
+    await assert.rejects(probe((tx) => tx`insert into app.local_tracking_observation (environment,courier,tracking_number,provider_status,occurred_at)
+      values ('production','jne','S83CHECK00000001','IN_TRANSIT',clock_timestamp())`), { code: "23514", constraint_name: "local_tracking_observation_value_check" });
+  } finally { await sql.end(); process.env = saved; }
+});
+
 test("production guest bootstrap is budgeted per trusted-proxy client IP and issues Secure cookies", async () => {
   const saved = process.env;
   process.env = { ...production } as NodeJS.ProcessEnv;

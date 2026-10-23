@@ -1,5 +1,5 @@
 {
-  "id": "52ea672d-3fbc-4c27-aa48-51bf26e80f91",
+  "id": "839d81e1-329d-43ce-8ead-1f553c14da58",
   "prevId": "eb65912c-7996-4faa-a0d4-a984d6032d12",
   "version": "7",
   "dialect": "postgresql",
@@ -8771,7 +8771,7 @@
       "checkConstraints": {
         "local_autolaris_transaction_value_check": {
           "name": "local_autolaris_transaction_value_check",
-          "value": "\"app\".\"local_autolaris_transaction\".\"environment\" IN ('local','test','production') AND \"app\".\"local_autolaris_transaction\".\"status\" IN ('pending','paid','expired','generic_success')\n  AND \"app\".\"local_autolaris_transaction\".\"amount\">0 AND \"app\".\"local_autolaris_transaction\".\"admin_fee\">=0 AND \"app\".\"local_autolaris_transaction\".\"total\">0 AND (\"app\".\"local_autolaris_transaction\".\"status\"='paid')=(\"app\".\"local_autolaris_transaction\".\"paid_at\" IS NOT NULL)"
+          "value": "\"app\".\"local_autolaris_transaction\".\"environment\" IN ('local','test') AND \"app\".\"local_autolaris_transaction\".\"status\" IN ('pending','paid','expired','generic_success')\n  AND \"app\".\"local_autolaris_transaction\".\"amount\">0 AND \"app\".\"local_autolaris_transaction\".\"admin_fee\">=0 AND \"app\".\"local_autolaris_transaction\".\"total\">0 AND (\"app\".\"local_autolaris_transaction\".\"status\"='paid')=(\"app\".\"local_autolaris_transaction\".\"paid_at\" IS NOT NULL)"
         }
       },
       "isRLSEnabled": false
@@ -9221,7 +9221,7 @@
       "checkConstraints": {
         "local_parcel_outcome_value_check": {
           "name": "local_parcel_outcome_value_check",
-          "value": "\"app\".\"local_parcel_outcome\".\"environment\" IN ('local','test','production') AND \"app\".\"local_parcel_outcome\".\"reference\" ~ '^[A-Za-z0-9_.:-]{1,200}$' AND \"app\".\"local_parcel_outcome\".\"status\" IN ('failed','refused','returned_to_sender') AND jsonb_typeof(\"app\".\"local_parcel_outcome\".\"unit_ids\")='array' AND jsonb_array_length(\"app\".\"local_parcel_outcome\".\"unit_ids\") between 1 and 100 AND \"app\".\"local_parcel_outcome\".\"request_hash\" ~ '^[a-f0-9]{64}$' AND \"app\".\"local_parcel_outcome\".\"signature\" ~ '^[a-f0-9]{64}$'"
+          "value": "\"app\".\"local_parcel_outcome\".\"environment\" IN ('local','test') AND \"app\".\"local_parcel_outcome\".\"reference\" ~ '^[A-Za-z0-9_.:-]{1,200}$' AND \"app\".\"local_parcel_outcome\".\"status\" IN ('failed','refused','returned_to_sender') AND jsonb_typeof(\"app\".\"local_parcel_outcome\".\"unit_ids\")='array' AND jsonb_array_length(\"app\".\"local_parcel_outcome\".\"unit_ids\") between 1 and 100 AND \"app\".\"local_parcel_outcome\".\"request_hash\" ~ '^[a-f0-9]{64}$' AND \"app\".\"local_parcel_outcome\".\"signature\" ~ '^[a-f0-9]{64}$'"
         }
       },
       "isRLSEnabled": false
@@ -9636,7 +9636,7 @@
       "checkConstraints": {
         "local_recovery_destination_check": {
           "name": "local_recovery_destination_check",
-          "value": "\"app\".\"local_recovery_destination\".\"environment\" IN ('local','test','production') AND \"app\".\"local_recovery_destination\".\"buyer_scope\" ~ '^(user:[A-Za-z0-9_-]{1,100}|guest:[a-f0-9-]{36})$' AND \"app\".\"local_recovery_destination\".\"destination_reference\" ~ '^LOCAL-RECOVERY-DEST-[A-F0-9]{32}$' AND \"app\".\"local_recovery_destination\".\"signature\" ~ '^[a-f0-9]{64}$'"
+          "value": "\"app\".\"local_recovery_destination\".\"environment\" IN ('local','test') AND \"app\".\"local_recovery_destination\".\"buyer_scope\" ~ '^(user:[A-Za-z0-9_-]{1,100}|guest:[a-f0-9-]{36})$' AND \"app\".\"local_recovery_destination\".\"destination_reference\" ~ '^LOCAL-RECOVERY-DEST-[A-F0-9]{32}$' AND \"app\".\"local_recovery_destination\".\"signature\" ~ '^[a-f0-9]{64}$'"
         }
       },
       "isRLSEnabled": false
@@ -9925,7 +9925,7 @@
       "checkConstraints": {
         "local_recovery_operation_value_check": {
           "name": "local_recovery_operation_value_check",
-          "value": "\"app\".\"local_recovery_operation\".\"attempt\">0 AND \"app\".\"local_recovery_operation\".\"environment\" IN ('local','test','production') AND \"app\".\"local_recovery_operation\".\"amount\" between 1 and 9007199254740991 AND \"app\".\"local_recovery_operation\".\"request_hash\" ~ '^[a-f0-9]{64}$' AND ((\"app\".\"local_recovery_operation\".\"rail\"='prepaid_original' AND \"app\".\"local_recovery_operation\".\"original_payment_operation_id\" IS NOT NULL AND \"app\".\"local_recovery_operation\".\"destination_source_id\" IS NULL) OR (\"app\".\"local_recovery_operation\".\"rail\"='cod_verified_destination' AND \"app\".\"local_recovery_operation\".\"original_payment_operation_id\" IS NULL AND \"app\".\"local_recovery_operation\".\"destination_source_id\" IS NOT NULL))"
+          "value": "\"app\".\"local_recovery_operation\".\"attempt\">0 AND \"app\".\"local_recovery_operation\".\"environment\" IN ('local','test') AND \"app\".\"local_recovery_operation\".\"amount\" between 1 and 9007199254740991 AND \"app\".\"local_recovery_operation\".\"request_hash\" ~ '^[a-f0-9]{64}$' AND ((\"app\".\"local_recovery_operation\".\"rail\"='prepaid_original' AND \"app\".\"local_recovery_operation\".\"original_payment_operation_id\" IS NOT NULL AND \"app\".\"local_recovery_operation\".\"destination_source_id\" IS NULL) OR (\"app\".\"local_recovery_operation\".\"rail\"='cod_verified_destination' AND \"app\".\"local_recovery_operation\".\"original_payment_operation_id\" IS NULL AND \"app\".\"local_recovery_operation\".\"destination_source_id\" IS NOT NULL))"
         }
       },
       "isRLSEnabled": false
@@ -10016,7 +10016,7 @@
       "checkConstraints": {
         "local_refund_destination_value_check": {
           "name": "local_refund_destination_value_check",
-          "value": "\"app\".\"local_refund_destination\".\"environment\" IN ('local','test','production') AND \"app\".\"local_refund_destination\".\"buyer_scope\" ~ '^(user|guest):[A-Za-z0-9_-]{1,100}$' AND \"app\".\"local_refund_destination\".\"destination_reference\" ~ '^synthetic:[0-9a-f-]{36}$' AND \"app\".\"local_refund_destination\".\"signature\" ~ '^[a-f0-9]{64}$'"
+          "value": "\"app\".\"local_refund_destination\".\"environment\" IN ('local','test') AND \"app\".\"local_refund_destination\".\"buyer_scope\" ~ '^(user|guest):[A-Za-z0-9_-]{1,100}$' AND \"app\".\"local_refund_destination\".\"destination_reference\" ~ '^synthetic:[0-9a-f-]{36}$' AND \"app\".\"local_refund_destination\".\"signature\" ~ '^[a-f0-9]{64}$'"
         }
       },
       "isRLSEnabled": false
@@ -10285,7 +10285,7 @@
       "checkConstraints": {
         "local_refund_operation_value_check": {
           "name": "local_refund_operation_value_check",
-          "value": "\"app\".\"local_refund_operation\".\"attempt\">0 AND \"app\".\"local_refund_operation\".\"environment\" IN ('local','test','production') AND \"app\".\"local_refund_operation\".\"amount\" between 1 and 9007199254740991 AND \"app\".\"local_refund_operation\".\"request_hash\" ~ '^[a-f0-9]{64}$' AND ((\"app\".\"local_refund_operation\".\"rail\"='prepaid_original' AND \"app\".\"local_refund_operation\".\"original_payment_operation_id\" IS NOT NULL AND \"app\".\"local_refund_operation\".\"destination_source_id\" IS NULL) OR (\"app\".\"local_refund_operation\".\"rail\"='cod_verified_destination' AND \"app\".\"local_refund_operation\".\"original_payment_operation_id\" IS NULL AND \"app\".\"local_refund_operation\".\"destination_source_id\" IS NOT NULL))"
+          "value": "\"app\".\"local_refund_operation\".\"attempt\">0 AND \"app\".\"local_refund_operation\".\"environment\" IN ('local','test') AND \"app\".\"local_refund_operation\".\"amount\" between 1 and 9007199254740991 AND \"app\".\"local_refund_operation\".\"request_hash\" ~ '^[a-f0-9]{64}$' AND ((\"app\".\"local_refund_operation\".\"rail\"='prepaid_original' AND \"app\".\"local_refund_operation\".\"original_payment_operation_id\" IS NOT NULL AND \"app\".\"local_refund_operation\".\"destination_source_id\" IS NULL) OR (\"app\".\"local_refund_operation\".\"rail\"='cod_verified_destination' AND \"app\".\"local_refund_operation\".\"original_payment_operation_id\" IS NULL AND \"app\".\"local_refund_operation\".\"destination_source_id\" IS NOT NULL))"
         }
       },
       "isRLSEnabled": false
@@ -10486,7 +10486,7 @@
       "checkConstraints": {
         "local_replacement_operation_value_check": {
           "name": "local_replacement_operation_value_check",
-          "value": "\"app\".\"local_replacement_operation\".\"environment\" IN ('local','test','production') AND \"app\".\"local_replacement_operation\".\"profile\" IN ('normal','creation_ack_lost','issuance_ack_lost','rejected') AND \"app\".\"local_replacement_operation\".\"cod_due\"=0 AND \"app\".\"local_replacement_operation\".\"request_hash\" ~ '^[a-f0-9]{64}$' AND ((\"app\".\"local_replacement_operation\".\"status\"='created' AND \"app\".\"local_replacement_operation\".\"tracking_number\" IS NULL AND \"app\".\"local_replacement_operation\".\"terminal_at\" IS NULL) OR (\"app\".\"local_replacement_operation\".\"status\"='issued' AND \"app\".\"local_replacement_operation\".\"tracking_number\" IS NOT NULL AND \"app\".\"local_replacement_operation\".\"tracking_number\" ~ '^LOCAL-REPLACEMENT-[A-F0-9]{32}$' AND \"app\".\"local_replacement_operation\".\"terminal_at\" IS NOT NULL) OR (\"app\".\"local_replacement_operation\".\"status\"='failed' AND \"app\".\"local_replacement_operation\".\"tracking_number\" IS NULL AND \"app\".\"local_replacement_operation\".\"terminal_at\" IS NOT NULL))"
+          "value": "\"app\".\"local_replacement_operation\".\"environment\" IN ('local','test') AND \"app\".\"local_replacement_operation\".\"profile\" IN ('normal','creation_ack_lost','issuance_ack_lost','rejected') AND \"app\".\"local_replacement_operation\".\"cod_due\"=0 AND \"app\".\"local_replacement_operation\".\"request_hash\" ~ '^[a-f0-9]{64}$' AND ((\"app\".\"local_replacement_operation\".\"status\"='created' AND \"app\".\"local_replacement_operation\".\"tracking_number\" IS NULL AND \"app\".\"local_replacement_operation\".\"terminal_at\" IS NULL) OR (\"app\".\"local_replacement_operation\".\"status\"='issued' AND \"app\".\"local_replacement_operation\".\"tracking_number\" IS NOT NULL AND \"app\".\"local_replacement_operation\".\"tracking_number\" ~ '^LOCAL-REPLACEMENT-[A-F0-9]{32}$' AND \"app\".\"local_replacement_operation\".\"terminal_at\" IS NOT NULL) OR (\"app\".\"local_replacement_operation\".\"status\"='failed' AND \"app\".\"local_replacement_operation\".\"tracking_number\" IS NULL AND \"app\".\"local_replacement_operation\".\"terminal_at\" IS NOT NULL))"
         }
       },
       "isRLSEnabled": false
@@ -10610,7 +10610,7 @@
       "checkConstraints": {
         "local_replacement_receipt_value_check": {
           "name": "local_replacement_receipt_value_check",
-          "value": "\"app\".\"local_replacement_receipt\".\"environment\" IN ('local','test','production') AND \"app\".\"local_replacement_receipt\".\"reference\" ~ '^[A-Za-z0-9_.:-]{1,200}$' AND \"app\".\"local_replacement_receipt\".\"request_hash\" ~ '^[a-f0-9]{64}$' AND \"app\".\"local_replacement_receipt\".\"signature\" ~ '^[a-f0-9]{64}$' AND jsonb_typeof(\"app\".\"local_replacement_receipt\".\"unit_ids\")='array' AND jsonb_array_length(\"app\".\"local_replacement_receipt\".\"unit_ids\") between 1 and 100"
+          "value": "\"app\".\"local_replacement_receipt\".\"environment\" IN ('local','test') AND \"app\".\"local_replacement_receipt\".\"reference\" ~ '^[A-Za-z0-9_.:-]{1,200}$' AND \"app\".\"local_replacement_receipt\".\"request_hash\" ~ '^[a-f0-9]{64}$' AND \"app\".\"local_replacement_receipt\".\"signature\" ~ '^[a-f0-9]{64}$' AND jsonb_typeof(\"app\".\"local_replacement_receipt\".\"unit_ids\")='array' AND jsonb_array_length(\"app\".\"local_replacement_receipt\".\"unit_ids\") between 1 and 100"
         }
       },
       "isRLSEnabled": false
@@ -11002,7 +11002,7 @@
       "checkConstraints": {
         "local_tracking_observation_value_check": {
           "name": "local_tracking_observation_value_check",
-          "value": "\"app\".\"local_tracking_observation\".\"environment\" IN ('local','test','production') AND \"app\".\"local_tracking_observation\".\"tracking_number\" ~ '^[A-Z0-9][A-Z0-9-]{7,39}$' AND \"app\".\"local_tracking_observation\".\"provider_status\" ~ '^[A-Z_]{2,40}$'"
+          "value": "\"app\".\"local_tracking_observation\".\"environment\" IN ('local','test') AND \"app\".\"local_tracking_observation\".\"tracking_number\" ~ '^[A-Z0-9][A-Z0-9-]{7,39}$' AND \"app\".\"local_tracking_observation\".\"provider_status\" ~ '^[A-Z_]{2,40}$'"
         }
       },
       "isRLSEnabled": false
@@ -11125,7 +11125,7 @@
       "checkConstraints": {
         "local_waybill_cancellation_value_check": {
           "name": "local_waybill_cancellation_value_check",
-          "value": "(\"app\".\"local_waybill_cancellation\".\"environment\" IN ('local','test','production') AND \"app\".\"local_waybill_cancellation\".\"request_hash\" ~ '^[a-f0-9]{64}$' AND ((\"app\".\"local_waybill_cancellation\".\"status\"='acknowledged' AND \"app\".\"local_waybill_cancellation\".\"source_operation_id\" IS NULL AND \"app\".\"local_waybill_cancellation\".\"source_status\" IS NULL AND \"app\".\"local_waybill_cancellation\".\"tracking_number\" IS NULL AND \"app\".\"local_waybill_cancellation\".\"failure_code\" IS NULL AND \"app\".\"local_waybill_cancellation\".\"terminal_at\" IS NULL) OR (\"app\".\"local_waybill_cancellation\".\"status\" IN ('cancelled','failed') AND \"app\".\"local_waybill_cancellation\".\"source_status\" IN ('absent','acknowledged','issued','failed') AND ((\"app\".\"local_waybill_cancellation\".\"source_status\"='absent')=(\"app\".\"local_waybill_cancellation\".\"source_operation_id\" IS NULL)) AND ((\"app\".\"local_waybill_cancellation\".\"source_status\"='issued' AND \"app\".\"local_waybill_cancellation\".\"tracking_number\" ~ '^LOCAL-[A-F0-9]{32}$') OR (\"app\".\"local_waybill_cancellation\".\"source_status\"<>'issued' AND \"app\".\"local_waybill_cancellation\".\"tracking_number\" IS NULL)) AND ((\"app\".\"local_waybill_cancellation\".\"status\"='cancelled' AND \"app\".\"local_waybill_cancellation\".\"failure_code\" IS NULL) OR (\"app\".\"local_waybill_cancellation\".\"status\"='failed' AND \"app\".\"local_waybill_cancellation\".\"failure_code\" IN ('CANCELLATION_REJECTED','TEMPORARY_UNAVAILABLE'))) AND \"app\".\"local_waybill_cancellation\".\"terminal_at\">=\"app\".\"local_waybill_cancellation\".\"created_at\"))) IS TRUE"
+          "value": "(\"app\".\"local_waybill_cancellation\".\"environment\" IN ('local','test') AND \"app\".\"local_waybill_cancellation\".\"request_hash\" ~ '^[a-f0-9]{64}$' AND ((\"app\".\"local_waybill_cancellation\".\"status\"='acknowledged' AND \"app\".\"local_waybill_cancellation\".\"source_operation_id\" IS NULL AND \"app\".\"local_waybill_cancellation\".\"source_status\" IS NULL AND \"app\".\"local_waybill_cancellation\".\"tracking_number\" IS NULL AND \"app\".\"local_waybill_cancellation\".\"failure_code\" IS NULL AND \"app\".\"local_waybill_cancellation\".\"terminal_at\" IS NULL) OR (\"app\".\"local_waybill_cancellation\".\"status\" IN ('cancelled','failed') AND \"app\".\"local_waybill_cancellation\".\"source_status\" IN ('absent','acknowledged','issued','failed') AND ((\"app\".\"local_waybill_cancellation\".\"source_status\"='absent')=(\"app\".\"local_waybill_cancellation\".\"source_operation_id\" IS NULL)) AND ((\"app\".\"local_waybill_cancellation\".\"source_status\"='issued' AND \"app\".\"local_waybill_cancellation\".\"tracking_number\" ~ '^LOCAL-[A-F0-9]{32}$') OR (\"app\".\"local_waybill_cancellation\".\"source_status\"<>'issued' AND \"app\".\"local_waybill_cancellation\".\"tracking_number\" IS NULL)) AND ((\"app\".\"local_waybill_cancellation\".\"status\"='cancelled' AND \"app\".\"local_waybill_cancellation\".\"failure_code\" IS NULL) OR (\"app\".\"local_waybill_cancellation\".\"status\"='failed' AND \"app\".\"local_waybill_cancellation\".\"failure_code\" IN ('CANCELLATION_REJECTED','TEMPORARY_UNAVAILABLE'))) AND \"app\".\"local_waybill_cancellation\".\"terminal_at\">=\"app\".\"local_waybill_cancellation\".\"created_at\"))) IS TRUE"
         }
       },
       "isRLSEnabled": false
@@ -11419,7 +11419,7 @@
         },
         "local_waybill_operation_value_check": {
           "name": "local_waybill_operation_value_check",
-          "value": "\"app\".\"local_waybill_operation\".\"environment\" IN ('local','test','production') AND \"app\".\"local_waybill_operation\".\"request_hash\" ~ '^[a-f0-9]{64}$' AND ((\"app\".\"local_waybill_operation\".\"status\"='acknowledged' AND \"app\".\"local_waybill_operation\".\"tracking_number\" IS NULL AND \"app\".\"local_waybill_operation\".\"terminal_at\" IS NULL) OR (\"app\".\"local_waybill_operation\".\"status\"='issued' AND \"app\".\"local_waybill_operation\".\"tracking_number\" ~ '^LOCAL-[A-F0-9]{32}$' AND \"app\".\"local_waybill_operation\".\"terminal_at\">=\"app\".\"local_waybill_operation\".\"created_at\") OR (\"app\".\"local_waybill_operation\".\"status\"='failed' AND \"app\".\"local_waybill_operation\".\"tracking_number\" IS NULL AND \"app\".\"local_waybill_operation\".\"terminal_at\">=\"app\".\"local_waybill_operation\".\"created_at\"))"
+          "value": "\"app\".\"local_waybill_operation\".\"environment\" IN ('local','test') AND \"app\".\"local_waybill_operation\".\"request_hash\" ~ '^[a-f0-9]{64}$' AND ((\"app\".\"local_waybill_operation\".\"status\"='acknowledged' AND \"app\".\"local_waybill_operation\".\"tracking_number\" IS NULL AND \"app\".\"local_waybill_operation\".\"terminal_at\" IS NULL) OR (\"app\".\"local_waybill_operation\".\"status\"='issued' AND \"app\".\"local_waybill_operation\".\"tracking_number\" ~ '^LOCAL-[A-F0-9]{32}$' AND \"app\".\"local_waybill_operation\".\"terminal_at\">=\"app\".\"local_waybill_operation\".\"created_at\") OR (\"app\".\"local_waybill_operation\".\"status\"='failed' AND \"app\".\"local_waybill_operation\".\"tracking_number\" IS NULL AND \"app\".\"local_waybill_operation\".\"terminal_at\">=\"app\".\"local_waybill_operation\".\"created_at\"))"
         }
       },
       "isRLSEnabled": false
