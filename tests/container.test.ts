@@ -44,7 +44,8 @@ test("Dockerfile runtime stage: fixed non-root uid, node-only HEALTHCHECK, expli
     assert.ok(!source.startsWith("/app/docs") || source === "/app/docs/spec/fixtures/shipping-local.json", source);
   }
   assert.ok(!/^COPY (?!--from=)/m.test(runtime), "runtime copies only from the build stage");
-  assert.match(runtime, /^CMD \["sh", "-c", "node scripts\/migrate\.ts production && exec node node_modules\/next\/dist\/bin\/next start --hostname 0\.0\.0\.0 --port \\"\$PORT\\""\]$/m);
+  // Advisory-locked migration, then the S82 production listener without the owner password in its environment.
+  assert.match(runtime, /^CMD \["sh", "-c", "node scripts\/migrate\.ts production && exec env -u DATABASE_OWNER_PASSWORD node scripts\/run-local\.ts start"\]$/m);
 });
 
 test(".dockerignore keeps private, test and design material out of the build context", () => {
