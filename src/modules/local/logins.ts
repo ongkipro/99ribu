@@ -11,19 +11,23 @@ import { BrowserSession, enroll, totp } from "./synthetic-session.ts";
 const finance: Permission[] = ["finance.summary.read", "finance.costs.read", "finance.costs.write", "finance.reconciliation.read", "finance.reconciliation.write", "finance.refunds.read", "finance.refunds.write"];
 const labels: Permission[] = ["shipping.labels.read", "shipping.labels.generate", "shipping.labels.print"];
 const exportsAll: Permission[] = ["exports.read", "exports.download"];
+// One shared dummy password for every local account (owner decision 2026-10-24); 12 characters to meet
+// the auth policy minimum (minPasswordLength 12). Local profile only.
+export const LOCAL_DUMMY_PASSWORD = "99ribu123456";
 export const LOCAL_ACCOUNTS: readonly { email: string; name: string; role: Role; password: string; permissions: Permission[]; landing: string }[] = [
-  { email: "owner@99ribu.test", name: "Super Admin", role: "owner", password: "Owner-99ribu", permissions: [], landing: "/admin" },
-  { email: "ecommerce@99ribu.test", name: "Admin E-Commerce", role: "ecommerce_admin", password: "Ecommerce-99ribu", permissions: ["orders.history.read", ...labels, ...exportsAll], landing: "/admin" },
-  { email: "gudang@99ribu.test", name: "Staf Gudang", role: "warehouse", password: "Gudang-99ribu", permissions: [...labels, ...exportsAll], landing: "/admin" },
-  { email: "cs@99ribu.test", name: "Layanan Pelanggan", role: "customer_service", password: "Layanan-99ribu", permissions: ["orders.history.read"], landing: "/admin" },
-  { email: "keuangan@99ribu.test", name: "Keuangan", role: "finance", password: "Keuangan-99ribu", permissions: [...finance, "orders.history.read", ...exportsAll], landing: "/admin" },
-  { email: "pembeli@99ribu.test", name: "Pembeli Satu", role: "buyer", password: "Pembeli-99ribu", permissions: [], landing: "/akun" },
-  { email: "pembeli2@99ribu.test", name: "Pembeli Dua", role: "buyer", password: "Pembeli2-99ribu", permissions: [], landing: "/akun" },
-  { email: "afiliasi@99ribu.test", name: "Mitra Afiliasi", role: "affiliate", password: "Afiliasi-99ribu", permissions: [], landing: "/akun" },
+  { email: "owner@99ribu.test", name: "Super Admin", role: "owner", password: LOCAL_DUMMY_PASSWORD, permissions: [], landing: "/admin" },
+  { email: "ecommerce@99ribu.test", name: "Admin E-Commerce", role: "ecommerce_admin", password: LOCAL_DUMMY_PASSWORD, permissions: ["orders.history.read", ...labels, ...exportsAll], landing: "/admin" },
+  { email: "gudang@99ribu.test", name: "Staf Gudang", role: "warehouse", password: LOCAL_DUMMY_PASSWORD, permissions: [...labels, ...exportsAll], landing: "/admin" },
+  { email: "cs@99ribu.test", name: "Layanan Pelanggan", role: "customer_service", password: LOCAL_DUMMY_PASSWORD, permissions: ["orders.history.read"], landing: "/admin" },
+  { email: "keuangan@99ribu.test", name: "Keuangan", role: "finance", password: LOCAL_DUMMY_PASSWORD, permissions: [...finance, "orders.history.read", ...exportsAll], landing: "/admin" },
+  { email: "pembeli@99ribu.test", name: "Pembeli Satu", role: "buyer", password: LOCAL_DUMMY_PASSWORD, permissions: [], landing: "/akun" },
+  { email: "pembeli2@99ribu.test", name: "Pembeli Dua", role: "buyer", password: LOCAL_DUMMY_PASSWORD, permissions: [], landing: "/akun" },
+  { email: "afiliasi@99ribu.test", name: "Mitra Afiliasi", role: "affiliate", password: LOCAL_DUMMY_PASSWORD, permissions: [], landing: "/akun" },
 ];
 const STAFF = new Set<Role>(["owner", "ecommerce_admin", "warehouse", "customer_service", "finance"]);
-// Membership-scoped staff (S91 manual queue, pickup profile) share the catalog origin warehouses.
-const SCOPED = new Set<Role>(["ecommerce_admin", "warehouse"]);
+// Membership-scoped staff (S91 manual queue, pickup profile) share the catalog origin warehouses. S109: cs@ too,
+// since order history/search and return review only show orders whose every parcel is in the reader's warehouses.
+const SCOPED = new Set<Role>(["ecommerce_admin", "warehouse", "customer_service"]);
 // Namespaces created per test run end in an 8-hex run id; fixed names (demo, berlapak, ...) are reused by
 // seed/berlapak reruns, which require the full principal mapping, so they are never pruned.
 const DISPOSABLE_NAMESPACE = /-[0-9a-f]{8}(?:-[0-9a-f])?$/;
@@ -41,14 +45,14 @@ function base32(value: string) {
   for (let i = 0; i < bits.length; i += 5) out += "ABCDEFGHIJKLMNOPQRSTUVWXYZ234567"[Number.parseInt(bits.slice(i, i + 5).padEnd(5, "0"), 2)];
   return out;
 }
-async function storedTotpUri(identity: LocalAuth, userId: string, email: string) {
+export async function storedTotpUri(identity: LocalAuth, userId: string, email: string) {
   const [row] = await identity.sql`select t.secret from app.auth_two_factor t join app.auth_user u on u.id=t.user_id where t.user_id=${userId} and t.verified and u.two_factor_enabled`;
   if (!row) return null;
   const secret = await symmetricDecrypt({ key: (await identity.auth.$context).secretConfig, data: row.secret });
   return `otpauth://totp/99ribu:${encodeURIComponent(email)}?${new URLSearchParams({ secret: base32(secret), issuer: "99ribu", digits: "6", period: "30" })}`;
 }
 
-// gudang@ and ecommerce@ work where the catalog stock lives: every active S90 origin warehouse; before the catalog
+// gudang@, ecommerce@ and cs@ work where the catalog stock lives: every active S90 origin warehouse; before the catalog
 // is imported, the `demo` namespace's Malang warehouse (else the oldest active Malang one).
 async function localWarehouses(identity: LocalAuth) {
   const origins = await identity.sql<{ id: string; name: string }[]>`select id,name from app.warehouse where active and origin_key is not null order by name`;

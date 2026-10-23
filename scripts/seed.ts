@@ -2,9 +2,10 @@ import { existsSync } from "node:fs";
 import { advanceFixtureClock, readFixtureClock, readFixtureInbox, seedLocal } from "../src/modules/local/fixtures.ts";
 
 const [command, target, namespace, ...args] = process.argv.slice(2);
-const usage = "Use fixture seed|commerce|storefront|berlapak|clock|inbox local|test namespace; payment-terms|commercial-terms local namespace; clock advance needs seconds/version; inbox needs principal ID; local-only accounts: login|login-codes local, prune-accounts local [--apply]. No reset command exists.";
+const usage = "Use fixture seed|commerce|storefront|berlapak|clock|inbox local|test namespace; payment-terms|commercial-terms local namespace; demo-orders local [namespace]; clock advance needs seconds/version; inbox needs principal ID; local-only accounts: login|login-codes local, prune-accounts local [--apply]. No reset command exists.";
 const accountCommand = ["login", "login-codes", "prune-accounts"].includes(command);
-if ((!namespace && !accountCommand) || !["local", "test"].includes(target) || !["seed", "commerce", "storefront", "berlapak", "payment-terms", "commercial-terms", "clock", "inbox", "login", "login-codes", "prune-accounts"].includes(command)) {
+const demoCommand = command === "demo-orders";
+if ((!namespace && !accountCommand && !demoCommand) || !["local", "test"].includes(target) || !["demo-orders", "seed", "commerce", "storefront", "berlapak", "payment-terms", "commercial-terms", "clock", "inbox", "login", "login-codes", "prune-accounts"].includes(command)) {
   console.error(usage); process.exitCode = 1;
 } else {
   const selected = target as "local" | "test";
@@ -15,6 +16,12 @@ if ((!namespace && !accountCommand) || !["local", "test"].includes(target) || ![
       if (flags.length > (command === "prune-accounts" ? 1 : 0) || flags.some((flag) => flag !== "--apply")) throw new Error(usage, { cause: "visible" });
       const {provisionLocalAccounts,localAccountCodes,pruneLocalAccounts}=await import("../src/modules/local/logins.ts");
       console.log(JSON.stringify(command === "login" ? await provisionLocalAccounts(target) : command === "login-codes" ? await localAccountCodes(target) : await pruneLocalAccounts(target, flags[0] === "--apply"), null, 2));
+    }
+    else if (demoCommand) {
+      // Local-only demo orders through the real flows; the summary table prints no IDs, tokens or credentials.
+      if (target !== "local" || args.length) throw new Error(usage, { cause: "visible" });
+      const {runDemoOrders,formatDemoSummary}=await import("../src/modules/local/demo-orders.ts");
+      console.log(formatDemoSummary(await runDemoOrders("local", namespace ?? "demo-orders")));
     }
     else if (command === "seed" && !args.length) console.log(JSON.stringify(await seedLocal(selected, namespace)));
     else if ((command === "commerce" || command === "storefront") && !args.length) {

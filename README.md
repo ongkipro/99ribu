@@ -291,6 +291,8 @@ Run from this worktree with migrations applied to local and test. Use the exact 
 | `npm run test:integration -- --case=production-profile` | Isolated test DB migrated (`0035`); Docker with the pinned `postgres:18.6` image | S83: `0035` recorded and a test-DB re-run applies nothing; the 8 real-flow `environment` CHECKs list `local`/`test`/`production` and the 11 simulator stores exactly `local`/`test` (a simulator store rejects `production`); plus a disposable TCP + SCRAM container: `bootstrap-production.sql` applies once (second run fails, nothing changed), two concurrent `db:migrate -- production` runs both exit 0 with one applying, app role refused DDL/`TRUNCATE`/other databases, a real-flow table accepts `production` there while a simulator store rejects it, per-IP guest budget, production worker starts with dispatch disabled; container removed afterwards |
 | `npm run test:integration -- --case=autolaris-payments` | Isolated test DB migrated (`0034`) | S93: AutoLaris VA/QRIS simulated contract, advice, store-borne fee |
 | `npm run fixture -- payment-terms local <ns>` | Migrated local DB | DEC-008/009 payment terms for local checkout (idempotent) |
+| `npm run fixture -- demo-orders local [<ns>]` | Migrated local DB, payment/commercial terms, catalog with initial stock, `fixture -- login local` | Local-only demo orders in every order state through the real flows ("Local demo orders"); idempotent per namespace, no reset |
+| `npm run test:integration -- --case=demo-orders` | Isolated test DB migrated | The demo-orders fixture in its own TEST namespace: each state visible in the buyer order projection and admin queues; rerun creates nothing |
 | `npm run fixture -- commercial-terms local <ns>` | Migrated local DB | Commercial policy baseline (1000 bps default commission, IDR 99,000 minimum payout) through the owner policy route, required for catalog publication (idempotent) |
 | `npm run worker -- --autolaris-paid <ATTEMPT_ID>` | Local worker profile | Simulate an AutoLaris paid advice for one local attempt (refused outside local/test) |
 | `npm run worker -- --track-parcel <FULFILLMENT_ID> <PROVIDER_STATUS>` | Local worker profile | S91: simulated courier feed reports `PICKED_UP`/`IN_TRANSIT`/`FAILED`/`DELIVERED` for a manual parcel's current resi and runs its due tracking poll (refused outside local/test) |
@@ -367,18 +369,18 @@ The seed reports IDs and clock metadata only. Initial passwords are random, hash
 
 ### Local dummy sign-in accounts
 
-Sign in at <http://127.0.0.1:3099/masuk>. These stable accounts are separate from the namespaced fixture principals (`<namespace>.<x>@example.test`, random passwords) and exist only after the explicit, local-only `login` command. Dummy credentials for the local profile only.
+Sign in at <http://127.0.0.1:3099/masuk>. These stable accounts are separate from the namespaced fixture principals (`<namespace>.<x>@example.test`, random passwords) and exist only after the explicit, local-only `login` command. Every account shares one dummy password, `99ribu123456` (`LOCAL_DUMMY_PASSWORD` in `src/modules/local/logins.ts`; 12 characters, the auth policy minimum). Dummy credentials for the local profile only.
 
 | Role | Email | Password | 2FA | Landing after sign-in |
 |---|---|---|---|---|
-| Super Admin (owner) | `owner@99ribu.test` | `Owner-99ribu` | yes (TOTP) | `/admin` |
-| Admin E-Commerce (ecommerce_admin, every active origin warehouse) | `ecommerce@99ribu.test` | `Ecommerce-99ribu` | yes (TOTP) | `/admin` |
-| Gudang (warehouse, every active origin warehouse) | `gudang@99ribu.test` | `Gudang-99ribu` | yes (TOTP) | `/admin` |
-| Layanan Pelanggan (customer_service) | `cs@99ribu.test` | `Layanan-99ribu` | yes (TOTP) | `/admin` |
-| Keuangan (finance) | `keuangan@99ribu.test` | `Keuangan-99ribu` | yes (TOTP) | `/admin` |
-| Pembeli (buyer) | `pembeli@99ribu.test` | `Pembeli-99ribu` | no | `/akun` |
-| Pembeli 2 (buyer) | `pembeli2@99ribu.test` | `Pembeli2-99ribu` | no | `/akun` |
-| Mitra Afiliasi (affiliate) | `afiliasi@99ribu.test` | `Afiliasi-99ribu` | no | `/akun` |
+| Super Admin (owner) | `owner@99ribu.test` | `99ribu123456` | yes (TOTP) | `/admin` |
+| Admin E-Commerce (ecommerce_admin, every active origin warehouse) | `ecommerce@99ribu.test` | `99ribu123456` | yes (TOTP) | `/admin` |
+| Gudang (warehouse, every active origin warehouse) | `gudang@99ribu.test` | `99ribu123456` | yes (TOTP) | `/admin` |
+| Layanan Pelanggan (customer_service, every active origin warehouse) | `cs@99ribu.test` | `99ribu123456` | yes (TOTP) | `/admin` |
+| Keuangan (finance) | `keuangan@99ribu.test` | `99ribu123456` | yes (TOTP) | `/admin` |
+| Pembeli (buyer) | `pembeli@99ribu.test` | `99ribu123456` | no | `/akun` |
+| Pembeli 2 (buyer) | `pembeli2@99ribu.test` | `99ribu123456` | no | `/akun` |
+| Mitra Afiliasi (affiliate) | `afiliasi@99ribu.test` | `99ribu123456` | no | `/akun` |
 
 ```bash
 npm run fixture -- login local                   # create/refresh: passwords, roles, warehouse scope, staff TOTP enrollment
@@ -387,11 +389,45 @@ npm run fixture -- prune-accounts local          # dry run: counts of leftover s
 npm run fixture -- prune-accounts local --apply  # delete them
 ```
 
-Every staff role requires an MFA-verified session, so `login` enrolls TOTP through the real auth handler and prints `totp_uri`/`totp_secret` (add to an authenticator app) and `current_code`; backup codes are printed only on first enrollment, and reruns keep the enrollment. After the password, `/masuk` asks for the authenticator code (or a backup code). A validated same-origin `?next=` overrides the landing page. Staff get the permissions their workspace needs (labels/exports/order history/finance); `gudang@` and `ecommerce@` are scoped to every active origin warehouse once the catalog is imported (S90), else to the `demo` namespace's Malang warehouse (or the oldest active Malang warehouse). The command is subject to the normal per-account sign-in limit (5 per minute).
+Every staff role requires an MFA-verified session, so `login` enrolls TOTP through the real auth handler and prints `totp_uri`/`totp_secret` (add to an authenticator app) and `current_code`; backup codes are printed only on first enrollment, and reruns keep the enrollment. After the password, `/masuk` asks for the authenticator code (or a backup code). A validated same-origin `?next=` overrides the landing page. Staff get the permissions their workspace needs (labels/exports/order history/finance); `gudang@`, `ecommerce@` and `cs@` are scoped to every active origin warehouse (S109: order history/search and return review show only orders whose every parcel is in the reader's warehouses; the CS dashboard itself is company-wide and unchanged) once the catalog is imported (S90), else to the `demo` namespace's Malang warehouse (or the oldest active Malang warehouse). The command is subject to the normal per-account sign-in limit (5 per minute).
 
 `prune-accounts` only considers `@example.invalid`/`@example.test` users: unmapped test users (`access-*`, `browser-*`, orphan seed operators) and principals of per-run fixture namespaces (8-hex run suffix, plus the retired `signin-check`). It keeps any user still referenced by orders, carts, audit, operations, support or buyer/affiliate data, every principal of a fixed namespace (`demo`, `berlapak`, `commerce-demo`, ...; their seed reruns need the full mapping), and users created in the last 15 minutes; an FK refusal skips the user. All commands refuse the `test` target and any non-local profile. Browser check: `PLAYWRIGHT_CHROMIUM_EXECUTABLE=/snap/bin/chromium npm run test:browser -- --case=foundation`.
 
 Business clock updates use optimistic versions and cannot move backwards. Each advance is at most 366 days. They never change host time or real auth/session/MFA expiry. Future scenario consumers must explicitly use this clock through a trusted context. No reset command exists; unsafe/remote targets and mixed/live config fail. Run database integration suites sequentially. The full T-38 provider/domain scenario set remains unaccepted until its owned later slices pass.
+
+### Local demo orders
+
+One command fills every storefront and admin order screen with realistic orders, created only through the real flows: checkout handlers (cart → quote → order), the payment/AutoLaris/COD/tracking simulators of `scripts/worker.ts`, the finance transfer and COD-statement routes, manual fulfillment, commerce exceptions, returns, support and affiliate referral. Nothing is inserted into business tables and no trigger is disabled. It uses the published DEC-005 catalog (single-unit offers with stock in their origin warehouses) and the dummy accounts above: `pembeli@`/`pembeli2@` buy, a few orders are guests, `afiliasi@` brings one buyer through its referral link (enrolled once with code `MITRA99`), and staff steps are signed in as `keuangan@` (transfer confirmation, COD statement), `gudang@` (resi entry), `cs@` (return decision) and `owner@` (stock shortage, stock transfer).
+
+```bash
+npm run fixture -- demo-orders local                 # default namespace demo-orders
+npm run fixture -- demo-orders local demo-oct        # another, separate set
+npm run test:integration -- --case=demo-orders       # TEST database, own namespace
+```
+
+Prerequisites: migrated LOCAL database, `fixture -- commercial-terms`/`payment-terms`, the catalog imported with initial stock (Local quick start) and `fixture -- login local`. The command refuses the `test` target and any non-local profile; the module accepts `test` only for its integration test. It prints a table of state, order number, buyer and a short detail; no IDs, tokens or credentials.
+
+| State (scenario) | Flow |
+|---|---|
+| Transfer awaiting payment (`transfer_awaiting`) | manual bank transfer, instructions issued, 24 h window from now |
+| Transfer near deadline (`transfer_near_deadline`) | manual bank transfer placed 20 h before the anchor: under 6 h left |
+| Transfer expired (`transfer_expired`) | placed 24 h 05 min before the anchor, no instructions requested; its own expiry job cancels it |
+| Transfer confirmed (`transfer_confirmed`) | finance confirmation with reauthentication; paid parcel waits in "Perlu dipesan kurir" |
+| AutoLaris pending / paid (`autolaris_pending`, `autolaris_paid`) | simulated VA BCA issued / QRIS paid through the advice poll (`--autolaris-paid` steps) |
+| COD awaiting manual booking (`cod_awaiting_booking`) | confirmed COD parcel in the S91 queue |
+| Manual shipment (`manual_shipped`) | resi + Berlapak purchase reference entered |
+| In transit (`in_transit`) | simulated tracking `IN_TRANSIT` (`--track-parcel` steps) |
+| Delivered (`delivered`) | paid transfer, resi, tracking `DELIVERED`, buyer receipts recorded |
+| COD collected + remitted (`cod_remitted`) | delivered, Mengantar COD statement recorded and matched (COD settlement screen) |
+| COD refused (`cod_refused`) | tracking `FAILED`, COD refused (`--refuse-cod` steps) |
+| COD partially cancelled (`cod_partial_cancel`) | 2 units; one reported short at packing, cancellation proposed, accepted by the buyer, applied: booking shows the reduced COD basis (S99) |
+| Return requested / decided (`return_requested`, `return_decided`) | delivered orders; buyer return request; `cs@` approves the refund (awaiting goods) |
+| Support conversation (`support_conversation`) | `pembeli@` asks about the in-transit order, order context card attached |
+| Affiliate order (`affiliate_order`) | guest arrives through `afiliasi@`'s referral link; COD order attributed, commission accrued |
+
+Time: all scenarios except the two past-dated transfers run on the wall clock (no clock namespace), against the catalog's origin warehouses, so scoped staff (`gudang@`, `ecommerce@`, `cs@`) see them and the worker treats them like live orders: the awaiting transfer expires about 24 h later if the worker runs. The near-deadline and expired transfers need an order time in the past, which only a fixture business clock allows: they run in the namespace's own clock and fixture warehouse (one unit per order moved there from an origin warehouse by an audited transfer), at anchor − 24 h 05 min and anchor − 20 h, after which the clock moves to the anchor. The anchor is now when the manual-bank payment terms were already in force 24 h ago; otherwise it is the current terms' start + 24 h 10 min (that namespace clock then runs ahead of the wall clock and the near-deadline state holds at the anchor, not yet at wall time). The namespace clock then stands still, so the worker never cancels the near-deadline order; measured against the wall clock (admin "Transfer mendekati batas" KPI, finance queue) it is past due about 4 h after the run. Those two orders live in the namespace's fixture warehouse, outside the origin-warehouse scope of `cs@`/`gudang@` order search (owner and finance see them).
+
+Rerun and reset: a rerun with the same namespace is idempotent (each order is recorded once as a `local_fixture.demo_order` audit row of `local-demo-orders:<namespace>`) and resumes unfinished steps of account orders; a guest step interrupted mid-run cannot be resumed (its order capability lived only in that run), and a namespace whose clock already passed the past-dated order times skips them; use a new namespace. There is no reset or cleanup: orders, stock movements (consumed, reserved, one unit reported short, transferred units), finance postings and audit history are immutable business history, so demo data accumulates in the local database only. A buyer that already holds two open manual-bank orders (e.g. from an earlier namespace) is replaced by a guest for a new transfer order.
 
 
 ## Durable job and recovery primitives (S12)
