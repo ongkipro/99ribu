@@ -1,5 +1,6 @@
 import { AdminWorkspacesClient } from "../../../components/admin/admin-workspaces-client";
-import { readStaffRoles } from "./staff-roles";
+import { canReadOrders } from "../../../components/admin/order-model";
+import { readStaffAccess } from "./staff-roles";
 
 export const dynamic = "force-dynamic";
 export const metadata = {
@@ -12,8 +13,8 @@ export default async function AdminWorkspacesPage({
 }: {
 	searchParams: Promise<{ [key: string]: string | string[] | undefined }>;
 }) {
-	const [staffRoles, params] = await Promise.all([
-		readStaffRoles(),
+	const [{ roles: staffRoles, permissions }, params] = await Promise.all([
+		readStaffAccess(),
 		searchParams,
 	]);
 	const workspace =
@@ -27,6 +28,7 @@ export default async function AdminWorkspacesPage({
 			key={`${workspace ?? ""}:${warehouseId}`}
 			initialAuthenticated={staffRoles.length > 0}
 			initialStaffRoles={staffRoles}
+			canOrders={canReadOrders(staffRoles, permissions)}
 			requestedWorkspace={workspace}
 			requestedWarehouseId={warehouseId}
 		/>

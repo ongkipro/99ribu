@@ -36,6 +36,8 @@ export default async function AdminOrderDetailPage({
 		const value = from.get(key);
 		if (value) back.set(key, value.slice(0, 100));
 	}
+	// Never carry phone digits back into a URL, even from a hand-made link.
+	if (back.get("jenis") === "hp") back.delete("cari");
 	return (
 		<OrderDetailClient
 			key={orderId}

@@ -93,6 +93,7 @@ type Manual = {
 type Booking = {
 	cod_amount_due: number;
 	cod_fee_amount: number;
+	cancelled_units: number;
 	quoted_courier: {
 		courier_name: string;
 		service_name: string;
@@ -504,7 +505,9 @@ export function ManualFulfillmentClient({
 															))}
 														</ul>
 														<span className="mt-1 block text-xs text-muted-foreground">
-															Berat {formatKg(row.booking.parcel.weight_grams)}
+															Berat awal {formatKg(row.booking.parcel.weight_grams)}
+															{row.booking.cancelled_units > 0 &&
+																`; ${row.booking.cancelled_units} unit batal, timbang ulang`}
 														</span>
 													</TableCell>
 													<TableCell className="min-w-36 whitespace-normal">{courierText(row)}</TableCell>
@@ -918,8 +921,15 @@ function BookingSheet({ row }: { row: Row }) {
 				{fact("Wilayah", areaText(row))}
 				{fact("Kurir pembeli", courierText(row))}
 				{fact(
-					"Berat & ukuran",
-					`${formatKg(b.parcel.weight_grams)} · ${formatCm(b.parcel.length_mm)} × ${formatCm(b.parcel.width_mm)} × ${formatCm(b.parcel.height_mm)} cm`,
+					"Berat awal",
+					<>
+						{`${formatKg(b.parcel.weight_grams)} · ${formatCm(b.parcel.length_mm)} × ${formatCm(b.parcel.width_mm)} × ${formatCm(b.parcel.height_mm)} cm`}
+						<span className="block text-xs text-muted-foreground" data-testid="booking-weight-note">
+							{b.cancelled_units > 0
+								? `Hitungan saat checkout; ${b.cancelled_units} unit sudah dibatalkan. Timbang ulang paket sebelum memesan.`
+								: "Hitungan saat checkout. Pastikan sesuai timbangan."}
+						</span>
+					</>,
 				)}
 				{fact(
 					"Tagihan COD",
@@ -929,8 +939,8 @@ function BookingSheet({ row }: { row: Row }) {
 								{rupiah(b.cod_amount_due)}
 							</strong>
 							<span className="block text-xs text-muted-foreground">
-								Termasuk biaya COD {rupiah(b.cod_fee_amount)}. Isi nilai ini
-								persis di Mengantar.
+								Nilai saat ini untuk unit yang masih dikirim, termasuk biaya COD{" "}
+								{rupiah(b.cod_fee_amount)}. Isi nilai ini persis di Mengantar.
 							</span>
 						</>
 					) : (

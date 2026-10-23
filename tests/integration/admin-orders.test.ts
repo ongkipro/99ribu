@@ -41,7 +41,7 @@ test('S100 order search by number, resi and phone suffix; detail shows payment, 
   assert.deepEqual((bySuffix.payload.data as {id:string}[]).map(r=>r.id),[f.order.id]);
   const listed=JSON.stringify(bySuffix.payload);assert.ok(!listed.includes(suffix)&&!listed.includes(phone),'the phone never comes back in a list');
   assert.deepEqual(Object.keys(bySuffix.payload.data[0]).sort(),['buyer_total','created_at','currency','id','number','payment_method','payment_status','status','version']);
-  for(const bad of ['12345','abcdef','1234567890123','12 3456'])assert.equal((await history(cs,identity,`?phone_suffix=${encodeURIComponent(bad)}`)).status,400,bad);
+  for(const bad of ['12345','123456789','abcdef','1234567890123','12 3456'])assert.equal((await history(cs,identity,`?phone_suffix=${encodeURIComponent(bad)}`)).status,400,bad);
   assert.equal((await history(cs,identity,`?phone_suffix=${suffix}&phone_suffix=${suffix}`)).status,400,'one value per key');
 
   // Detail: payment state incl. COD fee, per-parcel COD due, resi and tracking; no contacts or address.
@@ -69,6 +69,12 @@ test('S100 order search by number, resi and phone suffix; detail shows payment, 
   const finance=await staffUser('finance',warehouses);
   assert.deepEqual((await history(finance,identity,`?reference=${resiNew}`)).payload.data.map((r:{id:string})=>r.id),[f.order.id]);
   assert.deepEqual((await history(f.owner as User,identity,`?reference=${resiNew}`)).payload.data.map((r:{id:string})=>r.id),[f.order.id],'owner company-wide');
+  // The shared synthetic recipient phone matches many orders company-wide: the cursor binds the
+  // filters with a keyed MAC, so neither the suffix nor an unkeyed digest of it is recoverable.
+  const paged=await history(f.owner as User,identity,'?phone_suffix=00000000&limit=1');assert.equal(paged.status,200);
+  assert.ok(paged.payload.pagination.next_cursor,'more than one match');
+  const decoded=Buffer.from(paged.payload.pagination.next_cursor,'base64url').toString();assert.ok(!decoded.includes('00000000'));
+  assert.match(JSON.parse(decoded).h,/^[A-Za-z0-9_-]{43}$/,'HMAC-SHA256 base64url, not a hex SHA-256 of the filters');
 
   // Number, resi and phone searches share the 30/minute limiter.
   const limited=await staffUser('customer_service',warehouses);

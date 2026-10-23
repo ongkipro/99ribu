@@ -9,6 +9,7 @@ import {enqueueJob} from '../../jobs/outbox.ts';
 import {lockPaymentOrder} from '../payments/attempts.ts';
 import {financeEnvironment,financeInstant} from '../finance/ledger.ts';
 import {createManualParcelReceiptSource,registerParcelReceiptSource} from '../returns/receipt-source.ts';
+import {codCollectionBasis} from '../finance/receipt-units.ts';
 import {advanceFulfillment,fulfillmentClock,lockFulfillment,projectFulfillment} from './core.ts';
 import {commitHandover,commitPreparation,mutate} from './commands.ts';
 
@@ -137,12 +138,18 @@ function queueCursor(value:string|null):QueuePosition|null{
  catch{throw invalid();}
 }
 async function bookingFacts(tx:TransactionSql,shipmentId:string){
- const [s]=await tx`select s.cod_due,s.payment_charge,s.snapshot,o.payment_method,q.document->'address' address from app.order_shipment s join app.commerce_order o on o.id=s.order_id join app.checkout_quote q on q.id=o.quote_id where s.id=${shipmentId}`;
+ const [s]=await tx`select s.snapshot,o.payment_method,q.document->'address' address,
+  (select count(*)::int from app.fulfillment_item unit where unit.shipment_id=s.id and exists(select 1 from app.exception_cancellation c where c.fulfillment_item_id=unit.id and c.replacement_link_id is null)) cancelled_units
+  from app.order_shipment s join app.commerce_order o on o.id=s.order_id join app.checkout_quote q on q.id=o.quote_id where s.id=${shipmentId}`;
+ // R4: the courier collects the CURRENT basis (surviving units incl. their frozen COD fee shares),
+ // the same source the COD collection and Mengantar remittance check use, never the frozen cod_due.
+ const basis=s.payment_method==='cod'?await codCollectionBasis(tx,shipmentId):null;
  const items=await tx`select i.snapshot->>'name' name,i.snapshot->'offer'->>'label' variant_label,count(*)::int quantity from app.fulfillment_item unit join app.order_item i on i.id=unit.order_item_id
   where unit.shipment_id=${shipmentId} and not exists(select 1 from app.exception_cancellation c where c.fulfillment_item_id=unit.id and c.replacement_link_id is null) group by 1,2 order by 1,2`;
  const rate=(s.snapshot.options as {id:string;courier_name:string;service_name:string}[]).find(option=>option.id===s.snapshot.selected_option_id),measures=s.snapshot.measures,address=s.address;
- return {cod_amount_due:Number(s.cod_due),cod_fee_amount:s.payment_method==='cod'?Number(s.payment_charge):0,
+ return {cod_amount_due:basis?basis.amount:0,cod_fee_amount:basis?basis.payment_charge:0,cancelled_units:Number(s.cancelled_units),
   quoted_courier:rate?{courier_name:rate.courier_name,service_name:rate.service_name,code:quotedCourierCode(rate.courier_name)}:null,
+  // Quoted at checkout for the original units; not recomputed after a unit cancellation.
   parcel:{weight_grams:Number(measures.weight_grams),length_mm:Number(measures.length_mm),width_mm:Number(measures.width_mm),height_mm:Number(measures.height_mm)},
   destination_area:{subdistrict:String(address.subdistrict),district:String(address.district),city:String(address.city),province:String(address.province),postal_code:String(address.postal_code)},
   parcel_items:items.map(i=>({name:String(i.name),variant_label:String(i.variant_label),quantity:Number(i.quantity)}))};

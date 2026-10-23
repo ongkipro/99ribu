@@ -424,6 +424,15 @@ test("S99/S100 built browser: the manual queue shows the booking facts and the b
 	try {
 		const { page } = desk2;
 		await page.goto(`${origin}/admin/orders`);
+		// A phone suffix stays out of every URL: the address bar and the detail link's `dari`.
+		await page.getByLabel("Cari berdasarkan").selectOption("hp");
+		await page.getByLabel("Akhiran nomor HP", { exact: true }).fill("00000000");
+		await page.getByRole("button", { name: "Cari" }).click();
+		await expect(page).toHaveURL(`${origin}/admin/orders?jenis=hp`);
+		await expect(page.getByRole("heading", { name: /Hasil untuk akhiran nomor hp/i })).toBeVisible();
+		for (const href of await page.getByTestId("order-row").getByRole("link").evaluateAll((links) => links.map((l) => l.getAttribute("href") ?? "")))
+			assert.ok(!href.includes("00000000"), href);
+		assert.ok(!page.url().includes("00000000"));
 		await page.getByLabel("Cari berdasarkan").selectOption("resi");
 		await page.getByLabel("Nomor resi", { exact: true }).fill(s91.resi.toLowerCase());
 		await page.getByRole("button", { name: "Cari" }).click();

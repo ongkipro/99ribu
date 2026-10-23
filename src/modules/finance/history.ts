@@ -1,12 +1,15 @@
-import {createHash,randomUUID} from 'node:crypto';
+import {randomUUID} from 'node:crypto';
 import type {TransactionSql} from 'postgres';
 import type {LocalAuth} from '../access/auth.ts';
 import {AccessError,hasPermission,projectOrderSummary,type Principal} from '../access/policy.ts';
 import {id,invalid,object,text} from '../catalog/validation.ts';
+import {mac} from '../checkout/access.ts';
 import {projectOrder} from '../checkout/orders.ts';
 import {financeInstant} from './ledger.ts';
 
-const fingerprint=(value:unknown)=>createHash('sha256').update(JSON.stringify(value)).digest('hex');
+// Keyed with the server's auth secret: a leaked cursor cannot be brute-forced back to its filters
+// (S100: the filters may hold a phone suffix).
+const fingerprint=(identity:LocalAuth,value:unknown)=>mac(identity,'order-history-cursor',[value]);
 async function historyAuthority(tx:TransactionSql,principal:Principal){
  await tx`select id from app.auth_user where id=${principal.id} for update`;
  const [g]=await tx`select g.roles,g.permissions,m.verified_at from app.role_grant g join app.auth_user u on u.id=g.user_id
@@ -25,8 +28,8 @@ function cursor(value:string|null,hash:string):Position|null{
 const encode=(row:{stamp:string;id:string},hash:string)=>Buffer.from(JSON.stringify({t:row.stamp,id:row.id,h:hash})).toString('base64url');
 function limit(value:string|null){const raw=value??'20';if(!/^(?:[1-9]|[1-9][0-9]|100)$/.test(raw)) throw invalid();return Number(raw);}
 function parameters(url:URL,allowed:string[]){for(const key of url.searchParams.keys()) if(!allowed.includes(key)||url.searchParams.getAll(key).length!==1) throw invalid();return url.searchParams;}
-// 6–12 digits: enough to narrow a lookup, never a free-text PII search.
-function phoneSuffix(value:string|null){if(value===null||!/^\d{6,12}$/.test(value)) throw invalid();return value;}
+// 6–8 digits (DEC-014): enough to narrow a lookup, never a free-text PII search.
+function phoneSuffix(value:string|null){if(value===null||!/^\d{6,8}$/.test(value)) throw invalid();return value;}
 function state(value:string|null,allowed:string[]){if(value!==null&&!allowed.includes(value)) throw invalid();return value;}
 const scope=(p:Principal)=>({id:p.id,roles:[...p.roles].sort(),permissions:[...p.permissions].sort(),warehouses:p.warehouseIds});
 async function currentSession(tx:TransactionSql,p:Principal){if(!(await tx`select id from app.auth_session where id=${p.sessionId} and user_id=${p.id} and expires_at>clock_timestamp()`).length) throw new AccessError(403,'FORBIDDEN');}
@@ -47,7 +50,7 @@ export async function listOrderHistory(identity:LocalAuth,principal:Principal,ur
  if(filters.from&&filters.to&&filters.from>=filters.to||filters.reference&&/[\p{Cc}\p{Cf}]/u.test(filters.reference)) throw invalid();
  const take=limit(p.get('limit'));
  return identity.sql.begin(async tx=>{
-  const access=await historyAuthority(tx,principal),hash=fingerprint({scope:scope(access),filters}),position=cursor(p.get('cursor'),hash);if(filters.reference||filters.phone_suffix) await referenceLimit(tx,access);
+  const access=await historyAuthority(tx,principal),hash=await fingerprint(identity,{scope:scope(access),filters}),position=cursor(p.get('cursor'),hash);if(filters.reference||filters.phone_suffix) await referenceLimit(tx,access);
   const [installed]=await tx`select to_regclass('app.fulfillment') is not null installed,to_regclass('app.return_case') is not null returns_installed,to_regclass('app.replacement_shipment') is not null replacements_installed`;
   const replacementScope=installed.replacements_installed?tx`not exists(select 1 from app.replacement_shipment s join app.return_case c on c.id=s.case_id where c.order_id=o.id and not (s.warehouse_id=any(${access.warehouseIds}::uuid[])))`:tx`true`;
   const replacementWarehouse=installed.replacements_installed?tx`exists(select 1 from app.replacement_shipment s join app.return_case c on c.id=s.case_id where c.order_id=o.id and s.warehouse_id=${filters.warehouse_id}::uuid)`:tx`false`;
@@ -81,7 +84,7 @@ export async function listOrderHistory(identity:LocalAuth,principal:Principal,ur
 export async function readOrderHistory(identity:LocalAuth,principal:Principal,orderId:string,url:URL){
  const order=id(orderId),p=parameters(url,['history_cursor','history_limit']),take=limit(p.get('history_limit'));
  return identity.sql.begin(async tx=>{
-  const access=await historyAuthority(tx,principal),hash=fingerprint({scope:scope(access),order}),position=cursor(p.get('history_cursor'),hash);
+  const access=await historyAuthority(tx,principal),hash=await fingerprint(identity,{scope:scope(access),order}),position=cursor(p.get('history_cursor'),hash);
   const [replacementSchema]=await tx`select to_regclass('app.replacement_shipment') is not null installed`;
   const replacementScope=replacementSchema.installed?tx`not exists(select 1 from app.replacement_shipment s join app.return_case c on c.id=s.case_id where c.order_id=o.id and not (s.warehouse_id=any(${access.warehouseIds}::uuid[])))`:tx`true`;
   const [stored]=await tx`select id from app.commerce_order o where o.id=${order} and o.revision>0 and (${access.roles.includes('owner')} or (exists(select 1 from app.order_shipment s where s.order_id=o.id) and not exists(select 1 from app.order_shipment s where s.order_id=o.id and not (s.warehouse_id=any(${access.warehouseIds}::uuid[]))))) for share of o`;

@@ -31,7 +31,8 @@ export default async function AdminOrdersPage({
 	return (
 		<OrderSearchClient
 			initialKind={KINDS.includes(kind) ? kind : "nomor"}
-			initialTerm={one("cari").slice(0, 100)}
+			// A phone suffix never arrives through the URL (see searchQuery).
+			initialTerm={kind === "hp" ? "" : one("cari").slice(0, 100)}
 			companyWide={roles.includes("owner")}
 		/>
 	);

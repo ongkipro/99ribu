@@ -11,6 +11,19 @@ export function canReadOrders(roles: readonly string[], permissions: readonly st
 	);
 }
 
+/**
+ * URL query for a search (page address and the detail page's `dari`). A phone suffix is personal
+ * data: it never enters a URL (history, logs, Referer); only `jenis=hp` survives, the digits stay
+ * in component state.
+ */
+export function searchQuery(kind: "nomor" | "resi" | "hp", term: string) {
+	const params = new URLSearchParams();
+	if (!term) return params;
+	params.set("jenis", kind);
+	if (kind !== "hp") params.set("cari", term);
+	return params;
+}
+
 export const ORDER_STATUS: Record<string, string> = {
 	preparing: "Disiapkan",
 	pending: "Menunggu",

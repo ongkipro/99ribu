@@ -742,11 +742,14 @@ function queueQuery(
 export function AdminWorkspacesClient({
 	initialAuthenticated,
 	initialStaffRoles,
+	canOrders: canOrdersGrant,
 	requestedWorkspace,
 	requestedWarehouseId,
 }: {
 	initialAuthenticated: boolean;
 	initialStaffRoles: CanonicalWorkspace[];
+	/** orders.history.read grant (canReadOrders), not merely the active workspace. */
+	canOrders: boolean;
 	requestedWorkspace: string | null;
 	requestedWarehouseId: string;
 }) {
@@ -1042,9 +1045,7 @@ export function AdminWorkspacesClient({
 	const canPrint = workspace === "owner" || workspace === "warehouse";
 	const canSupport = workspace === "owner" || workspace === "customer_service";
 	// S100: whole-order detail; the page and API re-check permission and warehouse scope.
-	const canOrders =
-		!preview &&
-		["owner", "ecommerce_admin", "customer_service", "finance"].includes(workspace);
+	const canOrders = !preview && canOrdersGrant;
 	const timezone = dashboard?.timezone ?? "Asia/Jakarta";
 	const dateTime = new Intl.DateTimeFormat("id-ID", {
 		timeZone: timezone,

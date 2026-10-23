@@ -24,6 +24,7 @@ import {
 	historyStatus,
 	ORDER_STATUS,
 	PAYMENT_STATUS,
+	searchQuery,
 	SHIPMENT_STATUS,
 	TRACKING_STATUS,
 } from "./order-model";
@@ -56,7 +57,7 @@ const KIND_LABELS: Record<SearchKind, { label: string; hint: string; placeholder
 	},
 	hp: {
 		label: "Akhiran nomor HP",
-		hint: "6–12 digit terakhir nomor HP pembeli atau penerima. Nomor HP tidak ditampilkan di hasil.",
+		hint: "6–8 digit terakhir nomor HP pembeli atau penerima. Nomor HP tidak ditampilkan di hasil dan tidak disimpan di alamat halaman.",
 		placeholder: "345678",
 	},
 };
@@ -64,7 +65,7 @@ const KIND_LABELS: Record<SearchKind, { label: string; hint: string; placeholder
 /** Client checks only mirror the API; the server is the authority. */
 function validate(kind: SearchKind, term: string): string | null {
 	if (!term) return null;
-	if (kind === "hp" && !/^\d{6,12}$/.test(term)) return "Isi 6–12 digit angka saja.";
+	if (kind === "hp" && !/^\d{6,8}$/.test(term)) return "Isi 6–8 digit angka saja.";
 	if (kind === "nomor" && !/^99-[A-Za-z0-9]{16}$/.test(term))
 		return "Nomor pesanan diawali 99- lalu 16 huruf atau angka.";
 	if (kind === "resi" && !/^[A-Za-z0-9][A-Za-z0-9-]{7,39}$/.test(term.replace(/\s+/g, "")))
@@ -155,16 +156,10 @@ export function OrderSearchClient({
 		setFieldError(problem);
 		if (problem) return;
 		setApplied({ kind: nextKind, term: clean });
-		const params = new URLSearchParams();
-		if (clean) {
-			params.set("jenis", nextKind);
-			params.set("cari", clean);
-		}
+		const params = searchQuery(nextKind, clean);
 		router.replace(`/admin/orders${params.size ? `?${params}` : ""}`, { scroll: false });
 	};
-	const back = new URLSearchParams(
-		applied.term ? { jenis: applied.kind, cari: applied.term } : {},
-	).toString();
+	const back = searchQuery(applied.kind, applied.term).toString();
 	const label = KIND_LABELS[kind];
 
 	return (

@@ -29,7 +29,3 @@ export const readStaffAccess = cache(
 		}
 	},
 );
-
-/** Staff workspaces of the current principal; [] when signed out or not staff. */
-export const readStaffRoles = async (): Promise<CanonicalWorkspace[]> =>
-	(await readStaffAccess()).roles;

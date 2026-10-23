@@ -4,6 +4,7 @@ import {AccessError} from '../access/policy.ts';
 import {salePublication} from '../catalog/publication.ts';
 import {array,id,integer,invalid,object} from '../catalog/validation.ts';
 import {lockInventoryClock} from '../inventory/state.ts';
+import {readLocalConfig} from '../../config/local.ts';
 import {identifier} from '../promotions/configuration.ts';
 import {safeMoney} from '../promotions/allocation.ts';
 import {lockPublishedSources} from './contribution.ts';
@@ -15,8 +16,14 @@ export type ShippingLine={line_id:string;product_id:string;offer_id:string;publi
 export type ShippingPlan={id:string;payment_method:'prepaid'|'cod';destination_id:string;destination_version:string;expires_at:string;pricing_evaluated_at:string;source:'TEST-ONLY';
   merchandise_total:number;shipping_total:number;default_warehouse_units:number;packages:{id:string;warehouse_id:string;origin_city:string;measures:CompleteUnit['measures'];lines:{line_id:string;quantity:number}[];options:Rate[];selected_option_id:string;merchandise_amount:number;shipping_amount:number}[];
   lines:(ShippingLine&{product_revision:number})[]};
-// Rate adapter seam (the gated live Mengantar estimate, S95, plugs in here); tests swap it in-process.
-export const rateSeam:{adapter:RateAdapter}={adapter:localRateAdapter};
+// Rate adapter seam (the gated live Mengantar estimate, S95, plugs in here). Replacing it is refused
+// outside the local/test profiles, so no runtime path can swap the production rates.
+let currentRateAdapter:RateAdapter=localRateAdapter;
+export const rateSeam={
+  get adapter(){return currentRateAdapter;},
+  // readLocalConfig throws unless this is the local/test profile with simulated shipping adapters.
+  set adapter(next:RateAdapter){try{readLocalConfig(process.env);}catch{throw new AccessError(403,'RATE_ADAPTER_LOCKED');}currentRateAdapter=next;},
+};
 const hash=(value:unknown)=>createHash('sha256').update(JSON.stringify(value)).digest('hex');
 const compare=(a:string,b:string)=>a<b?-1:a>b?1:0;
 export async function buildShippingPlans(tx:TransactionSql,value:unknown,context:{clock_namespace?:string|null;adapter?:RateAdapter}={}){

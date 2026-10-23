@@ -1,7 +1,7 @@
 import { headers } from "next/headers";
 import { StaffInboxView } from "../../../components/support/StaffInboxView";
 import { getLocalAuth } from "../../../modules/access/auth.ts";
-import { getPrincipal } from "../../../modules/access/policy.ts";
+import { getPrincipal, hasPermission } from "../../../modules/access/policy.ts";
 import { canManageSupportTools } from "../../../modules/support/service.ts";
 
 export const dynamic = "force-dynamic";
@@ -14,6 +14,7 @@ export default async function AdminSupportPage() {
 		id: string;
 		roles: string[];
 		canManageTools: boolean;
+		canOpenOrders: boolean;
 	} | null = null;
 	try {
 		const request = new Request("http://localhost:3099/admin/support", {
@@ -28,6 +29,8 @@ export default async function AdminSupportPage() {
 				id: principal.id,
 				roles: [...principal.roles],
 				canManageTools: canManageSupportTools(principal),
+				// S100 order detail links; the page and API re-check scope.
+				canOpenOrders: hasPermission(principal, "orders.history.read"),
 			};
 		}
 	} catch {

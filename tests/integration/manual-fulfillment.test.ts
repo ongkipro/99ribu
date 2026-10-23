@@ -6,6 +6,9 @@ import {promisify} from 'node:util';
 import {runOneJob} from '../../src/jobs/worker.ts';
 import {handleFulfillment} from '../../src/modules/fulfillment/routes.ts';
 import {handleManualFulfillment} from '../../src/modules/fulfillment/manual-routes.ts';
+import {handleCommerceExceptions} from '../../src/modules/checkout/exceptions/routes.ts';
+import {handleAccess} from '../../src/modules/access/routes.ts';
+import {handleCodRemittances} from '../../src/modules/finance/cod-remittance-routes.ts';
 import {fulfillmentMode,pickupReadiness,processTrackingPoll,quotedCourierCode,simulateTrackingObservation,simulatedTrackingAdapter,tracking,trackingNumber} from '../../src/modules/fulfillment/manual.ts';
 import {rateSeam} from '../../src/modules/shipping/quotes.ts';
 import {localRateAdapter} from '../../src/modules/shipping/rates.ts';
@@ -277,4 +280,63 @@ test('S99 booking queue: >100 parcels page completely by packing deadline (nulls
   for(const bad of ['not-a-cursor!',Buffer.from(JSON.stringify({d:null,c:'2026-01-01',id:randomUUID()})).toString('base64url'),Buffer.from(JSON.stringify({c:'2026-01-01T00:00:00.000000Z',id:randomUUID()})).toString('base64url')])
    assert.equal((await call(admin,identity,`/api/v1/admin/manual-shipments?queue=to_book&cursor=${encodeURIComponent(bad)}`)).status,400,bad);
  }finally{rateSeam.adapter=localRateAdapter;if(f){for(const user of staff)await closeFulfillmentActor(f.identity,user).catch(()=>{});await f.close();}}
+});
+
+test('S99 R4: after a unit cancellation the booking COD due is the current collection basis, and a Mengantar statement at that amount flags no mismatch',{timeout:300000},async()=>{
+ const f=await fulfillmentFixture('cod'),sql=f.identity.sql,identity=f.identity,staff:Awaited<ReturnType<typeof actor>>[]=[];
+ try{
+  const units=await sql`select f.shipment_id,count(*)::int n from app.fulfillment_item f join app.order_shipment s on s.id=f.shipment_id where s.order_id=${f.order.id} group by 1`;
+  const parcel=f.parcels.find(p=>units.some(u=>u.shipment_id===p.shipment_id&&u.n>=2));assert.ok(parcel,'a COD parcel with at least two units');
+  const [unit]=await sql`select id from app.fulfillment_item where shipment_id=${parcel.shipment_id} order by id limit 1`;
+  const balances=await sql`select distinct a.balance_id,a.stock_item_id,b.revision from app.fulfillment_component_allocation a join app.inventory_balance b on b.id=a.balance_id where a.fulfillment_item_id=${unit.id} order by a.balance_id`;
+  const exceptions=async(user:{request:(path:string,body?:Record<string,unknown>)=>Request},path:string,body:Record<string,unknown>)=>{
+   const request=user.request(path,body);request.headers.set('idempotency-key',randomUUID());const response=await handleCommerceExceptions(request,identity);const payload=await response.json();assert.equal(response.status,201,`${path} ${JSON.stringify(payload)}`);return payload;
+  };
+  // Stock shortage on one unit → cancellation proposed, accepted by the buyer, applied before handover.
+  const reported=await exceptions(f.owner.browser,'/api/v1/admin/commerce-exceptions',{fulfillment_id:parcel.id,fulfillment_item_ids:[unit.id],expected_version:parcel.revision,reason:'SYNTHETIC one unit short',
+   observed_components:balances.map((b,index)=>({balance_id:b.balance_id,stock_item_id:b.stock_item_id,expected_balance_version:Number(b.revision),missing_quantity:index===0?1:0}))});
+  const proposed=await exceptions(f.owner.browser,`/api/v1/admin/commerce-exceptions/${reported.id}/decisions`,{expected_version:reported.version,decision:'propose_cancellation',reason:'SYNTHETIC cancel the short unit'});
+  const accepted=await exceptions(f.client,`/api/v1/orders/${f.order.id}/recovery-actions`,{exception_id:reported.id,expected_version:proposed.version,action:'accept_proposal',proposal_id:proposed.proposal.id});
+  await exceptions(f.owner.browser,`/api/v1/admin/commerce-exceptions/${reported.id}/decisions`,{expected_version:accepted.version,proposal_id:proposed.proposal.id,reason:'SYNTHETIC apply accepted cancellation'});
+  assert.equal((await sql`select count(*)::int n from app.exception_cancellation where fulfillment_item_id=${unit.id} and replacement_link_id is null`)[0].n,1);
+
+  const listed=await call(f.owner,identity,`/api/v1/admin/manual-shipments?queue=to_book&warehouse_id=${parcel.warehouse_id}&limit=100`);assert.equal(listed.status,200);
+  const row=listed.payload.data.find((r:{id:string})=>r.id===parcel.id);assert.ok(row,'the parcel still waits for a booking');
+  const [stored]=await sql`select cod_due from app.order_shipment where id=${parcel.shipment_id}`;
+  const basis=await sql.begin(async tx=>(await tx`select app.cod_current_collection_basis(${parcel.shipment_id}::uuid) basis`)[0].basis);
+  assert.equal(row.booking.cod_amount_due,Number(basis.amount),'booking shows the current basis');
+  assert.equal(row.booking.cod_fee_amount,Number(basis.payment_charge));
+  assert.ok(row.booking.cod_amount_due<Number(stored.cod_due),'the frozen cod_due would overcharge the buyer');
+  assert.equal(row.booking.cancelled_units,1);
+  assert.equal(row.booking.parcel_items.reduce((n:number,i:{quantity:number})=>n+i.quantity,0),Number(basis.unit_ids.length));
+
+  // Ship and remit exactly the booked amount: no PARCEL_AMOUNT_MISMATCH.
+  const shipped=await call(f.owner,identity,`/api/v1/admin/fulfillments/${parcel.id}/manual-shipment`,{expected_version:row.version,courier:'jne',tracking_number:`JR${String(Date.now()).slice(-8)}01`});
+  assert.equal(shipped.status,201,JSON.stringify(shipped.payload));
+  const finance=await actor(identity,'finance',[]);staff.push(finance);await enroll(finance.browser,finance.password);
+  await sql`update app.role_grant set permissions=${['finance.reconciliation.read','finance.reconciliation.write']} where user_id=${finance.id}`;
+  const remittanceId=randomUUID(),proofRequest=finance.browser.request('/api/v1/me/reauthentication-proofs',{password:finance.password,action:'finance.reconcile',subject_id:remittanceId});proofRequest.headers.set('idempotency-key',randomUUID());
+  const proofResponse=await handleAccess(proofRequest,identity);assert.equal(proofResponse.status,201);
+  const amount=row.booking.cod_amount_due,request=finance.browser.request('/api/v1/admin/cod-remittances',{id:remittanceId,reference:`MGT-S99-${String(Date.now()).slice(-6)}`,statement_at:new Date().toISOString(),lines:[{shipment_id:parcel.shipment_id,amount}],
+   shipping_deduction:0,cod_fee_deduction:0,other_deduction:0,net_amount:amount,evidence:'Laporan saldo COD dashboard Mengantar',reason:'Penarikan saldo COD',reauthentication_proof:(await proofResponse.json()).proof});
+  request.headers.set('idempotency-key',randomUUID());const recorded=await handleCodRemittances(request,identity),payload=await recorded.json();
+  assert.equal(recorded.status,201,JSON.stringify(payload));assert.deepEqual(payload.flags,[],'the remittance expects exactly the booked amount');
+ }finally{for(const user of staff)await closeFulfillmentActor(identity,user).catch(()=>{});await f.close();}
+});
+
+test('S99 keyset paging is exact across a created_at tie (one order, two parcels) at page size 1',{timeout:300000},async()=>{
+ const f=await fulfillmentFixture('cod',{calendars:false}),sql=f.identity.sql,identity=f.identity,staff:Awaited<ReturnType<typeof actor>>[]=[];
+ try{
+  const warehouses=[...new Set(f.parcels.map(p=>String(p.warehouse_id)))];
+  for(const position of ['fixture-malang:fixture-shirt','fixture-pontianak:fixture-shirt'])await f.move(position,'receive',5);
+  for(let n=0;n<3;n++)assert.equal((await f.placeOrder(1,'cod')).status,201);
+  const tied=await sql`select count(distinct f.created_at)::int stamps,count(*)::int parcels from app.fulfillment f join app.order_shipment s on s.id=f.shipment_id where s.order_id=${f.order.id}`;
+  assert.deepEqual({...tied[0]},{stamps:1,parcels:2},'both parcels of the first order share created_at');
+  const admin=await actor(identity,'ecommerce_admin',warehouses);staff.push(admin);await enroll(admin.browser,admin.password);
+  const expected=(await sql`select f.id from app.fulfillment f join app.order_shipment s on s.id=f.shipment_id left join app.fulfillment_deadline d on d.id=f.deadline_id
+   where s.warehouse_id=any(${warehouses}::uuid[]) and f.handover_at is null and f.booking_id is null order by d.packing_due_at asc nulls last,f.created_at asc,f.id asc`).map(r=>String(r.id));
+  const seen:string[]=[];let cursor:string|null=null;
+  do{const page=await call(admin,identity,`/api/v1/admin/manual-shipments?queue=to_book&limit=1${cursor?`&cursor=${cursor}`:''}`);assert.equal(page.status,200);seen.push(...page.payload.data.map((r:{id:string})=>r.id));cursor=page.payload.pagination.next_cursor;}while(cursor&&seen.length<50);
+  assert.deepEqual(seen,expected,'no parcel skipped or repeated at the tie');
+ }finally{for(const user of staff)await closeFulfillmentActor(identity,user).catch(()=>{});await f.close();}
 });

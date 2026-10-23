@@ -14,8 +14,3 @@ export function wibInputToIso(value: string): string | null {
 		wall.getUTCHours() !== hour || wall.getUTCMinutes() !== minute || second > 59) return null;
 	return new Date(utc).toISOString();
 }
-
-/** ISO instant → `datetime-local` value in WIB (for defaults such as "now"). */
-export function isoToWibInput(iso: string): string {
-	return new Date(Date.parse(iso) + 7 * 3600_000).toISOString().slice(0, 16);
-}

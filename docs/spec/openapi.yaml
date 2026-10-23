@@ -6467,8 +6467,8 @@ paths:
         no warehouse-role whole-order access. Exact reference search is rate-limited and remains restricted to authorized
         whole orders. S100: reference matches the order number (case-insensitive) or a resi (spaces removed, upper case;
         current or superseded manual resi, or the carrier booking resi); phone_suffix is the only contact-derived search,
-        an exact 6-12 digit suffix of the buyer contact or recipient phone, sharing the same 30/minute limiter, never
-        echoed in responses, audits or logs. No other customer PII or provider URL query search.'
+        an exact 6-8 digit suffix (DEC-014) of the buyer contact or recipient phone, sharing the same 30/minute
+        limiter, never echoed in responses, audits or logs and not recoverable from cursors (keyed filter binding). No other customer PII or provider URL query search.'
       x-local-checkpoint: S23 supplies pending/cancelled and receipt/reversal history. Fulfillment/return filters
         have no matching child records until their consuming slices extend this reader. Tracking reference matches
         no carrier record before S30.
@@ -6573,7 +6573,7 @@ paths:
           results never include the phone.
         schema:
           type: string
-          pattern: ^\d{6,12}$
+          pattern: ^\d{6,8}$
       - name: payment_status
         in: query
         schema:
@@ -15473,13 +15473,20 @@ components:
         stays assigned-staff only.'
     ManualShipmentBooking:
       type: object
-      description: S99 facts the operator copies into the Mengantar dashboard booking. cod_amount_due is the parcel's
-        order_shipment COD due (merchandise + buyer shipping + DEC-009 COD fee), 0 for prepaid.
+      description: S99 facts the operator copies into the Mengantar dashboard booking. cod_amount_due is the CURRENT
+        COD collection basis (app.cod_current_collection_basis - surviving units' price, buyer shipping and frozen
+        DEC-009 COD fee shares; the amount the COD collection and the Mengantar remittance check expect), 0 for
+        prepaid; it drops below order_shipment.cod_due after a unit cancellation. parcel holds the measures quoted
+        at checkout for the original units and is not recomputed; cancelled_units says how many were cancelled since.
       properties:
         cod_amount_due:
           $ref: '#/components/schemas/Money'
         cod_fee_amount:
           $ref: '#/components/schemas/Money'
+        cancelled_units:
+          type: integer
+          minimum: 0
+          maximum: 50
         quoted_courier:
           anyOf:
           - type: object
@@ -15572,6 +15579,7 @@ components:
       required:
       - cod_amount_due
       - cod_fee_amount
+      - cancelled_units
       - quoted_courier
       - parcel
       - destination_area

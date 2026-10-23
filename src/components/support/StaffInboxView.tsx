@@ -7,6 +7,7 @@ type StaffUser = {
 	id: string;
 	roles: string[];
 	canManageTools: boolean;
+	canOpenOrders: boolean;
 };
 
 type SupportConversation = {
@@ -1237,7 +1238,7 @@ export function StaffInboxView({ staffUser }: { staffUser: StaffUser }) {
 													}}
 												>
 													Konteks {m.context.kind === "order" ? "pesanan" : "produk"}:{" "}
-													{m.context.kind === "order" && m.context.order_id && m.context.availability === "available" ? (
+													{m.context.kind === "order" && m.context.order_id && m.context.availability === "available" && staffUser.canOpenOrders ? (
 														<a href={`/admin/orders/${m.context.order_id}`} style={{ color: "#5b2a86", fontWeight: 600 }}>
 															{m.context.title}
 														</a>
@@ -1383,7 +1384,7 @@ export function StaffInboxView({ staffUser }: { staffUser: StaffUser }) {
 									<ContextLink
 										id={selected.conversation.order_id}
 										label={contextTitle(messages, "order", selected.conversation.order_id) ?? "Lihat detail pesanan"}
-										href={`/admin/orders/${selected.conversation.order_id}`}
+										href={staffUser.canOpenOrders ? `/admin/orders/${selected.conversation.order_id}` : null}
 									/>
 								</span>
 								<small style={{ color: "#5b5b63" }}>
