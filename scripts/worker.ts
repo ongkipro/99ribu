@@ -1,3 +1,4 @@
+import { writeFile } from "node:fs/promises";
 import { setTimeout } from "node:timers/promises";
 import { connectDatabase } from "../src/db/client.ts";
 import { readRuntimeConfig } from "../src/config/runtime.ts";
@@ -151,7 +152,10 @@ try {
     for(const job of jobs) await runOneJob(sql,adapters,job);
     console.log(`local_payment_command target=${target} mode=${mode} attempt_id=${attemptId} jobs=${jobs.length}`);
   }else{console.log(`worker_ready target=${target} dispatch=${target==='production'?'disabled':'simulated'}`);
+  // S84: the container HEALTHCHECK (scripts/healthcheck.ts) reads this file's mtime; unset locally.
+  const heartbeat=process.env.WORKER_HEARTBEAT_FILE;let beat=0;
   do {
+    if(heartbeat&&Date.now()-beat>=10000){beat=Date.now();await writeFile(heartbeat,`${beat}\n`);}
     const processed = await runOneJob(sql,adapters,onlyJobId);
     if (mode === "--once") break;
     if (!processed && !stop.signal.aborted) {

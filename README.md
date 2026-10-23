@@ -190,6 +190,34 @@ Append-only migration 0004 preserves pre-S05 inbox deliveries by copying created
 
 Locking semantics: [PostgreSQL18 SELECT locking clause](https://www.postgresql.org/docs/18/sql-select.html#SQL-FOR-UPDATE-SHARE). Future release orchestration and restart supervision remain separate tasks.
 
+## Container image and backups (S84/S85)
+
+Status: S84 is **CODE** — the image builds and its checks pass; its default command runs the S83 advisory-locked `migrate.ts production`, then serves on `0.0.0.0:$PORT` under the S82 production profile without the owner password in its environment. S85 is CODE; its DEPLOY part is gated. Topology, volumes, env names and the gated DEPLOY steps are in [RELEASE.md](RELEASE.md) "Container topology (S84)" and "Backups and restore drill (S85)". Nothing here deploys or touches a server.
+
+```bash
+# Image (pinned Node 24.21.0 / PostgreSQL 18.6 client, non-root uid 10001, node-only HEALTHCHECK on /api/health).
+# The build needs no database and no secret (storefront pages render per request).
+docker build -t 99ribu:<commit> .
+docker run --rm --entrypoint node 99ribu:<commit> scripts/image-audit.ts   # no keys, .env*, tests, docs, prototypes; .local empty and uid 10001
+# Commands (both need S82/S83): web = image default (migrate production, then next start on 0.0.0.0:$PORT);
+#           worker = node scripts/worker.ts production, with WORKER_HEARTBEAT_FILE=/tmp/worker-heartbeat.
+# PID 1 is tini (signal forwarding, zombie reaping).
+
+# Backup set (database + role globals + .local/{catalog-media,artifacts} + escrowed auth secret, SHA-256 manifest).
+# BACKUP_STORE is file:///abs/dir or s3://bucket/prefix (+ BACKUP_S3_ENDPOINT/REGION/ACCESS_KEY_ID/SECRET_ACCESS_KEY);
+# BACKUP_ESCROW_PUBLIC_KEY is the owner's RSA-3072+ public key (PEM or base64 DER). Never commit either.
+npm run backup -- create local|test                 # production inside the image: node scripts/backup.ts create production
+npm run backup -- list
+npm run backup -- prune                             # dry run; --apply deletes per BACKUP_KEEP_DAILY (7) / BACKUP_KEEP_WEEKLY (4).
+                                                    # file:// stores only; S3 retention is a bucket lifecycle rule (server has no DeleteObject)
+npm run backup -- drill latest --escrow-private-key <owner-held key file>
+npm run backup -- extract <set-id> <new-dir>        # verified media/artifacts extraction for a real volume restore (explicit id, never latest)
+```
+
+The drill restores into a fresh `99ribu_restore_<uuid>` database (this checkout's compose cluster for local/test sets, or the disposable server in `RESTORE_ADMIN_URL`) and a temporary volume. It refuses a restore server that holds `99ribu_production`, shares host:port with `BACKUP_DATABASE_URL`, or reports the same `pg_control_system()` identifier as it. It then requires: object checksums, archive = manifest, every photo hashing to its name with `0600`/`0700` modes, role globals, row counts per table equal to the backup snapshot, zero unbalanced journals, the ledger immutability triggers, every referenced catalog photo and private artifact file (allowlisted file-key columns) present (reported only for `test` sets, whose suites use temporary storage), and every staff TOTP secret and backup-code set decrypting with the escrowed `BETTER_AUTH_SECRET`. It drops what it created, pass, fail or on `SIGTERM`/`SIGINT`. Temporary files go under `TMPDIR`.
+
+The checksums detect a corrupted, truncated or edited object; they are not an authenticity guarantee against someone who can rewrite a whole set including its manifest. That protection is the bucket setup required before any real data (RELEASE.md S85): write-only server credentials, versioning/Object Lock, lifecycle retention, read-only operator credentials for restores.
+
 
 ## Production profile (S82/S83)
 
@@ -239,7 +267,9 @@ Run from this worktree with migrations applied to local and test. Use the exact 
 
 | Command | Required state | Executed scope |
 |---|---|---|
-| `npm run check` | Locked dependencies installed | Lint, generated Next types/TypeScript, 105 configuration/startup/runner tests (including the S82 production-profile refusals) |
+| `npm run check` | Locked dependencies installed | Lint, generated Next types/TypeScript, configuration/startup/runner tests (including the S82 production-profile refusals) |
+| `npm run test:integration -- --case=backup-restore` | Isolated test DB migrated; this checkout's compose cluster running | S85: backup set of `99ribu_test` + drill into a disposable database (counts, ledger, photos, staff TOTP with the escrowed secret), verified extract, detection of an edited archive object (checksum mismatch), refusal of a wrong escrow key, an undecryptable TOTP secret and a restore server holding `99ribu_production`, restore-database cleanup on `SIGTERM`, and label artifact keys (file keys checked, label-job row ids ignored, a missing label file reported and failing non-test targets); restore databases dropped |
+| `docker build -t 99ribu:<tag> .` then `docker run --rm --entrypoint node 99ribu:<tag> scripts/image-audit.ts` | Docker without sudo | S84 image build (no database or secret needed) and image content audit |
 | `npm run build` | Valid local profile | Production build; does not prove UI or database behavior |
 | `npm run test:integration -- --case=foundation` | Isolated test DB migrated and running | 5 files, 24 database/storage/key/auth/worker checks |
 | `npm run test:integration -- --case=all-current` | Isolated test DB migrated (`0000`–`0035`); built web running on `127.0.0.1:3099`; `PLAYWRIGHT_CHROMIUM_EXECUTABLE` set | All 178 current runtime integration test files (historical pre-migration candidates live in `tests/historical/`) |

@@ -40,6 +40,9 @@ export async function Shell({children,q='',active='home',task=false,backTo=null,
  // The Latin Inter subset is the only font the storefront needs; fetch it with the HTML instead of
  // after the stylesheet, so text (the phone LCP) settles in its final face sooner.
  preload('/fonts/inter-4.1/InterVariable-latin.woff2',{as:'font',type:'font/woff2',crossOrigin:'anonymous'});
+ // The chrome reads the live catalog: render at request time, never during `next build` (S84: the image
+ // build has no database, and a build-time copy of the chrome would go stale).
+ await connection();
  const current=await currentBrowserCart(),count=current.kind==='ready'&&current.cart.state==='open'&&Date.parse(current.cart.expires_at)>Date.parse(current.now)?cartUnits(current.cart):0;
  const cartLabel=count?`Keranjang, ${count} pilihan`:'Keranjang';
  // Task pages hide the header chrome but keep the same footer menus, so the chrome is read for every page.
