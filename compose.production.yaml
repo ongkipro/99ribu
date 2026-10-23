@@ -1,0 +1,62 @@
+# Production topology for a Coolify "Docker Compose" resource (S84). Values come only from the
+# Coolify environment; nothing secret lives in this file. Deploying it is a gated DEPLOY step (S88).
+#
+# Migrations run in their own one-shot service that alone receives the owner password; web and
+# worker start only after it exits 0 and never hold DATABASE_OWNER_PASSWORD (not even in PID 1).
+x-runtime: &runtime
+  build: .
+  restart: unless-stopped
+  volumes:
+    - storage:/app/.local
+  environment: &env
+    NODE_ENV: production
+    APP_ENV: production
+    APP_ORIGIN: ${APP_ORIGIN:?}
+    BETTER_AUTH_URL: ${APP_ORIGIN:?}
+    BETTER_AUTH_SECRET: ${BETTER_AUTH_SECRET:?}
+    CLIENT_IP_HEADER: ${CLIENT_IP_HEADER:?}
+    DATABASE_HOST: ${DATABASE_HOST:?}
+    DATABASE_PORT: ${DATABASE_PORT:-5432}
+    DATABASE_SSL: ${DATABASE_SSL:-disable}
+    DATABASE_APP_PASSWORD: ${DATABASE_APP_PASSWORD:?}
+    PAYMENT_ADAPTER: disabled
+    SHIPPING_ADAPTER: disabled
+    ADS_ADAPTER: disabled
+    NOTIFICATION_ADAPTER: disabled
+    PAYOUT_ADAPTER: disabled
+    EXTERNAL_DISPATCH: disabled
+
+services:
+  migrate:
+    <<: *runtime
+    restart: "no"
+    command: ["node", "scripts/migrate.ts", "production"]
+    healthcheck:
+      disable: true
+    environment:
+      <<: *env
+      DATABASE_OWNER_PASSWORD: ${DATABASE_OWNER_PASSWORD:?}
+
+  web:
+    <<: *runtime
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
+    environment:
+      <<: *env
+      PORT: "3000"
+    expose:
+      - "3000"
+
+  worker:
+    <<: *runtime
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
+    command: ["node", "scripts/worker.ts", "production"]
+    environment:
+      <<: *env
+      WORKER_HEARTBEAT_FILE: /tmp/worker-heartbeat
+
+volumes:
+  storage:

@@ -44,8 +44,13 @@ test("Dockerfile runtime stage: fixed non-root uid, node-only HEALTHCHECK, expli
     assert.ok(!source.startsWith("/app/docs") || source === "/app/docs/spec/fixtures/shipping-local.json", source);
   }
   assert.ok(!/^COPY (?!--from=)/m.test(runtime), "runtime copies only from the build stage");
-  // Advisory-locked migration, then the S82 production listener without the owner password in its environment.
-  assert.match(runtime, /^CMD \["sh", "-c", "node scripts\/migrate\.ts production && exec env -u DATABASE_OWNER_PASSWORD node scripts\/run-local\.ts start"\]$/m);
+  // The S82 production listener only; migrations run in compose.production.yaml's one-shot `migrate` service.
+  assert.match(runtime, /^CMD \["node", "scripts\/run-local\.ts", "start"\]$/m);
+  const compose = readFileSync("compose.production.yaml", "utf8").replace(/^\s*#.*$/gm, "");
+  // Only the one-shot migrate service receives the owner password; web and worker wait for it to succeed.
+  assert.equal(compose.match(/^\s+DATABASE_OWNER_PASSWORD:/gm)?.length, 1);
+  assert.match(compose, /migrate:\n(?:.*\n)*?\s+command: \["node", "scripts\/migrate\.ts", "production"\]/);
+  assert.equal(compose.match(/condition: service_completed_successfully/g)?.length, 2);
 });
 
 test(".dockerignore keeps private, test and design material out of the build context", () => {

@@ -253,8 +253,8 @@ Commands inside the container (production environment set):
 
 ```bash
 npm run build                        # image build: NODE_ENV=production; no database needed at build time
-# web start command: migrate as the owner, then drop the owner password from the long-running server's environment
-npm run db:migrate -- production && exec env -u DATABASE_OWNER_PASSWORD npm start   # next start on 0.0.0.0:$PORT
+npm run db:migrate -- production     # one-shot `migrate` service only (the only container with the owner password)
+npm start                            # web: next start on 0.0.0.0:$PORT, no owner password in the container
 node --env-file=.env.example scripts/worker.ts production   # job loop only, dispatch=disabled
 npm run health -- ready              # probes http://127.0.0.1:$PORT/api/health inside the container
 ```

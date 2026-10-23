@@ -50,8 +50,7 @@ STOPSIGNAL SIGTERM
 # platform's --init option).
 ENTRYPOINT ["/usr/bin/tini", "--"]
 HEALTHCHECK --interval=15s --timeout=5s --start-period=120s --retries=3 CMD ["node", "scripts/healthcheck.ts"]
-# Web (default): advisory-locked migration (S83), then serve on 0.0.0.0:$PORT (S82 production profile).
-# A failed migration exits non-zero, so the container never turns healthy and Coolify keeps the previous
-# one. The long-running server never holds the owner password (env -u). Worker: override the command
-# with `node scripts/worker.ts production` and give the worker no owner password.
-CMD ["sh", "-c", "node scripts/migrate.ts production && exec env -u DATABASE_OWNER_PASSWORD node scripts/run-local.ts start"]
+# Web (default): serve on 0.0.0.0:$PORT under the S82 production profile. Migrations run in the separate
+# one-shot `migrate` service of compose.production.yaml (the only container given the owner password);
+# web and worker start after it exits 0, so no long-running container holds the owner password.
+CMD ["node", "scripts/run-local.ts", "start"]
