@@ -1,5 +1,5 @@
 import type {Sql} from 'postgres';
-import {readLocalConfig} from '../../config/local.ts';
+import {appOrigin} from '../../config/runtime.ts';
 import {defaultCatalogDatasetDir,readCatalogDocument} from './dataset.ts';
 import {publicProduct,type PublicProduct} from '../storefront/catalog.ts';
 import {productHref,productSlug} from '../storefront/navigation.ts';
@@ -36,7 +36,7 @@ export function feedItem(origin:string,product:PublicProduct,offer:Offer,product
 // Published-only export through the same frozen publication/availability reader as
 // the storefront. Invalid items are reported before export and never serialized.
 export async function catalogFeed(sql:Sql,productIds?:readonly string[]){
- const {origin}=readLocalConfig(process.env);
+ const origin=appOrigin();
  return sql.begin(async tx=>{
   const categories=new Map((await tx`select id,slug,name,parent_id from app.category`).map(c=>[c.id as string,c]));
   // Google product category by offer SKU (product override) or by department slug (default).

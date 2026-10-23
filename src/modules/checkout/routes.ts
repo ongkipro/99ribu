@@ -22,7 +22,7 @@ export async function handleCheckout(request:Request,identity:LocalAuth){
   if(path==='/api/v1/carts'&&request.method==='POST'){
    if(request.headers.has('x-cart-token')||request.headers.has('x-order-token')) throw new AccessError(401,'UNSUPPORTED_AUTH_TRANSPORT');
    const body=await readBody(request);cartCreationInput(body);mutationKey(request);
-   if(!actor) return await bootstrapGuest(identity,problem(new AccessError(401,'GUEST_CONTEXT_REQUIRED')));
+   if(!actor) return await bootstrapGuest(identity,problem(new AccessError(401,'GUEST_CONTEXT_REQUIRED')),request);
    const result=await identity.sql.begin(tx=>createCart(tx,request,identity,actor,body));const response=privateJson({cart:result.response},201);const p=await prefix(identity);
    if(actor.kind==='guest'){
     const token=await capability(identity,'cart',result.cart.id,actor.id,result.cart.cap_issued_at as string);

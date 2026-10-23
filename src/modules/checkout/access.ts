@@ -3,16 +3,19 @@ import type {Sql,TransactionSql} from 'postgres';
 import type {LocalAuth} from '../access/auth.ts';
 import {AccessError,getPrincipal,type Principal} from '../access/policy.ts';
 import {rateLimit} from '../access/rate-limit.ts';
+import {clientIp} from '../access/http.ts';
+import {readRuntimeConfig} from '../../config/runtime.ts';
 
 export type CommerceActor={kind:'guest';id:string}|{kind:'user';id:string;principal:Principal};
 export const digest=(value:string)=>createHash('sha256').update(value).digest('hex');
-export async function prefix(identity:LocalAuth){return (await identity.auth.$context).options.advanced?.cookiePrefix as string;}
+// Better Auth names cookies __Secure-<prefix>.* when useSecureCookies is on (production); app cookies share that prefix.
+export async function prefix(identity:LocalAuth){const advanced=(await identity.auth.$context).options.advanced;return `${advanced?.useSecureCookies?'__Secure-':''}${advanced?.cookiePrefix as string}`;}
 export function cookie(request:Request,name:string){
  const matches=(request.headers.get('cookie')??'').split(';').map(p=>p.trim()).filter(p=>p.startsWith(`${name}=`));
  if(matches.length>1) throw new AccessError(401,'UNAUTHENTICATED');return matches[0]?.slice(name.length+1)??null;
 }
 export function setCookie(response:Response,name:string,value:string,path='/',maxAge=604800){
- response.headers.append('Set-Cookie',`${name}=${value}; Path=${path}; HttpOnly; SameSite=Lax; Max-Age=${maxAge}`);
+ response.headers.append('Set-Cookie',`${name}=${value}; Path=${path}; HttpOnly;${name.startsWith('__Secure-')?' Secure;':''} SameSite=Lax; Max-Age=${maxAge}`);
 }
 export async function mac(identity:LocalAuth,purpose:string,values:readonly unknown[]){
  return createHmac('sha256',(await identity.auth.$context).secret).update(JSON.stringify(['99ribu-commerce-v1',purpose,...values])).digest('base64url');
@@ -33,8 +36,10 @@ export async function commerceActor(request:Request,identity:LocalAuth):Promise<
  const [guest]=await identity.sql`select id from app.commerce_guest_context where digest=${digest(guestToken)} and revoked_at is null and expires_at>clock_timestamp()`;
  if(!guest) throw new AccessError(401,'UNAUTHENTICATED');return {kind:'guest',id:guest.id};
 }
-export async function bootstrapGuest(identity:LocalAuth,response:Response){
+export async function bootstrapGuest(identity:LocalAuth,response:Response,request?:Request){
  // Global ceiling against unbounded anonymous guest rows; generous because loopback has no per-client identity. Expired rows are swept by deleteExpiredGuestContexts.
+ // Production adds a per-client bucket on the trusted proxy's client IP, so one client cannot exhaust the global ceiling alone.
+ if(request&&readRuntimeConfig(process.env).profile==='production')await rateLimit(identity.sql,`guest-bootstrap-ip:${clientIp(request)}`,[30,60_000]);
  await rateLimit(identity.sql,'guest-bootstrap-global',[600,60_000]);
  const token=randomBytes(32).toString('base64url');
  await identity.sql`insert into app.commerce_guest_context (digest,created_at,expires_at) select ${digest(token)},t,t+interval '7 days' from (select clock_timestamp() t) clock`;

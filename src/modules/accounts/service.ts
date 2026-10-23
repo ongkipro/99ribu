@@ -1,6 +1,6 @@
 import { createHash, randomBytes, randomUUID } from "node:crypto";
 import type { TransactionSql } from "postgres";
-import { readLocalConfig } from "../../config/local.ts";
+import { appOrigin } from "../../config/runtime.ts";
 import { sniffImageOrMp4ContentType, scanImagePayload } from "../../storage/media-sniff.ts";
 import {
 	deletePrivateArtifact,
@@ -902,7 +902,7 @@ export async function handleAccounts(request: Request, identity: LocalAuth) {
 			// `__Host-` requires Secure, which browsers refuse on the plain-http tailnet IP. Only a request
 			// through the validated opt-in tailnet origin gets the host-only, HttpOnly, Lax capability cookie
 			// that receipt.ts already accepts; loopback keeps the prefixed cookie.
-			if (requestOrigin(request) === readLocalConfig(process.env).origin) {
+			if (requestOrigin(request) === appOrigin()) {
 				res.headers.append(
 					"set-cookie",
 					`__Host-99ribu_order=${result.order_access_token}; Path=/; HttpOnly; Secure; SameSite=Lax; Max-Age=604800`,
@@ -1123,7 +1123,7 @@ export async function handleAccounts(request: Request, identity: LocalAuth) {
 						)
 						returning id, expires_at
 					`;
-					const origin = requestOrigin(request) ?? readLocalConfig(process.env).origin;
+					const origin = requestOrigin(request) ?? appOrigin();
 					const response = {
 						id: String(inserted.id),
 						upload_url: `${origin}/api/v1/orders/${order.id}/returns/${returnId}/evidence-uploads/${inserted.id}`,

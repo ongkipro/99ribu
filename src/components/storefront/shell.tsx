@@ -1,4 +1,5 @@
 import Link from 'next/link';
+import {connection} from 'next/server';
 import {preload} from 'react-dom';
 import {currentBrowserCart} from '../../modules/storefront/browser';
 import {cartUnits} from '../../modules/storefront/cart';
@@ -33,6 +34,9 @@ function chrome(){
  return value;
 }
 export async function Shell({children,q='',active='home',task=false,backTo=null,department=null}:{children:React.ReactNode;q?:string;active?:'home'|'category'|'cart'|'account'|'promo'|'none';task?:boolean;backTo?:string|null;department?:string|null}){
+ // Every page using this shell already renders per request (it reads the cart cookies). Saying so up front keeps
+ // `next build` from querying the database while prerendering, which a production image build cannot reach (S82/S84).
+ await connection();
  // The Latin Inter subset is the only font the storefront needs; fetch it with the HTML instead of
  // after the stylesheet, so text (the phone LCP) settles in its final face sooner.
  preload('/fonts/inter-4.1/InterVariable-latin.woff2',{as:'font',type:'font/woff2',crossOrigin:'anonymous'});

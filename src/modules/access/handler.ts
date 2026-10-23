@@ -1,7 +1,8 @@
 import { mac, prefix, revokeGuestContext } from "../checkout/access.ts";
 import { isSyntheticEmail, type LocalAuth } from "./auth.ts";
 import { getPrincipal, isStaff, projectMe, AccessError } from "./policy.ts";
-import { privateJson, problem, requestOrigin } from "./http.ts";
+import { clientIp, privateJson, problem, requestOrigin } from "./http.ts";
+import { readRuntimeConfig } from "../../config/runtime.ts";
 import { rateLimit } from "./rate-limit.ts";
 import { parseCookies } from "better-auth/cookies";
 import { createHmac, timingSafeEqual } from "node:crypto";
@@ -43,16 +44,23 @@ export async function handleAuth(request: Request, identity: LocalAuth) {
   if (!(request.method === "GET" && (getPaths.includes(path) || /^\/api\/auth\/reset-password\/[A-Za-z0-9_-]+$/.test(path))) && !(request.method === "POST" && postPaths.includes(path))) {
     return Response.json({ code: "NOT_FOUND" }, { status: 404, headers: { "Cache-Control": "no-store" } });
   }
-  // Same Host rule as every other mutation boundary (http.ts): loopback or the opt-in tailnet origin only.
+  // Same Host rule as every other mutation boundary (http.ts): loopback or the opt-in tailnet origin locally, the exact APP_ORIGIN host in production.
   const origin = requestOrigin(request);
   if (!origin) return Response.json({ code: "INVALID_ORIGIN" }, { status: 403 });
   if (!["GET", "POST"].includes(request.method)) return new Response(null, { status: 405 });
   if (request.method === "POST" && request.headers.get("origin") !== origin) {
     return Response.json({ code: "INVALID_ORIGIN" }, { status: 403 });
   }
+  const { profile } = readRuntimeConfig(process.env);
+  // Production has no notification adapter (S86/OD-8): flows that must send a message stay closed.
+  if (profile === "production" && ["/api/auth/sign-up/email", "/api/auth/request-password-reset", "/api/auth/send-verification-email"].includes(path)) {
+    return Response.json({ code: "NOTIFICATION_DISABLED" }, { status: 503, headers: { "Cache-Control": "no-store" } });
+  }
   const headers = new Headers(request.headers);
-  // Next is bound only to 127.0.0.1. Forwarded identity supplied by a browser has no authority.
-  headers.set("x-99ribu-local-ip", "127.0.0.1");
+  // Locally Next is bound only to 127.0.0.1; in production only the configured trusted-proxy header counts.
+  // Either way the header Better Auth reads is overwritten here, so a browser-supplied copy has no authority.
+  try { headers.set(profile === "production" ? "x-99ribu-client-ip" : "x-99ribu-local-ip", clientIp(request)); }
+  catch (error) { return problem(error); }
   let bodyText: string | undefined;
   if (request.method === "POST") {
     if (!request.headers.get("content-type")?.startsWith("application/json")) return Response.json({ code: "INVALID_INPUT" }, { status: 415 });
@@ -74,7 +82,8 @@ export async function handleAuth(request: Request, identity: LocalAuth) {
     let body: Record<string, unknown> | null;
     try { body = JSON.parse(bodyText); } catch { body = null; }
     if (!body || typeof body !== "object" || Array.isArray(body)) return Response.json({ code: "INVALID_INPUT" }, { status: 400 });
-    if (body.email !== undefined && !isSyntheticEmail(body.email)) {
+    // Local profile: synthetic identities only. Production sign-in uses real staff emails (sign-up is closed above).
+    if (profile === "local" && body.email !== undefined && !isSyntheticEmail(body.email)) {
       return Response.json({ code: "SYNTHETIC_EMAIL_REQUIRED" }, { status: 400 });
     }
     if (path.includes("/two-factor/")) {

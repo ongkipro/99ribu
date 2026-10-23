@@ -1,6 +1,18 @@
 import { randomUUID } from "node:crypto";
-import { readLocalConfig } from "../../config/local.ts";
+import { isIP } from "node:net";
+import { readRuntimeConfig } from "../../config/runtime.ts";
 import { AccessError } from "./policy.ts";
+
+// The caller's address for per-client budgets. Locally every request arrives over loopback. In production
+// only the configured trusted-proxy header counts (never X-Forwarded-For); a missing or malformed value means
+// the request did not come through that proxy, so it is refused instead of sharing one bucket.
+export function clientIp(request: Request) {
+  const config = readRuntimeConfig(process.env);
+  if (config.profile !== "production") return "127.0.0.1";
+  const value = request.headers.get(config.clientIpHeader)?.trim() ?? "";
+  if (!isIP(value)) throw new AccessError(503, "CLIENT_IP_UNAVAILABLE");
+  return value;
+}
 
 export function privateJson(body: unknown, status = 200) {
   return Response.json(body, { status, headers: { "Cache-Control": "no-store", "Referrer-Policy": "no-referrer", "X-Content-Type-Options": "nosniff" } });
@@ -24,7 +36,11 @@ export function problem(error: unknown) {
 // so the browser-visible origin is the exact Host header: the loopback host, or the opt-in tailnet
 // IP:port that `tailscale serve --tcp` forwards unchanged. Any other Host (DNS rebinding, aliases) is refused.
 export function requestOrigin(request: Request) {
-  const { origin, tailnetOrigin } = readLocalConfig(process.env);
+  const config = readRuntimeConfig(process.env);
+  const { origin, tailnetOrigin } = config;
+  // Production: Next sits behind the one trusted proxy, so request.url's scheme is not the browser's.
+  // The Host the proxy forwards must be exactly the configured origin's host; anything else is refused.
+  if (config.profile === "production") return request.headers.get("host") === new URL(origin).host ? origin : null;
   const incoming = new URL(request.url).origin;
   if (!request.headers.has("host")) return incoming === origin ? origin : null;
   if (incoming !== origin && incoming !== "http://localhost:3099") return null;

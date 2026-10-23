@@ -1,6 +1,6 @@
 import { createHash, randomUUID } from "node:crypto";
 import type { Sql, TransactionSql } from "postgres";
-import { readLocalConfig } from "../config/local.ts";
+import { readRuntimeConfig } from "../config/runtime.ts";
 import { AccessError } from "../modules/access/policy.ts";
 import { id, text } from "../modules/catalog/validation.ts";
 import { type DatabaseJob, processDatabaseJob } from "./worker.ts";
@@ -81,7 +81,7 @@ export async function inspectOperationalProbes(
 	sql: Sql | TransactionSql,
 	options: { namespace?: string; jobIds?: readonly string[] } = {},
 ): Promise<OperationalProbeSnapshot> {
-	readLocalConfig(process.env);
+	readRuntimeConfig(process.env);
 	if (
 		options.namespace !== undefined &&
 		!/^[a-z][a-z0-9-]{0,23}$/.test(options.namespace)
@@ -263,7 +263,7 @@ export async function recoverFailedExpiryJob(
 	reason: string,
 	actorId = "operator:recovery",
 ) {
-	readLocalConfig(process.env);
+	readRuntimeConfig(process.env);
 	const targetJobId = id(jobId);
 	const cleanReason = text(reason, 500);
 	const cleanActor = text(actorId, 200);
@@ -398,7 +398,7 @@ export async function recoverOrphanSeedOperators(
 	reason = "Recover namespace-tagged orphan synthetic seed operators after host failure",
 	actorId = "operator:recovery",
 ) {
-	readLocalConfig(process.env);
+	readRuntimeConfig(process.env);
 	if (!/^[a-z][a-z0-9-]{0,23}$/.test(namespace))
 		throw new AccessError(400, "INVALID_INPUT");
 	if (
@@ -479,7 +479,7 @@ export async function recoverUndeliveredSignInSession(
 	reason = "Revoke undelivered sign-in session after guest-context revocation failure",
 	actorId = "operator:recovery",
 ) {
-	readLocalConfig(process.env);
+	readRuntimeConfig(process.env);
 	const targetSessionId = text(sessionId, 100);
 	if (
 		typeof guestContextToken !== "string" ||
@@ -637,7 +637,7 @@ export function redactDiagnosticLog(entry: Record<string, unknown>): Record<
 	causation_id: string;
 	observed_at: string;
 } {
-	readLocalConfig(process.env);
+	readRuntimeConfig(process.env);
 	const correlationId =
 		typeof entry.correlation_id === "string" &&
 		/^[A-Za-z0-9_.:-]{8,128}$/.test(entry.correlation_id)
@@ -753,7 +753,7 @@ export async function checkUploadAndRateLimits(
 		};
 	},
 ) {
-	readLocalConfig(process.env);
+	readRuntimeConfig(process.env);
 	if (!Object.hasOwn(DEFAULT_LIMITS, input.routeClass)) {
 		throw new AccessError(400, "INVALID_RATE_LIMIT_CLASS");
 	}

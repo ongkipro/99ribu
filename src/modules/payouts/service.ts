@@ -1,6 +1,6 @@
 import { createHash, randomUUID } from "node:crypto";
 import type { TransactionSql } from "postgres";
-import { readLocalConfig } from "../../config/local.ts";
+import { appOrigin } from "../../config/runtime.ts";
 import type { LocalAuth } from "../access/auth.ts";
 import {
 	assertOrigin,
@@ -622,7 +622,7 @@ export async function createPayoutEvidenceUpload(
 	const requestHash = digest(
 		JSON.stringify({ payout_id: selectedId, ...input }),
 	);
-	const origin = requestOrigin(request) ?? readLocalConfig(process.env).origin;
+	const origin = requestOrigin(request) ?? appOrigin();
 
 	return identity.sql.begin(async (tx) => {
 		await requireFinanceOrOwner(tx, principal);

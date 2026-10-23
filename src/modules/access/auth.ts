@@ -2,9 +2,9 @@ import { betterAuth } from "better-auth";
 import { drizzleAdapter } from "better-auth/adapters/drizzle";
 import { createAuthMiddleware, isAPIError } from "better-auth/api";
 import { twoFactor } from "better-auth/plugins";
-import { connectDatabase } from "../../db/client.ts";
+import { connectDatabase, type DatabaseTarget } from "../../db/client.ts";
 import * as schema from "../../db/schema.ts";
-import { readLocalConfig } from "../../config/local.ts";
+import { readRuntimeConfig, runtimeTarget } from "../../config/runtime.ts";
 import { localSigningKey } from "./local-key.ts";
 import { enqueueLocalDelivery } from "../../jobs/outbox.ts";
 
@@ -12,10 +12,13 @@ export function isSyntheticEmail(value: unknown): value is string {
   return typeof value === "string" && /@[^@\s]+\.(?:invalid|test)$/i.test(value);
 }
 
-export function createLocalAuth(target: "local" | "test") {
-  const config = readLocalConfig(process.env);
+export function createLocalAuth(target: DatabaseTarget) {
+  const config = readRuntimeConfig(process.env);
+  const production = config.profile === "production";
   const connection = connectDatabase(target);
   async function deliver(recipient: string, kind: "verification" | "password_reset" | "existing_account", url: string) {
+    // NOTIFICATION_ADAPTER is disabled in production (S86/OD-8 decide real delivery); nothing is queued.
+    if (production) throw new Error("Notification delivery is disabled in the production profile.");
     if (!isSyntheticEmail(recipient) || !config.trustedOrigins.includes(new URL(url).origin)) {
       throw new Error("Local delivery requires a synthetic recipient and canonical origin.");
     }
@@ -33,7 +36,9 @@ export function createLocalAuth(target: "local" | "test") {
     baseURL: config.tailnetOrigin
       ? { allowedHosts: config.trustedOrigins.map((origin) => new URL(origin).host), protocol: "http", fallback: config.origin }
       : config.origin,
-    secret: localSigningKey(target), trustedOrigins: [...config.trustedOrigins],
+    // Production: the env secret validated by readProductionConfig (never a .local/auth file, never logged).
+    secret: production ? process.env.BETTER_AUTH_SECRET as string : localSigningKey(target as "local" | "test"),
+    trustedOrigins: [...config.trustedOrigins],
     database: drizzleAdapter(connection.db, { provider: "pg", schema, transaction: true }),
     plugins: [twoFactor({ issuer: "99ribu", skipVerificationOnEnable: false, allowPasswordless: false, twoFactorCookieMaxAge: 300 })],
     hooks: {
@@ -66,7 +71,8 @@ export function createLocalAuth(target: "local" | "test") {
     account: { accountLinking: { enabled: false } },
     verification: { storeIdentifier: "hashed" },
     rateLimit: {
-      // Loopback collapses every caller into one IP bucket, so these are global ceilings only.
+      // Loopback collapses every caller into one IP bucket, so locally these are global ceilings only;
+      // in production they key on the trusted proxy's client IP (handleAuth).
       // Per-account budgets (handler.ts) carry the brute-force limits.
       enabled: true, storage: "database", window: 60, max: 300,
       customRules: {
@@ -79,12 +85,14 @@ export function createLocalAuth(target: "local" | "test") {
       },
     },
     advanced: {
-      // HTTP is intentionally confined to this validated loopback profile, including NODE_ENV=production.
+      // Local: HTTP is intentionally confined to this validated loopback profile, including NODE_ENV=production.
       // Both served origins are plain http (browsers drop Secure cookies on the non-loopback tailnet IP),
       // so session cookies stay non-Secure, host-only, HttpOnly and SameSite=Lax for either origin.
-      useSecureCookies: false, cookiePrefix: `99ribu-${target}`, trustedProxyHeaders: false,
+      // Production: one exact https origin, so cookies are Secure and __Secure- prefixed.
+      useSecureCookies: production, cookiePrefix: `99ribu-${target}`, trustedProxyHeaders: false,
       defaultCookieAttributes: { httpOnly: true, sameSite: "lax", path: "/" },
-      ipAddress: { ipAddressHeaders: ["x-99ribu-local-ip"] },
+      // handleAuth overwrites this header on every request: the loopback stamp locally, the trusted proxy's client IP in production.
+      ipAddress: { ipAddressHeaders: [production ? "x-99ribu-client-ip" : "x-99ribu-local-ip"] },
     },
   });
   return { auth, ...connection };
@@ -93,6 +101,6 @@ export function createLocalAuth(target: "local" | "test") {
 export type LocalAuth = ReturnType<typeof createLocalAuth>;
 let local: LocalAuth | undefined;
 export function getLocalAuth() {
-  local ??= createLocalAuth("local");
+  local ??= createLocalAuth(runtimeTarget());
   return local;
 }
