@@ -1,6 +1,7 @@
 "use client";
 
 import { CircleAlert, CircleCheck, RefreshCw } from "lucide-react";
+import Link from "next/link";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Badge } from "@/components/ui/badge";
@@ -14,6 +15,7 @@ import {
 	DialogTitle,
 } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
+import { Skeleton } from "@/components/ui/skeleton";
 import {
 	Table,
 	TableBody,
@@ -24,6 +26,8 @@ import {
 } from "@/components/ui/table";
 import { Textarea } from "@/components/ui/textarea";
 import { describeFailure, failureText, getJson, readFailure } from "./admin-errors";
+import { wibInputToIso } from "@/modules/storefront/format";
+import { formatCm, formatKg, formatWib, rupiah } from "./format";
 
 // DEC-007: every resi comes from 99ribu's own Mengantar account. Operators book
 // in the Mengantar dashboard, then record courier + resi here.
@@ -74,13 +78,7 @@ function message(status: number, code: string | null) {
 		? `${CODE_MESSAGES[code]} (kode: ${code})`
 		: failureText(describeFailure(status, code));
 }
-const wib = new Intl.DateTimeFormat("id-ID", {
-	dateStyle: "medium",
-	timeStyle: "short",
-	timeZone: "Asia/Jakarta",
-});
-const formatTime = (value: string | null) =>
-	value ? `${wib.format(new Date(value))} WIB` : "—";
+const formatTime = formatWib;
 
 type Manual = {
 	courier: string | null;
@@ -91,8 +89,34 @@ type Manual = {
 	purchase_reference_version: number;
 	tracking_versions: { version: number; tracking_number: string; reason: string }[];
 };
+// S99: everything the operator needs to book the parcel in the Mengantar dashboard.
+type Booking = {
+	cod_amount_due: number;
+	cod_fee_amount: number;
+	cancelled_units: number;
+	quoted_courier: {
+		courier_name: string;
+		service_name: string;
+		code: string | null;
+	} | null;
+	parcel: {
+		weight_grams: number;
+		length_mm: number;
+		width_mm: number;
+		height_mm: number;
+	};
+	destination_area: {
+		subdistrict: string;
+		district: string;
+		city: string;
+		province: string;
+		postal_code: string;
+	};
+	parcel_items: { name: string; variant_label: string; quantity: number }[];
+};
 type Row = {
 	id: string;
+	order_id: string;
 	version: number;
 	status: string;
 	order_number: string;
@@ -105,7 +129,15 @@ type Row = {
 	calendar_error: string | null;
 	tracking_number: string | null;
 	items: unknown[];
+	pick_items: { sku: string; name: string; quantity: number }[];
+	recipient: {
+		recipient_name: string;
+		phone: string;
+		address_line: string;
+		postal_code: string;
+	};
 	manual?: Manual;
+	booking: Booking;
 };
 type Warehouse = { id: string; name: string; city: string };
 type Queue = "to_book" | "shipped";
@@ -169,10 +201,47 @@ function Field({
 
 type DialogKind = "ship" | "correct" | "status";
 
+const PAGE_SIZE = "50";
+
+/** Pick list: component units summed by SKU across the parcel's allocations. */
+function pickList(row: Row) {
+	const totals = new Map<string, { name: string; quantity: number }>();
+	for (const pick of row.pick_items) {
+		const current = totals.get(pick.sku);
+		totals.set(pick.sku, {
+			name: pick.name,
+			quantity: (current?.quantity ?? 0) + pick.quantity,
+		});
+	}
+	return [...totals].map(([sku, value]) => ({ sku, ...value }));
+}
+const areaText = (row: Row) => {
+	const a = row.booking.destination_area;
+	return `${a.subdistrict}, ${a.district}, ${a.city}, ${a.province} ${a.postal_code}`;
+};
+const courierText = (row: Row) =>
+	row.booking.quoted_courier
+		? `${row.booking.quoted_courier.courier_name} · ${row.booking.quoted_courier.service_name}`
+		: "—";
+
+function OrderLink({ row, enabled }: { row: Row; enabled: boolean }) {
+	if (!enabled) return <span className="font-medium">{row.order_number}</span>;
+	return (
+		<Link
+			href={`/admin/orders/${row.order_id}`}
+			className="font-medium text-primary underline-offset-4 hover:underline"
+		>
+			{row.order_number}
+		</Link>
+	);
+}
+
 export function ManualFulfillmentClient({
 	canManageProfiles,
+	canViewOrders,
 }: {
 	canManageProfiles: boolean;
+	canViewOrders: boolean;
 }) {
 	const [queue, setQueue] = useState<Queue>("to_book");
 	const [warehouses, setWarehouses] = useState<Warehouse[]>([]);
@@ -180,24 +249,51 @@ export function ManualFulfillmentClient({
 	const [rows, setRows] = useState<Row[]>([]);
 	const [state, setState] = useState<"loading" | "ready" | "error">("loading");
 	const [loadError, setLoadError] = useState("");
+	const [nextCursor, setNextCursor] = useState<string | null>(null);
+	const [more, setMore] = useState<"idle" | "loading" | "error">("idle");
 	const [notice, setNotice] = useState<Notice | null>(null);
 	const noticeRef = useRef<HTMLDivElement>(null);
 
+	const page = useCallback(
+		(cursor: string | null) => {
+			const params = new URLSearchParams({ queue, limit: PAGE_SIZE });
+			if (warehouseId) params.set("warehouse_id", warehouseId);
+			if (cursor) params.set("cursor", cursor);
+			return getJson<{ data: Row[]; pagination: { next_cursor: string | null } }>(
+				`/api/v1/admin/manual-shipments?${params}`,
+			);
+		},
+		[queue, warehouseId],
+	);
 	const load = useCallback(async () => {
 		setState("loading");
-		const params = new URLSearchParams({ queue, limit: "100" });
-		if (warehouseId) params.set("warehouse_id", warehouseId);
-		const result = await getJson<{ data: Row[] }>(
-			`/api/v1/admin/manual-shipments?${params}`,
-		);
+		setMore("idle");
+		const result = await page(null);
 		if (result.ok) {
 			setRows(result.data.data);
+			setNextCursor(result.data.pagination.next_cursor);
 			setState("ready");
 		} else {
 			setLoadError(failureText(result.failure));
 			setState("error");
 		}
-	}, [queue, warehouseId]);
+	}, [page]);
+	const loadMore = async () => {
+		if (!nextCursor) return;
+		setMore("loading");
+		const result = await page(nextCursor);
+		if (!result.ok) {
+			setMore("error");
+			return;
+		}
+		// Keyset pages never overlap; the guard only keeps keys unique after a concurrent change.
+		setRows((current) => {
+			const seen = new Set(current.map((r) => r.id));
+			return [...current, ...result.data.data.filter((r) => !seen.has(r.id))];
+		});
+		setNextCursor(result.data.pagination.next_cursor);
+		setMore("idle");
+	};
 
 	useEffect(() => {
 		void load();
@@ -250,8 +346,16 @@ export function ManualFulfillmentClient({
 						</h2>
 						<p className="max-w-prose text-sm text-muted-foreground">
 							Pesanan lunas (prabayar) dan COD terkonfirmasi dari gudang mode
-							manual. Pesan kurir di dashboard Mengantar 99ribu, lalu catat
-							kurir dan resinya di sini.
+							manual, urut batas resi terdekat lalu pesanan terlama. Pesan kurir
+							di dashboard Mengantar 99ribu, lalu catat kurir dan resinya di sini.
+						</p>
+						<p
+							className="max-w-prose text-sm text-muted-foreground"
+							data-testid="manual-scope-rule"
+						>
+							Super Admin melihat semua gudang. Admin E-Commerce dan staf gudang
+							hanya melihat gudang yang ditugaskan ke akunnya; minta Super Admin
+							menambah penugasan bila gudang tidak muncul.
 						</p>
 					</div>
 					<div className="flex flex-wrap items-end gap-2">
@@ -309,9 +413,11 @@ export function ManualFulfillmentClient({
 					))}
 				</div>
 				{state === "loading" && (
-					<p className="text-sm text-muted-foreground" aria-live="polite">
-						Memuat antrean…
-					</p>
+					<div className="flex flex-col gap-2" aria-live="polite">
+						<p className="text-sm text-muted-foreground">Memuat antrean…</p>
+						<Skeleton className="h-10 w-full" />
+						<Skeleton className="h-10 w-full" />
+					</div>
 				)}
 				{state === "error" && (
 					<Alert role="alert">
@@ -332,92 +438,165 @@ export function ManualFulfillmentClient({
 					</p>
 				)}
 				{state === "ready" && rows.length > 0 && (
-					<div className="overflow-x-auto rounded-lg border">
-						<Table data-testid="manual-queue">
-							<TableHeader>
-								<TableRow>
-									<TableHead>Pesanan</TableHead>
-									<TableHead>Gudang asal</TableHead>
-									<TableHead>Pembayaran</TableHead>
-									<TableHead>
-										{queue === "to_book" ? "Batas resi" : "Kurir & resi"}
-									</TableHead>
-									<TableHead>{queue === "to_book" ? "Unit" : "Status"}</TableHead>
-									<TableHead className="text-right">Tindakan</TableHead>
-								</TableRow>
-							</TableHeader>
-							<TableBody>
-								{rows.map((row) => (
-									<TableRow key={row.id} data-testid="manual-row">
-										<TableCell className="font-medium">{row.order_number}</TableCell>
-										<TableCell>
-											{row.warehouse_name}
-											<span className="block text-xs text-muted-foreground">
-												{row.warehouse_city}
-											</span>
-										</TableCell>
-										<TableCell>
-											<Badge variant="outline">
-												{row.payment_method === "cod" ? "COD" : "Prabayar"}
-											</Badge>
-										</TableCell>
-										<TableCell>
+					<>
+						<div className="overflow-x-auto rounded-lg border">
+							<Table data-testid="manual-queue">
+								<caption className="sr-only">
+									{queue === "to_book"
+										? "Paket yang perlu dipesan kurir, urut batas resi"
+										: "Paket yang menunggu status terkirim"}
+								</caption>
+								<TableHeader>
+									<TableRow>
+										<TableHead scope="col">Pesanan</TableHead>
+										<TableHead scope="col">Penerima & tujuan</TableHead>
+										{queue === "to_book" ? (
+											<>
+												<TableHead scope="col">Isi paket</TableHead>
+												<TableHead scope="col">Kurir pilihan pembeli</TableHead>
+												<TableHead scope="col" className="text-right">
+													Tagihan COD
+												</TableHead>
+												<TableHead scope="col">Batas resi</TableHead>
+											</>
+										) : (
+											<>
+												<TableHead scope="col">Kurir & resi</TableHead>
+												<TableHead scope="col">Status</TableHead>
+											</>
+										)}
+										<TableHead scope="col" className="text-right">
+											Tindakan
+										</TableHead>
+									</TableRow>
+								</TableHeader>
+								<TableBody>
+									{rows.map((row) => (
+										<TableRow key={row.id} data-testid="manual-row" className="align-top">
+											<TableCell>
+												<OrderLink row={row} enabled={canViewOrders} />
+												<span className="mt-1 block">
+													<Badge variant="outline">
+														{row.payment_method === "cod" ? "COD" : "Prabayar"}
+													</Badge>
+												</span>
+												<span className="mt-1 block text-xs text-muted-foreground">
+													{row.warehouse_name}
+												</span>
+											</TableCell>
+											<TableCell className="min-w-48 whitespace-normal">
+												<span className="block font-medium">
+													{row.recipient.recipient_name}
+												</span>
+												<span className="block font-mono text-xs">{row.recipient.phone}</span>
+												<span className="block max-w-64 text-xs text-muted-foreground">
+													{areaText(row)}
+												</span>
+											</TableCell>
 											{queue === "to_book" ? (
-												row.packing_due_at ? (
-													formatTime(row.packing_due_at)
-												) : (
-													<span className="text-muted-foreground">
-														Jadwal gudang belum diatur
-													</span>
-												)
+												<>
+													<TableCell className="min-w-48 whitespace-normal">
+														<ul className="flex flex-col gap-0.5">
+															{row.booking.parcel_items.map((item) => (
+																<li key={`${item.name}:${item.variant_label}`}>
+																	{item.quantity}× {item.name}
+																	<span className="text-muted-foreground"> · {item.variant_label}</span>
+																</li>
+															))}
+														</ul>
+														<span className="mt-1 block text-xs text-muted-foreground">
+															Berat awal {formatKg(row.booking.parcel.weight_grams)}
+															{row.booking.cancelled_units > 0 &&
+																`; ${row.booking.cancelled_units} unit batal, timbang ulang`}
+														</span>
+													</TableCell>
+													<TableCell className="min-w-36 whitespace-normal">{courierText(row)}</TableCell>
+													<TableCell className="text-right font-medium tabular-nums">
+														{row.payment_method === "cod" ? (
+															rupiah(row.booking.cod_amount_due)
+														) : (
+															<span className="font-normal text-muted-foreground">Prabayar</span>
+														)}
+													</TableCell>
+													<TableCell>
+														{row.packing_due_at ? (
+															formatTime(row.packing_due_at)
+														) : (
+															<span className="text-muted-foreground">
+																Jadwal gudang belum diatur
+															</span>
+														)}
+													</TableCell>
+												</>
 											) : (
 												<>
-													{row.manual?.courier_name ?? "—"}
-													<span className="block font-mono text-xs">
-														{row.manual?.tracking_number ?? row.tracking_number}
-													</span>
+													<TableCell>
+														{row.manual?.courier_name ?? "—"}
+														<span className="block font-mono text-xs">
+															{row.manual?.tracking_number ?? row.tracking_number}
+														</span>
+													</TableCell>
+													<TableCell>
+														{row.manual?.tracking_status
+															? TRACKING_LABELS[row.manual.tracking_status]
+															: "Menunggu pembaruan kurir"}
+													</TableCell>
 												</>
 											)}
-										</TableCell>
-										<TableCell>
-											{queue === "to_book"
-												? `${row.items.length} unit`
-												: row.manual?.tracking_status
-													? TRACKING_LABELS[row.manual.tracking_status]
-													: "Menunggu pembaruan kurir"}
-										</TableCell>
-										<TableCell className="text-right">
-											{queue === "to_book" ? (
-												<Button
-													size="sm"
-													onClick={() => setDialog({ kind: "ship", row })}
-												>
-													Catat resi
-												</Button>
-											) : (
-												<div className="flex justify-end gap-2">
+											<TableCell className="text-right">
+												{queue === "to_book" ? (
 													<Button
 														size="sm"
-														variant="outline"
-														onClick={() => setDialog({ kind: "correct", row })}
+														onClick={() => setDialog({ kind: "ship", row })}
 													>
-														Koreksi resi
+														Catat resi
 													</Button>
-													<Button
-														size="sm"
-														variant="outline"
-														onClick={() => setDialog({ kind: "status", row })}
-													>
-														Catat status
-													</Button>
-												</div>
-											)}
-										</TableCell>
-									</TableRow>
-								))}
-							</TableBody>
-						</Table>
-					</div>
+												) : (
+													<div className="flex justify-end gap-2">
+														<Button
+															size="sm"
+															variant="outline"
+															onClick={() => setDialog({ kind: "correct", row })}
+														>
+															Koreksi resi
+														</Button>
+														<Button
+															size="sm"
+															variant="outline"
+															onClick={() => setDialog({ kind: "status", row })}
+														>
+															Catat status
+														</Button>
+													</div>
+												)}
+											</TableCell>
+										</TableRow>
+									))}
+								</TableBody>
+							</Table>
+						</div>
+						<div className="flex flex-wrap items-center gap-3">
+							<p className="text-sm text-muted-foreground" aria-live="polite">
+								{rows.length} paket ditampilkan
+								{nextCursor ? ", masih ada paket berikutnya." : "."}
+							</p>
+							{nextCursor && (
+								<Button
+									type="button"
+									variant="outline"
+									disabled={more === "loading"}
+									onClick={() => void loadMore()}
+								>
+									{more === "loading" ? "Memuat…" : "Muat lebih banyak"}
+								</Button>
+							)}
+							{more === "error" && (
+								<p role="alert" className="text-sm text-destructive">
+									Halaman berikutnya gagal dimuat. Coba lagi.
+								</p>
+							)}
+						</div>
+					</>
 				)}
 			</section>
 			{dialog && (
@@ -447,7 +626,12 @@ function ActionDialog({
 }) {
 	// One idempotency key per dialog session: a network retry replays, not duplicates.
 	const key = useRef(crypto.randomUUID());
-	const [courier, setCourier] = useState(row.manual?.courier ?? "");
+	// S99: a new resi starts from the buyer's quoted courier when it maps to a Mengantar code.
+	const [courier, setCourier] = useState(
+		row.manual?.courier ??
+			(kind === "ship" ? row.booking.quoted_courier?.code : null) ??
+			"",
+	);
 	const [resi, setResi] = useState("");
 	const [reference, setReference] = useState("");
 	const [reason, setReason] = useState("");
@@ -469,6 +653,8 @@ function ActionDialog({
 		if (kind !== "status" && !resi.trim()) next.resi = "Nomor resi wajib diisi.";
 		if (kind !== "ship" && !reason.trim()) next.reason = "Alasan wajib diisi.";
 		if (kind === "status" && !occurred) next.occurred = "Isi waktu status.";
+		else if (kind === "status" && !wibInputToIso(occurred))
+			next.occurred = "Waktu status tidak valid.";
 		if (kind === "status" && !evidence.trim())
 			next.evidence = "Tulis bukti dari dashboard Mengantar.";
 		setErrors(next);
@@ -504,7 +690,8 @@ function ActionDialog({
 							`${base}/tracking-statuses`,
 							{
 								status,
-								occurred_at: new Date(occurred).toISOString(),
+								// Read as WIB whatever the device timezone (validated above).
+								occurred_at: wibInputToIso(occurred),
 								reason: reason.trim(),
 								evidence: evidence.trim(),
 							},
@@ -531,6 +718,13 @@ function ActionDialog({
 	}
 	const describe = (id: string) =>
 		errors[id] ? `${id}-error` : undefined;
+	const quoted = row.booking.quoted_courier;
+	const courierHint =
+		kind !== "ship" || !quoted
+			? undefined
+			: quoted.code
+				? `Pilihan pembeli: ${quoted.courier_name} · ${quoted.service_name}. Ganti hanya bila layanan itu tidak tersedia di Mengantar.`
+				: `Pilihan pembeli: ${quoted.courier_name} · ${quoted.service_name}. Pilih kurir yang dipesan di Mengantar.`;
 	return (
 		<Dialog
 			open
@@ -538,7 +732,7 @@ function ActionDialog({
 				if (!next && !pending) onClose();
 			}}
 		>
-			<DialogContent>
+			<DialogContent className="max-h-[calc(100dvh-2rem)] overflow-y-auto sm:max-w-lg">
 				<form
 					noValidate
 					className="flex flex-col gap-4"
@@ -557,16 +751,28 @@ function ActionDialog({
 									: "Gunakan bila pembaruan otomatis dari kurir tidak tersedia. Status hanya bisa maju dan tercatat di audit."}
 						</DialogDescription>
 					</DialogHeader>
+					{kind === "ship" && <BookingSheet row={row} />}
 					{kind !== "status" && (
 						<>
-							<Field id="manual-courier" label="Kurir" error={errors.courier}>
+							<Field
+								id="manual-courier"
+								label="Kurir"
+								hint={courierHint}
+								error={errors.courier}
+							>
 								<select
 									id="manual-courier"
 									className={selectClass}
 									value={courier}
 									onChange={(e) => setCourier(e.target.value)}
 									aria-invalid={errors.courier ? true : undefined}
-									aria-describedby={describe("manual-courier")}
+									aria-describedby={
+										errors.courier
+											? "manual-courier-error"
+											: courierHint
+												? "manual-courier-hint"
+												: undefined
+									}
 								>
 									<option value="">Pilih kurir</option>
 									{COURIERS.map(([value, label]) => (
@@ -626,14 +832,21 @@ function ActionDialog({
 									))}
 								</select>
 							</Field>
-							<Field id="manual-occurred" label="Waktu status (jam perangkat)" error={errors.occurred}>
+							<Field
+								id="manual-occurred"
+								label="Waktu status (WIB)"
+								hint="Jam WIB seperti di dashboard Mengantar, tidak boleh di masa depan."
+								error={errors.occurred}
+							>
 								<Input
 									id="manual-occurred"
 									type="datetime-local"
 									value={occurred}
 									onChange={(e) => setOccurred(e.target.value)}
 									aria-invalid={errors.occurred ? true : undefined}
-									aria-describedby={describe("manual-occurred")}
+									aria-describedby={
+										errors.occurred ? "manual-occurred-error" : "manual-occurred-hint"
+									}
 								/>
 							</Field>
 							<Field id="manual-evidence" label="Bukti dari dashboard Mengantar" error={errors.evidence}>
@@ -678,6 +891,77 @@ function ActionDialog({
 				</form>
 			</DialogContent>
 		</Dialog>
+	);
+}
+
+/** What the operator copies into the Mengantar booking form. */
+function BookingSheet({ row }: { row: Row }) {
+	const b = row.booking;
+	const fact = (label: string, value: React.ReactNode) => (
+		<div className="grid grid-cols-[7.5rem_1fr] gap-2">
+			<dt className="text-muted-foreground">{label}</dt>
+			<dd className="min-w-0 break-words">{value}</dd>
+		</div>
+	);
+	return (
+		<section
+			aria-label="Data pemesanan Mengantar"
+			data-testid="booking-sheet"
+			className="flex flex-col gap-3 rounded-lg border bg-muted/40 p-3 text-sm"
+		>
+			<dl className="flex flex-col gap-1.5">
+				{fact(
+					"Penerima",
+					<>
+						{row.recipient.recipient_name}
+						<span className="block font-mono text-xs">{row.recipient.phone}</span>
+					</>,
+				)}
+				{fact("Alamat", row.recipient.address_line)}
+				{fact("Wilayah", areaText(row))}
+				{fact("Kurir pembeli", courierText(row))}
+				{fact(
+					"Berat awal",
+					<>
+						{`${formatKg(b.parcel.weight_grams)} · ${formatCm(b.parcel.length_mm)} × ${formatCm(b.parcel.width_mm)} × ${formatCm(b.parcel.height_mm)} cm`}
+						<span className="block text-xs text-muted-foreground" data-testid="booking-weight-note">
+							{b.cancelled_units > 0
+								? `Hitungan saat checkout; ${b.cancelled_units} unit sudah dibatalkan. Timbang ulang paket sebelum memesan.`
+								: "Hitungan saat checkout. Pastikan sesuai timbangan."}
+						</span>
+					</>,
+				)}
+				{fact(
+					"Tagihan COD",
+					row.payment_method === "cod" ? (
+						<>
+							<strong className="tabular-nums" data-testid="booking-cod-due">
+								{rupiah(b.cod_amount_due)}
+							</strong>
+							<span className="block text-xs text-muted-foreground">
+								Nilai saat ini untuk unit yang masih dikirim, termasuk biaya COD{" "}
+								{rupiah(b.cod_fee_amount)}. Isi nilai ini persis di Mengantar.
+							</span>
+						</>
+					) : (
+						"Tidak ada (prabayar)"
+					),
+				)}
+			</dl>
+			<div className="flex flex-col gap-1">
+				<p className="font-medium">Ambil dari rak</p>
+				<ul className="flex flex-col gap-0.5">
+					{pickList(row).map((pick) => (
+						<li key={pick.sku}>
+							{pick.quantity}× {pick.name}{" "}
+							<span className="font-mono text-xs text-muted-foreground">
+								{pick.sku}
+							</span>
+						</li>
+					))}
+				</ul>
+			</div>
+		</section>
 	);
 }
 

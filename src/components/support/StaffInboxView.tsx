@@ -7,6 +7,7 @@ type StaffUser = {
 	id: string;
 	roles: string[];
 	canManageTools: boolean;
+	canOpenOrders: boolean;
 };
 
 type SupportConversation = {
@@ -213,7 +214,34 @@ const fieldInput: React.CSSProperties = {
 	boxSizing: "border-box",
 };
 
+/** Latest context card title for this conversation's product/order (no raw ids on screen). */
+function contextTitle(
+	messages: SupportMessage[],
+	kind: "product" | "order",
+	id: string | undefined,
+) {
+	if (!id) return null;
+	for (let i = messages.length - 1; i >= 0; i--) {
+		const c = messages[i].context;
+		if (c?.kind === kind && (kind === "order" ? c.order_id : c.product_id) === id && c.availability === "available")
+			return c.title;
+	}
+	return null;
+}
+// /admin/orders and /admin/catalog are console pages (another stylesheet scope): full document navigation.
+function ContextLink({ id, label, href }: { id: string | undefined; label: string; href: string | null }) {
+	if (!id) return <>Tidak ada</>;
+	if (!href) return <>{label}</>;
+	return (
+		<a href={href} style={{ color: "#5b2a86", fontWeight: 600 }}>
+			{label}
+		</a>
+	);
+}
+
 export function StaffInboxView({ staffUser }: { staffUser: StaffUser }) {
+	// Catalog detail is for owner/ecommerce_admin catalog readers; the page re-checks access.
+	const canOpenCatalog = staffUser.roles.some((r) => ["owner", "ecommerce_admin"].includes(r));
 	const baseId = useId();
 	const [assignmentFilter, setAssignmentFilter] = useState<
 		"unassigned" | "assigned_to_me" | "all"
@@ -1209,8 +1237,14 @@ export function StaffInboxView({ staffUser }: { staffUser: StaffUser }) {
 														fontSize: "0.8rem",
 													}}
 												>
-													Konteks {m.context.kind}: {m.context.title} (
-													{m.context.availability})
+													Konteks {m.context.kind === "order" ? "pesanan" : "produk"}:{" "}
+													{m.context.kind === "order" && m.context.order_id && m.context.availability === "available" && staffUser.canOpenOrders ? (
+														<a href={`/admin/orders/${m.context.order_id}`} style={{ color: "#5b2a86", fontWeight: 600 }}>
+															{m.context.title}
+														</a>
+													) : (
+														m.context.title
+													)}
 												</div>
 											)}
 											<p style={{ margin: "4px 0 0", whiteSpace: "pre-wrap" }}>
@@ -1339,11 +1373,19 @@ export function StaffInboxView({ staffUser }: { staffUser: StaffUser }) {
 								<strong>Ringkasan Konteks Aman</strong>
 								<span>
 									Produk Terkait:{" "}
-									{selected.conversation.product_id ?? "Tidak ada"}
+									<ContextLink
+										id={selected.conversation.product_id}
+										label={contextTitle(messages, "product", selected.conversation.product_id) ?? "Lihat produk"}
+										href={canOpenCatalog ? `/admin/catalog/${selected.conversation.product_id}` : null}
+									/>
 								</span>
 								<span>
 									Pesanan Terverifikasi:{" "}
-									{selected.conversation.order_id ?? "Tidak ada"}
+									<ContextLink
+										id={selected.conversation.order_id}
+										label={contextTitle(messages, "order", selected.conversation.order_id) ?? "Lihat detail pesanan"}
+										href={staffUser.canOpenOrders ? `/admin/orders/${selected.conversation.order_id}` : null}
+									/>
 								</span>
 								<small style={{ color: "#5b5b63" }}>
 									Catatan: Chat atau klaim CS tidak pernah mengotorisasi refund,

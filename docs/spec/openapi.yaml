@@ -3020,7 +3020,11 @@ paths:
       summary: List manual dashboard-booking work queues
       description: Paid prepaid and confirmed COD parcels whose warehouse is in manual_dashboard mode (DEC-007). queue=to_book
         waits for a Mengantar dashboard booking and resi; queue=shipped awaits delivery tracking. Scoped to assigned
-        warehouses; owner sees all.
+        warehouses for every non-owner role, ecommerce_admin included (the resi writes use the same warehouse authority);
+        owner sees all. S99 ordering is packing deadline ascending with parcels lacking a deadline last, then fulfillment
+        creation time, then id; pages are keyset pages over that order. Each row carries the booking facts for the
+        Mengantar dashboard (recipient, destination area, items, parcel measures, buyer-quoted courier/service and
+        the parcel COD amount due).
       tags:
       - Fulfillment
       security:
@@ -3080,8 +3084,12 @@ paths:
       - name: cursor
         in: query
         required: false
+        description: Opaque next_cursor of the previous page (keyset position; grants no authority).
         schema:
-          $ref: '#/components/schemas/Id'
+          type: string
+          minLength: 1
+          maxLength: 400
+          pattern: ^[A-Za-z0-9_-]+$
       - name: limit
         in: query
         required: false
@@ -6457,7 +6465,10 @@ paths:
         are never included. All supplied filters combine with AND. fulfillment_status and return_status match any
         authorized child record without duplicating the parent row; warehouse_id is a staff search filter and grants
         no warehouse-role whole-order access. Exact reference search is rate-limited and remains restricted to authorized
-        whole orders. No customer PII or provider URL query search.'
+        whole orders. S100: reference matches the order number (case-insensitive) or a resi (spaces removed, upper case;
+        current or superseded manual resi, or the carrier booking resi); phone_suffix is the only contact-derived search,
+        an exact 6-8 digit suffix (DEC-014) of the buyer contact or recipient phone, sharing the same 30/minute
+        limiter, never echoed in responses, audits or logs and not recoverable from cursors (keyed filter binding). No other customer PII or provider URL query search.'
       x-local-checkpoint: S23 supplies pending/cancelled and receipt/reversal history. Fulfillment/return filters
         have no matching child records until their consuming slices extend this reader. Tracking reference matches
         no carrier record before S30.
@@ -6554,8 +6565,15 @@ paths:
           type: string
           minLength: 1
           maxLength: 100
-          description: Exact order number or server-issued shipment tracking reference; no freeform customer name/phone/address
+          description: Exact order number (any case) or resi (current or superseded); no freeform customer name/phone/address
             search.
+      - name: phone_suffix
+        in: query
+        description: S100 exact digit suffix of the buyer contact or recipient phone. Rate-limited with reference search;
+          results never include the phone.
+        schema:
+          type: string
+          pattern: ^\d{6,8}$
       - name: payment_status
         in: query
         schema:
@@ -15419,6 +15437,8 @@ components:
           type: string
           enum:
           - manual_dashboard
+        booking:
+          $ref: '#/components/schemas/ManualShipmentBooking'
       required:
       - id
       - order_id
@@ -15447,9 +15467,124 @@ components:
       - warehouse_city
       - warehouse_district
       - mode
+      - booking
       additionalProperties: false
       description: 'Manual work-queue row: paid prepaid or confirmed COD parcel in a manual-mode warehouse. Recipient
         stays assigned-staff only.'
+    ManualShipmentBooking:
+      type: object
+      description: S99 facts the operator copies into the Mengantar dashboard booking. cod_amount_due is the CURRENT
+        COD collection basis (app.cod_current_collection_basis - surviving units' price, buyer shipping and frozen
+        DEC-009 COD fee shares; the amount the COD collection and the Mengantar remittance check expect), 0 for
+        prepaid; it drops below order_shipment.cod_due after a unit cancellation. parcel holds the measures quoted
+        at checkout for the original units and is not recomputed; cancelled_units says how many were cancelled since.
+      properties:
+        cod_amount_due:
+          $ref: '#/components/schemas/Money'
+        cod_fee_amount:
+          $ref: '#/components/schemas/Money'
+        cancelled_units:
+          type: integer
+          minimum: 0
+          maximum: 100
+        quoted_courier:
+          anyOf:
+          - type: object
+            properties:
+              courier_name:
+                type: string
+              service_name:
+                type: string
+              code:
+                description: Mengantar courier code the name maps to (pre-fills the resi dialog); null when unmapped.
+                type:
+                - string
+                - 'null'
+                enum:
+                - jne
+                - jnt
+                - sicepat
+                - sap
+                - ninja
+                - anteraja
+                - idexpress
+                - lion
+                - pos
+                - null
+            required:
+            - courier_name
+            - service_name
+            - code
+            additionalProperties: false
+          - type: 'null'
+        parcel:
+          type: object
+          properties:
+            weight_grams:
+              type: integer
+              minimum: 1
+            length_mm:
+              type: integer
+              minimum: 1
+            width_mm:
+              type: integer
+              minimum: 1
+            height_mm:
+              type: integer
+              minimum: 1
+          required:
+          - weight_grams
+          - length_mm
+          - width_mm
+          - height_mm
+          additionalProperties: false
+        destination_area:
+          type: object
+          properties:
+            subdistrict:
+              type: string
+            district:
+              type: string
+            city:
+              type: string
+            province:
+              type: string
+            postal_code:
+              type: string
+          required:
+          - subdistrict
+          - district
+          - city
+          - province
+          - postal_code
+          additionalProperties: false
+        parcel_items:
+          type: array
+          maxItems: 100
+          items:
+            type: object
+            properties:
+              name:
+                type: string
+              variant_label:
+                type: string
+              quantity:
+                type: integer
+                minimum: 1
+            required:
+            - name
+            - variant_label
+            - quantity
+            additionalProperties: false
+      required:
+      - cod_amount_due
+      - cod_fee_amount
+      - cancelled_units
+      - quoted_courier
+      - parcel
+      - destination_area
+      - parcel_items
+      additionalProperties: false
     ManualShipmentQueue:
       type: object
       properties:
@@ -15899,7 +16034,10 @@ components:
               order_number:
                 type: string
               cod_due:
-                $ref: '#/components/schemas/Money'
+                allOf:
+                - $ref: '#/components/schemas/Money'
+                description: Current COD collection basis (surviving units incl. their COD fee shares), the amount a
+                  statement line is checked against; below order_shipment.cod_due after a unit cancellation.
               handed_over_at:
                 $ref: '#/components/schemas/DateTime'
               courier:
@@ -23443,6 +23581,12 @@ components:
           description: Human reference the operator already sees elsewhere in scope - order number (orders, returns,
             delivery exceptions, conversations linked to an order), waybill number or else order number
             (fulfillments), SKU (stock) or settlement reference (reconciliation). Null when the row has none.
+        order_id:
+          anyOf:
+          - $ref: '#/components/schemas/Id'
+          - type: 'null'
+          description: S100 order the row belongs to (staff order detail link); null for stock and settlement rows.
+            Opening it re-checks whole-order authorization.
       required:
       - id
       - resource_kind
@@ -23452,6 +23596,7 @@ components:
       - warehouse_id
       - version
       - reference
+      - order_id
       additionalProperties: false
       description: Safe operational row, no customer contacts/private labels/costs/whole-order totals. Logical target
         still requires current object authorization.

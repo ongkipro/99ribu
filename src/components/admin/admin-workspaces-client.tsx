@@ -101,6 +101,7 @@ interface WorkQueueItem {
 	warehouse_id: string | null;
 	version: number;
 	reference: string | null;
+	order_id: string | null;
 }
 
 type DueAtKind =
@@ -776,11 +777,14 @@ function queueQuery(
 export function AdminWorkspacesClient({
 	initialAuthenticated,
 	initialStaffRoles,
+	canOrders: canOrdersGrant,
 	requestedWorkspace,
 	requestedWarehouseId,
 }: {
 	initialAuthenticated: boolean;
 	initialStaffRoles: CanonicalWorkspace[];
+	/** orders.history.read grant (canReadOrders), not merely the active workspace. */
+	canOrders: boolean;
 	requestedWorkspace: string | null;
 	requestedWarehouseId: string;
 }) {
@@ -1077,6 +1081,8 @@ export function AdminWorkspacesClient({
 	const exportConfig = QUEUE_EXPORT_CONFIG[queue];
 	const canPrint = workspace === "owner" || workspace === "warehouse";
 	const canSupport = workspace === "owner" || workspace === "customer_service";
+	// S100: whole-order detail; the page and API re-check permission and warehouse scope.
+	const canOrders = !preview && canOrdersGrant;
 	// The API reports Asia/Jakarta; every time below is shown and labeled as WIB.
 	const formatTime = (iso: string | null) => (iso ? wibDateTime(iso) : "—");
 	const allSelected = rows.length > 0 && selectedIds.length === rows.length;
@@ -1225,9 +1231,19 @@ export function AdminWorkspacesClient({
 			<span className="text-xs text-muted-foreground">
 				{KIND_LABELS[item.resource_kind] ?? item.resource_kind}
 			</span>
-			<span className="font-mono text-sm font-medium break-all" title={item.id}>
-				{referenceText(item)}
-			</span>
+			{canOrders && item.order_id ? (
+				<Link
+					href={`/admin/orders/${item.order_id}`}
+					className="font-mono text-sm font-medium break-all text-primary underline-offset-4 hover:underline"
+					aria-label={`Buka detail pesanan ${referenceText(item)}`}
+				>
+					{referenceText(item)}
+				</Link>
+			) : (
+				<span className="font-mono text-sm font-medium break-all" title={item.id}>
+					{referenceText(item)}
+				</span>
+			)}
 		</div>
 	);
 	const rowTimeLabel = (item: WorkQueueItem) =>

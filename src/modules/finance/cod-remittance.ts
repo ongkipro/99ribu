@@ -9,6 +9,7 @@ import {codSourceEvent,registerCodEvent} from '../payments/cod-local.ts';
 import {lockPaymentOrder} from '../payments/attempts.ts';
 import {financeAuthority} from './costs.ts';
 import {financeEnvironment} from './ledger.ts';
+import {readCodCollectionBasis} from './receipt-units.ts';
 import {registerSettlementEvent,reviseSettlementStatement,settlementSourceEvent} from './settlements/local.ts';
 
 // DEC-007 / S91. Mengantar collects COD on 99ribu's own account and remits
@@ -131,11 +132,15 @@ export async function listCollectibleParcels(identity:LocalAuth,principal:Princi
  const number=url.searchParams.get('reference');if(number!==null&&!/^[A-Za-z0-9-]{3,40}$/.test(number))throw invalid();
  return identity.sql.begin(async tx=>{
   await financeAuthority(tx,principal,'finance.reconciliation.read');
-  const rows=await tx`select s.id shipment_id,o.number order_number,s.cod_due,f.handover_at,mt.courier,mt.tracking_number from app.order_shipment s join app.commerce_order o on o.id=s.order_id join app.fulfillment f on f.shipment_id=s.id
+  const rows=await tx`select s.id shipment_id,o.number order_number,f.handover_at,mt.courier,mt.tracking_number from app.order_shipment s join app.commerce_order o on o.id=s.order_id join app.fulfillment f on f.shipment_id=s.id
    left join lateral (select courier,tracking_number from app.manual_tracking where fulfillment_id=f.id order by version desc limit 1) mt on true
    where o.payment_method='cod' and f.handover_at is not null and f.booking_id is null and mt.tracking_number is not null and not exists(select 1 from app.economic_receipt e where e.shipment_id=s.id and e.kind='cod')
     and not exists(select 1 from app.cod_remittance_line l where l.shipment_id=s.id)
     and (${number}::text is null or o.number=${number}) order by f.handover_at desc,s.id limit 100`;
-  return {data:rows.map(row=>({shipment_id:String(row.shipment_id),order_number:String(row.order_number),cod_due:Number(row.cod_due),handed_over_at:new Date(row.handover_at).toISOString(),courier:row.courier===null?null:String(row.courier),tracking_number:row.tracking_number===null?null:String(row.tracking_number)}))};
+  // cod_due is the CURRENT collection basis (what a statement line is checked against), read without
+  // order locks; the frozen order_shipment.cod_due overstates it after a unit cancellation.
+  const data=[];
+  for(const row of rows)data.push({shipment_id:String(row.shipment_id),order_number:String(row.order_number),cod_due:(await readCodCollectionBasis(tx,String(row.shipment_id))).amount,handed_over_at:new Date(row.handover_at).toISOString(),courier:row.courier===null?null:String(row.courier),tracking_number:row.tracking_number===null?null:String(row.tracking_number)});
+  return {data};
  });
 }

@@ -429,9 +429,10 @@ valid('AdReplayInput', {'expected_version': 1, 'event_id': 'immutable-event-1', 
 dashboard_count = {'key': 'fulfillments_due', 'count': None, 'basis': 'snapshot', 'complete': False, 'queue_key': 'fulfillments', 'kind': 'count', 'amount': None, 'currency': None, 'financial_basis': 'not_applicable', 'definition': 'Authorized due fulfillment snapshot', 'as_of': '2030-01-01T00:00:00Z', 'queue_filter_token': 'synthetic-filter-0001', 'filter_version': 1, 'filter_expires_at': '2030-01-01T01:00:00Z'}
 valid('DashboardMetric', dashboard_count)
 valid('DashboardMetric', {'key': 'company_profit', 'count': 1000, 'basis': 'snapshot', 'complete': True, 'queue_key': 'fulfillments'}, False)
-queue_row = {'id': 'fulfillment-1', 'resource_kind': 'fulfillment', 'state': 'picking', 'due_at': '2030-01-01T00:00:00.000Z', 'due_at_kind': 'packing_deadline', 'warehouse_id': 'warehouse-1', 'version': 1, 'reference': 'ORD-SYNTHETIC-1'}
+queue_row = {'id': 'fulfillment-1', 'resource_kind': 'fulfillment', 'state': 'picking', 'due_at': '2030-01-01T00:00:00.000Z', 'due_at_kind': 'packing_deadline', 'warehouse_id': 'warehouse-1', 'version': 1, 'reference': 'ORD-SYNTHETIC-1', 'order_id': 'order-1'}
 valid('WorkQueueItem', queue_row)
-valid('WorkQueueItem', dict(queue_row, due_at=None, due_at_kind=None, reference=None))
+valid('WorkQueueItem', dict(queue_row, due_at=None, due_at_kind=None, reference=None, order_id=None))
+valid('WorkQueueItem', {k: v for k, v in queue_row.items() if k != 'order_id'}, False)
 valid('WorkQueueItem', dict(queue_row, due_at_kind='deadline'), False)
 valid('WorkQueueItem', {k: v for k, v in queue_row.items() if k != 'reference'}, False)
 valid('WorkQueueItem', dict(queue_row, whole_order_total=198000), False)

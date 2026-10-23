@@ -63,6 +63,6 @@ export async function fulfillmentFixture(method:'cod'|'prepaid'='cod',{calendars
     for(const reservation of Object.values(f.seeded.reservations)){await sql.begin(tx=>releaseReservation(tx,reservation,'SYNTHETIC fulfillment fixture finished'));await sql`delete from app.outbox_job where kind='inventory.reservation.expire' and payload->>'reservationId'=${reservation}`;}
    }finally{try{await closeFulfillmentActor(f.identity,f.owner);}finally{await sql.end();}}
   };
-  return {...f,client,order,parcels,run,fulfillmentCall:call,book,close};
+  return {...f,placeOrder:f.order,client,order,parcels,run,fulfillmentCall:call,book,close};
  }catch(error){try{await campaign?.close();}finally{await f.close();}throw error;}
 }

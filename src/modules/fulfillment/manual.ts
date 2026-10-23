@@ -9,6 +9,7 @@ import {enqueueJob} from '../../jobs/outbox.ts';
 import {lockPaymentOrder} from '../payments/attempts.ts';
 import {financeEnvironment,financeInstant} from '../finance/ledger.ts';
 import {createManualParcelReceiptSource,registerParcelReceiptSource} from '../returns/receipt-source.ts';
+import {readCodCollectionBasis} from '../finance/receipt-units.ts';
 import {advanceFulfillment,fulfillmentClock,lockFulfillment,projectFulfillment} from './core.ts';
 import {commitHandover,commitPreparation,mutate} from './commands.ts';
 
@@ -117,12 +118,49 @@ export async function buyerManualParcel(tx:TransactionSql,shipmentId:string){
  if(!row)return null;const manual=await projectManual(tx,String(row.id));
  return {courier:manual.courier,courier_name:manual.courier_name,tracking_number:manual.tracking_number,tracking_status:manual.tracking_status};
 }
+// S99: the buyer's quoted courier pre-fills "Catat resi" when its name maps to a Mengantar courier
+// code. lazy: aliases cover common spellings only; the live estimate adapter (gated S95) supplies the
+// real Mengantar names. The local simulator's "Pengiriman simulasi" maps to none (operator chooses).
+const COURIER_ALIASES:Record<Courier,string[]>={jne:['jne'],jnt:['jnt','jt','jtexpress'],sicepat:['sicepat'],sap:['sap','sapexpress'],ninja:['ninja','ninjaxpress','ninjaexpress'],
+ anteraja:['anteraja'],idexpress:['idexpress','ide'],lion:['lion','lionparcel'],pos:['pos','posindonesia','posaja']};
+export function quotedCourierCode(name:unknown):Courier|null{
+ if(typeof name!=='string')return null;const key=name.normalize('NFKC').toLowerCase().replace(/[^a-z0-9]/g,'');
+ return (Object.keys(COURIER_ALIASES) as Courier[]).find(code=>COURIER_ALIASES[code].includes(key))??null;
+}
+// Keyset position of the queue order (packing deadline nulls last, created_at, id). Microsecond
+// strings keep ties exact; the cursor carries no authority (scope is re-applied on every page).
+type QueuePosition={d:string|null;c:string;id:string};
+const STAMP=/^\d{4}-\d\d-\d\dT\d\d:\d\d:\d\d\.\d{6}Z$/;
+function queueCursor(value:string|null):QueuePosition|null{
+ if(value===null)return null;if(!/^[A-Za-z0-9_-]{1,400}$/.test(value))throw invalid();
+ try{const p=object(JSON.parse(Buffer.from(value,'base64url').toString()),['d','c','id']);
+  if((p.d!==null&&(typeof p.d!=='string'||!STAMP.test(p.d)))||typeof p.c!=='string'||!STAMP.test(p.c))throw invalid();return {d:p.d as string|null,c:p.c,id:id(p.id)};}
+ catch{throw invalid();}
+}
+async function bookingFacts(tx:TransactionSql,shipmentId:string){
+ const [s]=await tx`select s.snapshot,o.payment_method,q.document->'address' address,
+  (select count(*)::int from app.fulfillment_item unit where unit.shipment_id=s.id and exists(select 1 from app.exception_cancellation c where c.fulfillment_item_id=unit.id and c.replacement_link_id is null)) cancelled_units
+  from app.order_shipment s join app.commerce_order o on o.id=s.order_id join app.checkout_quote q on q.id=o.quote_id where s.id=${shipmentId}`;
+ // R4: the courier collects the CURRENT basis (surviving units incl. their frozen COD fee shares),
+ // the same basis the COD collection and Mengantar remittance check use, never the frozen cod_due.
+ // Non-locking read: a queue page must not lock up to 100 orders (writers keep codCollectionBasis).
+ const basis=s.payment_method==='cod'?await readCodCollectionBasis(tx,shipmentId):null;
+ const items=await tx`select i.snapshot->>'name' name,i.snapshot->'offer'->>'label' variant_label,count(*)::int quantity from app.fulfillment_item unit join app.order_item i on i.id=unit.order_item_id
+  where unit.shipment_id=${shipmentId} and not exists(select 1 from app.exception_cancellation c where c.fulfillment_item_id=unit.id and c.replacement_link_id is null) group by 1,2 order by 1,2`;
+ const rate=(s.snapshot.options as {id:string;courier_name:string;service_name:string}[]).find(option=>option.id===s.snapshot.selected_option_id),measures=s.snapshot.measures,address=s.address;
+ return {cod_amount_due:basis?basis.amount:0,cod_fee_amount:basis?basis.payment_charge:0,cancelled_units:Number(s.cancelled_units),
+  quoted_courier:rate?{courier_name:rate.courier_name,service_name:rate.service_name,code:quotedCourierCode(rate.courier_name)}:null,
+  // Quoted at checkout for the original units; not recomputed after a unit cancellation.
+  parcel:{weight_grams:Number(measures.weight_grams),length_mm:Number(measures.length_mm),width_mm:Number(measures.width_mm),height_mm:Number(measures.height_mm)},
+  destination_area:{subdistrict:String(address.subdistrict),district:String(address.district),city:String(address.city),province:String(address.province),postal_code:String(address.postal_code)},
+  parcel_items:items.map(i=>({name:String(i.name),variant_label:String(i.variant_label),quantity:Number(i.quantity)}))};
+}
 export async function listManualQueue(identity:LocalAuth,principal:Principal,url:URL){
  const names=['queue','warehouse_id','cursor','limit'];
  if([...url.searchParams.keys()].some(k=>!names.includes(k)||url.searchParams.getAll(k).length!==1))throw invalid();
  const queue=url.searchParams.get('queue')??'to_book';if(!['to_book','shipped'].includes(queue))throw invalid();
  const raw=url.searchParams.get('limit')??'20';if(!/^\d{1,3}$/.test(raw))throw invalid();
- const limit=integer(Number(raw),1,100),cursor=url.searchParams.has('cursor')?id(url.searchParams.get('cursor')):null,warehouse=url.searchParams.has('warehouse_id')?id(url.searchParams.get('warehouse_id')):null;
+ const limit=integer(Number(raw),1,100),cursor=queueCursor(url.searchParams.get('cursor')),warehouse=url.searchParams.has('warehouse_id')?id(url.searchParams.get('warehouse_id')):null;
  return identity.sql.begin(async tx=>{
   const access=await inventoryAuthority(tx,principal);if(warehouse)await assertInventoryWarehouse(tx,warehouse,access,false);
   // Warehouses in Mengantar API mode leave this queue (none while the flag is off).
@@ -134,17 +172,26 @@ export async function listManualQueue(identity:LocalAuth,principal:Principal,url
      and exists(select 1 from app.fulfillment_item unit where unit.shipment_id=f.shipment_id and not exists(select 1 from app.exception_cancellation c where c.fulfillment_item_id=unit.id and c.replacement_link_id is null))`
    :tx`f.handover_at is not null and exists(select 1 from app.manual_tracking mt where mt.fulfillment_id=f.id)
      and not exists(select 1 from app.shipment_tracking_event t where t.fulfillment_id=f.id and t.status='delivered')`;
-  const rows=await tx`select f.id from app.fulfillment f join app.order_shipment s on s.id=f.shipment_id join app.warehouse w on w.id=s.warehouse_id
-   where ${membership} and (${cursor}::uuid is null or f.id>${cursor}::uuid) and (${warehouse}::uuid is null or s.warehouse_id=${warehouse}::uuid)
+  // Packing deadline first (nulls last: a warehouse without a calendar has no resi deadline), then age.
+  const position=cursor===null?tx`true`:cursor.d===null
+   ?tx`(d.packing_due_at is null and (f.created_at,f.id)>(${cursor.c}::timestamptz,${cursor.id}::uuid))`
+   :tx`(d.packing_due_at is null or (d.packing_due_at,f.created_at,f.id)>(${cursor.d}::timestamptz,${cursor.c}::timestamptz,${cursor.id}::uuid))`;
+  // Membership scope for every non-owner, ecommerce_admin included (DEC-007 / S91): the same
+  // inventoryAuthority guards the resi writes, so a company-wide list would offer rows it refuses.
+  const rows=await tx`select f.id,to_char(d.packing_due_at at time zone 'UTC','YYYY-MM-DD"T"HH24:MI:SS.US"Z"') due_key,to_char(f.created_at at time zone 'UTC','YYYY-MM-DD"T"HH24:MI:SS.US"Z"') created_key
+   from app.fulfillment f join app.order_shipment s on s.id=f.shipment_id join app.warehouse w on w.id=s.warehouse_id left join app.fulfillment_deadline d on d.id=f.deadline_id
+   where ${membership} and ${position} and (${warehouse}::uuid is null or s.warehouse_id=${warehouse}::uuid)
     and not (s.warehouse_id=any(${automatedIds}::uuid[])) and (w.active or ${warehouse}::uuid is not null)
     and (${access.owner} or exists(select 1 from app.warehouse_membership m where m.user_id=${principal.id} and m.warehouse_id=w.id and w.active))
-   order by f.id limit ${limit+1}`;
+   order by d.packing_due_at asc nulls last,f.created_at asc,f.id asc limit ${limit+1}`;
   const data=[];
   for(const row of rows.slice(0,limit)){
    const fulfillment=await projectFulfillment(tx,row.id),[context]=await tx`select o.number order_number,o.payment_method,w.name warehouse_name,w.city warehouse_city,w.district warehouse_district from app.commerce_order o join app.warehouse w on w.id=${fulfillment.warehouse_id} where o.id=${fulfillment.order_id}`;
-   data.push({...fulfillment,manual:await projectManual(tx,String(row.id)),order_number:String(context.order_number),payment_method:String(context.payment_method),warehouse_name:String(context.warehouse_name),warehouse_city:String(context.warehouse_city),warehouse_district:context.warehouse_district===null?null:String(context.warehouse_district),mode:'manual_dashboard'});
+   data.push({...fulfillment,manual:await projectManual(tx,String(row.id)),order_number:String(context.order_number),payment_method:String(context.payment_method),warehouse_name:String(context.warehouse_name),warehouse_city:String(context.warehouse_city),warehouse_district:context.warehouse_district===null?null:String(context.warehouse_district),mode:'manual_dashboard',
+    booking:await bookingFacts(tx,String(fulfillment.shipment_id))});
   }
-  return {data,pagination:{next_cursor:rows.length>limit?rows[limit-1].id:null}};
+  const last=rows.length>limit?rows[limit-1]:null;
+  return {data,pagination:{next_cursor:last?Buffer.from(JSON.stringify({d:last.due_key,c:last.created_key,id:last.id})).toString('base64url'):null}};
  });
 }
 

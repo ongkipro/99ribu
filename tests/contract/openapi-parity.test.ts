@@ -74,7 +74,7 @@ async function assertProblemJson(
 	return body;
 }
 
-test("S64.1: check-openapi-contract.py validates all 192 paths, 228 operations, and 336 schemas", async () => {
+test("S64.1: check-openapi-contract.py validates all 192 paths, 228 operations, and 337 schemas", async () => {
 	const { stdout } = await exec(
 		"python3",
 		["docs/spec/scripts/check-openapi-contract.py"],
@@ -82,7 +82,7 @@ test("S64.1: check-openapi-contract.py validates all 192 paths, 228 operations, 
 			timeout: 20000,
 		},
 	);
-	assert.match(stdout, /192 paths, 228 operations, 336 schemas/);
+	assert.match(stdout, /192 paths, 228 operations, 337 schemas/);
 });
 
 // S75/DEC-001: 'preparing' (revision 0) is created and promoted to 'pending'
@@ -212,7 +212,7 @@ test("S64.2: every implemented OpenAPI operation has a matching route.ts HTTP me
 	};
 	assert.equal(parsed.paths, 192);
 	assert.equal(parsed.ops.length, 228);
-	assert.equal(parsed.schemas, 336);
+	assert.equal(parsed.schemas, 337);
 
 	const implementedOps = parsed.ops.filter(
 		(op) => op.status === "implemented-local",
