@@ -15486,7 +15486,7 @@ components:
         cancelled_units:
           type: integer
           minimum: 0
-          maximum: 50
+          maximum: 100
         quoted_courier:
           anyOf:
           - type: object
@@ -15560,7 +15560,7 @@ components:
           additionalProperties: false
         parcel_items:
           type: array
-          maxItems: 50
+          maxItems: 100
           items:
             type: object
             properties:

@@ -20,6 +20,7 @@ export function collectionUnitTotals(units:readonly Unit[]):CollectionBasis{
 // the same collectionUnitTotals sum as app.cod_current_collection_basis, but without its FOR UPDATE
 // on the order, so a page of rows never blocks checkout/payment writers. Writers keep the locking
 // codCollectionBasis below; a concurrent cancellation can only make this snapshot stale, never wrong.
+// Mirrors app.cod_current_collection_basis (migrations/0032_payment_methods.sql); change both together.
 export async function readCodCollectionBasis(tx:TransactionSql,shipmentId:string):Promise<CollectionBasis>{
  const selected=id(shipmentId);
  const [parcel]=await tx`select o.payment_method from app.order_shipment s join app.commerce_order o on o.id=s.order_id where s.id=${selected}`;
