@@ -4,6 +4,7 @@ import test from 'node:test';
 import {runOneJob} from '../../src/jobs/worker.ts';
 import {handleAccess} from '../../src/modules/access/routes.ts';
 import {expireOwnedOrderJob} from '../../src/modules/checkout/expiry.ts';
+import {handleAutolarisPayments} from '../../src/modules/finance/autolaris-routes.ts';
 import {handleCodRemittances} from '../../src/modules/finance/cod-remittance-routes.ts';
 import {handleManualTransfers} from '../../src/modules/finance/manual-bank-routes.ts';
 import {handleManualFulfillment} from '../../src/modules/fulfillment/manual-routes.ts';
@@ -12,6 +13,7 @@ import {createAttempt} from '../../src/modules/payments/attempts.ts';
 import {paymentAdapter} from '../../src/modules/payments/worker.ts';
 import {handleReporting,LOW_STOCK_THRESHOLD,TRANSFER_DEADLINE_WARNING_HOURS} from '../../src/modules/reporting/service.ts';
 import {rupiah,wibDateTime,wibInput,wibInputToIso} from '../../src/modules/storefront/format.ts';
+import {handleSupport} from '../../src/modules/support/routes.ts';
 import {actor,enroll} from '../contract/access-fixture.ts';
 import {closeFulfillmentActor,fulfillmentFixture} from './fulfillment-fixture.ts';
 import {paymentFixture} from './payment-fixture.ts';
@@ -42,6 +44,8 @@ test('one IDR formatter: whole rupiah, no decimals, no space',()=>{
 test('WIB helpers read datetime-local values as Asia/Jakarta (+07:00) whatever the device timezone',()=>{
  for(const tz of ['UTC','America/Los_Angeles','Asia/Jakarta','Pacific/Kiritimati'])withTimezone(tz,()=>{
   assert.equal(wibInputToIso('2026-10-24T13:05'),'2026-10-24T06:05:00.000Z',tz);
+  assert.equal(wibInputToIso('2026-10-24T00:30'),'2026-10-23T17:30:00.000Z','00.30 WIB is the previous UTC day');
+  assert.equal(wibInputToIso('2026-10-24T23:59'),'2026-10-24T16:59:00.000Z');
   assert.equal(wibInputToIso('2026-10-24T13:05:09'),'2026-10-24T06:05:09.000Z',tz);
   assert.equal(wibInputToIso('2026-10-24'),'2026-10-23T17:00:00.000Z','a date is 00.00 WIB');
   assert.equal(wibInputToIso('2026-01-01T03:00'),'2025-12-31T20:00:00.000Z','crosses the UTC year boundary');
@@ -51,8 +55,9 @@ test('WIB helpers read datetime-local values as Asia/Jakarta (+07:00) whatever t
   assert.ok(shown.endsWith(' WIB')&&shown.includes('13.05'),shown);
  });
  for(const bad of ['','abc','2026-02-30T10:00','2026-10-24T24:00','2026-13-01','2026-10-24T13:5','2026-10-24 13:05'])assert.equal(wibInputToIso(bad),null,bad);
- // Round trip through the input value never shifts the instant (minute precision).
- const at='2026-10-24T16:59:00.000Z';assert.equal(wibInputToIso(wibInput(at)),at);
+ // Input values for known instants (what a datetime-local shows for a stored time).
+ assert.equal(wibInput('2026-10-23T17:30:00.000Z'),'2026-10-24T00:30');
+ assert.equal(wibInput('2026-10-24T16:59:59.999Z'),'2026-10-24T23:59');
 });
 
 async function dashboard(identity:Identity,user:User,params:Record<string,string>):Promise<Snapshot>{
@@ -72,6 +77,18 @@ async function drilldown(identity:Identity,user:User,snapshot:Snapshot,m:Metric)
  assert.equal(rows.length,m.count,`${m.key}: the card equals its drilldown`);
  return rows;
 }
+
+// The plain queue (no KPI token) for an explicit period, across pages.
+async function queueAll(identity:Identity,user:User,workspace:string,queue:string,from:string,to:string){
+ const rows:Row[]=[];let cursor:string|null=null;
+ do{
+  const q=new URLSearchParams({workspace,queue,from,to,limit:'100'});if(cursor)q.set('cursor',cursor);
+  const response=await handleReporting(user.browser.request(`/api/v1/admin/work-queues?${q}`),identity);assert.equal(response.status,200,JSON.stringify(await response.clone().json()));
+  const page=await response.json() as {data:Row[];pagination:{next_cursor:string|null}};rows.push(...page.data);cursor=page.pagination.next_cursor;
+ }while(cursor);
+ return rows;
+}
+const ids=(rows:{id:string}[])=>[...new Set(rows.map(r=>r.id))].sort();
 
 const ACCOUNTS=[{bank_name:'Bank SINTETIS',account_number:'1234567890',account_holder:'PT SINTETIS 99RIBU'}];
 type PaymentFixture=Awaited<ReturnType<typeof paymentFixture>>;
@@ -133,11 +150,20 @@ test('orders: active counts exclude terminal states; per payment method, near-de
   const placed=await drilldown(f.identity,f.owner,after,byMethod[1]);assert.ok(placed.some(r=>r.id===simulated.id));
   const open=await drilldown(f.identity,f.owner,after,metric(after,'autolaris_pending'));assert.ok(open.some(r=>r.id===auto.id)&&!open.some(r=>r.id===manual.id));
   assert.equal(metric(after,'autolaris_pending').action_href,'/admin/payments');
+  // The two payment KPIs are exactly the finance queues (S92/S93), company-wide.
+  const finance=await financeUser(f.identity,users);
+  const financeQueue=async(path:string,handle:typeof handleManualTransfers)=>{const response=await handle(finance.browser.request(path),f.identity);assert.equal(response.status,200);
+   const rows=(await response.json()).data as {order_id:string;expires_at:string}[];assert.ok(rows.length<100,'the finance queue fits one page');return rows;};
+  assert.deepEqual(ids(open),[...new Set((await financeQueue('/api/v1/admin/autolaris-payments?state=open&limit=100',handleAutolarisPayments)).map(t=>t.order_id))].sort(),'autolaris_pending equals the open AutoLaris queue');
 
   // Near the 24 h deadline: in at (deadline - N + 1 h), out at (deadline - N - 1 h).
   const deadline=new Date(created.expires_at).getTime(),near=async(hoursBefore:number)=>{
-   const snap=await dashboard(f.identity,f.owner,{workspace:'owner',from:window.from,to:window.to,as_of:new Date(deadline-hoursBefore*3600_000).toISOString()});
-   return (await drilldown(f.identity,f.owner,snap,metric(snap,'transfers_near_deadline'))).some(r=>r.id===manual.id);
+   const asOf=deadline-hoursBefore*3600_000;
+   const snap=await dashboard(f.identity,f.owner,{workspace:'owner',from:window.from,to:window.to,as_of:new Date(asOf).toISOString()});
+   const rows=await drilldown(f.identity,f.owner,snap,metric(snap,'transfers_near_deadline'));
+   const queue=(await financeQueue('/api/v1/admin/manual-transfers?state=open&limit=100',handleManualTransfers)).filter(t=>Date.parse(t.expires_at)<=asOf+TRANSFER_DEADLINE_WARNING_HOURS*3600_000);
+   assert.deepEqual(ids(rows),[...new Set(queue.map(t=>t.order_id))].sort(),'transfers_near_deadline equals the open transfer queue due by then');
+   return rows.some(r=>r.id===manual.id);
   };
   assert.equal(await near(TRANSFER_DEADLINE_WARNING_HOURS-1),true);
   assert.equal(await near(TRANSFER_DEADLINE_WARNING_HOURS+1),false);
@@ -146,10 +172,12 @@ test('orders: active counts exclude terminal states; per payment method, near-de
   // WIB conversion: finance types the bank statement's WIB time one minute before the deadline.
   // Read as WIB it is on time; the old device-time reading (here a UTC device) lands 7 h later, after the deadline.
   const typed=wibInput(deadline-60_000),onTime=withTimezone('UTC',()=>wibInputToIso(typed));
+  // Independent oracle: the same wall time with an explicit +07:00 offset, parsed by Date itself.
+  assert.equal(onTime,new Date(`${typed}:00+07:00`).toISOString());
   assert.ok(onTime&&Date.parse(onTime)<deadline);
   assert.ok(withTimezone('UTC',()=>new Date(typed).getTime())>=deadline,'device-time parsing would mark the transfer late');
   const k=await readFixtureClock('test',f.namespace);await advanceFixtureClock('test',f.namespace,Math.ceil((deadline-Date.parse(k.now))/1000)+120,k.version);
-  const finance=await financeUser(f.identity,users),[{expected_amount}]=await sql`select expected_amount from app.payment_attempt where id=${attempt.id}`;
+  const [{expected_amount}]=await sql`select expected_amount from app.payment_attempt where id=${attempt.id}`;
   const req=finance.browser.request(`/api/v1/admin/manual-transfers/${attempt.id}/confirmations`,{amount:Number(expected_amount),bank_reference:`BCA-${randomUUID().slice(0,8)}`,account_number:'1234567890',transferred_at:onTime,late_transfer:false,evidence:'Mutasi rekening (WIB)',reason:'Cocok dengan mutasi',reauthentication_proof:await proof(f,finance,'finance.reconcile',attempt.id)});
   req.headers.set('idempotency-key',randomUUID());const confirmed=await handleManualTransfers(req,f.identity);
   assert.equal(confirmed.status,201,JSON.stringify(await confirmed.clone().json()));
@@ -193,6 +221,22 @@ test('fulfillment: due excludes handed-over parcels, manual booking equals the S
   assert.equal(diff(s1,s2,'cod_receivable'),-due,'a parcel on a Mengantar statement is no longer outstanding');
   assert.equal(diff(s1,s2,'cod_remitted'),due);
   assert.equal(metric(s2,'cod_remitted').action_href,'/admin/cod-settlements');
+  assert.equal(metric(s2,'cod_receivable').basis,'snapshot');
+  // Money is company-wide for owner/finance: the warehouse filter narrows counts only.
+  const {warehouse_id:_scoped,...companyScope}=scope,company=await dashboard(f.identity,f.owner,companyScope);
+  for(const key of ['cod_receivable','cod_remitted'])assert.equal(metric(company,key).amount,metric(s2,key).amount,key);
+
+  // finance_unmatched leaves out matched settlements: settle the statement (seeded terminal state).
+  for(const job of await sql`select p.callback_job_id id from app.cod_remittance_line l join app.local_cod_event e on e.operation_id=l.cod_operation_id join app.cod_provider_event p on p.id=e.id where l.remittance_id=${id}`)await f.run(job.id);
+  const [remittance]=await sql`select match_job_id,settlement_operation_id from app.cod_remittance where id=${id}`;await f.run(remittance.match_job_id);
+  for(const job of await sql`select callback_job_id id from app.settlement_provider_event where operation_id=${remittance.settlement_operation_id} order by id`){
+   const [state]=await sql`select status from app.outbox_job where id=${job.id}`;if(state.status==='pending')await f.run(job.id);
+  }
+  const [settlement]=await sql`select id,status from app.provider_settlement where operation_id=${remittance.settlement_operation_id}`;
+  assert.equal(settlement.status,'matched');
+  const s3=await dashboard(f.identity,f.owner,companyScope);
+  assert.ok(!(await drilldown(f.identity,f.owner,s3,metric(s3,'finance_unmatched'))).some(r=>r.id===settlement.id),'a matched settlement is not unmatched');
+  assert.ok((await queueAll(f.identity,f.owner,'owner','reconciliation',scope.from,scope.to)).some(r=>r.id===settlement.id&&r.state==='matched'),'it stays in the plain queue');
 
   // Role scoping: warehouse sees its warehouses and counts only; money only for owner/finance.
   const staff=await actor(f.identity,'warehouse',[warehouse]);users.push(staff);await enroll(staff.browser,staff.password);
@@ -234,4 +278,51 @@ test('low stock is one row per warehouse SKU, quarantine-aware availability, spl
   const named=await dashboard(f.identity,f.owner,{workspace:'owner',warehouse_id:warehouse});
   const [{name}]=await sql`select name from app.warehouse where id=${warehouse}`;assert.equal(metric(named,'stock_alerts').breakdown?.[0]?.label,name);
  }finally{await f.close();}
+});
+
+// Terminal states for the small queues: the card's drilldown is the plain queue minus terminal
+// states (checked on whatever the test database holds), plus a seeded resolved conversation.
+test('open exceptions, returns, settlements and unassigned conversations exclude terminal states',async()=>{
+ const f=await shippingFixture(),sql=f.identity.sql,conversations:string[]=[];
+ try{
+  const origin='http://127.0.0.1:3099';let cookie='';
+  const guest=async(path:string,body:Record<string,unknown>)=>{
+   const headers=new Headers({origin,'idempotency-key':randomUUID(),'content-type':'application/json'});if(cookie)headers.set('cookie',cookie);
+   const response=await handleSupport(new Request(`${origin}${path}`,{method:'POST',headers,body:JSON.stringify(body)}),f.identity);
+   for(const raw of response.headers.getSetCookie()){const [pair]=raw.split(';');cookie=cookie?`${cookie}; ${pair}`:pair;}
+   return {status:response.status,payload:await response.json()};
+  };
+  const product=f.line('fixture-offer-shirt').product_id;
+  // One guest session per conversation (a session reuses its open conversation).
+  for(let n=0;n<2;n++){cookie='';assert.equal((await guest('/api/v1/guest-support-sessions',{client_request_id:`req-${randomUUID()}`})).status,201);
+   const created=await guest('/api/v1/support/conversations',{client_conversation_id:`conv-${randomUUID()}`,product_id:product});assert.equal(created.status,200,JSON.stringify(created.payload));conversations.push(created.payload.id);}
+  assert.notEqual(conversations[0],conversations[1]);
+  const [stillOpen,resolved]=conversations;
+  const [{revision}]=await sql`select revision from app.support_conversation where id=${resolved}`;
+  const req=f.owner.browser.request(`/api/v1/admin/support/conversations/${resolved}/status`,{status:'resolved',expected_version:Number(revision),reason:'SYNTHETIC S103 terminal state'});req.headers.set('idempotency-key',randomUUID());
+  assert.equal((await handleSupport(req,f.identity)).status,200);
+
+  const [wall]=await sql`select clock_timestamp() now`,now=new Date(wall.now).getTime();
+  const period={from:new Date(now-360*86400_000).toISOString(),to:new Date(now+86400_000).toISOString()};
+  const snap=await dashboard(f.identity,f.owner,{workspace:'owner',...period});
+  const terminal:Record<string,string[]>={delivery_exceptions:['resolved'],returns_pending:['rejected','resolved'],finance_unmatched:['matched']};
+  for(const [key,states] of Object.entries(terminal)){
+   const m=metric(snap,key),card=await drilldown(f.identity,f.owner,snap,m);
+   assert.ok(card.every(r=>!states.includes(r.state)),`${key}: no terminal row`);
+   assert.deepEqual(ids(card),ids((await queueAll(f.identity,f.owner,'owner',m.queue_key,period.from,period.to)).filter(r=>!states.includes(r.state))),`${key}: plain queue minus terminal states`);
+  }
+  const support=await drilldown(f.identity,f.owner,snap,metric(snap,'support_unassigned'));
+  assert.ok(support.some(r=>r.id===stillOpen),'an open unassigned conversation counts');
+  assert.ok(!support.some(r=>r.id===resolved),'a resolved conversation does not');
+  const plain=await queueAll(f.identity,f.owner,'owner','support',period.from,period.to);
+  assert.ok(plain.some(r=>r.id===resolved));
+  assert.ok(support.every(r=>plain.some(p=>p.id===r.id&&p.state==='unassigned')));
+ }finally{
+  if(conversations.length){
+   for(const table of ['support_in_app_notification','support_challenge','support_conversation_tag','support_participant_preference','support_assignment_event','support_read_position','support_internal_note','support_context_card','support_attachment','support_message'])
+    await sql`delete from ${sql(`app.${table}`)} where conversation_id in ${sql(conversations)}`.catch(()=>{});
+   await sql`delete from app.support_conversation where id in ${sql(conversations)}`.catch(()=>{});
+  }
+  await f.close();
+ }
 });

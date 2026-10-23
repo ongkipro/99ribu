@@ -383,8 +383,6 @@ export interface QueueRowInternal {
 	amount_idr: number | null;
 	/** Human reference: order number, waybill, SKU or settlement reference; null when the row has none. */
 	reference: string | null;
-	/** Internal breakdown key (order payment channel); never serialized. */
-	group?: string;
 }
 
 export type DueAtKind =
@@ -414,6 +412,121 @@ async function automatedWarehouseIds(identity: LocalAuth): Promise<string[]> {
 				ids.push(String(row.warehouse_id));
 		return ids;
 	});
+}
+
+type Sql = LocalAuth["sql"];
+
+const isSnapshot = (metric: MetricKey | null) =>
+	metric !== null && SNAPSHOT_METRICS.has(metric);
+// The finance payment queues (S92 /admin/manual-transfers, S93 /admin/autolaris-payments) are
+// company-wide; their KPIs match them exactly, so no warehouse scope applies.
+const PAYMENT_QUEUE_METRICS = new Set<MetricKey>([
+	"transfers_near_deadline",
+	"autolaris_pending",
+]);
+
+/**
+ * FROM/WHERE of the orders queue for a metric. The card's count and its drilldown page use this
+ * same fragment. Conditional fragments (not boolean binds) keep commerce_order_history_idx usable.
+ */
+function ordersSource(
+	sql: Sql,
+	warehouseIds: string[],
+	from: string,
+	to: string,
+	metric: MetricKey | null,
+	asOf: string,
+) {
+	const period = isSnapshot(metric)
+		? sql``
+		: sql`and o.created_at >= ${from}::timestamptz and o.created_at <= ${to}::timestamptz`;
+	// DEC-001: pending/processing are the non-terminal order states; cancelled and
+	// partially_completed (every surviving unit received) are terminal; preparing is not yet placed.
+	const filter =
+		metric === "orders_pending"
+			? sql`and o.status in ('pending', 'processing')`
+			: metric === "orders_by_payment_method"
+				? sql`and o.status <> 'preparing'`
+				: metric === "transfers_near_deadline"
+					? // Exactly the open set of listManualTransfers (src/modules/finance/manual-bank.ts),
+						// limited to attempts due within N hours or already past due. Driven by open attempts.
+						sql`and o.id in (
+              select a.order_id from app.payment_attempt a
+              where a.method_id = 'manual-bank' and a.status in ('pending', 'unknown')
+                and a.expires_at <= ${asOf}::timestamptz + make_interval(hours => ${TRANSFER_DEADLINE_WARNING_HOURS})
+                and not exists (select 1 from app.manual_bank_confirmation c where c.attempt_id = a.id)
+            )`
+					: metric === "autolaris_pending"
+						? // Exactly the open set of listAutolarisPayments (src/modules/finance/autolaris-payments.ts).
+							sql`and o.id in (
+              select a.order_id from app.payment_attempt a join app.autolaris_payment l on l.attempt_id = a.id
+              where a.status in ('preparing', 'pending', 'unknown')
+            )`
+						: sql``;
+	const scope =
+		warehouseIds.length > 0 && !(metric && PAYMENT_QUEUE_METRICS.has(metric))
+			? sql`and (
+          not exists (select 1 from app.order_shipment s0 where s0.order_id = o.id)
+          or exists (select 1 from app.order_shipment s where s.order_id = o.id and s.warehouse_id = any(${warehouseIds}::uuid[]))
+        )`
+			: sql``;
+	return sql`from app.commerce_order o where true ${period} ${filter} ${scope}`;
+}
+
+/** FROM/WHERE of the fulfillments queue for a metric (count and drilldown share it). */
+function fulfillmentsSource(
+	sql: Sql,
+	warehouseIds: string[],
+	from: string,
+	to: string,
+	metric: MetricKey | null,
+	automated: string[],
+) {
+	const period = isSnapshot(metric)
+		? sql``
+		: sql`and f.created_at >= ${from}::timestamptz and f.created_at <= ${to}::timestamptz`;
+	// handed_over is the only terminal fulfillment state; exception still needs work.
+	const filter =
+		metric === "fulfillments_due"
+			? sql`and f.status <> 'handed_over'`
+			: metric === "manual_booking_pending"
+				? // S91 "Perlu dipesan kurir": keep identical to the `to_book` membership predicate of
+					// listManualQueue in src/modules/fulfillment/manual.ts (admin-kpis.test.ts compares the ids).
+					sql`and f.handover_at is null and f.booking_id is null
+            and not exists (select 1 from app.shipment_booking b where b.fulfillment_id = f.id)
+            and (f.status in ('ready', 'picking') or (f.status = 'exception' and f.calendar_error is not null))
+            and exists (
+              select 1 from app.fulfillment_item unit where unit.shipment_id = f.shipment_id
+                and not exists (select 1 from app.exception_cancellation c where c.fulfillment_item_id = unit.id and c.replacement_link_id is null)
+            )
+            and w.active and not (s.warehouse_id = any(${automated}::uuid[]))`
+				: sql``;
+	return sql`from app.fulfillment f
+      join app.order_shipment s on s.id = f.shipment_id
+      join app.warehouse w on w.id = s.warehouse_id
+      left join app.fulfillment_deadline d on d.id = f.deadline_id
+      where s.warehouse_id = any(${warehouseIds}::uuid[]) ${period} ${filter}`;
+}
+
+/**
+ * Stock positions (warehouse x SKU) with the catalog/reservation availability rule: on hand -
+ * reserved - quarantined over lots not expired on the warehouse's local date
+ * (src/modules/catalog/summary.ts, src/modules/inventory/reservations.ts). The id is a stable
+ * synthetic UUID of the position; version sums the lot balance revisions.
+ */
+function stockPositions(sql: Sql, warehouseIds: string[]) {
+	return sql`select md5(b.warehouse_id::text || ':' || b.stock_item_id::text)::uuid::text as id,
+             b.warehouse_id,
+             b.stock_item_id,
+             coalesce(sum(b.on_hand - b.reserved - b.quarantined) filter (
+               where l.expires_on is null or l.expires_on >= (app.inventory_clock(w.id) at time zone w.timezone)::date
+             ), 0)::int as available,
+             sum(b.revision)::int as revision
+      from app.inventory_balance b
+      join app.warehouse w on w.id = b.warehouse_id
+      left join app.inventory_lot l on l.id = b.lot_id
+      where b.warehouse_id = any(${warehouseIds}::uuid[])
+      group by b.warehouse_id, b.stock_item_id`;
 }
 
 // Terminal states a metric leaves out of its queue (the rows' state is the stored status).
@@ -457,34 +570,9 @@ async function queueRows(
 	const sql = identity.sql;
 	const hasWarehouses = warehouseIds.length > 0;
 	const metric = scope?.metric ?? null;
-	// Snapshot metrics count current state; the period does not narrow them.
-	const windowed = !(metric && SNAPSHOT_METRICS.has(metric));
 	const asOf = scope?.asOf ?? to;
 
 	if (queue === "orders") {
-		// DEC-001: pending/processing are the non-terminal order states; cancelled and
-		// partially_completed (every surviving unit received) are terminal; preparing is not yet placed.
-		const filter =
-			metric === "orders_pending"
-				? sql`and o.status in ('pending', 'processing')`
-				: metric === "orders_by_payment_method"
-					? sql`and o.status <> 'preparing'`
-					: metric === "transfers_near_deadline"
-						? // Same open set as the finance transfer queue (S92), due within N hours or already past due.
-							sql`and o.payment_channel = 'manual-bank' and o.status = 'pending' and o.payment_status = 'pending'
-              and o.expires_at <= ${asOf}::timestamptz + make_interval(hours => ${TRANSFER_DEADLINE_WARNING_HOURS})
-              and exists (
-                select 1 from app.payment_attempt a
-                where a.order_id = o.id and a.method_id = 'manual-bank' and a.status in ('pending', 'unknown')
-                  and not exists (select 1 from app.manual_bank_confirmation c where c.attempt_id = a.id)
-              )`
-						: metric === "autolaris_pending"
-							? // Same open set as the finance AutoLaris queue (S93).
-								sql`and exists (
-                select 1 from app.autolaris_payment l join app.payment_attempt a on a.id = l.attempt_id
-                where a.order_id = o.id and a.status in ('preparing', 'pending', 'unknown')
-              )`
-							: sql``;
 		const rows = await sql<
 			{
 				id: string;
@@ -507,17 +595,7 @@ async function queueRows(
              o.created_at,
              coalesce(o.payment_channel, case when o.payment_method = 'cod' then 'cod' else 'local-prepaid' end) as channel,
              (select s.warehouse_id::text from app.order_shipment s where s.order_id = o.id order by s.id limit 1) as warehouse_id
-      from app.commerce_order o
-      where (${!windowed} or (o.created_at >= ${from}::timestamptz and o.created_at <= ${to}::timestamptz))
-        ${filter}
-        and (
-          ${!hasWarehouses}
-          or not exists (select 1 from app.order_shipment s0 where s0.order_id = o.id)
-          or exists (
-            select 1 from app.order_shipment s
-            where s.order_id = o.id and s.warehouse_id::text in ${sql(hasWarehouses ? warehouseIds : ["00000000-0000-0000-0000-000000000000"])}
-          )
-        )
+      ${ordersSource(sql, warehouseIds, from, to, metric, asOf)}
       order by o.created_at desc, o.id asc
     `;
 		return rows
@@ -536,32 +614,15 @@ async function queueRows(
 				version: Number(r.revision ?? 1),
 				amount_idr: Number(r.buyer_total ?? 0),
 				reference: String(r.number),
-				group: String(r.channel),
 			}));
 	}
 
 	if (queue === "fulfillments") {
 		if (!hasWarehouses) return [];
-		// handed_over is the only terminal fulfillment state; exception still needs work.
 		const automated =
 			metric === "manual_booking_pending"
 				? await automatedWarehouseIds(identity)
 				: [];
-		const filter =
-			metric === "fulfillments_due"
-				? sql`and f.status <> 'handed_over'`
-				: metric === "manual_booking_pending"
-					? // S91 "Perlu dipesan kurir" membership, kept identical to listManualQueue's to_book
-						// predicate in src/modules/fulfillment/manual.ts (a test compares both counts).
-						sql`and f.handover_at is null and f.booking_id is null
-              and not exists (select 1 from app.shipment_booking b where b.fulfillment_id = f.id)
-              and (f.status in ('ready', 'picking') or (f.status = 'exception' and f.calendar_error is not null))
-              and exists (
-                select 1 from app.fulfillment_item unit where unit.shipment_id = f.shipment_id
-                  and not exists (select 1 from app.exception_cancellation c where c.fulfillment_item_id = unit.id and c.replacement_link_id is null)
-              )
-              and w.active and not (s.warehouse_id = any(${automated}::uuid[]))`
-					: sql``;
 		const rows = await sql<
 			{
 				id: string;
@@ -585,15 +646,8 @@ async function queueRows(
                   else 'created' end as due_at_kind,
              f.created_at,
              f.tracking_number,
-             o.number as order_number
-      from app.fulfillment f
-      join app.order_shipment s on s.id = f.shipment_id
-      join app.warehouse w on w.id = s.warehouse_id
-      join app.commerce_order o on o.id = s.order_id
-      left join app.fulfillment_deadline d on d.id = f.deadline_id
-      where s.warehouse_id::text in ${sql(warehouseIds)}
-        and (${!windowed} or (f.created_at >= ${from}::timestamptz and f.created_at <= ${to}::timestamptz))
-        ${filter}
+             (select o.number from app.commerce_order o where o.id = s.order_id) as order_number
+      ${fulfillmentsSource(sql, warehouseIds, from, to, metric, automated)}
       order by f.created_at desc, f.id asc
     `;
 		return rows
@@ -721,10 +775,6 @@ async function queueRows(
 
 	if (queue === "inventory") {
 		if (!hasWarehouses) return [];
-		// One row per stock position (warehouse x SKU), not per lot row. Availability is the
-		// catalog/reservation rule: on hand - reserved - quarantined over lots not expired on the
-		// warehouse's local date (src/modules/catalog/summary.ts, src/modules/inventory/reservations.ts).
-		// The row id is a stable synthetic UUID of the position; version sums the lot balance revisions.
 		const rows = await sql<
 			{
 				id: string;
@@ -734,20 +784,10 @@ async function queueRows(
 				sku: string;
 			}[]
 		>`
-      select md5(b.warehouse_id::text || ':' || b.stock_item_id::text)::uuid::text as id,
-             b.warehouse_id::text as warehouse_id,
-             coalesce(sum(b.on_hand - b.reserved - b.quarantined) filter (
-               where l.expires_on is null or l.expires_on >= (app.inventory_clock(w.id) at time zone w.timezone)::date
-             ), 0)::int as available,
-             sum(b.revision)::int as revision,
-             si.sku
-      from app.inventory_balance b
-      join app.warehouse w on w.id = b.warehouse_id
-      join app.stock_item si on si.id = b.stock_item_id
-      left join app.inventory_lot l on l.id = b.lot_id
-      where b.warehouse_id::text in ${sql(warehouseIds)}
-      group by b.warehouse_id, b.stock_item_id, si.sku
-      order by b.warehouse_id, si.sku
+      select p.id, p.warehouse_id::text as warehouse_id, p.available, p.revision, si.sku
+      from (${stockPositions(sql, warehouseIds)}) p
+      join app.stock_item si on si.id = p.stock_item_id
+      order by p.warehouse_id, si.sku
     `;
 		return rows
 			.map((r) => {
@@ -854,10 +894,10 @@ async function queueRows(
 	return [];
 }
 
+// Money metrics are company-wide for owner/finance: a requested warehouse_id narrows the counts,
+// never the money (the definitions say so).
 async function computeMoneyMetrics(
 	identity: LocalAuth,
-	/** The one requested warehouse; null = company-wide (including inactive warehouses' parcels). */
-	warehouseId: string | null,
 	from: string,
 	to: string,
 ): Promise<
@@ -878,17 +918,16 @@ async function computeMoneyMetrics(
 > {
 	const sql = identity.sql;
 
-	// 1. COD outstanding: frozen COD due (cod_due) of parcels from orders created in the period that
-	// were handed to the courier and have no collection outcome yet (no COD receipt, no Mengantar
+	// 1. COD outstanding (balance snapshot, any order date): frozen COD due (cod_due) of parcels
+	// handed to the courier that have no collection outcome yet (no COD receipt, no Mengantar
 	// statement line, no collected/refused COD operation). Unshipped and cancelled parcels owe nothing.
+	// Limitation: a parcel returned to sender stays here until an outcome is recorded (RTS handling
+	// of manual parcels is the DEC-007 (6) follow-up).
 	const [codRow] = await sql<{ amount: string }[]>`
     select coalesce(sum(s.cod_due), 0)::text as amount
     from app.order_shipment s
     join app.commerce_order o on o.id = s.order_id
     where o.payment_method = 'cod'
-      and o.created_at >= ${from}::timestamptz
-      and o.created_at <= ${to}::timestamptz
-      and (${warehouseId}::uuid is null or s.warehouse_id = ${warehouseId}::uuid)
       and exists (select 1 from app.fulfillment f where f.shipment_id = s.id and f.handover_at is not null)
       and not exists (select 1 from app.economic_receipt r where r.shipment_id = s.id and r.kind = 'cod')
       and not exists (select 1 from app.cod_remittance_line l where l.shipment_id = s.id)
@@ -901,10 +940,8 @@ async function computeMoneyMetrics(
     select coalesce(sum(l.amount), 0)::text as amount
     from app.cod_remittance_line l
     join app.cod_remittance r on r.id = l.remittance_id
-    join app.order_shipment s on s.id = l.shipment_id
     where r.statement_at >= ${from}::timestamptz
       and r.statement_at <= ${to}::timestamptz
-      and (${warehouseId}::uuid is null or s.warehouse_id = ${warehouseId}::uuid)
   `;
 
 	// 2. Refund liability: pending/approved refunds + recovery refunds not yet completed
@@ -1168,8 +1205,89 @@ export async function getDashboardSnapshot(
 	).toISOString();
 
 	const allowedKeys = WORKSPACE_METRICS[workspace];
-	const metricRows = (key: MetricKey) =>
-		queryQueueRows(
+	const sql = identity.sql;
+	type Counted = {
+		count: number;
+		breakdown: { key: string; label: string; count: number }[] | null;
+	};
+	// Cards are SQL counts over the same fragments the drilldown pages list; rows are only
+	// materialized for the drilldown (and for the small exception/return/support/settlement queues).
+	// One grouped scan serves both order cards (same period and scope; active is a subset of placed).
+	let orderCounts: Promise<
+		{ channel: string; placed: number; active: number }[]
+	> | null = null;
+	const ordersByChannel = () => {
+		orderCounts ??= (async () =>
+			sql<{ channel: string; placed: number; active: number }[]>`
+        select coalesce(o.payment_channel, case when o.payment_method = 'cod' then 'cod' else 'local-prepaid' end) as channel,
+               count(*)::int as placed,
+               count(*) filter (where o.status in ('pending', 'processing'))::int as active
+        ${ordersSource(sql, warehouseIds, from, to, "orders_by_payment_method", asOf)}
+        group by 1
+      `)();
+		return orderCounts;
+	};
+	const countOf = async (
+		fragment: ReturnType<typeof ordersSource>,
+	): Promise<number> =>
+		Number((await sql<{ n: number }[]>`select count(*)::int as n ${fragment}`)[0].n);
+	const countFor = async (key: MetricKey): Promise<Counted> => {
+		if (key === "orders_pending" || key === "orders_by_payment_method") {
+			const groups = await ordersByChannel();
+			if (key === "orders_pending")
+				return {
+					count: groups.reduce((n, g) => n + g.active, 0),
+					breakdown: null,
+				};
+			const placed = new Map(groups.map((g) => [g.channel, g.placed]));
+			return {
+				count: groups.reduce((n, g) => n + g.placed, 0),
+				// The three launch methods always show (0 included); the local simulation only when present.
+				breakdown: Object.entries(PAYMENT_CHANNEL_LABELS)
+					.filter(([k]) => k !== "local-prepaid" || placed.has(k))
+					.map(([k, label]) => ({ key: k, label, count: placed.get(k) ?? 0 })),
+			};
+		}
+		if (PAYMENT_QUEUE_METRICS.has(key))
+			return {
+				count: await countOf(ordersSource(sql, warehouseIds, from, to, key, asOf)),
+				breakdown: null,
+			};
+		if (key === "fulfillments_due" || key === "manual_booking_pending") {
+			if (warehouseIds.length === 0) return { count: 0, breakdown: null };
+			const ids =
+				key === "manual_booking_pending"
+					? await automatedWarehouseIds(identity)
+					: [];
+			return {
+				count: await countOf(
+					fulfillmentsSource(sql, warehouseIds, from, to, key, ids),
+				),
+				breakdown: null,
+			};
+		}
+		if (key === "stock_alerts") {
+			if (warehouseIds.length === 0) return { count: 0, breakdown: [] };
+			// Per origin warehouse with at least one alert, most alerts first.
+			const perWarehouse = await sql<
+				{ id: string; name: string; n: number }[]
+			>`
+        select w.id::text as id, w.name, count(*)::int as n
+        from (${stockPositions(sql, warehouseIds)}) p join app.warehouse w on w.id = p.warehouse_id
+        where p.available <= ${LOW_STOCK_THRESHOLD}
+        group by w.id, w.name
+        order by n desc, w.name
+      `;
+			return {
+				count: perWarehouse.reduce((n, w) => n + w.n, 0),
+				breakdown: perWarehouse.map((w) => ({
+					key: w.id,
+					label: w.name,
+					count: w.n,
+				})),
+			};
+		}
+		const rows = await queryQueueRows(
 			identity,
 			METRIC_QUEUE_MAP[key],
 			warehouseIds,
@@ -1178,18 +1296,13 @@ export async function getDashboardSnapshot(
 			undefined,
 			{ metric: key, asOf },
 		);
+		return { count: rows.length, breakdown: null };
+	};
 
 	const needsMoney = allowedKeys.some((k) => MONEY_METRICS.has(k));
 	const moneyValues = needsMoney
-		? await computeMoneyMetrics(identity, requestedWarehouseId, from, to)
+		? await computeMoneyMetrics(identity, from, to)
 		: null;
-	const warehouseNames = new Map(
-		(
-			await identity.sql<{ id: string; name: string }[]>`
-        select id::text as id, name from app.warehouse where id::text in ${identity.sql(warehouseIds.length ? warehouseIds : ["00000000-0000-0000-0000-000000000000"])}
-      `
-		).map((w) => [w.id, w.name]),
-	);
 
 	// Each text states exactly what its query counts (S103).
 	const definitions: Record<MetricKey, string> = {
@@ -1210,13 +1323,13 @@ export async function getDashboardSnapshot(
 			"Percakapan terbuka atau menunggu pembeli yang dibuat dalam periode dan belum punya staf penanggung jawab.",
 		finance_unmatched:
 			"Mutasi penyelesaian pembayaran/COD yang dibuat dalam periode dan belum cocok (masih disiapkan, menunggu, cocok sebagian, tidak cocok, atau bermasalah).",
-		transfers_near_deadline: `Transfer bank manual yang belum dikonfirmasi keuangan dengan batas bayar 24 jam tinggal ${TRANSFER_DEADLINE_WARNING_HOURS} jam atau kurang, atau sudah lewat tetapi pesanan belum dibatalkan.`,
+		transfers_near_deadline: `Transfer bank manual yang masih terbuka di antrean Pembayaran (belum dikonfirmasi keuangan) dengan batas bayar tinggal ${TRANSFER_DEADLINE_WARNING_HOURS} jam atau kurang, atau sudah lewat. Seluruh perusahaan, tanpa filter gudang.`,
 		autolaris_pending:
-			"Pesanan dengan pembayaran VA/QRIS AutoLaris yang saat ini masih terbuka (belum lunas, gagal, atau kedaluwarsa).",
+			"Pesanan dengan pembayaran VA/QRIS AutoLaris yang masih terbuka di antrean Pembayaran (belum lunas, gagal, atau kedaluwarsa). Seluruh perusahaan, tanpa filter gudang.",
 		cod_receivable:
-			"COD belum disetor: tagihan COD paket dari pesanan dalam periode yang sudah diserahkan ke kurir tetapi belum punya hasil penagihan atau laporan setoran Mengantar.",
+			"COD belum disetor, saldo saat ini untuk seluruh perusahaan (tanpa filter periode dan gudang): tagihan COD paket yang sudah diserahkan ke kurir tetapi belum punya hasil penagihan atau laporan setoran Mengantar. Paket yang diretur ke pengirim tetap terhitung sampai hasilnya dicatat.",
 		cod_remitted:
-			"COD sudah disetor: nilai COD per paket pada laporan setoran Mengantar bertanggal dalam periode, sebelum potongan ongkir dan biaya COD Mengantar.",
+			"COD sudah disetor untuk seluruh perusahaan (tanpa filter gudang): nilai COD per paket pada laporan setoran Mengantar bertanggal dalam periode, sebelum potongan ongkir dan biaya COD Mengantar.",
 		refund_liability:
 			"Kewajiban pengembalian dana pelanggan yang masih berjalan dalam Rupiah (IDR).",
 		affiliate_liability:
@@ -1227,35 +1340,6 @@ export async function getDashboardSnapshot(
 			"Kontribusi terealisasi setelah penerimaan kas terverifikasi dan biaya komponen lengkap.",
 		net_merchandise_revenue:
 			"Pendapatan bersih barang dagangan (penerimaan terverifikasi dikurangi alokasi refund selesai).",
-	};
-
-	const breakdownFor = (key: MetricKey, rows: QueueRowInternal[]) => {
-		const tally = (keyOf: (r: QueueRowInternal) => string | null) => {
-			const counts = new Map<string, number>();
-			for (const r of rows) {
-				const k = keyOf(r);
-				if (k) counts.set(k, (counts.get(k) ?? 0) + 1);
-			}
-			return counts;
-		};
-		if (key === "orders_by_payment_method") {
-			const counts = tally((r) => r.group ?? null);
-			// The three launch methods always show (0 included); the local simulation only when present.
-			return Object.entries(PAYMENT_CHANNEL_LABELS)
-				.filter(([k]) => k !== "local-prepaid" || counts.has(k))
-				.map(([k, label]) => ({ key: k, label, count: counts.get(k) ?? 0 }));
-		}
-		if (key === "stock_alerts") {
-			// Per origin warehouse with at least one alert, most alerts first.
-			return [...tally((r) => r.warehouse_id).entries()]
-				.map(([k, count]) => ({
-					key: k,
-					label: warehouseNames.get(k) ?? k,
-					count,
-				}))
-				.sort((a, b) => b.count - a.count || a.label.localeCompare(b.label));
-		}
-		return null;
 	};
 
 	const metrics = [];
@@ -1288,10 +1372,10 @@ export async function getDashboardSnapshot(
 		};
 
 		if (!isMoney) {
-			const rows = await metricRows(key);
+			const counted = await countFor(key);
 			metrics.push({
 				...common,
-				count: rows.length,
+				count: counted.count,
 				basis: SNAPSHOT_METRICS.has(key)
 					? ("snapshot" as const)
 					: ("event_period" as const),
@@ -1300,7 +1384,7 @@ export async function getDashboardSnapshot(
 				amount: null,
 				currency: null,
 				financial_basis: "not_applicable" as const,
-				breakdown: breakdownFor(key, rows),
+				breakdown: counted.breakdown,
 			});
 		} else {
 			const m = moneyValues?.[key as keyof NonNullable<typeof moneyValues>];
@@ -1308,7 +1392,10 @@ export async function getDashboardSnapshot(
 			metrics.push({
 				...common,
 				count: null,
-				basis: "event_period" as const,
+				basis:
+					key === "cod_receivable"
+						? ("snapshot" as const)
+						: ("event_period" as const),
 				complete,
 				kind: "money" as const,
 				amount: complete ? (m?.amount ?? 0) : null,

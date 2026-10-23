@@ -143,11 +143,14 @@ test("T-34: role-scoped dashboards, unknown vs zero cost metrics, drilldown cons
 		);
 		assert.ok(codMetric);
 		assert.equal(codMetric.complete, true);
-		assert.equal(
-			codMetric.amount,
-			0,
-			"Zero COD receivable must report numeric 0, not null/unknown",
+		// S103: COD outstanding is a company-wide balance snapshot (not windowed), so only its type is fixed here.
+		assert.ok(Number.isInteger(codMetric.amount) && codMetric.amount >= 0);
+		const remittedMetric = finDash.metrics.find(
+			(m: { key: string }) => m.key === "cod_remitted",
 		);
+		assert.ok(remittedMetric);
+		assert.equal(remittedMetric.complete, true);
+		assert.equal(typeof remittedMetric.amount, "number");
 
 		const netRevMetric = finDash.metrics.find(
 			(m: { key: string }) => m.key === "net_merchandise_revenue",
@@ -183,6 +186,14 @@ test("T-34: role-scoped dashboards, unknown vs zero cost metrics, drilldown cons
 		assert.equal(estContribUnknown.complete, false);
 		assert.equal(estContribUnknown.amount, null);
 		assert.equal(estContribUnknown.financial_basis, "unknown");
+		// A known zero stays numeric 0, never null: no Mengantar statement is dated in 2020.
+		assert.equal(
+			finDashIncomplete.metrics.find(
+				(m: { key: string }) => m.key === "cod_remitted",
+			)?.amount,
+			0,
+			"Zero COD remitted must report numeric 0, not null/unknown",
+		);
 
 		// 5. KPI-to-queue drilldown conservation & 409 mismatch enforcement
 		const ownerDashRes = await handleReporting(
