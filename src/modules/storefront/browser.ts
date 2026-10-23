@@ -1,6 +1,7 @@
 import 'server-only';
 import {cache} from 'react';
 import {cookies,headers} from 'next/headers';
+import {unstable_rethrow} from 'next/navigation';
 import {readLocalConfig} from '../../config/local';
 import {getLocalAuth} from '../access/auth';
 import {AccessError} from '../access/policy';
@@ -21,9 +22,10 @@ export async function storefrontRequest(method:'GET'|'POST'='GET',path='/keranja
 }
 export const currentBrowserCart=cache(async()=>{
  try{return await readBrowserCart(await storefrontRequest(),getLocalAuth());}
- catch(error){return {kind:error instanceof AccessError?'denied' as const:'unavailable' as const,cart:null,code:error instanceof AccessError?error.code:'SERVICE_UNAVAILABLE'};}
+ // Request-time API signals (cookies/headers during prerender) and redirects belong to Next, not to "unavailable".
+ catch(error){unstable_rethrow(error);return {kind:error instanceof AccessError?'denied' as const:'unavailable' as const,cart:null,code:error instanceof AccessError?error.code:'SERVICE_UNAVAILABLE'};}
 });
 export const currentCartView=cache(async()=>{
  try{return await readCartView(await storefrontRequest(),getLocalAuth());}
- catch(error){return {kind:error instanceof AccessError?'denied' as const:'unavailable' as const,cart:null,code:error instanceof AccessError?error.code:'SERVICE_UNAVAILABLE',lines:[],quote:'none' as const};}
+ catch(error){unstable_rethrow(error);return {kind:error instanceof AccessError?'denied' as const:'unavailable' as const,cart:null,code:error instanceof AccessError?error.code:'SERVICE_UNAVAILABLE',lines:[],quote:'none' as const};}
 });

@@ -3,33 +3,55 @@ import { join } from "node:path";
 
 // S84 image content audit, run inside the built image:
 //   docker run --rm --entrypoint node <image> scripts/image-audit.ts
-// Fails when private or test-only material is present anywhere on the image filesystem, or when .local
-// holds anything but the empty volume mount points. System CA bundles under /etc/ssl and /usr/share are
-// not application material and are skipped.
-const forbidden = [
+// Fails when private or test-only material is present anywhere on the image filesystem, when .local
+// holds anything but the empty volume mount points, or when those are not uid 10001 with mode 0700.
+// System CA bundles under /etc/ssl and /usr/share are not application material and are skipped.
+export const RUNTIME_UID = 10001;
+export const VOLUME_DIRECTORIES = ["/app/.local", "/app/.local/catalog-media", "/app/.local/artifacts"];
+const appForbidden = [
   /\.key$/, /\.pem$/, /(^|\/)\.env/, /(^|\/)\.delivery(\/|$)/, /(^|\/)tests?\//, /\.test\.[cm]?[jt]s$/,
   /\/public\/prototypes(\/|$)/, /\/public\/catalog-local(\/|$)/, /localhost-commerce\.json$/, /\/scripts\/check-tests\.ts$/,
   /\/docs\/(?!spec\/fixtures\/shipping-local\.json$)/, /\/design\//,
 ];
+const anywhereForbidden = /\.(?:key|pem)$|(^|\/)\.env/;
 const skip = new Set(["/proc", "/sys", "/dev", "/etc/ssl", "/usr/share", "/usr/lib/ssl"]);
-const app = "/app/";
-const findings: string[] = [];
-function walk(path: string) {
-  if (skip.has(path)) return;
-  let names: string[];
-  try { names = readdirSync(path); } catch { return; }
-  for (const name of names) {
-    const child = join(path, name);
-    const stat = lstatSync(child);
-    // Third-party packages ship their own test folders and sample keys; only the app tree is audited for those.
-    const inApp = child.startsWith(app) && !child.startsWith(`${app}node_modules/`);
-    if (inApp && !stat.isDirectory() && forbidden.some((pattern) => pattern.test(child))) findings.push(child);
-    else if (!inApp && /\.(?:key|pem)$|(^|\/)\.env/.test(name) && !child.startsWith(`${app}node_modules/`)) findings.push(child);
-    if (child.startsWith(`${app}.local/`) && !(stat.isDirectory() && ["/app/.local/catalog-media", "/app/.local/artifacts"].includes(child))) findings.push(child);
-    if (stat.isDirectory() && !stat.isSymbolicLink()) walk(child);
-  }
+
+// Is this non-directory path a finding? Third-party packages under /app/node_modules ship their own test
+// folders and sample keys and are not audited; elsewhere only keys/.env files are.
+export function forbiddenFile(path: string) {
+  if (path.startsWith("/app/node_modules/")) return false;
+  if (path.startsWith("/app/.local/")) return true;
+  if (path.startsWith("/app/")) return appForbidden.some((pattern) => pattern.test(path));
+  return anywhereForbidden.test(path);
 }
-walk("/");
-const owner = lstatSync("/app/.local");
-console.log(JSON.stringify({ findings, local: { uid: owner.uid, mode: (owner.mode & 0o7777).toString(8) }, uid: process.getuid?.() }));
-process.exitCode = findings.length ? 1 : 0;
+
+export function audit(root = "/") {
+  const findings: string[] = [];
+  const walk = (path: string) => {
+    if (skip.has(path)) return;
+    let names: string[];
+    try { names = readdirSync(path); } catch { return; }
+    for (const name of names) {
+      const child = join(path, name);
+      const stat = lstatSync(child);
+      const directory = stat.isDirectory() && !stat.isSymbolicLink();
+      if (!directory && forbiddenFile(child)) findings.push(child);
+      if (directory && child.startsWith("/app/.local/") && !VOLUME_DIRECTORIES.includes(child)) findings.push(child);
+      if (directory) walk(child);
+    }
+  };
+  walk(root);
+  for (const path of VOLUME_DIRECTORIES) {
+    let stat: ReturnType<typeof lstatSync> | undefined;
+    try { stat = lstatSync(path, { throwIfNoEntry: false }); } catch { stat = undefined; } // unreadable = wrong owner
+    if (!stat?.isDirectory() || stat.uid !== RUNTIME_UID || stat.gid !== RUNTIME_UID || (stat.mode & 0o7777) !== 0o700) findings.push(`${path} (must be a ${RUNTIME_UID}:${RUNTIME_UID} 0700 directory)`);
+  }
+  if (process.getuid?.() !== RUNTIME_UID) findings.push(`process uid ${process.getuid?.()} (image USER must be ${RUNTIME_UID})`);
+  return findings;
+}
+
+if (import.meta.main) {
+  const findings = audit();
+  console.log(JSON.stringify({ findings }));
+  process.exitCode = findings.length ? 1 : 0;
+}

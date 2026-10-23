@@ -36,6 +36,7 @@ test("Dockerfile runtime stage: fixed non-root uid, node-only HEALTHCHECK, expli
   assert.ok(user && Number(user[1]) >= 1000 && Number(user[2]) >= 1000, "numeric non-root USER");
   assert.match(runtime, /^HEALTHCHECK .*CMD \["node", "scripts\/healthcheck\.ts"\]$/m);
   assert.match(runtime, /^STOPSIGNAL SIGTERM$/m);
+  assert.match(runtime, /^ENTRYPOINT \["\/usr\/bin\/tini", "--"\]$/m, "an init process forwards signals and reaps children");
   assert.match(runtime, /install -d -o 10001 -g 10001 -m 0700 \.local \.local\/catalog-media \.local\/artifacts/);
   const copies = [...runtime.matchAll(/^COPY --from=build (.+) \S+$/gm)].flatMap((match) => match[1].split(" "));
   for (const source of copies) {
@@ -81,4 +82,17 @@ test("healthcheck: worker heartbeat must be fresh; web must answer /api/health 2
     server.close();
     await rm(directory, { recursive: true, force: true });
   }
+});
+
+test("image audit patterns: private, test and design material is flagged; runtime files and third-party packages are not", async () => {
+  const { forbiddenFile } = await import("../scripts/image-audit.ts");
+  for (const path of [
+    "/app/.env", "/app/.env.production", "/app/.env.example", "/app/.local/auth/local.key", "/app/.local/catalog-media/x.webp",
+    "/app/tests/smoke.test.ts", "/app/src/x.test.ts", "/app/public/prototypes/index.html", "/app/docs/spec/fixtures/localhost-commerce.json",
+    "/app/docs/spec/openapi.yaml", "/app/design/review.md", "/app/scripts/check-tests.ts", "/app/.delivery/runs/x.json", "/root/.env", "/etc/server.key",
+  ]) assert.equal(forbiddenFile(path), true, path);
+  for (const path of [
+    "/app/docs/spec/fixtures/shipping-local.json", "/app/scripts/backup.ts", "/app/src/ops/backup.ts", "/app/data/catalog/berlapak/manifest.json",
+    "/app/public/brand/logo-512.png", "/app/node_modules/some-package/test/fixture.key", "/usr/local/bin/node",
+  ]) assert.equal(forbiddenFile(path), false, path);
 });

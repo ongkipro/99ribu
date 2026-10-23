@@ -22,7 +22,7 @@ FROM node:24.21.0-bookworm-slim@sha256:d6aa754f16b3197301076f047b5def2f02ea1dbbc
 COPY --from=pgdg /usr/local/share/keyrings/postgres.gpg.asc /usr/local/share/keyrings/postgres.gpg.asc
 COPY --from=pgdg /etc/apt/sources.list.d/pgdg.list /etc/apt/sources.list.d/pgdg.list
 RUN apt-get update \
-  && apt-get install --yes --no-install-recommends postgresql-client-18=18.6-1.pgdg12+2 libpq5=18.6-1.pgdg12+2 \
+  && apt-get install --yes --no-install-recommends postgresql-client-18=18.6-1.pgdg12+2 libpq5=18.6-1.pgdg12+2 tini=0.19.0-1+b3 \
   && rm -rf /var/lib/apt/lists/* \
   && groupadd --system --gid 10001 app \
   && useradd --system --uid 10001 --gid 10001 --home-dir /nonexistent --no-create-home --shell /usr/sbin/nologin app
@@ -46,8 +46,12 @@ RUN install -d -o 10001 -g 10001 -m 0700 .local .local/catalog-media .local/arti
 USER 10001:10001
 EXPOSE 3000
 STOPSIGNAL SIGTERM
+# tini is PID 1: it forwards SIGTERM to the app process and reaps orphaned children (no reliance on the
+# platform's --init option).
+ENTRYPOINT ["/usr/bin/tini", "--"]
 HEALTHCHECK --interval=15s --timeout=5s --start-period=120s --retries=3 CMD ["node", "scripts/healthcheck.ts"]
-# Web (default): migrate under the S83 advisory lock, then serve. A failed migration exits non-zero, so
-# the container never turns healthy and Coolify keeps the previous one. `exec` hands PID 1 (and SIGTERM)
-# to Next. Worker: override the command with `node scripts/worker.ts production`.
+# Web (default): migrate, then serve. A failed migration exits non-zero, so the container never turns
+# healthy and Coolify keeps the previous one. NOT RUNNABLE YET: `migrate.ts production` and the
+# 0.0.0.0:$PORT listener under the production profile arrive with S82/S83 (today both are refused).
+# Worker: override the command with `node scripts/worker.ts production` (also S82/S83).
 CMD ["sh", "-c", "node scripts/migrate.ts production && exec node node_modules/next/dist/bin/next start --hostname 0.0.0.0 --port \"$PORT\""]
