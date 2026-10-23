@@ -1230,7 +1230,7 @@ test("S62.3d: canonical replacement affiliate hold, SLA cutoff, and receipt revi
 
 			const client = new CommerceClient(f.identity);
 			const bootRes = new Response(null);
-			await bootstrapGuest(f.identity, bootRes);
+			await bootstrapGuest(f.identity, bootRes, new Request("http://127.0.0.1:3099/api/v1/carts", { method: "POST" }));
 			client.absorb(bootRes);
 			const guestBuyer = await commerceActor(
 				client.request("/api/v1/carts"),

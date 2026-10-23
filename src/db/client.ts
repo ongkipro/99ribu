@@ -18,7 +18,7 @@ export function connectDatabase(target: DatabaseTarget, access: "app" | "owner" 
     throw new Error("The database target must match APP_ENV (production only with production).");
   }
   const endpoint = target === "production"
-    ? { ...productionDatabase(process.env, access), ssl: false as const }
+    ? productionDatabase(process.env, access)
     : { path: join(privateDirectory("pgsocket"), ".s.PGSQL.5432") };
   const sql = postgres({
     ...endpoint,

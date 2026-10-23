@@ -78,9 +78,10 @@ test("host connections require SCRAM and the bootstrap applies exactly once", as
       from pg_roles where rolname like '99ribu_production_%'`;
     assert.equal(roles.restricted, true);
     const [database] = await sql`select pg_get_userbyid(datdba) owner, has_database_privilege('public', '99ribu_production', 'CONNECT') public_connect,
+      has_database_privilege('public', '99ribu_production', 'TEMPORARY') public_temp,
       has_database_privilege('public', 'postgres', 'CONNECT') postgres_connect, has_database_privilege('public', 'template1', 'CONNECT') template_connect
       from pg_database where datname='99ribu_production'`;
-    assert.deepEqual({ ...database }, { owner: "99ribu_production_owner", public_connect: false, postgres_connect: false, template_connect: false });
+    assert.deepEqual({ ...database }, { owner: "99ribu_production_owner", public_connect: false, public_temp: false, postgres_connect: false, template_connect: false });
     // Operators run \password interactively; the rehearsal sets synthetic values the same SCRAM way.
     await sql.unsafe(`ALTER ROLE "99ribu_production_owner" PASSWORD '${password.owner}'`);
     await sql.unsafe(`ALTER ROLE "99ribu_production_app" PASSWORD '${password.app}'`);
@@ -157,6 +158,10 @@ test("production guest bootstrap is budgeted per trusted-proxy client IP and iss
     }
     await assert.rejects(bootstrapGuest(identity, new Response(null), request("203.0.113.30")), (error: unknown) => error instanceof AccessError && error.status === 429);
     await bootstrapGuest(identity, new Response(null), request("203.0.113.31")); // another client keeps its own budget
+    // Two addresses inside one IPv6 /64 share one bucket; the neighbouring /64 does not.
+    for (let index = 0; index < 30; index++) await bootstrapGuest(identity, new Response(null), request(index % 2 ? "2001:db8:1:2::a" : "2001:db8:1:2:ffff::b"));
+    await assert.rejects(bootstrapGuest(identity, new Response(null), request("2001:db8:1:2::c")), (error: unknown) => error instanceof AccessError && error.status === 429);
+    await bootstrapGuest(identity, new Response(null), request("2001:db8:1:3::a"));
     await assert.rejects(bootstrapGuest(identity, new Response(null), new Request("https://99ribu.com/api/v1/carts", { method: "POST" })),
       (error: unknown) => error instanceof AccessError && error.code === "CLIENT_IP_UNAVAILABLE");
   } finally { await identity.sql.end(); process.env = saved; }

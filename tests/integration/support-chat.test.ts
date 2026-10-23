@@ -154,7 +154,7 @@ test("S41-S43 integration: native customer support chat, verified order/product 
 		// Create a real guest order with order_access capability
 		const commerceClient = new CommerceClient(identity);
 		const bootRes = new Response(null);
-		await bootstrapGuest(identity, bootRes);
+		await bootstrapGuest(identity, bootRes, new Request("http://127.0.0.1:3099/api/v1/carts", { method: "POST" }));
 		commerceClient.absorb(bootRes);
 		const guestBuyer = await commerceActor(
 			commerceClient.request("/api/v1/carts"),

@@ -361,7 +361,7 @@ test("S65 & S66 integration: assembled localhost journey across all domains enfo
 		);
 
 		const bootRes = new Response(null);
-		await bootstrapGuest(identity, bootRes);
+		await bootstrapGuest(identity, bootRes, new Request("http://127.0.0.1:3099/api/v1/carts", { method: "POST" }));
 		buyerClient.absorb(bootRes);
 		const guestBuyer = await commerceActor(
 			buyerClient.request("/api/v1/carts"),
@@ -931,7 +931,7 @@ test("S67 integration: independent web/worker restart converges pending and unkn
 		assert.equal(consentRes.status, 201);
 
 		const bootRes = new Response(null);
-		await bootstrapGuest(identity, bootRes);
+		await bootstrapGuest(identity, bootRes, new Request("http://127.0.0.1:3099/api/v1/carts", { method: "POST" }));
 		client.absorb(bootRes);
 		const guestBuyer = await commerceActor(
 			client.request("/api/v1/carts"),

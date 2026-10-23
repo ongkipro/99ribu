@@ -43,7 +43,7 @@ test("startup refuses a malformed tailnet origin before listening, without echoi
 const production = {
   APP_ENV: "production", APP_ORIGIN: "https://99ribu.com", BETTER_AUTH_URL: "https://99ribu.com", BETTER_AUTH_SECRET: randomBytes(48).toString("base64"),
   PAYMENT_ADAPTER: "disabled", SHIPPING_ADAPTER: "disabled", ADS_ADAPTER: "disabled", NOTIFICATION_ADAPTER: "disabled", PAYOUT_ADAPTER: "disabled",
-  EXTERNAL_DISPATCH: "disabled", DATABASE_HOST: "postgres-99ribu.invalid", DATABASE_APP_PASSWORD: "synthetic-app-password-0001", CLIENT_IP_HEADER: "x-real-ip",
+  EXTERNAL_DISPATCH: "disabled", DATABASE_HOST: "postgres-99ribu", DATABASE_APP_PASSWORD: "synthetic-app-password-0001", CLIENT_IP_HEADER: "x-real-ip",
 };
 function run(script: string, args: string[], env: Record<string, string> = production) {
   return spawnSync(process.execPath, ["--env-file=.env.example", script, ...args], { env: { ...process.env, ...env }, encoding: "utf8", timeout: 10000 });

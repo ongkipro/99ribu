@@ -47,7 +47,25 @@ export function productionDatabase(env: Environment, access: "app" | "owner") {
   const name = access === "owner" ? "DATABASE_OWNER_PASSWORD" : "DATABASE_APP_PASSWORD";
   const password = env[name];
   if (!password || password.length < 16) throw new Error(`${name} is required (at least 16 characters).`);
-  return { host, port: port(env.DATABASE_PORT, "DATABASE_PORT", 5432), password };
+  // An external database requires TLS: plaintext is accepted only for a private-network host.
+  const ssl = env.DATABASE_SSL ?? "disable";
+  if (ssl !== "disable" && ssl !== "require" && ssl !== "verify-full") throw new Error("DATABASE_SSL must be disable, require or verify-full.");
+  if (ssl === "disable" && !privateNetworkHost(host)) {
+    throw new Error("DATABASE_SSL must be require or verify-full unless DATABASE_HOST is on a private network.");
+  }
+  return { host, port: port(env.DATABASE_PORT, "DATABASE_PORT", 5432), password, ssl: ssl === "disable" ? false as const : ssl as "require" | "verify-full" };
+}
+
+// Private: loopback, RFC 1918 / IPv6 ULA literals, and Docker-network names (single label, or .internal/.local).
+// Any other DNS name or IP literal may be public, so it needs TLS.
+function privateNetworkHost(host: string) {
+  const version = isIP(host);
+  if (version === 4) {
+    const [a, b] = host.split(".").map(Number);
+    return a === 10 || a === 127 || (a === 172 && b >= 16 && b <= 31) || (a === 192 && b === 168);
+  }
+  if (version === 6) return host === "::1" || /^f[cd][0-9a-f]{0,2}:/i.test(host);
+  return !host.includes(".") || /\.(?:internal|local)$/i.test(host);
 }
 
 // Production profile (S82). Refuses anything the local profile would accept as a convenience: plain http,

@@ -222,7 +222,7 @@ test("PR-8: affiliate enrollment, beneficiary verification, sticky first-touch r
 		// Create a guest order attributed to Affiliate A
 		const client = new CommerceClient(identity);
 		const bootRes = new Response(null);
-		await bootstrapGuest(identity, bootRes);
+		await bootstrapGuest(identity, bootRes, new Request("http://127.0.0.1:3099/api/v1/carts", { method: "POST" }));
 		client.absorb(bootRes);
 		const guestBuyer = await commerceActor(
 			client.request("/api/v1/carts"),

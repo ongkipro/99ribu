@@ -14,6 +14,24 @@ export function clientIp(request: Request) {
   return value;
 }
 
+// Budget key for a client address: IPv4 as is, IPv6 by its /64 (one end site; Better Auth's default ipv6Subnet),
+// so rotating addresses inside one prefix share a bucket. IPv4-mapped IPv6 counts as the IPv4 address.
+export function addressBucket(ip: string) {
+  if (isIP(ip) !== 6) return ip;
+  const lower = ip.toLowerCase();
+  const mapped = /^::ffff:(\d+\.\d+\.\d+\.\d+)$/.exec(lower);
+  if (mapped) return mapped[1];
+  const [head, tail] = lower.split("::");
+  const parts = (value: string | undefined) => (value ? value.split(":") : []).flatMap((group) => {
+    if (!group.includes(".")) return [group];
+    const [a, b, c, d] = group.split(".").map(Number);
+    return [((a << 8) | b).toString(16), ((c << 8) | d).toString(16)];
+  });
+  const left = parts(head), right = tail === undefined ? [] : parts(tail);
+  const groups = [...left, ...Array(8 - left.length - right.length).fill("0"), ...right];
+  return `${groups.slice(0, 4).map((group) => Number.parseInt(group, 16).toString(16)).join(":")}::/64`;
+}
+
 export function privateJson(body: unknown, status = 200) {
   return Response.json(body, { status, headers: { "Cache-Control": "no-store", "Referrer-Policy": "no-referrer", "X-Content-Type-Options": "nosniff" } });
 }

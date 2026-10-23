@@ -4,11 +4,13 @@ import { readFileSync } from "node:fs";
 import { randomBytes } from "node:crypto";
 import test from "node:test";
 import { assertLocalNextCommand, readLocalConfig } from "../src/config/local.ts";
-import { appOrigin, assertProductionNextCommand, readProductionConfig, readRuntimeConfig, runtimeTarget } from "../src/config/runtime.ts";
+import { appOrigin, assertProductionNextCommand, productionDatabase, readProductionConfig, readRuntimeConfig, runtimeTarget } from "../src/config/runtime.ts";
 import { connectDatabase } from "../src/db/client.ts";
 import { createLocalAuth, type LocalAuth } from "../src/modules/access/auth.ts";
 import { handleAuth } from "../src/modules/access/handler.ts";
-import { assertOrigin, clientIp, requestOrigin } from "../src/modules/access/http.ts";
+import { addressBucket, assertOrigin, clientIp, requestOrigin } from "../src/modules/access/http.ts";
+import { autolarisClientFor } from "../src/modules/payments/autolaris.ts";
+import { autolarisChannels } from "../src/modules/storefront/checkout-order.ts";
 import { AccessError } from "../src/modules/access/policy.ts";
 import { prefix, setCookie } from "../src/modules/checkout/access.ts";
 import { submitOrder } from "../src/modules/checkout/orders.ts";
@@ -320,6 +322,38 @@ test("production origin and client IP: exact Host only, and only the configured 
     assert.throws(() => clientIp(request(headers)), (error: unknown) => error instanceof AccessError && error.status === 503 && error.code === "CLIENT_IP_UNAVAILABLE");
   }
 }));
+
+test("client budget keys: IPv4 as is, IPv6 by its /64, IPv4-mapped IPv6 as IPv4", () => {
+  assert.equal(addressBucket("203.0.113.7"), "203.0.113.7");
+  for (const [ip, bucket] of [["2001:db8:1:2::a", "2001:db8:1:2::/64"], ["2001:0DB8:0001:0002:ffff:0:0:b", "2001:db8:1:2::/64"],
+    ["2001:db8::1", "2001:db8:0:0::/64"], ["::1", "0:0:0:0::/64"], ["fe80::1:2:3:4", "fe80:0:0:0::/64"], ["::ffff:198.51.100.9", "198.51.100.9"],
+    ["2001:db8:1:2:3:4:192.0.2.1", "2001:db8:1:2::/64"]]) {
+    assert.equal(addressBucket(ip), bucket, ip);
+  }
+  assert.equal(addressBucket("2001:db8:1:2::a"), addressBucket("2001:db8:1:2:aaaa:bbbb:cccc:dddd"), "one /64 shares a bucket");
+  assert.notEqual(addressBucket("2001:db8:1:2::a"), addressBucket("2001:db8:1:3::a"));
+});
+
+test("production database TLS: plaintext only on a private network, an external database requires TLS", () => {
+  const database = (change: Record<string, string>) => productionDatabase({ ...production, ...change }, "app");
+  for (const host of ["postgres-99ribu", "db.internal", "pg.local", "10.0.0.5", "172.20.1.1", "192.168.1.10", "127.0.0.1", "fd00::5", "::1"]) {
+    assert.equal(database({ DATABASE_HOST: host }).ssl, false, host);
+  }
+  for (const host of ["203.0.113.5", "172.32.0.1", "8.8.8.8", "db.example.com", "2001:db8::5"]) {
+    assert.throws(() => database({ DATABASE_HOST: host }), /DATABASE_SSL must be require or verify-full/, host);
+    assert.equal(database({ DATABASE_HOST: host, DATABASE_SSL: "require" }).ssl, "require");
+    assert.equal(database({ DATABASE_HOST: host, DATABASE_SSL: "verify-full" }).ssl, "verify-full");
+  }
+  for (const mode of ["prefer", "allow", "true", "VERIFY-FULL"]) assert.throws(() => database({ DATABASE_SSL: mode }), /DATABASE_SSL must be disable, require or verify-full/);
+  assert.throws(() => readProductionConfig({ ...production, DATABASE_HOST: "203.0.113.5" }), /DATABASE_SSL/);
+});
+
+test("checkout payment channels: the simulated AutoLaris list only for local/test, none on the production database", async () => {
+  const on = (name: string) => ({ sql: (() => Promise.resolve([{ name }])) as never });
+  assert.ok((await autolarisChannels(on("99ribu_local"))).length > 0, "local keeps the simulated channel list");
+  assert.deepEqual(await autolarisChannels(on("99ribu_production")), []);
+  assert.throws(() => autolarisClientFor("production", on("99ribu_production").sql), (error: unknown) => error instanceof AccessError && error.code === "AUTOLARIS_LIVE_GATED");
+});
 
 test("the local profile keeps one loopback client identity regardless of forwarding headers", () => withTailnet(undefined, () => {
   assert.equal(clientIp(new Request(`${loopback}/`, { headers: { "x-real-ip": "203.0.113.7", "x-forwarded-for": "198.51.100.1" } })), "127.0.0.1");
