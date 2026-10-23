@@ -1,9 +1,13 @@
 import assert from "node:assert/strict";
-import { randomUUID } from "node:crypto";
+import { createHmac, randomUUID } from "node:crypto";
 import test from "node:test";
+import { createLocalAuth } from "../../src/modules/access/auth.ts";
+import { localSigningKey } from "../../src/modules/access/local-key.ts";
 import {
 	handleReporting,
 	sanitizeCsvCell,
+	signTokenPayload,
+	verifyTokenPayload,
 } from "../../src/modules/reporting/service.ts";
 import { actor, cleanup, enroll } from "../contract/access-fixture.ts";
 import { advertisingFixture } from "./advertising-fixture.ts";
@@ -307,6 +311,47 @@ test("T-34: role-scoped dashboards, unknown vs zero cost metrics, drilldown cons
 		);
 		assert.equal(crossActorTokenRes.status, 403);
 
+		// Filter tokens are MACed with the running auth profile's secret: a tampered
+		// payload, the former hard-coded fallback key, the raw test key file and the
+		// other (local) profile's secret are all refused.
+		const issuedToken = String(ordersMetric.queue_filter_token);
+		const [issuedPayload] = issuedToken.split(".");
+		const claims = JSON.parse(
+			Buffer.from(issuedPayload, "base64url").toString("utf8"),
+		);
+		const encode = (value: unknown) =>
+			Buffer.from(JSON.stringify(value), "utf8").toString("base64url");
+		const hmacToken = (key: string, encoded: string) =>
+			`${encoded}.${createHmac("sha256", key).update(encoded).digest("base64url")}`;
+		const widened = encode({ ...claims, from: "2000-01-01T00:00:00.000Z" });
+		const localIdentity = createLocalAuth("local");
+		let otherProfileToken: string;
+		try {
+			otherProfileToken = await signTokenPayload(localIdentity, claims);
+		} finally {
+			await localIdentity.sql.end();
+		}
+		for (const [scenario, token] of [
+			["tampered payload", `${widened}.${issuedToken.split(".")[1]}`],
+			["former fallback key", hmacToken("local-reporting-hmac-key", widened)],
+			["raw test key file", hmacToken(localSigningKey("test"), widened)],
+			["other auth profile secret", otherProfileToken],
+		] as const) {
+			const res = await handleReporting(
+				f.owner.browser.request(
+					`/api/v1/admin/work-queues?workspace=owner&queue=orders&filter_token=${encodeURIComponent(token)}`,
+				),
+				f.identity,
+			);
+			assert.equal(res.status, 409, scenario);
+			assert.equal((await res.json()).code, "INVALID_FILTER_TOKEN", scenario);
+		}
+		assert.deepEqual(
+			await verifyTokenPayload(f.identity, issuedToken),
+			claims,
+			"the running profile still verifies its own token",
+		);
+
 		// 6. Bounded Bulk Selection Preview & CSV Export + Stale Version Rejection + Formula Sanitization
 		const currentOrderVersion =
 			drilldownQueue.data.find((r: { id: string }) => r.id === placedOrder.id)
@@ -358,6 +403,56 @@ test("T-34: role-scoped dashboards, unknown vs zero cost metrics, drilldown cons
 		);
 		assert.equal(whForbiddenExport.status, 403);
 
+		// Export permissions are enforced server-side: selection needs exports.read,
+		// the CSV download needs exports.download (finance may export orders by role).
+		const financeExport = () =>
+			handleReporting(
+				financeStaff.browser.request("/api/v1/admin/exports", {
+					resource: "orders",
+					column_set: "order_service",
+					reason: "Ekspor pesanan keuangan untuk rekonsiliasi",
+					selection: { mode: "explicit_page", resource_ids: [placedOrder.id] },
+				}),
+				f.identity,
+			);
+		const financeSelection = () =>
+			handleReporting(
+				financeStaff.browser.request("/api/v1/admin/export-selections", {
+					resource: "orders",
+					warehouse_id: null,
+					from: ownerDash.from,
+					to: ownerDash.to,
+					statuses: [],
+					max_rows: 100,
+				}),
+				f.identity,
+			);
+		const financeExportAudits = async () =>
+			Number(
+				(
+					await f.identity.sql`select count(*)::int n from app.audit_event
+						where actor_id=${financeStaff.id} and action='admin.export.csv' and outcome='allowed'`
+				)[0].n,
+			);
+		const setFinancePermissions = (granted: string[]) =>
+			f.identity.sql`update app.role_grant set permissions=${granted} where user_id=${financeStaff.id}`;
+		const denied = async (response: Response, scenario: string) => {
+			assert.equal(response.status, 403, scenario);
+			assert.equal((await response.json()).code, "FORBIDDEN", scenario);
+		};
+		await setFinancePermissions([]);
+		await denied(await financeSelection(), "selection without exports.read");
+		await denied(await financeExport(), "export without exports.download");
+		await setFinancePermissions(["exports.read"]);
+		assert.equal((await financeSelection()).status, 201);
+		await denied(await financeExport(), "exports.read alone cannot download");
+		assert.equal(await financeExportAudits(), 0, "denied exports write no allowed audit");
+		await setFinancePermissions(["exports.read", "exports.download"]);
+		const financeCsv = await financeExport();
+		assert.equal(financeCsv.status, 200);
+		assert.ok((await financeCsv.text()).includes(placedOrder.id));
+		assert.equal(await financeExportAudits(), 1, "allowed export audited once");
+
 		// Valid CSV export using frozen selection
 		const csvRes = await handleReporting(
 			f.owner.browser.request("/api/v1/admin/exports", {
@@ -404,7 +499,7 @@ test("T-34: role-scoped dashboards, unknown vs zero cost metrics, drilldown cons
 		assert.equal(unknownOpRes.status, 404);
 	} finally {
 		await f.identity
-			.sql`delete from app.admin_export_selection where actor_id = ${f.owner.id}`;
+			.sql`delete from app.admin_export_selection where actor_id in ${f.identity.sql([f.owner.id, ...extraUsers.map((u) => u.id)])}`;
 		await cleanup(f.identity, extraUsers);
 		await f.close();
 	}

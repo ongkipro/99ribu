@@ -10,12 +10,12 @@ const digest = (value: string) => createHash("sha256").update(value).digest("hex
 const validId = (value: unknown): value is string => typeof value === "string" && /^[A-Za-z0-9_-]{1,100}$/.test(value);
 const list = (value: unknown): value is string[] => Array.isArray(value) && value.length <= 50 && value.every((v) => typeof v === "string") && new Set(value).size === value.length;
 
-export async function assertCurrentOwner(tx: TransactionSql, principal: Principal, freshMfa = false) {
+export async function assertCurrentOwner(tx: TransactionSql, principal: Principal, freshMfa = false, allowedRoles: readonly string[] = ["owner"]) {
   const [owner] = await tx`select g.roles from app.role_grant g join app.auth_user u on u.id=g.user_id
     join app.auth_session s on s.user_id=u.id join app.mfa_session m on m.session_id=s.id
     where u.id=${principal.id} and s.id=${principal.sessionId} and s.expires_at>clock_timestamp() and u.two_factor_enabled
     and (not ${freshMfa} or m.verified_at>clock_timestamp()-interval '5 minutes') for share of g,s,m`;
-  if (!owner?.roles.includes("owner")) throw new AccessError(403, "FORBIDDEN");
+  if (!owner?.roles.some((role: string) => allowedRoles.includes(role))) throw new AccessError(403, "FORBIDDEN");
 }
 
 export async function consumeAccessProof(tx: TransactionSql, principal: Principal, purpose: string, subjectId: string, proof: string) {
@@ -26,25 +26,42 @@ export async function consumeAccessProof(tx: TransactionSql, principal: Principa
   if (!stored?.fresh) throw new AccessError(403, "REAUTHENTICATION_REQUIRED");
 }
 
+// Reviewed proof purposes. Finance purposes need both explicit finance grants; payout
+// purposes follow manual payout claim/verify authority (owner or finance); self purposes
+// bind the caller's own affiliate account or user id and reauthenticate by password
+// (affiliates and buyers are not required to enroll MFA).
+const financePurposes: Record<string, "reconciliation" | "refunds"> = { "finance.reconcile": "reconciliation", "finance.refund": "refunds", "finance.recovery_refund": "refunds" };
+const payoutPurposes = ["payout.claim", "payout.verify"];
+const selfPurposes = ["affiliate.beneficiary_change", "support.contact_rebind"];
+const ownerPurposes = [action, "company_policy.version", "payment_policy.version", "warehouse_calendar.version", "catalog_publication.exception", "affiliate_rate.version"];
+const uuidSubjectPurposes = ["warehouse_calendar.version", "catalog_publication.exception", "affiliate_rate.version", "affiliate.beneficiary_change", ...Object.keys(financePurposes), ...payoutPurposes];
+const uuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
 export async function issueAccessProof(request: Request, principal: Principal, identity: LocalAuth, body: Record<string, unknown>) {
-  const financePurpose=body.action==='finance.reconcile'?'reconciliation':body.action==='finance.refund'?'refunds':null;
-  if(!principal.mfaAt||(financePurpose?(!hasPermission(principal,`finance.${financePurpose}.read`)||!hasPermission(principal,`finance.${financePurpose}.write`)):!principal.roles.includes('owner')))throw new AccessError(403,'FORBIDDEN');
+  const requested = typeof body.action === "string" ? body.action : "";
+  const financePurpose = Object.hasOwn(financePurposes, requested) ? financePurposes[requested] : null;
+  const payoutPurpose = payoutPurposes.includes(requested), selfPurpose = selfPurposes.includes(requested);
+  const authorized = selfPurpose
+    ? (requested === "affiliate.beneficiary_change" ? principal.roles.includes("affiliate") : body.subject_id === principal.id)
+    : Boolean(principal.mfaAt) && (financePurpose ? hasPermission(principal, `finance.${financePurpose}.read`) && hasPermission(principal, `finance.${financePurpose}.write`)
+      : payoutPurpose ? principal.roles.some((role) => role === "owner" || role === "finance") : principal.roles.includes("owner"));
+  if (!authorized) throw new AccessError(403, "FORBIDDEN");
   const key = request.headers.get("idempotency-key");
   if (!key || !/^[A-Za-z0-9_-]{16,200}$/.test(key)) throw new AccessError(400, "INVALID_IDEMPOTENCY_KEY");
   if (Object.keys(body).some((key) => !["password", "action", "subject_id"].includes(key)) || typeof body.action !== "string" ||
-    ![action, "company_policy.version", "payment_policy.version", "warehouse_calendar.version", "catalog_publication.exception", "finance.reconcile", "finance.refund", "affiliate_rate.version"].includes(body.action) ||
+    ![...ownerPurposes, ...Object.keys(financePurposes), ...payoutPurposes, ...selfPurposes].includes(body.action) ||
     !validId(body.subject_id) || typeof body.password !== "string" || body.password.length > 128) throw new AccessError(400, "INVALID_INPUT");
   if ((body.action === "company_policy.version" && body.subject_id !== "company-commercial") || (body.action === "payment_policy.version" && body.subject_id !== "company-payment") ||
-    (["warehouse_calendar.version", "catalog_publication.exception", "finance.reconcile", "finance.refund", "affiliate_rate.version"].includes(body.action) && !/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(body.subject_id))) throw new AccessError(400, "INVALID_INPUT");
+    (uuidSubjectPurposes.includes(body.action) && !uuid.test(body.subject_id))) throw new AccessError(400, "INVALID_INPUT");
   const proofAction = body.action;
-  const subjectId = ["warehouse_calendar.version", "catalog_publication.exception", "finance.reconcile", "finance.refund", "affiliate_rate.version"].includes(proofAction) ? body.subject_id.toLowerCase() : body.subject_id;
+  const subjectId = uuidSubjectPurposes.includes(proofAction) ? body.subject_id.toLowerCase() : body.subject_id;
   const now = Date.now();
   const [rate] = await identity.sql`insert into app.auth_rate_limit (id,key,count,last_request)
     values (${randomUUID()},${`access-proof:${principal.id}`},1,${now}) on conflict (key) do update set
     count=case when app.auth_rate_limit.last_request<${now - 60000} then 1 else app.auth_rate_limit.count+1 end,
     last_request=case when app.auth_rate_limit.last_request<${now - 60000} then ${now} else app.auth_rate_limit.last_request end returning count,last_request`;
   if (rate.count > 5) throw new AccessError(429, "RATE_LIMITED", Math.max(1, Math.ceil((Number(rate.last_request) + 60000 - now) / 1000)));
-  if (now - principal.mfaAt.getTime() > 300000) throw new AccessError(403, "FRESH_MFA_REQUIRED");
+  if (!selfPurpose && (!principal.mfaAt || now - principal.mfaAt.getTime() > 300000)) throw new AccessError(403, "FRESH_MFA_REQUIRED");
   try { await identity.auth.api.verifyPassword({ headers: request.headers, body: { password: body.password } }); }
   catch { throw new AccessError(403, "REAUTHENTICATION_REQUIRED"); }
   // Purpose-separated keyed derivation makes a lost response recoverable without
@@ -55,7 +72,14 @@ export async function issueAccessProof(request: Request, principal: Principal, i
     const [currentUser]=await tx`select id,email_verified from app.auth_user where id=${principal.id} for update`;
     if(!currentUser?.email_verified)throw new AccessError(403,'FORBIDDEN');
     if(financePurpose){await financeAuthority(tx,principal,`finance.${financePurpose}.read`,true);await financeAuthority(tx,principal,`finance.${financePurpose}.write`,true);}
-    else await assertCurrentOwner(tx, principal, true);
+    else if (payoutPurpose) await assertCurrentOwner(tx, principal, true, ["owner", "finance"]);
+    else if (proofAction === "affiliate.beneficiary_change") {
+      // The subject is the caller's own current affiliate account, never another affiliate's.
+      const [own] = await tx`select a.id from app.affiliate_account a join app.role_grant g on g.user_id=a.user_id
+        where a.id=${subjectId} and a.user_id=${principal.id} and 'affiliate'=any(g.roles) for share of a,g`;
+      if (!own) throw new AccessError(403, "FORBIDDEN");
+    }
+    else if (proofAction !== "support.contact_rebind") await assertCurrentOwner(tx, principal, true);
     // Preserve the established per-session issuance identity across reviewed purposes.
     const operationAction = `staff_roles.proof:${principal.sessionId}`;
     const requestHash = digest(JSON.stringify([proofAction, subjectId]));

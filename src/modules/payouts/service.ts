@@ -9,6 +9,7 @@ import {
 	readBody,
 	requestOrigin,
 } from "../access/http.ts";
+import { consumeAccessProof } from "../access/grants.ts";
 import { AccessError, getPrincipal, type Principal } from "../access/policy.ts";
 import {
 	id,
@@ -148,39 +149,6 @@ async function requireFinanceOrOwner(tx: TransactionSql, principal: Principal) {
 	if (!grant?.roles.some((r) => r === "owner" || r === "finance")) {
 		throw new AccessError(403, "FORBIDDEN");
 	}
-}
-
-async function verifyStepUpProof(
-	tx: TransactionSql,
-	principal: Principal,
-	proof: string,
-) {
-	if (proof.length < 8 || /^(invalid|expired|wrong|stale)/i.test(proof)) {
-		throw new AccessError(403, "REAUTHENTICATION_REQUIRED");
-	}
-	const proofDigest = digest(proof);
-	const [stored] = await tx<
-		{
-			digest: string;
-			consumed_at: string | null;
-			fresh: boolean;
-		}[]
-	>`
-    select digest, consumed_at, (expires_at > clock_timestamp()) as fresh
-    from app.access_proof
-    where digest = ${proofDigest} and session_id = ${principal.sessionId}
-    for update
-  `;
-	if (stored) {
-		if (stored.consumed_at || !stored.fresh) {
-			throw new AccessError(403, "REAUTHENTICATION_REQUIRED");
-		}
-		await tx`
-      update app.access_proof set consumed_at = clock_timestamp()
-      where digest = ${proofDigest}
-    `;
-	}
-	return proofDigest;
 }
 
 export async function queueEligibleAffiliatePayouts(
@@ -498,7 +466,13 @@ export async function claimManualPayoutTransfer(
 			return previous.response;
 		}
 
-		await verifyStepUpProof(tx, principal, input.reauthentication_proof);
+		await consumeAccessProof(
+			tx,
+			principal,
+			"payout.claim",
+			selectedId,
+			input.reauthentication_proof,
+		);
 
 		const [payout] = await tx<AffiliatePayoutRow[]>`
       select * from app.affiliate_payout where id = ${selectedId} for update
@@ -907,7 +881,13 @@ export async function verifyManualPayoutTransfer(
 			return previous.response;
 		}
 
-		await verifyStepUpProof(tx, principal, input.reauthentication_proof);
+		await consumeAccessProof(
+			tx,
+			principal,
+			"payout.verify",
+			selectedId,
+			input.reauthentication_proof,
+		);
 
 		const [payout] = await tx<AffiliatePayoutRow[]>`
       select * from app.affiliate_payout where id = ${selectedId} for update

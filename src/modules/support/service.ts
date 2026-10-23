@@ -10,6 +10,7 @@ import {
 	savePrivateArtifact,
 } from "../../storage/private.ts";
 import type { LocalAuth } from "../access/auth.ts";
+import { consumeAccessProof } from "../access/grants.ts";
 import { LIMITS, rateLimit } from "../access/rate-limit.ts";
 import { AccessError, getPrincipal, type Principal } from "../access/policy.ts";
 import {
@@ -485,9 +486,10 @@ export async function requestContactBinding(
 	]);
 	const expectedVersion = integer(body.expected_version, 0);
 	const contact = parseVerifiedContact(body.contact);
+	let reauthenticationProof: string | null = null;
 	if (expectedVersion >= 1) {
-		const proof = text(body.reauthentication_proof, 2000);
-		if (proof.length < 16) throw invalid();
+		reauthenticationProof = text(body.reauthentication_proof, 2000);
+		if (reauthenticationProof.length < 16) throw invalid();
 	} else if (body.reauthentication_proof !== undefined) {
 		throw invalid();
 	}
@@ -516,6 +518,22 @@ export async function requestContactBinding(
 	}
 	if (expectedVersion !== currentVersion) {
 		throw new AccessError(409, "VERSION_CONFLICT");
+	}
+	if (reauthenticationProof !== null) {
+		// Replacing a verified contact requires original-identity reauthentication:
+		// a session/action/subject-bound single-use proof from
+		// POST /me/reauthentication-proofs. A guest support identity has no
+		// password session, so no reviewed reauthentication exists; fail closed.
+		if (actor.kind !== "user") {
+			throw new AccessError(403, "REAUTHENTICATION_REQUIRED");
+		}
+		await consumeAccessProof(
+			tx,
+			actor.principal,
+			"support.contact_rebind",
+			actor.id,
+			reauthenticationProof,
+		);
 	}
 	await rateLimit(
 		tx,

@@ -894,7 +894,11 @@ paths:
         UUIDs; issuance alone does not implement an affiliate rate mutation. finance.reconcile permits owner or
         finance with both explicit finance.reconciliation.read and finance.reconciliation.write grants. Accepted
         S31 finance.refund requires both finance.refunds.read and finance.refunds.write, with current native/built
-        proof recorded in STATUS. Current database authority is checked before proof replay. Proof binds the current
+        proof recorded in STATUS; finance.recovery_refund (exception/refund UUID subject) requires the same refund
+        grants. payout.claim and payout.verify (payout UUID subject) permit owner or finance with fresh MFA.
+        Self purposes reauthenticate by current password only (no MFA enrollment required);
+        affiliate.beneficiary_change binds the caller's own affiliate account UUID; support.contact_rebind binds
+        the caller's own user id. Current database authority is checked before proof replay. Proof binds the current
         session, action and target, expires after five minutes, and is consumed atomically by the mutation. Same
         retry key recovers the same unconsumed proof without extending expiry; consumed or expired proof requires
         a new key. Rate-limited by principal. No raw proof or password in audit/logs. S09 local implementation;
@@ -18098,8 +18102,9 @@ components:
       - account_holder_name
       - reauthentication_proof
       additionalProperties: false
-      description: Sensitive input, never log. Reauthentication proof is bound to actor/action and expires; provider-specific
-        verification adapter pending.
+      description: Sensitive input, never log. Reauthentication proof is an affiliate.beneficiary_change proof from
+        /me/reauthentication-proofs bound to the session, action and the caller's affiliate account; single use and
+        expiring (403 REAUTHENTICATION_REQUIRED otherwise). Provider-specific verification adapter pending.
     Beneficiary:
       type: object
       properties:
@@ -20205,7 +20210,12 @@ components:
           - catalog_publication.exception
           - finance.reconcile
           - finance.refund
+          - finance.recovery_refund
           - affiliate_rate.version
+          - payout.claim
+          - payout.verify
+          - affiliate.beneficiary_change
+          - support.contact_rebind
         subject_id:
           type: string
           pattern: ^[A-Za-z0-9_-]{1,100}$
@@ -20234,7 +20244,11 @@ components:
               - catalog_publication.exception
               - finance.reconcile
               - finance.refund
+              - finance.recovery_refund
               - affiliate_rate.version
+              - payout.claim
+              - payout.verify
+              - affiliate.beneficiary_change
         then:
           properties:
             subject_id:
@@ -24293,7 +24307,8 @@ components:
       additionalProperties: false
       description: Optional verified recovery contact for the current owned support identity, without forced signup/email.
         Initial expected_version=0; changing an existing binding requires current original-identity reauthentication
-        and new-contact proof. Contact text cannot discover/link old threads. Supported challenge transport and
+        (a support.contact_rebind proof from /me/reauthentication-proofs for the signed-in user; a guest support
+        identity has no reviewed reauthentication and is refused with 403 REAUTHENTICATION_REQUIRED) and new-contact proof. Contact text cannot discover/link old threads. Supported challenge transport and
         retention are IAM gates.
       allOf:
       - if:

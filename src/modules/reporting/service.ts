@@ -1,4 +1,4 @@
-import { createHmac, randomUUID, timingSafeEqual } from "node:crypto";
+import { randomUUID, timingSafeEqual } from "node:crypto";
 import type { LocalAuth } from "../access/auth.ts";
 import {
 	assertOrigin,
@@ -6,14 +6,14 @@ import {
 	problem,
 	readBody,
 } from "../access/http.ts";
-import { localSigningKey } from "../access/local-key.ts";
 import {
 	AccessError,
 	getPrincipal,
+	hasPermission,
 	type Principal,
 	type Role,
 } from "../access/policy.ts";
-import { digest } from "../checkout/access.ts";
+import { digest, mac } from "../checkout/access.ts";
 
 export type CanonicalWorkspace =
 	| "owner"
@@ -151,34 +151,28 @@ const MONEY_METRICS = new Set<MetricKey>([
 	"net_merchandise_revenue",
 ]);
 
-function resolveSecret(): string {
-	try {
-		return localSigningKey("test");
-	} catch {
-		return "local-reporting-hmac-key";
-	}
-}
-
-function signTokenPayload(payload: Record<string, unknown>): string {
+// Keyed by the running auth profile's secret (purpose-separated); no fallback key.
+export async function signTokenPayload(
+	identity: LocalAuth,
+	payload: Record<string, unknown>,
+): Promise<string> {
 	const encoded = Buffer.from(JSON.stringify(payload), "utf8").toString(
 		"base64url",
 	);
-	const sig = createHmac("sha256", resolveSecret())
-		.update(encoded)
-		.digest("base64url");
-	return `${encoded}.${sig}`;
+	return `${encoded}.${await mac(identity, "reporting-filter", [encoded])}`;
 }
 
-function verifyTokenPayload(token: string): Record<string, unknown> {
+export async function verifyTokenPayload(
+	identity: LocalAuth,
+	token: string,
+): Promise<Record<string, unknown>> {
 	if (typeof token !== "string" || token.length < 16 || token.length > 2000) {
 		throw new AccessError(409, "INVALID_FILTER_TOKEN");
 	}
 	const parts = token.split(".");
 	if (parts.length !== 2) throw new AccessError(409, "INVALID_FILTER_TOKEN");
 	const [encoded, sig] = parts;
-	const expected = createHmac("sha256", resolveSecret())
-		.update(encoded)
-		.digest("base64url");
+	const expected = await mac(identity, "reporting-filter", [encoded]);
 	const a = Buffer.from(sig, "utf8");
 	const b = Buffer.from(expected, "utf8");
 	if (a.length !== b.length || !timingSafeEqual(a, b)) {
@@ -1041,7 +1035,7 @@ export async function getDashboardSnapshot(
 			queue_key: queueKey,
 			exp: filterExpiresAt,
 		};
-		const queueFilterToken = signTokenPayload(tokenPayload);
+		const queueFilterToken = await signTokenPayload(identity, tokenPayload);
 
 		if (!isMoney) {
 			metrics.push({
@@ -1156,7 +1150,7 @@ export async function listWorkQueue(request: Request, identity: LocalAuth) {
 	let to: string;
 
 	if (filterToken) {
-		const decoded = verifyTokenPayload(filterToken);
+		const decoded = await verifyTokenPayload(identity, filterToken);
 		if (decoded.actor_id !== principal.id) {
 			throw new AccessError(403, "FORBIDDEN");
 		}
@@ -1263,10 +1257,16 @@ const RESOURCE_COLUMN_SETS: Record<string, string[]> = {
 
 function authorizeExportResource(
 	principal: Principal,
+	permission: "exports.read" | "exports.download",
 	resource: string,
 	columnSet?: string,
 ): CanonicalWorkspace {
 	const workspace = resolveWorkspace(principal, null);
+	// Contract: freezing a selection needs exports.read; producing the CSV
+	// download needs exports.download. hasPermission grants owner both.
+	if (!hasPermission(principal, permission)) {
+		throw new AccessError(403, "FORBIDDEN");
+	}
 	const isOwner = principal.roles.includes("owner");
 	if (!Object.hasOwn(RESOURCE_QUEUE_MAP, resource)) {
 		throw new AccessError(400, "INVALID_INPUT");
@@ -1333,7 +1333,7 @@ export async function createExportSelection(
 	const body = await readBody(request);
 
 	const resource = typeof body.resource === "string" ? body.resource : "";
-	const workspace = authorizeExportResource(principal, resource);
+	const workspace = authorizeExportResource(principal, "exports.read", resource);
 
 	const requestedWarehouseId =
 		body.warehouse_id === null || body.warehouse_id === undefined
@@ -1468,7 +1468,7 @@ export async function createExportSelection(
 			rows: rowSnapshot,
 		}),
 	);
-	const filterToken = signTokenPayload({
+	const filterToken = await signTokenPayload(identity, {
 		selection_id: selectionId,
 		actor_id: principal.id,
 		resource,
@@ -1540,7 +1540,12 @@ export async function exportCsv(
 	if (!reason || reason.length > 1000)
 		throw new AccessError(400, "INVALID_INPUT");
 
-	const workspace = authorizeExportResource(principal, resource, columnSet);
+	const workspace = authorizeExportResource(
+		principal,
+		"exports.download",
+		resource,
+		columnSet,
+	);
 	const warehouseIds = await resolveAuthorizedWarehouses(
 		identity,
 		principal,
@@ -1575,7 +1580,7 @@ export async function exportCsv(
 		if (!filterToken || filterVersion < 1)
 			throw new AccessError(400, "INVALID_INPUT");
 
-		const decoded = verifyTokenPayload(filterToken);
+		const decoded = await verifyTokenPayload(identity, filterToken);
 		if (decoded.actor_id !== principal.id)
 			throw new AccessError(403, "FORBIDDEN");
 		if (

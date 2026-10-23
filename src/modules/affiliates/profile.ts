@@ -8,6 +8,7 @@ import {
 	problem,
 	readBody,
 } from "../access/http.ts";
+import { consumeAccessProof } from "../access/grants.ts";
 import { AccessError, getPrincipal, type Principal } from "../access/policy.ts";
 import { invalid, object, text } from "../catalog/validation.ts";
 import {
@@ -371,13 +372,6 @@ export async function changeAffiliateBeneficiary(
 	const requestHash = digest(JSON.stringify(intent));
 	const proofDigest = digest(input.reauthentication_proof);
 
-	if (
-		input.reauthentication_proof.length < 8 ||
-		/^(invalid|expired|wrong|stale)/i.test(input.reauthentication_proof)
-	) {
-		throw new AccessError(403, "REAUTHENTICATION_REQUIRED");
-	}
-
 	return identity.sql.begin(async (tx) => {
 		await requireAffiliateRole(tx, principal);
 		const [previous] = await tx<
@@ -403,28 +397,15 @@ export async function changeAffiliateBeneficiary(
 		if (profile.status !== "active")
 			throw new AccessError(403, "AFFILIATE_SUSPENDED");
 
-		// Check if an explicit access_proof exists for this proof digest; if so, require it to be fresh & unconsumed.
-		const [storedProof] = await tx<
-			{
-				digest: string;
-				consumed_at: string | null;
-				fresh: boolean;
-			}[]
-		>`
-      select digest, consumed_at, (expires_at > clock_timestamp()) as fresh
-      from app.access_proof
-      where digest = ${proofDigest} and session_id = ${principal.sessionId}
-      for update
-    `;
-		if (storedProof) {
-			if (storedProof.consumed_at || !storedProof.fresh) {
-				throw new AccessError(403, "REAUTHENTICATION_REQUIRED");
-			}
-			await tx`
-        update app.access_proof set consumed_at = clock_timestamp()
-        where digest = ${proofDigest}
-      `;
-		}
+		// Session-, action- and account-bound single-use proof issued by
+		// POST /me/reauthentication-proofs (password reauthentication).
+		await consumeAccessProof(
+			tx,
+			principal,
+			"affiliate.beneficiary_change",
+			profile.affiliate_id,
+			input.reauthentication_proof,
+		);
 
 		const nextBeneficiaryRevision = profile.beneficiary_revision + 1;
 		const operationId = randomUUID();

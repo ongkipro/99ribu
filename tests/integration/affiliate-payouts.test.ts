@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import { randomUUID } from "node:crypto";
 import test from "node:test";
+import { handleAccess } from "../../src/modules/access/routes.ts";
 import { handleAffiliateProfile } from "../../src/modules/affiliates/profile.ts";
 import {
 	bootstrapGuest,
@@ -29,6 +30,24 @@ test("PR-10: IDR 89,100 vs 99,000 threshold, frozen beneficiary snapshot, exclus
 	const finance2 = await actor(f.identity, "finance", []);
 	const sql = f.identity.sql;
 	const identity = f.identity;
+	const issueProof = (who: typeof finance1, action: string, subjectId: string) => {
+		const request = who.browser.request("/api/v1/me/reauthentication-proofs", {
+			password: who.password,
+			action,
+			subject_id: subjectId,
+		});
+		request.headers.set("idempotency-key", randomUUID());
+		return handleAccess(request, identity);
+	};
+	const proofFor = async (
+		who: typeof finance1,
+		action: string,
+		subjectId: string,
+	) => {
+		const response = await issueProof(who, action, subjectId);
+		assert.equal(response.status, 201, `${action} proof issuance`);
+		return String((await response.json()).proof);
+	};
 
 	try {
 		await enroll(finance1.browser, finance1.password);
@@ -211,7 +230,11 @@ test("PR-10: IDR 89,100 vs 99,000 threshold, frozen beneficiary snapshot, exclus
 				bank_code: "MANDIRI",
 				account_number: "9999888877",
 				account_holder_name: "Mitra Baru",
-				reauthentication_proof: `proof-${randomUUID()}`,
+				reauthentication_proof: await proofFor(
+					affiliate,
+					"affiliate.beneficiary_change",
+					profile.id,
+				),
 			},
 		);
 		changeBenReq.headers.set("idempotency-key", randomUUID());
@@ -220,16 +243,60 @@ test("PR-10: IDR 89,100 vs 99,000 threshold, frozen beneficiary snapshot, exclus
 			202,
 		);
 
-		// 5. Finance 1 claims payout1 exclusively; Finance 2 concurrent claim is rejected with 409
-		const claimReq1 = finance1.browser.request(
-			`/api/v1/admin/payouts/${payout1.id}/manual-transfer-claims`,
-			{
-				expected_version: 1,
-				reauthentication_proof: `fin1-claim-${randomUUID()}`,
-			},
+		// 5. Step-up proof must be a real, unexpired, unconsumed proof bound to this
+		// finance session, the payout.claim action and this exact payout.
+		const claim = (who: typeof finance1, version: number, proof: string) => {
+			const request = who.browser.request(
+				`/api/v1/admin/payouts/${payout1.id}/manual-transfer-claims`,
+				{ expected_version: version, reauthentication_proof: proof },
+			);
+			request.headers.set("idempotency-key", randomUUID());
+			return handlePayouts(request, identity);
+		};
+		const claimRejected = async (proof: string, scenario: string) => {
+			const response = await claim(finance1, 1, proof);
+			assert.equal(response.status, 403, scenario);
+			assert.equal(
+				(await response.json()).code,
+				"REAUTHENTICATION_REQUIRED",
+				scenario,
+			);
+		};
+		await claimRejected(`fin1-claim-${randomUUID()}`, "random unissued string");
+		await claimRejected(
+			await proofFor(finance1, "payout.verify", payout1.id),
+			"proof issued for another action",
 		);
-		claimReq1.headers.set("idempotency-key", randomUUID());
-		const claimRes1 = await handlePayouts(claimReq1, identity);
+		await claimRejected(
+			await proofFor(finance1, "payout.claim", randomUUID()),
+			"proof issued for another payout",
+		);
+		await claimRejected(
+			await proofFor(finance2, "payout.claim", payout1.id),
+			"proof issued to another finance session",
+		);
+		const expiredClaimProof = await proofFor(
+			finance1,
+			"payout.claim",
+			payout1.id,
+		);
+		await sql`update app.access_proof set expires_at=clock_timestamp()-interval '1 second'
+			where action='payout.claim' and subject_id=${payout1.id} and consumed_at is null
+			and session_id in (select id from app.auth_session where user_id=${finance1.id})`;
+		await claimRejected(expiredClaimProof, "expired proof");
+		const affiliateIssue = await issueProof(affiliate, "payout.claim", payout1.id);
+		assert.equal(affiliateIssue.status, 403, "affiliate cannot obtain payout proof");
+		const [untouched] = await sql<{ status: string; revision: number }[]>`
+      select status, revision from app.affiliate_payout where id = ${payout1.id}
+    `;
+		assert.deepEqual(
+			{ ...untouched },
+			{ status: "queued", revision: 1 },
+			"rejected proofs leave the payout unclaimed",
+		);
+		// Finance 1 claims payout1 exclusively; Finance 2 concurrent claim is rejected with 409
+		const claimProof1 = await proofFor(finance1, "payout.claim", payout1.id);
+		const claimRes1 = await claim(finance1, 1, claimProof1);
 		assert.equal(claimRes1.status, 200);
 		const claimed1 = await claimRes1.json();
 		assert.equal(claimed1.payout.status, "processing");
@@ -242,16 +309,16 @@ test("PR-10: IDR 89,100 vs 99,000 threshold, frozen beneficiary snapshot, exclus
 			account_holder_name: "Mitra Awal",
 		});
 
-		const claimReq2 = finance2.browser.request(
-			`/api/v1/admin/payouts/${payout1.id}/manual-transfer-claims`,
-			{
-				expected_version: 2,
-				reauthentication_proof: `fin2-claim-${randomUUID()}`,
-			},
+		const claimRes2 = await claim(
+			finance2,
+			2,
+			await proofFor(finance2, "payout.claim", payout1.id),
 		);
-		claimReq2.headers.set("idempotency-key", randomUUID());
-		const claimRes2 = await handlePayouts(claimReq2, identity);
 		assert.equal(claimRes2.status, 409);
+		// A consumed proof is single use: replay is rejected before any claim logic.
+		const replayed = await claim(finance1, 2, claimProof1);
+		assert.equal(replayed.status, 403);
+		assert.equal((await replayed.json()).code, "REAUTHENTICATION_REQUIRED");
 
 		// 6. Evidence upload by active claim holder (Finance 1)
 		const uploadReq = finance1.browser.request(
@@ -280,7 +347,30 @@ test("PR-10: IDR 89,100 vs 99,000 threshold, frozen beneficiary snapshot, exclus
 		assert.ok(!affPayoutsJson.includes(uploaded.upload_url));
 		assert.ok(!affPayoutsJson.includes(claimed1.payout.transfer_claim_id));
 
-		// 7. Manual transfer verification with wrong evidence_id fails with 422
+		// 7. Verification needs its own payout.verify proof; a forged string is refused.
+		const forgedVerifyReq = finance1.browser.request(
+			`/api/v1/admin/payouts/${payout1.id}/manual-transfer-verifications`,
+			{
+				expected_version: 2,
+				transfer_claim_id: claimed1.payout.transfer_claim_id,
+				bank_transfer_reference: `BCA-REF-${randomUUID()}`,
+				evidence_id: uploaded.id,
+				transferred_at: "2026-06-12T09:30:00.000Z",
+				reason: "Verifikasi bukti transfer manual BCA",
+				reauthentication_proof: `fin1-verify-${randomUUID()}`,
+			},
+		);
+		forgedVerifyReq.headers.set("idempotency-key", randomUUID());
+		const forgedVerifyRes = await handlePayouts(forgedVerifyReq, identity);
+		assert.equal(forgedVerifyRes.status, 403);
+		assert.equal(
+			(await forgedVerifyRes.json()).code,
+			"REAUTHENTICATION_REQUIRED",
+		);
+		// One proof serves the failed attempts below: each failure rolls back its consumption.
+		const verifyProof = await proofFor(finance1, "payout.verify", payout1.id);
+
+		// Manual transfer verification with wrong evidence_id fails with 422
 		const badVerifyReq = finance1.browser.request(
 			`/api/v1/admin/payouts/${payout1.id}/manual-transfer-verifications`,
 			{
@@ -290,7 +380,7 @@ test("PR-10: IDR 89,100 vs 99,000 threshold, frozen beneficiary snapshot, exclus
 				evidence_id: randomUUID(),
 				transferred_at: "2026-06-12T09:30:00.000Z",
 				reason: "Verifikasi bukti transfer manual BCA",
-				reauthentication_proof: `fin1-verify-${randomUUID()}`,
+				reauthentication_proof: verifyProof,
 			},
 		);
 		badVerifyReq.headers.set("idempotency-key", randomUUID());
@@ -306,7 +396,7 @@ test("PR-10: IDR 89,100 vs 99,000 threshold, frozen beneficiary snapshot, exclus
 				evidence_id: uploaded.id,
 				transferred_at: "2026-06-12T09:30:00.000Z",
 				reason: "Verifikasi bukti transfer manual BCA Rp99.000",
-				reauthentication_proof: `fin1-verify-${randomUUID()}`,
+				reauthentication_proof: verifyProof,
 			},
 		);
 		unuploadedVerifyReq.headers.set("idempotency-key", randomUUID());
@@ -348,7 +438,7 @@ test("PR-10: IDR 89,100 vs 99,000 threshold, frozen beneficiary snapshot, exclus
 				evidence_id: uploaded.id,
 				transferred_at: "2026-06-12T09:30:00.000Z",
 				reason: "Verifikasi bukti transfer manual BCA Rp99.000",
-				reauthentication_proof: `fin1-verify-${randomUUID()}`,
+				reauthentication_proof: verifyProof,
 			},
 		);
 		validVerifyReq.headers.set("idempotency-key", randomUUID());
