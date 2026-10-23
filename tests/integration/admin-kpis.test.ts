@@ -3,6 +3,7 @@ import {randomUUID} from 'node:crypto';
 import test from 'node:test';
 import {runOneJob} from '../../src/jobs/worker.ts';
 import {handleAccess} from '../../src/modules/access/routes.ts';
+import {commerceActor} from '../../src/modules/checkout/access.ts';
 import {expireOwnedOrderJob} from '../../src/modules/checkout/expiry.ts';
 import {handleAutolarisPayments} from '../../src/modules/finance/autolaris-routes.ts';
 import {handleCodRemittances} from '../../src/modules/finance/cod-remittance-routes.ts';
@@ -11,12 +12,15 @@ import {handleManualFulfillment} from '../../src/modules/fulfillment/manual-rout
 import {advanceFixtureClock,readFixtureClock} from '../../src/modules/local/fixtures.ts';
 import {createAttempt} from '../../src/modules/payments/attempts.ts';
 import {paymentAdapter} from '../../src/modules/payments/worker.ts';
+import {createReturn,decideReturn} from '../../src/modules/returns/cases.ts';
+import {ingestParcelReceiptSource,simulateParcelReceipt} from '../../src/modules/returns/receipt-source.ts';
 import {handleReporting,LOW_STOCK_THRESHOLD,TRANSFER_DEADLINE_WARNING_HOURS} from '../../src/modules/reporting/service.ts';
 import {rupiah,wibDateTime,wibInput,wibInputToIso} from '../../src/modules/storefront/format.ts';
 import {handleSupport} from '../../src/modules/support/routes.ts';
 import {actor,enroll} from '../contract/access-fixture.ts';
 import {closeFulfillmentActor,fulfillmentFixture} from './fulfillment-fixture.ts';
 import {paymentFixture} from './payment-fixture.ts';
+import {returnFixture} from './return-fixture.ts';
 import {shippingFixture} from './shipping-fixture.ts';
 
 // S103: dashboard KPIs count exactly their drilldown queues, terminal states stay out, and admin
@@ -281,9 +285,11 @@ test('low stock is one row per warehouse SKU, quarantine-aware availability, spl
 });
 
 // Terminal states for the small queues: the card's drilldown is the plain queue minus terminal
-// states (checked on whatever the test database holds), plus a seeded resolved conversation.
+// states, with seeded terminal rows: a rejected return, a resolved conversation (matched settlements
+// are seeded in the fulfillment test). No fixture resolves a delivery exception, so that metric
+// requires at least one resolved exception to exist in the period.
 test('open exceptions, returns, settlements and unassigned conversations exclude terminal states',async()=>{
- const f=await shippingFixture(),sql=f.identity.sql,conversations:string[]=[];
+ const f=await returnFixture('prepaid'),sql=f.identity.sql,conversations:string[]=[];
  try{
   const origin='http://127.0.0.1:3099';let cookie='';
   const guest=async(path:string,body:Record<string,unknown>)=>{
@@ -292,7 +298,7 @@ test('open exceptions, returns, settlements and unassigned conversations exclude
    for(const raw of response.headers.getSetCookie()){const [pair]=raw.split(';');cookie=cookie?`${cookie}; ${pair}`:pair;}
    return {status:response.status,payload:await response.json()};
   };
-  const product=f.line('fixture-offer-shirt').product_id;
+  const product=f.seeded.products['fixture-offer-shirt'];
   // One guest session per conversation (a session reuses its open conversation).
   for(let n=0;n<2;n++){cookie='';assert.equal((await guest('/api/v1/guest-support-sessions',{client_request_id:`req-${randomUUID()}`})).status,201);
    const created=await guest('/api/v1/support/conversations',{client_conversation_id:`conv-${randomUUID()}`,product_id:product});assert.equal(created.status,200,JSON.stringify(created.payload));conversations.push(created.payload.id);}
@@ -302,15 +308,31 @@ test('open exceptions, returns, settlements and unassigned conversations exclude
   const req=f.owner.browser.request(`/api/v1/admin/support/conversations/${resolved}/status`,{status:'resolved',expected_version:Number(revision),reason:'SYNTHETIC S103 terminal state'});req.headers.set('idempotency-key',randomUUID());
   assert.equal((await handleSupport(req,f.identity)).status,200);
 
-  const [wall]=await sql`select clock_timestamp() now`,now=new Date(wall.now).getTime();
-  const period={from:new Date(now-360*86400_000).toISOString(),to:new Date(now+86400_000).toISOString()};
+  // A buyer-received parcel, a return claim and a rejection (return-lifecycle.test.ts flow).
+  for(const booking of f.bookings){
+   const parcel=f.parcels.find(p=>p.id===booking.fulfillment_id);assert.ok(parcel);
+   await f.run(await ingestParcelReceiptSource(sql,await simulateParcelReceipt(sql,'test',{reference:randomUUID(),booking_id:booking.id,unit_ids:f.units.filter(u=>u.shipment_id===parcel.shipment_id).map(u=>u.id)})));
+  }
+  const buyer=await commerceActor(f.client.request('/api/v1/carts'),f.identity);assert.ok(buyer);
+  const unit=f.units[0],claim={items:[{order_item_id:unit.order_item_id,delivered_fulfillment_item_id:unit.id,quantity:1,reason:'damaged',details:'SYNTHETIC S103 terminal return'}],requested_resolution:'refund'};
+  const returned=await createReturn(f.client.request(`/api/v1/orders/${f.order.id}/returns`,claim,{key:randomUUID()}),f.identity,buyer,f.order.id,claim) as {id:string;status:string};
+  assert.equal(returned.status,'requested');
+  const decision={decision:'reject',expected_version:1,reason:'SYNTHETIC S103 terminal return'},decide=f.owner.browser.request(`/api/v1/admin/returns/${returned.id}/decisions`,decision);decide.headers.set('idempotency-key',randomUUID());
+  assert.equal((await decideReturn(decide,f.identity,f.principal,returned.id,decision) as {status:string}).status,'rejected');
+
+  const [wall]=await sql`select clock_timestamp() now`,[{created_at}]=await sql`select created_at from app.return_case where id=${returned.id}`;
+  const now=new Date(wall.now).getTime(),latest=Math.max(now,new Date(created_at).getTime());
+  const period={from:new Date(latest-360*86400_000).toISOString(),to:new Date(latest+86400_000).toISOString()};
   const snap=await dashboard(f.identity,f.owner,{workspace:'owner',...period});
   const terminal:Record<string,string[]>={delivery_exceptions:['resolved'],returns_pending:['rejected','resolved'],finance_unmatched:['matched']};
   for(const [key,states] of Object.entries(terminal)){
-   const m=metric(snap,key),card=await drilldown(f.identity,f.owner,snap,m);
+   const m=metric(snap,key),card=await drilldown(f.identity,f.owner,snap,m),plainRows=await queueAll(f.identity,f.owner,'owner',m.queue_key,period.from,period.to);
+   assert.ok(plainRows.some(r=>states.includes(r.state)),`${key}: the period holds at least one terminal row, so the exclusion is exercised`);
    assert.ok(card.every(r=>!states.includes(r.state)),`${key}: no terminal row`);
-   assert.deepEqual(ids(card),ids((await queueAll(f.identity,f.owner,'owner',m.queue_key,period.from,period.to)).filter(r=>!states.includes(r.state))),`${key}: plain queue minus terminal states`);
+   assert.deepEqual(ids(card),ids(plainRows.filter(r=>!states.includes(r.state))),`${key}: plain queue minus terminal states`);
   }
+  const returns=await drilldown(f.identity,f.owner,snap,metric(snap,'returns_pending'));
+  assert.ok(!returns.some(r=>r.id===returned.id),'the rejected return is not open');
   const support=await drilldown(f.identity,f.owner,snap,metric(snap,'support_unassigned'));
   assert.ok(support.some(r=>r.id===stillOpen),'an open unassigned conversation counts');
   assert.ok(!support.some(r=>r.id===resolved),'a resolved conversation does not');
@@ -318,11 +340,13 @@ test('open exceptions, returns, settlements and unassigned conversations exclude
   assert.ok(plain.some(r=>r.id===resolved));
   assert.ok(support.every(r=>plain.some(p=>p.id===r.id&&p.state==='unassigned')));
  }finally{
-  if(conversations.length){
-   for(const table of ['support_in_app_notification','support_challenge','support_conversation_tag','support_participant_preference','support_assignment_event','support_read_position','support_internal_note','support_context_card','support_attachment','support_message'])
-    await sql`delete from ${sql(`app.${table}`)} where conversation_id in ${sql(conversations)}`.catch(()=>{});
-   await sql`delete from app.support_conversation where id in ${sql(conversations)}`.catch(()=>{});
-  }
-  await f.close();
+  // Same teardown as support-chat.test.ts; a refused delete fails the test instead of hiding.
+  try{
+   if(conversations.length){
+    for(const table of ['support_in_app_notification','support_challenge','support_conversation_tag','support_participant_preference','support_assignment_event','support_read_position','support_internal_note','support_context_card','support_attachment','support_message'])
+     await sql`delete from ${sql(`app.${table}`)} where conversation_id in ${sql(conversations)}`;
+    await sql`delete from app.support_conversation where id in ${sql(conversations)}`;
+   }
+  }finally{await f.close();}
  }
 });
