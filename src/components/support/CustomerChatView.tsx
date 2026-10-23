@@ -79,6 +79,7 @@ type SearchHit = {
 const MESSAGE_WINDOW = 40;
 const MESSAGE_HALF = MESSAGE_WINDOW / 2;
 const CONFLICT_MESSAGE = "Percakapan diperbarui. Coba lagi.";
+const NETWORK_MESSAGE = "Koneksi terputus. Periksa jaringan lalu coba lagi.";
 
 function mergeMessages(prev: SupportMessage[], incoming: SupportMessage[]) {
 	const byId = new Map(prev.map((m) => [m.id, m]));
@@ -153,6 +154,10 @@ const secondaryBtnStyle: React.CSSProperties = {
 	border: "1px solid #5b35d5",
 };
 
+// Inline styles cannot use :disabled; dim disabled actions so the state is visible.
+const off = (style: React.CSSProperties, disabled: boolean): React.CSSProperties =>
+	disabled ? { ...style, opacity: 0.55, cursor: "not-allowed" } : style;
+
 const inputStyle: React.CSSProperties = {
 	minHeight: "44px",
 	width: "100%",
@@ -204,6 +209,18 @@ export function CustomerChatView() {
 		SupportAttachment[]
 	>([]);
 	const [sending, setSending] = useState(false);
+	// One secondary action at a time (read marker, preferences, searches, notifications, upload);
+	// the ref blocks a double click before React re-renders the disabled button.
+	const [busy, setBusy] = useState<string | null>(null);
+	const busyRef = useRef(false);
+	// A retried "start conversation" reuses its keys until it succeeds, so a lost response
+	// cannot create a second conversation; a different context is a new request.
+	const pendingStartRef = useRef<{
+		signature: string;
+		key: string;
+		clientId: string;
+	} | null>(null);
+	const fileInputRef = useRef<HTMLInputElement | null>(null);
 	// Retry reuses the key only while the hashed payload is unchanged; any edit is a new message.
 	const [pendingSend, setPendingSend] = useState<{
 		key: string;
@@ -328,6 +345,24 @@ export function CustomerChatView() {
 		}
 	}
 
+	async function runAction(action: string, work: () => Promise<void>) {
+		if (busyRef.current) return;
+		busyRef.current = true;
+		setBusy(action);
+		setError(null);
+		try {
+			await work();
+		} catch (err) {
+			// Plain Errors carry our Indonesian copy; fetch's TypeError and the like do not.
+			setError(
+				err instanceof Error && err.name === "Error" ? err.message : NETWORK_MESSAGE,
+			);
+		} finally {
+			busyRef.current = false;
+			setBusy(null);
+		}
+	}
+
 	async function startNewConversation() {
 		setLoading(true);
 		setError(null);
@@ -335,12 +370,22 @@ export function CustomerChatView() {
 			if (!sessionReady) {
 				await ensureGuestSession();
 			}
+			const signature = JSON.stringify(pendingContext);
+			const pending =
+				pendingStartRef.current?.signature === signature
+					? pendingStartRef.current
+					: {
+							signature,
+							key: makeClientKey("cconv"),
+							clientId: makeClientKey("conv"),
+						};
+			pendingStartRef.current = pending;
 			const payload: Record<string, string> = {
-				client_conversation_id: makeClientKey("conv"),
+				client_conversation_id: pending.clientId,
 			};
 			const headers: Record<string, string> = {
 				"Content-Type": "application/json",
-				"Idempotency-Key": makeClientKey("cconv"),
+				"Idempotency-Key": pending.key,
 			};
 			if (pendingContext?.kind === "product") {
 				payload.product_id = pendingContext.product_id;
@@ -361,6 +406,7 @@ export function CustomerChatView() {
 				);
 			}
 			const conv = (await res.json()) as SupportConversation;
+			pendingStartRef.current = null;
 			setConversations((prev) => [
 				conv,
 				...prev.filter((c) => c.id !== conv.id),
@@ -618,12 +664,11 @@ export function CustomerChatView() {
 				body: JSON.stringify({ last_seen_sequence: latestSeq }),
 			},
 		);
-		if (res.ok) {
-			setSelectedConv((prev) =>
-				prev ? { ...prev, buyer_last_read_sequence: latestSeq } : prev,
-			);
-			setLiveNotice("Pesan ditandai sudah dibaca.");
-		}
+		if (!res.ok) throw new Error("Penanda baca belum tersimpan. Coba lagi.");
+		setSelectedConv((prev) =>
+			prev ? { ...prev, buyer_last_read_sequence: latestSeq } : prev,
+		);
+		setLiveNotice("Pesan ditandai sudah dibaca.");
 	}
 
 	async function togglePreference(field: "archived" | "muted") {
@@ -666,8 +711,7 @@ export function CustomerChatView() {
 		setError("Pengaturan percakapan belum tersimpan. Coba lagi.");
 	}
 
-	async function runThreadSearch(e: React.FormEvent) {
-		e.preventDefault();
+	async function runThreadSearch() {
 		if (!selectedConv || !threadSearchQuery.trim()) return;
 		const res = await fetch(
 			`/api/v1/support/conversations/${selectedConv.id}/message-searches`,
@@ -680,14 +724,12 @@ export function CustomerChatView() {
 				body: JSON.stringify({ query: threadSearchQuery.trim() }),
 			},
 		);
-		if (res.ok) {
-			const body = (await res.json()) as { data: SearchHit[] };
-			setThreadSearchHits(body.data);
-		}
+		if (!res.ok) throw new Error("Pencarian pesan gagal. Coba lagi.");
+		const body = (await res.json()) as { data: SearchHit[] };
+		setThreadSearchHits(body.data);
 	}
 
-	async function runConversationSearch(e: React.FormEvent) {
-		e.preventDefault();
+	async function runConversationSearch() {
 		if (!convSearchQuery.trim()) {
 			await loadConversations(viewFilter, statusFilter);
 			return;
@@ -705,10 +747,9 @@ export function CustomerChatView() {
 				...(statusFilter ? { status: statusFilter } : {}),
 			}),
 		});
-		if (res.ok) {
-			const body = (await res.json()) as { data: SupportConversation[] };
-			setConversations(body.data);
-		}
+		if (!res.ok) throw new Error("Pencarian percakapan gagal. Coba lagi.");
+		const body = (await res.json()) as { data: SupportConversation[] };
+		setConversations(body.data);
 	}
 
 	async function markNotification(
@@ -739,7 +780,9 @@ export function CustomerChatView() {
 				setNotifications(body.data);
 			}
 			setError(CONFLICT_MESSAGE);
+			return;
 		}
+		throw new Error("Status notifikasi belum tersimpan. Coba lagi.");
 	}
 
 	return (
@@ -1019,16 +1062,26 @@ export function CustomerChatView() {
 										{!n.seen_at && (
 											<button
 												type="button"
-												onClick={() => markNotification(n, "seen")}
-												style={secondaryBtnStyle}
+												onClick={() =>
+													runAction(`notif:${n.id}`, () =>
+														markNotification(n, "seen"),
+													)
+												}
+												disabled={busy !== null}
+												style={off(secondaryBtnStyle, busy !== null)}
 											>
-												Tandai dilihat
+												{busy === `notif:${n.id}` ? "Menyimpan…" : "Tandai dilihat"}
 											</button>
 										)}
 										<button
 											type="button"
-											onClick={() => markNotification(n, "dismissed")}
-											style={secondaryBtnStyle}
+											onClick={() =>
+												runAction(`notif:${n.id}`, () =>
+													markNotification(n, "dismissed"),
+												)
+											}
+											disabled={busy !== null}
+											style={off(secondaryBtnStyle, busy !== null)}
 										>
 											Tutup notifikasi
 										</button>
@@ -1042,7 +1095,10 @@ export function CustomerChatView() {
 			{sessionReady && !selectedConv && (
 				<div style={{ display: "grid", gap: "12px" }}>
 					<form
-						onSubmit={runConversationSearch}
+						onSubmit={(e) => {
+							e.preventDefault();
+							void runAction("conv-search", runConversationSearch);
+						}}
 						style={{ display: "flex", flexWrap: "wrap", gap: "8px" }}
 					>
 						<label htmlFor={`${baseId}-conv-search`} className="sr-only">
@@ -1085,8 +1141,12 @@ export function CustomerChatView() {
 							<option value="waiting_customer">Menunggu pelanggan</option>
 							<option value="resolved">Selesai (resolved)</option>
 						</select>
-						<button type="submit" style={secondaryBtnStyle}>
-							Filter
+						<button
+							type="submit"
+							disabled={busy !== null || loading}
+							style={off(secondaryBtnStyle, busy !== null || loading)}
+						>
+							{busy === "conv-search" ? "Mencari…" : "Filter"}
 						</button>
 					</form>
 
@@ -1183,24 +1243,31 @@ export function CustomerChatView() {
 						<div style={{ display: "flex", flexWrap: "wrap", gap: "8px" }}>
 							<button
 								type="button"
-								onClick={markRead}
-								style={secondaryBtnStyle}
+								onClick={() => runAction("read", markRead)}
+								disabled={busy !== null}
+								style={off(secondaryBtnStyle, busy !== null)}
 							>
-								Tandai dibaca
+								{busy === "read" ? "Menyimpan…" : "Tandai dibaca"}
 							</button>
 							{preference && (
 								<>
 									<button
 										type="button"
-										onClick={() => togglePreference("archived")}
-										style={secondaryBtnStyle}
+										onClick={() =>
+											runAction("archived", () => togglePreference("archived"))
+										}
+										disabled={busy !== null}
+										style={off(secondaryBtnStyle, busy !== null)}
 									>
 										{preference.archived ? "Batal arsipkan" : "Arsipkan"}
 									</button>
 									<button
 										type="button"
-										onClick={() => togglePreference("muted")}
-										style={secondaryBtnStyle}
+										onClick={() =>
+											runAction("muted", () => togglePreference("muted"))
+										}
+										disabled={busy !== null}
+										style={off(secondaryBtnStyle, busy !== null)}
 									>
 										{preference.muted
 											? "Bunyikan notifikasi"
@@ -1212,7 +1279,10 @@ export function CustomerChatView() {
 					</div>
 
 					<form
-						onSubmit={runThreadSearch}
+						onSubmit={(e) => {
+							e.preventDefault();
+							void runAction("thread-search", runThreadSearch);
+						}}
 						style={{ display: "flex", flexWrap: "wrap", gap: "8px" }}
 					>
 						<label htmlFor={`${baseId}-msg-search`} className="sr-only">
@@ -1226,8 +1296,12 @@ export function CustomerChatView() {
 							placeholder="Cari teks pesan di percakapan ini..."
 							style={{ ...inputStyle, flex: "1 1 12rem" }}
 						/>
-						<button type="submit" style={secondaryBtnStyle}>
-							Cari pesan
+						<button
+							type="submit"
+							disabled={busy !== null}
+							style={off(secondaryBtnStyle, busy !== null)}
+						>
+							{busy === "thread-search" ? "Mencari…" : "Cari pesan"}
 						</button>
 						{threadSearchHits !== null && (
 							<button
@@ -1587,19 +1661,26 @@ export function CustomerChatView() {
 								alignItems: "center",
 							}}
 						>
-							<label
-								htmlFor={`${baseId}-file`}
-								style={{ ...secondaryBtnStyle, cursor: "pointer" }}
+							{/* Visually hidden, not display:none; the labelled, keyboard-focusable button
+							    below opens the native picker. */}
+							<input
+								ref={fileInputRef}
+								id={`${baseId}-file`}
+								type="file"
+								accept="image/jpeg,image/png,image/webp"
+								aria-hidden="true"
+								tabIndex={-1}
+								className="sr-only"
+								onChange={(e) => void runAction("upload", () => handleFileSelect(e))}
+							/>
+							<button
+								type="button"
+								onClick={() => fileInputRef.current?.click()}
+								disabled={busy !== null}
+								style={off(secondaryBtnStyle, busy !== null)}
 							>
-								Unggah gambar
-								<input
-									id={`${baseId}-file`}
-									type="file"
-									accept="image/jpeg,image/png,image/webp"
-									onChange={handleFileSelect}
-									style={{ display: "none" }}
-								/>
-							</label>
+								{busy === "upload" ? "Mengunggah…" : "Unggah gambar"}
+							</button>
 							<button type="submit" disabled={sending} style={btnStyle}>
 								{sending ? "Mengirim..." : "Kirim pesan"}
 							</button>

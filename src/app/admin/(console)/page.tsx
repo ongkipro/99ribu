@@ -1,4 +1,5 @@
 import { AdminWorkspacesClient } from "../../../components/admin/admin-workspaces-client";
+import { consoleAccess } from "../../../components/admin/console-access";
 import { canReadOrders } from "../../../components/admin/order-model";
 import { readStaffAccess } from "./staff-roles";
 
@@ -29,6 +30,7 @@ export default async function AdminWorkspacesPage({
 			initialAuthenticated={staffRoles.length > 0}
 			initialStaffRoles={staffRoles}
 			canOrders={canReadOrders(staffRoles, permissions)}
+			access={consoleAccess(staffRoles, permissions)}
 			requestedWorkspace={workspace}
 			requestedWarehouseId={warehouseId}
 		/>

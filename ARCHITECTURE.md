@@ -110,7 +110,7 @@ flowchart LR
 ├── src/                     application code (shared by web and worker)
 │   ├── app/                 Next.js App Router: pages, route handlers, metadata routes
 │   │   ├── (storefront)/    public Indonesian routes (DEC-010), server components + Server Actions
-│   │   ├── admin/           (console)/ shadcn staff console; support/ CS inbox outside the console
+│   │   ├── admin/           (console)/ shadcn staff console, including the support/ CS inbox
 │   │   ├── api/             auth/[...all] (Better Auth), health, v1/** (versioned business API)
 │   │   ├── media/catalog/   public catalog photo route (SEO names → content-addressed files)
 │   │   └── layout.tsx, not-found.tsx, robots.ts, sitemap.ts, globals.css, icons
@@ -389,10 +389,10 @@ Better Auth (`src/modules/access/auth.ts:createLocalAuth`) runs email/password w
 | Role | Scope | Console pages | MFA |
 | --- | --- | --- | --- |
 | `owner` | Company, all warehouses | All, plus `/admin/support`; only role that grants roles and appends policies | Required; fresh MFA (≤ 5 min) plus reauthentication proof for owner writes |
-| `ecommerce_admin` | Assigned warehouses | Catalog (edit), fulfillment (incl. pickup profiles), print center | Required |
+| `ecommerce_admin` | Assigned warehouses | Catalog (edit), fulfillment (incl. pickup profiles), print center (sidebar entry since the 2026-10-24 owner decision) | Required |
 | `warehouse` | Assigned origin warehouses (at least one) | Catalog (stock view), fulfillment, print center | Required |
 | `customer_service` | Not warehouse-scoped; replies only on claimed conversations | `/admin/support` | Required |
-| `finance` | Company-wide finance; order history needs warehouse scope | Payments, COD settlements, catalog costs (with `finance.costs.read`) | Required; reauthentication proof for reconcile/refund/confirm actions |
+| `finance` | Company-wide finance; order history needs warehouse scope | Payments, COD settlements (with `finance.reconciliation.read`; confirm/record controls need `finance.reconciliation.write`, otherwise disabled with a reason), catalog costs (with `finance.costs.read`) | Required; reauthentication proof for reconcile/refund/confirm actions |
 | `buyer` | Own resources (default when no grant row) | — | No |
 | `affiliate` | Own profile, balances, payouts | — (`/afiliasi`) | No; beneficiary change needs a reauthentication proof |
 
@@ -421,7 +421,7 @@ sequenceDiagram
   end
 ```
 
-Guest commerce authority (ADR-0007) uses HttpOnly capability cookies, never URL tokens: `commerce_guest` (7 days), `cart_access`, `order_access` (path `/api/v1/orders/<id>`), and the alias `checkout_access` (path `/checkout/order/<id>`); verified guest-order access goes through `guest-order-access/challenges`. Sign-in and sign-out revoke the guest context. The console navigation (`src/app/admin/(console)/staff-roles.ts`) is only a convenience gate; every API handler rechecks role, warehouse scope and MFA.
+Guest commerce authority (ADR-0007) uses HttpOnly capability cookies, never URL tokens: `commerce_guest` (7 days), `cart_access`, `order_access` (path `/api/v1/orders/<id>`), and the alias `checkout_access` (path `/checkout/order/<id>`); verified guest-order access goes through `guest-order-access/challenges`. Sign-in and sign-out revoke the guest context. The console navigation (`src/app/admin/(console)/staff-roles.ts`) is only a convenience gate; `src/components/admin/console-access.ts:consoleAccess` derives the sidebar entries, finance write controls, CSV export (`exports.download`) and KPI shortcuts from the same roles and grants, and the signed-out preview offers no actions. Every API handler rechecks role, warehouse scope and MFA.
 
 ## Storefront architecture
 
@@ -432,7 +432,7 @@ Guest commerce authority (ADR-0007) uses HttpOnly capability cookies, never URL 
 - **Images**: `next.config.ts` limits the optimizer to `localPatterns` `/media/catalog/**`, quality 60, `imageSizes` 64–384, `deviceSizes` 640–1920; `components/storefront/media.ts:responsiveImage` emits plain `<img srcset>` pointing at `/_next/image` (no `next/image`).
 - **Fonts and SEO**: Inter 4.1 self-hosted from `public/fonts` via `@font-face` (Latin subset preloaded); `modules/storefront/seo.ts` owns route indexability, canonical/OpenGraph metadata, JSON-LD (Organization, WebSite, BreadcrumbList, Product/ProductGroup), `robots.txt` and `sitemap.xml`, switched by `SITE_INDEXING` (`src/config/site.ts`).
 - **Not found**: `src/app/not-found.tsx`; PDP and category pages redirect to `/404` instead of calling `notFound()` (Next 16.4 empty-body issue, see appendix S21 note).
-- **Admin console isolation** (DEC-004): `src/app/admin/(console)/layout.tsx` alone imports `admin.css` (Tailwind v4 + shadcn `radix-vega`); `/admin/support` and the storefront never load it. Console pages render client components that call `/api/v1/admin/*`; only print center and support read modules server-side.
+- **Admin console isolation** (DEC-004): `src/app/admin/(console)/layout.tsx` alone imports `admin.css` (Tailwind v4 + shadcn `radix-vega`); the storefront never loads it. `/admin/support` lives in the console group (`(console)/support/page.tsx`) so the CS inbox keeps the sidebar and session bar. Console pages render client components that call `/api/v1/admin/*`; only print center and support read modules server-side.
 
 ## Data domains
 

@@ -38,6 +38,7 @@ import {
 import { TooltipProvider } from "@/components/ui/tooltip";
 import type { CanonicalWorkspace } from "./admin-workspaces-client";
 import { catalogAccess } from "./catalog-model";
+import { consoleAccess } from "./console-access";
 import { canReadOrders } from "./order-model";
 
 export const WORKSPACE_NAV: Record<
@@ -251,12 +252,19 @@ function ToolLinks({
 			)}
 			{canSupport && (
 				<SidebarMenuItem>
-					<SidebarMenuButton asChild tooltip="Kotak Masuk Pelanggan">
-						{/* Full document navigation: /admin/support is outside the console stylesheet scope. */}
-						<a href="/admin/support">
+					<SidebarMenuButton
+						asChild
+						isActive={pathname === "/admin/support"}
+						tooltip="Kotak Masuk Pelanggan"
+					>
+						<Link
+							href="/admin/support"
+							aria-current={pathname === "/admin/support" ? "page" : undefined}
+							onClick={close}
+						>
 							<MessagesSquare aria-hidden="true" />
 							<span>Kotak Masuk Pelanggan</span>
-						</a>
+						</Link>
 					</SidebarMenuButton>
 				</SidebarMenuItem>
 			)}
@@ -285,18 +293,9 @@ export function AdminShell({
 	children: React.ReactNode;
 }) {
 	// Same grants the destination pages enforce server-side; this only hides dead ends.
-	const canPrint = roles.includes("owner") || roles.includes("warehouse");
+	const access = consoleAccess(roles, permissions);
 	const canCatalog = catalogAccess(roles, permissions).read;
 	const canOrders = canReadOrders(roles, permissions);
-	const canSupport =
-		roles.includes("owner") || roles.includes("customer_service");
-	const canShip = ["owner", "ecommerce_admin", "warehouse"].some((r) =>
-		roles.includes(r as CanonicalWorkspace),
-	);
-	const canCod =
-		roles.includes("owner") ||
-		(roles.includes("finance") &&
-			permissions.includes("finance.reconciliation.read"));
 
 	return (
 		<TooltipProvider>
@@ -333,10 +332,10 @@ export function AdminShell({
 									<ToolLinks
 										canCatalog={canCatalog}
 										canOrders={canOrders}
-										canPrint={canPrint}
-										canSupport={canSupport}
-										canShip={canShip}
-										canCod={canCod}
+										canPrint={access.print}
+										canSupport={access.support}
+										canShip={access.ship}
+										canCod={access.reconcileRead}
 									/>
 								</SidebarGroupContent>
 							</SidebarGroup>

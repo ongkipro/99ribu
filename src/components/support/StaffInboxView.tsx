@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import type React from "react";
 import { useEffect, useId, useLayoutEffect, useRef, useState } from "react";
 
@@ -96,6 +97,21 @@ type Classification = {
 const MESSAGE_WINDOW = 40;
 const MESSAGE_HALF = MESSAGE_WINDOW / 2;
 const CONFLICT_MESSAGE = "Percakapan diperbarui. Coba lagi.";
+const NETWORK_MESSAGE = "Koneksi terputus. Periksa jaringan lalu coba lagi.";
+const STATUS_ACTIONS = [
+	["waiting_customer", "Set Menunggu Pelanggan"],
+	["resolved", "Tandai Selesai (Resolve)"],
+	["open", "Buka Kembali"],
+] as const;
+type StaffAction =
+	| "claim"
+	| "read"
+	| "assign"
+	| "release"
+	| "priority"
+	| "saved-reply"
+	| "note-search"
+	| `status:${SupportConversation["status"]}`;
 
 function mergeMessages(prev: SupportMessage[], incoming: SupportMessage[]) {
 	const byId = new Map(prev.map((m) => [m.id, m]));
@@ -200,6 +216,10 @@ const noteBtn: React.CSSProperties = {
 	border: "1px solid #9c3f0a",
 };
 
+// Inline styles cannot use :disabled; dim disabled actions so the state is visible.
+const off = (style: React.CSSProperties, disabled: boolean): React.CSSProperties =>
+	disabled ? { ...style, opacity: 0.55, cursor: "not-allowed" } : style;
+
 const fieldInput: React.CSSProperties = {
 	minHeight: "44px",
 	width: "100%",
@@ -228,7 +248,7 @@ function contextTitle(
 	}
 	return null;
 }
-// /admin/orders and /admin/catalog are console pages (another stylesheet scope): full document navigation.
+// Links to the console order and catalog detail pages (the pages re-check access).
 function ContextLink({ id, label, href }: { id: string | undefined; label: string; href: string | null }) {
 	if (!id) return <>Tidak ada</>;
 	if (!href) return <>{label}</>;
@@ -278,6 +298,10 @@ export function StaffInboxView({ staffUser }: { staffUser: StaffUser }) {
 	const [feedback, setFeedback] = useState<string | null>(null);
 	const [error, setError] = useState<string | null>(null);
 	const [submitting, setSubmitting] = useState(false);
+	// One staff action at a time: they share the conversation revision, so a second click
+	// would only produce VERSION_CONFLICT. The ref blocks a double click before re-render.
+	const [busy, setBusy] = useState<StaffAction | null>(null);
+	const busyRef = useRef(false);
 	const [pendingReply, setPendingReply] = useState<{
 		key: string;
 		signature: string;
@@ -509,6 +533,22 @@ export function StaffInboxView({ staffUser }: { staffUser: StaffUser }) {
 			return;
 		}
 		setError(fallback);
+	}
+
+	async function runAction(action: StaffAction, work: () => Promise<void>) {
+		if (busyRef.current) return;
+		busyRef.current = true;
+		setBusy(action);
+		setError(null);
+		setFeedback(null);
+		try {
+			await work();
+		} catch {
+			setError(NETWORK_MESSAGE);
+		} finally {
+			busyRef.current = false;
+			setBusy(null);
+		}
 	}
 
 	async function claimThread() {
@@ -819,22 +859,23 @@ export function StaffInboxView({ staffUser }: { staffUser: StaffUser }) {
 				body: JSON.stringify({ last_seen_sequence: latest }),
 			},
 		);
-		if (res.ok) {
-			setSelected((prev) =>
-				prev
-					? {
-							...prev,
-							current_agent_last_read_sequence: latest,
-							current_agent_unread_messages: 0,
-						}
-					: prev,
-			);
-			setFeedback("Pesan publik ditandai dibaca oleh agen ini.");
+		if (!res.ok) {
+			setError("Penanda baca belum tersimpan. Coba lagi.");
+			return;
 		}
+		setSelected((prev) =>
+			prev
+				? {
+						...prev,
+						current_agent_last_read_sequence: latest,
+						current_agent_unread_messages: 0,
+					}
+				: prev,
+		);
+		setFeedback("Pesan publik ditandai dibaca oleh agen ini.");
 	}
 
-	async function searchNotes(e: React.FormEvent) {
-		e.preventDefault();
+	async function searchNotes() {
 		if (!selected || !noteSearchQuery.trim()) return;
 		const res = await fetch(
 			`/api/v1/admin/support/conversations/${selected.conversation.id}/note-searches`,
@@ -847,17 +888,20 @@ export function StaffInboxView({ staffUser }: { staffUser: StaffUser }) {
 				body: JSON.stringify({ query: noteSearchQuery.trim() }),
 			},
 		);
-		if (res.ok) {
-			const body = (await res.json()) as { data: InternalNote[] };
-			setNoteSearchHits(body.data);
+		if (!res.ok) {
+			setError("Pencarian catatan gagal. Coba lagi.");
+			return;
 		}
+		const body = (await res.json()) as { data: InternalNote[] };
+		setNoteSearchHits(body.data);
 	}
 
 	const isClaimedByMe = selected?.assignee_user_id === staffUser.id;
+	// Status and assignment need the claim (owner may act without it); the API enforces CLAIM_REQUIRED.
+	const canAct = isClaimedByMe || staffUser.roles.includes("owner");
 
 	return (
-		<main
-			id="main"
+		<div
 			style={{
 				maxWidth: "1360px",
 				margin: "0 auto",
@@ -886,9 +930,18 @@ export function StaffInboxView({ staffUser }: { staffUser: StaffUser }) {
 						{staffUser.roles.join(", ")})
 					</p>
 				</div>
-				<button type="button" onClick={() => loadInbox()} style={secondaryBtn}>
-					Segarkan Antrean
-				</button>
+				<div style={{ display: "flex", flexWrap: "wrap", gap: "8px" }}>
+					<Link href="/admin" style={secondaryBtn}>
+						Ke Konsol Operasional
+					</Link>
+					<button
+						type="button"
+						onClick={() => loadInbox()}
+						style={secondaryBtn}
+					>
+						Segarkan Antrean
+					</button>
+				</div>
 			</header>
 
 			{error && (
@@ -1157,18 +1210,20 @@ export function StaffInboxView({ staffUser }: { staffUser: StaffUser }) {
 									{!isClaimedByMe && (
 										<button
 											type="button"
-											onClick={claimThread}
-											style={primaryBtn}
+											onClick={() => runAction("claim", claimThread)}
+											disabled={busy !== null}
+											style={off(primaryBtn, busy !== null)}
 										>
-											Klaim Percakapan
+											{busy === "claim" ? "Mengklaim…" : "Klaim Percakapan"}
 										</button>
 									)}
 									<button
 										type="button"
-										onClick={markStaffRead}
-										style={secondaryBtn}
+										onClick={() => runAction("read", markStaffRead)}
+										disabled={busy !== null}
+										style={off(secondaryBtn, busy !== null)}
 									>
-										Tandai Dibaca
+										{busy === "read" ? "Menyimpan…" : "Tandai Dibaca"}
 									</button>
 								</div>
 							</div>
@@ -1302,7 +1357,7 @@ export function StaffInboxView({ staffUser }: { staffUser: StaffUser }) {
 								<button
 									type="submit"
 									disabled={!isClaimedByMe || submitting}
-									style={primaryBtn}
+									style={off(primaryBtn, !isClaimedByMe || submitting)}
 								>
 									Kirim Balasan Publik
 								</button>
@@ -1336,7 +1391,11 @@ export function StaffInboxView({ staffUser }: { staffUser: StaffUser }) {
 									placeholder="Tulis catatan internal antar staf CS..."
 									style={{ ...fieldInput, minHeight: "68px" }}
 								/>
-								<button type="submit" disabled={submitting} style={noteBtn}>
+								<button
+									type="submit"
+									disabled={submitting}
+									style={off(noteBtn, submitting)}
+								>
 									Simpan Catatan Internal
 								</button>
 							</form>
@@ -1407,28 +1466,34 @@ export function StaffInboxView({ staffUser }: { staffUser: StaffUser }) {
 									onChange={(e) => setActionReason(e.target.value)}
 									style={fieldInput}
 								/>
+								{!canAct && (
+									<p
+										id={`${baseId}-claim-needed`}
+										style={{ margin: 0, fontSize: "0.85rem", color: "#8b241d" }}
+									>
+										Klaim percakapan terlebih dahulu untuk mengubah status atau
+										penugasan.
+									</p>
+								)}
 								<div style={{ display: "flex", flexWrap: "wrap", gap: "6px" }}>
-									<button
-										type="button"
-										onClick={() => changeStatus("waiting_customer")}
-										style={secondaryBtn}
-									>
-										Set Menunggu Pelanggan
-									</button>
-									<button
-										type="button"
-										onClick={() => changeStatus("resolved")}
-										style={secondaryBtn}
-									>
-										Tandai Selesai (Resolve)
-									</button>
-									<button
-										type="button"
-										onClick={() => changeStatus("open")}
-										style={secondaryBtn}
-									>
-										Buka Kembali
-									</button>
+									{STATUS_ACTIONS.filter(
+										([value]) => value !== selected.conversation.status,
+									).map(([value, label]) => (
+										<button
+											key={value}
+											type="button"
+											onClick={() =>
+												runAction(`status:${value}`, () => changeStatus(value))
+											}
+											disabled={!canAct || busy !== null}
+											aria-describedby={
+												canAct ? undefined : `${baseId}-claim-needed`
+											}
+											style={off(secondaryBtn, !canAct || busy !== null)}
+										>
+											{busy === `status:${value}` ? "Menyimpan…" : label}
+										</button>
+									))}
 								</div>
 							</div>
 
@@ -1456,19 +1521,33 @@ export function StaffInboxView({ staffUser }: { staffUser: StaffUser }) {
 												setError("Isi ID staf tujuan.");
 												return;
 											}
-											void handoffOrRelease(handoffTarget.trim());
+											void runAction("assign", () =>
+												handoffOrRelease(handoffTarget.trim()),
+											);
 										}}
-										style={secondaryBtn}
+										disabled={!canAct || busy !== null}
+										aria-describedby={
+											canAct ? undefined : `${baseId}-claim-needed`
+										}
+										style={off(secondaryBtn, !canAct || busy !== null)}
 									>
-										Alihkan Penugasan
+										{busy === "assign" ? "Mengalihkan…" : "Alihkan Penugasan"}
 									</button>
-									<button
-										type="button"
-										onClick={() => handoffOrRelease(null)}
-										style={secondaryBtn}
-									>
-										Lepas ke Antrean
-									</button>
+									{selected.assignee_user_id && (
+										<button
+											type="button"
+											onClick={() =>
+												runAction("release", () => handoffOrRelease(null))
+											}
+											disabled={!canAct || busy !== null}
+											aria-describedby={
+												canAct ? undefined : `${baseId}-claim-needed`
+											}
+											style={off(secondaryBtn, !canAct || busy !== null)}
+										>
+											{busy === "release" ? "Melepas…" : "Lepas ke Antrean"}
+										</button>
+									)}
 								</div>
 							</div>
 
@@ -1483,11 +1562,11 @@ export function StaffInboxView({ staffUser }: { staffUser: StaffUser }) {
 									<select
 										id={`${baseId}-set-prio`}
 										value={classification.priority}
-										onChange={(e) =>
-											updatePriority(
-												e.target.value as "low" | "normal" | "high",
-											)
-										}
+										onChange={(e) => {
+											const next = e.target.value as "low" | "normal" | "high";
+											void runAction("priority", () => updatePriority(next));
+										}}
+										disabled={busy !== null}
 										style={fieldInput}
 									>
 										<option value="low">Rendah (low)</option>
@@ -1546,8 +1625,11 @@ export function StaffInboxView({ staffUser }: { staffUser: StaffUser }) {
 												</span>
 												<button
 													type="button"
-													onClick={() => insertSavedReply(sr)}
-													style={secondaryBtn}
+													onClick={() =>
+														runAction("saved-reply", () => insertSavedReply(sr))
+													}
+													disabled={busy !== null}
+													style={off(secondaryBtn, busy !== null)}
 												>
 													Sisipkan ke Draf
 												</button>
@@ -1560,7 +1642,10 @@ export function StaffInboxView({ staffUser }: { staffUser: StaffUser }) {
 							<div style={{ display: "grid", gap: "8px" }}>
 								<strong>Riwayat Catatan Internal ({notes.length})</strong>
 								<form
-									onSubmit={searchNotes}
+									onSubmit={(e) => {
+										e.preventDefault();
+										void runAction("note-search", searchNotes);
+									}}
 									style={{ display: "flex", flexWrap: "wrap", gap: "6px" }}
 								>
 									<input
@@ -1571,8 +1656,12 @@ export function StaffInboxView({ staffUser }: { staffUser: StaffUser }) {
 										placeholder="Cari catatan internal..."
 										style={{ ...fieldInput, flex: "1 1 10rem" }}
 									/>
-									<button type="submit" style={secondaryBtn}>
-										Cari Catatan
+									<button
+										type="submit"
+										disabled={busy !== null}
+										style={off(secondaryBtn, busy !== null)}
+									>
+										{busy === "note-search" ? "Mencari…" : "Cari Catatan"}
 									</button>
 								</form>
 								<ul
@@ -1610,6 +1699,6 @@ export function StaffInboxView({ staffUser }: { staffUser: StaffUser }) {
 					)}
 				</section>
 			</div>
-		</main>
+		</div>
 	);
 }
