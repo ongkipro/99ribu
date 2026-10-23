@@ -41,6 +41,7 @@ import {
 	AdDestinationsPanel,
 } from "./ad-destinations-panel";
 import { describeFailure, failureText, readFailure } from "./admin-errors";
+import type { ConsoleAccess } from "./console-access";
 
 export type CanonicalWorkspace =
 	| "owner"
@@ -178,6 +179,8 @@ const METRIC_UNITS: Record<string, string> = {
 	autolaris_pending: "pesanan",
 };
 
+const EXPORT_DENIED =
+	"Ekspor CSV memerlukan izin unduh ekspor. Minta Super Admin menambahkan izin ini.";
 // Screens the API may point a metric at (existing console routes only).
 const ACTION_LABELS: Record<string, string> = {
 	"/admin/fulfillment": "Buka Pengiriman Manual",
@@ -778,6 +781,7 @@ export function AdminWorkspacesClient({
 	initialAuthenticated,
 	initialStaffRoles,
 	canOrders: canOrdersGrant,
+	access,
 	requestedWorkspace,
 	requestedWarehouseId,
 }: {
@@ -785,6 +789,8 @@ export function AdminWorkspacesClient({
 	initialStaffRoles: CanonicalWorkspace[];
 	/** orders.history.read grant (canReadOrders), not merely the active workspace. */
 	canOrders: boolean;
+	/** Server-computed grants (consoleAccess); a workspace lens never widens them. */
+	access: ConsoleAccess;
 	requestedWorkspace: string | null;
 	requestedWarehouseId: string;
 }) {
@@ -1079,8 +1085,24 @@ export function AdminWorkspacesClient({
 			? activeMetric.count
 			: null;
 	const exportConfig = QUEUE_EXPORT_CONFIG[queue];
-	const canPrint = workspace === "owner" || workspace === "warehouse";
-	const canSupport = workspace === "owner" || workspace === "customer_service";
+	// Preview (signed out) offers no actions: every grant below is false without a staff session.
+	const canPrint =
+		!preview &&
+		access.print &&
+		["owner", "warehouse", "ecommerce_admin"].includes(workspace);
+	const canSupport =
+		!preview &&
+		access.support &&
+		(workspace === "owner" || workspace === "customer_service");
+	const canExport = !preview && access.exportDownload;
+	// KPI shortcuts only to screens this principal can open (same gates as the sidebar).
+	const actionAllowed: Record<string, boolean> = {
+		"/admin/fulfillment": !preview && access.ship,
+		"/admin/payments": !preview && access.reconcileRead,
+		"/admin/cod-settlements": !preview && access.reconcileRead,
+	};
+	const actionLabel = (href: string | null | undefined) =>
+		href && actionAllowed[href] ? ACTION_LABELS[href] : null;
 	// S100: whole-order detail; the page and API re-check permission and warehouse scope.
 	const canOrders = !preview && canOrdersGrant;
 	// The API reports Asia/Jakarta; every time below is shown and labeled as WIB.
@@ -1110,10 +1132,11 @@ export function AdminWorkspacesClient({
 			return;
 		}
 		setExportReasonError(null);
-		if (preview) {
-			setExportError("Ekspor memerlukan sesi staf dengan MFA aktif.");
+		if (!canExport) {
+			setExportError(EXPORT_DENIED);
 			return;
 		}
+		if (exportPending) return;
 		setExportPending(true);
 		setExportError(null);
 		try {
@@ -1216,8 +1239,7 @@ export function AdminWorkspacesClient({
 		if (item.resource_kind === "conversation" && canSupport)
 			return (
 				<Button asChild variant="outline" size="sm">
-					{/* Full document navigation: /admin/support is outside the console stylesheet scope. */}
-					<a href="/admin/support">Buka percakapan</a>
+					<Link href="/admin/support">Buka percakapan</Link>
 				</Button>
 			);
 		return null;
@@ -1441,13 +1463,13 @@ export function AdminWorkspacesClient({
 												{hidden > 0 && ` · +${hidden} gudang lain`}
 											</p>
 										)}
-										{m.action_href && ACTION_LABELS[m.action_href] && (
+										{m.action_href && actionLabel(m.action_href) && (
 											<Link
 												href={m.action_href}
 												data-testid={`kpi-action-${m.key}`}
 												className="px-1 text-xs font-medium text-primary underline-offset-4 hover:underline focus-visible:rounded-sm focus-visible:outline-2 focus-visible:outline-ring"
 											>
-												{ACTION_LABELS[m.action_href]}
+												{actionLabel(m.action_href)}
 											</Link>
 										)}
 									</li>
@@ -1516,13 +1538,16 @@ export function AdminWorkspacesClient({
 								</Link>
 							</Button>
 						)}
-						{exportConfig && (
+						{exportConfig && !preview && (
 							<Button
 								type="button"
 								variant="outline"
 								size="sm"
 								data-testid="freeze-export-selection-btn"
-								disabled={queueState !== "ready" || rows.length === 0}
+								disabled={
+									!canExport || queueState !== "ready" || rows.length === 0
+								}
+								aria-describedby={canExport ? undefined : "export-denied-reason"}
 								onClick={() => openExport("filter")}
 							>
 								<Download data-icon="inline-start" aria-hidden="true" />
@@ -1534,6 +1559,15 @@ export function AdminWorkspacesClient({
 						)}
 					</div>
 				</div>
+				{exportConfig && !preview && !canExport && (
+					<p
+						id="export-denied-reason"
+						data-testid="export-denied-reason"
+						className="text-xs text-muted-foreground"
+					>
+						{EXPORT_DENIED}
+					</p>
+				)}
 
 				<fieldset className="flex flex-wrap gap-1.5">
 					<legend className="sr-only">Pilih antrean</legend>
@@ -1584,6 +1618,8 @@ export function AdminWorkspacesClient({
 							<Button
 								type="button"
 								size="sm"
+								disabled={!canExport}
+								aria-describedby={canExport ? undefined : "export-denied-reason"}
 								onClick={() => openExport("selection")}
 							>
 								<Download data-icon="inline-start" aria-hidden="true" />
@@ -1850,13 +1886,13 @@ export function AdminWorkspacesClient({
 								>
 									Lihat antrean {QUEUE_LABELS[m.queue_key].toLowerCase()}
 								</Button>
-								{m.action_href && ACTION_LABELS[m.action_href] && (
+								{m.action_href && actionLabel(m.action_href) && (
 									<Link
 										href={m.action_href}
 										data-testid={`kpi-action-${m.key}`}
 										className="-mt-2 self-start text-sm font-medium text-primary underline-offset-4 hover:underline focus-visible:rounded-sm focus-visible:outline-2 focus-visible:outline-ring"
 									>
-										{ACTION_LABELS[m.action_href]}
+										{actionLabel(m.action_href)}
 									</Link>
 								)}
 							</article>

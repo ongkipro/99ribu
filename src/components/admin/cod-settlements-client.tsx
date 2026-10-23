@@ -106,7 +106,7 @@ async function post(url: string, body: unknown, key: string) {
 	}
 }
 
-export function CodSettlementsClient() {
+export function CodSettlementsClient({ canWrite }: { canWrite: boolean }) {
 	const [rows, setRows] = useState<Statement[]>([]);
 	const [state, setState] = useState<"loading" | "ready" | "error">("loading");
 	const [loadError, setLoadError] = useState("");
@@ -142,8 +142,13 @@ export function CodSettlementsClient() {
 					<AlertDescription className="text-foreground">{notice}</AlertDescription>
 				</Alert>
 			)}
-			<div className="flex flex-wrap gap-2">
-				<Button onClick={() => setOpen(true)} data-testid="cod-record-open">
+			<div className="flex flex-wrap items-center gap-2">
+				<Button
+					onClick={() => setOpen(true)}
+					data-testid="cod-record-open"
+					disabled={!canWrite}
+					aria-describedby={canWrite ? undefined : "cod-read-only-reason"}
+				>
 					<Plus aria-hidden="true" />
 					Catat setoran COD
 				</Button>
@@ -151,6 +156,11 @@ export function CodSettlementsClient() {
 					<RefreshCw aria-hidden="true" />
 					Muat ulang
 				</Button>
+				{!canWrite && (
+					<p id="cod-read-only-reason" data-testid="cod-read-only" className="text-sm text-muted-foreground">
+						Hanya lihat: mencatat setoran memerlukan izin tulis rekonsiliasi keuangan.
+					</p>
+				)}
 			</div>
 			{state === "loading" && (
 				<p className="text-sm text-muted-foreground" aria-live="polite">

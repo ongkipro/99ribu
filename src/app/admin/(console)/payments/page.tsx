@@ -1,5 +1,6 @@
 import { PaymentsClient } from "../../../../components/admin/payments-client";
 import { AccessDenied } from "../../../../components/admin/access-denied";
+import { consoleAccess } from "../../../../components/admin/console-access";
 import { readStaffAccess } from "../staff-roles";
 
 export const dynamic = "force-dynamic";
@@ -11,8 +12,8 @@ export const metadata = {
 // Navigation gate only; the APIs re-check finance reconciliation authority, owner role and proofs.
 export default async function PaymentsPage() {
 	const { roles, permissions } = await readStaffAccess();
-	const owner = roles.includes("owner");
-	if (!owner && !(roles.includes("finance") && permissions.includes("finance.reconciliation.read")))
+	const access = consoleAccess(roles, permissions);
+	if (!access.reconcileRead)
 		return (
 			<AccessDenied title="Pembayaran" heading="Akses keuangan diperlukan">
 				Halaman ini untuk Super Admin atau staf keuangan dengan izin rekonsiliasi
@@ -28,7 +29,7 @@ export default async function PaymentsPage() {
 					berbeda dicatat dan masuk tinjauan, tidak dianggap lunas.
 				</p>
 			</header>
-			<PaymentsClient canManageTerms={owner} />
+			<PaymentsClient canManageTerms={roles.includes("owner")} canWrite={access.reconcileWrite} />
 		</div>
 	);
 }

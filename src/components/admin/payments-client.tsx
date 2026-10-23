@@ -80,7 +80,9 @@ async function proof(password: string, action: string, subject: string) {
 	return post("/api/v1/me/reauthentication-proofs", { password, action, subject_id: subject });
 }
 
-export function PaymentsClient({ canManageTerms }: { canManageTerms: boolean }) {
+const READ_ONLY_ID = "payments-read-only-reason";
+
+export function PaymentsClient({ canManageTerms, canWrite }: { canManageTerms: boolean; canWrite: boolean }) {
 	const [state, setState] = useState<"open" | "resolved">("open");
 	const [rows, setRows] = useState<Transfer[] | null>(null);
 	const [error, setError] = useState<string | null>(null);
@@ -108,6 +110,11 @@ export function PaymentsClient({ canManageTerms }: { canManageTerms: boolean }) 
 					<AlertDescription className="text-foreground">{notice}</AlertDescription>
 				</Alert>
 			)}
+			{!canWrite && (
+				<p id={READ_ONLY_ID} data-testid="payments-read-only" className="rounded-lg border border-dashed p-3 text-sm text-muted-foreground">
+					Hanya lihat: konfirmasi pembayaran memerlukan izin tulis rekonsiliasi keuangan. Minta Super Admin menambahkan izin ini.
+				</p>
+			)}
 			<section aria-labelledby="transfers-heading" className="flex flex-col gap-4">
 				<div className="flex flex-wrap items-end justify-between gap-3">
 					<h2 id="transfers-heading" className="text-lg font-semibold">
@@ -118,7 +125,8 @@ export function PaymentsClient({ canManageTerms }: { canManageTerms: boolean }) 
 						Muat ulang
 					</Button>
 				</div>
-				<div role="tablist" aria-label="Status transfer" className="inline-flex w-fit gap-1 rounded-lg border bg-muted p-1">
+				<fieldset className="inline-flex w-fit gap-1 rounded-lg border bg-muted p-1">
+					<legend className="sr-only">Status transfer</legend>
 					{(
 						[
 							["open", "Menunggu konfirmasi"],
@@ -128,15 +136,14 @@ export function PaymentsClient({ canManageTerms }: { canManageTerms: boolean }) 
 						<button
 							key={key}
 							type="button"
-							role="tab"
-							aria-selected={state === key}
+							aria-pressed={state === key}
 							className={`rounded-md px-3 py-1.5 text-sm font-medium ${state === key ? "bg-background shadow-sm" : "text-muted-foreground"}`}
 							onClick={() => setState(key)}
 						>
 							{label}
 						</button>
 					))}
-				</div>
+				</fieldset>
 				{error && (
 					<Alert role="alert">
 						<CircleAlert aria-hidden="true" />
@@ -185,7 +192,7 @@ export function PaymentsClient({ canManageTerms }: { canManageTerms: boolean }) 
 										</TableCell>
 										<TableCell className="text-right">
 											{!row.confirmation && (
-												<Button size="sm" onClick={() => setSelected(row)}>
+												<Button size="sm" disabled={!canWrite} aria-describedby={canWrite ? undefined : READ_ONLY_ID} onClick={() => setSelected(row)}>
 													Konfirmasi transfer
 												</Button>
 											)}
@@ -208,7 +215,7 @@ export function PaymentsClient({ canManageTerms }: { canManageTerms: boolean }) 
 					}}
 				/>
 			)}
-			<AutolarisPayments onNotice={setNotice} />
+			<AutolarisPayments onNotice={setNotice} canWrite={canWrite} />
 			{canManageTerms && <PaymentTerms />}
 		</div>
 	);
@@ -312,7 +319,7 @@ type Autolaris = {
 	latest_observation: { source: string; classification: string; ket: string | null } | null;
 };
 const OBSERVED: Record<string, string> = { pending: "Menunggu pembayaran", settled: "Lunas", unknown: "Status belum pasti", failed: "Gagal" };
-function AutolarisPayments({ onNotice }: { onNotice: (message: string) => void }) {
+function AutolarisPayments({ onNotice, canWrite }: { onNotice: (message: string) => void; canWrite: boolean }) {
 	const [state, setState] = useState<"open" | "resolved">("open");
 	const [rows, setRows] = useState<Autolaris[] | null>(null);
 	const [error, setError] = useState<string | null>(null);
@@ -343,18 +350,19 @@ function AutolarisPayments({ onNotice }: { onNotice: (message: string) => void }
 					Muat ulang
 				</Button>
 			</div>
-			<div role="tablist" aria-label="Status AutoLaris" className="inline-flex w-fit gap-1 rounded-lg border bg-muted p-1">
+			<fieldset className="inline-flex w-fit gap-1 rounded-lg border bg-muted p-1">
+				<legend className="sr-only">Status AutoLaris</legend>
 				{(
 					[
 						["open", "Belum final"],
 						["resolved", "Final"],
 					] as const
 				).map(([key, label]) => (
-					<button key={key} type="button" role="tab" aria-selected={state === key} className={`rounded-md px-3 py-1.5 text-sm font-medium ${state === key ? "bg-background shadow-sm" : "text-muted-foreground"}`} onClick={() => setState(key)}>
+					<button key={key} type="button" aria-pressed={state === key} className={`rounded-md px-3 py-1.5 text-sm font-medium ${state === key ? "bg-background shadow-sm" : "text-muted-foreground"}`} onClick={() => setState(key)}>
 						{label}
 					</button>
 				))}
-			</div>
+			</fieldset>
 			{error && (
 				<Alert role="alert">
 					<CircleAlert aria-hidden="true" />
@@ -394,7 +402,7 @@ function AutolarisPayments({ onNotice }: { onNotice: (message: string) => void }
 									</TableCell>
 									<TableCell className="text-right">
 										{state === "open" && row.trx_id && !row.refusal_code && (
-											<Button size="sm" variant="outline" onClick={() => setSelected(row)}>
+											<Button size="sm" variant="outline" disabled={!canWrite} aria-describedby={canWrite ? undefined : READ_ONLY_ID} onClick={() => setSelected(row)}>
 												Konfirmasi manual
 											</Button>
 										)}
@@ -492,6 +500,7 @@ function PaymentTerms() {
 	const [current, setCurrent] = useState<{ version: number; terms: Terms } | null>(null);
 	const [form, setForm] = useState({ bps: "333", accounts: "", reason: "", password: "" });
 	const [message, setMessage] = useState<{ kind: "ok" | "error"; text: string } | null>(null);
+	const [pending, setPending] = useState(false);
 	const load = useCallback(async () => {
 		const result = await getJson<{ latest_version: number; current: { values: Terms } | null }>("/api/v1/admin/policy-versions?kind=payment");
 		if (!result.ok) return setMessage({ kind: "error", text: failureText(result.failure) });
@@ -517,17 +526,23 @@ function PaymentTerms() {
 				return { bank_name, account_number, account_holder };
 			});
 		if (!form.reason.trim() || !form.password) return setMessage({ kind: "error", text: "Alasan dan kata sandi wajib diisi." });
-		const issued = await proof(form.password, "payment_policy.version", "company-payment");
-		if (!issued.ok) return setMessage({ kind: "error", text: issued.text });
-		const result = await post("/api/v1/admin/policy-versions", {
-			kind: "payment",
-			warehouse_id: null,
-			expected_version: current?.version ?? 0,
-			effective_at: null,
-			values: { cod_fee_bps: Number(form.bps), manual_bank_accounts: accounts },
-			reason: form.reason.trim(),
-			reauthentication_proof: issued.data.proof,
-		});
+		if (pending) return;
+		setPending(true);
+		setMessage(null);
+		// post() never throws: network failures come back as { ok: false } with a visible message.
+		const result = await (async () => {
+			const issued = await proof(form.password, "payment_policy.version", "company-payment");
+			if (!issued.ok) return issued;
+			return post("/api/v1/admin/policy-versions", {
+				kind: "payment",
+				warehouse_id: null,
+				expected_version: current?.version ?? 0,
+				effective_at: null,
+				values: { cod_fee_bps: Number(form.bps), manual_bank_accounts: accounts },
+				reason: form.reason.trim(),
+				reauthentication_proof: issued.data.proof,
+			});
+		})().finally(() => setPending(false));
 		if (!result.ok) return setMessage({ kind: "error", text: result.text });
 		setForm((f) => ({ ...f, reason: "", password: "" }));
 		setMessage({ kind: "ok", text: `Ketentuan pembayaran versi ${result.data.version} berlaku untuk penawaran baru.` });
@@ -574,8 +589,8 @@ function PaymentTerms() {
 						{message.text}
 					</p>
 				)}
-				<Button type="submit" className="self-start">
-					Simpan ketentuan
+				<Button type="submit" className="self-start" disabled={pending}>
+					{pending ? "Menyimpan…" : "Simpan ketentuan"}
 				</Button>
 			</form>
 		</section>

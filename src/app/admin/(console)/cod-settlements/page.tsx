@@ -1,5 +1,6 @@
 import { CodSettlementsClient } from "../../../../components/admin/cod-settlements-client";
 import { AccessDenied } from "../../../../components/admin/access-denied";
+import { consoleAccess } from "../../../../components/admin/console-access";
 import { readStaffAccess } from "../staff-roles";
 
 export const dynamic = "force-dynamic";
@@ -11,8 +12,8 @@ export const metadata = {
 // Navigation gate only; the API re-checks finance reconciliation authority and proof.
 export default async function CodSettlementsPage() {
 	const { roles, permissions } = await readStaffAccess();
-	const allowed = roles.includes("owner") || (roles.includes("finance") && permissions.includes("finance.reconciliation.read"));
-	if (!allowed)
+	const access = consoleAccess(roles, permissions);
+	if (!access.reconcileRead)
 		return (
 			<AccessDenied title="Setoran COD Mengantar" heading="Akses rekonsiliasi keuangan diperlukan">
 				Halaman ini untuk Super Admin atau staf keuangan dengan izin rekonsiliasi
@@ -28,7 +29,7 @@ export default async function CodSettlementsPage() {
 					dana masuk dicocokkan otomatis; selisih ditandai untuk ditinjau.
 				</p>
 			</header>
-			<CodSettlementsClient />
+			<CodSettlementsClient canWrite={access.reconcileWrite} />
 		</div>
 	);
 }
