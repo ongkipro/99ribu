@@ -1082,25 +1082,41 @@ test("S41 contact rebinding requires a real session/action/subject-bound single-
 		await guest.call("/api/v1/guest-support-sessions", {
 			body: { client_request_id: `req-${randomUUID()}` },
 		});
-		const phone = `+62813${String(Math.floor(Math.random() * 1e8)).padStart(8, "0")}`;
-		const bind = await guest.call("/api/v1/support/contact-challenges", {
-			body: { expected_version: 0, contact: { kind: "phone", phone } },
-		});
-		assert.equal(bind.response.status, 201);
-		const verified = await guest.call(
-			`/api/v1/support/contact-challenges/${bind.payload.challenge_id}/verifications`,
-			{
+		const randomPhone = () =>
+			`+62813${String(Math.floor(Math.random() * 1e8)).padStart(8, "0")}`;
+		const phone = randomPhone();
+		const stagedPhone = randomPhone();
+		const challenge = async (contactPhone: string) => {
+			const res = await guest.call("/api/v1/support/contact-challenges", {
+				body: { expected_version: 0, contact: { kind: "phone", phone: contactPhone } },
+			});
+			assert.equal(res.response.status, 201);
+			return res.payload.challenge_id as string;
+		};
+		const verify = async (challengeId: string, contactPhone: string) =>
+			guest.call(`/api/v1/support/contact-challenges/${challengeId}/verifications`, {
 				body: {
 					proof: await supportChallengeProof(
 						identity,
-						bind.payload.challenge_id as string,
+						challengeId,
 						"contact_binding",
-						`phone:${phone}`,
+						`phone:${contactPhone}`,
 					),
 				},
-			},
-		);
-		assert.equal(verified.response.status, 201);
+			});
+		// Both challenges are staged at version 0 before either is verified.
+		const first = await challenge(phone);
+		const staged = await challenge(stagedPhone);
+		assert.equal((await verify(first, phone)).response.status, 201);
+		// The staged version-0 challenge cannot replace the contact verified meanwhile.
+		const overwrite = await verify(staged, stagedPhone);
+		assert.equal(overwrite.response.status, 409);
+		assert.equal(JSON.parse(String(overwrite.payload)).code, "VERSION_CONFLICT");
+		const guestId = String(guest.cookies.get([...guest.cookies.keys()].find((name) => name.endsWith(".support_guest")) ?? "")).split(".")[0];
+		const [boundContact] = await sql`select contact_value from app.guest_support_identity where id=${guestId}`;
+		assert.equal(boundContact.contact_value, `phone:${phone}`, "verified contact unchanged");
+		const [stagedRow] = await sql`select verified_at from app.support_challenge where id=${staged}`;
+		assert.equal(stagedRow.verified_at, null, "refused verification does not consume the challenge seal");
 		const guestRebind = await guest.call("/api/v1/support/contact-challenges", {
 			body: {
 				expected_version: 1,

@@ -645,11 +645,17 @@ export async function verifyContactBinding(
 		}
 		const clock = sealed;
 		if (actor.kind === "guest") {
-			await tx`
+			// Guest challenges are only issued at version 0 (guest replacement fails
+			// closed in requestContactBinding), so a verification may only perform the
+			// first binding. A second challenge staged at version 0 cannot overwrite a
+			// contact verified meanwhile; the failed write rolls back the seal too.
+			const [bound] = await tx`
 				update app.guest_support_identity
 				set contact_value = ${challenge.target_reference}, contact_verified_at = ${clock.now}
-				where id = ${actor.id}
+				where id = ${actor.id} and contact_verified_at is null
+				returning id
 			`;
+			if (!bound) throw new AccessError(409, "VERSION_CONFLICT");
 		}
 		const response = {
 			id: challenge.id,

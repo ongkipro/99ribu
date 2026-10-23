@@ -888,8 +888,9 @@ paths:
   /me/reauthentication-proofs:
     post:
       operationId: issueStaffReauthenticationProof
-      summary: Reauthenticate for one reviewed staff action
-      description: Cookie session with MFA verified within five minutes and current password. Role/policy/calendar/publication
+      summary: Reauthenticate for one reviewed sensitive action
+      description: Cookie session and current password. Staff purposes (all except the self purposes below) also require
+        MFA verified within five minutes. Role/policy/calendar/publication
         and affiliate_rate.version purposes remain owner-only. Affiliate rate proof subjects are canonical affiliate
         UUIDs; issuance alone does not implement an affiliate rate mutation. finance.reconcile permits owner or
         finance with both explicit finance.reconciliation.read and finance.reconciliation.write grants. Accepted
@@ -24308,7 +24309,10 @@ components:
       description: Optional verified recovery contact for the current owned support identity, without forced signup/email.
         Initial expected_version=0; changing an existing binding requires current original-identity reauthentication
         (a support.contact_rebind proof from /me/reauthentication-proofs for the signed-in user; a guest support
-        identity has no reviewed reauthentication and is refused with 403 REAUTHENTICATION_REQUIRED) and new-contact proof. Contact text cannot discover/link old threads. Supported challenge transport and
+        identity has no reviewed reauthentication and is refused with 403 REAUTHENTICATION_REQUIRED) and new-contact proof.
+        Guest verification writes only a first binding; a challenge staged at version 0 returns 409 VERSION_CONFLICT
+        once a contact is verified. For signed-in users the proof gates challenge issuance only; verification
+        stores no user-side recovery contact (version reads buyer_profile.phone_verified_at, not set by this flow). Contact text cannot discover/link old threads. Supported challenge transport and
         retention are IAM gates.
       allOf:
       - if:
