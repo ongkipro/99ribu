@@ -53,7 +53,7 @@ test("PR-9: unit commission accrual, H+10 receipt maturity, return hold, partial
 		// 2. Create a 3-unit attributed guest order
 		const client = new CommerceClient(identity);
 		const bootRes = new Response(null);
-		await bootstrapGuest(identity, bootRes);
+		await bootstrapGuest(identity, bootRes, new Request("http://127.0.0.1:3099/api/v1/carts", { method: "POST" }));
 		client.absorb(bootRes);
 		const guestBuyer = await commerceActor(
 			client.request("/api/v1/carts"),
@@ -294,7 +294,7 @@ test("PR-9/G2/G3/G4: production outbox jobs wire COD accrual, parcel receipt mat
 		// 2. Create 2-unit COD guest order attributed to affiliate
 		const client = new CommerceClient(identity);
 		const bootRes = new Response(null);
-		await bootstrapGuest(identity, bootRes);
+		await bootstrapGuest(identity, bootRes, new Request("http://127.0.0.1:3099/api/v1/carts", { method: "POST" }));
 		client.absorb(bootRes);
 		const guestBuyer = await commerceActor(
 			client.request("/api/v1/carts"),

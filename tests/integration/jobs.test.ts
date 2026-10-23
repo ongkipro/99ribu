@@ -497,7 +497,7 @@ test("successful auth followed by failed guest-context revocation returns 503 wi
     `;
     assert.equal(initialSessions.n, 0);
 
-    const guestInit = await bootstrapGuest(identity, new Response(null, { status: 200 }));
+    const guestInit = await bootstrapGuest(identity, new Response(null, { status: 200 }), new Request("http://127.0.0.1:3099/api/v1/carts", { method: "POST" }));
     const p = await prefix(identity);
     const rawCookie = guestInit.headers.getSetCookie().find((c) => c.startsWith(`${p}.commerce_guest=`));
     assert.ok(rawCookie);

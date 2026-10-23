@@ -10,7 +10,9 @@ export function financeInstant(value:unknown){
  return value;
 }
 // Journal environment is the connected isolated database, never caller input.
-export async function financeEnvironment(tx:TransactionSql){const [db]=await tx<{name:string}[]>`select current_database() name`;return db.name==='99ribu_test'?'test' as const:'local' as const;}
+// The schema accepts 'production' since 0035, but money paths open only with their provider gates (S82/OD-7):
+// on the production database this refuses instead of labelling a posting 'local'.
+export async function financeEnvironment(tx:TransactionSql){const [db]=await tx<{name:string}[]>`select current_database() name`;if(db.name==='99ribu_production')throw new AccessError(503,'PRODUCTION_MONEY_PATH_GATED');return db.name==='99ribu_test'?'test' as const:'local' as const;}
 export function effectReference(value:unknown){const result=text(value,200);if(!/^[A-Za-z0-9_.:-]{1,200}$/.test(result)) throw invalid();return result;}
 export async function readFinanceTransaction(tx:TransactionSql,transactionId:string){
  const [h]=await tx`select id,kind,order_id,reverses_id,occurred_at,recorded_at from app.finance_transaction where id=${id(transactionId)}`;

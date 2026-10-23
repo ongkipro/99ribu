@@ -3,6 +3,7 @@ import {isDeepStrictEqual} from 'node:util';
 import type {TransactionSql} from 'postgres';
 import type {LocalAuth} from '../access/auth.ts';
 import {AccessError} from '../access/policy.ts';
+import {readRuntimeConfig} from '../../config/runtime.ts';
 import {lockRateActor} from '../affiliates/rates.ts';
 import {readCatalogRevision} from '../catalog/catalog.ts';
 import {id,invalid,object} from '../catalog/validation.ts';
@@ -65,6 +66,8 @@ export function unitMoney(amount:number,lines:readonly {line_id:string;quantity:
 // R4 (S92 finding 3): open manual-bank orders per buyer, and transfer codes kept free.
 export const MANUAL_BANK_OPEN_PER_ACTOR=2,MANUAL_BANK_CODE_RESERVE=99;
 export async function submitOrder(tx:TransactionSql,request:Request,identity:LocalAuth,actor:CommerceActor,value:unknown){
+ // Production has no issued payment/shipping provider yet (OD-7): every order entry point stays closed.
+ if(readRuntimeConfig(process.env).profile==='production')throw new AccessError(503,'CHECKOUT_CLOSED');
  const body=object(value,['quote_id','buyer_note']);const quoteId=id(body.quote_id);const buyerNote=body.buyer_note===undefined?null:clean(body.buyer_note,500);
  const version=expectedCartVersion(request),key=mutationKey(request),hash=await intentHash(identity,'order.create',{quoteId,buyerNote,version});
  const [before]=await tx`select document->>'affiliate_id' affiliate_id from app.checkout_quote where id=${quoteId}`;

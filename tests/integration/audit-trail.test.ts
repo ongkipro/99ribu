@@ -300,7 +300,7 @@ test("S73: registering a payout evidence slot audits the replaced evidence refer
 
 		const client = new CommerceClient(identity);
 		const bootRes = new Response(null);
-		await bootstrapGuest(identity, bootRes);
+		await bootstrapGuest(identity, bootRes, new Request("http://127.0.0.1:3099/api/v1/carts", { method: "POST" }));
 		client.absorb(bootRes);
 		const buyer = await commerceActor(
 			client.request("/api/v1/carts"),

@@ -1,6 +1,6 @@
 import { createHash, randomUUID } from "node:crypto";
 import type { TransactionSql } from "postgres";
-import { readLocalConfig } from "../../config/local.ts";
+import { appOrigin } from "../../config/runtime.ts";
 import type { LocalAuth } from "../access/auth.ts";
 import {
 	assertOrigin,
@@ -186,7 +186,7 @@ export async function enrollAffiliateProfile(
 	const key = requireIdempotencyKey(request);
 	const input = affiliateJoinInput(value);
 	const requestHash = digest(JSON.stringify(input));
-	const origin = readLocalConfig(process.env).origin;
+	const origin = appOrigin();
 
 	return identity.sql.begin(async (tx) => {
 		const user = await requireAffiliateRole(tx, principal);
@@ -307,7 +307,7 @@ export async function getAffiliateProfile(
 	identity: LocalAuth,
 	principal: Principal,
 ) {
-	const origin = readLocalConfig(process.env).origin;
+	const origin = appOrigin();
 	return identity.sql.begin(async (tx) => {
 		await requireAffiliateRole(tx, principal);
 		const [profile] = await tx<AffiliateProfileRow[]>`
@@ -326,7 +326,7 @@ export async function readAffiliateProfileDetail(
 	tx: TransactionSql,
 	userId: string,
 ) {
-	const origin = readLocalConfig(process.env).origin;
+	const origin = appOrigin();
 	const [profile] = await tx<AffiliateProfileRow[]>`
     select p.*, a.user_id, a.status
     from app.affiliate_profile p

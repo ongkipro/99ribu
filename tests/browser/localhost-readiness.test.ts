@@ -441,7 +441,7 @@ test("S65, S66 & S67 browser: assembled localhost multi-role journey, responsive
 		assert.equal(consentRes.status, 201);
 
 		const bootRes = new Response(null);
-		await bootstrapGuest(identity, bootRes);
+		await bootstrapGuest(identity, bootRes, new Request("http://127.0.0.1:3099/api/v1/carts", { method: "POST" }));
 		buyerClient.absorb(bootRes);
 		const guestBuyer = await commerceActor(
 			buyerClient.request("/api/v1/carts"),

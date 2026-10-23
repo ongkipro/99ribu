@@ -1,14 +1,14 @@
 import 'server-only';
 import {cache} from 'react';
 import {cookies,headers} from 'next/headers';
-import {readLocalConfig} from '../../config/local';
+import {appOrigin} from '../../config/runtime';
 import {getLocalAuth} from '../access/auth';
 import {AccessError} from '../access/policy';
 import {cookie,prefix} from '../checkout/access';
 import {readBrowserCart,readCartView} from './cart';
 
 export async function storefrontRequest(method:'GET'|'POST'='GET',path='/keranjang'){
- const forwarded=new Headers(await headers()),origin=readLocalConfig(process.env).origin,url=new URL(path,origin);
+ const forwarded=new Headers(await headers()),origin=appOrigin(),url=new URL(path,origin);
  if(url.origin!==origin||url.search||url.hash)throw new AccessError(403,'INVALID_ORIGIN');
  if(method==='GET'){
   // Next's cookie store includes cookies issued by the current Server Action;

@@ -48,8 +48,11 @@ export async function checkoutOrderRequest(request:Request,identity:LocalAuth,or
  return new Request(request.url,{method:request.method,headers});
 }
 
-async function autolarisChannels(identity:LocalAuth):Promise<CheckoutPaymentChannel[]>{
- try{const [db]=await identity.sql<{name:string}[]>`select current_database() name`;return enabledChannels(await autolarisClientFor(db.name==='99ribu_test'?'test':'local',identity.sql).listPayment());}
+// The connected database names the environment; production (or anything unknown) gets the live client,
+// which stays AUTOLARIS_LIVE_GATED until S97, so no AutoLaris channel is offered there.
+export async function autolarisChannels(identity:Pick<LocalAuth,'sql'>):Promise<CheckoutPaymentChannel[]>{
+ try{const [db]=await identity.sql<{name:string}[]>`select current_database() name`;const target=db.name==='99ribu_test'?'test':db.name==='99ribu_local'?'local':'production';
+  return enabledChannels(await autolarisClientFor(target,identity.sql).listPayment());}
  catch{return [];}
 }
 export async function readCheckoutPayment(request:Request,identity:LocalAuth,orderId:string):Promise<CheckoutPaymentView>{

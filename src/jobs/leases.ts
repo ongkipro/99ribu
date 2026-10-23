@@ -1,6 +1,6 @@
 import { randomUUID } from "node:crypto";
 import type { Sql } from "postgres";
-import { readLocalConfig } from "../config/local.ts";
+import { readRuntimeConfig } from "../config/runtime.ts";
 import { jsonIntent } from "./outbox.ts";
 import {id} from '../modules/catalog/validation.ts';
 
@@ -17,7 +17,7 @@ export type JobAdapter = {
 };
 
 export async function expireLeases(sql: Sql,onlyJobId?:string) {
-  readLocalConfig(process.env);
+  readRuntimeConfig(process.env);
   if(onlyJobId!==undefined) id(onlyJobId);
   return sql`update app.outbox_job set
     status=case when dispatched_at is not null then 'unknown' when attempts>=max_attempts then 'failed' else 'pending' end,
@@ -29,7 +29,7 @@ export async function expireLeases(sql: Sql,onlyJobId?:string) {
 }
 
 export async function claimJob(sql: Sql, kind: string, reconciliation = false,onlyJobId?:string): Promise<Claim | null> {
-  readLocalConfig(process.env);
+  readRuntimeConfig(process.env);
   if(onlyJobId!==undefined) id(onlyJobId);
   if (!/^[a-z][a-z0-9_.-]{1,63}$/.test(kind) || kind === "local.notification") throw new Error("Invalid leased job kind.");
   const token = randomUUID();
@@ -44,21 +44,21 @@ export async function claimJob(sql: Sql, kind: string, reconciliation = false,on
 }
 
 export async function markDispatched(sql: Sql, claim: Claim) {
-  readLocalConfig(process.env);
+  readRuntimeConfig(process.env);
   const rows = await sql`update app.outbox_job set dispatched_at=coalesce(dispatched_at,now()),lease_until=now()+interval '30 seconds'
     where id=${claim.id} and status='processing' and lease_token=${claim.token} and lease_until>now() returning id`;
   return rows.length === 1;
 }
 
 export async function renewLease(sql: Sql, claim: Claim) {
-  readLocalConfig(process.env);
+  readRuntimeConfig(process.env);
   const rows = await sql`update app.outbox_job set lease_until=now()+interval '30 seconds'
     where id=${claim.id} and status='processing' and lease_token=${claim.token} and lease_until>now() returning id`;
   return rows.length === 1;
 }
 
 export async function settleClaim(sql: Sql, claim: Claim, outcome: Outcome) {
-  readLocalConfig(process.env);
+  readRuntimeConfig(process.env);
   if (!outcome || !["succeeded", "retryable", "failed", "unknown"].includes(outcome.status)) throw new Error("Invalid adapter outcome.");
   const receipt = outcome.status === "succeeded" ? jsonIntent(outcome.receipt) : null;
   if (outcome.status !== "succeeded") {
@@ -89,7 +89,7 @@ export async function runLeasedJob(sql: Sql, adapters: Readonly<Record<string, J
     const deadline = setTimeout(() => stop.abort(), deadlineMs);
     let outcome: Outcome;
     try {
-      readLocalConfig(process.env);
+      readRuntimeConfig(process.env);
       const timedOut = new Promise<never>((_resolve, reject) => stop.signal.addEventListener("abort", () => reject(new Error("Adapter deadline exceeded.")), { once: true }));
       outcome = await Promise.race([timedOut, claim.reconciliation ? adapter.reconcile(claim, stop.signal) : adapter.dispatch(claim, stop.signal)]);
       // Malformed receipt/outcome is uncertain, never an automatic retry.

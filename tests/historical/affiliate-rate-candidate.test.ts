@@ -47,7 +47,7 @@ test('unapplied0022 candidate binds real prospective affiliate versions to quote
    const [now]=await tx`select date_trunc('milliseconds',clock_timestamp()) now`;
    const effective=await readEffectiveAffiliateRate(tx,account.id,new Date(now.now).toISOString());assert.equal(effective.rate_version_id,first.id);assert.equal(effective.commission_idr,0);
    const fallback=await readEffectiveAffiliateRate(tx,null,new Date(now.now).toISOString());assert.equal(fallback.rate_version_id,null);assert.ok('default_commission_bps'in fallback.policy.values);assert.equal(fallback.basis_points,fallback.policy.values.default_commission_bps);
-   const client=new CommerceClient(identity),response=new Response(null);await bootstrapGuest(identity,response);client.absorb(response);
+   const client=new CommerceClient(identity),response=new Response(null);await bootstrapGuest(identity, response, new Request("http://127.0.0.1:3099/api/v1/carts", { method: "POST" }));client.absorb(response);
    const buyer=await commerceActor(client.request('/api/v1/carts'),identity);assert.ok(buyer);
    const line=f.line('fixture-offer-shirt');
    const quote=async()=>{

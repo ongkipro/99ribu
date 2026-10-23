@@ -1,5 +1,5 @@
 import type { Sql, TransactionSql } from "postgres";
-import { readLocalConfig } from "../config/local.ts";
+import { readRuntimeConfig } from "../config/runtime.ts";
 import { dispatchLocal } from "../modules/integrations/local.ts";
 import { expireLeases, type JobAdapter, runLeasedJob } from "./leases.ts";
 import { expireReservationJob } from "../modules/inventory/expiry.ts";
@@ -66,7 +66,7 @@ const SELECTED_KINDS = ["local.notification", ...Object.keys(DATABASE_JOBS)];
 // Shared by the production selector and rollback/crash proof: effect and job
 // completion always use the caller's actual database transaction.
 export async function processDatabaseJob(tx: TransactionSql, job: DatabaseJob) {
-  readLocalConfig(process.env);
+  readRuntimeConfig(process.env);
   if (job.kind === "local.notification") {
     const error = await dispatchLocal(tx, job.kind, job.payload);
     await tx`update app.outbox_job set status=${error ? "failed" : "completed"},attempts=attempts+1,last_error=${error},completed_at=now() where id=${job.id}`;
@@ -132,7 +132,7 @@ export async function sweepExpiredGuestContexts(sql: Sql) {
 }
 
 export async function runOneJob(sql: Sql, adapters: Readonly<Record<string, JobAdapter>> = {},onlyJobId?:string) {
-  readLocalConfig(process.env);
+  readRuntimeConfig(process.env);
   if(onlyJobId!==undefined) id(onlyJobId);
   await expireLeases(sql,onlyJobId);
   if(onlyJobId===undefined) await sweepExpiredGuestContexts(sql);

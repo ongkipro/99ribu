@@ -1,11 +1,14 @@
 import type { NextConfig } from "next";
 import { realpathSync } from "node:fs";
-import { assertLocalNextCommand, readLocalConfig } from "./src/config/local.ts";
+import { assertLocalNextCommand } from "./src/config/local.ts";
+import { assertProductionNextCommand, readRuntimeConfig } from "./src/config/runtime.ts";
 
 // Also validate when Next is invoked directly, after its environment loading.
-const { tailnetOrigin } = readLocalConfig(process.env);
+const config = readRuntimeConfig(process.env);
 if (process.argv[1] && realpathSync(process.argv[1]) === realpathSync("node_modules/next/dist/bin/next")) {
-  assertLocalNextCommand(process.argv.slice(2));
+  const args = process.argv.slice(2);
+  if (config.profile === "production") assertProductionNextCommand(args, config.port);
+  else assertLocalNextCommand(args);
 }
 
 const nextConfig: NextConfig = {
@@ -20,7 +23,12 @@ const nextConfig: NextConfig = {
   },
   // next dev refuses HMR/dev resources for an Origin other than localhost/127.0.0.1. Allow only the
   // opt-in tailnet IP. Server Actions need no entry: tailscale serve --tcp keeps Host equal to Origin.
-  ...(tailnetOrigin ? { allowedDevOrigins: [new URL(tailnetOrigin).hostname] } : {}),
+  ...(config.tailnetOrigin ? { allowedDevOrigins: [new URL(config.tailnetOrigin).hostname] } : {}),
+  // S82 audit: the S08 design prototypes under public/prototypes/ are local review material, never production
+  // content. beforeFiles runs before public files are served, so the path resolves to the unmatched 404.
+  ...(config.profile === "production" ? {
+    rewrites: async () => ({ beforeFiles: [{ source: "/prototypes/:path*", destination: "/404" }], afterFiles: [], fallback: [] }),
+  } : {}),
 };
 
 export default nextConfig;
