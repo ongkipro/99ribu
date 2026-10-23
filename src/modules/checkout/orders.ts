@@ -65,6 +65,15 @@ export function unitMoney(amount:number,lines:readonly {line_id:string;quantity:
 }
 // R4 (S92 finding 3): open manual-bank orders per buyer, and transfer codes kept free.
 export const MANUAL_BANK_OPEN_PER_ACTOR=2,MANUAL_BANK_CODE_RESERVE=99;
+// S104: a code stays reserved while its order is open and for 72 hours after the order's deadline, so a
+// late or duplicate transfer of an expired/paid order's exact amount never matches a newer order. Callers
+// hold the transfer-code advisory lock (selection is serialized); `now` is the cart's business clock.
+export const TRANSFER_CODE_QUARANTINE_HOURS=72;
+export async function reservedTransferCodes(tx:TransactionSql,now:Date){
+ const rows=await tx`select transfer_code from app.commerce_order where payment_channel='manual-bank' and status='pending' and payment_status='pending'
+  union select transfer_code from app.commerce_order where payment_channel='manual-bank' and expires_at>${now.toISOString()}::timestamptz-make_interval(hours=>${TRANSFER_CODE_QUARANTINE_HOURS})`;
+ return new Set(rows.map(r=>Number(r.transfer_code)));
+}
 export async function submitOrder(tx:TransactionSql,request:Request,identity:LocalAuth,actor:CommerceActor,value:unknown){
  // Production has no issued payment/shipping provider yet (OD-7): every order entry point stays closed.
  if(readRuntimeConfig(process.env).profile==='production')throw new AccessError(503,'CHECKOUT_CLOSED');
@@ -95,10 +104,10 @@ export async function submitOrder(tx:TransactionSql,request:Request,identity:Loc
   // R4: a 24-hour hold is capped per buyer (guest context or account; the actor is locked above).
   const [mine]=await tx`select count(*)::int n from app.commerce_order where payment_channel='manual-bank' and status='pending' and payment_status='pending' and (owner_user_id=${actor.kind==='user'?actor.id:null} or owner_guest_id=${actor.kind==='guest'?actor.id:null}::uuid)`;
   if(mine.n>=MANUAL_BANK_OPEN_PER_ACTOR)throw new AccessError(409,'MANUAL_BANK_OPEN_LIMIT');
-  // Unique among open manual-bank orders so a bank statement amount identifies one order. Code
+  // Unique among open and recently closed manual-bank orders (reservedTransferCodes) so a bank statement amount identifies one order. Code
   // selection is serialized, and a reserve keeps the space from running out under load.
   await tx`select pg_advisory_xact_lock(hashtextextended('99ribu:manual-bank-transfer-codes',0))`;
-  const used=new Set((await tx`select transfer_code from app.commerce_order where payment_channel='manual-bank' and status='pending' and payment_status='pending'`).map(r=>Number(r.transfer_code)));
+  const used=await reservedTransferCodes(tx,now);
   const free=Array.from({length:999},(_,n)=>n+1).filter(code=>!used.has(code));if(free.length<=MANUAL_BANK_CODE_RESERVE)throw new AccessError(409,'MANUAL_BANK_BUSY');
   transferCode=free[randomInt(free.length)];
  }

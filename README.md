@@ -32,7 +32,7 @@ From a clean checkout on this host (Node 24.21.0, PostgreSQL 18.6; details in th
 ```bash
 npm ci --ignore-scripts
 npm run db:up                                   # private Unix-socket cluster, 99ribu_local + 99ribu_test
-npm run db:migrate -- local                     # 0000–0035
+npm run db:migrate -- local                     # 0000–0037
 npm run db:migrate -- test
 npm run fixture -- commercial-terms local demo  # commercial policy baseline required for publication (idempotent)
 npm run fixture -- payment-terms local demo     # DEC-008/009 payment terms: manual bank transfer, COD fee
@@ -272,7 +272,7 @@ Run from this worktree with migrations applied to local and test. Use the exact 
 | `docker build -t 99ribu:<tag> .` then `docker run --rm --entrypoint node 99ribu:<tag> scripts/image-audit.ts` | Docker without sudo | S84 image build (no database or secret needed) and image content audit |
 | `npm run build` | Valid local profile | Production build; does not prove UI or database behavior |
 | `npm run test:integration -- --case=foundation` | Isolated test DB migrated and running | 5 files, 24 database/storage/key/auth/worker checks |
-| `npm run test:integration -- --case=all-current` | Isolated test DB migrated (`0000`–`0035`); built web running on `127.0.0.1:3099`; `PLAYWRIGHT_CHROMIUM_EXECUTABLE` set | All 178 current runtime integration test files (historical pre-migration candidates live in `tests/historical/`) |
+| `npm run test:integration -- --case=all-current` | Isolated test DB migrated (`0000`–`0037`); built web running on `127.0.0.1:3099`; `PLAYWRIGHT_CHROMIUM_EXECUTABLE` set | All 178 current runtime integration test files (historical pre-migration candidates live in `tests/historical/`) |
 | `npm run test:integration -- --case=localhost-readiness` | Built web + local/test DB migrated | Assembled S65–S68 localhost readiness + real `pg_dump -Fc` / `pg_restore` into disposable DB |
 | `npm start` | Successful build | Web at `http://127.0.0.1:3099` only |
 | `PLAYWRIGHT_CHROMIUM_EXECUTABLE=/snap/bin/chromium npm run test:browser -- --case=foundation` | Built web + local DB; no other local worker; Chromium installed | 2 files, 3 HTTP/cookie/worker-delivery checks |
@@ -285,6 +285,7 @@ Run from this worktree with migrations applied to local and test. Use the exact 
 | `npm run catalog:rehome -- local\|test [--apply]` | Migrated target DB (`0030`); committed dataset | S90 (DEC-006 transition): read-only dry run (default) of origin warehouses to create, catalog units held outside their origin warehouse to move (and reserved/quarantined units that stay), open transfers and offers the next import rebinds; `--apply` creates missing origins and moves available units through audited warehouse transfers (create, dispatch, receive) as a temporary audited owner; reruns converge. Run `catalog:import` afterwards |
 | `npm run catalog:withdraw -- local\|test [--apply]` | Migrated target DB (`0029`) | S81: lists (read-only dry run, default) or withdraws (`--apply`, temporary audited owner, real publication service) every current publication outside the committed catalog, grouped by origin |
 | `npm run test:integration -- --case=manual-fulfillment` | Isolated test DB migrated (`0031`) | S91: Berlapak references, manual shipment (own Mengantar resi), tracking statuses/corrections, pickup profile scope |
+| `npm run test:integration -- --case=db-hygiene` | Isolated test DB migrated (`0037`); a current commercial policy in the test DB (any catalog/payment suite creates it) | S104/S105: admin categories limited to categories used by a current draft or live product plus ancestors; staff support inbox keyset pages (activity/id order, SQL unread filter, unknown cursor refused); retention jobs in one rolled-back owner transaction — bounded 500-row batches and idempotent reruns, kind/action allowlists, 30/90-day windows, catalog-read FK references kept, expired sessions with their MFA rows, verifications, idle rate buckets, and the visitor purge (unreferenced graph removed, order-linked visitor and money/attribution/audit counts untouched, app role refused the window override and direct deletes even with the purge setting on) |
 | `npm run test:integration -- --case=admin-orders` | Isolated test DB migrated (`0034`) | S100: staff order search by order number, current/superseded resi and phone suffix; detail without contacts; spec-07 scope, warehouse-role denial, shared search limiter |
 | `npm run test:integration -- --case=cod-remittance` | Isolated test DB migrated (`0031`) | S91: COD collectible parcels, remittance matching and settlement |
 | `npm run test:integration -- --case=payment-methods` | Isolated test DB migrated (`0032`) | S92: manual bank transfer (unique code added, 24h), COD fee 3.33% of goods + shipping |

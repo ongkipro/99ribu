@@ -2781,9 +2781,31 @@ export async function listStaffSupportInbox(
 		? tx`and c.created_at >= ${new Date(ageFromRaw).toISOString()}`
 		: tx``;
 
-	const allRows = await tx<ConversationRow[]>`
+	// Unread is the projection's own rule (public_sequence beyond this agent's read marker), filtered in SQL
+	// so the page is a bounded keyset slice (S104) instead of every matching conversation.
+	const unreadFilter =
+		unreadParam === "true"
+			? tx`and c.public_sequence > coalesce(rp.last_read_sequence, 0)`
+			: unreadParam === "false"
+				? tx`and c.public_sequence <= coalesce(rp.last_read_sequence, 0)`
+				: tx``;
+	// The cursor is the last conversation id of the previous page; its current activity key is the position.
+	// Activity moves conversations, so a later page can repeat or skip one that changed in between (as before).
+	let afterFilter = tx``;
+	if (cursor) {
+		const [position] = await tx<{ at: string; id: string }[]>`
+			select coalesce(last_public_message_at, created_at)::text as at, id
+			from app.support_conversation where id = ${cursor}
+		`;
+		if (!position) throw new AccessError(400, "INVALID_CURSOR");
+		afterFilter = tx`and (coalesce(c.last_public_message_at, c.created_at), c.id) < (${position.at}::timestamptz, ${position.id}::uuid)`;
+	}
+
+	const rows = await tx<ConversationRow[]>`
 		select c.*
 		from app.support_conversation c
+		left join app.support_read_position rp
+			on rp.conversation_id = c.id and rp.participant_scope = ${`user:${principal.id}`}
 		where true
 		  ${assignmentFilter}
 		  ${statusFilter}
@@ -2791,29 +2813,16 @@ export async function listStaffSupportInbox(
 		  ${assigneeFilter}
 		  ${tagFilter}
 		  ${ageFilter}
+		  ${unreadFilter}
+		  ${afterFilter}
 		order by coalesce(c.last_public_message_at, c.created_at) desc, c.id desc
+		limit ${limit + 1}
 	`;
 
-	const projectedAll = [];
-	for (const row of allRows) {
-		const item = await projectStaffConversation(tx, row, principal.id);
-		if (unreadParam === "true" && item.current_agent_unread_messages === 0)
-			continue;
-		if (unreadParam === "false" && item.current_agent_unread_messages > 0)
-			continue;
-		projectedAll.push(item);
-	}
-
-	let startIndex = 0;
-	if (cursor) {
-		const idx = projectedAll.findIndex(
-			(item) => item.conversation.id === cursor,
-		);
-		if (idx === -1) throw new AccessError(400, "INVALID_CURSOR");
-		startIndex = idx + 1;
-	}
-	const page = projectedAll.slice(startIndex, startIndex + limit);
-	const hasMore = startIndex + limit < projectedAll.length;
+	const page = [];
+	for (const row of rows.slice(0, limit))
+		page.push(await projectStaffConversation(tx, row, principal.id));
+	const hasMore = rows.length > limit;
 	return {
 		data: page,
 		pagination: {

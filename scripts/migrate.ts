@@ -29,6 +29,8 @@ try {
     await sql.unsafe(`GRANT USAGE, SELECT ON ALL SEQUENCES IN SCHEMA app TO "99ribu_${target}_app"`);
     await sql.unsafe(`ALTER DEFAULT PRIVILEGES IN SCHEMA app GRANT SELECT, INSERT, UPDATE, DELETE ON TABLES TO "99ribu_${target}_app"`);
     await sql.unsafe(`ALTER DEFAULT PRIVILEGES IN SCHEMA app GRANT USAGE, SELECT ON SEQUENCES TO "99ribu_${target}_app"`);
+    // S105: the only owner-privileged (SECURITY DEFINER) routine; 0037 revokes it from PUBLIC.
+    await sql.unsafe(`GRANT EXECUTE ON FUNCTION app.purge_expired_visitor_history(integer, interval) TO "99ribu_${target}_app"`);
     console.log(`Migrations applied to isolated ${target} database (newly applied: ${(await applied()) - before}).`);
   } finally {
     await lock`select pg_advisory_unlock(hashtext('99ribu:migrate'))`;

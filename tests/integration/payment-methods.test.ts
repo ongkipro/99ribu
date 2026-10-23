@@ -4,7 +4,7 @@ import {allocateByWeight,codFee,paymentChannel} from '../../src/modules/payments
 import {randomUUID} from 'node:crypto';
 import {runOneJob} from '../../src/jobs/worker.ts';
 import {handleAccess} from '../../src/modules/access/routes.ts';
-import {projectOrder} from '../../src/modules/checkout/orders.ts';
+import {projectOrder,reservedTransferCodes} from '../../src/modules/checkout/orders.ts';
 import {expireOwnedOrderJob} from '../../src/modules/checkout/expiry.ts';
 import {handleManualTransfers} from '../../src/modules/finance/manual-bank-routes.ts';
 import {handleManualFulfillment} from '../../src/modules/fulfillment/manual-routes.ts';
@@ -155,6 +155,16 @@ test('manual bank: unique code added to the total, 24 hour window, instructions,
   await sql.begin(tx=>expireOwnedOrderJob(tx,{id:job.id,kind:job.kind,payload:job.payload}));
   const [expired]=await sql`select o.status,o.payment_status,r.status hold from app.commerce_order o join app.stock_reservation r on r.id=o.stock_reservation_id where o.id=${lapsed.id}`;
   assert.deepEqual({...expired},{status:'cancelled',payment_status:'expired',hold:'expired'});
+  // S104: the lapsed order's code stays out of selection for 72 hours past its deadline, then frees up.
+  const [lapsedRow]=await sql`select transfer_code,expires_at from app.commerce_order where id=${lapsed.id}`;
+  const deadline=new Date(lapsedRow.expires_at).getTime(),code=Number(lapsedRow.transfer_code);
+  const reservedAt=(at:number)=>sql.begin(tx=>reservedTransferCodes(tx,new Date(at)));
+  assert.ok((await reservedAt(deadline+71*3600000)).has(code),'an expired order keeps its code reserved within 72 h');
+  const [other]=await sql`select count(*)::int n from app.commerce_order where id<>${lapsed.id} and payment_channel='manual-bank' and transfer_code=${code}
+   and ((status='pending' and payment_status='pending') or expires_at>${new Date(deadline+73*3600000-72*3600000).toISOString()}::timestamptz)`;
+  if(other.n===0)assert.ok(!(await reservedAt(deadline+73*3600000)).has(code),'after 72 h the code is free again');
+  const [paidRow]=await sql`select transfer_code,expires_at,payment_status from app.commerce_order where id=${paid.id}`;assert.equal(paidRow.payment_status,'confirmed');
+  assert.ok((await reservedAt(new Date(paidRow.expires_at).getTime()+3600000)).has(Number(paidRow.transfer_code)),'a paid order keeps its code reserved too (late duplicate transfer)');
  }finally{for(const user of users)await closeFulfillmentActor(f.identity,user).catch(()=>{});try{await terms?.restore();}finally{await f.close();}}
 });
 

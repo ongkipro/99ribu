@@ -55,9 +55,9 @@ if (import.meta.main) {
     "--case=T-26", "--case=T-27", "--case=T-28", "--case=T-29", "--case=T-30", "--case=T-31", "--case=T-32", "--case=T-33",
     "--case=T-34", "--case=T-35", "--case=T-36", "--case=T-37", "--case=T-38", "--case=localhost-readiness",
     "--case=S29-candidate", "--case=S30-candidate", "--case=S31-candidate", "--case=seed-foundation", "--case=seed-commerce",
-    "--case=seed-berlapak", "--case=manual-fulfillment", "--case=cod-remittance", "--case=payment-methods", "--case=autolaris-payments", "--case=consignment-payments", "--case=production-profile", "--case=backup-restore", "--case=admin-orders", "--case=all-current",
+    "--case=seed-berlapak", "--case=manual-fulfillment", "--case=cod-remittance", "--case=payment-methods", "--case=autolaris-payments", "--case=consignment-payments", "--case=production-profile", "--case=backup-restore", "--case=admin-orders", "--case=db-hygiene", "--case=all-current",
   ];
-  const integrationOnlySelectors = ["--case=backup-restore", "--case=seed-foundation", "--case=seed-berlapak", "--case=manual-fulfillment", "--case=admin-orders", "--case=cod-remittance", "--case=payment-methods", "--case=autolaris-payments", "--case=production-profile", "--case=PR-3", "--case=S29-candidate", "--case=S30-candidate", "--case=S31-candidate", "--case=T-38"];
+  const integrationOnlySelectors = ["--case=backup-restore", "--case=seed-foundation", "--case=seed-berlapak", "--case=manual-fulfillment", "--case=admin-orders", "--case=db-hygiene", "--case=cod-remittance", "--case=payment-methods", "--case=autolaris-payments", "--case=production-profile", "--case=PR-3", "--case=S29-candidate", "--case=S30-candidate", "--case=S31-candidate", "--case=T-38"];
   if (!["integration", "browser"].includes(mode) || !validSelectors.includes(selector) || extra.length || (mode === "browser" && integrationOnlySelectors.includes(selector)) || (mode === "integration" && selector === "--case=consignment-payments")) {
     console.error("Use check-tests.ts integration|browser with a registered --case=... selector. Unknown, missing and extra selectors are refused.");
     process.exitCode = 1;
@@ -155,6 +155,8 @@ if (import.meta.main) {
       ? ["tests/integration/manual-fulfillment.test.ts"]
       : selector === "--case=admin-orders"
       ? ["tests/integration/admin-orders.test.ts"]
+      : selector === "--case=db-hygiene"
+      ? ["tests/integration/db-hygiene.test.ts", "tests/integration/retention.test.ts"]
       : selector === "--case=cod-remittance"
       ? ["tests/integration/cod-remittance.test.ts"]
       : selector === "--case=payment-methods"

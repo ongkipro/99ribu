@@ -59,13 +59,17 @@ export async function listOrderHistory(identity:LocalAuth,principal:Principal,ur
   // S100: reference is an exact order number (any case) or an exact resi, current or superseded
   // (spaces removed, upper case), of the carrier booking or a manual Mengantar entry.
   const resi=filters.reference===null?null:filters.reference.replace(/\s+/g,'').toUpperCase();
-  const trackingMatch=resi===null||!installed.installed?tx`false`:tx`exists(select 1 from app.order_shipment s join app.fulfillment f on f.shipment_id=s.id where s.order_id=o.id
-   and (f.tracking_number=${resi} or exists(select 1 from app.manual_tracking mt where mt.fulfillment_id=f.id and mt.tracking_number=${resi})))`;
+  // S104: an uncorrelated id set (fulfillment_tracking_number_idx, manual_tracking_number_idx) lets the order
+  // lookup use the primary key instead of probing every order's shipments.
+  const trackingMatch=resi===null||!installed.installed?tx`false`:tx`o.id=any(array(select s.order_id from app.fulfillment f join app.order_shipment s on s.id=f.shipment_id where f.tracking_number=${resi}
+   union select s.order_id from app.manual_tracking mt join app.fulfillment f on f.id=mt.fulfillment_id join app.order_shipment s on s.id=f.shipment_id where mt.tracking_number=${resi}))`;
   // Exact digit suffix of the buyer contact or recipient phone; never echoed, logged or audited.
-  // lazy: sequential scan of quotes; add an expression index if search latency grows (migration slice).
-  const phoneMatch=filters.phone_suffix===null?tx`true`:tx`exists(select 1 from app.checkout_quote q where q.id=o.quote_id and (
-   right(regexp_replace(coalesce(q.document->'contact'->>'phone',''),'[^0-9]','','g'),${filters.phone_suffix.length})=${filters.phone_suffix}
-   or right(regexp_replace(coalesce(q.document->'address'->>'phone',''),'[^0-9]','','g'),${filters.phone_suffix.length})=${filters.phone_suffix}))`;
+  // S104: a digit suffix is a prefix of the reversed digits, served by the checkout_quote_*_phone_suffix_idx
+  // expression indexes (text_pattern_ops). The suffix is 6-8 validated digits, so the LIKE pattern needs no escaping.
+  const reversedSuffix=filters.phone_suffix===null?null:`${[...filters.phone_suffix].reverse().join('')}%`;
+  const phoneMatch=reversedSuffix===null?tx`true`:tx`o.quote_id=any(array(select q.id from app.checkout_quote q where
+   reverse(regexp_replace(coalesce(q.document->'contact'->>'phone',''),'[^0-9]','','g')) like ${reversedSuffix}
+   or reverse(regexp_replace(coalesce(q.document->'address'->>'phone',''),'[^0-9]','','g')) like ${reversedSuffix}))`;
   const rows=await tx`select o.*,to_char(o.created_at at time zone 'UTC','YYYY-MM-DD"T"HH24:MI:SS.US"Z"') stamp from app.commerce_order o where o.revision>0
    and (${access.roles.includes('owner')} or (exists(select 1 from app.order_shipment s where s.order_id=o.id) and not exists(select 1 from app.order_shipment s where s.order_id=o.id and not (s.warehouse_id=any(${access.warehouseIds}::uuid[]))) and ${replacementScope}))
    and (${filters.from}::timestamptz is null or o.created_at>=${filters.from}::timestamptz) and (${filters.to}::timestamptz is null or o.created_at<${filters.to}::timestamptz)
