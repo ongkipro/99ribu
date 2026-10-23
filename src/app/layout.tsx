@@ -1,7 +1,11 @@
-import type {Metadata} from 'next';
+import type {Metadata,Viewport} from 'next';
+import {siteConfig} from '../config/site';
+import {rootMetadata} from '../modules/storefront/seo';
 import './globals.css';
 
-export const metadata:Metadata={title:{default:'99ribu — Pilihan lengkap Rp99.000',template:'%s — 99ribu'},description:'Lihat isi setiap pilihan lengkap seharga Rp99.000. Ongkir dihitung saat checkout.',robots:{index:false,follow:false}};
+// Safe default: every route is noindex until it opts in through publicMetadata (seo.ts routePolicy).
+export function generateMetadata():Metadata{return rootMetadata(siteConfig());}
+export const viewport:Viewport={themeColor:'#5b35d5'};
 export default function RootLayout({children}:{children:React.ReactNode}){
- return <html lang="id"><body>{children}</body></html>;
+ return <html lang="id-ID"><body>{children}</body></html>;
 }

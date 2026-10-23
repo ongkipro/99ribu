@@ -1,8 +1,20 @@
 import Link from "next/link";
 import { Shell } from "../../../components/storefront/shell";
 import { CustomerChatView } from "../../../components/support/CustomerChatView";
+import { siteConfig } from "../../../config/site";
+import {
+	helpDescription,
+	helpTitle,
+	publicMetadata,
+} from "../../../modules/storefront/seo";
 
-export const metadata = { title: "Cara pesan dan pengembalian" };
+export function generateMetadata() {
+	return publicMetadata(siteConfig(), {
+		path: "/help",
+		title: helpTitle,
+		description: helpDescription,
+	});
+}
 
 export default function Help() {
 	return (

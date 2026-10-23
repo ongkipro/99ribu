@@ -6,13 +6,14 @@ import {Icon} from './shell';
 type Category={id:string;name:string;slug:string;parent_id:string|null};
 type Facet={key:string;label:string;values:string[]};
 const kinds:Record<string,string>={unit:'Satuan',multipack:'Paket barang yang sama',bundle:'Paket campuran'};
-export function Listing({input,products,next,categories,categoryName,facets}:{input:CatalogQuery;products:PublicProduct[];next:string|null;categories:Category[];categoryName?:string;facets:Facet[]}){
- const url=(override:Partial<CatalogQuery>={})=>{const value={...input,cursor:null,...override},params=new URLSearchParams();
-  for(const key of ['q','category_id','offer_kind','availability','sort','limit','cursor'] as const) if(value[key]) params.set(key,String(value[key]));
-  if(Object.keys(value.attributes).length) params.set('attributes',JSON.stringify(value.attributes));return `/search?${params}`;
+export function Listing({input,products,next,categories,categoryName,facets,pinned}:{input:CatalogQuery;products:PublicProduct[];next:string|null;categories:Category[];categoryName?:string;facets:Facet[];pinned?:{id:string;path:string}}){
+ // On a category page, links that keep its category (pagination, filter removal) stay on /category/<slug>.
+ const url=(override:Partial<CatalogQuery>={})=>{const value={...input,cursor:null,...override},onPage=pinned&&value.category_id===pinned.id,params=new URLSearchParams();
+  for(const key of ['q','category_id','offer_kind','availability','sort','limit','cursor'] as const) if(value[key]&&!(onPage&&key==='category_id')) params.set(key,String(value[key]));
+  if(Object.keys(value.attributes).length) params.set('attributes',JSON.stringify(value.attributes));return onPage?`${pinned.path}?${params}`:`/search?${params}`;
  };
  const resetParams=new URLSearchParams();if(input.q) resetParams.set('q',input.q);if(input.category_id) resetParams.set('category_id',input.category_id);
- const resetHref=resetParams.toString()?`/search?${resetParams}`:'/search';
+ const resetHref=pinned?(input.q?`${pinned.path}?${new URLSearchParams({q:input.q})}`:pinned.path):resetParams.toString()?`/search?${resetParams}`:'/search';
  const categoryControl=<><label htmlFor="category-filter">Kategori</label><select id="category-filter" name="category_id" defaultValue={input.category_id??''}><option value="">Semua kategori</option>{categories.map(c=><option key={c.id} value={c.id}>{c.name}</option>)}</select></>;
  const separateCategory=facets.some(f=>f.values.length>0)||Object.keys(input.attributes).length>0;
  const active:{key:string;label:string;href:string}[]=[];
@@ -38,7 +39,7 @@ export function Listing({input,products,next,categories,categoryName,facets}:{in
    {facets.filter(f=>f.values.length).map(f=><fieldset className="facet" key={f.key}><legend>{f.label}</legend>{f.values.map(value=><label className="facet-option" key={value}><input type="checkbox" name={`filter.${f.key}`} value={value} defaultChecked={input.attributes[f.key]?.includes(value)??false}/>{value}</label>)}</fieldset>)}
    <div className="filter-actions"><button className="button" type="submit">Terapkan filter</button><Link className="reset-link" href={resetHref}>Hapus filter</Link></div>
   </form></FilterPanel><section aria-label="Hasil produk">
-   {products.length?<ProductGrid products={products} input={input}/>:<div className="empty-state"><h2>{next?'Belum ada kecocokan di halaman ini':'Belum ada produk yang sesuai'}</h2><p>{next?'Lanjutkan pencarian pada halaman berikutnya dengan filter yang sama.':'Coba kata lain atau hapus filter untuk melihat pilihan lain.'}</p><Link className="button" href={next?url({cursor:next}):'/search'}>{next?'Halaman berikutnya':'Lihat semua produk'}</Link></div>}
+   {products.length?<><h2 className="sr-only">Daftar produk</h2><ProductGrid products={products} input={input}/></>:<div className="empty-state"><h2>{next?'Belum ada kecocokan di halaman ini':'Belum ada produk yang sesuai'}</h2><p>{next?'Lanjutkan pencarian pada halaman berikutnya dengan filter yang sama.':'Coba kata lain atau hapus filter untuk melihat pilihan lain.'}</p><Link className="button" href={next?url({cursor:next}):'/search'}>{next?'Halaman berikutnya':'Lihat semua produk'}</Link></div>}
    {next&&products.length>0&&<div className="pagination"><Link className="button secondary" href={url({cursor:next})}>Halaman berikutnya</Link><p>Stok dan publikasi diperiksa lagi pada setiap halaman.</p></div>}
   </section></div>
  </main>;

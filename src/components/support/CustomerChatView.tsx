@@ -159,8 +159,7 @@ const inputStyle: React.CSSProperties = {
 	minWidth: 0,
 	maxWidth: "100%",
 	padding: "10px 12px",
-	borderRadius: "12px",
-	border: "1px solid #85858e",
+	// Border, radius and focus come from the storefront field contract in globals.css.
 	background: "#fff",
 	color: "#18181b",
 	fontSize: "1rem",
@@ -752,8 +751,7 @@ export function CustomerChatView() {
 				padding: "24px",
 				borderRadius: "20px",
 				background: "#fff",
-				boxShadow:
-					"0 2px 16px rgba(24, 24, 27, 0.05), 0 0 0 1px rgba(24, 24, 27, 0.05)",
+				border: "1px solid rgba(5, 41, 77, 0.1)",
 				maxWidth: "100%",
 				width: "100%",
 				boxSizing: "border-box",
@@ -779,7 +777,7 @@ export function CustomerChatView() {
 						fontSize: "0.8125rem",
 						lineHeight: 1.5,
 						color: "#5b5b63",
-						fontWeight: 500,
+						fontWeight: 400,
 						overflowWrap: "anywhere",
 					}}
 				>
@@ -855,12 +853,12 @@ export function CustomerChatView() {
 				)}
 			</div>
 
-			<details className="chat-attach" style={{ marginBottom: "16px" }}>
+			<details className="chat-attach">
 				<summary
 					style={{
 						minHeight: "44px",
-						display: "inline-flex",
-						alignItems: "center",
+						display: "block",
+						paddingBlock: "10px",
 						cursor: "pointer",
 						fontWeight: 600,
 						color: "#5b35d5",
@@ -986,7 +984,7 @@ export function CustomerChatView() {
 					}}
 				>
 					<strong style={{ display: "block", marginBottom: "8px" }}>
-						Notifikasi Bantuan ({notifications.filter((n) => !n.seen_at).length}{" "}
+						Notifikasi bantuan ({notifications.filter((n) => !n.seen_at).length}{" "}
 						belum dilihat)
 					</strong>
 					<ul

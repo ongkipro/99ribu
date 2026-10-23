@@ -18,7 +18,7 @@ import { rupiah } from "../../../modules/storefront/format";
 
 export const dynamic = "force-dynamic";
 export const metadata = {
-	title: "Ruang Mitra Afiliasi · 99ribu",
+	title: "Ruang Mitra Afiliasi",
 	robots: { index: false, follow: false },
 	referrer: "same-origin" as const,
 };

@@ -37,8 +37,8 @@
 	margin-top: 0.2em;
 }
 :where(.search-form button) svg {
-	width: 1.25em;
-	height: 1.25em;
+	width: max(1.25rem, 1em);
+	height: max(1.25rem, 1em);
 	flex: none;
 }
 :where(.cart-form-error) > span {
@@ -109,7 +109,10 @@ select {
 button {
 	cursor: pointer;
 }
-a:hover {
+/* Hover underline stays for operator/admin surfaces only; the storefront, checkout,
+   receipt and sign-in shells give UI links colour feedback instead (see the
+   interaction contract at the end of this file). */
+:where(body:not(:has(> .store-header, > .task-header, > .checkout-header, > .receipt-shell))) a:hover {
 	text-decoration: underline;
 	text-underline-offset: 4px;
 }
@@ -202,18 +205,17 @@ body:has(> .store-header, > .task-header) {
 	display: flex;
 	align-items: center;
 	background: #ffffff;
-	border: 0;
+	border: 1px solid rgba(5, 41, 77, 0.1);
 	border-radius: 9999px;
-	box-shadow:
-		0 2px 16px rgba(24, 24, 27, 0.08),
-		0 0 0 1px rgba(24, 24, 27, 0.04);
+	/* Observed shop.com field/chip elevation: one 2px/8px shadow at 6%. */
+	box-shadow: 0 2px 8px rgba(0, 0, 0, 0.06);
 	padding: 4px;
 	min-width: 0;
 }
 .search-form input {
 	border: 0;
 	background: transparent;
-	min-width: 0;
+	min-width: 6ch;
 	width: 100%;
 	padding: 12px 18px;
 	border-radius: 9999px;
@@ -226,8 +228,9 @@ body:has(> .store-header, > .task-header) {
 	align-items: center;
 	justify-content: center;
 	min-width: 44px;
-	min-height: max(44px, 2.25em);
-	padding: 0 0.55em;
+	min-height: max(44px, 2em);
+	/* Compact at enlarged text so the field keeps room for its placeholder. */
+	padding: 0 0.4em;
 	flex-shrink: 0;
 	border: 0;
 	background: var(--purple);
@@ -252,10 +255,7 @@ body:has(> .store-header, > .task-header) {
 	color: var(--purple);
 	font-weight: 600;
 }
-.utilities a[aria-current] .utility-label {
-	text-decoration: underline;
-	text-underline-offset: 4px;
-}
+
 .departments {
 	display: flex;
 	gap: 8px;
@@ -267,9 +267,11 @@ body:has(> .store-header, > .task-header) {
 	padding-block: 2px 14px;
 	/* Scroll affordance: the row fades out at its end edge. The end padding and
 	   scroll padding let the last chip, and any focused chip, rest clear of the fade. */
-	padding-inline-end: 40px;
-	scroll-padding-inline: 0 40px;
-	mask-image: linear-gradient(to right, #000 calc(100% - 40px), transparent);
+	padding-inline-end: 72px;
+	scroll-padding-inline: 0 72px;
+	/* A 64px fade: long enough to read as "more" even over white chips on the
+	   near-white canvas at phone widths. */
+	mask-image: linear-gradient(to right, #000 calc(100% - 64px), transparent);
 }
 /* A thin scrollbar appears for pointer and keyboard users. */
 .departments:hover,
@@ -330,7 +332,6 @@ body:has(> .store-header, > .task-header) {
 	background: var(--yellow);
 	border: 1px solid #ebd778;
 	border-radius: 20px;
-	box-shadow: 0 4px 16px rgba(246, 201, 69, 0.16);
 	padding: 18px 22px;
 	align-self: stretch;
 	display: grid;
@@ -349,9 +350,9 @@ body:has(> .store-header, > .task-header) {
 	display: inline-flex;
 	align-items: center;
 	min-height: 44px;
-	font-size: 0.8rem;
-	text-decoration: underline;
-	text-underline-offset: 4px;
+	font-size: 0.875rem;
+	font-weight: 600;
+	color: var(--purple);
 }
 :where(.price-statement) p {
 	font-size: 0.85rem;
@@ -372,21 +373,17 @@ body:has(> .store-header, > .task-header) {
 }
 /* R12: shelf link as a white pill with a forward chevron. */
 .section-heading > a {
+	/* Shelf "see all": a plain text link with a chevron (shop.com "Women ›"), not a pill. */
 	display: inline-flex;
-	gap: 6px;
+	gap: 4px;
 	align-items: center;
 	min-height: 44px;
-	padding: 6px 14px 6px 18px;
-	border-radius: 9999px;
-	background: #fff;
-	border: 1px solid rgba(24, 24, 27, 0.1);
 	color: #18181b;
 	font-size: 0.875rem;
 	font-weight: 600;
 }
 .section-heading > a:hover {
-	text-decoration: none;
-	border-color: rgba(24, 24, 27, 0.32);
+	color: var(--purple);
 }
 :where(.section-heading) svg {
 	width: 1.125em;
@@ -394,19 +391,20 @@ body:has(> .store-header, > .task-header) {
 	flex: none;
 	transform: rotate(180deg);
 }
-:where(.filters summary, .other-departments summary) svg {
+:where(.filters summary) svg {
 	width: 1em;
 	height: 1em;
 	transform: rotate(-90deg);
 }
-:where(.filters[open] summary, .other-departments[open] summary) svg {
+:where(.filters[open] summary) svg {
 	transform: rotate(90deg);
 }
 .product-grid {
 	list-style: none;
 	display: grid;
 	grid-template-columns: repeat(auto-fill, minmax(min(100%, 12.5rem), 1fr));
-	gap: 32px 16px;
+	/* R4 rhythm: 12px between card rows (subgrid tracks inside a card add no gap). */
+	gap: 12px 16px;
 	padding: 0;
 	margin: 0;
 }
@@ -414,35 +412,37 @@ body:has(> .store-header, > .task-header) {
 .discovery .product-grid {
 	grid-template-columns: repeat(
 		auto-fill,
-		minmax(min(100%, max(15rem, calc((100% - 48px) / 4))), 1fr)
+		minmax(min(100%, max(12.5rem, calc((100% - 48px) / 4))), 1fr)
 	);
 }
+/* Each card spans four shared rows (media, title, price, stock note) through
+   subgrid, so prices line up across a row whatever the title length. */
 .product {
 	min-width: 0;
-	display: flex;
-	flex-direction: column;
+	display: grid;
+	grid-row: span 4;
+	grid-template-rows: subgrid;
+	row-gap: 0;
 }
 /* R5: compact shop.com card rhythm; the Rp99.000 basis stays visible. */
 .product h3 {
 	margin: 12px 0 4px;
 	font-size: 1rem;
 	line-height: 1.375;
-	/* Reserve two lines so a one-line title keeps its price on the row's line. */
-	min-height: 2.75em;
 	font-weight: 600;
 	letter-spacing: -0.01em;
 	overflow-wrap: anywhere;
-	/* Two lines keep prices aligned across a row; the full name stays in the DOM. */
+	/* At most three lines (same-family names stay distinguishable); the full
+	   name stays in the DOM and the link's accessible name. */
 	display: -webkit-box;
 	-webkit-box-orient: vertical;
-	-webkit-line-clamp: 2;
-	line-clamp: 2;
+	-webkit-line-clamp: 3;
+	line-clamp: 3;
 	overflow: hidden;
 }
 .photo-slot {
 	aspect-ratio: 1;
-	background: linear-gradient(160deg, #f7f6fb 0%, #efedf6 100%);
-	border: 1px solid #e6e4f0;
+	background: #f4f3f8;
 	border-radius: 20px;
 	display: flex;
 	flex-direction: column;
@@ -471,27 +471,16 @@ body:has(> .store-header, > .task-header) {
 	object-fit: contain;
 	width: 100%;
 	height: auto;
-	/* Slot surface until a lazy image paints; real photos cover it. */
-	background: #f6f5fa;
-	border: 1px solid #e6e4f0;
+	/* Observed shop.com product media: white, 20px radius, one soft 2px/8px
+	   shadow, no border; the slot surface shows until a lazy image paints. */
+	background: #fff;
 	border-radius: 20px;
-}
-.product-contents {
-	font-size: 0.8125rem;
-	line-height: 1.25rem;
-	color: var(--muted);
-	margin-bottom: 8px;
-	overflow-wrap: anywhere;
-	display: -webkit-box;
-	-webkit-box-orient: vertical;
-	-webkit-line-clamp: 2;
-	line-clamp: 2;
-	overflow: hidden;
+	box-shadow: 0 2px 8px rgba(0, 0, 0, 0.06);
 }
 .product-price {
 	font-size: 1.125rem;
 	line-height: 1.5rem;
-	font-weight: 700;
+	font-weight: 600;
 	letter-spacing: -0.01em;
 }
 .product-price span {
@@ -504,7 +493,8 @@ body:has(> .store-header, > .task-header) {
 	color: var(--muted);
 }
 .unavailable {
-	align-self: flex-start;
+	justify-self: start;
+	align-self: start;
 	font-size: 0.75rem;
 	line-height: 1.125rem;
 	margin-top: 8px;
@@ -566,7 +556,7 @@ body:has(> .store-header, > .task-header) {
 	margin: 0;
 	padding: 0;
 	display: grid;
-	gap: 4px;
+	gap: 8px;
 }
 .footer-links a {
 	color: #3f3d48;
@@ -574,7 +564,6 @@ body:has(> .store-header, > .task-header) {
 }
 .footer-links a:hover {
 	color: var(--purple);
-	text-decoration: underline;
 }
 .listing-main {
 	padding-top: 36px;
@@ -606,11 +595,9 @@ body:has(> .store-header, > .task-header) {
 .filters:where([open]) {
 	justify-self: stretch;
 	background: #fff;
-	border-radius: 24px;
+	border-radius: 20px;
 	padding: 12px 20px 20px;
-	box-shadow:
-		0 2px 16px rgba(24, 24, 27, 0.06),
-		0 0 0 1px rgba(24, 24, 27, 0.05);
+	border: 1px solid rgba(5, 41, 77, 0.1);
 }
 .filters summary {
 	font-size: 0.875rem;
@@ -649,12 +636,7 @@ body:has(> .store-header, > .task-header) {
 }
 .filters select {
 	width: 100%;
-	min-height: 44px;
-	border: 1px solid rgba(24, 24, 27, 0.16);
-	border-radius: 9999px;
-	background: #fff;
 	color: inherit;
-	padding: 9px 16px;
 	font-size: 0.875rem;
 }
 .filter-actions {
@@ -915,17 +897,17 @@ body:has(> .store-header, > .task-header) {
 				auto-fill,
 				minmax(min(100%, max(8rem, calc(50% - 6px))), 1fr)
 			);
-		gap: 24px 12px;
+		gap: 12px;
 	}
 	.photo-slot {
 		padding: 14px 8px;
 	}
 	.product h3 {
 		margin-top: 12px;
-	}
-	.product-contents {
-		font-size: 0.75rem;
-		line-height: 1.125rem;
+		/* Phones (two-up): five lines show the words that tell same-family names
+		   apart; the card subgrid keeps prices aligned. */
+		-webkit-line-clamp: 5;
+		line-clamp: 5;
 	}
 	.store-footer {
 		gap: 20px;
@@ -1035,18 +1017,17 @@ body:has(> .store-header, > .task-header) {
 }
 
 .product-link {
-	display: flex;
-	flex-direction: column;
+	display: grid;
+	grid-row: span 4;
+	grid-template-rows: subgrid;
+	row-gap: 0;
+	align-content: start;
 	min-width: 0;
-	height: 100%;
 }
 .product-link:hover {
 	text-decoration: none;
 }
-.product-link:hover h3 {
-	text-decoration: underline;
-	text-underline-offset: 4px;
-}
+
 .department-tiles {
 	list-style: none;
 	padding: 0;
@@ -1082,7 +1063,7 @@ body:has(> .store-header, > .task-header) {
 	grid-row: 2;
 	min-width: 0;
 	max-width: 100%;
-	background: linear-gradient(145deg, #f6f5fa 0%, #edeaf6 100%);
+	background: #f4f3f8;
 	border-radius: 14px;
 	padding: 12px;
 	width: 100%;
@@ -1128,14 +1109,13 @@ body:has(> .store-header, > .task-header) {
 }
 .shopping-help a {
 	color: var(--purple);
-	font-size: 0.85rem;
+	font-size: 0.875rem;
+	font-weight: 600;
 	display: inline-flex;
 	align-items: center;
 	min-height: 44px;
-	text-decoration: underline;
 }
-.filters summary,
-.other-departments summary {
+.filters summary {
 	list-style: none;
 	display: flex;
 	align-items: center;
@@ -1144,8 +1124,7 @@ body:has(> .store-header, > .task-header) {
 	width: fit-content;
 	justify-content: flex-start;
 }
-.filters summary::-webkit-details-marker,
-.other-departments summary::-webkit-details-marker {
+.filters summary::-webkit-details-marker {
 	display: none;
 }
 .active-filters {
@@ -1196,33 +1175,6 @@ body:has(> .store-header, > .task-header) {
 	color: var(--muted);
 	margin-block: 12px 28px;
 }
-.other-departments {
-	margin-top: 32px;
-
-	width: fit-content;
-	max-width: 100%;
-}
-.other-departments summary {
-	min-height: 44px;
-	font-size: 0.9rem;
-	cursor: pointer;
-	width: fit-content;
-	justify-content: flex-start;
-}
-.other-departments ul {
-	padding: 0;
-	list-style: none;
-	display: grid;
-	grid-template-columns: repeat(2, minmax(0, 1fr));
-	gap: 8px 24px;
-}
-.other-departments a {
-	display: inline-flex;
-	align-items: center;
-	min-height: 44px;
-	font-size: 0.85rem;
-	overflow-wrap: anywhere;
-}
 /* R11: centred help column with policy topic cards (help.shop.app). */
 .wrap.help-main {
 	max-width: 45rem;
@@ -1250,9 +1202,7 @@ body:has(> .store-header, > .task-header) {
 	background: #fff;
 	border-radius: 20px;
 	padding: 20px 24px;
-	box-shadow:
-		0 2px 16px rgba(24, 24, 27, 0.05),
-		0 0 0 1px rgba(24, 24, 27, 0.05);
+	border: 1px solid rgba(5, 41, 77, 0.1);
 	scroll-margin-top: 16px;
 }
 .help-topics > #privacy {
@@ -1288,9 +1238,6 @@ body:has(> .store-header, > .task-header) {
 	.shopping-help {
 		margin-block: 32px;
 	}
-	.other-departments ul {
-		grid-template-columns: 1fr;
-	}
 }
 
 .department-tiles li {
@@ -1305,7 +1252,7 @@ body:has(> .store-header, > .task-header) {
 	display: block;
 	min-width: 0;
 	font-weight: 600;
-	line-height: 1.5rem;
+	line-height: 1.3;
 	overflow-wrap: anywhere;
 	hyphens: auto;
 }
@@ -1568,15 +1515,15 @@ body:has(> .store-header, > .task-header) {
 	font-size: 0.85rem;
 	overflow-wrap: anywhere;
 }
+/* Standalone UI links (one rule for the role): purple, 600, no underline. */
 .detail-help {
 	display: inline-flex;
 	align-items: center;
 	min-height: 44px;
 	color: var(--purple);
-	text-decoration: underline;
-	text-underline-offset: 4px;
+	font-weight: 600;
 	line-height: 1.25rem;
-	font-size: 0.85rem;
+	font-size: 0.875rem;
 }
 .cart-page {
 	padding-top: 32px;
@@ -1591,11 +1538,11 @@ body:has(> .store-header, > .task-header) {
 }
 .cart-heading > a {
 	color: var(--purple);
-	font-size: 0.85rem;
+	font-size: 0.875rem;
+	font-weight: 600;
 	min-height: 44px;
 	display: inline-flex;
 	align-items: center;
-	text-decoration: underline;
 }
 .cart-layout {
 	display: grid;
@@ -1669,18 +1616,12 @@ body:has(> .store-header, > .task-header) {
 .cart-line-actions .cart-mutation:has(input[name="kind"][value="remove"]) {
 	flex: 0 1 auto;
 }
-.cart-line-actions .button {
-	font-size: 0.8rem;
-	max-width: 14rem;
-}
+
 .cart-summary {
 	padding: 24px;
 	background: #fff;
-	border: 0;
+	border: 1px solid rgba(5, 41, 77, 0.1);
 	border-radius: 20px;
-	box-shadow:
-		0 2px 16px rgba(24, 24, 27, 0.06),
-		0 0 0 1px rgba(24, 24, 27, 0.05);
 	line-height: 1.7;
 	min-width: 0;
 }
@@ -1864,7 +1805,9 @@ body:has(> .store-header, > .task-header) {
 	min-height: 44px;
 	display: inline-flex;
 	align-items: center;
-	text-decoration: underline;
+}
+.product-category a:hover {
+	color: #18181b;
 }
 .product-media {
 	margin: 0;
@@ -2053,7 +1996,8 @@ body:has(> .store-header, > .task-header) {
 	background: var(--warning-surface);
 }
 .cart-mutation input[aria-invalid="true"] {
-	border: 2px solid var(--error);
+	border-color: var(--error);
+	box-shadow: inset 0 0 0 1px var(--error);
 }
 .purchase-region .detail-help {
 	margin-top: 8px;
@@ -2288,7 +2232,7 @@ body:has(> .store-header, > .task-header) {
 	min-width: 0;
 	min-height: 48px;
 	border: 1px solid #85858e;
-	border-radius: 6px;
+	border-radius: 12px;
 	padding: 11px 12px;
 	background: #fff;
 	color: inherit;
@@ -2299,7 +2243,8 @@ body:has(> .store-header, > .task-header) {
 	resize: vertical;
 }
 .checkout-field [aria-invalid="true"] {
-	border: 2px solid var(--error);
+	border-color: var(--error);
+	box-shadow: inset 0 0 0 1px var(--error);
 }
 .checkout-contact-row {
 	display: flex;
@@ -2377,7 +2322,8 @@ body:has(> .store-header, > .task-header) {
 	min-width: 0;
 }
 .checkout-methods[aria-invalid="true"] {
-	border: 2px solid var(--error);
+	border-color: var(--error);
+	box-shadow: inset 0 0 0 1px var(--error);
 }
 #checkout-destination_id:valid ~ .checkout-destination-prompt {
 	display: none;
@@ -4058,6 +4004,8 @@ body:has(> .store-header, > .task-header) {
 }
 /* Help chat attachment disclosure chevron (closed points down, open up). */
 :where(.chat-attach summary svg) {
+	display: inline-block;
+	vertical-align: middle;
 	flex: none;
 	width: 1.125em;
 	height: 1.125em;
@@ -4082,9 +4030,7 @@ body:has(> .store-header, > .task-header) {
 	background: #fff;
 	border-radius: 20px;
 	padding: 32px clamp(16px, 6vw, 28px);
-	box-shadow:
-		0 2px 16px rgba(24, 24, 27, 0.06),
-		0 0 0 1px rgba(24, 24, 27, 0.05);
+	border: 1px solid rgba(5, 41, 77, 0.1);
 	line-height: 1.6;
 }
 .signin-card h1 {
@@ -4123,7 +4069,8 @@ body:has(> .store-header, > .task-header) {
 	font-size: 1rem;
 }
 .signin-field input[aria-invalid="true"] {
-	border: 2px solid var(--error);
+	border-color: var(--error);
+	box-shadow: inset 0 0 0 1px var(--error);
 }
 .signin-actions {
 	display: grid;
@@ -4172,9 +4119,9 @@ body:has(> .store-header, > .task-header) {
 	color: var(--muted);
 }
 :where(.contents-more > summary) {
-	display: inline-flex;
-	align-items: center;
-	gap: 6px;
+	/* Block flow keeps the chevron right after the label even when it wraps. */
+	display: block;
+	padding-block: 10px;
 	min-height: 44px;
 	cursor: pointer;
 	list-style: none;
@@ -4192,4 +4139,184 @@ body:has(> .store-header, > .task-header) {
 }
 :where(.contents-more[open] summary svg) {
 	transform: rotate(90deg);
+}
+
+/* PDP extra-contents disclosure: the label states the action ("Sembunyikan" when open). */
+.contents-more[open] .more-show,
+.contents-more:not([open]) .more-hide {
+	display: none;
+}
+/* Help chat card: the attachment disclosure spaces only what follows it, so when it
+   is the last block the card ends on its own 24px padding. */
+.chat-attach:not(:last-child) {
+	margin-bottom: 16px;
+}
+/* /categories subcategory links: visible wrapping chips, never a hidden disclosure. */
+.subcategories {
+	margin-top: 40px;
+}
+.subcategories h2 {
+	margin-bottom: 12px;
+}
+.subcategories ul {
+	list-style: none;
+	margin: 0;
+	padding: 0;
+	display: flex;
+	flex-wrap: wrap;
+	gap: 8px;
+}
+:where(.subcategories a) {
+	display: inline-flex;
+	align-items: center;
+	min-height: 44px;
+	padding: 6px 16px;
+	border-radius: 9999px;
+	background: #fff;
+	border: 1px solid rgba(24, 24, 27, 0.1);
+	font-size: 0.875rem;
+	font-weight: 600;
+	overflow-wrap: anywhere;
+}
+
+/* A single-column product grid (very narrow screen or enlarged browser text: the
+   two-column minimum of 8rem no longer fits) shows full titles; with one card per
+   row there is nothing to align. */
+@media (max-width: calc(16rem + 44px)) {
+	.product h3 {
+		display: block;
+		-webkit-line-clamp: unset;
+		line-clamp: none;
+		overflow: visible;
+	}
+}
+/* Home shelf at tablet (three per row): show six of the eight, so no row ends
+   with an empty slot; desktop shows all eight four-up, phones two-up. */
+@media (min-width: 701px) and (max-width: 1050px) {
+	.discovery .product:nth-child(n + 7) {
+		display: none;
+	}
+}
+:where(.contents-more > summary svg) {
+	display: inline-block;
+	vertical-align: middle;
+	margin-left: 4px;
+}
+/* Sign-in "Batal": a quiet text action, clearly secondary to the filled "Masuk". */
+:where(.signin-actions) > .button.button-secondary {
+	background: transparent;
+	border-color: transparent;
+	min-height: 44px;
+}
+:where(.signin-actions) > .button.button-secondary:hover {
+	background: #f2eefc;
+}
+/* Desktop footer links: pointer-sized targets keep a tighter list rhythm. */
+@media (min-width: 701px) {
+	.footer-links ul {
+		gap: 0;
+	}
+	.footer-links a {
+		min-height: 32px;
+	}
+}
+
+/* ===== Interaction contract (observed on shop.com 2026-10-23) =====
+   Scope: storefront, checkout, receipt and sign-in shells only (admin untouched). */
+/* Links inside running prose keep their underline (WCAG 1.4.1), hover included. */
+:is(.reset-link, .checkout-help-link, .checkout-text-button):hover,
+:is(.cart-advisory, .cart-warning, .help-main p, .signin-hint, .checkout-hint) a:hover {
+	text-decoration: underline;
+}
+/* Standalone links: colour feedback on hover. */
+:is(.detail-help, .price-statement a, .shopping-help a, .cart-heading > a):hover {
+	color: #4823b6;
+}
+/* Light motion (owner: "light, without sacrificing PageSpeed"): CSS only, transform and
+   opacity, 150–250ms ease-out, state feedback only; no GSAP is needed for any of it. */
+:where(body:has(> .store-header, > .task-header, > .checkout-header, > .receipt-shell) summary svg) {
+	transition: transform 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+}
+/* Add-to-cart success: the check draws itself and the message settles in. */
+@keyframes sf-draw {
+	from {
+		stroke-dashoffset: 24;
+	}
+}
+@keyframes sf-settle {
+	from {
+		opacity: 0;
+		transform: translateY(4px);
+	}
+}
+.cart-feedback[data-phase="success"] > h2 {
+	animation: sf-settle 0.2s cubic-bezier(0, 0, 0.2, 1);
+}
+.cart-feedback[data-phase="success"] > h2 svg path {
+	stroke-dasharray: 24;
+	animation: sf-draw 0.25s cubic-bezier(0, 0, 0.2, 1) 0.05s backwards;
+}
+@media (prefers-reduced-motion: reduce) {
+	:where(body:has(> .store-header, > .task-header, > .checkout-header, > .receipt-shell) summary svg),
+	.cart-feedback[data-phase="success"] > h2,
+	.cart-feedback[data-phase="success"] > h2 svg path {
+		transition: none;
+		animation: none;
+	}
+}
+/* 150ms ease (cubic-bezier(.4,0,.2,1)) on colour, border and shadow only: no lifts, no scale. */
+:where(body:has(> .store-header, > .task-header, > .checkout-header, > .receipt-shell)) :is(a, button, summary, input, select, textarea) {
+	transition:
+		color 0.15s cubic-bezier(0.4, 0, 0.2, 1),
+		background-color 0.15s cubic-bezier(0.4, 0, 0.2, 1),
+		border-color 0.15s cubic-bezier(0.4, 0, 0.2, 1),
+		box-shadow 0.15s cubic-bezier(0.4, 0, 0.2, 1);
+}
+@media (prefers-reduced-motion: reduce) {
+	:where(body:has(> .store-header, > .task-header, > .checkout-header, > .receipt-shell)) :is(a, button, summary, input, select, textarea) {
+		transition: none;
+	}
+}
+/* One field look: 1px #85858e boundary (3:1 on white), 12px radius, 44px minimum. */
+:where(body:has(> .store-header, > .task-header, > .checkout-header, > .receipt-shell)) :is(select, textarea, input:not([type="checkbox"], [type="radio"], [type="hidden"], [type="search"])) {
+	border: 1px solid #85858e;
+	border-radius: 12px;
+	min-height: 44px;
+	background-color: #fff;
+}
+/* Selects: one custom chevron, no native double arrow. */
+:where(body:has(> .store-header, > .task-header, > .checkout-header, > .receipt-shell) select) {
+	appearance: none;
+	padding: 10px 40px 10px 14px;
+	background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='16' height='16' viewBox='0 0 24 24' fill='none' stroke='%2318181b' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='m6 9 6 6 6-6'/%3E%3C/svg%3E");
+	background-repeat: no-repeat;
+	background-position: right 14px center;
+	background-size: 16px;
+}
+.checkout-field select,
+.filters select {
+	padding-right: 40px;
+}
+/* Focus: ink border plus a thin soft ring, the same width at rest and focus (no shift). */
+:where(body:has(> .store-header, > .task-header, > .checkout-header, > .receipt-shell)) :is(select, textarea, input:not([type="checkbox"], [type="radio"], [type="hidden"], [type="search"])):focus {
+	outline: none;
+	border-color: #18181b;
+	box-shadow: 0 0 0 3px rgba(24, 24, 27, 0.12);
+}
+:where(body:has(> .store-header, > .task-header, > .checkout-header, > .receipt-shell)) :is(select, textarea, input):is([aria-invalid="true"]):focus {
+	border-color: var(--error);
+	box-shadow:
+		inset 0 0 0 1px var(--error),
+		0 0 0 3px rgba(139, 36, 29, 0.15);
+}
+/* Header search: the pill itself carries the focus state; placeholder at shop.com's 56% ink. */
+.search-form:focus-within {
+	border-color: #18181b;
+	box-shadow: 0 0 0 3px rgba(24, 24, 27, 0.12);
+}
+#site-search:focus {
+	outline: none;
+}
+#site-search::placeholder {
+	color: #6b6b73;
 }

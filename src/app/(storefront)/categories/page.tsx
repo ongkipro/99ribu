@@ -4,15 +4,33 @@ import {
 	type Department,
 	Departments,
 } from "../../../components/storefront/departments";
-import { Icon, Shell } from "../../../components/storefront/shell";
+import { Shell } from "../../../components/storefront/shell";
 import { getLocalAuth } from "../../../modules/access/auth";
 import { AccessError } from "../../../modules/access/policy";
 import {
 	featuredDepartments,
 	listCategories,
 } from "../../../modules/storefront/catalog";
+import { siteConfig } from "../../../config/site";
+import {
+	categoriesDescription,
+	categoriesTitle,
+	publicMetadata,
+} from "../../../modules/storefront/seo";
 export const dynamic = "force-dynamic";
-export const metadata = { title: "Kategori produk" };
+// ?cursor pages are noindex, follow; tracking parameters are ignored, so the clean URL stays canonical.
+export async function generateMetadata({
+	searchParams,
+}: {
+	searchParams: Promise<Record<string, string | string[] | undefined>>;
+}) {
+	return publicMetadata(siteConfig(), {
+		path: "/categories",
+		title: categoriesTitle,
+		description: categoriesDescription,
+		indexable: !("cursor" in (await searchParams)),
+	});
+}
 export default async function Categories({
 	searchParams,
 }: {
@@ -21,11 +39,7 @@ export default async function Categories({
 	const raw = await searchParams,
 		params = new URLSearchParams({ limit: "100" });
 	if (typeof raw.cursor === "string") params.set("cursor", raw.cursor);
-	if (
-		Object.keys(raw).some((key) => key !== "cursor") ||
-		Array.isArray(raw.cursor)
-	)
-		redirect("/404");
+	if (Array.isArray(raw.cursor)) redirect("/404");
 	const identity = getLocalAuth();
 	let result: Awaited<ReturnType<typeof listCategories>>;
 	try {
@@ -35,20 +49,23 @@ export default async function Categories({
 		throw error;
 	}
 	const categories = result.data as Department[];
-	const featured = await featuredDepartments(identity, 4);
-	const others = categories.filter((c) => !featured.some((f) => f.id === c.id));
+	// Every top-level department is a tile; subcategories stay visible as links.
+	const departments = await featuredDepartments(identity, 100);
+	const others = categories.filter(
+		(c) => !departments.some((d) => d.id === c.id),
+	);
 	return (
 		<Shell active="category">
 			<main id="main" className="wrap categories-main">
 				<h1>Kategori produk</h1>
 				<p>Pilih kategori untuk melihat isi dan harga setiap pilihan.</p>
-				<Departments categories={featured} />
+				<Departments categories={departments} />
 				{others.length > 0 && (
-					<details className="other-departments">
-						<summary>
-							Kategori lainnya
-							<Icon name="chevron" />
-						</summary>
+					<section
+						className="subcategories"
+						aria-labelledby="subcategories-heading"
+					>
+						<h2 id="subcategories-heading">Subkategori</h2>
 						<ul>
 							{others.map((c) => (
 								<li key={c.id}>
@@ -56,7 +73,7 @@ export default async function Categories({
 								</li>
 							))}
 						</ul>
-					</details>
+					</section>
 				)}
 				{result.pagination.next_cursor && (
 					<Link

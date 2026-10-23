@@ -31,8 +31,7 @@ export function Media({product,offer,caption=false}:{product:PublicProduct;offer
 export function ProductGrid({products,input}:{products:PublicProduct[];input?:CatalogQuery}){
  return <ul className="product-grid">{products.map(product=>{
   const offer=matchingVariant(product,input);if(!offer) return null;const available=offer.availability==='available';
-  return <li key={product.id} id={`product-${product.id}`} tabIndex={-1} className="product"><ProductLink className="product-link" product={product.id} offer={offer.id}><Media product={product} offer={offer}/><h3>{keepHyphens(product.name)}</h3>
-   <p className="product-contents">{offer.contents.map(c=>`${c.quantity} × ${contentName(product,c.name)}`).join(' + ')}{product.variants.length>1?` · ${product.variants.length} pilihan`:''}</p>
+  return <li key={product.id} id={`product-${product.id}`} tabIndex={-1} className="product" data-contents={offer.contents.length} data-options={product.variants.length}><ProductLink className="product-link" product={product.id} offer={offer.id}><Media product={product} offer={offer}/><h3>{keepHyphens(product.name)}</h3>
    <p className="product-price">{rupiah(offer.price)} <span>/ pilihan lengkap</span></p>{!available&&<p className="unavailable">Stok pilihan belum tersedia</p>}
   </ProductLink></li>;
  })}</ul>;
