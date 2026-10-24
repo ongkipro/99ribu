@@ -280,7 +280,7 @@ export function OrderSearchClient({
 							cell: (row) => (
 								<Link
 									href={`/admin/orders/${row.id}${back ? `?dari=${encodeURIComponent(back)}` : ""}`}
-									className="font-mono font-medium text-primary underline-offset-4 hover:underline"
+									className="font-mono font-medium text-primary underline-offset-4 hover:underline pointer-coarse:inline-flex pointer-coarse:min-h-11 pointer-coarse:items-center"
 								>
 									{row.number}
 								</Link>

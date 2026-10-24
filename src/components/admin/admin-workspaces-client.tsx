@@ -1304,7 +1304,7 @@ export function AdminWorkspacesClient({
 					<Link
 						href={href}
 						className={cn(
-							"text-sm font-medium break-all text-primary underline-offset-4 hover:underline",
+							"text-sm font-medium break-all text-primary underline-offset-4 hover:underline pointer-coarse:inline-flex pointer-coarse:min-h-11 pointer-coarse:items-center",
 							mono && "font-mono",
 						)}
 						aria-label={

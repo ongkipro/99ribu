@@ -297,7 +297,7 @@ function OrderLink({ row, enabled }: { row: Row; enabled: boolean }) {
 	return (
 		<Link
 			href={`/admin/orders/${row.order_id}`}
-			className="font-medium text-primary underline-offset-4 hover:underline"
+			className="font-medium text-primary underline-offset-4 hover:underline pointer-coarse:inline-flex pointer-coarse:min-h-11 pointer-coarse:items-center"
 		>
 			{row.order_number}
 		</Link>
