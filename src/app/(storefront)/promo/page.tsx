@@ -1,5 +1,5 @@
 import {Shell} from '../../../components/storefront/shell';
-import {ProductGrid,rupiah} from '../../../components/storefront/products';
+import {ProductGrid,rupiah} from '../../../components/storefront/ui/product-card';
 import {getLocalAuth} from '../../../modules/access/auth';
 import {activeShippingPromotions,bundleOffers} from '../../../modules/storefront/promotions';
 import {siteConfig} from '../../../config/site';

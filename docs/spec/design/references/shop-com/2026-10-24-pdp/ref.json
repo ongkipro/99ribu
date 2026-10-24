@@ -1,0 +1,16 @@
+{
+  "capturedAt": "2026-10-24T05:54:58.000Z",
+  "note": "Product page: thumbnail strip, 28px photo cards, buy box, quantity pill, 52px actions, accordions. Headless Chromium via Playwright, read-only (no sign-in, no cart action), DPR 1, viewport screenshots.",
+  "viewports": {
+    "390": {
+      "url": "https://shop.com/products/8012309594299/cascade-tote-standard?variantId=46406835536059",
+      "width": 390,
+      "height": 844
+    },
+    "1440": {
+      "url": "https://shop.com/products/8012309594299/cascade-tote-standard?variantId=46406835536059",
+      "width": 1440,
+      "height": 900
+    }
+  }
+}

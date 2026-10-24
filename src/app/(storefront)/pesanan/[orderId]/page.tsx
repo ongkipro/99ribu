@@ -4,7 +4,7 @@ import {
 	CheckoutFrame,
 	CheckoutHelp,
 } from "../../../../components/storefront/checkout-frame";
-import { Icon } from "../../../../components/storefront/icon";
+import { Icon } from "../../../../components/storefront/ui/icon";
 import {
 	OrderReceiptCopyCode,
 	OrderReceiptObserver,
@@ -580,53 +580,11 @@ export default async function OrderReceiptPage({
 									{bannerPhase === "success" ? (
 										<Icon name="check" />
 									) : bannerPhase === "pending" ? (
-										<svg
-											aria-hidden="true"
-											focusable="false"
-											width="20"
-											height="20"
-											viewBox="0 0 24 24"
-											fill="none"
-											stroke="currentColor"
-											strokeWidth="2"
-											strokeLinecap="round"
-											strokeLinejoin="round"
-										>
-											<circle cx="12" cy="12" r="10" />
-											<path d="M12 6v6l4 2" />
-										</svg>
+										<Icon name="clock" size={20} />
 									) : bannerPhase === "unknown" ? (
-										<svg
-											aria-hidden="true"
-											focusable="false"
-											width="20"
-											height="20"
-											viewBox="0 0 24 24"
-											fill="none"
-											stroke="currentColor"
-											strokeWidth="2"
-											strokeLinecap="round"
-											strokeLinejoin="round"
-										>
-											<circle cx="12" cy="12" r="10" />
-											<path d="M12 16v-4m0-4h.01" />
-										</svg>
+										<Icon name="info" size={20} />
 									) : bannerPhase === "closed" ? (
-										<svg
-											aria-hidden="true"
-											focusable="false"
-											width="20"
-											height="20"
-											viewBox="0 0 24 24"
-											fill="none"
-											stroke="currentColor"
-											strokeWidth="2"
-											strokeLinecap="round"
-											strokeLinejoin="round"
-										>
-											<circle cx="12" cy="12" r="10" />
-											<path d="M8 12h8" />
-										</svg>
+										<Icon name="minus" size={20} />
 									) : (
 										<Icon name="alert" />
 									)}

@@ -3,9 +3,9 @@ import { redirect } from "next/navigation";
 import {
 	CategoryGrid,
 	type Department,
-} from "../../../components/storefront/departments";
-import { departmentTint } from "../../../components/storefront/category-pills";
-import { sameOrigin } from "../../../components/storefront/products";
+} from "../../../components/storefront/sections/category-grid";
+import { departmentTint } from "../../../components/storefront/sections/category-pills";
+import { sameOrigin } from "../../../components/storefront/ui/product-card";
 import { departmentPhotos } from "../../../modules/storefront/department-photos";
 import { Shell } from "../../../components/storefront/shell";
 import { getLocalAuth } from "../../../modules/access/auth";

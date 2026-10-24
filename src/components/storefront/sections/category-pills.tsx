@@ -1,6 +1,7 @@
 import Link from 'next/link';
-import type {Department} from './departments';
-import {optimizedUrl} from './media';
+import type {Department} from './category-grid';
+import {optimizedUrl} from '../ui/media';
+import {Icon} from '../ui/icon';
 
 // shop.com category pill row (observed 2026-10-23): a fixed short list of 36px pills (circle, then
 // the label) ending with a grid-icon link to every category. The circle holds the department's own
@@ -26,6 +27,6 @@ export function CategoryPills({departments,current,allCurrent}:{departments:(Dep
    // biome-ignore lint/performance/noImgElement: same native local media as product cards; no image proxy.
    <img src={d.image.startsWith('/media/catalog/')?optimizedUrl(d.image,64):d.image} alt="" width={36} height={36} decoding="async" fetchPriority="low" referrerPolicy="no-referrer"/>}</span>
   <span className="pill-label">{d.name}</span></Link></li>)}
-  <li><Link href="/kategori" className="pill-all" aria-label="Semua kategori" aria-current={allCurrent?'page':undefined}><svg aria-hidden="true" focusable="false" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect width="7" height="7" x="3" y="3" rx="1"/><rect width="7" height="7" x="14" y="3" rx="1"/><rect width="7" height="7" x="14" y="14" rx="1"/><rect width="7" height="7" x="3" y="14" rx="1"/></svg></Link></li>
+  <li><Link href="/kategori" className="pill-all" aria-label="Semua kategori" aria-current={allCurrent?'page':undefined}><Icon name="grid"/></Link></li>
  </ul></nav>;
 }

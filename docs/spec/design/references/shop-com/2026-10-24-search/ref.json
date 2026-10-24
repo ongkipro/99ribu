@@ -1,0 +1,16 @@
+{
+  "capturedAt": "2026-10-24T05:49:38.000Z",
+  "note": "Search results: filter chip rail (all-filters icon, On sale toggle, Ratings and Price dropdown chips). Headless Chromium via Playwright, read-only (no sign-in, no cart action), DPR 1, viewport screenshots.",
+  "viewports": {
+    "390": {
+      "url": "https://shop.com/search/results?query=tote%20bag",
+      "width": 390,
+      "height": 844
+    },
+    "1440": {
+      "url": "https://shop.com/search/results?query=tote%20bag",
+      "width": 1440,
+      "height": 900
+    }
+  }
+}

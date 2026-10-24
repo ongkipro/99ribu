@@ -1,6 +1,6 @@
 'use client';
 import {useEffect,useId,useRef,useState} from 'react';
-import {Icon} from './icon';
+import {Icon} from '../ui/icon';
 
 // shop.com omnibox (observed 2026-10-23): one glass container that grows from the 64px pill into
 // "Suggested searches" in ~100-300ms. The form keeps one fixed height and the surface is absolutely

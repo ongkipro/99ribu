@@ -3,8 +3,9 @@ import Link from 'next/link';
 import {permanentRedirect,redirect} from 'next/navigation';
 import {cache} from 'react';
 import {Shell} from '../../../../components/storefront/shell';
-import {Media,rupiah,contentName,isSampleProduct,keepHyphens} from '../../../../components/storefront/products';
-import {Icon} from '../../../../components/storefront/icon';
+import {Media,rupiah,contentName,isSampleProduct,keepHyphens,sameOrigin} from '../../../../components/storefront/ui/product-card';
+import {ProductGallery} from '../../../../components/storefront/sections/product-gallery';
+import {Icon} from '../../../../components/storefront/ui/icon';
 import {OfferPicker} from '../../../../components/storefront/offer-picker';
 import {CartForm,CartMutations} from '../../../../components/storefront/cart-forms';
 import {getLocalAuth} from '../../../../modules/access/auth';
@@ -40,8 +41,10 @@ export default async function Product({params,searchParams}:Props){
  const current=await currentBrowserCart(),open=current.kind==='ready'&&current.cart.state==='open'&&Date.parse(current.cart.expires_at)>Date.parse(current.now);
  const intent=initialCartIntent({product:product.id,variant:offer?.id??'',publication:product.publication_id,...(current.kind==='ready'?open?{cart:current.cart.id,version:String(current.cart.version)}:{generation:current.cart.id}:{})});
  const denied=current.kind==='denied'||current.kind==='unavailable',sample=isSampleProduct(product),description=sample?product.description.replace(/^Data contoh\. /,''):product.description;
+ // The selected offer's photo leads, then the product's other photos (bundles: one per item).
+ const photos=[...new Map([offer?.image,...product.images].filter(i=>i!==undefined&&i!==null).map(i=>[i.url,{src:sameOrigin(i.url),alt:i.alt,width:i.width,height:i.height}])).values()];
  const facts=[...(offer?.attributes??[]),...product.facts.filter(f=>!offer?.attributes.some(a=>a.key===f.key))],alternative=product.variants.find(v=>v.availability==='available'&&v.id!==offer?.id);
- return <Shell active="none" task backTo={from}><main id="main" className="wrap product-detail"><JsonLd data={jsonLdGraph(productJsonLd(siteConfig(),product,category),breadcrumbJsonLd(siteConfig(),[{name:'Beranda',path:'/'},...(category?[{name:category.name,path:categoryPath(category.slug)}]:[]),{name:product.name,path:productPath(product.id,product.name)}]))}/><nav className="product-category" aria-label="Kategori produk"><Link href="/cari">Semua produk</Link>{category&&<><span aria-hidden="true">/</span><Link href={`/kategori/${category.slug}`}>{category.name}</Link></>}</nav><div className="detail-layout"><Media product={product} offer={offer??undefined} caption/><section><h1>{keepHyphens(product.name)}</h1>
+ return <Shell active="none" task backTo={from}><main id="main" className="wrap product-detail"><JsonLd data={jsonLdGraph(productJsonLd(siteConfig(),product,category),breadcrumbJsonLd(siteConfig(),[{name:'Beranda',path:'/'},...(category?[{name:category.name,path:categoryPath(category.slug)}]:[]),{name:product.name,path:productPath(product.id,product.name)}]))}/><div className="detail-layout">{sample||!photos.length?<Media product={product} offer={offer??undefined} caption/>:<ProductGallery images={photos}/>}<section className="buy-box"><nav className="product-category" aria-label="Kategori produk"><Link href="/cari">Semua produk</Link>{category&&<><span aria-hidden="true">/</span><Link href={`/kategori/${category.slug}`}>{category.name}</Link></>}</nav><h1>{keepHyphens(product.name)}</h1>
   {offer&&<p className="detail-price">{rupiah(offer.price)} <small>/ pilihan lengkap</small></p>}
   {invalid&&<section className="cart-warning" role="alert"><h2>Pilihan belum ditemukan</h2><p>Pilih kembali opsi produk ini sebelum menambahkannya.</p></section>}
   <OfferPicker from={from} selected={offer?.id??''} choices={product.variants.map(v=>({id:v.id,label:v.label,available:v.availability==='available'}))}/>
@@ -51,7 +54,7 @@ export default async function Product({params,searchParams}:Props){
    <div className="purchase-region"><p className="stock-status"><Icon name={offer.availability==='available'?'check':'alert'}/>{offer.availability==='available'?'Stok pilihan tersedia':'Stok pilihan belum tersedia'}</p>
    {offer.availability!=='available'&&<p className="cart-advisory">Pilihan ini belum dapat ditambahkan. {alternative?<Link href={productHref(product.id,alternative.id,from,product.name)}>Lihat pilihan tersedia</Link>:<Link href={category?`/kategori/${category.slug}?availability=available`:'/cari?availability=available'}>Cari produk tersedia</Link>}</p>}
    {current.kind==='ready'&&!open&&<p className="cart-warning">Keranjang sebelumnya {current.cart.state==='submitted'?'sudah menjadi pesanan':'kedaluwarsa'}. Penambahan berikutnya memulai keranjang baru.</p>}
-   {denied?<p className="cart-warning">{current.kind==='denied'?'Sesi belanja perlu diperiksa.':'Keranjang belum dapat dimuat.'} <Link href="/keranjang">Periksa keranjang</Link></p>:<CartMutations initial={initialCartMutation(intent)} permalink={productHref(product.id,offer.id,from,product.name)} showCartLink><CartForm intent={intent} label="Tambah ke keranjang" disabled={offer.availability!=='available'}/></CartMutations>}
+   {denied?<p className="cart-warning">{current.kind==='denied'?'Sesi belanja perlu diperiksa.':'Keranjang belum dapat dimuat.'} <Link href="/keranjang">Periksa keranjang</Link></p>:<CartMutations initial={initialCartMutation(intent)} permalink={productHref(product.id,offer.id,from,product.name)} showCartLink><CartForm intent={intent} label="Tambah ke keranjang" disabled={offer.availability!=='available'} stepper/></CartMutations>}
    <p className="cart-advisory">Stok diperiksa kembali saat ditambahkan. Isi keranjang belum memesan stok.</p></div>
   </section>:<p className="cart-advisory">Belum ada pilihan yang dapat ditambahkan.</p>}
   {/* Spesifikasi only when the product has spec data; no empty heading or placeholder. */}

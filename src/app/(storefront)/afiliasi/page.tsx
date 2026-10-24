@@ -505,7 +505,7 @@ export default async function AffiliateWorkspacePage() {
 											{payoutStatusLabel(payout.status)}
 										</span>
 									</div>
-									<p style={{ margin: "4px 0 0", color: "var(--ink)" }}>
+									<p style={{ margin: "4px 0 0", color: "inherit" }}>
 										{payout.explanation}
 									</p>
 									<p className="checkout-hint" style={{ margin: "4px 0 0" }}>

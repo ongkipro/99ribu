@@ -2,7 +2,7 @@
 
 import type React from "react";
 import { useEffect, useId, useLayoutEffect, useRef, useState } from "react";
-import { Icon } from "../storefront/icon";
+import { Icon } from "../storefront/ui/icon";
 
 type SupportConversation = {
 	id: string;

@@ -5,7 +5,7 @@ import Link from 'next/link';
 import {useFormStatus} from 'react-dom';
 import {changeCart,restartShopping} from '../../app/(storefront)/keranjang/actions';
 import type {CartIntent,CartMutationState} from '../../modules/storefront/cart';
-import {Icon} from './icon';
+import {Icon} from './ui/icon';
 import {rupiah} from '../../modules/storefront/format';
 
 const formData=(intent:CartIntent)=>{const data=new FormData();for(const [key,value] of Object.entries(intent))data.set(key,value);return data;};
@@ -47,15 +47,15 @@ export function CartMutations({initial,permalink,children,activeLines,showCartLi
  return <MutationBoundary>{(capture,settle,retry)=><Controller initial={initial} permalink={permalink} capture={capture} settle={settle} retry={retry} activeLines={activeLines} showCartLink={showCartLink}>{children}</Controller>}</MutationBoundary>;
 }
 
-type CartFormProps={intent:CartIntent;label:string;subject?:string;disabled?:boolean;quantity?:boolean;notice?:string;reviewId?:string};
+type CartFormProps={intent:CartIntent;label:string;subject?:string;disabled?:boolean;quantity?:boolean;notice?:string;reviewId?:string;stepper?:boolean};
 export function CartForm(props:CartFormProps){
  const context=useContext(Context);if(!context)throw new Error('CartForm requires CartMutations');
  return <form action={context.action} className="cart-mutation" onSubmit={event=>{
   const data=new FormData(event.currentTarget);context.capture(Object.fromEntries(Object.keys(props.intent).map(key=>[key,String(data.get(key)??'')])) as CartIntent);
  }}><CartControls {...props}/></form>;
 }
-function CartControls({intent:base,label,subject,disabled=false,quantity=true,notice,reviewId}:CartFormProps){
- const messageId=useId(),status=useFormStatus(),context=useContext(Context);if(!context)throw new Error('CartControls requires CartMutations');
+function CartControls({intent:base,label,subject,disabled=false,quantity=true,notice,reviewId,stepper=false}:CartFormProps){
+ const messageId=useId(),quantityId=useId(),field=useRef<HTMLInputElement>(null),status=useFormStatus(),context=useContext(Context);if(!context)throw new Error('CartControls requires CartMutations');
  const {state,pending,recovering}=context;
  const same=target(base)===target(state.intent);
  const [previous,setPrevious]=useState<Pick<CartMutationState,'phase'|'intent'|'message'|'blocked'|'code'>|null>(null);
@@ -72,7 +72,12 @@ function CartControls({intent:base,label,subject,disabled=false,quantity=true,no
   {Object.entries(intent).filter(([name])=>name!=='quantity').map(([name,value])=><input key={name} type="hidden" name={name} value={value}/>)}
   {!error&&!unknown&&notice&&<p id={messageId} className="cart-advisory">{notice}</p>}
   {(error&&!reviewError||unknown&&!same)&&<p id={messageId} className="cart-form-error" role={error||!same?'alert':undefined}><Icon name="alert"/><span>{subject?`${subject}: `:''}{message}{error&&quantity&&' Perubahan jumlah belum diterapkan.'}</span></p>}
-  {quantity?<label>Jumlah pilihan<input aria-label={subject?`Jumlah ${subject}`:'Jumlah pilihan'} aria-describedby={describedBy} aria-invalid={invalid||undefined} type="number" name="quantity" min="1" max="50" step="1" required defaultValue={intent.quantity} key={`${target(base)}:${intent.quantity}`} readOnly={unknown||disabled}/></label>:<input type="hidden" name="quantity" value={intent.quantity}/>}
+  {quantity?(()=>{const input=<input ref={field} id={quantityId} aria-label={subject?`Jumlah ${subject}`:'Jumlah pilihan'} aria-describedby={describedBy} aria-invalid={invalid||undefined} type="number" name="quantity" min="1" max="50" step="1" required defaultValue={intent.quantity} key={`${target(base)}:${intent.quantity}`} readOnly={unknown||disabled}/>;
+   // PDP (shop.com quantity pill): the same native number field between minus and plus steps.
+   const step=(up:boolean)=>{const el=field.current;if(!el||el.readOnly)return;if(up)el.stepUp();else el.stepDown();};
+   return stepper?<div className="cart-quantity"><label htmlFor={quantityId}>Jumlah pilihan</label><span className="quantity-stepper"><button type="button" aria-label="Kurangi jumlah" onClick={()=>step(false)}><Icon name="subtract"/></button>{input}<button type="button" aria-label="Tambah jumlah" onClick={()=>step(true)}><Icon name="add"/></button></span></div>:
+    // biome-ignore lint/a11y/noLabelWithoutControl: the label wraps the number input held in `input`.
+    <label>Jumlah pilihan{input}</label>;})():<input type="hidden" name="quantity" value={intent.quantity}/>}
   {busy&&<p className="cart-form-pending" role="status">Menyimpan perubahan pilihan ini…</p>}
   <button type="submit" aria-describedby={!quantity?describedBy:undefined} aria-label={subject?`${label} ${subject}`:undefined} className={`button${intent.kind==='remove'?' quiet':intent.kind==='add'||reviewId?'':' secondary'}`} disabled={!unknown&&disabled}>{intent.kind==='remove'&&<Icon name="close"/>}{busy?'Menyimpan…':unknown?'Ulangi tindakan yang sama':retained?'Lanjutkan pilihan':label}</button>
  </fieldset>;

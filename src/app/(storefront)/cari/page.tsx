@@ -1,4 +1,4 @@
-import { CatalogListing } from "../../../components/storefront/catalog-listing";
+import { CatalogListing } from "../../../components/storefront/sections/catalog-listing";
 import { searchMetadata } from "../../../modules/storefront/seo";
 export const dynamic = "force-dynamic";
 // Search and filter results are noindex, follow (seo.ts routePolicy); crawlers may follow product links.

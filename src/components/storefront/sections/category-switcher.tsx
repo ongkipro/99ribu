@@ -1,6 +1,6 @@
 'use client';
 import {type ReactNode,useEffect,useId,useRef,useState} from 'react';
-import {responsiveImage} from './media';
+import {CatalogImage} from '../ui/media';
 
 // shop.com home "category switcher" (observed 2026-10-23): one row of very large department
 // names, the selected one in ink with a product medallion over it, its products underneath.
@@ -24,8 +24,7 @@ export function CategorySwitcher({label,tabs,panels}:{label:string;tabs:Switcher
  // Every medallion is lazy: the switcher sits below the first screen, so an eager medallion
  // would compete with the above-the-fold shelf photo (the phone LCP).
  const art=(tab:SwitcherTab)=>tab.photo&&<span className="switcher-art" aria-hidden="true">
-  {/* biome-ignore lint/performance/noImgElement: same native local media as product cards; no image proxy. */}
-  <img {...responsiveImage(tab.photo.src,'(max-width: 700px) 56px, 112px',256,64)} alt="" width={tab.photo.width} height={tab.photo.height} loading="lazy" referrerPolicy="no-referrer"/></span>;
+  <CatalogImage src={tab.photo.src} sizes="(max-width: 700px) 56px, 112px" max={256} min={64} alt="" width={tab.photo.width} height={tab.photo.height} loading="lazy" referrerPolicy="no-referrer"/></span>;
  return <div className="category-switcher">
   <div ref={row} className="switcher-row" {...(enhanced?{role:'tablist','aria-label':label}:{})}>
    {tabs.map((tab,index)=>enhanced

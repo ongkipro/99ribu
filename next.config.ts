@@ -14,7 +14,7 @@ if (process.argv[1] && realpathSync(process.argv[1]) === realpathSync("node_modu
 const nextConfig: NextConfig = {
   poweredByHeader: false,
   // Built-in image optimization for the content-addressed catalog photos only (resized webp; see
-  // src/components/storefront/media.ts). Widths are the candidates the storefront's srcset uses.
+  // src/components/storefront/ui/media.tsx). Widths are the candidates the storefront's srcset uses.
   images: {
     localPatterns: [{ pathname: "/media/catalog/**", search: "" }],
     qualities: [60],

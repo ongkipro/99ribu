@@ -48,7 +48,7 @@ function escapeHtml(value: string) {
 test("S61 browser: responsive mobile/short-IME/desktop shell, category-preserving filter reset, pagination Back continuity, disappeared-line error alert, expired/submitted cart badge, and consent-aware campaign/referral continuity without cross-session leakage", async () => {
 	// 1. Verify source-level contracts in listing.tsx, cart-forms.tsx, and shell.tsx
 	const listingSource = readFileSync(
-		new URL("../../src/components/storefront/listing.tsx", import.meta.url),
+		new URL("../../src/components/storefront/sections/listing.tsx", import.meta.url),
 		"utf8",
 	);
 	assert.match(

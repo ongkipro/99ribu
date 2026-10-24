@@ -3,7 +3,7 @@ import {redirect} from 'next/navigation';
 import {getLocalAuth} from '../../../../modules/access/auth';
 import {publicCategory} from '../../../../modules/storefront/catalog';
 import {isListingParam} from '../../../../modules/storefront/navigation';
-import {CatalogListing} from '../../../../components/storefront/catalog-listing';
+import {CatalogListing} from '../../../../components/storefront/sections/catalog-listing';
 import {JsonLd} from '../../../../components/storefront/json-ld';
 import {siteConfig} from '../../../../config/site';
 import {breadcrumbJsonLd,categoryDescription,categoryPath,categoryTitle,jsonLdGraph,publicMetadata} from '../../../../modules/storefront/seo';

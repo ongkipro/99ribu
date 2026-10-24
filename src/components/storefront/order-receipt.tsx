@@ -4,7 +4,7 @@ import {Component,startTransition,useActionState,useEffect,useRef,useState} from
 import Link from 'next/link';
 import {observeReceiptView,prepareReceiptPayment,recoverReceiptAccess} from '../../app/(storefront)/checkout/actions';
 import type {CheckoutPaymentState} from '../../modules/storefront/checkout-order';
-import {Icon} from './icon';
+import {Icon} from './ui/icon';
 
 type RetryChild=(capture:(data:FormData|null)=>void,retry:FormData|null)=>React.ReactNode;
 class ReceiptBoundary extends Component<{children:RetryChild;href:string},{failed:boolean;revision:number;retry:FormData|null}>{
