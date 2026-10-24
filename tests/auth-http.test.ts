@@ -7,6 +7,7 @@ import { setTimeout } from "node:timers/promises";
 import test from "node:test";
 import { chromium } from "@playwright/test";
 import { connectDatabase } from "../src/db/client.ts";
+import { activateOverHttp } from "./integration/http-activation.ts";
 
 const origin = "http://127.0.0.1:3099";
 
@@ -27,11 +28,11 @@ test("built localhost auth uses browser HttpOnly cookies, denies CSRF and keeps 
       const response = await fetch(`/api/auth${path}`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) });
       return { status: response.status, payload: await response.json() };
     }, { path, body });
-    const signup = await post("/sign-up/email", { name: "Browser Synthetic", email, password });
+    const signup = await post("/sign-up/email", { name: "Browser Synthetic", email });
     assert.equal(signup.status, 200);
     const [user] = await connection.sql`select id from app.auth_user where email=${email}`;
     userId = user.id;
-    const [pending] = await connection.sql`select id, delivered_at from app.local_delivery where recipient=${email} and kind='verification'`;
+    const [pending] = await connection.sql`select id, delivered_at from app.local_delivery where recipient=${email} and kind='password_reset'`;
     assert.ok(pending.delivered_at === null, "Web must commit its intent while the separate worker is stopped");
     worker = spawn(process.execPath, ["--env-file=.env.example", "scripts/worker.ts", "local"], { stdio: "ignore" });
     let delivered = false;
@@ -41,9 +42,8 @@ test("built localhost auth uses browser HttpOnly cookies, denies CSRF and keeps 
       await setTimeout(50);
     }
     assert.ok(delivered, "Separate worker must deliver the web-created intent");
-    const [delivery] = await connection.sql`select url from app.local_delivery where id=${pending.id} and delivered_at is not null`;
-    const verified = await context.request.get(delivery.url, { maxRedirects: 0 });
-    assert.ok([200, 302].includes(verified.status()));
+    // S123: the delivered set-password link creates the password (and verifies the email).
+    await activateOverHttp(connection.sql, context.request, email, password);
     const login = await post("/sign-in/email", { email, password });
     assert.equal(login.status, 200);
     assert.ok(!Object.hasOwn(login.payload, "token"));

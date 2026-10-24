@@ -6,6 +6,7 @@ import {chromium} from "@playwright/test";
 import {connectDatabase} from "../../src/db/client.ts";
 import {type Exchange,validateExchanges} from "../contract/openapi-probe.ts";
 import {totp} from "./totp-fixture.ts";
+import {activateOverHttp} from './http-activation.ts';
 
 test('built finance/publication APIs enforce real browser MFA cookies, private cost schemas and product-bound owner exception',async()=>{
  await resetBrowserAuthLimits();
@@ -29,10 +30,9 @@ test('built finance/publication APIs enforce real browser MFA cookies, private c
     const root='/api/v1/admin';const dummy=randomUUID();const key=()=>({'idempotency-key':randomUUID()});
     for(const path of [`/stock-items/${dummy}/cost-versions`,`/offers/${dummy}/cost-assumption-versions`,`/products/${dummy}/contribution-reviews`,`/products/${dummy}/publications`]) assert.equal((await call(root+path)).status,401);
     for(const path of [`/stock-items/${dummy}/cost-versions`,`/offers/${dummy}/cost-assumption-versions`,`/products/${dummy}/publications`]) assert.equal((await call(root+path,{},key())).status,401);
-    assert.equal((await call('/api/auth/sign-up/email',{name:'Synthetic Finance Browser Owner',email,password})).status,200);
+    assert.equal((await call('/api/auth/sign-up/email',{name:'Synthetic Finance Browser Owner',email})).status,200);
     const [user]=await sql`select id from app.auth_user where email=${email}`;userId=user.id;
-    const [message]=await sql`select url from app.local_delivery where recipient=${email} and kind='verification'`;
-    assert.ok([200,302].includes((await context.request.get(message.url,{maxRedirects:0})).status()));
+    await activateOverHttp(sql,context.request,email,password);
     await sql`insert into app.role_grant (user_id,roles) values (${userId},ARRAY['owner']::text[])`;
     assert.equal((await call('/api/auth/sign-in/email',{email,password})).status,200);
     assert.equal((await call(`${root}/stock-items/${dummy}/cost-versions`)).status,403);

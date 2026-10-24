@@ -1,12 +1,12 @@
 import { mac, prefix, revokeGuestContext } from "../checkout/access.ts";
-import { isSyntheticEmail, type LocalAuth } from "./auth.ts";
+import { ACTIVATION_HEADER, isSyntheticEmail, type LocalAuth } from "./auth.ts";
 import { getPrincipal, isStaff, projectMe, AccessError } from "./policy.ts";
 import { clientIp, privateJson, problem, requestOrigin } from "./http.ts";
 import { readRuntimeConfig } from "../../config/runtime.ts";
 import { rateLimit } from "./rate-limit.ts";
-import { isVerificationCallback } from "./return-to.ts";
+import { ACTIVATION_CALLBACK, isActivationCallback, isVerificationCallback } from "./return-to.ts";
 import { parseCookies } from "better-auth/cookies";
-import { createHmac, timingSafeEqual } from "node:crypto";
+import { createHmac, randomBytes, timingSafeEqual } from "node:crypto";
 
 function authCookie(request: Request, name: string) {
   const header = request.headers.get("cookie") ?? "";
@@ -39,7 +39,10 @@ const ACCOUNT_LIMITS: Record<string, readonly [number, number]> = {
 const MAIL_PATHS = ["/api/auth/sign-up/email", "/api/auth/send-verification-email", "/api/auth/request-password-reset"];
 const MAIL_PER_DAY = [10, 86_400_000] as const;
 
-export async function handleAuth(request: Request, identity: LocalAuth) {
+// `public`: the network entry points (/api/auth/[...all] and /masuk/kirim) pass it; sign-up there takes no
+// password and mails only set-password links. In-process callers (fixtures, seeds, tests) keep the
+// password sign-up and plain verification link of the harness.
+export async function handleAuth(request: Request, identity: LocalAuth, options: { public?: boolean } = {}) {
   const incoming = new URL(request.url);
   const path = incoming.pathname;
   const getPaths = ["/api/auth/get-session", "/api/auth/verify-email"];
@@ -61,6 +64,7 @@ export async function handleAuth(request: Request, identity: LocalAuth) {
     return Response.json({ code: "NOTIFICATION_DISABLED" }, { status: 503, headers: { "Cache-Control": "no-store" } });
   }
   const headers = new Headers(request.headers);
+  headers.delete(ACTIVATION_HEADER); // only ever set below, from a validated body
   // Locally Next is bound only to 127.0.0.1; in production only the configured trusted-proxy header counts.
   // Either way the header Better Auth reads is overwritten here, so a browser-supplied copy has no authority.
   try { headers.set(profile === "production" ? "x-99ribu-client-ip" : "x-99ribu-local-ip", clientIp(request)); }
@@ -90,15 +94,24 @@ export async function handleAuth(request: Request, identity: LocalAuth) {
     if (profile === "local" && body.email !== undefined && !isSyntheticEmail(body.email)) {
       return Response.json({ code: "SYNTHETIC_EMAIL_REQUIRED" }, { status: 400 });
     }
-    // S123: only the reviewed fields (no `image` or other user columns), a verification link may only return
-    // to the landing page with a validated `next` (no open redirect through a trusted origin's other
-    // paths), and a display name is 1-100 characters.
-    const signUpKeys = path.endsWith("/sign-up/email") ? ["name", "email", "password", "callbackURL"] : ["email", "callbackURL"];
-    if (["/api/auth/sign-up/email", "/api/auth/send-verification-email"].includes(path) &&
-        (Object.keys(body).some((key) => !signUpKeys.includes(key)) ||
-         (body.callbackURL !== undefined && !isVerificationCallback(body.callbackURL)) ||
-         (path.endsWith("/sign-up/email") && (typeof body.name !== "string" || !body.name.trim() || body.name.length > 100)))) {
-      return Response.json({ code: "INVALID_INPUT" }, { status: 400, headers: { "Cache-Control": "no-store" } });
+    // S123: only the reviewed fields (no `image` or other user columns), a link may only return to the
+    // activation page (public) or the verification landing (harness) with a validated `next` (no open
+    // redirect through a trusted origin's other paths), and a display name is 1-100 characters.
+    // Owner decision 2026-10-25: a public sign-up never carries a password. Better Auth still needs one, so
+    // a random 64-character value nobody learns is stored, and the email owner creates the real password
+    // through the set-password link (auth.ts sendActivation / onPasswordReset).
+    if (["/api/auth/sign-up/email", "/api/auth/send-verification-email"].includes(path)) {
+      const signUp = path.endsWith("/sign-up/email");
+      const keys = signUp ? ["name", "email", ...(options.public ? [] : ["password"]), "callbackURL"] : ["email", "callbackURL"];
+      const callbackOk = body.callbackURL === undefined || (options.public ? isActivationCallback(body.callbackURL) : isVerificationCallback(body.callbackURL) || isActivationCallback(body.callbackURL));
+      if (Object.keys(body).some((key) => !keys.includes(key)) || !callbackOk ||
+          (signUp && (typeof body.name !== "string" || !body.name.trim() || body.name.length > 100))) {
+        return Response.json({ code: "INVALID_INPUT" }, { status: 400, headers: { "Cache-Control": "no-store" } });
+      }
+      if (options.public) {
+        headers.set(ACTIVATION_HEADER, typeof body.callbackURL === "string" ? body.callbackURL : ACTIVATION_CALLBACK);
+        if (signUp) bodyText = JSON.stringify({ ...body, password: randomBytes(48).toString("base64url") });
+      }
     }
     if (path.includes("/two-factor/")) {
       const enable = path.endsWith("/enable");
@@ -153,11 +166,9 @@ export async function handleAuth(request: Request, identity: LocalAuth) {
       delete body.token;
       if (body.session) delete body.session.token;
       if (path === "/api/auth/sign-up/email" && response.ok) body = { status: true };
-      // Better Auth answers EMAIL_NOT_VERIFIED only after the password matched, so naming it tells the
-      // caller nothing they did not prove; every other rejection stays one uniform code.
-      if (path === "/api/auth/sign-in/email" && response.status === 403 && body.code === "EMAIL_NOT_VERIFIED") {
-        return Response.json({ code: "EMAIL_NOT_VERIFIED" }, { status: 403, headers: response.headers });
-      }
+      // One uniform rejection, EMAIL_NOT_VERIFIED included: a publicly created unverified account has only
+      // a random password nobody knows (it becomes usable when its owner creates one, which also verifies
+      // the email), so naming that state would only ever answer harness accounts.
       if (path === "/api/auth/sign-in/email" && [401, 403].includes(response.status)) {
         return Response.json({ code: "INVALID_CREDENTIALS" }, { status: 401, headers: response.headers });
       }

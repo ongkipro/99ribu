@@ -6,6 +6,7 @@ import { chromium } from "@playwright/test";
 import { connectDatabase } from "../../src/db/client.ts";
 import { type Exchange, validateExchanges } from "../contract/openapi-probe.ts";
 import { totp } from "./totp-fixture.ts";
+import { activateOverHttp } from "./http-activation.ts";
 
 test("built policy API uses real owner MFA/proof cookies, scoped history and immutable committed retry", async () => {
  await resetBrowserAuthLimits();
@@ -28,10 +29,9 @@ test("built policy API uses real owner MFA/proof cookies, scoped history and imm
     const endpoint = "/api/v1/admin/policy-versions";
     assert.equal((await call(`${endpoint}?kind=commercial`)).status, 401);
     assert.equal((await call(endpoint, {})).status, 401);
-    assert.equal((await call("/api/auth/sign-up/email", { name: "Synthetic Policy Owner", email, password })).status, 200);
+    assert.equal((await call("/api/auth/sign-up/email", { name: "Synthetic Policy Owner", email })).status, 200);
     const [user] = await sql`select id from app.auth_user where email=${email}`; userId = user.id;
-    const [message] = await sql`select url from app.local_delivery where recipient=${email} and kind='verification'`;
-    assert.ok([200, 302].includes((await context.request.get(message.url, { maxRedirects: 0 })).status()));
+    await activateOverHttp(sql, context.request, email, password);
     await sql`insert into app.role_grant (user_id,roles) values (${userId},ARRAY['owner']::text[])`;
     assert.equal((await call("/api/auth/sign-in/email", { email, password })).status, 200);
     assert.equal((await call(`${endpoint}?kind=commercial`)).status, 403);

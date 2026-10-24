@@ -13,13 +13,21 @@ export function safeReturnPath(value: unknown): string | null {
   return url.pathname + url.search + url.hash;
 }
 
-// S123: the email verification link lands here (Better Auth redirects to the sign-up's callbackURL and
-// adds `error=` for a bad link). Sign-up and resend accept no other callbackURL, so a link can only carry
-// a validated `next` on to sign-in.
+// S123: where a plain email verification link lands (Better Auth redirects to the callbackURL and adds
+// `error=` for a bad link). Since the owner decision of 2026-10-25 public sign-up never sends one; only
+// in-process harness accounts (fixtures, seeds) still get it.
 export const VERIFIED_PATH = "/masuk/verifikasi";
-// S123 review M1: the set-password page. `aktivasi=1` marks the link that activates an unverified account.
+// The set-password page. Public sign-up and resend mail a set-password link whose callback is
+// `/masuk/atur-sandi?aktivasi=1[&next=…]`; the buyer creates the password there, which activates the account.
 export const PASSWORD_PATH = "/masuk/atur-sandi";
 export const ACTIVATION_CALLBACK = `${PASSWORD_PATH}?aktivasi=1`;
+export const activationCallback = (next: string | null) => (next ? `${ACTIVATION_CALLBACK}&${new URLSearchParams({ next })}` : ACTIVATION_CALLBACK);
+export function isActivationCallback(value: unknown) {
+  if (value === ACTIVATION_CALLBACK) return true;
+  if (typeof value !== "string" || !value.startsWith(`${ACTIVATION_CALLBACK}&`)) return false;
+  const next = safeReturnPath(new URLSearchParams(value.slice(ACTIVATION_CALLBACK.length + 1)).get("next"));
+  return next !== null && value === activationCallback(next);
+}
 export const verificationCallback = (next: string | null) => (next ? `${VERIFIED_PATH}?${new URLSearchParams({ next })}` : VERIFIED_PATH);
 export function isVerificationCallback(value: unknown) {
   if (value === VERIFIED_PATH) return true;

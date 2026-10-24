@@ -8,7 +8,10 @@ import { readRuntimeConfig, runtimeTarget } from "../../config/runtime.ts";
 import { localSigningKey } from "./local-key.ts";
 import { enqueueLocalDelivery } from "../../jobs/outbox.ts";
 import { randomBytes } from "node:crypto";
-import { ACTIVATION_CALLBACK } from "./return-to.ts";
+import { ACTIVATION_CALLBACK, isActivationCallback } from "./return-to.ts";
+
+// Set by handleAuth on public sign-up and resend (never taken from the client) to the validated activation callback.
+export const ACTIVATION_HEADER = "x-99ribu-activation";
 
 export function isSyntheticEmail(value: unknown): value is string {
   return typeof value === "string" && /@[^@\s]+\.(?:invalid|test)$/i.test(value);
@@ -30,19 +33,24 @@ export function createLocalAuth(target: DatabaseTarget) {
       await enqueueLocalDelivery(tx, message.id);
     });
   }
-  // S123 review M1 (account pre-hijacking): an unverified account may hold a password its email owner never
-  // set, so a later sign-up or resend for it never sends a plain verification link. It sends a set-password
-  // link instead (Better Auth's own reset token, same identifier, store and 30-minute expiry as
-  // /request-password-reset); onPasswordReset below verifies the email only once its owner has set a new
-  // password, which also replaces the old one and revokes sessions.
-  async function sendActivation(user: { id: string; email: string }) {
+  // S123 (review M1, owner decision 2026-10-25): public sign-up takes no password (handleAuth stores a random
+  // one nobody knows), and every email for an unverified account is a set-password link: Better Auth's own
+  // reset token (same identifier, store and 30-minute expiry as /request-password-reset). onPasswordReset
+  // below verifies the email once its owner has created the password, which also replaces any earlier one
+  // and revokes sessions. The callback keeps a validated `next` (handleAuth passes it in ACTIVATION_HEADER).
+  async function sendActivation(user: { id: string; email: string }, callback: string) {
     const context = await auth.$context;
     const token = randomBytes(24).toString("base64url");
     await context.internalAdapter.createVerificationValue({
       value: user.id, identifier: `reset-password:${token}`, expiresAt: new Date(Date.now() + 1800 * 1000),
     });
-    await deliver(user.email, "password_reset", `${config.origin}/api/auth/reset-password/${token}?callbackURL=${encodeURIComponent(ACTIVATION_CALLBACK)}`);
+    await deliver(user.email, "password_reset", `${config.origin}/api/auth/reset-password/${token}?callbackURL=${encodeURIComponent(callback)}`);
   }
+  const activationTarget = (request: Request | undefined, url?: string) => {
+    const header = request?.headers.get(ACTIVATION_HEADER) ?? null;
+    const fromUrl = url ? new URL(url).searchParams.get("callbackURL") : null;
+    return header !== null && isActivationCallback(header) ? header : fromUrl !== null && isActivationCallback(fromUrl) ? fromUrl : ACTIVATION_CALLBACK;
+  };
   const auth = betterAuth({
     appName: "99ribu", basePath: "/api/auth",
     // Default: one static loopback origin. With the opt-in tailnet origin, links and redirects follow the
@@ -77,7 +85,7 @@ export function createLocalAuth(target: DatabaseTarget) {
       revokeSessionsOnPasswordReset: true,
       sendResetPassword: ({ user, url }) => deliver(user.email, "password_reset", url),
       // Same reply either way (Better Auth's generic duplicate response); only the email differs.
-      onExistingUserSignUp: ({ user }) => user.emailVerified ? deliver(user.email, "existing_account", `${config.origin}/masuk`) : sendActivation(user),
+      onExistingUserSignUp: ({ user }, request) => user.emailVerified ? deliver(user.email, "existing_account", `${config.origin}/masuk`) : sendActivation(user, activationTarget(request)),
       // Called by POST /reset-password after the token was consumed and the new password stored.
       onPasswordReset: async ({ user }) => {
         if (!user.emailVerified) await connection.sql`update app.auth_user set email_verified=true, updated_at=now() where id=${user.id}`;
@@ -85,10 +93,12 @@ export function createLocalAuth(target: DatabaseTarget) {
     },
     emailVerification: {
       sendOnSignUp: true, sendOnSignIn: false, autoSignInAfterVerification: false, expiresIn: 1800,
-      // Sign-up of a new account: the caller just set the password, so a plain link is safe. A resend
-      // (/send-verification-email, only ever called for an unverified account) gets the set-password link.
+      // A public sign-up (ACTIVATION_HEADER, set by handleAuth) and every resend (only ever called for an
+      // unverified account) get the set-password link. Only in-process harness sign-ups that pass a password
+      // (fixtures, seeds; not reachable over HTTP) still get a plain verification link.
       sendVerificationEmail: ({ user, url }, request) =>
-        request && new URL(request.url).pathname.endsWith("/send-verification-email") ? sendActivation(user) : deliver(user.email, "verification", url),
+        request?.headers.has(ACTIVATION_HEADER) || (request && new URL(request.url).pathname.endsWith("/send-verification-email"))
+          ? sendActivation(user, activationTarget(request, url)) : deliver(user.email, "verification", url),
     },
     session: { expiresIn: 60 * 60 * 24 * 7, updateAge: 60 * 60 * 24, freshAge: 900, cookieCache: { enabled: false } },
     account: { accountLinking: { enabled: false } },

@@ -6,6 +6,7 @@ import { chromium } from "@playwright/test";
 import { connectDatabase } from "../../src/db/client.ts";
 import { type Exchange, validateExchanges } from "../contract/openapi-probe.ts";
 import { totp } from "./totp-fixture.ts";
+import { activateOverHttp } from "./http-activation.ts";
 
 test("built catalog API uses real MFA cookies, dynamic product paths, durable retry and immutable draft composition", async () => {
  await resetBrowserAuthLimits();
@@ -30,10 +31,9 @@ test("built catalog API uses real MFA cookies, dynamic product paths, durable re
       ["GET", "/products"], ["POST", "/products"], ["GET", `/products/${dummy}`], ["PATCH", `/products/${dummy}`]]) {
       assert.equal((await call(base + path, method, method === "GET" ? undefined : {})).status, 401);
     }
-    assert.equal((await call("/api/auth/sign-up/email", "POST", { name: "Synthetic Catalog Owner", email, password })).status, 200);
+    assert.equal((await call("/api/auth/sign-up/email", "POST", { name: "Synthetic Catalog Owner", email })).status, 200);
     const [user] = await sql`select id from app.auth_user where email=${email}`; userId = user.id;
-    const [message] = await sql`select url from app.local_delivery where recipient=${email} and kind='verification'`;
-    assert.ok([200, 302].includes((await context.request.get(message.url, { maxRedirects: 0 })).status()));
+    await activateOverHttp(sql, context.request, email, password);
     await sql`insert into app.role_grant (user_id,roles) values (${userId},ARRAY['owner']::text[])`;
     assert.equal((await call("/api/auth/sign-in/email", "POST", { email, password })).status, 200);
     assert.equal((await call(`${base}/products`)).status, 403);

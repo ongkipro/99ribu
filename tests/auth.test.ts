@@ -72,10 +72,10 @@ test("real auth: verification, session lifecycle, reset, deny-default and persis
       }
       assert.equal((await call("/sign-up/email", { name: " ", email, password })).status, 400);
       // These 400s answer before the per-email budget, so the counts below are unchanged.
-      // EMAIL_NOT_VERIFIED is named only after the password matched (a wrong one stays 401 INVALID_CREDENTIALS below).
+      // One uniform rejection, EMAIL_NOT_VERIFIED included (handler.ts).
       const unverified = await call("/sign-in/email", { email, password });
-      assert.equal(unverified.status, 403);
-      assert.deepEqual(await unverified.json(), { code: "EMAIL_NOT_VERIFIED" });
+      assert.equal(unverified.status, 401);
+      assert.deepEqual(await unverified.json(), { code: "INVALID_CREDENTIALS" });
       const rows = await identity.sql`select id, email_verified from app.auth_user where email=${email}`;
       assert.equal(rows.length, 1); assert.equal(rows[0].email_verified, false); userId = rows[0].id;
       const accounts = await identity.sql`select password from app.auth_account where user_id=${userId}`;
@@ -165,52 +165,65 @@ test("real auth: verification, session lifecycle, reset, deny-default and persis
   }
 });
 
-// S123 review M1: someone signs up with another person's email and their own password. The email owner's
-// later sign-up and resend must never send a plain verification link for that account: they get a
-// set-password link, the account is verified only by setting a new password, and the first password dies.
-test("account pre-hijacking: an unverified account is activated only by its email owner setting a new password", async () => {
+// S123 (review M1, owner decision 2026-10-25): public sign-up takes name and email only, and every email for
+// an unverified account is a set-password link. Someone who signs up with another person's address never
+// learns a usable password; the address owner creates the only one through the link, which verifies the email.
+test("public sign-up: no client password, set-password links only, the attacker never signs in", async () => {
   const identity = createLocalAuth("test");
   const email = `prehijack-${randomUUID()}@example.invalid`;
-  const attacker = randomBytes(24).toString("base64url"), owner = randomBytes(24).toString("base64url");
-  const call = (path: string, body: Record<string, unknown>) => handleAuth(new Request(`${origin}/api/auth${path}`, {
-    method: "POST", headers: { origin, "content-type": "application/json" }, body: JSON.stringify(body),
-  }), identity);
+  const owner = randomBytes(24).toString("base64url"), guess = randomBytes(24).toString("base64url");
+  const call = (path: string, body: Record<string, unknown>, open = true) => handleAuth(new Request(`${origin}/api/auth${path}`, {
+    method: "POST", headers: { origin, "content-type": "application/json", "x-99ribu-activation": "/admin" }, body: JSON.stringify(body),
+  }), identity, { public: open });
   const kinds = async () => (await identity.sql`select kind from app.local_delivery where recipient=${email} order by created_at, id`).map((row) => row.kind);
+  const linkFor = async () => {
+    const [latest] = await identity.sql`select url from app.local_delivery where recipient=${email} and kind='password_reset' order by created_at desc, id desc limit 1`;
+    return new URL(latest.url);
+  };
   const paths = ["/sign-up/email", "/sign-in/email", "/send-verification-email", "/reset-password"];
   await identity.sql`delete from app.auth_rate_limit where key in ${identity.sql(paths.map((path) => `127.0.0.1|${path}`))}`;
   let userId = "";
   try {
-    const first = await call("/sign-up/email", { name: "Penyerobot", email, password: attacker });
+    // A client password (or any other extra field) and a callback other than the activation page are refused.
+    assert.equal((await call("/sign-up/email", { name: "Penyerobot", email, password: guess })).status, 400);
+    assert.equal((await call("/sign-up/email", { name: "Penyerobot", email, callbackURL: "/masuk/verifikasi" })).status, 400);
+    assert.equal((await identity.sql`select id from app.auth_user where email=${email}`).length, 0);
+    const first = await call("/sign-up/email", { name: "Penyerobot", email, callbackURL: "/masuk/atur-sandi?aktivasi=1&next=%2Fakun" });
     assert.equal(first.status, 200);
+    assert.deepEqual(await first.json(), { status: true });
     [{ id: userId }] = await identity.sql`select id from app.auth_user where email=${email}`;
-    assert.deepEqual(await kinds(), ["verification"]);
-    // The email owner signs up and asks for a resend: same replies as for any address, but only set-password links go out.
-    const again = await call("/sign-up/email", { name: "Pemilik Email", email, password: owner });
+    assert.deepEqual(await kinds(), ["password_reset"], "A new public account gets a set-password link, never a verification link");
+    // The client-sent header has no authority: the link returns to the validated callback, `next` included.
+    assert.equal((await linkFor()).searchParams.get("callbackURL"), "/masuk/atur-sandi?aktivasi=1&next=%2Fakun");
+    assert.equal((await call("/sign-in/email", { email, password: guess })).status, 401, "No password the attacker could know");
+    // The address owner signs up and asks for a resend: same replies, only set-password links.
+    const again = await call("/sign-up/email", { name: "Pemilik Email", email });
     assert.equal(again.status, 200);
-    assert.deepEqual(await again.json(), await first.json());
-    const resend = await call("/send-verification-email", { email, callbackURL: "/masuk/verifikasi" });
+    assert.deepEqual(await again.json(), { status: true });
+    const resend = await call("/send-verification-email", { email, callbackURL: "/masuk/atur-sandi?aktivasi=1" });
     assert.equal(resend.status, 200);
     assert.deepEqual(await resend.json(), { status: true });
-    assert.deepEqual(await kinds(), ["verification", "password_reset", "password_reset"], "No new verification link for an account the owner did not set");
+    assert.deepEqual(await kinds(), ["password_reset", "password_reset", "password_reset"]);
     assert.equal((await identity.sql`select email_verified from app.auth_user where id=${userId}`)[0].email_verified, false);
-    // Following the newest link lands on the set-password page with the token; setting the password activates the account.
-    const [latest] = await identity.sql`select url from app.local_delivery where recipient=${email} and kind='password_reset' order by created_at desc, id desc limit 1`;
-    const landing = await handleAuth(new Request(latest.url), identity);
+    // Following the newest link lands on the set-password page with the token; creating the password activates the account.
+    const landing = await handleAuth(new Request((await linkFor()).href), identity, { public: true });
     assert.equal(landing.status, 302);
+    assert.equal(landing.headers.get("referrer-policy"), "no-referrer");
     const target = new URL(landing.headers.get("location") ?? "", origin);
     assert.equal(target.pathname, "/masuk/atur-sandi");
     assert.equal(target.searchParams.get("aktivasi"), "1");
     const token = target.searchParams.get("token");
     assert.ok(token);
-    assert.equal(landing.headers.get("referrer-policy"), "no-referrer");
     assert.equal((await call("/reset-password", { token, newPassword: owner })).status, 200);
     assert.equal((await identity.sql`select email_verified from app.auth_user where id=${userId}`)[0].email_verified, true);
-    assert.equal((await call("/sign-in/email", { email, password: attacker })).status, 401, "The first password no longer works");
+    assert.equal((await call("/sign-in/email", { email, password: guess })).status, 401);
     assert.equal((await call("/sign-in/email", { email, password: owner })).status, 200);
-    // A verified account's sign-up still only mails the existing-account notice.
-    assert.equal((await call("/sign-up/email", { name: "Lagi", email, password: attacker })).status, 200);
+    // A verified account's sign-up only mails the existing-account notice, with the same reply.
+    const verified = await call("/sign-up/email", { name: "Lagi", email });
+    assert.equal(verified.status, 200);
+    assert.deepEqual(await verified.json(), { status: true });
     assert.deepEqual((await kinds()).slice(-1), ["existing_account"]);
-    assert.equal((await kinds()).filter((kind) => kind === "password_reset").length, 2);
+    assert.equal((await kinds()).filter((kind) => kind === "password_reset").length, 3);
   } finally {
     await identity.sql`delete from app.outbox_job where kind='local.notification' and payload->>'deliveryId' in (select id::text from app.local_delivery where recipient=${email})`;
     await identity.sql`delete from app.local_delivery where recipient=${email}`;
