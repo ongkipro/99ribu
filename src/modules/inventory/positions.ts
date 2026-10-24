@@ -53,12 +53,16 @@ export async function createMovement(request: Request, identity: LocalAuth, prin
   });
 }
 function filters(url: URL, lots: boolean) {
-  const names = lots ? ["warehouse_id", "stock_item_id", "cursor", "limit"] : ["warehouse_id", "stock_item_id", "lot_id", "position_id", "cursor", "limit"];
+  const names = lots ? ["warehouse_id", "stock_item_id", "cursor", "limit"] : ["warehouse_id", "stock_item_id", "lot_id", "position_id", "q", "cursor", "limit"];
   if ([...url.searchParams.keys()].some((key) => !names.includes(key) || url.searchParams.getAll(key).length !== 1)) throw invalid();
   const limit = url.searchParams.get("limit") ?? "20"; if (!/^\d{1,3}$/.test(limit)) throw invalid();
   const selected = (key: string) => url.searchParams.has(key) ? id(url.searchParams.get(key)) : null;
+  // S102: literal, case-insensitive SKU code or name substring (ILIKE metacharacters escaped).
+  const q = url.searchParams.get("q");
+  if (q !== null && (!q.isWellFormed() || q.includes("\0") || !q.trim() || Array.from(q).length > 100)) throw invalid();
   return { limit: integer(Number(limit), 1, 100), cursor: selected("cursor"), warehouseId: selected("warehouse_id"),
-    stockItemId: selected("stock_item_id"), lotId: selected("lot_id"), positionId: selected("position_id") };
+    stockItemId: selected("stock_item_id"), lotId: selected("lot_id"), positionId: selected("position_id"),
+    pattern: q === null ? null : `%${q.trim().replace(/[\\%_]/g, (c) => `\\${c}`)}%` };
 }
 export async function listPositions(identity: LocalAuth, principal: Principal, url: URL) {
   const selected = filters(url, false);
@@ -77,6 +81,7 @@ export async function listPositions(identity: LocalAuth, principal: Principal, u
         and (${selected.stockItemId}::uuid is null or b.stock_item_id=${selected.stockItemId}::uuid)
         and (${selected.lotId}::uuid is null or b.lot_id=${selected.lotId}::uuid)
         and (${selected.positionId}::uuid is null or b.id=${selected.positionId}::uuid)
+        and (${selected.pattern}::text is null or s.sku ilike ${selected.pattern} or s.name ilike ${selected.pattern})
         and (${access.owner} or exists (select 1 from app.warehouse_membership m where m.user_id=${principal.id} and m.warehouse_id=w.id and w.active))
       order by b.id limit ${selected.limit + 1}`;
     // S102: the physical SKU code and name label a row for warehouse staff (no cost or customer data).

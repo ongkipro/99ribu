@@ -30,7 +30,11 @@ async function allocations(tx:TransactionSql, row:TransferRow) {
     where c.reservation_id=${row.reservation_id} order by c.balance_id`;
 }
 async function projectTransfer(tx:TransactionSql, row:TransferRow) {
+  // S102: SKU and both warehouse names label the row for staff who cannot read the SKU dictionary or the other warehouse.
+  const [names]=await tx`select s.sku,s.name as stock_item_name,f.name as from_warehouse_name,t.name as to_warehouse_name
+    from app.stock_item s,app.warehouse f,app.warehouse t where s.id=${row.stock_item_id} and f.id=${row.from_warehouse_id} and t.id=${row.to_warehouse_id}`;
   return { id:row.id,from_warehouse_id:row.from_warehouse_id,to_warehouse_id:row.to_warehouse_id,stock_item_id:row.stock_item_id,
+    sku:names?.sku??null,stock_item_name:names?.stock_item_name??null,from_warehouse_name:names?.from_warehouse_name??null,to_warehouse_name:names?.to_warehouse_name??null,
     quantity:row.quantity,status:row.status,version:row.revision,received_quantity:row.received_quantity,quarantined_quantity:row.quarantined_quantity,
     outstanding_quantity:row.status==='requested'||row.status==='cancelled' ? 0 : row.quantity-row.received_quantity,
     created_at:new Date(row.created_at).toISOString(),allocations:await allocations(tx,row) };
