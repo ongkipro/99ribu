@@ -11,7 +11,7 @@ import { describeFailure, failureText, getJson, readFailure } from "./admin-erro
 import { bpsToPercent, percentToBps } from "./format";
 import { DataTable } from "./data-table";
 import { FormDialog, FormField, nativeSelectClass, SegmentedControl } from "./form";
-import { isOverdue, OrderNumberLink, OverdueBadge, StatusBadge, useNow } from "./status";
+import { Deadline, OrderNumberLink, StatusBadge } from "./status";
 import { useKeysetList } from "./use-keyset-list";
 
 // DEC-008 manual bank transfers (finance queue) and DEC-008/009 payment terms (owner).
@@ -83,7 +83,6 @@ export function PaymentsClient({
 	/** orders.history.read: order numbers link to the order detail. */
 	canOrders: boolean;
 }) {
-	const now = useNow();
 	const [state, setState] = useState<"open" | "resolved">("open");
 	const list = useKeysetList<Transfer>(`/api/v1/admin/manual-transfers?state=${state}`, (row) => row.id);
 	const [notice, setNotice] = useState<string | null>(null);
@@ -106,11 +105,11 @@ export function PaymentsClient({
 				</p>
 			)}
 			<section aria-labelledby="transfers-heading" className="flex flex-col gap-4">
-				<div className="flex flex-wrap items-end justify-between gap-3">
+				<div className="flex items-start justify-between gap-3">
 					<h2 id="transfers-heading" className="text-lg font-semibold">
 						Transfer bank manual
 					</h2>
-					<Button variant="outline" onClick={() => void list.reload()}>
+					<Button variant="outline" className="shrink-0" onClick={() => void list.reload()}>
 						<RefreshCw aria-hidden="true" />
 						Muat ulang
 					</Button>
@@ -138,14 +137,14 @@ export function PaymentsClient({
 						{
 							id: "order",
 							header: "Pesanan",
-							stack: "plain",
-							cellClassName: "max-md:justify-start max-md:text-left",
+							stack: "title",
 							cell: (row) => <OrderNumberLink number={row.order_number} orderId={row.order_id} enabled={canOrders} />,
 						},
 						// md–xl: the unique code moves under the amount so the pinned action never covers the deadline.
 						{
 							id: "amount",
 							header: "Nominal tepat",
+							stack: "aside",
 							className: "text-right tabular-nums",
 							cell: (row) => (
 								<>
@@ -158,6 +157,7 @@ export function PaymentsClient({
 						{
 							id: "deadline",
 							header: state === "open" ? "Batas transfer" : "Hasil",
+							stack: state === "open" ? "label" : "status",
 							cell: (row) =>
 								row.confirmation ? (
 									<div className="flex flex-wrap justify-end gap-1 md:justify-start">
@@ -169,16 +169,12 @@ export function PaymentsClient({
 										{row.confirmation.mismatch && <StatusBadge tone="danger">Nominal berbeda</StatusBadge>}
 									</div>
 								) : (
-									<div className="flex flex-wrap items-center justify-end gap-1.5 tabular-nums md:justify-start">
-										{wibDateTime(row.expires_at)}
-										{isOverdue(row.expires_at, now) && <OverdueBadge />}
-									</div>
+									<Deadline iso={row.expires_at} className="justify-end md:justify-start" />
 								),
 						},
 						{
 							id: "actions",
 							header: "Tindakan",
-							stack: "plain",
 							className: "text-right",
 							cell: (row) =>
 								!row.confirmation && (
@@ -281,7 +277,7 @@ function ConfirmDialog({ transfer, onClose, onDone }: { transfer: Transfer; onCl
 			<FormField id="transfer-time" label={`Waktu transfer (WIB; batas ${wibDateTime(transfer.expires_at)})`} hint={timeHint}>
 				<Input id="transfer-time" type="datetime-local" aria-describedby="transfer-time-hint" value={form.time} onChange={set("time")} />
 			</FormField>
-			<label className="flex min-h-9 items-center gap-2 text-sm">
+			<label className="flex min-h-9 items-center gap-2 text-sm pointer-coarse:min-h-11">
 				<input type="checkbox" className="size-4 accent-primary" checked={form.late} onChange={(e) => setForm({ ...form, late: e.target.checked })} />
 				Transfer dilakukan setelah batas waktu (masuk tinjauan, bukan lunas)
 			</label>
@@ -337,7 +333,8 @@ function AutolarisPayments({
 	const [selected, setSelected] = useState<Autolaris | null>(null);
 	return (
 		<section aria-labelledby="autolaris-heading" className="flex flex-col gap-4 border-t pt-6">
-			<div className="flex flex-wrap items-end justify-between gap-3">
+			{/* Same section header as the transfers: title left, "Muat ulang" top right at every width. */}
+			<div className="flex items-start justify-between gap-3">
 				<div className="flex flex-col gap-1">
 					<h2 id="autolaris-heading" className="text-lg font-semibold">
 						Virtual Account / QRIS (AutoLaris, simulasi lokal)
@@ -346,7 +343,7 @@ function AutolarisPayments({
 						Status dicek otomatis dari laporan AutoLaris; hanya status lunas yang tegas dianggap lunas. Biaya admin ditanggung toko dan dicatat sebagai biaya pembayaran saat dana diselesaikan.
 					</p>
 				</div>
-				<Button variant="outline" onClick={() => void list.reload()}>
+				<Button variant="outline" className="shrink-0" onClick={() => void list.reload()}>
 					<RefreshCw aria-hidden="true" />
 					Muat ulang
 				</Button>
@@ -374,25 +371,26 @@ function AutolarisPayments({
 					{
 						id: "order",
 						header: "Pesanan",
-						stack: "plain",
-						cellClassName: "max-md:justify-start max-md:text-left",
-						// md–xl: the status sits under the order number so the pinned action never covers it.
+						stack: "title",
+						// md–xl: the status and channel sit under the order number so the pinned action never covers them.
 						cell: (row) => (
 							<div className="flex flex-col items-start gap-1">
 								<OrderNumberLink number={row.order_number} orderId={row.order_id} enabled={canOrders} />
-								<span className="hidden md:max-xl:block">{autolarisStatus(row)}</span>
+								<span className="hidden flex-wrap items-center gap-1.5 md:max-xl:flex">
+									{autolarisStatus(row)}
+									<span className="text-xs text-muted-foreground">{channelLabel(row.channel_code)}</span>
+								</span>
 							</div>
 						),
 					},
 					// Kanal and Status give way md–xl (shown in the stacked card and from xl).
 					{ id: "channel", header: "Kanal", className: "md:max-xl:hidden", cell: (row) => channelLabel(row.channel_code) },
-					{ id: "amount", header: "Tagihan pembeli", className: "text-right tabular-nums", cell: (row) => rupiah(row.expected_amount) },
+					{ id: "amount", header: "Tagihan pembeli", stack: "aside", className: "text-right tabular-nums", cell: (row) => rupiah(row.expected_amount) },
 					{ id: "fee", header: "Biaya admin (toko)", className: "text-right tabular-nums", cell: (row) => (row.admin_fee === null ? "—" : rupiah(row.admin_fee)) },
-					{ id: "status", header: "Status", className: "md:max-xl:hidden", cell: autolarisStatus },
+					{ id: "status", header: "Status", stack: "status", className: "md:max-xl:hidden", cell: autolarisStatus },
 					{
 						id: "actions",
 						header: "Tindakan",
-						stack: "plain",
 						className: "text-right",
 						cell: (row) =>
 							state === "open" &&

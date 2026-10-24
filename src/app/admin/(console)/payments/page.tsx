@@ -3,6 +3,7 @@ import { AccessDenied } from "../../../../components/admin/access-denied";
 import { consoleAccess } from "../../../../components/admin/console-access";
 import { canReadOrders } from "../../../../components/admin/order-model";
 import { readStaffAccess } from "../staff-roles";
+import { AdminPage, PageHeader } from "../../../../components/admin/page-blocks";
 
 export const dynamic = "force-dynamic";
 export const metadata = {
@@ -22,19 +23,21 @@ export default async function PaymentsPage() {
 			</AccessDenied>
 		);
 	return (
-		<div className="flex flex-col gap-6 px-4 py-5 md:px-8 md:py-6">
-			<header className="flex flex-col gap-1.5 border-b pb-5">
-				<h1 className="text-2xl font-semibold tracking-tight">Pembayaran</h1>
-				<p className="max-w-prose text-sm text-muted-foreground">
-					Konfirmasi transfer bank manual dari mutasi rekening dan pantau Virtual Account / QRIS AutoLaris. Nominal yang
-					berbeda dicatat dan masuk tinjauan, tidak dianggap lunas.
-				</p>
-			</header>
+		<AdminPage>
+			<PageHeader
+				title="Pembayaran"
+				description={
+					<>
+						Konfirmasi transfer bank manual dari mutasi rekening dan pantau Virtual Account / QRIS AutoLaris. Nominal yang
+						berbeda dicatat dan masuk tinjauan, tidak dianggap lunas.
+					</>
+				}
+			/>
 			<PaymentsClient
 				canManageTerms={roles.includes("owner")}
 				canWrite={access.reconcileWrite}
 				canOrders={canReadOrders(roles, permissions)}
 			/>
-		</div>
+		</AdminPage>
 	);
 }

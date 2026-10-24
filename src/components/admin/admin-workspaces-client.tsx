@@ -16,6 +16,7 @@ import {
 	DialogTitle,
 } from "@/components/ui/dialog";
 import { Textarea } from "@/components/ui/textarea";
+import { useIsMobile } from "@/components/ui/use-mobile";
 import { rupiah, wibDateTime } from "@/modules/storefront/format";
 import {
 	type AdDestinationItem,
@@ -23,11 +24,12 @@ import {
 } from "./ad-destinations-panel";
 import { describeFailure, failureText, readFailure } from "./admin-errors";
 import type { ConsoleAccess } from "./console-access";
-import { DataTable } from "./data-table";
+import { CardActions, CardMeta, CardStatus, CardTitle, DataTable } from "./data-table";
 import { nativeSelectClass, SegmentedControl } from "./form";
 import { KpiCard, KpiGrid } from "./kpi-card";
+import { AdminPage, Disclosure, PageHeader } from "./page-blocks";
 import { ErrorState, LoadingState } from "./states";
-import { isOverdue, OverdueBadge, StatusBadge, useNow } from "./status";
+import { Deadline, StatusBadge } from "./status";
 
 export type CanonicalWorkspace =
 	| "owner"
@@ -177,6 +179,8 @@ const ACTION_LABELS: Record<string, string> = {
 	"/admin/cod-settlements": "Buka Setoran COD",
 	"/admin/support": "Buka Kotak Masuk",
 };
+// Phones show the first rows of the dashboard queue; "Lihat semua" opens the full queue page.
+const PHONE_QUEUE_ROWS = 5;
 // Low stock per warehouse shows the largest few; payment methods show all.
 const BREAKDOWN_SHOWN = 3;
 // Counts that are work someone must clear; a non-zero one leads the grid in the warning tone.
@@ -221,7 +225,8 @@ const QUEUE_LABELS: Record<QueueKey, string> = {
 // it differs. Orders mix payment deadlines and creation times, so their heading is neutral.
 const TIME_LABELS: Record<QueueKey, string | null> = {
 	orders: "Waktu",
-	fulfillments: "Batas kemas",
+	// Fulfillment rows carry packing deadlines and creation times: a neutral heading, like orders.
+	fulfillments: "Waktu",
 	delivery_exceptions: "Waktu kejadian",
 	returns: "Dibuat",
 	inventory: null,
@@ -812,7 +817,17 @@ export function AdminWorkspacesClient({
 	access,
 	requestedWorkspace,
 	requestedWarehouseId,
+	view = "dashboard",
+	requestedQueue = null,
+	requestedMetric = null,
+	requestedWindow = null,
 }: {
+	/** "queue": the full work-queue page (/admin/queue) behind the dashboard's "Lihat semua". */
+	view?: "dashboard" | "queue";
+	requestedQueue?: string | null;
+	/** Metric key whose signed filter the full queue page re-reads from the dashboard API. */
+	requestedMetric?: string | null;
+	requestedWindow?: string | null;
 	initialAuthenticated: boolean;
 	initialStaffRoles: CanonicalWorkspace[];
 	/** orders.history.read grant (canReadOrders), not merely the active workspace. */
@@ -829,7 +844,8 @@ export function AdminWorkspacesClient({
 			"owner",
 	);
 	const [warehouseId, setWarehouseId] = useState(requestedWarehouseId);
-	const [windowRange, setWindowRange] = useState("30d");
+	const initialWindow = requestedWindow && requestedWindow in WINDOW_LABELS ? requestedWindow : "30d";
+	const [windowRange, setWindowRange] = useState(initialWindow);
 
 	const [dashboard, setDashboard] = useState<DashboardSnapshot | null>(null);
 	const [dashState, setDashState] = useState<LoadState>(
@@ -896,8 +912,10 @@ export function AdminWorkspacesClient({
 					setDashError(failureText(await readFailure(res)));
 					setDashState("error");
 				} else {
-					setDashboard((await res.json()) as DashboardSnapshot);
+					const snapshot = (await res.json()) as DashboardSnapshot;
+					setDashboard(snapshot);
 					setDashState("ready");
+					return snapshot;
 				}
 			} catch {
 				setDashboard(null);
@@ -1055,14 +1073,26 @@ export function AdminWorkspacesClient({
 				url.searchParams.set("workspace", resolvedWs);
 				window.history.replaceState(null, "", url);
 			}
-			const defaultQueue = WORKSPACE_DEFAULT_QUEUE[resolvedWs];
+			// The full queue page opens the requested queue (one the workspace offers) and window.
+			const askedQueue = WORKSPACE_ALLOWED_QUEUES[resolvedWs].find((q) => q === requestedQueue);
+			const defaultQueue = askedQueue ?? WORKSPACE_DEFAULT_QUEUE[resolvedWs];
 			setWorkspace(resolvedWs);
 			setWarehouseId(requestedWarehouseId);
 			setQueue(defaultQueue);
+			if (view === "queue" && requestedMetric) {
+				// A card's filter token is signed per request: read it fresh from the dashboard.
+				const snapshot = await loadDashboard(resolvedWs, requestedWarehouseId, initialWindow);
+				const metric = snapshot?.metrics.find((m) => m.key === requestedMetric && m.queue_key === defaultQueue);
+				if (!mounted) return;
+				setFilterToken(metric?.queue_filter_token ?? null);
+				setMetricKey(metric?.key ?? null);
+				await loadQueue(resolvedWs, requestedWarehouseId, initialWindow, defaultQueue, metric?.queue_filter_token ?? null);
+				return;
+			}
 			await Promise.all([
-				loadDashboard(resolvedWs, requestedWarehouseId, "30d"),
-				loadAds(resolvedWs),
-				loadQueue(resolvedWs, requestedWarehouseId, "30d", defaultQueue, null),
+				loadDashboard(resolvedWs, requestedWarehouseId, initialWindow),
+				view === "dashboard" ? loadAds(resolvedWs) : null,
+				loadQueue(resolvedWs, requestedWarehouseId, initialWindow, defaultQueue, null),
 			]);
 		})();
 		return () => {
@@ -1076,6 +1106,10 @@ export function AdminWorkspacesClient({
 		loadDashboard,
 		loadAds,
 		loadQueue,
+		view,
+		requestedQueue,
+		requestedMetric,
+		initialWindow,
 	]);
 
 	const focusQueue = () => {
@@ -1142,7 +1176,18 @@ export function AdminWorkspacesClient({
 	const canOrders = !preview && canOrdersGrant;
 	// The API reports Asia/Jakarta; every time below is shown and labeled as WIB.
 	const formatTime = (iso: string | null) => (iso ? wibDateTime(iso) : "—");
-	const now = useNow();
+	// Phones: the dashboard is a task list, so its queue shows the first rows and links on.
+	const isMobile = useIsMobile();
+	const compactQueue = isMobile && view === "dashboard";
+	const shownRows = compactQueue ? rows.slice(0, PHONE_QUEUE_ROWS) : rows;
+	const queuePageHref = `/admin/queue?${new URLSearchParams({
+		workspace,
+		queue,
+		window: windowRange,
+		...(metricKey && activeMetric?.queue_key === queue ? { metric: metricKey } : {}),
+		...(warehouseId ? { warehouse_id: warehouseId } : {}),
+	})}`;
+	const queueCount = queueTotal ?? (nextCursor ? `${rows.length}+` : String(rows.length));
 	const openExport = (mode: "filter" | "selection") => {
 		exportOpenerRef.current = document.activeElement as HTMLElement | null;
 		setExportMode(mode);
@@ -1267,7 +1312,7 @@ export function AdminWorkspacesClient({
 		if (item.resource_kind === "conversation" && canSupport)
 			return (
 				<Button asChild variant="outline" size="sm">
-					<Link href="/admin/support">Buka percakapan</Link>
+					<Link href="/admin/support">Buka Kotak Masuk</Link>
 				</Button>
 			);
 		return null;
@@ -1286,27 +1331,29 @@ export function AdminWorkspacesClient({
 			: null;
 	const rowHref = (item: WorkQueueItem) =>
 		canOrders && item.order_id ? `/admin/orders/${item.order_id}` : settlementHref(item);
-	const reference = (item: WorkQueueItem) => {
-		const href = rowHref(item);
-		const kind =
-			item.resource_kind === "reconciliation" && item.settlement_source
+	const kindText = (item: WorkQueueItem) => (
+		<>
+			{item.resource_kind === "reconciliation" && item.settlement_source
 				? SETTLEMENT_SOURCE_LABELS[item.settlement_source]
-				: (KIND_LABELS[item.resource_kind] ?? item.resource_kind);
+				: (KIND_LABELS[item.resource_kind] ?? item.resource_kind)}
+			{item.resource_kind === "reconciliation" && item.amount_idr != null && (
+				<span className="tabular-nums"> · {rupiah(item.amount_idr)}</span>
+			)}
+		</>
+	);
+	// The row's link (or plain reference); `card` drops the md–xl time line.
+	const reference = (item: WorkQueueItem, card = false) => {
+		const href = rowHref(item);
 		const mono = item.reference !== null;
 		return (
 			<div className="flex min-w-0 flex-col">
-				<span className="text-xs text-muted-foreground">
-					{kind}
-					{item.resource_kind === "reconciliation" && item.amount_idr != null && (
-						<span className="tabular-nums"> · {rupiah(item.amount_idr)}</span>
-					)}
-				</span>
+				{!card && <span className="text-xs font-normal text-muted-foreground">{kindText(item)}</span>}
 				{href ? (
 					<Link
 						href={href}
 						className={cn(
-							"text-sm font-medium break-all text-primary underline-offset-4 hover:underline pointer-coarse:inline-flex pointer-coarse:min-h-11 pointer-coarse:items-center",
-							mono && "font-mono",
+							"text-sm font-medium break-words text-primary underline-offset-4 hover:underline pointer-coarse:inline-flex pointer-coarse:min-h-11 pointer-coarse:items-center",
+							mono && "font-mono break-all",
 						)}
 						aria-label={
 							item.order_id
@@ -1317,14 +1364,14 @@ export function AdminWorkspacesClient({
 						{referenceText(item)}
 					</Link>
 				) : (
-					<span className={cn("text-sm font-medium break-all", mono && "font-mono")}>
+					<span className={cn("text-sm font-medium break-words", mono && "font-mono break-all")}>
 						{referenceText(item)}
 					</span>
 				)}
 				{/* md–xl: queues with a row action move the time here so the pinned action never covers it. */}
-				{timeLabel && hasRowActions && (
-					<span className="hidden text-xs text-muted-foreground tabular-nums md:block xl:hidden">
-						{rowTimeLabel(item)} {formatTime(item.due_at)}
+				{!card && timeLabel && hasRowActions && (
+					<span className="hidden text-xs font-normal text-muted-foreground tabular-nums md:block xl:hidden">
+						{rowTimeLabel(item)} {time(item)}
 					</span>
 				)}
 			</div>
@@ -1335,71 +1382,71 @@ export function AdminWorkspacesClient({
 
 	const status = (item: WorkQueueItem) => {
 		const [label, tone] = describeState(item.resource_kind, item.state);
-		const late =
-			(tone === "open" || tone === "problem") &&
-			item.due_at_kind !== null &&
-			DEADLINE_KINDS.has(item.due_at_kind) &&
-			isOverdue(item.due_at, now);
-		return (
-			<span className="flex flex-wrap gap-1">
-				<StatusBadge tone={tone}>{label}</StatusBadge>
-				{late && <OverdueBadge />}
-			</span>
-		);
+		return <StatusBadge tone={tone}>{label}</StatusBadge>;
+	};
+	// The row's time; a passed deadline of a row still open carries "Lewat batas" right after it.
+	const time = (item: WorkQueueItem) => {
+		const [, tone] = describeState(item.resource_kind, item.state);
+		const deadline =
+			(tone === "open" || tone === "problem") && item.due_at_kind !== null && DEADLINE_KINDS.has(item.due_at_kind);
+		return item.due_at && deadline ? <Deadline iso={item.due_at} /> : formatTime(item.due_at);
 	};
 
 	return (
-		<div
-			data-testid="admin-workspaces-root"
-			className="flex flex-col gap-6 px-4 py-5 md:px-8 md:py-6"
-		>
-			<header className="flex flex-wrap items-end justify-between gap-4 border-b pb-5">
-				<div className="flex min-w-0 flex-col gap-1.5">
-					{preview && (
+		<AdminPage testId="admin-workspaces-root">
+			<PageHeader
+				titleTestId="workspace-heading"
+				title={view === "queue" ? `Antrean ${QUEUE_LABELS[queue]}` : WORKSPACE_LABELS[workspace].title}
+				back={
+					view === "queue"
+						? { href: `/admin?workspace=${workspace}`, label: `Kembali ke ${WORKSPACE_LABELS[workspace].title}` }
+						: undefined
+				}
+				badge={
+					preview && (
 						<Badge variant="warning" className="self-start">
 							Mode pratinjau: contoh data, bukan data nyata
 						</Badge>
-					)}
-					<h1
-						data-testid="workspace-heading"
-						className="text-2xl font-semibold tracking-tight"
-					>
-						{WORKSPACE_LABELS[workspace].title}
-					</h1>
-					<p className="max-w-prose text-sm text-muted-foreground">
-						{WORKSPACE_LABELS[workspace].subtitle}
-					</p>
-					<p className="text-xs text-muted-foreground">
+					)
+				}
+				// The workspace summary is orientation, not a task: phones skip it (the queue leads).
+				description={
+					view === "dashboard" ? <span className="max-md:hidden">{WORKSPACE_LABELS[workspace].subtitle}</span> : undefined
+				}
+				meta={
+					<p>
 						Waktu dalam WIB (Asia/Jakarta)
 						{dashboard?.warehouse_ids?.length
 							? ` · ${dashboard.warehouse_ids.length} gudang dalam cakupan`
 							: ""}
 						{dashboard?.as_of && ` · Data per ${formatTime(dashboard.as_of)}`}
 					</p>
-				</div>
-				<label className="flex items-center gap-2 text-sm font-medium">
-					<span>Periode</span>
-					<select
-						data-testid="window-select"
-						value={windowRange}
-						onChange={(e) => {
-							const win = e.target.value;
-							setWindowRange(win);
-							setFilterToken(null);
-							setMetricKey(null);
-							void loadDashboard(workspace, warehouseId, win);
-							void loadQueue(workspace, warehouseId, win, queue, null);
-						}}
-						className={nativeSelectClass}
-					>
-						{Object.entries(WINDOW_LABELS).map(([value, label]) => (
-							<option key={value} value={value}>
-								{label}
-							</option>
-						))}
-					</select>
-				</label>
-			</header>
+				}
+				actions={
+					<label className="flex items-center gap-2 text-sm font-medium">
+						<span>Periode</span>
+						<select
+							data-testid="window-select"
+							value={windowRange}
+							onChange={(e) => {
+								const win = e.target.value;
+								setWindowRange(win);
+								setFilterToken(null);
+								setMetricKey(null);
+								void loadDashboard(workspace, warehouseId, win);
+								void loadQueue(workspace, warehouseId, win, queue, null);
+							}}
+							className={cn(nativeSelectClass, "max-md:flex-1")}
+						>
+							{Object.entries(WINDOW_LABELS).map(([value, label]) => (
+								<option key={value} value={value}>
+									{label}
+								</option>
+							))}
+						</select>
+					</label>
+				}
+			/>
 
 			{notice && (
 				<Alert
@@ -1434,11 +1481,12 @@ export function AdminWorkspacesClient({
 			)}
 
 			{/* Work counts: each opens the exact queue behind the number */}
+			{view === "dashboard" && (
 			<section
 				aria-labelledby="kpi-section-heading"
 				className="flex flex-col gap-2"
 			>
-				<h2 id="kpi-section-heading" className="text-sm font-semibold">
+				<h2 id="kpi-section-heading" className="text-sm font-semibold max-md:sr-only">
 					Antrean kerja · {WINDOW_LABELS[windowRange]}
 				</h2>
 				{dashState === "loading" ? (
@@ -1499,12 +1547,13 @@ export function AdminWorkspacesClient({
 					</>
 				)}
 			</section>
+			)}
 
 			{/* Daily queue */}
 			<section
 				aria-labelledby="work-queue-heading"
 				data-testid="work-queue-section"
-				className="flex flex-col gap-4 rounded-lg border bg-card p-4 md:p-5"
+				className="flex flex-col gap-4 md:rounded-lg md:border md:bg-card md:p-5"
 			>
 				<div className="flex flex-wrap items-start justify-between gap-3">
 					<div className="flex min-w-0 flex-col gap-1">
@@ -1512,21 +1561,28 @@ export function AdminWorkspacesClient({
 							id="work-queue-heading"
 							ref={queueHeadingRef}
 							tabIndex={-1}
-							className="scroll-mt-16 text-base font-semibold outline-none focus-visible:ring-2 focus-visible:ring-ring/50"
+							// The full queue page already titles itself "Antrean …": the section heading stays for focus and readers.
+							className={cn(
+								"scroll-mt-16 text-base font-semibold outline-none focus-visible:ring-2 focus-visible:ring-ring/50",
+								view === "queue" && "sr-only",
+							)}
 						>
 							Antrean {QUEUE_LABELS[queue]}
 						</h2>
 						<p className="text-xs text-muted-foreground">
 							{[
 								queueState === "ready"
-									? queueTotal !== null
-										? `${rows.length} dari ${queueTotal} baris`
-										: `${rows.length} baris${nextCursor ? ", masih ada berikutnya" : ""}`
+									? compactQueue && shownRows.length < rows.length
+										? `${shownRows.length} dari ${queueCount} baris`
+										: queueTotal !== null
+											? `${rows.length} dari ${queueTotal} baris`
+											: `${rows.length} baris${nextCursor ? ", masih ada berikutnya" : ""}`
 									: null,
 								activeMetric?.kind === "count"
 									? `filter ${(METRIC_LABELS[activeMetric.key] ?? activeMetric.key).toLowerCase()}`
 									: "semua status dalam periode",
-								"waktu dalam WIB",
+								// The page header already states WIB on phones.
+								compactQueue ? null : "waktu dalam WIB",
 							]
 								.filter(Boolean)
 								.join(" · ")}
@@ -1633,7 +1689,7 @@ export function AdminWorkspacesClient({
 				)}
 
 				<DataTable
-					rows={rows}
+					rows={shownRows}
 					rowKey={(item) => item.id}
 					status={
 						queueState === "loading"
@@ -1696,7 +1752,7 @@ export function AdminWorkspacesClient({
 						),
 					}}
 					columns={[
-						{ id: "reference", header: "Referensi", cell: reference },
+						{ id: "reference", header: "Referensi", cell: (item) => reference(item) },
 						{ id: "status", header: "Status", cell: status },
 						...(timeLabel
 							? [
@@ -1711,7 +1767,7 @@ export function AdminWorkspacesClient({
 														{rowTimeLabel(item)}
 													</span>
 												)}
-												{formatTime(item.due_at)}
+												{time(item)}
 											</>
 										),
 									},
@@ -1731,55 +1787,73 @@ export function AdminWorkspacesClient({
 					cardTestId={(item) => `queue-card-${item.id}`}
 					card={(item) => (
 						<>
-							<div className="flex flex-wrap items-start justify-between gap-2">
-								{reference(item)}
-								{status(item)}
-							</div>
-							{timeLabel && (
-								<p className="text-xs text-muted-foreground">
-									{rowTimeLabel(item)}{" "}
-									<span className="font-medium text-foreground tabular-nums">
-										{formatTime(item.due_at)}
-									</span>
-								</p>
-							)}
-							{rowActionFor(item) && <div>{rowAction(item)}</div>}
+							{/* Top right: the amount (finance rows), else the status badge. */}
+							<CardTitle
+								title={reference(item, true)}
+								aside={item.amount_idr != null ? rupiah(item.amount_idr) : status(item)}
+							/>
+							<CardMeta>
+								{item.resource_kind === "reconciliation" && item.settlement_source
+									? SETTLEMENT_SOURCE_LABELS[item.settlement_source]
+									: (KIND_LABELS[item.resource_kind] ?? item.resource_kind)}
+								{timeLabel && (
+									<>
+										{" · "}
+										{rowTimeLabel(item)}{" "}
+										<span className="font-medium text-foreground">{time(item)}</span>
+									</>
+								)}
+							</CardMeta>
+							{item.amount_idr != null && <CardStatus>{status(item)}</CardStatus>}
+							{rowActionFor(item) && <CardActions>{rowAction(item)}</CardActions>}
 						</>
 					)}
-					paging={{
-						hasMore: nextCursor !== null,
-						loading: loadingMore,
-						onMore: () => void loadMore(),
-					}}
+					paging={
+						compactQueue
+							? undefined
+							: {
+									hasMore: nextCursor !== null,
+									loading: loadingMore,
+									onMore: () => void loadMore(),
+								}
+					}
 					footer={
-						// Rows that link to an order or settlement screen need no "no detail page" note.
-						!hasRowActions && !rows.some((r) => rowHref(r)) && (
-							<p className="text-xs text-muted-foreground">
-								Halaman detail untuk {QUEUE_LABELS[queue].toLowerCase()} belum
-								tersedia di konsol
-								{exportConfig ? "; gunakan ekspor CSV untuk rincian." : "."}
-							</p>
-						)
+						<>
+							{compactQueue && (rows.length > PHONE_QUEUE_ROWS || nextCursor) && (
+								<Button asChild variant="outline" className="w-full">
+									<Link href={queuePageHref} data-testid="queue-see-all">
+										Lihat semua ({queueCount})
+										<span className="sr-only"> baris antrean {QUEUE_LABELS[queue].toLowerCase()}</span>
+									</Link>
+								</Button>
+							)}
+							{/* Rows that link to an order or settlement screen need no "no detail page" note. */}
+							{!hasRowActions && !rows.some((r) => rowHref(r)) && (
+								<p className="text-xs text-muted-foreground">
+									Halaman detail untuk {QUEUE_LABELS[queue].toLowerCase()} belum
+									tersedia di konsol
+									{exportConfig ? "; gunakan ekspor CSV untuk rincian." : "."}
+								</p>
+							)}
+						</>
 					}
 				/>
 			</section>
 
-			{/* Finance position: owner and finance only, below the daily queue */}
-			{moneyMetrics.length > 0 && (
-				<section
-					aria-labelledby="finance-heading"
-					className="flex flex-col gap-3"
+			{/* Finance position: owner and finance only, below the daily queue; one disclosure,
+			    open from md and collapsed on phones (the queue is the phone's task). */}
+			{view === "dashboard" && moneyMetrics.length > 0 && (
+				<Disclosure
+					key={isMobile ? "phone" : "wide"}
+					id="finance-heading"
+					testId="finance-section"
+					open={!isMobile}
+					title={`Keuangan · ${moneyMetrics.length} angka`}
+					description={`${WINDOW_LABELS[windowRange]}${dashboard?.as_of ? ` · data per ${formatTime(dashboard.as_of)}` : ""} · nilai belum lengkap tidak dihitung sebagai Rp0`}
 				>
-					<div className="flex flex-col gap-0.5">
-						<h2 id="finance-heading" className="text-base font-semibold">
-							Keuangan
-						</h2>
-						<p className="text-xs text-muted-foreground">
-							{WINDOW_LABELS[windowRange]}
-							{dashboard?.as_of && ` · data per ${formatTime(dashboard.as_of)}`}{" "}
-							· nilai belum lengkap tidak dihitung sebagai Rp0
-						</p>
-					</div>
+					<p className="text-xs text-muted-foreground md:hidden">
+						{WINDOW_LABELS[windowRange]} · nilai belum lengkap tidak dihitung sebagai Rp0
+					</p>
 					<KpiGrid money>
 						{moneyMetrics.map((m) => {
 							const action = actionLabel(m.action_href);
@@ -1814,10 +1888,10 @@ export function AdminWorkspacesClient({
 						})}
 					</KpiGrid>
 					<Definitions metrics={moneyMetrics} />
-				</section>
+				</Disclosure>
 			)}
 
-			{workspace === "owner" && (
+			{view === "dashboard" && workspace === "owner" && (
 				<AdDestinationsPanel
 					state={adState}
 					error={adError}
@@ -1915,7 +1989,7 @@ export function AdminWorkspacesClient({
 					</form>
 				</DialogContent>
 			</Dialog>
-		</div>
+		</AdminPage>
 	);
 }
 

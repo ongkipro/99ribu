@@ -505,6 +505,8 @@ test("S44-S45 browser: customer support chat on /help and staff CS workbench on 
 			await staffPage.goto(`${baseUrl}/admin/support?conv=${createdConversationIds[0]}`);
 
 			await staffPage.getByRole("button", { name: "Muat Antrean" }).click();
+			// The queue walks keyset pages; claim only after this run's thread is listed (and selected).
+			await staffPage.getByTestId(`inbox-item-${createdConversationIds[0]}`).waitFor();
 			await staffPage.getByRole("button", { name: "Klaim Eksklusif" }).click();
 			await expect(staffPage.getByTestId("staff-claim-status")).toHaveText(
 				"Diklaim oleh Anda",

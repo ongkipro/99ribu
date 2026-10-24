@@ -1,4 +1,3 @@
-import { ChevronDown } from "lucide-react";
 import { useRef, useState } from "react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -15,6 +14,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { Textarea } from "@/components/ui/textarea";
 import { rupiah } from "@/modules/storefront/format";
 import { failureText, readFailure } from "./admin-errors";
+import { Disclosure } from "./page-blocks";
 import { EmptyState, ErrorState } from "./states";
 
 // Google conversion source codes as the owner reads them.
@@ -196,29 +196,13 @@ export function AdDestinationsPanel({
 	const pausing = action?.kind === "pause" && !action.dest.paused;
 
 	return (
-		<section
-			aria-labelledby="ad-diagnostics-heading"
-			data-testid="panel-s60-advertising"
-			className="rounded-lg border bg-card"
-		>
+		<div data-testid="panel-s60-advertising">
 			{/* Collapsed by default: owner diagnostics, not daily work (S113 render review). */}
-			<details className="group">
-				<summary className="flex cursor-pointer list-none items-start justify-between gap-3 rounded-lg p-4 outline-none select-none focus-visible:ring-[3px] focus-visible:ring-ring/50 md:p-5 [&::-webkit-details-marker]:hidden">
-					<span className="flex flex-col gap-1">
-						<h2 id="ad-diagnostics-heading" className="text-base font-semibold">
-							Diagnostik Sinyal Iklan
-						</h2>
-						<span className="text-sm text-muted-foreground">
-							Hanya Super Admin. Kredensial selalu disembunyikan. Jumlah sinyal
-							dipisahkan dari pesanan unik dan uang yang benar-benar diterima.
-						</span>
-					</span>
-					<ChevronDown
-						aria-hidden="true"
-						className="mt-1 size-4 shrink-0 text-muted-foreground transition-transform group-open:rotate-180"
-					/>
-				</summary>
-				<div className="flex flex-col gap-4 px-4 pb-4 md:px-5 md:pb-5">
+			<Disclosure
+				id="ad-diagnostics-heading"
+				title="Diagnostik Sinyal Iklan"
+				description="Hanya Super Admin. Kredensial selalu disembunyikan. Jumlah sinyal dipisahkan dari pesanan unik dan uang yang benar-benar diterima."
+			>
 
 			{state === "loading" ? (
 				<div
@@ -342,8 +326,7 @@ export function AdDestinationsPanel({
 					))}
 				</div>
 			)}
-				</div>
-			</details>
+			</Disclosure>
 
 			<Dialog
 				open={action !== null}
@@ -470,7 +453,7 @@ export function AdDestinationsPanel({
 					</form>
 				</DialogContent>
 			</Dialog>
-		</section>
+		</div>
 	);
 }
 

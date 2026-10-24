@@ -1,7 +1,7 @@
 "use client";
 
 import { cn } from "cn";
-import { CircleAlert, ListFilter } from "lucide-react";
+import { ChevronRight, CircleAlert, ListFilter } from "lucide-react";
 import Link from "next/link";
 import type { ReactNode } from "react";
 import { Button } from "@/components/ui/button";
@@ -12,6 +12,8 @@ import { Button } from "@/components/ui/button";
 // Tone ranks the grid: "attention" (a non-zero queue someone must work: warning edge + icon),
 // "idle" (zero: muted), "neutral" (informational). Descriptions clamp to two lines (the full text
 // lives in the page's "Arti setiap angka" disclosure) and hide below md, so the links align.
+// Phones (admin mobile pass): the whole card is the drilldown target (a chevron marks it) and
+// only the action link takes its own line, so the grid stays short.
 
 export function KpiCard({
 	metricKey,
@@ -53,14 +55,14 @@ export function KpiCard({
 			data-testid={`kpi-card-${metricKey}`}
 			data-tone={tone}
 			className={cn(
-				"flex min-w-0 flex-col gap-1.5 rounded-lg border bg-card p-3",
+				"relative flex min-w-0 flex-col gap-1.5 rounded-lg border bg-card p-3",
 				tone === "attention" && "border-l-4 border-l-warning bg-warning-surface",
 				// Below md a zero queue is listed in one line under the grid instead (phone = task subset).
 				tone === "idle" && "bg-muted/40 max-md:hidden",
 				active && "border-primary ring-1 ring-primary",
 			)}
 		>
-			<div className="flex flex-wrap items-start justify-between gap-2">
+			<div className="flex flex-wrap items-start justify-between gap-2 max-md:flex-nowrap">
 				<h3
 					className={cn(
 						"flex items-center gap-1 text-xs font-medium",
@@ -71,6 +73,7 @@ export function KpiCard({
 					{label}
 				</h3>
 				{badge}
+				<ChevronRight aria-hidden="true" className="size-4 shrink-0 text-muted-foreground md:hidden" />
 			</div>
 			<p
 				data-testid={`kpi-value-${metricKey}`}
@@ -97,30 +100,30 @@ export function KpiCard({
 					{breakdown}
 				</p>
 			)}
-			<div className="mt-auto flex flex-col items-start pt-1">
+			<div className="mt-auto flex flex-col items-start md:pt-1">
 				<Button
 					type="button"
 					variant="link"
 					size="sm"
 					data-testid={`kpi-drilldown-${metricKey}`}
 					aria-pressed={active}
-					className="h-auto min-h-8 justify-start px-0 text-left whitespace-normal pointer-coarse:min-h-11 has-data-[icon=inline-start]:pl-0"
+					className="h-auto min-h-8 justify-start px-0 text-left whitespace-normal pointer-coarse:min-h-11 has-data-[icon=inline-start]:pl-0 max-md:absolute max-md:inset-0 max-md:min-h-0 max-md:rounded-lg pointer-coarse:max-md:min-h-0"
 					onClick={onDrilldown}
 				>
-					<ListFilter data-icon="inline-start" aria-hidden="true" />
-					{drilldownLabel}
+					<ListFilter data-icon="inline-start" aria-hidden="true" className="max-md:hidden" />
+					<span className="max-md:sr-only">{drilldownLabel}</span>
 					<span className="sr-only">: {label}</span>
 				</Button>
 				{action && (
 					<Link
 						href={action.href}
 						data-testid={`kpi-action-${metricKey}`}
-						className="inline-flex min-h-8 items-center text-sm pointer-coarse:min-h-11 font-medium text-primary underline-offset-4 hover:underline focus-visible:rounded-sm focus-visible:outline-2 focus-visible:outline-ring"
+						className="relative z-10 inline-flex min-h-8 items-center text-sm pointer-coarse:min-h-11 font-medium text-primary underline-offset-4 hover:underline focus-visible:rounded-sm focus-visible:outline-2 focus-visible:outline-ring"
 					>
 						{action.label}
 					</Link>
 				)}
-				{!action && reserveAction && <span aria-hidden="true" className="min-h-8 pointer-coarse:min-h-11" />}
+				{!action && reserveAction && <span aria-hidden="true" className="min-h-8 pointer-coarse:min-h-11 max-md:hidden" />}
 			</div>
 		</li>
 	);
