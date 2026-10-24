@@ -445,6 +445,24 @@ function normalizeContactReference(raw: unknown): {
 	return { channel: "phone", value: normalizeIndonesianPhone(str) };
 }
 
+async function findOrderContactMatch(
+	tx: TransactionSql,
+	where: { id: string } | { number: string },
+	contact: { channel: "phone" | "email"; value: string },
+) {
+	const [row] = await tx<{ id: string }[]>`
+		select id from app.commerce_order
+		where ${"id" in where ? tx`id = ${where.id}` : tx`number = ${where.number}`}
+	`;
+	if (!row) return null;
+	try {
+		return await assertOrderContactMatches(tx, row.id, contact);
+	} catch (error) {
+		if (error instanceof AccessError && error.status === 403) return null;
+		throw error;
+	}
+}
+
 async function assertOrderContactMatches(
 	tx: TransactionSql,
 	orderId: string,
@@ -731,18 +749,24 @@ export async function handleAccounts(request: Request, identity: LocalAuth) {
 		if (url.pathname === "/api/v1/guest-order-access/challenges") {
 			if (request.method !== "POST") throw new AccessError(404, "NOT_FOUND");
 			const key = mutationKey(request);
-			const body = object(await readBody(request), ["order_id", "contact"]);
-			const orderId = id(body.order_id);
+			const body = object(await readBody(request), ["order_number", "order_id", "contact"]);
+			// The contract field is `order_number` (what the buyer holds); `order_id` stays for callers
+			// that already have the UUID. Exactly one of them.
+			if ((body.order_number === undefined) === (body.order_id === undefined)) throw invalid();
+			const orderNumber =
+				body.order_number === undefined ? null : text(body.order_number, 19).toUpperCase();
+			if (orderNumber !== null && !/^99-[A-Z0-9]{16}$/.test(orderNumber)) throw invalid();
+			const orderRef = orderNumber === null ? id(body.order_id) : `n:${digest(orderNumber)}`;
 			const contact = normalizeContactReference(body.contact);
 			const hash = await intentHash(identity, "guest_order_access.challenge", {
-				orderId,
+				orderRef,
 				contact,
 			});
-			const actorKey = `guest_access:${orderId}`;
-			// Counted in autocommit so contact mismatches (which roll back) still spend budget.
+			const actorKey = `guest_access:${orderRef}`;
+			// Counted in autocommit before any lookup, so known and unknown orders spend the same budget.
 			await rateLimit(
 				identity.sql,
-				`guest-access-challenge-order:${orderId}`,
+				`guest-access-challenge-order:${orderRef}`,
 				LIMITS.guestAccessChallengePerOrder,
 			);
 			await rateLimit(
@@ -756,10 +780,21 @@ export async function handleAccounts(request: Request, identity: LocalAuth) {
 					expires_at: string;
 				}>(tx, actorKey, "guest_order_access.challenge", key, hash);
 				if (prior) return prior;
-				const order = await assertOrderContactMatches(tx, orderId, contact);
+				const order = await findOrderContactMatch(
+					tx,
+					orderNumber === null ? { id: orderRef } : { number: orderNumber },
+					contact,
+				);
+				// Enumeration-safe: an unknown order or a contact that does not match gets the same 202
+				// with a decoy challenge (no order, random digest) that no code can verify.
 				const challengeId = randomUUID();
-				const code = await challengeVerificationCode(identity, challengeId);
-				const codeHash = await challengeDigest(identity, challengeId, code);
+				const codeHash = order
+					? await challengeDigest(
+							identity,
+							challengeId,
+							await challengeVerificationCode(identity, challengeId),
+						)
+					: digest(`decoy:${randomBytes(32).toString("base64url")}`);
 				const [inserted] = await tx<{ id: string; expires_at: string }[]>`
 					insert into app.support_challenge (
 						id,
@@ -773,9 +808,9 @@ export async function handleAccounts(request: Request, identity: LocalAuth) {
 					values (
 						${challengeId},
 						'guest_order_access',
-						${`guest:${order.owner_guest_id ?? order.id}`},
-						${contact.value},
-						${order.id},
+						${order ? `guest:${order.owner_guest_id ?? order.id}` : "guest:unmatched"},
+						${order ? contact.value : orderRef},
+						${order?.id ?? null},
 						${codeHash},
 						clock_timestamp() + interval '15 minutes'
 					)
@@ -816,24 +851,26 @@ export async function handleAccounts(request: Request, identity: LocalAuth) {
 				{
 					id: string;
 					order_id: string | null;
+					target_reference: string;
 					code_digest: string;
 					attempts: number;
 					verified_at: string | null;
 					expires_at: string;
 				}[]
 			>`
-				select id, order_id, code_digest, attempts, verified_at, expires_at
+				select id, order_id, target_reference, code_digest, attempts, verified_at, expires_at
 				from app.support_challenge
 				where id = ${challengeId} and kind = 'guest_order_access'
 			`;
-			if (!challengeRow?.order_id) {
+			if (!challengeRow) {
 				throw new AccessError(404, "NOT_FOUND");
 			}
 			const expectedDigest = await challengeDigest(identity, challengeId, code);
 			if (!challengeRow.verified_at) {
+				// A decoy (unmatched) challenge is limited and answered exactly like a wrong code.
 				await rateLimit(
 					identity.sql,
-					`guest-access-verify-order:${challengeRow.order_id}`,
+					`guest-access-verify-order:${challengeRow.order_id ?? challengeRow.target_reference}`,
 					LIMITS.guestAccessVerifyPerOrder,
 				);
 				const attempts = await reserveChallengeAttempt(
@@ -844,7 +881,7 @@ export async function handleAccounts(request: Request, identity: LocalAuth) {
 				if (attempts === null) {
 					throw new AccessError(409, "CHALLENGE_EXPIRED");
 				}
-				if (challengeRow.code_digest !== expectedDigest) {
+				if (!challengeRow.order_id || challengeRow.code_digest !== expectedDigest) {
 					throw new AccessError(403, "INVALID_CHALLENGE_CODE");
 				}
 			}
