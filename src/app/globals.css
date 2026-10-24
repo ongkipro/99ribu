@@ -520,13 +520,8 @@ body:has(> .store-header, > .task-header) {
 :where(.empty-state) > .button {
 	margin-top: 24px;
 }
-/* Sign-in actions: full-width 52px pills (kept here so .button rules stay in ascending specificity). */
-:where(.signin-actions) > .button {
-	width: 100%;
-	min-height: 52px;
-}
 /* Storefront buttons (observed shop.com typography): 16px weight 600 at -0.5px. */
-:is(.home-main, .listing-main, .product-detail, .cart-page, .help-main, .categories-main, .signin-main) .button {
+:is(.home-main, .listing-main, .product-detail, .cart-page, .help-main, .categories-main, .signin-main, .signin-sheet) .button {
 	font-size: 1rem;
 	letter-spacing: -0.5px;
 }
@@ -3213,92 +3208,206 @@ body:has(> .store-header, > .task-header) {
 	transform: rotate(90deg);
 }
 
-/* Sign-in (/masuk): centred raised card like the help topic cards, storefront
-   controls, and a focusable rounded alert whose icon scales with text. */
+/* Sign-in (/masuk page and the intercepted modal), shop.com 2026-10-24 (references/shop-com/
+   2026-10-24-signin): one centred 344px column, no card frame; brand mark, 32/35 800 heading (28 on
+   phones), 16/22 muted lead, 52px pill fields (1px ink edge, 4% ink fill, soft shadow), a 52px primary
+   pill, a 12/16 muted footnote. 99ribu keeps visible field labels (12/16 600) and the shared focus ring;
+   errors sit under the fields with the error edge, like shop.com, at 14/20. */
 .signin-main {
 	display: grid;
 	justify-items: center;
-	padding-block: 32px 64px;
+	padding-block: 56px 96px;
 }
 .signin-card {
-	width: min(100%, 28rem);
+	box-sizing: border-box;
+	width: min(100%, 344px);
 	display: grid;
-	gap: 16px;
-	background: #fff;
-	border-radius: 20px;
-	padding: 32px clamp(16px, 6vw, 28px);
-	border: 1px solid var(--hairline);
-	line-height: 1.6;
+	text-align: center;
 }
-.signin-card h1 {
-	letter-spacing: -0.02em;
+.signin-mark {
+	justify-self: center;
+	font-size: 2rem;
+	line-height: 2rem;
+}
+.signin-card :is(h1, h2) {
+	margin: 24px 0 0;
+	font-size: 2rem;
+	line-height: 2.2rem;
+	font-weight: 800;
+	letter-spacing: -0.5px;
 	overflow-wrap: anywhere;
 }
-:where(.signin-lead) {
-	color: #3f3d48;
-}
-:where(.signin-hint) {
-	font-size: 0.875rem;
+.signin-lead {
+	margin: 8px 0 0;
 	color: var(--muted);
-}
-:where(.signin-hint a) {
-	text-underline-offset: 3px;
+	font-size: 1rem;
+	line-height: 1.375rem;
+	letter-spacing: -0.5px;
 }
 .signin-field {
 	display: grid;
 	gap: 6px;
+	margin-top: 16px;
+	text-align: left;
+}
+.signin-lead + .signin-field {
+	margin-top: 24px;
 }
 :where(.signin-field label) {
-	font-size: 0.875rem;
+	font-size: 0.75rem;
+	line-height: 1rem;
 	font-weight: 600;
+	letter-spacing: -0.2px;
 }
-.signin-field input {
+.signin-card .signin-field input {
+	box-sizing: border-box;
 	width: 100%;
-	padding: 12px 16px;
-	background: #fff;
+	min-height: 52px;
+	padding: 0 16px;
+	border-color: var(--ink);
+	border-radius: 9999px;
+	background-color: rgba(0, 0, 0, 0.04);
+	box-shadow:
+		0 2px 4px rgba(0, 0, 0, 0.02),
+		0 6px 16px rgba(0, 0, 0, 0.04);
 	color: inherit;
-	font: inherit;
 	font-size: 1rem;
+	line-height: 1.375rem;
+	letter-spacing: -0.5px;
 }
-.signin-field input[aria-invalid="true"] {
+.signin-card .signin-field input[aria-invalid="true"] {
 	border-color: var(--error);
-	box-shadow: inset 0 0 0 1px var(--error);
 }
-.signin-actions {
-	display: grid;
-	gap: 12px;
-	margin-top: 4px;
+.signin-field-hint {
+	margin: 0;
+	padding-inline: 16px;
+	color: var(--muted);
+	font-size: 0.75rem;
+	line-height: 1rem;
+	letter-spacing: -0.2px;
 }
 .signin-alert {
 	display: flex;
 	align-items: flex-start;
-	gap: 8px;
-	padding: 12px clamp(10px, 3vw, 16px);
-	border-radius: 16px;
-	background: var(--error-surface);
+	gap: 6px;
+	margin-top: 8px;
+	padding-inline: 16px;
+	border-radius: 8px;
 	color: var(--error);
-	line-height: 1.5;
+	font-size: 0.875rem;
+	line-height: 1.25rem;
+	text-align: left;
+}
+:where(.signin-alert p) {
+	margin: 0;
 }
 :where(.signin-alert svg) {
-	width: 1.25em;
-	height: 1.25em;
 	flex: none;
-	margin-top: 0.125em;
+	width: 1.143em;
+	height: 1.143em;
+	margin-top: 0.071em;
 }
-.signin-restart {
-	justify-self: start;
-	min-height: 44px;
-	padding: 0;
-	border: 0;
-	background: none;
-	color: var(--purple);
-	text-decoration: underline;
-	text-underline-offset: 3px;
-	cursor: pointer;
-}
-.signin-alert:focus {
+.signin-alert:focus-visible {
 	outline: 3px solid var(--purple);
 	outline-offset: 2px;
+}
+.signin-card .signin-submit {
+	margin-top: 16px;
+}
+.signin-hint {
+	margin: 16px 0 0;
+	color: var(--muted);
+	font-size: 0.75rem;
+	line-height: 1rem;
+	letter-spacing: -0.2px;
+}
+/* A link inside the footnote is prose: it keeps its underline (WCAG 1.4.1). */
+.signin-hint a {
+	text-decoration: underline;
+	text-underline-offset: 3px;
+}
+/* Step switches: standalone 44px links, colour feedback on hover. */
+.signin-links {
+	display: grid;
+	justify-items: center;
+	margin: 8px 0 0;
+}
+.signin-links a {
+	display: inline-flex;
+	align-items: center;
+	min-height: 44px;
+	color: var(--purple);
+	font-size: 0.875rem;
+	line-height: 1.25rem;
+	font-weight: 600;
+	letter-spacing: -0.2px;
+}
+.signin-links a:hover {
+	color: var(--purple-hover);
+}
+@media (max-width: 700px) {
+	.signin-main {
+		padding-block: 24px 48px;
+	}
+	.signin-card :is(h1, h2) {
+		font-size: 1.75rem;
+		line-height: 1.925rem;
+	}
+}
+/* Modal (intercepted /masuk): white 28px surface over a 40% scrim, centred from 701px, a bottom sheet
+   16px from the edges on phones (the filter sheet's geometry); the page behind does not scroll. */
+.signin-sheet {
+	box-sizing: border-box;
+	width: min(400px, 100vw - 32px);
+	max-width: none;
+	max-height: calc(100dvh - 32px);
+	padding: 0;
+	border: 0;
+	border-radius: 28px;
+	background: #fff;
+	color: var(--ink);
+	box-shadow: 0 8px 40px rgba(0, 0, 0, 0.24);
+	overflow: hidden auto;
+	overscroll-behavior: contain;
+	opacity: 1;
+	translate: 0 0;
+	transition:
+		opacity 240ms cubic-bezier(0.2, 0, 0, 1),
+		translate 240ms cubic-bezier(0.2, 0, 0, 1);
+}
+@starting-style {
+	.signin-sheet[open] {
+		opacity: 0;
+		translate: 0 16px;
+	}
+}
+.signin-sheet::backdrop {
+	background: rgba(0, 0, 0, 0.4);
+}
+html:has(.signin-sheet[open]) {
+	overflow: hidden;
+}
+.signin-sheet-body {
+	position: relative;
+	display: grid;
+	justify-items: center;
+	padding: 40px 28px 28px;
+}
+.signin-close {
+	position: absolute;
+	top: 8px;
+	right: 8px;
+}
+@media (max-width: 700px) {
+	.signin-sheet {
+		width: auto;
+		margin: auto 16px 16px;
+	}
+}
+@media (prefers-reduced-motion: reduce) {
+	.signin-sheet {
+		transition: none;
+	}
 }
 
 /* Short hyphenated tokens ("3-in-1", "Anti-Stres") never break at the hyphen. */
@@ -3371,13 +3480,6 @@ body:has(> .store-header, > .task-header) {
 	display: inline-block;
 	vertical-align: middle;
 	margin-left: 4px;
-}
-/* Sign-in "Batal": a quiet text action, clearly secondary to the filled "Masuk". */
-:where(.signin-actions) > .button.button-secondary {
-	min-height: 44px;
-}
-:where(.signin-actions) > .button.button-secondary:hover {
-	background: #f2eefc;
 }
 
 /* ===== Interaction contract (observed on shop.com 2026-10-23) =====
@@ -5200,7 +5302,7 @@ body:has(> .store-header, > .task-header) {
 	background: transparent;
 }
 /* biome-ignore lint/style/noDescendingSpecificity: different elements (not the chip chevron); order is irrelevant. */
-.filter-pop .filter-pop-close > svg {
+:is(.filter-pop, .signin-sheet) .filter-pop-close > svg {
 	width: 20px;
 	height: 20px;
 	padding: 4px;
@@ -5899,8 +6001,9 @@ body:has(> .store-header, > .task-header) {
 	border-color: var(--ink);
 	box-shadow: 0 0 0 3px rgba(24, 24, 27, 0.12);
 }
-/* Primary: shop.com's 52px pill with an inner highlight and a soft brand glow. */
-.product-detail .purchase-region .cart-mutation .button {
+/* Primary: shop.com's 52px pill with an inner highlight and a soft brand glow (PDP and sign-in). */
+.product-detail .purchase-region .cart-mutation .button,
+.signin-card .signin-submit {
 	width: 100%;
 	min-height: 52px;
 	padding: 16px;
@@ -5912,7 +6015,8 @@ body:has(> .store-header, > .task-header) {
 		inset 1px 1px 0.5px rgba(255, 255, 255, 0.32),
 		0 4px 24px rgba(91, 53, 213, 0.24);
 }
-.product-detail .purchase-region .cart-mutation .button:disabled {
+.product-detail .purchase-region .cart-mutation .button:disabled,
+.signin-card .signin-submit:disabled {
 	box-shadow: none;
 }
 .product-detail .purchase-region .detail-help {
