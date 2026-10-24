@@ -1,5 +1,15 @@
 # Build log — Serba 99ribu
 
+## 2026-10-24 — Integration of admin fixes, demo orders, security, DB hygiene and storefront on main (not pushed)
+
+- Merged `ui-controls-admin-fixes` (`f5ec1a9`), `security-step-up-proofs` (`6ba7afa`, conflicts in `reporting/service.ts` and ARCHITECTURE.md resolved keeping S103 constants and the profile-keyed `mac`; the hard-coded fallback key is gone) and `s104-s105-db-hygiene` (`0e917f1`). Committed demo orders (`8e006b2`) and storefront (`0176403`).
+- Independent R4 reviews: security REVISE (pre-staged guest contact challenge bypass) → fixed `5d9fca1` → PASS; DB hygiene REVISE (temp `pg_class` spoof of the purge guard, unpinned `search_path`) → fixed `3762074` → PASS.
+- Migrations 0036/0037 applied to the local and test databases (`db:migrate`; the runner does not migrate).
+- Test fixes after integration: payments status filter is now `aria-pressed` toggles (locator updated); `--case=admin-ui-controls` registered; `production-environment` no longer requires 0035 to be the last migration; S99/S100 pages the owner queue (`cce3c76`).
+- Note: `5eb72e9` also carried the storefront agent's copy-button assertions in `consignment-payments.test.ts` (suite green with them).
+- Evidence: see STATUS.md Local-Acceptance. Design gate re-run by the coordinator: `PASS: 0 failing check(s)`.
+- Untracked leftovers not committed (cleanup needs approval): 24 per-run receipt render folders each under `docs/spec/design/renders/s26/` and `s27/` from pre-`render-root` test runs (2026-10-21..23).
+
 ## 2026-10-24 — S104/S105 R4 review fixes (REVISE on af714fa)
 
 - **F1 (Medium-High)**: `app.retention_purge_allowed` ran on the caller's search_path and read unqualified `pg_class`; the app role could create a temporary `pg_class` naming itself owner, set `app.retention_purge=on` and delete from the append-only visitor/signal tables (reproduced in the isolated test DB before the fix: `funnel_intake` delete succeeded). 0037 (unmerged, edited in place) now pins `SET search_path = pg_catalog, pg_temp` and qualifies `pg_catalog.pg_class`/`pg_get_userbyid`/`current_setting`; every function 0037 creates or replaces (`reject_signal_mutation`, both replaced guards, the purge function) pins the same path (their app objects were already schema-qualified). `retention.test.ts` adds the spoof as the app role (temp `pg_class` + setting + `pg_temp` first) and expects 23514 on all five tables with the graph still present.
