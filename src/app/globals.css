@@ -3312,6 +3312,134 @@ body:has(> .store-header) {
 .signin-links a:hover {
 	color: var(--purple-hover);
 }
+/* Sign-up (S123): the "Masuk / Daftar" switch is a 4% ink track holding two 44px pills, the current one
+   white with the resting surface shadow (the chip look); fields, primary pill and footnote are the
+   sign-in ones. The swapped forms sit in a contents-only wrapper, so the column stays the grid item. */
+.signin-forms {
+	display: contents;
+}
+.signin-switch {
+	display: grid;
+	grid-template-columns: 1fr 1fr;
+	gap: 4px;
+	margin-top: 24px;
+	padding: 4px;
+	border-radius: 9999px;
+	background: rgba(0, 0, 0, 0.04);
+}
+.signin-switch a {
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	min-height: 44px;
+	padding-inline: 12px;
+	border-radius: 9999px;
+	color: var(--muted);
+	font-size: 1rem;
+	line-height: 1.25rem;
+	font-weight: 600;
+	letter-spacing: -0.5px;
+	transition:
+		color 150ms cubic-bezier(0.4, 0, 0.2, 1),
+		background-color 150ms cubic-bezier(0.4, 0, 0.2, 1),
+		box-shadow 150ms cubic-bezier(0.4, 0, 0.2, 1);
+}
+.signin-switch a:hover {
+	color: var(--ink);
+}
+.signin-switch a[aria-current="page"] {
+	background: #fff;
+	color: var(--ink);
+	box-shadow: 0 2px 8px rgba(0, 0, 0, 0.06);
+}
+.signin-switch a:focus-visible {
+	outline-offset: 0;
+}
+/* Password with a 44px show/hide toggle inside the pill's right end. */
+.signin-password {
+	position: relative;
+}
+.signin-card .signin-password input {
+	padding-right: 56px;
+}
+.signin-reveal {
+	position: absolute;
+	top: 4px;
+	right: 4px;
+	display: grid;
+	place-items: center;
+	width: 44px;
+	height: 44px;
+	padding: 0;
+	border: 0;
+	border-radius: 50%;
+	background: transparent;
+	color: var(--ink);
+	transition: background-color 150ms cubic-bezier(0.4, 0, 0.2, 1);
+}
+.signin-reveal:hover {
+	background: rgba(0, 0, 0, 0.06);
+}
+.signin-reveal:focus-visible {
+	outline-offset: 0;
+}
+.signin-field-hint:has(svg) {
+	display: flex;
+	align-items: center;
+	gap: 4px;
+	color: var(--ink);
+}
+:where(.signin-field-hint svg) {
+	flex: none;
+}
+/* "Cek email kamu untuk verifikasi" and the verification landing: a 56px lavender disc with the glyph. */
+.signin-sent-icon {
+	justify-self: center;
+	display: grid;
+	place-items: center;
+	width: 56px;
+	height: 56px;
+	margin-top: 24px;
+	border-radius: 50%;
+	background: rgba(91, 53, 213, 0.08);
+	color: var(--purple);
+}
+.signin-sent-icon:is([data-state="expired"], [data-state="invalid"]) {
+	background: var(--warning-surface);
+	color: var(--warning);
+}
+.signin-card .signin-sent-icon + :is(h1, h2) {
+	margin-top: 16px;
+}
+.signin-card :is(h1, h2)[tabindex="-1"]:focus:not(:focus-visible) {
+	outline: none;
+}
+.signin-address {
+	color: var(--ink);
+	font-weight: 600;
+	overflow-wrap: anywhere;
+}
+.signin-resend {
+	display: grid;
+	margin-top: 8px;
+}
+.signin-status {
+	display: flex;
+	align-items: flex-start;
+	gap: 6px;
+	margin: 16px 0 0;
+	padding-inline: 16px;
+	font-size: 0.875rem;
+	line-height: 1.25rem;
+	text-align: left;
+}
+:where(.signin-status svg) {
+	flex: none;
+	width: 1.143em;
+	height: 1.143em;
+	margin-top: 0.071em;
+	color: var(--purple);
+}
 @media (max-width: 700px) {
 	.signin-main {
 		padding-block: 24px 48px;
@@ -3381,7 +3509,9 @@ html:has(.signin-sheet[open]) {
 	}
 }
 @media (prefers-reduced-motion: reduce) {
-	.signin-sheet {
+	.signin-sheet,
+	.signin-switch a,
+	.signin-reveal {
 		transition: none;
 	}
 }
@@ -6002,6 +6132,39 @@ body:has(> .store-header) {
 .product-detail .purchase-region .cart-mutation .button:disabled,
 .signin-card .signin-submit:disabled {
 	box-shadow: none;
+}
+/* The resend pill is the secondary one (resting shadow, no glow); while the cooldown runs it reads as disabled. */
+.signin-card .signin-resend .signin-submit {
+	box-shadow: 0 2px 8px rgba(0, 0, 0, 0.06);
+}
+.signin-card .signin-resend .signin-submit:disabled {
+	border-color: var(--line);
+	background: #efedf3;
+	color: #64606e;
+	box-shadow: none;
+}
+/* S123 receipt account cards ("Simpan pesanan ini ke akun", "Hubungkan pesanan ini ke akun"). */
+.receipt-account-form {
+	display: grid;
+	gap: 14px;
+	min-width: 0;
+}
+.receipt-account-actions {
+	display: flex;
+	flex-wrap: wrap;
+	gap: 12px;
+}
+.receipt-account-message {
+	display: flex;
+	align-items: flex-start;
+	gap: 8px;
+	margin: 0;
+}
+:where(.receipt-account-message svg) {
+	flex: none;
+}
+.checkout-recovery > .receipt-account {
+	text-align: left;
 }
 .product-detail .purchase-region .detail-help {
 	margin-top: 8px;
