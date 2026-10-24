@@ -29,7 +29,7 @@ CREATE TABLE "app"."home_banner_version" (
 	CONSTRAINT "home_banner_version_unique" UNIQUE("banner_id","revision"),
 	CONSTRAINT "home_banner_version_text_check" CHECK ("app"."home_banner_version"."revision">0 AND char_length("app"."home_banner_version"."title") between 1 and 60 AND ("app"."home_banner_version"."subtitle" IS NULL OR char_length("app"."home_banner_version"."subtitle") between 1 and 140)
   AND char_length("app"."home_banner_version"."action_label") between 1 and 24 AND char_length("app"."home_banner_version"."image_alt") between 1 and 160 AND char_length("app"."home_banner_version"."reason") between 1 and 500),
-	CONSTRAINT "home_banner_version_href_check" CHECK ("app"."home_banner_version"."href" ~ '^/(promo|kategori|kategori/[a-z0-9-]{1,80}|cari|produk/[a-z0-9-]{1,160})([?][A-Za-z0-9_.~%=&+*-]{1,300})?$'),
+	CONSTRAINT "home_banner_version_href_check" CHECK ("app"."home_banner_version"."href" ~ '^/(promo|kategori|kategori/[a-z0-9-]{1,80}|cari|produk/[a-z0-9-]{1,160})([?][A-Za-z0-9_.~%=&+*-]+)?$' AND char_length("app"."home_banner_version"."href")<=400),
 	CONSTRAINT "home_banner_version_image_check" CHECK ("app"."home_banner_version"."image_sha256" ~ '^[0-9a-f]{64}$' AND "app"."home_banner_version"."image_width" between 1 and 16384 AND "app"."home_banner_version"."image_height" between 1 and 16384
   AND ("app"."home_banner_version"."tint" IS NULL OR "app"."home_banner_version"."tint" IN ('amber','slate','rose','blue','green','violet','teal'))),
 	CONSTRAINT "home_banner_version_window_check" CHECK ("app"."home_banner_version"."starts_at"<"app"."home_banner_version"."ends_at" AND "app"."home_banner_version"."position" between 0 and 999 AND NOT ("app"."home_banner_version"."retired" AND "app"."home_banner_version"."active"))

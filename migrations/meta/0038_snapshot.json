@@ -8690,7 +8690,7 @@
         },
         "home_banner_version_href_check": {
           "name": "home_banner_version_href_check",
-          "value": "\"app\".\"home_banner_version\".\"href\" ~ '^/(promo|kategori|kategori/[a-z0-9-]{1,80}|cari|produk/[a-z0-9-]{1,160})([?][A-Za-z0-9_.~%=&+*-]{1,300})?$'"
+          "value": "\"app\".\"home_banner_version\".\"href\" ~ '^/(promo|kategori|kategori/[a-z0-9-]{1,80}|cari|produk/[a-z0-9-]{1,160})([?][A-Za-z0-9_.~%=&+*-]+)?$' AND char_length(\"app\".\"home_banner_version\".\"href\")<=400"
         },
         "home_banner_version_image_check": {
           "name": "home_banner_version_image_check",
