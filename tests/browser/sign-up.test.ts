@@ -99,7 +99,7 @@ test("modal sign-up from /akun: switch, live hint, show/hide, uniform check-emai
 		await modal.getByRole("button", { name: "Daftar", exact: true }).click();
 		const first = await answer;
 		const sent = modal.getByTestId("signup-sent");
-		await sent.getByRole("heading", { name: "Cek email kamu untuk verifikasi" }).waitFor();
+		await sent.getByRole("heading", { name: "Cek email Anda untuk verifikasi" }).waitFor();
 		await expect(sent).toContainText(email);
 		await expect(sent.getByTestId("resend-button")).toBeDisabled();
 		await expect(sent.getByTestId("resend-button")).toHaveText(/Kirim ulang dalam 0:5\d|Kirim ulang dalam 1:00/);
@@ -110,8 +110,8 @@ test("modal sign-up from /akun: switch, live hint, show/hide, uniform check-emai
 		const [row] = await identity.sql`select email_verified from app.auth_user where email=${email}`;
 		assert.equal(row.email_verified, false);
 
-		// The same email again, on the /masuk page: the same answer and screen (the owner gets an
-		// "existing account" email instead of a second account).
+		// The same email again, on the /masuk page: the same answer and screen. The account is still unverified,
+		// so its address gets a set-password link (S123 review M1), never a second account or verification link.
 		const again = await browser.newPage({ viewport: { width: 1440, height: 900 } });
 		await again.goto(`${origin}/masuk?langkah=daftar`);
 		await again.getByLabel("Nama").fill("Orang Lain");
@@ -122,9 +122,9 @@ test("modal sign-up from /akun: switch, live hint, show/hide, uniform check-emai
 		const duplicate = await duplicateAnswer;
 		assert.equal(duplicate.status(), first.status());
 		assert.deepEqual(await duplicate.json(), firstBody);
-		await again.getByTestId("signup-sent").getByRole("heading", { level: 1, name: "Cek email kamu untuk verifikasi" }).waitFor();
+		await again.getByTestId("signup-sent").getByRole("heading", { level: 1, name: "Cek email Anda untuk verifikasi" }).waitFor();
 		assert.equal((await identity.sql`select id from app.auth_user where email=${email}`).length, 1);
-		assert.equal((await deliveries(email, "existing_account")).length, 1);
+		assert.deepEqual([(await deliveries(email, "existing_account")).length, (await deliveries(email, "password_reset")).length], [0, 1]);
 		await again.close();
 
 		// Signing in before verifying names the reason (the password matched) and offers a new link.
@@ -134,10 +134,12 @@ test("modal sign-up from /akun: switch, live hint, show/hide, uniform check-emai
 		await page.getByRole("button", { name: "Masuk", exact: true }).click();
 		await page.getByTestId("signin-error").getByText("Email ini belum diverifikasi.", { exact: false }).waitFor();
 		await page.getByTestId("signin-resend-link").click();
-		await page.getByRole("heading", { level: 1, name: "Cek email kamu untuk verifikasi" }).waitFor();
+		await page.getByRole("heading", { level: 1, name: "Cek email Anda untuk verifikasi" }).waitFor();
 		await page.getByTestId("resend-button").click();
 		await page.getByTestId("resend-status").waitFor();
-		assert.equal((await deliveries(email, "verification")).length, 2, "Resend queued a second link");
+		// S123 review M1: a resend never sends a plain verification link; it sends a set-password link.
+		assert.equal((await deliveries(email, "verification")).length, 1, "No second verification link");
+		assert.equal((await deliveries(email, "password_reset")).length, 2, "Resend queued another set-password link");
 
 		// The emailed link verifies and lands on /masuk/verifikasi, whose "Masuk" returns to /akun.
 		await page.goto(link.href);
@@ -170,8 +172,8 @@ test("verification landing: tampered and expired links show their recovery with 
 		await page.getByLabel("Email").fill(email);
 		await page.getByTestId("resend-button").click();
 		// The same answer whether or not the address waits for verification (this one has no account).
-		await page.getByTestId("resend-status").getByText("Jika alamat ini menunggu verifikasi, tautan baru sudah dikirim.").waitFor();
-		assert.equal((await deliveries(email, "verification")).length, 0);
+		await page.getByTestId("resend-status").getByText("Jika alamat ini menunggu verifikasi, kami mengirim tautan untuk mengatur kata sandi dan mengaktifkan akun.").waitFor();
+		assert.equal((await deliveries(email, "verification")).length + (await deliveries(email, "password_reset")).length, 0);
 		await page.goto(`${origin}/masuk/verifikasi?error=TOKEN_EXPIRED`);
 		await page.getByRole("heading", { level: 1, name: "Tautan verifikasi kedaluwarsa" }).waitFor();
 		assert.equal(await page.getByRole("dialog").count(), 0);
@@ -201,7 +203,7 @@ test("without JavaScript: the switch is a link, sign-up posts to /masuk/kirim, e
 		await page.getByLabel("Kata sandi").fill(password);
 		await page.getByRole("button", { name: "Daftar", exact: true }).click();
 		await page.waitForURL(`${origin}/masuk?langkah=cek-email&next=%2Fakun`);
-		await page.getByRole("heading", { level: 1, name: "Cek email kamu untuk verifikasi" }).waitFor();
+		await page.getByRole("heading", { level: 1, name: "Cek email Anda untuk verifikasi" }).waitFor();
 		assert.ok(!page.url().includes("s123-") && !page.url().includes(password), "No email or password in the URL");
 		assert.equal(new URL(await verificationUrl(email)).searchParams.get("callbackURL"), "/masuk/verifikasi?next=%2Fakun");
 		// No JS: the resend form asks for the email.
@@ -209,7 +211,25 @@ test("without JavaScript: the switch is a link, sign-up posts to /masuk/kirim, e
 		await page.getByRole("button", { name: "Kirim ulang email" }).click();
 		await page.waitForURL(`${origin}/masuk?langkah=cek-email&next=%2Fakun&ulang=1`);
 		await page.getByTestId("resend-status").waitFor();
-		assert.equal((await deliveries(email, "verification")).length, 2);
+		assert.equal((await deliveries(email, "verification")).length, 1);
+		// The resend's set-password link activates the account, also without JS; the token leaves the URL on success.
+		const [activation] = await deliveries(email, "password_reset");
+		assert.ok(activation);
+		await page.goto(activation.url);
+		await page.waitForURL(/\/masuk\/atur-sandi\?aktivasi=1&token=[A-Za-z0-9_-]+$/);
+		await page.getByRole("heading", { level: 1, name: "Atur kata sandi untuk mengaktifkan akun" }).waitFor();
+		assert.equal(await page.locator('meta[name="referrer"]').getAttribute("content"), "no-referrer");
+		await page.getByLabel("Kata sandi baru").fill("pendek");
+		await page.getByRole("button", { name: "Simpan kata sandi" }).click();
+		await page.getByTestId("set-password-error").getByText("Kata sandi minimal 12 karakter.").waitFor();
+		await page.getByLabel("Kata sandi baru").fill(password);
+		await page.getByRole("button", { name: "Simpan kata sandi" }).click();
+		await page.waitForURL(`${origin}/masuk/atur-sandi?aktivasi=1&selesai=1`);
+		await page.getByRole("heading", { level: 1, name: "Akun sudah aktif" }).waitFor();
+		assert.equal((await identity.sql`select email_verified from app.auth_user where email=${email}`)[0].email_verified, true);
+		// A used link shows the invalid state with a resend form.
+		await page.goto(activation.url);
+		await page.getByRole("heading", { level: 1, name: "Tautan tidak berlaku" }).waitFor();
 		await context.close();
 	} finally { await browser.close(); }
 });
