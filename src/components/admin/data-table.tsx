@@ -140,7 +140,8 @@ export function DataTable<T>({
 			observer.disconnect();
 		};
 	}, [ready]);
-	if (status.kind === "loading") return <LoadingState label={loadingLabel} />;
+	if (status.kind === "loading")
+		return <LoadingState label={loadingLabel} lines={5} columns={Math.min(columns.length + (selection ? 1 : 0), 5)} />;
 	if (status.kind === "error")
 		return <ErrorState message={status.message} onRetry={status.onRetry} />;
 	if (status.kind === "denied") return <DeniedState>{status.message}</DeniedState>;

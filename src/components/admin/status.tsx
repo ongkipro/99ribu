@@ -87,7 +87,7 @@ export function OrderNumberLink({
 		<Link
 			href={href}
 			aria-label={label}
-			className="font-mono font-medium break-all text-primary underline-offset-4 hover:underline focus-visible:rounded-sm focus-visible:outline-2 focus-visible:outline-ring"
+			className="font-mono font-medium break-all text-primary underline-offset-4 hover:underline focus-visible:rounded-sm focus-visible:outline-2 focus-visible:outline-ring pointer-coarse:inline-flex pointer-coarse:min-h-11 pointer-coarse:items-center"
 		>
 			{number}
 		</Link>
