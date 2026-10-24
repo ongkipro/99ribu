@@ -122,6 +122,16 @@ test("S46-S48 integration: buyer profile mononym & no-email support, address boo
 		assert.equal(verifiedPhone.payload.phone, "+6281234567890");
 		assert.equal(verifiedPhone.payload.phone_verified, true);
 		assert.equal(verifiedPhone.payload.version, 4);
+		// S123 review: the plain profile edit never replaces or clears a verified phone.
+		for (const phone of ["081298765432", null]) {
+			const locked = await callBuyer("/api/v1/me/profile", {
+				expected_version: 4,
+				display_name: "Sukarno",
+				phone,
+			});
+			assert.equal(locked.status, 409);
+			assert.equal(locked.payload.code, "VERIFIED_PHONE_LOCKED");
+		}
 
 		// 3. Address book CRUD + default invariants + historical order snapshot immutability
 		const emptyBook = await callBuyer("/api/v1/me/addresses");

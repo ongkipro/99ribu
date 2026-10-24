@@ -348,17 +348,22 @@ export function BuyerAccountClient({
 										<strong data-testid="profile-phone">
 											{profile.phone ? maskedPhone(profile.phone) : "Belum diatur"}
 										</strong>{" "}
-										<button
-											type="button"
-											className="contact-suggest-fix"
-											data-testid="profile-phone-edit"
-											onClick={() => {
-												setPhone(displayPhone(profile.phone));
-												setEditingPhone(true);
-											}}
-										>
-											Ubah
-										</button>
+										{/* A verified number changes only through a contact-change challenge (server: VERIFIED_PHONE_LOCKED). */}
+										{profile.phone_verified ? (
+											"(terverifikasi)"
+										) : (
+											<button
+												type="button"
+												className="contact-suggest-fix"
+												data-testid="profile-phone-edit"
+												onClick={() => {
+													setPhone(displayPhone(profile.phone));
+													setEditingPhone(true);
+												}}
+											>
+												Ubah
+											</button>
+										)}
 									</p>
 								)}
 								<p className="checkout-hint">

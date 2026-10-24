@@ -1345,6 +1345,12 @@ export async function handleAccounts(request: Request, identity: LocalAuth) {
 						optionalEmail === undefined ? current.email : optionalEmail;
 					const nextPhone =
 						optionalPhone === undefined ? current.phone : optionalPhone;
+					// A verified phone changes or clears only through a contact-change challenge: this plain edit
+					// would downgrade it to unverified and skip the reauthentication the support contact rebind
+					// requires for a verified contact (S123 review).
+					if (current.phone_verified_at && nextPhone !== current.phone) {
+						throw new AccessError(409, "VERIFIED_PHONE_LOCKED");
+					}
 					await tx`
 						update app.buyer_profile
 						set

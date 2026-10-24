@@ -73,7 +73,7 @@ export async function handleAuth(request: Request, identity: LocalAuth, options:
   try { headers.set(profile === "production" ? "x-99ribu-client-ip" : "x-99ribu-local-ip", clientIp(request)); }
   catch (error) { return problem(error); }
   let bodyText: string | undefined;
-  let signUpPhone: string | null = null, signUpEmail = "", signUpExisted = true;
+  let signUpPhone: string | null = null, signUpEmail = "", signUpExisted = true, mailDomain: string | null = null;
   if (request.method === "POST") {
     if (!request.headers.get("content-type")?.startsWith("application/json")) return Response.json({ code: "INVALID_INPUT" }, { status: 415 });
     const reader = request.body?.getReader();
@@ -120,7 +120,8 @@ export async function handleAuth(request: Request, identity: LocalAuth, options:
         if (signUp) {
           try { signUpPhone = normalizeWhatsApp(body.phone); } catch { return reject("INVALID_WHATSAPP"); }
         }
-        if (profile === "production" && !(await emailDomainReceives(body.email))) return reject("EMAIL_DOMAIN_UNREACHABLE");
+        // Checked after the per-account budgets below, so unauthenticated callers cannot drive DNS lookups unmetered.
+        if (profile === "production") mailDomain = body.email;
         headers.set(ACTIVATION_HEADER, typeof body.callbackURL === "string" ? body.callbackURL : ACTIVATION_CALLBACK);
         if (signUp) {
           const { phone: _phone, ...rest } = body;
@@ -168,6 +169,9 @@ export async function handleAuth(request: Request, identity: LocalAuth, options:
       if (retryAfter) limited.headers.set("X-Retry-After", retryAfter);
       return limited;
     }
+  }
+  if (mailDomain !== null && !(await emailDomainReceives(mailDomain))) {
+    return Response.json({ code: "EMAIL_DOMAIN_UNREACHABLE" }, { status: 400, headers: { "Cache-Control": "no-store" } });
   }
   const canonicalURL = new URL(path + incoming.search, origin);
   const response = await identity.auth.handler(new Request(canonicalURL, { method: request.method, headers, body: bodyText }));
