@@ -5,6 +5,9 @@ import { clientIp, privateJson, problem, requestOrigin } from "./http.ts";
 import { readRuntimeConfig } from "../../config/runtime.ts";
 import { rateLimit } from "./rate-limit.ts";
 import { ACTIVATION_CALLBACK, isActivationCallback, isVerificationCallback } from "./return-to.ts";
+import { emailDomainReceives } from "./email-domain.ts";
+import { normalizeWhatsApp } from "../shipping/address.ts";
+import { isValidEmail, normalizeEmailInput } from "../storefront/contact.ts";
 import { parseCookies } from "better-auth/cookies";
 import { createHmac, randomBytes, timingSafeEqual } from "node:crypto";
 
@@ -70,6 +73,7 @@ export async function handleAuth(request: Request, identity: LocalAuth, options:
   try { headers.set(profile === "production" ? "x-99ribu-client-ip" : "x-99ribu-local-ip", clientIp(request)); }
   catch (error) { return problem(error); }
   let bodyText: string | undefined;
+  let signUpPhone: string | null = null, signUpEmail = "", signUpExisted = true;
   if (request.method === "POST") {
     if (!request.headers.get("content-type")?.startsWith("application/json")) return Response.json({ code: "INVALID_INPUT" }, { status: 415 });
     const reader = request.body?.getReader();
@@ -102,15 +106,28 @@ export async function handleAuth(request: Request, identity: LocalAuth, options:
     // through the set-password link (auth.ts sendActivation / onPasswordReset).
     if (["/api/auth/sign-up/email", "/api/auth/send-verification-email"].includes(path)) {
       const signUp = path.endsWith("/sign-up/email");
-      const keys = signUp ? ["name", "email", ...(options.public ? [] : ["password"]), "callbackURL"] : ["email", "callbackURL"];
+      // Public sign-up (owner 2026-10-25): name, email and a WhatsApp number; no password.
+      const keys = signUp ? ["name", "email", ...(options.public ? ["phone"] : ["password"]), "callbackURL"] : ["email", "callbackURL"];
       const callbackOk = body.callbackURL === undefined || (options.public ? isActivationCallback(body.callbackURL) : isVerificationCallback(body.callbackURL) || isActivationCallback(body.callbackURL));
+      const reject = (code: string) => Response.json({ code }, { status: 400, headers: { "Cache-Control": "no-store" } });
       if (Object.keys(body).some((key) => !keys.includes(key)) || !callbackOk ||
           (signUp && (typeof body.name !== "string" || !body.name.trim() || body.name.length > 100))) {
-        return Response.json({ code: "INVALID_INPUT" }, { status: 400, headers: { "Cache-Control": "no-store" } });
+        return reject("INVALID_INPUT");
       }
       if (options.public) {
+        // Shared contact rules (storefront/contact.ts) before any effect; the number is stored E.164 `+62…`.
+        if (typeof body.email !== "string" || !isValidEmail(body.email)) return reject("INVALID_EMAIL");
+        if (signUp) {
+          try { signUpPhone = normalizeWhatsApp(body.phone); } catch { return reject("INVALID_WHATSAPP"); }
+        }
+        if (profile === "production" && !(await emailDomainReceives(body.email))) return reject("EMAIL_DOMAIN_UNREACHABLE");
         headers.set(ACTIVATION_HEADER, typeof body.callbackURL === "string" ? body.callbackURL : ACTIVATION_CALLBACK);
-        if (signUp) bodyText = JSON.stringify({ ...body, password: randomBytes(48).toString("base64url") });
+        if (signUp) {
+          const { phone: _phone, ...rest } = body;
+          signUpEmail = normalizeEmailInput(body.email).toLowerCase();
+          [{ exists: signUpExisted }] = await identity.sql<{ exists: boolean }[]>`select exists(select 1 from app.auth_user where email=${signUpEmail}) as exists`;
+          bodyText = JSON.stringify({ ...rest, password: randomBytes(48).toString("base64url") });
+        }
       }
     }
     if (path.includes("/two-factor/")) {
@@ -154,6 +171,14 @@ export async function handleAuth(request: Request, identity: LocalAuth, options:
   }
   const canonicalURL = new URL(path + incoming.search, origin);
   const response = await identity.auth.handler(new Request(canonicalURL, { method: request.method, headers, body: bodyText }));
+  // S123: the WhatsApp number of a public sign-up is kept only on the account that sign-up created
+  // (buyer_profile.phone; phone_verified_at null = unverified). For an existing account, verified or not, it is
+  // dropped: an unauthenticated request never changes a stored number; the owner edits it in /akun.
+  if (signUpPhone && !signUpExisted && response.ok) {
+    await identity.sql`insert into app.buyer_profile (user_id, display_name, email, phone)
+      select id, left(name, 120), email, ${signUpPhone} from app.auth_user where email=${signUpEmail}
+      on conflict (user_id) do nothing`;
+  }
   if (response.ok && ["/api/auth/sign-in/email", "/api/auth/sign-out"].includes(path)) {
     try { await revokeGuestContext(request,identity,response); } catch (error) { return problem(error); }
   }

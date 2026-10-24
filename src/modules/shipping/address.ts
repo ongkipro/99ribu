@@ -2,6 +2,7 @@ import shippingLocal from '../../../docs/spec/fixtures/shipping-local.json' with
 import {readLocalConfig} from '../../config/local.ts';
 import {AccessError} from '../access/policy.ts';
 import {array,integer,invalid,object,text} from '../catalog/validation.ts';
+import {isWhatsAppNumber} from '../storefront/contact.ts';
 
 export function shippingFixture(){
   readLocalConfig(process.env);
@@ -31,6 +32,7 @@ export function normalizePhone(value:unknown){
   if(!/^\+62[1-9]\d{7,12}$/.test(phone)) throw new AccessError(422,'INVALID_INDONESIAN_PHONE');
   return phone;
 }
+export function normalizeWhatsApp(value:unknown){const phone=normalizePhone(value);if(!isWhatsAppNumber(phone)) throw new AccessError(422,'INVALID_WHATSAPP');return phone;} // S123: WhatsApp contact = a mobile number; normalizePhone stays as is for other callers
 export function normalizeAddress(value:unknown){
   const body=object(value,['recipient_name','phone','address_line','destination_id','postal_code']);
   const recipient=clean(body.recipient_name,200);const street=clean(body.address_line,500);const phone=normalizePhone(body.phone);

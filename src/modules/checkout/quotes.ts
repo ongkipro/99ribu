@@ -8,6 +8,7 @@ import {allocate,compare,safeMoney,type Rule,type Shipment} from '../promotions/
 import {identifier} from '../promotions/configuration.ts';
 import {normalizeAddress,normalizePhone,shippingFixture} from '../shipping/address.ts';
 import {buildShippingPlans,type ShippingPlan} from '../shipping/quotes.ts';
+import {isValidEmail} from '../storefront/contact.ts';
 import {checkShippingBenefit} from '../shipping/contribution.ts';
 import {authorizeCart,digest,mac,type CartRow,type CommerceActor} from './access.ts';
 import {codFee,paymentTerms,PAYMENT_CHANNELS,paymentChannel,type PaymentChannel} from '../payments/methods.ts';
@@ -18,7 +19,7 @@ export type QuoteDocument={plans:ShippingPlan[];selected_plan:ShippingPlan;addre
 export type QuoteRow={id:string;cart_id:string;cart_revision:number;parent_id:string|null;operation_id:string;document:QuoteDocument;payment_method:'prepaid'|'cod';merchandise_amount:string;shipping_amount:string;subsidy_amount:string;buyer_total:string;created_at:string;expires_at:string;payment_channel:PaymentChannel|null;payment_charge_amount:string;cod_fee_bps:number|null};
 export function normalizeContact(value:unknown){
  const b=object(value,['phone','email']);let email:string|null=null;
- if(b.email!==undefined&&b.email!==null){email=text(b.email,254).normalize('NFC').toLowerCase();if(!/^[a-z0-9.!#$%&'*+/=?^_`{|}~-]+@[a-z0-9](?:[a-z0-9-]*[a-z0-9])?(?:\.[a-z0-9](?:[a-z0-9-]*[a-z0-9])?)+$/.test(email)) throw invalid();}
+ if(b.email!==undefined&&b.email!==null){email=text(b.email,254).normalize('NFC').toLowerCase();if(!isValidEmail(email)) throw invalid();}
  return {phone:normalizePhone(b.phone),email};
 }
 export function promotionShipments(plan:ShippingPlan):Shipment[]{

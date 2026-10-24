@@ -30,7 +30,8 @@ import { intentHash, mutationKey } from "../checkout/carts.ts";
 import { type OrderRow, projectOrder } from "../checkout/orders.ts";
 import { authorizeOrderOrContinuity } from "../orders/receipt.ts";
 import { projectBuyerReturn } from "../returns/cases.ts";
-import { clean, normalizePhone } from "../shipping/address.ts";
+import { clean, normalizePhone, normalizeWhatsApp } from "../shipping/address.ts";
+import { isValidEmail } from "../storefront/contact.ts";
 
 function normalizeIndonesianPhone(value: unknown): string {
 	const phone = normalizePhone(value);
@@ -426,13 +427,8 @@ async function listActiveAddresses(
 
 function normalizeEmailValue(raw: unknown): string {
 	const value = text(raw, 254).normalize("NFC").trim().toLowerCase();
-	if (
-		!/^[a-z0-9.!#$%&'*+/=?^_`{|}~-]+@[a-z0-9](?:[a-z0-9-]*[a-z0-9])?(?:\.[a-z0-9](?:[a-z0-9-]*[a-z0-9])?)+$/.test(
-			value,
-		)
-	) {
-		throw invalid();
-	}
+	// S123: one shared email rule for every storefront contact (storefront/contact.ts).
+	if (!isValidEmail(value)) throw invalid();
 	return value;
 }
 
@@ -1307,6 +1303,7 @@ export async function handleAccounts(request: Request, identity: LocalAuth) {
 					"expected_version",
 					"display_name",
 					"email",
+					"phone",
 				]);
 				const expectedVersion = integer(body.expected_version, 1, 2147483647);
 				const displayName = text(body.display_name, 120).trim();
@@ -1317,10 +1314,19 @@ export async function handleAccounts(request: Request, identity: LocalAuth) {
 						: body.email === null || String(body.email).trim() === ""
 							? null
 							: normalizeEmailValue(body.email);
+				// S123: the WhatsApp contact number (unverified: phone_verified_at stays null on a change; a
+				// verified login contact still changes only through contact-change challenges). Stored E.164.
+				const optionalPhone =
+					body.phone === undefined
+						? undefined
+						: body.phone === null || String(body.phone).trim() === ""
+							? null
+							: normalizeWhatsApp(body.phone);
 				const hash = await intentHash(identity, "buyer.profile.update", {
 					expectedVersion,
 					displayName,
 					...(optionalEmail !== undefined ? { email: optionalEmail } : {}),
+					...(optionalPhone !== undefined ? { phone: optionalPhone } : {}),
 				});
 				const updated = await identity.sql.begin(async (tx) => {
 					const prior = await checkIdempotency<BuyerProfileResponse>(
@@ -1337,11 +1343,15 @@ export async function handleAccounts(request: Request, identity: LocalAuth) {
 					}
 					const nextEmail =
 						optionalEmail === undefined ? current.email : optionalEmail;
+					const nextPhone =
+						optionalPhone === undefined ? current.phone : optionalPhone;
 					await tx`
 						update app.buyer_profile
 						set
 							display_name = ${displayName},
 							email = ${nextEmail},
+							phone = ${nextPhone},
+							phone_verified_at = ${nextPhone === current.phone ? current.phone_verified_at : null},
 							revision = revision + 1,
 							updated_at = clock_timestamp()
 						where user_id = ${principal.id}
