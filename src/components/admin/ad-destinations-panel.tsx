@@ -1,6 +1,4 @@
 import { useRef, useState } from "react";
-import { RefreshCw } from "lucide-react";
-import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import {
@@ -16,6 +14,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { Textarea } from "@/components/ui/textarea";
 import { rupiah } from "@/modules/storefront/format";
 import { failureText, readFailure } from "./admin-errors";
+import { EmptyState, ErrorState } from "./states";
 
 export interface AdDestinationItem {
 	id: string;
@@ -217,22 +216,9 @@ export function AdDestinationsPanel({
 					<Skeleton className="h-72" />
 				</div>
 			) : state === "error" ? (
-				<Alert
-					variant="destructive"
-					className="flex flex-wrap items-center justify-between gap-3 border-destructive/40 bg-destructive-surface"
-				>
-					<AlertDescription className="text-foreground">
-						Diagnostik iklan gagal dimuat. {error}
-					</AlertDescription>
-					<Button type="button" variant="outline" size="sm" onClick={onRetry}>
-						<RefreshCw data-icon="inline-start" aria-hidden="true" />
-						Coba lagi
-					</Button>
-				</Alert>
+				<ErrorState message={`Diagnostik iklan gagal dimuat. ${error}`} onRetry={onRetry} />
 			) : destinations.length === 0 ? (
-				<p className="rounded-md border border-dashed px-4 py-6 text-center text-sm text-muted-foreground">
-					Belum ada tujuan iklan yang dikonfigurasi.
-				</p>
+				<EmptyState>Belum ada tujuan iklan yang dikonfigurasi.</EmptyState>
 			) : (
 				<div className="grid grid-cols-[repeat(auto-fill,minmax(min(100%,18rem),1fr))] gap-3">
 					{destinations.map((dest) => (

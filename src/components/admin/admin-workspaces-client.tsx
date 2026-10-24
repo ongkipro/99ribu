@@ -24,7 +24,6 @@ import {
 	DialogHeader,
 	DialogTitle,
 } from "@/components/ui/dialog";
-import { Skeleton } from "@/components/ui/skeleton";
 import { Textarea } from "@/components/ui/textarea";
 import { rupiah, wibDateTime } from "@/modules/storefront/format";
 import {
@@ -36,7 +35,7 @@ import type { ConsoleAccess } from "./console-access";
 import { DataTable } from "./data-table";
 import { nativeSelectClass } from "./form";
 import { KpiCard, KpiGrid } from "./kpi-card";
-import { ErrorState } from "./states";
+import { ErrorState, LoadingState } from "./states";
 
 export type CanonicalWorkspace =
 	| "owner"
@@ -1373,12 +1372,7 @@ export function AdminWorkspacesClient({
 					Antrean kerja · {WINDOW_LABELS[windowRange]}
 				</h2>
 				{dashState === "loading" ? (
-					<div className="flex flex-wrap gap-2" aria-busy="true">
-						<span className="sr-only">Memuat ringkasan…</span>
-						<Skeleton className="h-14 w-36" />
-						<Skeleton className="h-14 w-36" />
-						<Skeleton className="h-14 w-36" />
-					</div>
+					<LoadingState label="Memuat ringkasan…" className="h-14 w-full max-w-md" />
 				) : dashState === "error" ? (
 					<ErrorState
 						message={`Ringkasan gagal dimuat. ${dashError ?? ""}`}
