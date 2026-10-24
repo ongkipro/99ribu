@@ -997,12 +997,19 @@ export function StaffInboxView({ staffUser }: { staffUser: StaffUser }) {
 						{
 							id: "status",
 							header: "Status",
-							cell: (item) => statusBadge(item.conversation.status),
+							// md–xl hides the assignee column; the claim state stays under the status
+							// ("Belum diklaim", the dashboard's word too).
+							cell: (item) => (
+								<div className="flex flex-col items-start gap-1">
+									{statusBadge(item.conversation.status)}
+									<span className="text-xs text-muted-foreground xl:hidden">{assigneeText(item)}</span>
+								</div>
+							),
 						},
 						{
 							id: "assignee",
 							header: "Penanggung jawab",
-							className: "hidden lg:table-cell",
+							className: "hidden xl:table-cell",
 							cell: (item) => assigneeText(item),
 						},
 						{

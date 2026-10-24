@@ -142,8 +142,19 @@ export function PaymentsClient({
 							cellClassName: "max-md:justify-start max-md:text-left",
 							cell: (row) => <OrderNumberLink number={row.order_number} orderId={row.order_id} enabled={canOrders} />,
 						},
-						{ id: "amount", header: "Nominal tepat", className: "text-right tabular-nums", cell: (row) => rupiah(row.expected_amount) },
-						{ id: "code", header: "Kode unik", cell: (row) => row.transfer_code },
+						// md–xl: the unique code moves under the amount so the pinned action never covers the deadline.
+						{
+							id: "amount",
+							header: "Nominal tepat",
+							className: "text-right tabular-nums",
+							cell: (row) => (
+								<>
+									{rupiah(row.expected_amount)}
+									<span className="hidden text-xs text-muted-foreground md:max-xl:block">Kode unik {row.transfer_code}</span>
+								</>
+							),
+						},
+						{ id: "code", header: "Kode unik", className: "md:max-xl:hidden", cell: (row) => row.transfer_code },
 						{
 							id: "deadline",
 							header: state === "open" ? "Batas transfer" : "Hasil",
@@ -304,6 +315,14 @@ type Autolaris = {
 };
 const OBSERVED: Record<string, string> = { pending: "Menunggu pembayaran", settled: "Lunas", unknown: "Status belum pasti", failed: "Gagal" };
 const OBSERVED_TONE: Record<string, "success" | "problem" | "danger"> = { settled: "success", unknown: "problem", failed: "danger" };
+const autolarisStatus = (row: Autolaris) =>
+	row.refusal_code ? (
+		<StatusBadge tone="danger">Ditolak: total tidak sama</StatusBadge>
+	) : (
+		<StatusBadge tone={OBSERVED_TONE[row.latest_observation?.classification ?? ""] ?? "open"}>
+			{row.latest_observation ? OBSERVED[row.latest_observation.classification] ?? row.latest_observation.classification : row.trx_id ? "Menunggu pembayaran" : "Instruksi dibuat"}
+		</StatusBadge>
+	);
 function AutolarisPayments({
 	onNotice,
 	canWrite,
@@ -357,23 +376,19 @@ function AutolarisPayments({
 						header: "Pesanan",
 						stack: "plain",
 						cellClassName: "max-md:justify-start max-md:text-left",
-						cell: (row) => <OrderNumberLink number={row.order_number} orderId={row.order_id} enabled={canOrders} />,
+						// md–xl: the status sits under the order number so the pinned action never covers it.
+						cell: (row) => (
+							<div className="flex flex-col items-start gap-1">
+								<OrderNumberLink number={row.order_number} orderId={row.order_id} enabled={canOrders} />
+								<span className="hidden md:max-xl:block">{autolarisStatus(row)}</span>
+							</div>
+						),
 					},
-					{ id: "channel", header: "Kanal", cell: (row) => channelLabel(row.channel_code) },
+					// Kanal and Status give way md–xl (shown in the stacked card and from xl).
+					{ id: "channel", header: "Kanal", className: "md:max-xl:hidden", cell: (row) => channelLabel(row.channel_code) },
 					{ id: "amount", header: "Tagihan pembeli", className: "text-right tabular-nums", cell: (row) => rupiah(row.expected_amount) },
 					{ id: "fee", header: "Biaya admin (toko)", className: "text-right tabular-nums", cell: (row) => (row.admin_fee === null ? "—" : rupiah(row.admin_fee)) },
-					{
-						id: "status",
-						header: "Status",
-						cell: (row) =>
-							row.refusal_code ? (
-								<StatusBadge tone="danger">Ditolak: total tidak sama</StatusBadge>
-							) : (
-								<StatusBadge tone={OBSERVED_TONE[row.latest_observation?.classification ?? ""] ?? "open"}>
-									{row.latest_observation ? OBSERVED[row.latest_observation.classification] ?? row.latest_observation.classification : row.trx_id ? "Menunggu pembayaran" : "Instruksi dibuat"}
-								</StatusBadge>
-							),
-					},
+					{ id: "status", header: "Status", className: "md:max-xl:hidden", cell: autolarisStatus },
 					{
 						id: "actions",
 						header: "Tindakan",

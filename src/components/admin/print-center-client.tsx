@@ -600,11 +600,14 @@ export function PrintCenterClient({
 							cell: (s) => s.warehouse_name,
 						},
 						{ id: "status", header: "Status", cell: (s) => statusBadge(s, "") },
-						{ id: "waybill", header: "Resi", cell: (s) => waybill(s, "") },
+						// md–xl: Resi and Label give way so the pinned actions never cover COD; the
+						// actions already say whether a label exists (Buat label / Cetak ulang).
+						{ id: "waybill", header: "Resi", className: "md:max-xl:hidden", cell: (s) => waybill(s, "") },
 						{ id: "cod", header: "COD", className: "text-right tabular-nums", cell: codText },
 						{
 							id: "label",
 							header: "Label",
+							className: "md:max-xl:hidden",
 							cell: (s) => artifactCell(latestArtifactFor(s.shipment_id), ""),
 						},
 						{

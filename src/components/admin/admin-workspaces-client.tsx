@@ -141,7 +141,7 @@ const METRIC_LABELS: Record<string, string> = {
 	delivery_exceptions: "Kendala pengiriman terbuka",
 	returns_pending: "Retur terbuka",
 	stock_alerts: "Stok rendah",
-	support_unassigned: "Percakapan belum ditugaskan",
+	support_unassigned: "Percakapan belum diklaim",
 	finance_unmatched: "Mutasi belum cocok",
 	transfers_near_deadline: "Transfer mendekati batas",
 	autolaris_pending: "AutoLaris menunggu bayar",
@@ -218,9 +218,9 @@ const QUEUE_LABELS: Record<QueueKey, string> = {
 };
 
 // Column heading per queue; each row's `due_at_kind` names its own time when
-// it differs (an order without a payment deadline shows its creation time).
+// it differs. Orders mix payment deadlines and creation times, so their heading is neutral.
 const TIME_LABELS: Record<QueueKey, string | null> = {
-	orders: "Batas bayar",
+	orders: "Waktu",
 	fulfillments: "Batas kemas",
 	delivery_exceptions: "Waktu kejadian",
 	returns: "Dibuat",
@@ -303,9 +303,10 @@ const KIND_STATES: Record<string, Record<string, [string, Tone]>> = {
 		out_of_stock: ["Habis", "problem"],
 	},
 	conversation: {
-		unassigned: ["Belum ditugaskan", "problem"],
+		// Same words as the support inbox (StaffInboxView).
+		unassigned: ["Belum diklaim", "problem"],
 		open: ["Terbuka", "open"],
-		waiting_customer: ["Menunggu pembeli", "open"],
+		waiting_customer: ["Menunggu pelanggan", "open"],
 		closed: ["Ditutup", "done"],
 	},
 	reconciliation: {
@@ -1320,6 +1321,12 @@ export function AdminWorkspacesClient({
 						{referenceText(item)}
 					</span>
 				)}
+				{/* md–xl: queues with a row action move the time here so the pinned action never covers it. */}
+				{timeLabel && hasRowActions && (
+					<span className="hidden text-xs text-muted-foreground tabular-nums md:block xl:hidden">
+						{rowTimeLabel(item)} {formatTime(item.due_at)}
+					</span>
+				)}
 			</div>
 		);
 	};
@@ -1696,7 +1703,7 @@ export function AdminWorkspacesClient({
 									{
 										id: "time",
 										header: timeLabel,
-										className: "tabular-nums",
+										className: hasRowActions ? "hidden tabular-nums xl:table-cell" : "tabular-nums",
 										cell: (item: WorkQueueItem) => (
 											<>
 												{rowTimeLabel(item) !== timeLabel && (
