@@ -20,6 +20,7 @@ import { describeFailure, failureText, getJson, readFailure } from "./admin-erro
 import { DataTable, type DataTableColumn } from "./data-table";
 import { wibInputToIso } from "@/modules/storefront/format";
 import { formatCm, formatKg, formatWib, rupiah } from "./format";
+import { segmentedItemClass, segmentedListClass } from "./form";
 
 // DEC-007: every resi comes from 99ribu's own Mengantar account. Operators book
 // in the Mengantar dashboard, then record courier + resi here.
@@ -458,7 +459,7 @@ export function ManualFulfillmentClient({
 				<div
 					role="tablist"
 					aria-label="Tahap pengiriman manual"
-					className="inline-flex w-fit gap-1 rounded-lg border bg-muted p-1"
+					className={segmentedListClass}
 				>
 					{(
 						[
@@ -472,7 +473,7 @@ export function ManualFulfillmentClient({
 							role="tab"
 							aria-selected={queue === key}
 							data-testid={`manual-tab-${key}`}
-							className={`rounded-md px-3 py-1.5 text-sm font-medium ${queue === key ? "bg-background shadow-sm" : "text-muted-foreground"}`}
+							className={segmentedItemClass(queue === key)}
 							onClick={() => setQueue(key)}
 						>
 							{label}

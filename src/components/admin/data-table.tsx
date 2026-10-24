@@ -1,7 +1,7 @@
 "use client";
 
 import { cn } from "cn";
-import { Fragment, type ReactNode } from "react";
+import { Fragment, type ReactNode, useEffect, useRef, useState } from "react";
 import { Button } from "@/components/ui/button";
 import {
 	Table,
@@ -16,6 +16,10 @@ import { DeniedState, EmptyState, ErrorState, LoadingState } from "./states";
 // S113: the one list surface of the admin console (shadcn Table). Every list screen passes its
 // columns, its load state (states.tsx) and, when it has them, keyset paging, row selection and a
 // mobile card. Detail pages use it too (order items, stock per warehouse, cost history).
+// Below md a list either renders its own `card`, or with `stack` the same row and cells as a
+// labelled card (one DOM, so row/cell locators and accessible names hold at every width).
+// Otherwise the table scrolls: the first column and an "actions" column stay pinned and a fade
+// marks the edge that has more columns.
 
 export type DataTableColumn<T> = {
 	id: string;
@@ -24,6 +28,8 @@ export type DataTableColumn<T> = {
 	/** Applied to the header and every cell: alignment and responsive hiding. */
 	className?: string;
 	cellClassName?: string;
+	/** Stacked card (`stack`): "label" shows the header beside the value, "plain" the value only. */
+	stack?: "label" | "plain";
 };
 
 export type DataTableStatus =
@@ -79,6 +85,8 @@ export type DataTableProps<T> = {
 	/** Mobile card: when set the table shows from `md` and these cards below it. */
 	card?: (row: T) => ReactNode;
 	cardTestId?: (row: T) => string;
+	/** Below md every row becomes a card of its own cells, each labelled with its header. */
+	stack?: boolean;
 	selection?: DataTableSelection<T>;
 	paging?: DataTablePaging;
 	/** Below the rows (page navigation, notes); shown only with rows. */
@@ -104,10 +112,31 @@ export function DataTable<T>({
 	expanded,
 	card,
 	cardTestId,
+	stack = false,
 	selection,
 	paging,
 	footer,
 }: DataTableProps<T>) {
+	const scrollRef = useRef<HTMLDivElement>(null);
+	const [edges, setEdges] = useState({ start: false, end: false });
+	const ready = status.kind === "ready" && rows.length > 0;
+	useEffect(() => {
+		const el = scrollRef.current?.querySelector<HTMLElement>('[data-slot="table-container"]');
+		if (!ready || !el) return;
+		const measure = () =>
+			setEdges({
+				start: el.scrollLeft > 1,
+				end: el.scrollLeft + el.clientWidth < el.scrollWidth - 1,
+			});
+		measure();
+		el.addEventListener("scroll", measure, { passive: true });
+		const observer = new ResizeObserver(measure);
+		observer.observe(el);
+		return () => {
+			el.removeEventListener("scroll", measure);
+			observer.disconnect();
+		};
+	}, [ready]);
 	if (status.kind === "loading") return <LoadingState label={loadingLabel} />;
 	if (status.kind === "error")
 		return <ErrorState message={status.message} onRetry={status.onRetry} />;
@@ -139,6 +168,35 @@ export function DataTable<T>({
 			</label>
 		);
 	const span = columns.length + (selection ? 1 : 0);
+	// Explicit roles keep table semantics while the stacked card changes display below md.
+	const role = (name: "table" | "rowgroup" | "row" | "columnheader" | "cell") =>
+		stack ? { role: name } : {};
+	const first = columns[0]?.id;
+	const last = columns.at(-1)?.id === "actions" ? "actions" : null;
+	// Pinned cells need an opaque background; the pinned edge shows a shadow while columns hide
+	// behind it. Literal classes per mode (Tailwind only sees whole class names).
+	const pinCheckbox = stack ? "md:sticky md:left-0 md:z-10 md:bg-card md:group-data-[state=selected]/row:bg-muted" : "sticky left-0 z-10 bg-card group-data-[state=selected]/row:bg-muted";
+	const pin = (id: string | null) =>
+		id === first
+			? cn(
+					stack ? "md:sticky md:z-10 md:bg-card md:group-data-[state=selected]/row:bg-muted" : "sticky z-10 bg-card group-data-[state=selected]/row:bg-muted",
+					selection ? (stack ? "md:left-12" : "left-12") : stack ? "md:left-0" : "left-0",
+					edges.start &&
+						(stack ? "md:shadow-[8px_0_8px_-6px_oklch(0_0_0/0.18)]" : "shadow-[8px_0_8px_-6px_oklch(0_0_0/0.18)]"),
+				)
+			: id === last
+				? cn(
+						stack ? "md:sticky md:right-0 md:z-10 md:bg-card md:group-data-[state=selected]/row:bg-muted" : "sticky right-0 z-10 bg-card group-data-[state=selected]/row:bg-muted",
+						edges.end &&
+							(stack ? "md:shadow-[-8px_0_8px_-6px_oklch(0_0_0/0.18)]" : "shadow-[-8px_0_8px_-6px_oklch(0_0_0/0.18)]"),
+					)
+				: undefined;
+	const stackCell = (c: DataTableColumn<T>) =>
+		stack &&
+		cn(
+			"max-md:flex max-md:min-h-8 max-md:items-center max-md:justify-between max-md:gap-3 max-md:px-0 max-md:py-1 max-md:text-right max-md:whitespace-normal",
+			c.id === "actions" && "max-md:justify-stretch max-md:pt-2 max-md:[&_a]:flex-1 max-md:[&_button]:flex-1",
+		);
 
 	return (
 		<>
@@ -164,17 +222,32 @@ export function DataTable<T>({
 				</div>
 			)}
 			<div
+				ref={scrollRef}
 				className={cn(
-					"overflow-x-auto rounded-md border",
+					"relative rounded-md border",
 					card && "hidden md:block",
+					stack && "max-md:border-0",
 				)}
 			>
-				<Table data-testid={testId}>
+				{!last && edges.end && (
+					<div
+						aria-hidden="true"
+						className={cn(
+							"pointer-events-none absolute inset-y-0 right-0 z-20 w-10 rounded-r-md bg-linear-to-l from-card to-transparent",
+							stack && "max-md:hidden",
+						)}
+					/>
+				)}
+				<Table data-testid={testId} {...role("table")} className={cn(stack && "max-md:block")}>
 					{caption && <caption className="sr-only">{caption}</caption>}
-					<TableHeader>
-						<TableRow>
+					<TableHeader {...role("rowgroup")} className={cn(stack && "max-md:sr-only")}>
+						<TableRow {...role("row")}>
 							{selection && (
-								<TableHead scope="col" className="w-12">
+								<TableHead
+									scope="col"
+									{...role("columnheader")}
+									className={cn("w-12", pinCheckbox)}
+								>
 									<label className="-m-2 inline-flex size-11 cursor-pointer items-center justify-center">
 										<input
 											type="checkbox"
@@ -190,13 +263,22 @@ export function DataTable<T>({
 								</TableHead>
 							)}
 							{columns.map((c) => (
-								<TableHead key={c.id} scope="col" className={c.className}>
+								<TableHead
+									key={c.id}
+									scope="col"
+									{...role("columnheader")}
+									className={cn(c.className, pin(c.id))}
+								>
 									{c.header}
 								</TableHead>
 							))}
 						</TableRow>
 					</TableHeader>
-					<TableBody data-testid={bodyTestId}>
+					<TableBody
+						data-testid={bodyTestId}
+						{...role("rowgroup")}
+						className={cn(stack && "max-md:flex max-md:flex-col max-md:gap-2")}
+					>
 						{rows.map((row) => {
 							const id = rowKey(row);
 							const detail = expanded?.(row);
@@ -205,21 +287,45 @@ export function DataTable<T>({
 									<TableRow
 										data-testid={rowTestId?.(row)}
 										data-state={selected.has(id) ? "selected" : undefined}
-										className={rowClassName}
+										{...role("row")}
+										className={cn(
+											"group/row",
+											rowClassName,
+											stack &&
+												"max-md:flex max-md:h-auto max-md:flex-col max-md:rounded-md max-md:border! max-md:px-3 max-md:py-2",
+										)}
 									>
-										{selection && <TableCell>{checkbox(row, "")}</TableCell>}
+										{selection && (
+											<TableCell
+												{...role("cell")}
+												className={pinCheckbox}
+											>
+												{checkbox(row, "")}
+											</TableCell>
+										)}
 										{columns.map((c) => (
 											<TableCell
 												key={c.id}
-												className={cn(c.className, c.cellClassName)}
+												{...role("cell")}
+												className={cn(c.className, pin(c.id), stackCell(c), c.cellClassName)}
 											>
+												{stack && c.stack !== "plain" && typeof c.header === "string" && (
+													<span
+														aria-hidden="true"
+														className="shrink-0 text-left text-xs text-muted-foreground md:hidden"
+													>
+														{c.header}
+													</span>
+												)}
 												{c.cell(row)}
 											</TableCell>
 										))}
 									</TableRow>
 									{detail && (
-										<TableRow className="bg-muted/50 hover:bg-muted/50">
-											<TableCell colSpan={span}>{detail}</TableCell>
+										<TableRow {...role("row")} className="bg-muted/50 hover:bg-muted/50">
+											<TableCell {...role("cell")} colSpan={span}>
+												{detail}
+											</TableCell>
 										</TableRow>
 									)}
 								</Fragment>

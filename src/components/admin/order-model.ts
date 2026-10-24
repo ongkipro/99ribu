@@ -96,3 +96,29 @@ const HISTORY_STATUS: Record<string, string> = {
 	succeeded: "Berhasil",
 };
 export const historyStatus = (status: string) => HISTORY_STATUS[status] ?? status;
+
+// Tones for StatusBadge (status.tsx); unknown values fall back to "open".
+export const ORDER_TONE: Record<string, "open" | "done" | "closed"> = {
+	partially_completed: "done",
+	cancelled: "closed",
+};
+export const PAYMENT_TONE: Record<string, "open" | "problem" | "success" | "closed" | "done"> = {
+	confirmed: "success",
+	expired: "closed",
+	failed: "problem",
+	partially_refunded: "done",
+	refunded: "done",
+};
+export const SHIPMENT_TONE: Record<string, "open" | "problem" | "success" | "closed"> = {
+	booking_failed: "problem",
+	booking_unknown: "problem",
+	booking_cancelled: "closed",
+	delivered: "success",
+	cancelled: "closed",
+};
+/** "COD · Lunas", "Prabayar · Menunggu pembayaran"; COD-only states already say COD. */
+export function paymentText(method: string, status: string) {
+	const label = PAYMENT_STATUS[status] ?? status;
+	if (method === "cod") return label.startsWith("COD") ? label : `COD · ${label}`;
+	return `Prabayar · ${label}`;
+}

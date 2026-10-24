@@ -1,6 +1,7 @@
 import { PaymentsClient } from "../../../../components/admin/payments-client";
 import { AccessDenied } from "../../../../components/admin/access-denied";
 import { consoleAccess } from "../../../../components/admin/console-access";
+import { canReadOrders } from "../../../../components/admin/order-model";
 import { readStaffAccess } from "../staff-roles";
 
 export const dynamic = "force-dynamic";
@@ -29,7 +30,11 @@ export default async function PaymentsPage() {
 					berbeda dicatat dan masuk tinjauan, tidak dianggap lunas.
 				</p>
 			</header>
-			<PaymentsClient canManageTerms={roles.includes("owner")} canWrite={access.reconcileWrite} />
+			<PaymentsClient
+				canManageTerms={roles.includes("owner")}
+				canWrite={access.reconcileWrite}
+				canOrders={canReadOrders(roles, permissions)}
+			/>
 		</div>
 	);
 }

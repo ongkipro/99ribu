@@ -1,3 +1,4 @@
+import { ChevronDown } from "lucide-react";
 import { useRef, useState } from "react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -15,6 +16,11 @@ import { Textarea } from "@/components/ui/textarea";
 import { rupiah } from "@/modules/storefront/format";
 import { failureText, readFailure } from "./admin-errors";
 import { EmptyState, ErrorState } from "./states";
+
+// Google conversion source codes as the owner reads them.
+const CONVERSION_SOURCE_LABELS: Record<string, string> = {
+	UPLOAD_CLICKS: "Unggah klik offline",
+};
 
 export interface AdDestinationItem {
 	id: string;
@@ -193,17 +199,26 @@ export function AdDestinationsPanel({
 		<section
 			aria-labelledby="ad-diagnostics-heading"
 			data-testid="panel-s60-advertising"
-			className="flex flex-col gap-4 rounded-lg border bg-card p-4 md:p-5"
+			className="rounded-lg border bg-card"
 		>
-			<div className="flex flex-col gap-1">
-				<h2 id="ad-diagnostics-heading" className="text-base font-semibold">
-					Diagnostik Sinyal Iklan
-				</h2>
-				<p className="text-sm text-muted-foreground">
-					Hanya Super Admin. Kredensial selalu disembunyikan. Jumlah sinyal
-					dipisahkan dari pesanan unik dan uang yang benar-benar diterima.
-				</p>
-			</div>
+			{/* Collapsed by default: owner diagnostics, not daily work (S113 render review). */}
+			<details className="group">
+				<summary className="flex cursor-pointer list-none items-start justify-between gap-3 rounded-lg p-4 outline-none select-none focus-visible:ring-[3px] focus-visible:ring-ring/50 md:p-5 [&::-webkit-details-marker]:hidden">
+					<span className="flex flex-col gap-1">
+						<h2 id="ad-diagnostics-heading" className="text-base font-semibold">
+							Diagnostik Sinyal Iklan
+						</h2>
+						<span className="text-sm text-muted-foreground">
+							Hanya Super Admin. Kredensial selalu disembunyikan. Jumlah sinyal
+							dipisahkan dari pesanan unik dan uang yang benar-benar diterima.
+						</span>
+					</span>
+					<ChevronDown
+						aria-hidden="true"
+						className="mt-1 size-4 shrink-0 text-muted-foreground transition-transform group-open:rotate-180"
+					/>
+				</summary>
+				<div className="flex flex-col gap-4 px-4 pb-4 md:px-5 md:pb-5">
 
 			{state === "loading" ? (
 				<div
@@ -250,7 +265,8 @@ export function AdDestinationsPanel({
 								</Pair>
 								{dest.google_conversion_source && (
 									<Pair label="Sumber konversi Google">
-										{dest.google_conversion_source}
+										{CONVERSION_SOURCE_LABELS[dest.google_conversion_source] ??
+											dest.google_conversion_source}
 									</Pair>
 								)}
 								<Pair
@@ -310,7 +326,7 @@ export function AdDestinationsPanel({
 									data-testid={`ad-toggle-pause-${dest.platform}`}
 									onClick={() => open({ kind: "pause", dest })}
 								>
-									{dest.paused ? "Lanjutkan pengiriman" : "Jeda pengiriman"}
+									{dest.paused ? "Lanjutkan kirim sinyal" : "Jeda kirim sinyal"}
 								</Button>
 								<Button
 									type="button"
@@ -326,6 +342,8 @@ export function AdDestinationsPanel({
 					))}
 				</div>
 			)}
+				</div>
+			</details>
 
 			<Dialog
 				open={action !== null}
@@ -352,8 +370,8 @@ export function AdDestinationsPanel({
 								{action?.kind === "replay"
 									? `Kirim ulang kejadian ke ${actionName}`
 									: pausing
-										? `Jeda pengiriman sinyal ${actionName}?`
-										: `Lanjutkan pengiriman sinyal ${actionName}?`}
+										? `Jeda kirim sinyal ${actionName}?`
+										: `Lanjutkan kirim sinyal ${actionName}?`}
 							</DialogTitle>
 							<DialogDescription>
 								{action?.kind === "replay"
@@ -445,8 +463,8 @@ export function AdDestinationsPanel({
 									: action?.kind === "replay"
 										? "Kirim ulang"
 										: pausing
-											? "Jeda pengiriman"
-											: "Lanjutkan pengiriman"}
+											? "Jeda kirim sinyal"
+											: "Lanjutkan kirim sinyal"}
 							</Button>
 						</DialogFooter>
 					</form>

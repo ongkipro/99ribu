@@ -128,11 +128,10 @@ test("S74 built browser: customer and staff open on the newest messages, page ol
 				conflicts++;
 		});
 		await desk.page.goto(`${origin}/admin/support`);
-		// S113: the staff queue is the shared DataTable (rows from md, cards below).
+		// S113: the staff queue is the shared DataTable (rows from md, cards below). The row label is
+		// the order number (none here), never a short id, so the row is found by its test id.
 		await desk.page
-			.getByTestId("support-inbox")
-			.getByRole("row")
-			.filter({ hasText: `#${short}` })
+			.getByTestId(`support-inbox-row-${conversationId}`)
 			.getByRole("button", { name: "Buka Detail" })
 			.click();
 		await expectNewestThenOlder(
@@ -150,7 +149,7 @@ test("S74 built browser: customer and staff open on the newest messages, page ol
 			name: "Set Menunggu Pelanggan",
 		});
 		const changed = desk.page.getByText(
-			"Status diubah menjadi waiting_customer.",
+			"Status diubah menjadi Menunggu pelanggan.",
 		);
 		await waiting.click();
 		await expect(
@@ -178,10 +177,10 @@ test("S74 built browser: customer and staff open on the newest messages, page ol
 		).toBeVisible();
 		await expect(history).toContainText("Pembeli menulis lagi 2");
 		await desk.page
-			.getByRole("button", { name: "Tandai Selesai (Resolve)" })
+			.getByRole("button", { name: "Tandai Selesai" })
 			.click();
 		await expect(
-			desk.page.getByText("Status diubah menjadi resolved."),
+			desk.page.getByText("Status diubah menjadi Selesai."),
 		).toBeVisible();
 		assert.equal(
 			conflicts,

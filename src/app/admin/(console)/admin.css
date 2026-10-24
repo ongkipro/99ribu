@@ -12,6 +12,8 @@
 @source "./";
 @source "../../../components/admin";
 @source "../../../components/ui";
+/* The staff inbox renders inside the console (S113); the buyer chat stays storefront-only. */
+@source "../../../components/support/StaffInboxView.tsx";
 
 /* Light-only admin (spec 10): `dark:` must never follow the OS preference. */
 @custom-variant dark (&:is(.dark *));

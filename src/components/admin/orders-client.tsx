@@ -5,7 +5,6 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useCallback, useEffect, useState } from "react";
 import { Alert, AlertDescription } from "@/components/ui/alert";
-import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -16,11 +15,16 @@ import {
 	HISTORY_KIND,
 	historyStatus,
 	ORDER_STATUS,
+	ORDER_TONE,
 	PAYMENT_STATUS,
-	searchQuery,
+	PAYMENT_TONE,
+	paymentText,
 	SHIPMENT_STATUS,
+	SHIPMENT_TONE,
+	searchQuery,
 	TRACKING_STATUS,
 } from "./order-model";
+import { StatusBadge } from "./status";
 
 export type SearchKind = "nomor" | "resi" | "hp";
 type Summary = {
@@ -72,8 +76,6 @@ function failureMessage(failure: ApiFailure) {
 		return "Peran Anda tidak memiliki izin membaca riwayat pesanan, atau verifikasi dua langkah belum aktif.";
 	return failureText(failure);
 }
-const paymentText = (method: string, status: string) =>
-	`${method === "cod" ? "COD" : "Prabayar"} · ${PAYMENT_STATUS[status] ?? status}`;
 
 export function OrderSearchClient({
 	initialKind,
@@ -268,10 +270,13 @@ export function OrderSearchClient({
 					testId="orders-table"
 					caption="Daftar pesanan, terbaru di atas"
 					rowTestId={() => "order-row"}
+					stack
 					columns={[
 						{
 							id: "number",
 							header: "Nomor pesanan",
+							stack: "plain",
+							cellClassName: "max-md:justify-start max-md:text-left",
 							cell: (row) => (
 								<Link
 									href={`/admin/orders/${row.id}${back ? `?dari=${encodeURIComponent(back)}` : ""}`}
@@ -286,7 +291,9 @@ export function OrderSearchClient({
 							id: "status",
 							header: "Status",
 							cell: (row) => (
-								<Badge variant="outline">{ORDER_STATUS[row.status] ?? row.status}</Badge>
+								<StatusBadge tone={ORDER_TONE[row.status] ?? "open"}>
+									{ORDER_STATUS[row.status] ?? row.status}
+								</StatusBadge>
 							),
 						},
 						{
@@ -295,8 +302,9 @@ export function OrderSearchClient({
 							cell: (row) => paymentText(row.payment_method, row.payment_status),
 						},
 						{
+							// Before the COD fee or transfer code; the detail page shows both totals.
 							id: "total",
-							header: "Total",
+							header: "Total pesanan",
 							className: "text-right tabular-nums",
 							cell: (row) => rupiah(row.buyer_total),
 						},
@@ -363,6 +371,8 @@ type HistoryEvent = {
 	occurred_at: string;
 	recorded_at: string | null;
 	status: string;
+	/** Parcel of a fulfillment event; null for order-level events. */
+	shipment_id?: string | null;
 };
 type Detail = {
 	order: Order;
@@ -473,6 +483,15 @@ export function OrderDetailClient({
 	const cod = o.payment_method === "cod";
 	const manualBank = o.payment_channel === "manual-bank";
 	const itemName = new Map(o.items.map((i) => [i.id, `${i.name} · ${i.variant_label}`]));
+	// "Paket 1/2" in the shipment cards and the history, so per-parcel events read as distinct.
+	const originals = o.shipments.filter((s) => s.kind !== "replacement");
+	const parcelLabel = (s: Shipment) =>
+		s.kind === "replacement"
+			? "Paket pengganti"
+			: originals.length > 1
+				? `Paket ${originals.indexOf(s) + 1}/${originals.length}`
+				: "Paket";
+	const parcelById = new Map(o.shipments.map((s) => [s.id, parcelLabel(s)]));
 
 	return (
 		<div className="flex flex-col gap-6 px-4 py-5 md:px-8 md:py-6">
@@ -480,8 +499,10 @@ export function OrderDetailClient({
 			<header className="flex flex-col gap-2 border-b pb-5">
 				<h1 className="font-mono text-2xl font-semibold tracking-tight break-all">{o.number}</h1>
 				<div className="flex flex-wrap items-center gap-2">
-					<Badge variant="outline">{ORDER_STATUS[o.status] ?? o.status}</Badge>
-					<Badge variant="secondary">{paymentText(o.payment_method, o.payment_status)}</Badge>
+					<StatusBadge tone={ORDER_TONE[o.status] ?? "open"}>{ORDER_STATUS[o.status] ?? o.status}</StatusBadge>
+					<StatusBadge tone={PAYMENT_TONE[o.payment_status] ?? "open"}>
+						{paymentText(o.payment_method, o.payment_status)}
+					</StatusBadge>
 					<span className="text-sm text-muted-foreground">Dibuat {formatWib(o.created_at)}</span>
 				</div>
 				<p className="text-xs text-muted-foreground">
@@ -504,11 +525,13 @@ export function OrderDetailClient({
 							empty="Pesanan ini tidak memiliki barang."
 							testId="order-items"
 							caption="Barang dalam pesanan"
+							stack
 							columns={[
 								{
 									id: "product",
 									header: "Produk",
-									cellClassName: "min-w-48 whitespace-normal",
+									stack: "plain",
+									cellClassName: "min-w-48 whitespace-normal max-md:block max-md:text-left",
 									cell: (item) => (
 										<>
 											<span className="block font-medium">{item.name}</span>
@@ -541,14 +564,15 @@ export function OrderDetailClient({
 							Pengiriman
 						</h2>
 						<ul className="flex flex-col gap-3" data-testid="order-shipments">
-							{o.shipments.map((s, index) => (
+							{o.shipments.map((s) => (
 								<li key={s.id} className="flex flex-col gap-2 rounded-lg border p-4">
 									<div className="flex flex-wrap items-center justify-between gap-2">
 										<p className="font-medium">
-											{s.kind === "replacement" ? "Paket pengganti" : `Paket ${index + 1}`} · dari{" "}
-											{s.origin_city}
+											{parcelLabel(s)} · dari {s.origin_city}
 										</p>
-										<Badge variant="outline">{SHIPMENT_STATUS[s.status] ?? s.status}</Badge>
+										<StatusBadge tone={SHIPMENT_TONE[s.status] ?? "open"}>
+											{SHIPMENT_STATUS[s.status] ?? s.status}
+										</StatusBadge>
 									</div>
 									<dl className="grid gap-1.5 text-sm sm:grid-cols-2">
 										<div>
@@ -573,12 +597,15 @@ export function OrderDetailClient({
 														: "—"}
 											</dd>
 										</div>
-										<div>
-											<dt className="text-muted-foreground">
-												{s.delivered_at ? "Diterima" : "Resi terbit"}
-											</dt>
-											<dd>{formatWib(s.delivered_at ?? s.waybill_issued_at)}</dd>
-										</div>
+										{/* One time per state: no "Resi terbit: —" beside "Resi: Belum terbit". */}
+										{(s.delivered_at || s.waybill_issued_at) && (
+											<div>
+												<dt className="text-muted-foreground">
+													{s.delivered_at ? "Diterima" : "Resi terbit"}
+												</dt>
+												<dd>{formatWib(s.delivered_at ?? s.waybill_issued_at)}</dd>
+											</div>
+										)}
 										{cod && s.cod_collect_amount !== undefined && (
 											<div>
 												<dt className="text-muted-foreground">Tagihan COD paket</dt>
@@ -616,7 +643,11 @@ export function OrderDetailClient({
 								{history.map((event) => (
 									<li key={`${event.kind}:${event.id}`} className="flex flex-col">
 										<span className="text-sm font-medium">
-											{HISTORY_KIND[event.kind] ?? event.kind}: {historyStatus(event.status)}
+											{HISTORY_KIND[event.kind] ?? event.kind}
+											{event.shipment_id && parcelById.has(event.shipment_id) && o.shipments.length > 1
+												? ` ${parcelById.get(event.shipment_id)?.toLowerCase()}`
+												: ""}
+											: {historyStatus(event.status)}
 										</span>
 										<span className="text-xs text-muted-foreground">
 											{formatWib(event.occurred_at)}
@@ -661,6 +692,8 @@ export function OrderDetailClient({
 						<Money label="Barang" value={rupiah(o.merchandise_total)} />
 						<Money label="Ongkos kirim" value={rupiah(o.shipping_total)} />
 						{o.subsidy_total > 0 && <Money label="Subsidi ongkir" value={`−${rupiah(o.subsidy_total)}`} />}
+						{/* The orders list shows this total; the fee or transfer code below makes the amount due. */}
+						{o.payment_charge_total > 0 && <Money label="Total pesanan" value={rupiah(o.buyer_total)} />}
 						{cod && o.payment_charge_total > 0 && (
 							<Money label={`Biaya COD (${percent(o.cod_fee_bps ?? 0)})`} value={rupiah(o.payment_charge_total)} />
 						)}

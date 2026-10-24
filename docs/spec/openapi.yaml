@@ -9096,6 +9096,57 @@ paths:
               $ref: '#/components/schemas/SupportSavedReplyInput'
       x-proof-group: support
       x-implementation: src/app/api/v1/admin/support/saved-replies/[definitionId]/versions/route.ts
+  /admin/support/agents:
+    get:
+      operationId: listSupportAgents
+      summary: List staff who can hold a support conversation
+      description: Implemented-local first-party endpoint (S113). Owner and customer service staff, by display
+        name, for the handoff picker and the assignee label. Exactly the users an assignment may target (owner or
+        customer_service role); names only, never email, phone or other contact data. Sensitive responses are
+        no-store.
+      tags:
+      - Administration
+      security:
+      - sessionCookie: []
+      - bearerAuth: []
+      x-contract-status: implemented-local
+      x-domain-owner: support
+      x-primary-requirement: PR-22
+      responses:
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '429':
+          $ref: '#/components/responses/TooManyRequests'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        default:
+          description: Unexpected server/proxy failure; clients tolerate a non-Problem gateway body.
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+        '200':
+          description: Successful response.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SupportAgentList'
+          headers:
+            Cache-Control:
+              description: Private response; never shared cached.
+              schema:
+                type: string
+                const: no-store
+        '503':
+          $ref: '#/components/responses/Unavailable'
+      x-allowed-roles:
+      - owner
+      - customer_service
+      x-required-permission: support.tools.read
+      x-proof-group: support
+      x-implementation: src/app/api/v1/admin/support/agents/route.ts
   /admin/support/tags:
     get:
       operationId: listSupportTagDefinitions
@@ -20911,12 +20962,20 @@ components:
         status:
           type: string
           maxLength: 100
+        shipment_id:
+          anyOf:
+          - $ref: '#/components/schemas/Id'
+          - type: 'null'
+          description: Parcel of a fulfillment event (order shipment or replacement shipment, matching
+            Order.shipments[].id) so staff see which parcel moved; null for order, payment, return, refund and
+            reconciliation events.
       required:
       - id
       - kind
       - occurred_at
       - recorded_at
       - status
+      - shipment_id
       additionalProperties: false
       description: Sanitized event metadata; no freeform provider payload, private notes, credentials or proof URLs.
     AdminOrderDetail:
@@ -21921,6 +21980,31 @@ components:
       - version
       - label
       - enabled
+      additionalProperties: false
+    SupportAgentList:
+      type: object
+      properties:
+        data:
+          type: array
+          minItems: 0
+          maxItems: 200
+          items:
+            type: object
+            properties:
+              id:
+                type: string
+                minLength: 1
+                maxLength: 200
+              name:
+                type: string
+                minLength: 1
+                maxLength: 200
+            required:
+            - id
+            - name
+            additionalProperties: false
+      required:
+      - data
       additionalProperties: false
     SupportTagList:
       type: object
@@ -23637,13 +23721,31 @@ components:
           maxLength: 200
           description: Human reference the operator already sees elsewhere in scope - order number (orders, returns,
             delivery exceptions, conversations linked to an order), waybill number or else order number
-            (fulfillments), SKU (stock) or settlement reference (reconciliation). Null when the row has none.
+            (fulfillments), SKU (stock) or, for reconciliation, the matched order number else the settlement
+            mutation reference (never the row id). Null when the row has none. Rows staff still act on come
+            first and terminal states last; each group keeps the queue's own order.
         order_id:
           anyOf:
           - $ref: '#/components/schemas/Id'
           - type: 'null'
-          description: S100 order the row belongs to (staff order detail link); null for stock and settlement rows.
-            Opening it re-checks whole-order authorization.
+          description: S100 order the row belongs to (staff order detail link); null for stock rows and unmatched
+            settlements. Opening it re-checks whole-order authorization.
+        amount_idr:
+          type:
+          - integer
+          - 'null'
+          minimum: 0
+          description: Net settlement amount in rupiah for reconciliation rows; null for every other kind (no order
+            totals here).
+        settlement_source:
+          type:
+          - string
+          - 'null'
+          enum:
+          - payment
+          - cod
+          - null
+          description: Reconciliation rows only - the settlement feed (prepaid payment or COD remittance).
       required:
       - id
       - resource_kind
@@ -23654,6 +23756,8 @@ components:
       - version
       - reference
       - order_id
+      - amount_idr
+      - settlement_source
       additionalProperties: false
       description: Safe operational row, no customer contacts/private labels/costs/whole-order totals. Logical target
         still requires current object authorization.

@@ -1,9 +1,11 @@
 import { ShieldAlert } from "lucide-react";
+import { canReadOrders } from "../../../../components/admin/order-model";
 import { PrintCenterClient } from "../../../../components/admin/print-center-client";
 import { Button } from "../../../../components/ui/button";
 import { getLocalAuth } from "../../../../modules/access/auth";
 import { readPrintCenterWorkspace } from "../../../../modules/documents/labels";
 import { storefrontRequest } from "../../../../modules/storefront/browser";
+import { readStaffAccess } from "../staff-roles";
 
 export const dynamic = "force-dynamic";
 export const metadata = {
@@ -14,6 +16,7 @@ export const metadata = {
 export default async function AdminPrintCenterPage() {
 	const req = await storefrontRequest("GET", "/admin/print-center");
 	const workspace = await readPrintCenterWorkspace(req, getLocalAuth());
+	const staff = await readStaffAccess();
 
 	if (!workspace.authorized) {
 		return (
@@ -91,6 +94,7 @@ export default async function AdminPrintCenterPage() {
 				initialArtifacts={workspace.artifacts}
 				initialAttempts={workspace.attempts}
 				initialNextCursor={workspace.next_cursor}
+				canOrders={canReadOrders(staff.roles, staff.permissions)}
 			/>
 		</div>
 	);

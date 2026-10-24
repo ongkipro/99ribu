@@ -3,7 +3,6 @@
 import { CircleCheck, Plus, RefreshCw } from "lucide-react";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { Alert, AlertDescription } from "@/components/ui/alert";
-import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import {
 	Dialog,
@@ -18,6 +17,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { rupiah, wibDate, wibInput, wibInputToIso } from "@/modules/storefront/format";
 import { describeFailure, failureText, getJson, readFailure } from "./admin-errors";
 import { DataTable } from "./data-table";
+import { StatusBadge, type StatusTone } from "./status";
 
 // DEC-007: Mengantar collects COD on 99ribu's own account and remits through its
 // balance/settlement. Finance records each dashboard statement; money posts only
@@ -63,6 +63,11 @@ const SETTLEMENT_LABELS: Record<string, string> = {
 	matched: "Cocok",
 	mismatched: "Tidak cocok",
 	exception: "Perlu tinjauan",
+};
+const SETTLEMENT_TONE: Record<string, StatusTone> = {
+	matched: "success",
+	mismatched: "problem",
+	exception: "problem",
 };
 const CODE_MESSAGES: Record<string, string> = {
 	STATEMENT_ALREADY_RECORDED: "Referensi laporan ini sudah pernah dicatat.",
@@ -209,13 +214,13 @@ export function CodSettlementsClient({ canWrite }: { canWrite: boolean }) {
 						header: "Status",
 						cell: (row) => (
 							<div className="flex flex-wrap gap-1">
-								<Badge variant={row.settlement?.status === "matched" ? "default" : "outline"}>
+								<StatusBadge tone={SETTLEMENT_TONE[row.settlement?.status ?? "pending"] ?? "open"}>
 									{SETTLEMENT_LABELS[row.settlement?.status ?? "pending"] ?? row.settlement?.status}
-								</Badge>
+								</StatusBadge>
 								{row.flags.map((flag) => (
-									<Badge key={flag} variant="destructive">
+									<StatusBadge key={flag} tone="danger">
 										{FLAG_LABELS[flag] ?? flag}
-									</Badge>
+									</StatusBadge>
 								))}
 							</div>
 						),
