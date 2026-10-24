@@ -105,7 +105,11 @@ export function DetailSection({
 	);
 }
 
-/** A collapsible card section (money, diagnostics). The summary is a 44px target on touch. */
+/**
+ * A collapsible card section (money, diagnostics, queue rules, pickup profiles). The summary is a
+ * 44px target on touch; it holds no heading (summary is a button), so the title names the
+ * surrounding section instead.
+ */
 export function Disclosure({
 	id,
 	title,
@@ -123,21 +127,23 @@ export function Disclosure({
 	children: ReactNode;
 }) {
 	return (
-		<details open={open} data-testid={testId} className="group rounded-lg border bg-card">
-			<summary className="flex min-h-11 cursor-pointer list-none items-start justify-between gap-3 rounded-lg p-4 outline-none select-none focus-visible:ring-[3px] focus-visible:ring-ring/50 md:p-5 [&::-webkit-details-marker]:hidden">
-				<span className="flex min-w-0 flex-col gap-1">
-					<h2 id={id} className="text-base font-semibold">
-						{title}
-					</h2>
-					{description && <span className="hidden text-sm text-muted-foreground md:block">{description}</span>}
-				</span>
-				<ChevronDown
-					aria-hidden="true"
-					className="mt-1 size-4 shrink-0 text-muted-foreground transition-transform group-open:rotate-180"
-				/>
-			</summary>
-			<div className="flex flex-col gap-4 px-4 pb-4 md:px-5 md:pb-5">{children}</div>
-		</details>
+		<section aria-labelledby={id} data-testid={testId}>
+			<details open={open} className="group rounded-lg border bg-card">
+				<summary className="flex min-h-11 cursor-pointer list-none items-start justify-between gap-3 rounded-lg p-4 outline-none select-none focus-visible:ring-[3px] focus-visible:ring-ring/50 md:p-5 [&::-webkit-details-marker]:hidden">
+					<span className="flex min-w-0 flex-col gap-1">
+						<span id={id} className="text-base font-semibold">
+							{title}
+						</span>
+						{description && <span className="hidden text-sm text-muted-foreground md:block">{description}</span>}
+					</span>
+					<ChevronDown
+						aria-hidden="true"
+						className="mt-1 size-4 shrink-0 text-muted-foreground transition-transform group-open:rotate-180"
+					/>
+				</summary>
+				<div className="flex flex-col gap-4 px-4 pb-4 md:px-5 md:pb-5">{children}</div>
+			</details>
+		</section>
 	);
 }
 

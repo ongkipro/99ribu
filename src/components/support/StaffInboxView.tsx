@@ -234,7 +234,7 @@ function ContextLink({ id, label, href }: { id: string | undefined; label: strin
 	if (!id) return <>Tidak ada</>;
 	if (!href) return <>{label}</>;
 	return (
-		<Link href={href} className="font-medium text-primary underline-offset-4 hover:underline">
+		<Link href={href} className="font-medium text-primary underline-offset-4 hover:underline pointer-coarse:inline-flex pointer-coarse:min-h-11 pointer-coarse:items-center">
 			{label}
 		</Link>
 	);
@@ -895,7 +895,7 @@ export function StaffInboxView({ staffUser }: { staffUser: StaffUser }) {
 			<Button
 				type="button"
 				size="sm"
-				variant={open ? "default" : "outline"}
+				variant={open ? "secondary" : "outline"}
 				aria-pressed={open}
 				onClick={() => void selectThread(item)}
 			>
@@ -1052,7 +1052,8 @@ export function StaffInboxView({ staffUser }: { staffUser: StaffUser }) {
 				/>
 			</section>
 
-			<div className="grid items-start gap-5 lg:grid-cols-[minmax(0,1fr)_minmax(0,24rem)]">
+			{/* Phones show the thread and its tools only once a conversation is open. */}
+			<div className={cn("grid items-start gap-5 lg:grid-cols-[minmax(0,1fr)_minmax(0,24rem)]", !selected && "max-md:hidden")}>
 				{/* Thread, public reply and the separate internal note */}
 				<section
 					aria-label="Percakapan aktif dan editor balasan"
@@ -1145,7 +1146,7 @@ export function StaffInboxView({ staffUser }: { staffUser: StaffUser }) {
 												<p className="mt-1 rounded-sm bg-warning-surface px-2 py-1 text-xs">
 													Konteks {m.context.kind === "order" ? "pesanan" : "produk"}:{" "}
 													{m.context.kind === "order" && m.context.order_id && m.context.availability === "available" && staffUser.canOpenOrders ? (
-														<Link href={`/admin/orders/${m.context.order_id}`} className="font-medium text-primary underline-offset-4 hover:underline">
+														<Link href={`/admin/orders/${m.context.order_id}`} className="font-medium text-primary underline-offset-4 hover:underline pointer-coarse:inline-flex pointer-coarse:min-h-11 pointer-coarse:items-center">
 															{m.context.title}
 														</Link>
 													) : (

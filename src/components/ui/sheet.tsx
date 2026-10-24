@@ -70,13 +70,14 @@ function SheetContent({
         {children}
         {showCloseButton && (
           <SheetPrimitive.Close data-slot="sheet-close" asChild>
+            {/* Admin (local change): the same icon-only close as Dialog. */}
             <Button
               variant="ghost"
-              className="absolute top-2.5 right-2"
-              size="sm"
+              className="absolute top-3 right-3"
+              size="icon-sm"
             >
-              <XIcon data-icon="inline-start" aria-hidden="true" />
-              Tutup
+              <XIcon aria-hidden="true" />
+              <span className="sr-only">Tutup</span>
             </Button>
           </SheetPrimitive.Close>
         )}

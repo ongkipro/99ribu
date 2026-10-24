@@ -209,7 +209,7 @@ export function CodSettlementsClient({ canWrite }: { canWrite: boolean }) {
 					},
 					{ id: "date", header: "Tanggal laporan", stack: "meta", cell: (row) => wibDate(row.statement_at) },
 					{ id: "gross", header: "Tertagih", className: "text-right tabular-nums", cell: (row) => rupiah(row.gross_amount) },
-					{ id: "net", header: "Diterima", stack: "aside", className: "text-right tabular-nums", cell: (row) => rupiah(row.net_amount) },
+					{ id: "net", header: "Diterima", className: "text-right tabular-nums", cell: (row) => rupiah(row.net_amount) },
 					{ id: "expected", header: "Perkiraan bersih", className: "text-right tabular-nums", cell: (row) => rupiah(row.expected_net_amount) },
 					{
 						id: "status",

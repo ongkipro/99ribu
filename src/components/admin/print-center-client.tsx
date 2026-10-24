@@ -1,7 +1,7 @@
 "use client";
 
 import { CircleAlert, CircleCheck, FileText, Printer } from "lucide-react";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -19,7 +19,7 @@ import { rupiah, wibDateTime } from "@/modules/storefront/format";
 import { describeFailure, failureText, readFailure } from "./admin-errors";
 import { CardActions, CardStatus, CardTitle, DataTable } from "./data-table";
 import { nativeSelectClass } from "./form";
-import { isOverdue, OrderNumberLink, OverdueBadge, type StatusTone, StatusBadge, useNow } from "./status";
+import { DEADLINE_GROUPS, Deadline, deadlineGroup, OrderNumberLink, type StatusTone, StatusBadge, useNow } from "./status";
 
 type ShipmentItem = PrintQueueShipment;
 
@@ -44,6 +44,7 @@ const ARTIFACT_LABELS: Record<ShippingLabelArtifactResponse["status"], string> =
 		invalidated_by_cancellation: "Batal, jangan dicetak",
 		expired: "Kedaluwarsa",
 	};
+const PHONE_PAGE = 20;
 const FULFILLMENT_LABELS: Record<string, string> = {
 	preparing: "Disiapkan",
 	ready: "Siap diambil",
@@ -121,6 +122,17 @@ export function PrintCenterClient({
 	const [pending, setPending] = useState(false);
 
 	const now = useNow();
+	// Phones list 20 parcels at first (set after mount: the server render shows the full page).
+	const [phoneLimit, setPhoneLimit] = useState<number | null>(null);
+	useEffect(() => {
+		if (window.matchMedia("(max-width: 767px)").matches) setPhoneLimit(PHONE_PAGE);
+	}, []);
+	// Grouped by deadline (Lewat batas, Hari ini, Berikutnya, Tanpa batas, Sudah diserahkan);
+	// within a group the queue's own order holds (no label first, then nearest deadline).
+	const groupOf = (s: ShipmentItem) => deadlineGroup(s.due_at, now, s.fulfillment_status === "handed_over");
+	const groupKeys = Object.keys(DEADLINE_GROUPS);
+	const ordered = now === null ? shipments : shipments.map((s, i) => ({ s, i, g: groupKeys.indexOf(groupOf(s) ?? "none") })).sort((a, b) => a.g - b.g || a.i - b.i).map(({ s }) => s);
+	const shownShipments = phoneLimit === null ? ordered : ordered.slice(0, phoneLimit);
 	// "Paket 1/2" among the loaded rows of the same order; the parcel hash is not shown to staff.
 	const parcelIndex = (s: ShipmentItem) => {
 		const siblings = shipments
@@ -318,25 +330,26 @@ export function PrintCenterClient({
 		artifacts.find((a) => a.shipment_id === shipmentId);
 	// `p` prefixes test ids/ids in the mobile card variant so the hidden
 	// desktop table and the cards never share a DOM id.
-	const parcelCell = (s: ShipmentItem) => (
+	const deadline = (s: ShipmentItem, p: string) =>
+		s.due_at && (
+			<span className="text-xs font-normal text-muted-foreground">
+				<Deadline
+					iso={s.due_at}
+					prefix="Batas"
+					done={s.fulfillment_status === "handed_over"}
+					testId={`${p}shipment-due-${s.shipment_id}`}
+					overdueTestId={`${p}shipment-overdue-${s.shipment_id}`}
+				/>
+			</span>
+		);
+	// The card moves the deadline into its badge row (one wrapped row of badges).
+	const parcelCell = (s: ShipmentItem, withDeadline = true) => (
 		<div className="flex min-w-0 flex-col items-start gap-0.5">
 			<OrderNumberLink number={s.order_number} enabled={canOrders} />
 			{parcelIndex(s) && (
-				<span className="text-xs text-muted-foreground">{parcelIndex(s)}</span>
+				<span className="text-xs font-normal text-muted-foreground">{parcelIndex(s)}</span>
 			)}
-			{s.due_at && (
-				<span className="flex flex-wrap items-center gap-1.5">
-					<span
-						data-testid={`shipment-due-${s.shipment_id}`}
-						className="text-xs text-muted-foreground tabular-nums"
-					>
-						Batas {wibDateTime(s.due_at)}
-					</span>
-					{s.fulfillment_status !== "handed_over" && isOverdue(s.due_at, now) && (
-						<OverdueBadge testId={`shipment-overdue-${s.shipment_id}`} />
-					)}
-				</span>
-			)}
+			{withDeadline && deadline(s, "")}
 		</div>
 	);
 	const statusBadge = (s: ShipmentItem, p: string) => (
@@ -361,7 +374,7 @@ export function PrintCenterClient({
 		</span>
 	);
 	const codText = (s: ShipmentItem) =>
-		s.cod_due > 0 ? rupiah(s.cod_due) : "Non-COD";
+		s.cod_due > 0 ? rupiah(s.cod_due) : "Prabayar";
 	const artifactCell = (
 		art: ShippingLabelArtifactResponse | undefined,
 		p: string,
@@ -565,7 +578,11 @@ export function PrintCenterClient({
 					</p>
 				</div>
 				<DataTable
-					rows={shipments}
+					rows={shownShipments}
+					group={(s) => {
+						const key = groupOf(s);
+						return key && DEADLINE_GROUPS[key];
+					}}
 					rowKey={(s) => s.shipment_id}
 					status={{ kind: "ready" }}
 					loadingLabel="Memuat paket…"
@@ -635,8 +652,11 @@ export function PrintCenterClient({
 						const art = latestArtifactFor(s.shipment_id);
 						return (
 							<>
-								<CardTitle title={parcelCell(s)} aside={codText(s)} />
-								<CardStatus>{statusBadge(s, "card-")}</CardStatus>
+								<CardTitle title={parcelCell(s, false)} aside={codText(s)} />
+								<CardStatus>
+									{statusBadge(s, "card-")}
+									{deadline(s, "card-")}
+								</CardStatus>
 								<dl className="grid grid-cols-[auto_1fr] gap-x-3 gap-y-1 text-xs">
 									<dt className="text-muted-foreground">Resi</dt>
 									<dd>{waybill(s, "card-")}</dd>
@@ -651,9 +671,14 @@ export function PrintCenterClient({
 						);
 					}}
 					paging={{
-						hasMore: nextCursor !== null,
+						hasMore: nextCursor !== null || shownShipments.length < shipments.length,
 						loading: loadingMore,
-						onMore: () => void loadMore(),
+						onMore: () => {
+							// Phones reveal the loaded parcels 20 at a time, then page the API.
+							const next = phoneLimit === null ? null : phoneLimit + PHONE_PAGE;
+							if (next !== null) setPhoneLimit(next);
+							if (next === null || next > ordered.length) void loadMore();
+						},
 						testId: "print-queue-load-more",
 					}}
 				/>

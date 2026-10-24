@@ -1,7 +1,7 @@
 "use client";
 
 import { cn } from "cn";
-import { Fragment, type ReactNode, useEffect, useRef, useState } from "react";
+import { createContext, Fragment, type ReactNode, useContext, useEffect, useRef, useState } from "react";
 import { Button } from "@/components/ui/button";
 import {
 	Table,
@@ -97,6 +97,11 @@ export type DataTableProps<T> = {
 	cardTestId?: (row: T) => string;
 	/** Below md every row becomes a card of its own cells, each labelled with its header. */
 	stack?: boolean;
+	/**
+	 * Group label of a row (rows arrive in group order, e.g. by deadline); a label row with the
+	 * group's loaded count opens each group. null: no grouping for this row.
+	 */
+	group?: (row: T) => string | null;
 	selection?: DataTableSelection<T>;
 	paging?: DataTablePaging;
 	/** Below the rows (page navigation, notes); shown only with rows. */
@@ -107,6 +112,9 @@ export type DataTableProps<T> = {
 // text colour (outline badges also get the card fill).
 const selectedBadge =
 	"[&[data-state=selected]_[data-slot=badge]]:border-current/40 [&[data-state=selected]_[data-slot=badge][data-variant=outline]]:bg-card";
+
+// While rows are selected the bulk bar is the only action surface: row actions are inert.
+const SelectingContext = createContext(false);
 
 const checkboxClass =
 	"size-4 accent-primary align-middle focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring";
@@ -129,6 +137,7 @@ export function DataTable<T>({
 	card,
 	cardTestId,
 	stack = false,
+	group,
 	selection,
 	paging,
 	footer,
@@ -161,6 +170,14 @@ export function DataTable<T>({
 	if (rows.length === 0) return <EmptyState testId={emptyTestId}>{empty}</EmptyState>;
 
 	const selected = new Set(selection?.selected ?? []);
+	const selecting = selected.size > 0;
+	// "Lewat batas · 3" before the first row of each group (counts cover the loaded rows).
+	const labels = group ? rows.map(group) : [];
+	const groupStart = (index: number) => {
+		const label = labels[index];
+		if (!label || labels[index - 1] === label) return null;
+		return `${label} · ${labels.filter((l) => l === label).length}`;
+	};
 	const allSelected = rows.length > 0 && rows.every((r) => selected.has(rowKey(r)));
 	const someSelected = selected.size > 0 && !allSelected;
 	const toggleAll = () =>
@@ -219,19 +236,20 @@ export function DataTable<T>({
 		stack &&
 		cn(
 			"max-md:flex max-md:min-h-8 max-md:min-w-0 max-md:items-center max-md:gap-3 max-md:px-0 max-md:py-1 max-md:whitespace-normal",
+			// Catalogue order: title + aside, meta, status badges, labelled values, actions.
 			c.id === "actions"
-				? "max-md:col-span-2 max-md:justify-stretch max-md:pt-2 max-md:[&_a]:flex-1 max-md:[&_button]:flex-1"
+				? "max-md:order-4 max-md:col-span-2 max-md:justify-stretch max-md:pt-2 max-md:[&_a]:flex-1 max-md:[&_button]:flex-1"
 				: c.stack === "title"
 					? "max-md:col-start-1 max-md:row-start-1 max-md:flex-col max-md:items-start max-md:justify-center max-md:gap-0.5 max-md:text-left max-md:font-medium"
 					: c.stack === "aside"
-						? "max-md:col-start-2 max-md:row-start-1 max-md:items-start max-md:justify-end max-md:text-right max-md:font-semibold"
+						? "max-md:col-start-2 max-md:row-start-1 max-md:items-center max-md:justify-end max-md:self-start max-md:text-right max-md:font-semibold pointer-coarse:max-md:min-h-11"
 						: c.stack === "meta"
-							? "max-md:col-span-2 max-md:min-h-0 max-md:justify-start max-md:py-0 max-md:text-left max-md:text-xs max-md:text-muted-foreground"
+							? "max-md:order-1 max-md:col-span-2 max-md:min-h-0 max-md:justify-start max-md:py-0 max-md:text-left max-md:text-xs max-md:text-muted-foreground"
 							: c.stack === "status"
-								? "max-md:col-span-2 max-md:justify-start max-md:text-left"
+								? "max-md:order-2 max-md:col-span-2 max-md:justify-start max-md:text-left"
 								: c.stack === "plain"
-									? "max-md:col-span-2 max-md:block max-md:text-left"
-									: "max-md:col-span-2 max-md:justify-between max-md:text-right",
+									? "max-md:order-3 max-md:col-span-2 max-md:block max-md:text-left"
+									: "max-md:order-3 max-md:col-span-2 max-md:justify-between max-md:text-right",
 		);
 	// Only "label" columns (the default) show their header inside the stacked card.
 	const stackLabel = (c: DataTableColumn<T>) => stack && (c.stack ?? "label") === "label" && c.id !== "actions";
@@ -269,7 +287,6 @@ export function DataTable<T>({
 				className={cn(
 					"relative rounded-md border",
 					card && "hidden md:block",
-					stack && "max-md:border-0",
 				)}
 			>
 				{!last && edges.end && (
@@ -320,13 +337,25 @@ export function DataTable<T>({
 					<TableBody
 						data-testid={bodyTestId}
 						{...role("rowgroup")}
-						className={cn(stack && "max-md:flex max-md:flex-col max-md:gap-2")}
+						className={cn(stack && "max-md:block")}
 					>
-						{rows.map((row) => {
+						{rows.map((row, index) => {
 							const id = rowKey(row);
 							const detail = expanded?.(row);
+							const label = groupStart(index);
 							return (
 								<Fragment key={id}>
+									{label && (
+										<TableRow {...role("row")} className={cn("hover:bg-transparent", stack && "max-md:block")}>
+											<TableCell
+												{...role("cell")}
+												colSpan={span}
+												className={cn("bg-muted py-1.5 text-xs font-semibold text-muted-foreground", stack && "max-md:block max-md:px-3")}
+											>
+												{label}
+											</TableCell>
+										</TableRow>
+									)}
 									<TableRow
 										data-testid={rowTestId?.(row)}
 										data-state={selected.has(id) || id === activeKey ? "selected" : undefined}
@@ -336,7 +365,7 @@ export function DataTable<T>({
 											selectedBadge,
 											rowClassName,
 											stack &&
-												"max-md:grid max-md:h-auto max-md:grid-cols-[minmax(0,1fr)_auto] max-md:gap-x-3 max-md:rounded-md max-md:border! max-md:px-3 max-md:py-2",
+												"max-md:grid max-md:h-auto max-md:grid-cols-[minmax(0,1fr)_auto] max-md:gap-x-3 max-md:p-3 max-md:data-[state=selected]:bg-muted",
 										)}
 									>
 										{selection && (
@@ -351,7 +380,8 @@ export function DataTable<T>({
 											<TableCell
 												key={c.id}
 												{...role("cell")}
-												className={cn(c.className, cellBg, pin(c.id), stackCell(c), c.cellClassName)}
+												inert={c.id === "actions" && selecting ? true : undefined}
+												className={cn(c.className, cellBg, pin(c.id), stackCell(c), c.cellClassName, c.id === "actions" && selecting && "opacity-50")}
 											>
 												{stackLabel(c) && typeof c.header === "string" && (
 													<span
@@ -395,17 +425,24 @@ export function DataTable<T>({
 						</label>
 					)}
 					<ul className="flex flex-col divide-y rounded-md border text-sm">
-						{rows.map((row) => (
-							<li
-								key={rowKey(row)}
-								data-testid={cardTestId?.(row)}
-								data-state={selected.has(rowKey(row)) || rowKey(row) === activeKey ? "selected" : undefined}
-								className={cn("flex items-start gap-2 p-3 data-[state=selected]:bg-muted", selectedBadge)}
-							>
-								{checkbox(row, "card-")}
-								<div className="flex min-w-0 flex-1 flex-col gap-2">{card(row)}</div>
-							</li>
-						))}
+						<SelectingContext value={selecting}>
+							{rows.map((row, index) => {
+								const label = groupStart(index);
+								return (
+									<Fragment key={rowKey(row)}>
+										{label && <li className="bg-muted px-3 py-1.5 text-xs font-semibold text-muted-foreground">{label}</li>}
+										<li
+											data-testid={cardTestId?.(row)}
+											data-state={selected.has(rowKey(row)) || rowKey(row) === activeKey ? "selected" : undefined}
+											className={cn("flex items-start gap-2 p-3 data-[state=selected]:bg-muted", selectedBadge)}
+										>
+											{checkbox(row, "card-")}
+											<div className="flex min-w-0 flex-1 flex-col gap-2">{card(row)}</div>
+										</li>
+									</Fragment>
+								);
+							})}
+						</SelectingContext>
 					</ul>
 				</div>
 			)}
@@ -448,7 +485,10 @@ export function CardTitle({ title, aside }: { title: ReactNode; aside?: ReactNod
 		<div className="flex items-start justify-between gap-3">
 			<div className="flex min-w-0 flex-col font-medium">{title}</div>
 			{aside && (
-				<div className="flex shrink-0 flex-wrap justify-end gap-1 pt-0.5 text-right font-semibold tabular-nums">{aside}</div>
+				// Level with the first line of the title (a 44px link on touch).
+				<div className="flex shrink-0 flex-wrap items-center justify-end gap-1 text-right font-semibold tabular-nums pointer-coarse:min-h-11">
+					{aside}
+				</div>
 			)}
 		</div>
 	);
@@ -461,7 +501,18 @@ export function CardMeta({ children }: { children: ReactNode }) {
 export function CardStatus({ children }: { children: ReactNode }) {
 	return <div className="flex flex-wrap items-center gap-1">{children}</div>;
 }
-/** Card mode: the actions as a full-width bottom row. */
+/** Card mode: the actions as a full-width bottom row (inert while rows are selected). */
 export function CardActions({ children }: { children: ReactNode }) {
-	return <div className="flex flex-wrap gap-2 pt-1 *:flex-1 [&_a]:whitespace-nowrap [&_button]:whitespace-nowrap">{children}</div>;
+	const selecting = useContext(SelectingContext);
+	return (
+		<div
+			inert={selecting || undefined}
+			className={cn(
+				"flex flex-wrap gap-2 pt-1 *:flex-1 [&_a]:whitespace-nowrap [&_button]:whitespace-nowrap",
+				selecting && "opacity-50",
+			)}
+		>
+			{children}
+		</div>
+	);
 }

@@ -196,7 +196,7 @@ export function AdDestinationsPanel({
 	const pausing = action?.kind === "pause" && !action.dest.paused;
 
 	return (
-		<section aria-labelledby="ad-diagnostics-heading" data-testid="panel-s60-advertising">
+		<div data-testid="panel-s60-advertising">
 			{/* Collapsed by default: owner diagnostics, not daily work (S113 render review). */}
 			<Disclosure
 				id="ad-diagnostics-heading"
@@ -453,7 +453,7 @@ export function AdDestinationsPanel({
 					</form>
 				</DialogContent>
 			</Dialog>
-		</section>
+		</div>
 	);
 }
 
