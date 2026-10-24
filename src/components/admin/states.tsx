@@ -22,21 +22,35 @@ export function LoadingState({
 	columns?: number;
 }) {
 	const placeholders = (n: number) => Array.from({ length: n }, (_, i) => i);
+	// bg-muted is nearly white on cards; the placeholders use the border tone so they read as content.
+	const tone = "bg-border/70";
 	return (
 		<div className="flex flex-col gap-2" aria-busy="true" aria-live="polite">
 			<p className="text-sm text-muted-foreground">{label}</p>
 			{columns ? (
-				<div aria-hidden="true" className="rounded-md border">
-					{placeholders(lines + 1).map((row) => (
-						<div key={row} className="flex h-10 items-center gap-4 border-b px-2 last:border-b-0">
-							{placeholders(columns).map((cell) => (
-								<Skeleton key={cell} className={row === 0 ? "h-3 flex-1" : "h-4 flex-1"} />
-							))}
-						</div>
-					))}
-				</div>
+				<>
+					{/* Same shape as the loaded list: cards below md, a table from md. */}
+					<ul aria-hidden="true" className="flex flex-col divide-y rounded-md border md:hidden">
+						{placeholders(lines).map((row) => (
+							<li key={row} className="flex flex-col gap-2 p-3">
+								<Skeleton className={`h-4 w-2/3 ${tone}`} />
+								<Skeleton className={`h-3 w-1/2 ${tone}`} />
+								<Skeleton className={`h-6 w-24 ${tone}`} />
+							</li>
+						))}
+					</ul>
+					<div aria-hidden="true" className="hidden rounded-md border md:block">
+						{placeholders(lines + 1).map((row) => (
+							<div key={row} className="flex h-10 items-center gap-4 border-b px-2 last:border-b-0">
+								{placeholders(columns).map((cell) => (
+									<Skeleton key={cell} className={`${row === 0 ? "h-3" : "h-4"} flex-1 ${tone}`} />
+								))}
+							</div>
+						))}
+					</div>
+				</>
 			) : (
-				placeholders(lines).map((i) => <Skeleton key={i} className={className} />)
+				placeholders(lines).map((i) => <Skeleton key={i} className={`${className} ${tone}`} />)
 			)}
 		</div>
 	);
