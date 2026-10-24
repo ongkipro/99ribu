@@ -16,6 +16,7 @@ One slice per branch or worktree. A session works only inside its slice's owned 
 | Admin mobile pass (S113 follow-up, S122c) | `admin-mobile` | `src/components/admin/**`, `src/app/admin/**`, admin CSS, `tests/browser/{consignment-payments,admin-*}.test.ts`, `docs/spec/design/renders/admin-mobile/` | storefront, `src/modules/access/**` | merged `c2f6eb0`; the design review returned REVISE, so the fix is in progress on the same branch |
 | S123 buyer registration | `s123-buyer-signup` | `src/app/(storefront)/{masuk,@modal,akun,pesanan}/**`, `src/components/storefront/sign-*`, `buyer-account-client.tsx`, auth routes, `tests/browser/sign-*`, `docs/spec/design/renders/s123-signup/` | `src/components/admin/**` | security review REVISE fixed; now reworking per owner (sign-up = name + email, password set through the emailed link) |
 | S125 guest orders in the buyer account (DEC-016) | not started | waits for S123 merge and S120 | — | planned |
+| S126 buyer profile completion (DEC-017) | not started | waits for S123 merge (shares `/akun`) | — | planned |
 | S124 production email delivery | — | owner picks the provider first | — | owner decision |
 
 
