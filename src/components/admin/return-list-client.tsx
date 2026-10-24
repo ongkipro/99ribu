@@ -64,13 +64,18 @@ export function ReturnListClient({ initialTab }: { initialTab: ReturnTab }) {
 						header: "Pesanan",
 						stack: "title",
 						cell: (row) => (
-							<Link
-								href={`/admin/returns/${row.id}`}
-								className="font-mono font-medium break-all text-primary underline-offset-4 hover:underline focus-visible:rounded-sm focus-visible:outline-2 focus-visible:outline-ring pointer-coarse:inline-flex pointer-coarse:min-h-11 pointer-coarse:items-center"
-								aria-label={`Buka retur pesanan ${row.order_number}`}
-							>
-								{row.order_number}
-							</Link>
+							<span className="flex flex-col">
+								<Link
+									href={`/admin/returns/${row.id}`}
+									className="font-mono font-medium break-all text-primary underline-offset-4 hover:underline focus-visible:rounded-sm focus-visible:outline-2 focus-visible:outline-ring pointer-coarse:inline-flex pointer-coarse:min-h-11 pointer-coarse:items-center"
+									aria-label={`Buka retur pesanan ${row.order_number}`}
+								>
+									{row.order_number}
+								</Link>
+								<span className="text-xs font-normal text-muted-foreground">
+									{RESOLUTION[row.requested_resolution]} · {row.items.length} barang
+								</span>
+							</span>
 						),
 					},
 					{
@@ -87,11 +92,10 @@ export function ReturnListClient({ initialTab }: { initialTab: ReturnTab }) {
 						header: "Diajukan",
 						stack: "meta",
 						className: "whitespace-nowrap tabular-nums",
-						cell: (row) => `${formatWib(row.created_at)} · ${row.items.length} barang`,
+						cell: (row) => formatWib(row.created_at),
 					},
-					{ id: "resolution", header: "Permintaan", cell: (row) => RESOLUTION[row.requested_resolution] },
-					{ id: "reason", header: "Alasan", cell: reasons },
-					{ id: "warehouse", header: "Gudang", className: "md:max-lg:hidden", cell: warehouses },
+					{ id: "reason", header: "Alasan", className: "md:max-lg:hidden", cell: reasons },
+					{ id: "warehouse", header: "Gudang", className: "md:max-xl:hidden", cell: warehouses },
 					{
 						id: "actions",
 						header: <span className="sr-only">Tindakan</span>,

@@ -204,7 +204,7 @@ test("warehouse calendars: owner sees uncovered origin warehouses and applies th
 		});
 		await page.goto(`${origin}/admin/fulfillment`);
 		const panel = page.getByTestId("warehouse-calendars");
-		await panel.getByText("Kalender gudang").click();
+		await panel.getByText("Kalender gudang", { exact: true }).click();
 		await expect(panel.getByTestId("calendar-test-only")).toContainText("TEST-ONLY");
 		await expect(panel.getByTestId("calendar-summary")).toContainText("1 dari 2");
 		await panel.getByTestId("calendar-bulk-open").click();

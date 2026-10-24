@@ -149,7 +149,8 @@ export function WarehouseCalendarPanel() {
 	useEffect(() => {
 		if (notice) noticeRef.current?.focus();
 	}, [notice]);
-	const origins = rows?.filter((r) => r.origin) ?? [];
+	// Uncovered first: the rows that block resi deadlines.
+	const origins = (rows?.filter((r) => r.origin) ?? []).sort((a, b) => Number(a.state === "current") - Number(b.state === "current"));
 	const missing = origins.filter((r) => r.state !== "current" && !r.scheduled);
 	const chosen = rows?.find((r) => r.warehouse_id === selected) ?? null;
 	const done = (message: string) => {
@@ -192,7 +193,7 @@ export function WarehouseCalendarPanel() {
 							</Button>
 						)}
 					</div>
-					<ul className="flex flex-col divide-y rounded-md border" data-testid="calendar-list">
+					<ul className="flex max-h-[28rem] flex-col divide-y overflow-y-auto overscroll-contain rounded-md border" data-testid="calendar-list" aria-label="Gudang asal produk aktif">
 						{origins.map((row) => {
 							const [label, tone] = STATE[row.state];
 							return (

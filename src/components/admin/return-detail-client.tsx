@@ -9,7 +9,6 @@ import { Input } from "@/components/ui/input";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Textarea } from "@/components/ui/textarea";
 import { type ApiFailure, describeFailure, failureText, getJson, readFailure } from "./admin-errors";
-import { DataTable } from "./data-table";
 import { formatWib, rupiah } from "./format";
 import { FormDialog, FormField, nativeSelectClass } from "./form";
 import { AdminPage, DetailSection, PageHeader, StickyActions } from "./page-blocks";
@@ -179,7 +178,7 @@ export function ReturnDetailClient({ caseId, access, canOrders }: { caseId: stri
 	if (decidable) {
 		actions.push(
 			<Button key="approve" data-testid="return-approve" onClick={() => setDialog({ kind: "decide", decision: "approve" })}>
-				Setujui {d.requested_resolution === "refund" ? "refund" : "ganti barang"}
+				Setujui<span className="max-md:sr-only"> {d.requested_resolution === "refund" ? "refund" : "ganti barang"}</span>
 			</Button>,
 			<Button key="evidence" variant="outline" data-testid="return-request-evidence" disabled={d.status === "reviewing"} onClick={() => setDialog({ kind: "decide", decision: "request_evidence" })}>
 				Minta bukti
@@ -269,45 +268,31 @@ export function ReturnDetailClient({ caseId, access, canOrders }: { caseId: stri
 			<div className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_22rem] lg:items-start">
 				<div className="flex min-w-0 flex-col gap-4">
 					<DetailSection id="return-items-heading" title="Barang yang diretur" testId="return-items">
-						<DataTable
-							caption="Barang yang diretur"
-							rows={d.items}
-							rowKey={(item) => item.id}
-							status={{ kind: "ready" }}
-							loadingLabel="Memuat barang…"
-							empty="Tidak ada barang."
-							stack
-							columns={[
-								{
-									id: "product",
-									header: "Barang",
-									stack: "title",
-									cell: (item) => (
-										<span className="flex flex-col">
-											<span className="font-medium">{item.product_name}</span>
-											{item.variant_label && <span className="text-xs text-muted-foreground">{item.variant_label}</span>}
-										</span>
-									),
-								},
-								{
-									id: "inspection",
-									header: "Pemeriksaan",
-									stack: "aside",
-									cell: (item) => {
-										const [label, tone] = INSPECTION[item.inspection_status] ?? [item.inspection_status, "open"];
-										return <StatusBadge tone={tone}>{label}</StatusBadge>;
-									},
-								},
-								{ id: "reason", header: "Alasan", cell: (item) => REASON[item.reason] ?? item.reason },
-								{
-									id: "details",
-									header: "Keterangan pembeli",
-									cell: (item) => (item.details ? <span className="whitespace-pre-line break-words">{item.details}</span> : "—"),
-								},
-								{ id: "warehouse", header: "Gudang", cell: (item) => item.warehouse_name },
-								{ id: "claim", header: "Unit", cell: (item) => CLAIM[item.claim_state] ?? item.claim_state },
-							]}
-						/>
+						{/* A few units with a free-text note: one card each (a table would clip the note). */}
+						<ul className="flex flex-col divide-y rounded-md border">
+							{d.items.map((item) => {
+								const [label, tone] = INSPECTION[item.inspection_status] ?? [item.inspection_status, "open"];
+								return (
+									<li key={item.id} className="flex flex-col gap-1.5 p-3" data-testid="return-item">
+										<div className="flex items-start justify-between gap-3">
+											<span className="flex min-w-0 flex-col">
+												<span className="font-medium">{item.product_name}</span>
+												{item.variant_label && <span className="text-xs text-muted-foreground">{item.variant_label}</span>}
+											</span>
+											<StatusBadge tone={tone}>{label}</StatusBadge>
+										</div>
+										<p className="text-xs text-muted-foreground">
+											{REASON[item.reason] ?? item.reason} · {item.warehouse_name} · {CLAIM[item.claim_state] ?? item.claim_state}
+										</p>
+										{item.details && (
+											<p className="text-sm whitespace-pre-line break-words">
+												<span className="sr-only">Keterangan pembeli: </span>“{item.details}”
+											</p>
+										)}
+									</li>
+								);
+							})}
+						</ul>
 					</DetailSection>
 					<EvidenceSection detail={d} />
 					{(refunds.length > 0 || replacements.length > 0) && (
@@ -367,7 +352,7 @@ export function ReturnDetailClient({ caseId, access, canOrders }: { caseId: stri
 				</div>
 				<div className="flex min-w-0 flex-col gap-4">
 					<DetailSection id="return-next-heading" title="Tindakan berikutnya" testId="return-next">
-						<p className="text-sm text-muted-foreground">{nextHint(d, actions.length > 0)}</p>
+						<p className="text-sm text-muted-foreground">{nextHint(d, actions.length > 0 || replacements.some((r) => { const next = replacementNext(r.status); return !!next && (next.who === "review" ? access.review : access.warehouse); }))}</p>
 						{actions.length > 0 && <StickyActions className="md:flex-col md:items-stretch">{actions}</StickyActions>}
 					</DetailSection>
 					<HistorySection detail={d} />
