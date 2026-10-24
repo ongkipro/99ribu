@@ -17904,15 +17904,25 @@ components:
       properties:
         order_number:
           type: string
+          pattern: ^99-[A-Za-z0-9]{16}$
+          description: The printed order number; matched case-insensitively.
+        order_id:
+          $ref: '#/components/schemas/Id'
         contact:
           type: string
           minLength: 1
           maxLength: 200
       required:
-      - order_number
       - contact
+      oneOf:
+      - required:
+        - order_number
+      - required:
+        - order_id
       additionalProperties: false
-      description: Contact must match the order server-side; response is uniform to prevent enumeration.
+      description: Exactly one order reference. Contact must match the order server-side; an unknown order
+        or a mismatched contact gets the same 202 with a challenge that no code verifies, so the response
+        never reveals whether the order exists.
     Challenge:
       type: object
       properties:
