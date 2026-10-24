@@ -2157,6 +2157,15 @@ paths:
         in: query
         required: false
         schema: *id005
+      - name: q
+        in: query
+        required: false
+        description: Case-insensitive literal substring of the physical SKU code or name.
+        schema:
+          type: string
+          minLength: 1
+          maxLength: 100
+          pattern: \S
       responses:
         '200':
           description: Private inventory result.
@@ -18666,6 +18675,30 @@ components:
           maxItems: 100
           items:
             $ref: '#/components/schemas/TransferAllocation'
+        sku:
+          type:
+          - string
+          - 'null'
+          maxLength: 200
+          description: Physical SKU code (display label).
+        stock_item_name:
+          type:
+          - string
+          - 'null'
+          maxLength: 200
+          description: Physical SKU name (display label).
+        from_warehouse_name:
+          type:
+          - string
+          - 'null'
+          maxLength: 200
+          description: Source warehouse name (display label; no address).
+        to_warehouse_name:
+          type:
+          - string
+          - 'null'
+          maxLength: 200
+          description: Destination warehouse name (display label; no address).
       required:
       - id
       - from_warehouse_id
