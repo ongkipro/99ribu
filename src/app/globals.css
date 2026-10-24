@@ -3361,9 +3361,13 @@ html:has(.signin-sheet[open]) {
 	padding: 40px 28px 28px;
 }
 .signin-close {
-	position: absolute;
+	/* Stays in view while enlarged content scrolls inside the sheet (round 63); the negative margins
+	   keep it out of the column's flow, where the absolute version used to sit. */
+	position: sticky;
 	top: 8px;
-	right: 8px;
+	z-index: 1;
+	justify-self: end;
+	margin: -32px -20px -12px 0;
 }
 @media (max-width: 700px) {
 	.signin-sheet {
@@ -5434,6 +5438,8 @@ body:has(> .store-header) {
 }
 .banner {
 	scroll-snap-align: start;
+	/* Cards in one rail share a height and their actions share a baseline (round 63). */
+	display: grid;
 }
 .banner-card {
 	display: grid;
@@ -5479,6 +5485,7 @@ body:has(> .store-header) {
 }
 .banner-caption {
 	display: grid;
+	grid-template-rows: auto auto 1fr;
 	justify-items: start;
 	gap: 6px;
 	padding: 20px 24px 24px;
@@ -5494,6 +5501,7 @@ body:has(> .store-header) {
 	color: #3f3d48;
 }
 .home-main .home-banners .banner-action {
+	align-self: end;
 	display: inline-flex;
 	align-items: center;
 	gap: 6px;
@@ -5559,6 +5567,7 @@ body:has(> .store-header) {
 		height: 400px;
 	}
 	.banner:only-child .banner-caption {
+		grid-template-rows: none;
 		align-content: center;
 		padding: 40px;
 	}
