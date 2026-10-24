@@ -26,6 +26,7 @@ import { rupiah, wibDateTime } from "@/modules/storefront/format";
 import { failureText, getJson, readFailure } from "./admin-errors";
 import { DataTable } from "./data-table";
 import { ErrorState } from "./states";
+import { StatusBadge } from "./status";
 import {
 	BLOCKER_LABELS,
 	blockerLabel,
@@ -39,8 +40,8 @@ import {
 	PRICE_IDR,
 	type PublicationState,
 	readAll,
-	STATUS_BADGE,
 	STATUS_LABELS,
+	STATUS_TONE,
 } from "./catalog-model";
 
 type Load<T> =
@@ -318,9 +319,9 @@ export function CatalogProductClient({
 								</p>
 								<div className="flex flex-wrap items-center gap-2">
 									{state ? (
-										<Badge variant={STATUS_BADGE[catalogStatus(state)]}>
+										<StatusBadge tone={STATUS_TONE[catalogStatus(state)]}>
 											{STATUS_LABELS[catalogStatus(state)]}
-										</Badge>
+										</StatusBadge>
 									) : (
 										<Skeleton className="h-5 w-24" />
 									)}
@@ -446,6 +447,7 @@ export function CatalogProductClient({
 										loadingLabel="Memuat stok…"
 										empty="Belum ada saldo stok untuk komponen produk ini."
 										caption="Stok komponen per gudang"
+										stack
 										columns={[
 											{ id: "item", header: "Komponen", cellClassName: "max-w-56 whitespace-normal", cell: (row) => componentName(row.stock_item_id) },
 											{

@@ -21,9 +21,10 @@ import {
 	type Page,
 	type ProductSummary,
 	readAll,
-	STATUS_BADGE,
 	STATUS_LABELS,
+	STATUS_TONE,
 } from "./catalog-model";
+import { StatusBadge } from "./status";
 
 const PAGE_SIZE = 25;
 const STATUSES: CatalogStatus[] = [
@@ -193,7 +194,7 @@ export function CatalogListClient({
 
 	const status = (r: ProductSummary) => (
 		<div className="flex min-w-0 flex-col items-start gap-0.5">
-			<Badge variant={STATUS_BADGE[r.state]}>{STATUS_LABELS[r.state]}</Badge>
+			<StatusBadge tone={STATUS_TONE[r.state]}>{STATUS_LABELS[r.state]}</StatusBadge>
 			{r.state !== "published" && r.blocker_codes.length > 0 && (
 				<span className="text-xs text-muted-foreground">
 					{blockerLabel(r.blocker_codes[0])}
