@@ -1,16 +1,7 @@
 "use client";
 
 import { cn } from "cn";
-import {
-	CircleAlert,
-	CircleCheck,
-	Clock,
-	Download,
-	Info,
-	type LucideIcon,
-	Printer,
-	X,
-} from "lucide-react";
+import { CircleAlert, Download, Info, Printer, X } from "lucide-react";
 import Link from "next/link";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { Alert, AlertDescription } from "@/components/ui/alert";
@@ -33,9 +24,10 @@ import {
 import { describeFailure, failureText, readFailure } from "./admin-errors";
 import type { ConsoleAccess } from "./console-access";
 import { DataTable } from "./data-table";
-import { nativeSelectClass } from "./form";
+import { nativeSelectClass, SegmentedControl } from "./form";
 import { KpiCard, KpiGrid } from "./kpi-card";
 import { ErrorState, LoadingState } from "./states";
+import { isOverdue, OverdueBadge, StatusBadge, useNow } from "./status";
 
 export type CanonicalWorkspace =
 	| "owner"
@@ -97,6 +89,9 @@ interface WorkQueueItem {
 	version: number;
 	reference: string | null;
 	order_id: string | null;
+	/** Reconciliation rows: net settlement amount and feed. */
+	amount_idr?: number | null;
+	settlement_source?: "payment" | "cod" | null;
 }
 
 type DueAtKind =
@@ -184,6 +179,25 @@ const ACTION_LABELS: Record<string, string> = {
 };
 // Low stock per warehouse shows the largest few; payment methods show all.
 const BREAKDOWN_SHOWN = 3;
+// Counts that are work someone must clear; a non-zero one leads the grid in the warning tone.
+// The others (all active orders, the payment-method split) are context, not a to-do.
+const ACTION_METRICS = new Set([
+	"fulfillments_due",
+	"manual_booking_pending",
+	"delivery_exceptions",
+	"returns_pending",
+	"stock_alerts",
+	"support_unassigned",
+	"finance_unmatched",
+	"transfers_near_deadline",
+	"autolaris_pending",
+]);
+const kpiTone = (m: DashboardMetric) =>
+	!m.complete ? "neutral" : (m.count ?? 0) === 0 ? "idle" : ACTION_METRICS.has(m.key) ? "attention" : "neutral";
+const TONE_RANK = { attention: 0, neutral: 1, idle: 2 } as const;
+// Deadlines a row can miss; creation/update times are never "late".
+const DEADLINE_KINDS = new Set<DueAtKind>(["payment_deadline", "packing_deadline", "handover_deadline"]);
+const SETTLEMENT_SOURCE_LABELS = { payment: "Pembayaran", cod: "Setoran COD" } as const;
 
 const BASIS_LABELS: Record<DashboardMetric["financial_basis"], string> = {
 	actual: "Aktual",
@@ -240,12 +254,8 @@ const KIND_LABELS: Record<string, string> = {
 	reconciliation: "Mutasi",
 };
 
-type Tone = "open" | "problem" | "done";
-const TONE_ICON: Record<Tone, LucideIcon> = {
-	open: Clock,
-	problem: CircleAlert,
-	done: CircleCheck,
-};
+// Tones of StatusBadge (status.tsx); "closed" is terminal without success.
+type Tone = "open" | "problem" | "done" | "closed";
 
 // [label, tone] per state; per-kind entries override the shared ones.
 const SHARED_STATES: Record<string, [string, Tone]> = {
@@ -260,7 +270,7 @@ const KIND_STATES: Record<string, Record<string, [string, Tone]>> = {
 	order: {
 		processing: ["Diproses", "open"],
 		partially_completed: ["Selesai sebagian", "open"],
-		cancelled: ["Dibatalkan", "done"],
+		cancelled: ["Dibatalkan", "closed"],
 	},
 	fulfillment: {
 		ready: ["Siap diambil", "open"],
@@ -282,7 +292,7 @@ const KIND_STATES: Record<string, Record<string, [string, Tone]>> = {
 		requested: ["Diajukan", "open"],
 		reviewing: ["Ditinjau", "open"],
 		approved: ["Disetujui", "open"],
-		rejected: ["Ditolak", "done"],
+		rejected: ["Ditolak", "closed"],
 		awaiting_goods: ["Menunggu barang", "open"],
 		inspecting: ["Diperiksa", "open"],
 		replacing: ["Penggantian berjalan", "open"],
@@ -729,6 +739,28 @@ const PREVIEW_DESTINATIONS: AdDestinationItem[] = [
 	},
 ];
 
+/** Full metric definitions; cards show at most two lines (none below md). */
+function Definitions({ metrics }: { metrics: DashboardMetric[] }) {
+	if (metrics.length === 0) return null;
+	return (
+		<details className="text-xs text-muted-foreground">
+			<summary className="cursor-pointer py-1.5 font-medium select-none pointer-coarse:py-3">
+				Arti setiap angka
+			</summary>
+			<dl className="mt-2 grid gap-1.5">
+				{metrics.map((m) => (
+					<div key={m.key}>
+						<dt className="inline font-medium text-foreground">
+							{METRIC_LABELS[m.key] ?? m.key}:{" "}
+						</dt>
+						<dd className="inline">{m.definition}</dd>
+					</div>
+				))}
+			</dl>
+		</details>
+	);
+}
+
 function normalizeWorkspaceParam(
 	raw: string | null,
 ): CanonicalWorkspace | null {
@@ -1069,7 +1101,12 @@ export function AdminWorkspacesClient({
 			? (PREVIEW_METRICS[workspace] ?? [])
 			: (dashboard?.metrics ?? []);
 	const canSeeMoney = workspace === "owner" || workspace === "finance";
-	const countMetrics = metrics.filter((m) => m.kind === "count");
+	// Work first (non-zero action counts), then context, then zero queues; stable within a group.
+	const countMetrics = metrics
+		.filter((m) => m.kind === "count")
+		.map((m, i) => ({ m, i }))
+		.sort((a, b) => TONE_RANK[kpiTone(a.m)] - TONE_RANK[kpiTone(b.m)] || a.i - b.i)
+		.map(({ m }) => m);
 	const moneyMetrics = canSeeMoney
 		? metrics.filter((m) => m.kind === "money")
 		: [];
@@ -1103,6 +1140,7 @@ export function AdminWorkspacesClient({
 	const canOrders = !preview && canOrdersGrant;
 	// The API reports Asia/Jakarta; every time below is shown and labeled as WIB.
 	const formatTime = (iso: string | null) => (iso ? wibDateTime(iso) : "—");
+	const now = useNow();
 	const openExport = (mode: "filter" | "selection") => {
 		exportOpenerRef.current = document.activeElement as HTMLElement | null;
 		setExportMode(mode);
@@ -1233,48 +1271,72 @@ export function AdminWorkspacesClient({
 		return null;
 	};
 
-	// Human reference from the API; the short id only when the row has none.
+	// Human reference from the API (order number, resi, SKU, mutation reference); never a row id.
 	const referenceText = (item: WorkQueueItem) =>
-		item.reference ?? `#${item.id.slice(0, 8).toUpperCase()}`;
-	const reference = (item: WorkQueueItem) => (
-		<div className="flex min-w-0 flex-col">
-			<span className="text-xs text-muted-foreground">
-				{KIND_LABELS[item.resource_kind] ?? item.resource_kind}
-			</span>
-			{canOrders && item.order_id ? (
-				<Link
-					href={`/admin/orders/${item.order_id}`}
-					className="font-mono text-sm font-medium break-all text-primary underline-offset-4 hover:underline"
-					aria-label={`Buka detail pesanan ${referenceText(item)}`}
-				>
-					{referenceText(item)}
-				</Link>
-			) : (
-				<span className="font-mono text-sm font-medium break-all" title={item.id}>
-					{referenceText(item)}
+		item.reference ??
+		(item.resource_kind === "conversation" ? "Percakapan tanpa pesanan" : "Tanpa nomor pesanan");
+	// Each row opens its order, or for an unmatched settlement the screen that records it.
+	const settlementHref = (item: WorkQueueItem) =>
+		item.resource_kind === "reconciliation" && !item.order_id && access.reconcileRead && !preview
+			? item.settlement_source === "cod"
+				? "/admin/cod-settlements"
+				: "/admin/payments"
+			: null;
+	const rowHref = (item: WorkQueueItem) =>
+		canOrders && item.order_id ? `/admin/orders/${item.order_id}` : settlementHref(item);
+	const reference = (item: WorkQueueItem) => {
+		const href = rowHref(item);
+		const kind =
+			item.resource_kind === "reconciliation" && item.settlement_source
+				? SETTLEMENT_SOURCE_LABELS[item.settlement_source]
+				: (KIND_LABELS[item.resource_kind] ?? item.resource_kind);
+		const mono = item.reference !== null;
+		return (
+			<div className="flex min-w-0 flex-col">
+				<span className="text-xs text-muted-foreground">
+					{kind}
+					{item.resource_kind === "reconciliation" && item.amount_idr != null && (
+						<span className="tabular-nums"> · {rupiah(item.amount_idr)}</span>
+					)}
 				</span>
-			)}
-		</div>
-	);
+				{href ? (
+					<Link
+						href={href}
+						className={cn(
+							"text-sm font-medium break-all text-primary underline-offset-4 hover:underline",
+							mono && "font-mono",
+						)}
+						aria-label={
+							item.order_id
+								? `Buka detail pesanan ${referenceText(item)}`
+								: `Buka ${SETTLEMENT_SOURCE_LABELS[item.settlement_source ?? "payment"]} untuk ${referenceText(item)}`
+						}
+					>
+						{referenceText(item)}
+					</Link>
+				) : (
+					<span className={cn("text-sm font-medium break-all", mono && "font-mono")}>
+						{referenceText(item)}
+					</span>
+				)}
+			</div>
+		);
+	};
 	const rowTimeLabel = (item: WorkQueueItem) =>
 		item.due_at_kind ? DUE_AT_KIND_LABELS[item.due_at_kind] : timeLabel;
 
 	const status = (item: WorkQueueItem) => {
 		const [label, tone] = describeState(item.resource_kind, item.state);
-		const Icon = TONE_ICON[tone];
+		const late =
+			(tone === "open" || tone === "problem") &&
+			item.due_at_kind !== null &&
+			DEADLINE_KINDS.has(item.due_at_kind) &&
+			isOverdue(item.due_at, now);
 		return (
-			<Badge
-				variant={
-					tone === "problem"
-						? "warning"
-						: tone === "done"
-							? "outline"
-							: "secondary"
-				}
-			>
-				<Icon aria-hidden="true" />
-				{label}
-			</Badge>
+			<span className="flex flex-wrap gap-1">
+				<StatusBadge tone={tone}>{label}</StatusBadge>
+				{late && <OverdueBadge />}
+			</span>
 		);
 	};
 
@@ -1404,6 +1466,7 @@ export function AdminWorkspacesClient({
 												: null
 										}
 										active={metricKey === m.key}
+										tone={kpiTone(m)}
 										drilldownLabel="Lihat baris"
 										onDrilldown={() => {
 											openQueue(m.queue_key, m);
@@ -1414,23 +1477,7 @@ export function AdminWorkspacesClient({
 								);
 							})}
 						</KpiGrid>
-						{countMetrics.length > 0 && (
-							<details className="text-xs text-muted-foreground">
-								<summary className="cursor-pointer select-none font-medium">
-									Arti setiap angka
-								</summary>
-								<dl className="mt-2 grid gap-1.5">
-									{countMetrics.map((m) => (
-										<div key={m.key}>
-											<dt className="inline font-medium text-foreground">
-												{METRIC_LABELS[m.key] ?? m.key}:{" "}
-											</dt>
-											<dd className="inline">{m.definition}</dd>
-										</div>
-									))}
-								</dl>
-							</details>
-						)}
+						<Definitions metrics={countMetrics} />
 					</>
 				)}
 			</section>
@@ -1507,26 +1554,13 @@ export function AdminWorkspacesClient({
 					</p>
 				)}
 
-				<fieldset className="flex flex-wrap gap-1.5">
-					<legend className="sr-only">Pilih antrean</legend>
-					{WORKSPACE_ALLOWED_QUEUES[workspace].map((q) => {
-						const active = queue === q;
-						return (
-							<Button
-								key={q}
-								type="button"
-								size="sm"
-								variant={active ? "secondary" : "ghost"}
-								aria-pressed={active}
-								data-testid={`queue-tab-${q}`}
-								className={cn(active && "ring-1 ring-primary/40")}
-								onClick={() => openQueue(q, null)}
-							>
-								{QUEUE_LABELS[q]}
-							</Button>
-						);
-					})}
-				</fieldset>
+				<SegmentedControl
+					legend="Pilih antrean"
+					value={queue}
+					options={WORKSPACE_ALLOWED_QUEUES[workspace].map((q) => [q, QUEUE_LABELS[q]] as const)}
+					onChange={(q) => openQueue(q, null)}
+					testId={(q) => `queue-tab-${q}`}
+				/>
 
 				{activeMetric && (
 					<div className="flex flex-wrap items-center gap-2">
@@ -1695,8 +1729,8 @@ export function AdminWorkspacesClient({
 						onMore: () => void loadMore(),
 					}}
 					footer={
-						// Rows that link to the S100 order detail need no "no detail page" note.
-						!hasRowActions && !(canOrders && rows.some((r) => r.order_id)) && (
+						// Rows that link to an order or settlement screen need no "no detail page" note.
+						!hasRowActions && !rows.some((r) => rowHref(r)) && (
 							<p className="text-xs text-muted-foreground">
 								Halaman detail untuk {QUEUE_LABELS[queue].toLowerCase()} belum
 								tersedia di konsol
@@ -1755,6 +1789,7 @@ export function AdminWorkspacesClient({
 							);
 						})}
 					</KpiGrid>
+					<Definitions metrics={moneyMetrics} />
 				</section>
 			)}
 
