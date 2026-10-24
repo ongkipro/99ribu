@@ -3796,6 +3796,23 @@ export async function previewSavedReplyDraft(
 	return response;
 }
 
+/**
+ * S113: staff who can hold a conversation (the assignment target rule: owner or customer_service),
+ * by display name for the handoff picker and the assignee label. Names only: no email or contact.
+ */
+export async function listSupportAgents(tx: TransactionSql, url: URL) {
+	if ([...url.searchParams.keys()].length > 0) throw invalid();
+	const rows = await tx<{ id: string; name: string }[]>`
+		select u.id, u.name
+		from app.auth_user u
+		join app.role_grant g on g.user_id = u.id
+		where g.roles && array['owner', 'customer_service']::text[]
+		order by u.name asc, u.id asc
+		limit 200
+	`;
+	return { data: rows.map((r) => ({ id: String(r.id), name: String(r.name) })) };
+}
+
 export async function listSupportTags(tx: TransactionSql, url: URL) {
 	for (const k of url.searchParams.keys()) {
 		if (

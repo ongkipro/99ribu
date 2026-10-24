@@ -28,6 +28,7 @@ import {
 	listPublicMessages,
 	listStaffInternalNotes,
 	listStaffSupportInbox,
+	listSupportAgents,
 	listSupportNotifications,
 	listSupportSavedReplies,
 	listSupportTags,
@@ -389,6 +390,12 @@ export async function handleSupport(request: Request, identity: LocalAuth) {
 					await identity.sql.begin((tx) =>
 						listStaffSupportInbox(tx, principal, url),
 					),
+				);
+			}
+
+			if (path === "/api/v1/admin/support/agents" && method === "GET") {
+				return privateJson(
+					await identity.sql.begin((tx) => listSupportAgents(tx, url)),
 				);
 			}
 

@@ -9096,6 +9096,57 @@ paths:
               $ref: '#/components/schemas/SupportSavedReplyInput'
       x-proof-group: support
       x-implementation: src/app/api/v1/admin/support/saved-replies/[definitionId]/versions/route.ts
+  /admin/support/agents:
+    get:
+      operationId: listSupportAgents
+      summary: List staff who can hold a support conversation
+      description: Implemented-local first-party endpoint (S113). Owner and customer service staff, by display
+        name, for the handoff picker and the assignee label. Exactly the users an assignment may target (owner or
+        customer_service role); names only, never email, phone or other contact data. Sensitive responses are
+        no-store.
+      tags:
+      - Administration
+      security:
+      - sessionCookie: []
+      - bearerAuth: []
+      x-contract-status: implemented-local
+      x-domain-owner: support
+      x-primary-requirement: PR-22
+      responses:
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '429':
+          $ref: '#/components/responses/TooManyRequests'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        default:
+          description: Unexpected server/proxy failure; clients tolerate a non-Problem gateway body.
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+        '200':
+          description: Successful response.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SupportAgentList'
+          headers:
+            Cache-Control:
+              description: Private response; never shared cached.
+              schema:
+                type: string
+                const: no-store
+        '503':
+          $ref: '#/components/responses/Unavailable'
+      x-allowed-roles:
+      - owner
+      - customer_service
+      x-required-permission: support.tools.read
+      x-proof-group: support
+      x-implementation: src/app/api/v1/admin/support/agents/route.ts
   /admin/support/tags:
     get:
       operationId: listSupportTagDefinitions
@@ -21929,6 +21980,31 @@ components:
       - version
       - label
       - enabled
+      additionalProperties: false
+    SupportAgentList:
+      type: object
+      properties:
+        data:
+          type: array
+          minItems: 0
+          maxItems: 200
+          items:
+            type: object
+            properties:
+              id:
+                type: string
+                minLength: 1
+                maxLength: 200
+              name:
+                type: string
+                minLength: 1
+                maxLength: 200
+            required:
+            - id
+            - name
+            additionalProperties: false
+      required:
+      - data
       additionalProperties: false
     SupportTagList:
       type: object
