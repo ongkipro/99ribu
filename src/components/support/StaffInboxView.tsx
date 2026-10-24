@@ -5,8 +5,9 @@ import { CircleAlert, CircleCheck, RefreshCw } from "lucide-react";
 import Link from "next/link";
 import type React from "react";
 import { useEffect, useId, useLayoutEffect, useRef, useState } from "react";
-import { DataTable } from "@/components/admin/data-table";
-import { FormField, nativeSelectClass } from "@/components/admin/form";
+import { CardActions, CardMeta, CardTitle, DataTable } from "@/components/admin/data-table";
+import { FilterSheet, FormField, nativeSelectClass } from "@/components/admin/form";
+import { AdminPage, PageHeader, StickyActions } from "@/components/admin/page-blocks";
 import { StatusBadge, type StatusTone } from "@/components/admin/status";
 import { useKeysetList } from "@/components/admin/use-keyset-list";
 import { Alert, AlertDescription } from "@/components/ui/alert";
@@ -294,6 +295,7 @@ export function StaffInboxView({ staffUser }: { staffUser: StaffUser }) {
 	} | null>(null);
 	const [loadingOlder, setLoadingOlder] = useState(false);
 	const activeConvRef = useRef<string | null>(null);
+	const threadHeadingRef = useRef<HTMLHeadingElement>(null);
 	const logRef = useRef<HTMLDivElement | null>(null);
 	const scrollAnchorRef = useRef<{ height: number; top: number } | null>(null);
 	const scrollToEndRef = useRef(false);
@@ -432,6 +434,12 @@ export function StaffInboxView({ staffUser }: { staffUser: StaffUser }) {
 		const cid = item.conversation.id;
 		activeConvRef.current = cid;
 		setSelected(item);
+		// Phones stack the thread under the queue: bring it into view and move focus to its title.
+		if (window.matchMedia("(max-width: 767px)").matches)
+			requestAnimationFrame(() => {
+				threadHeadingRef.current?.scrollIntoView({ block: "start" });
+				threadHeadingRef.current?.focus({ preventScroll: true });
+			});
 		setMessages([]);
 		setNotes([]);
 		setClassification(null);
@@ -899,19 +907,17 @@ export function StaffInboxView({ staffUser }: { staffUser: StaffUser }) {
 	const claimNeededId = `${baseId}-claim-needed`;
 
 	return (
-		<div className="flex flex-col gap-5 px-4 py-5 md:px-8 md:py-6">
-			<header className="flex flex-wrap items-end justify-between gap-3 border-b pb-5">
-				<div className="flex min-w-0 flex-col gap-1">
-					<h1 className="text-2xl font-semibold tracking-tight">Kotak Masuk Pelanggan</h1>
-					<p className="max-w-prose text-sm text-muted-foreground">
-						Klaim percakapan sebelum membalas. Catatan internal tidak pernah terlihat oleh pelanggan.
-					</p>
-				</div>
-				<Button type="button" variant="outline" onClick={() => void inboxList.reload()}>
-					<RefreshCw data-icon="inline-start" aria-hidden="true" />
-					Segarkan antrean
-				</Button>
-			</header>
+		<AdminPage>
+			<PageHeader
+				title="Kotak Masuk Pelanggan"
+				description="Klaim percakapan sebelum membalas. Catatan internal tidak pernah terlihat oleh pelanggan."
+				actions={
+					<Button type="button" variant="outline" onClick={() => void inboxList.reload()}>
+						<RefreshCw data-icon="inline-start" aria-hidden="true" />
+						Segarkan antrean
+					</Button>
+				}
+			/>
 
 			{error && (
 				<Alert
@@ -934,48 +940,57 @@ export function StaffInboxView({ staffUser }: { staffUser: StaffUser }) {
 			)}
 
 			{/* Queue: filters and the keyset DataTable of conversations */}
-			<section aria-labelledby={`${baseId}-queue-heading`} className="flex flex-col gap-3 rounded-lg border bg-card p-4">
+			<section aria-labelledby={`${baseId}-queue-heading`} className="flex flex-col gap-3 md:rounded-lg md:border md:bg-card md:p-4">
 				<h2 id={`${baseId}-queue-heading`} className="text-base font-semibold">
 					Antrean percakapan
 				</h2>
 				<div className="grid items-end gap-3 sm:grid-cols-2 lg:grid-cols-4">
-					<FormField id={`${baseId}-assign`} label="Klaim penugasan">
-						<select
-							id={`${baseId}-assign`}
-							value={assignmentFilter}
-							onChange={(e) => setAssignmentFilter(e.target.value as "unassigned" | "assigned_to_me" | "all")}
-							className={nativeSelectClass}
-						>
-							<option value="unassigned">Belum diklaim</option>
-							<option value="assigned_to_me">Klaim saya</option>
-							<option value="all">Semua percakapan</option>
-						</select>
-					</FormField>
-					<FormField id={`${baseId}-status`} label="Status percakapan">
-						<select id={`${baseId}-status`} value={statusFilter} onChange={(e) => setStatusFilter(e.target.value)} className={nativeSelectClass}>
-							<option value="">Semua status</option>
-							<option value="open">Terbuka</option>
-							<option value="waiting_customer">Menunggu pelanggan</option>
-							<option value="resolved">Selesai</option>
-						</select>
-					</FormField>
-					<FormField id={`${baseId}-prio`} label="Prioritas internal">
-						<select id={`${baseId}-prio`} value={priorityFilter} onChange={(e) => setPriorityFilter(e.target.value)} className={nativeSelectClass}>
-							<option value="">Semua prioritas</option>
-							<option value="high">Tinggi</option>
-							<option value="normal">Normal</option>
-							<option value="low">Rendah</option>
-						</select>
-					</FormField>
-					<label className="flex min-h-9 items-center gap-2 text-sm font-medium pointer-coarse:min-h-11">
-						<input
-							type="checkbox"
-							className="size-4 accent-primary"
-							checked={unreadOnly}
-							onChange={(e) => setUnreadOnly(e.target.checked)}
-						/>
-						Hanya yang belum saya baca
-					</label>
+					<FilterSheet
+						active={
+							(assignmentFilter === "unassigned" ? 0 : 1) +
+							(statusFilter ? 1 : 0) +
+							(priorityFilter ? 1 : 0) +
+							(unreadOnly ? 1 : 0)
+						}
+					>
+						<FormField id={`${baseId}-assign`} label="Klaim penugasan">
+							<select
+								id={`${baseId}-assign`}
+								value={assignmentFilter}
+								onChange={(e) => setAssignmentFilter(e.target.value as "unassigned" | "assigned_to_me" | "all")}
+								className={nativeSelectClass}
+							>
+								<option value="unassigned">Belum diklaim</option>
+								<option value="assigned_to_me">Klaim saya</option>
+								<option value="all">Semua percakapan</option>
+							</select>
+						</FormField>
+						<FormField id={`${baseId}-status`} label="Status percakapan">
+							<select id={`${baseId}-status`} value={statusFilter} onChange={(e) => setStatusFilter(e.target.value)} className={nativeSelectClass}>
+								<option value="">Semua status</option>
+								<option value="open">Terbuka</option>
+								<option value="waiting_customer">Menunggu pelanggan</option>
+								<option value="resolved">Selesai</option>
+							</select>
+						</FormField>
+						<FormField id={`${baseId}-prio`} label="Prioritas internal">
+							<select id={`${baseId}-prio`} value={priorityFilter} onChange={(e) => setPriorityFilter(e.target.value)} className={nativeSelectClass}>
+								<option value="">Semua prioritas</option>
+								<option value="high">Tinggi</option>
+								<option value="normal">Normal</option>
+								<option value="low">Rendah</option>
+							</select>
+						</FormField>
+						<label className="flex min-h-9 items-center gap-2 text-sm font-medium pointer-coarse:min-h-11">
+							<input
+								type="checkbox"
+								className="size-4 accent-primary"
+								checked={unreadOnly}
+								onChange={(e) => setUnreadOnly(e.target.checked)}
+							/>
+							Hanya yang belum saya baca
+						</label>
+					</FilterSheet>
 				</div>
 				<DataTable
 					rows={inboxList.rows}
@@ -1027,14 +1042,11 @@ export function StaffInboxView({ staffUser }: { staffUser: StaffUser }) {
 					]}
 					card={(item) => (
 						<>
-							<div className="flex flex-wrap items-start justify-between gap-2">
-								{conversationCell(item)}
-								{statusBadge(item.conversation.status)}
-							</div>
-							<p className="text-xs text-muted-foreground">
+							<CardTitle title={conversationCell(item)} aside={statusBadge(item.conversation.status)} />
+							<CardMeta>
 								{assigneeText(item)} · {item.current_agent_unread_messages} belum dibaca
-							</p>
-							<div>{openButton(item)}</div>
+							</CardMeta>
+							<CardActions>{openButton(item)}</CardActions>
 						</>
 					)}
 				/>
@@ -1054,7 +1066,13 @@ export function StaffInboxView({ staffUser }: { staffUser: StaffUser }) {
 						<>
 							<div className="flex flex-wrap items-start justify-between gap-3 border-b pb-3">
 								<div className="flex min-w-0 flex-col gap-1.5">
-									<h2 className="text-lg font-semibold">{conversationLabel(selected)}</h2>
+									<h2
+										ref={threadHeadingRef}
+										tabIndex={-1}
+										className="scroll-mt-16 text-lg font-semibold outline-none focus-visible:ring-2 focus-visible:ring-ring/50"
+									>
+										{conversationLabel(selected)}
+									</h2>
 									<div className="flex flex-wrap items-center gap-2 text-sm text-muted-foreground">
 										{statusBadge(selected.conversation.status)}
 										<span>
@@ -1063,7 +1081,8 @@ export function StaffInboxView({ staffUser }: { staffUser: StaffUser }) {
 										</span>
 									</div>
 								</div>
-								<div className="flex flex-wrap gap-2">
+								{/* The thread's primary actions: a sticky bottom bar on phones. */}
+								<StickyActions>
 									{!isClaimedByMe && (
 										<Button
 											type="button"
@@ -1081,7 +1100,7 @@ export function StaffInboxView({ staffUser }: { staffUser: StaffUser }) {
 									>
 										{busy === "read" ? "Menyimpan…" : "Tandai dibaca"}
 									</Button>
-								</div>
+								</StickyActions>
 							</div>
 
 							{hasOlder && (
@@ -1412,6 +1431,6 @@ export function StaffInboxView({ staffUser }: { staffUser: StaffUser }) {
 					)}
 				</section>
 			</div>
-		</div>
+		</AdminPage>
 	);
 }

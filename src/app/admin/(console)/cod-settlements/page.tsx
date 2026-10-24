@@ -2,6 +2,7 @@ import { CodSettlementsClient } from "../../../../components/admin/cod-settlemen
 import { AccessDenied } from "../../../../components/admin/access-denied";
 import { consoleAccess } from "../../../../components/admin/console-access";
 import { readStaffAccess } from "../staff-roles";
+import { AdminPage, PageHeader } from "../../../../components/admin/page-blocks";
 
 export const dynamic = "force-dynamic";
 export const metadata = {
@@ -21,15 +22,17 @@ export default async function CodSettlementsPage() {
 			</AccessDenied>
 		);
 	return (
-		<div className="flex flex-col gap-6 px-4 py-5 md:px-8 md:py-6">
-			<header className="flex flex-col gap-1.5 border-b pb-5">
-				<h1 className="text-2xl font-semibold tracking-tight">Setoran COD Mengantar</h1>
-				<p className="max-w-prose text-sm text-muted-foreground">
-					Catat laporan saldo COD dari dashboard Mengantar. Penerimaan per paket dan
-					dana masuk dicocokkan otomatis; selisih ditandai untuk ditinjau.
-				</p>
-			</header>
+		<AdminPage>
+			<PageHeader
+				title="Setoran COD Mengantar"
+				description={
+					<>
+						Catat laporan saldo COD dari dashboard Mengantar. Penerimaan per paket dan
+						dana masuk dicocokkan otomatis; selisih ditandai untuk ditinjau.
+					</>
+				}
+			/>
 			<CodSettlementsClient canWrite={access.reconcileWrite} />
-		</div>
+		</AdminPage>
 	);
 }

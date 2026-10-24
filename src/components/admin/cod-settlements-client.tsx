@@ -159,7 +159,7 @@ export function CodSettlementsClient({ canWrite }: { canWrite: boolean }) {
 					<AlertDescription className="text-foreground">{notice}</AlertDescription>
 				</Alert>
 			)}
-			<div className="flex flex-wrap items-center gap-2">
+			<div className="flex flex-wrap items-center gap-2 max-md:*:flex-1">
 				<Button
 					onClick={() => setOpen(true)}
 					data-testid="cod-record-open"
@@ -193,11 +193,13 @@ export function CodSettlementsClient({ canWrite }: { canWrite: boolean }) {
 				empty="Belum ada setoran COD Mengantar yang dicatat."
 				testId="cod-statements"
 				caption="Setoran COD Mengantar yang dicatat, terbaru di atas"
+				stack
 				columns={[
 					{
 						id: "reference",
 						header: "Referensi",
-						cellClassName: "font-medium",
+						stack: "title",
+						cellClassName: "font-medium max-md:block",
 						cell: (row) => (
 							<>
 								{row.reference}
@@ -205,13 +207,14 @@ export function CodSettlementsClient({ canWrite }: { canWrite: boolean }) {
 							</>
 						),
 					},
-					{ id: "date", header: "Tanggal laporan", cell: (row) => wibDate(row.statement_at) },
+					{ id: "date", header: "Tanggal laporan", stack: "meta", cell: (row) => wibDate(row.statement_at) },
 					{ id: "gross", header: "Tertagih", className: "text-right tabular-nums", cell: (row) => rupiah(row.gross_amount) },
-					{ id: "net", header: "Diterima", className: "text-right tabular-nums", cell: (row) => rupiah(row.net_amount) },
+					{ id: "net", header: "Diterima", stack: "aside", className: "text-right tabular-nums", cell: (row) => rupiah(row.net_amount) },
 					{ id: "expected", header: "Perkiraan bersih", className: "text-right tabular-nums", cell: (row) => rupiah(row.expected_net_amount) },
 					{
 						id: "status",
 						header: "Status",
+						stack: "status",
 						cell: (row) => (
 							<div className="flex flex-wrap gap-1">
 								<StatusBadge tone={SETTLEMENT_TONE[row.settlement?.status ?? "pending"] ?? "open"}>

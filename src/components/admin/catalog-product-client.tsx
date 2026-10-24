@@ -25,6 +25,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { rupiah, wibDateTime } from "@/modules/storefront/format";
 import { failureText, getJson, readFailure } from "./admin-errors";
 import { DataTable } from "./data-table";
+import { AdminPage, DetailSection, PageHeader, StickyActions } from "./page-blocks";
 import { ErrorState } from "./states";
 import { StatusBadge } from "./status";
 import {
@@ -108,35 +109,6 @@ function SectionError({
 	onRetry: () => void;
 }) {
 	return <ErrorState message={`${label} gagal dimuat. ${error}`} onRetry={onRetry} />;
-}
-
-function Section({
-	id,
-	title,
-	children,
-	description,
-}: {
-	id: string;
-	title: string;
-	description?: string;
-	children: React.ReactNode;
-}) {
-	return (
-		<section
-			aria-labelledby={id}
-			className="flex flex-col gap-3 rounded-lg border bg-card p-4 md:p-5"
-		>
-			<div className="flex flex-col gap-0.5">
-				<h2 id={id} tabIndex={-1} className="text-base font-semibold outline-none focus-visible:ring-2 focus-visible:ring-ring">
-					{title}
-				</h2>
-				{description && (
-					<p className="text-xs text-muted-foreground">{description}</p>
-				)}
-			</div>
-			{children}
-		</section>
-	);
 }
 
 export function CatalogProductClient({
@@ -282,7 +254,7 @@ export function CatalogProductClient({
 		stockItemId.slice(0, 8);
 
 	return (
-		<div className="flex flex-col gap-6 px-4 py-5 md:px-8 md:py-6">
+		<AdminPage>
 			<div>
 				<Button asChild variant="ghost" size="sm" className="-ml-2">
 					<Link href={backHref}>
@@ -308,16 +280,13 @@ export function CatalogProductClient({
 			) : (
 				p && (
 					<>
-						<header className="flex flex-wrap items-start justify-between gap-4 border-b pb-5">
-							<div className="flex min-w-0 flex-col gap-1.5">
-								<h1 className="text-2xl font-semibold tracking-tight">
-									{p.name}
-								</h1>
-								<p className="text-xs text-muted-foreground">
-									Draf versi {p.version} ·{" "}
-									{categoryPath(p.category_id, categories) ?? "Tanpa kategori"}
-								</p>
-								<div className="flex flex-wrap items-center gap-2">
+						<PageHeader
+							title={p.name}
+							meta={
+								<>
+									<span className="basis-full">
+										Draf versi {p.version} · {categoryPath(p.category_id, categories) ?? "Tanpa kategori"}
+									</span>
 									{state ? (
 										<StatusBadge tone={STATUS_TONE[catalogStatus(state)]}>
 											{STATUS_LABELS[catalogStatus(state)]}
@@ -325,24 +294,32 @@ export function CatalogProductClient({
 									) : (
 										<Skeleton className="h-5 w-24" />
 									)}
-									<span className="text-sm font-medium tabular-nums">
+									<span className="text-sm font-medium text-foreground tabular-nums">
 										{rupiah(PRICE_IDR)} per varian
 									</span>
-								</div>
-							</div>
-							{state && canEdit && (
-								<PublishAction
-									base={base}
-									product={p}
-									state={state}
-									onConflict={refreshForConflict}
-									onPublished={(message) => {
-										setNotice(message);
-										void loadPub(true);
-									}}
-								/>
-							)}
-						</header>
+								</>
+							}
+							actions={
+								state &&
+								canEdit &&
+								(() => {
+									const publish = (
+										<PublishAction
+											base={base}
+											product={p}
+											state={state}
+											onConflict={refreshForConflict}
+											onPublished={(message) => {
+												setNotice(message);
+												void loadPub(true);
+											}}
+										/>
+									);
+									// The screen's one primary action: a sticky bottom bar on phones while it can still publish.
+									return state.current?.product_revision === state.draft_version ? publish : <StickyActions>{publish}</StickyActions>;
+								})()
+							}
+						/>
 
 						{notice && (
 							<Alert
@@ -358,7 +335,7 @@ export function CatalogProductClient({
 							</Alert>
 						)}
 
-						<Section id="photos-heading" title="Foto produk">
+						<DetailSection id="photos-heading" title="Foto produk">
 							{p.images.length === 0 ? (
 								<p className="flex items-center gap-2 text-sm text-muted-foreground">
 									<ImageOff aria-hidden="true" className="size-4" />
@@ -381,9 +358,9 @@ export function CatalogProductClient({
 									))}
 								</ul>
 							)}
-						</Section>
+						</DetailSection>
 
-						<Section id="info-heading" title="Informasi produk">
+						<DetailSection id="info-heading" title="Informasi produk">
 							<p className="max-w-prose text-sm leading-relaxed whitespace-pre-line">
 								{p.description || "Deskripsi belum diisi."}
 							</p>
@@ -397,9 +374,9 @@ export function CatalogProductClient({
 									))}
 								</dl>
 							)}
-						</Section>
+						</DetailSection>
 
-						<Section
+						<DetailSection
 							id="variants-heading"
 							title={`Varian (${p.variants.length})`}
 							description="Setiap varian dijual Rp99.000. Isi bundel mengikuti komponen stok fisik."
@@ -421,10 +398,10 @@ export function CatalogProductClient({
 									/>
 								))}
 							</ul>
-						</Section>
+						</DetailSection>
 
 						{canReadStock && (
-							<Section
+							<DetailSection
 								id="stock-heading"
 								title="Stok per gudang"
 								description="Saldo fisik komponen dari pencatatan gudang. Tersedia = fisik − dipesan − karantina."
@@ -449,20 +426,36 @@ export function CatalogProductClient({
 										caption="Stok komponen per gudang"
 										stack
 										columns={[
-											{ id: "item", header: "Komponen", cellClassName: "max-w-56 whitespace-normal", cell: (row) => componentName(row.stock_item_id) },
+											{
+												id: "item",
+												header: "Komponen",
+												stack: "title",
+												cellClassName: "whitespace-normal md:max-w-56",
+												// md–xl: Fisik, Dipesan, Karantina and Lot move under the name so nothing clips at the table edge.
+												cell: (row) => (
+													<div className="flex flex-col">
+														{componentName(row.stock_item_id)}
+														<span className="hidden text-xs font-normal text-muted-foreground tabular-nums md:max-xl:block">
+															Fisik {row.on_hand} · Dipesan {row.reserved} · Karantina {row.quarantined}
+															{row.lot_code && ` · Lot ${row.lot_code}`}
+														</span>
+													</div>
+												),
+											},
 											{
 												id: "warehouse",
 												header: "Gudang",
+												stack: "meta",
 												cell: (row) => warehouseName(row.warehouse_id) ?? `Gudang ${row.warehouse_id.slice(0, 8)}`,
 											},
 											{ id: "available", header: "Tersedia", className: "text-right tabular-nums", cellClassName: "font-medium", cell: (row) => row.available },
-											{ id: "on_hand", header: "Fisik", className: "hidden text-right tabular-nums sm:table-cell", cell: (row) => row.on_hand },
-											{ id: "reserved", header: "Dipesan", className: "hidden text-right tabular-nums sm:table-cell", cell: (row) => row.reserved },
-											{ id: "quarantined", header: "Karantina", className: "hidden text-right tabular-nums sm:table-cell", cell: (row) => row.quarantined },
+											{ id: "on_hand", header: "Fisik", className: "text-right tabular-nums md:max-xl:hidden", cell: (row) => row.on_hand },
+											{ id: "reserved", header: "Dipesan", className: "text-right tabular-nums md:max-xl:hidden", cell: (row) => row.reserved },
+											{ id: "quarantined", header: "Karantina", className: "text-right tabular-nums md:max-xl:hidden", cell: (row) => row.quarantined },
 											{
 												id: "lot",
 												header: "Lot",
-												className: "hidden sm:table-cell",
+												className: "md:max-xl:hidden",
 												cellClassName: "text-xs",
 												cell: (row) => (
 													<>
@@ -474,11 +467,11 @@ export function CatalogProductClient({
 										]}
 									/>
 								)}
-							</Section>
+							</DetailSection>
 						)}
 
 						{canReadCosts && (
-							<Section
+							<DetailSection
 								id="costs-heading"
 								title="HPP dan kontribusi"
 								description="Estimasi berdasarkan versi biaya yang berlaku sekarang. Nilai kosong tidak dihitung sebagai Rp0."
@@ -573,10 +566,10 @@ export function CatalogProductClient({
 										</ul>
 									</>
 								)}
-							</Section>
+							</DetailSection>
 						)}
 
-						<Section
+						<DetailSection
 							id="publication-heading"
 							title="Penerbitan"
 							description="Produk hanya tampil di toko setelah terbit. Riwayat versi terbit sebelumnya belum tersedia di konsol."
@@ -664,11 +657,11 @@ export function CatalogProductClient({
 									)}
 								</>
 							)}
-						</Section>
+						</DetailSection>
 					</>
 				)
 			)}
-		</div>
+		</AdminPage>
 	);
 }
 
@@ -1055,7 +1048,7 @@ function PublishAction({
 	const canConfirm = !d.conflict || d.conflict.retry;
 
 	return (
-		<div className="flex flex-col items-start gap-1.5 sm:items-end">
+		<div className="flex flex-col items-start gap-1.5 sm:items-end max-md:items-stretch">
 			<Button
 				ref={d.opener}
 				type="button"

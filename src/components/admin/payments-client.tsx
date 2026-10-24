@@ -138,14 +138,14 @@ export function PaymentsClient({
 						{
 							id: "order",
 							header: "Pesanan",
-							stack: "plain",
-							cellClassName: "max-md:justify-start max-md:text-left",
+							stack: "title",
 							cell: (row) => <OrderNumberLink number={row.order_number} orderId={row.order_id} enabled={canOrders} />,
 						},
 						// md–xl: the unique code moves under the amount so the pinned action never covers the deadline.
 						{
 							id: "amount",
 							header: "Nominal tepat",
+							stack: "aside",
 							className: "text-right tabular-nums",
 							cell: (row) => (
 								<>
@@ -158,6 +158,7 @@ export function PaymentsClient({
 						{
 							id: "deadline",
 							header: state === "open" ? "Batas transfer" : "Hasil",
+							stack: state === "open" ? "label" : "status",
 							cell: (row) =>
 								row.confirmation ? (
 									<div className="flex flex-wrap justify-end gap-1 md:justify-start">
@@ -178,7 +179,6 @@ export function PaymentsClient({
 						{
 							id: "actions",
 							header: "Tindakan",
-							stack: "plain",
 							className: "text-right",
 							cell: (row) =>
 								!row.confirmation && (
@@ -374,25 +374,26 @@ function AutolarisPayments({
 					{
 						id: "order",
 						header: "Pesanan",
-						stack: "plain",
-						cellClassName: "max-md:justify-start max-md:text-left",
-						// md–xl: the status sits under the order number so the pinned action never covers it.
+						stack: "title",
+						// md–xl: the status and channel sit under the order number so the pinned action never covers them.
 						cell: (row) => (
 							<div className="flex flex-col items-start gap-1">
 								<OrderNumberLink number={row.order_number} orderId={row.order_id} enabled={canOrders} />
-								<span className="hidden md:max-xl:block">{autolarisStatus(row)}</span>
+								<span className="hidden flex-wrap items-center gap-1.5 md:max-xl:flex">
+									{autolarisStatus(row)}
+									<span className="text-xs text-muted-foreground">{channelLabel(row.channel_code)}</span>
+								</span>
 							</div>
 						),
 					},
 					// Kanal and Status give way md–xl (shown in the stacked card and from xl).
 					{ id: "channel", header: "Kanal", className: "md:max-xl:hidden", cell: (row) => channelLabel(row.channel_code) },
-					{ id: "amount", header: "Tagihan pembeli", className: "text-right tabular-nums", cell: (row) => rupiah(row.expected_amount) },
+					{ id: "amount", header: "Tagihan pembeli", stack: "aside", className: "text-right tabular-nums", cell: (row) => rupiah(row.expected_amount) },
 					{ id: "fee", header: "Biaya admin (toko)", className: "text-right tabular-nums", cell: (row) => (row.admin_fee === null ? "—" : rupiah(row.admin_fee)) },
-					{ id: "status", header: "Status", className: "md:max-xl:hidden", cell: autolarisStatus },
+					{ id: "status", header: "Status", stack: "status", className: "md:max-xl:hidden", cell: autolarisStatus },
 					{
 						id: "actions",
 						header: "Tindakan",
-						stack: "plain",
 						className: "text-right",
 						cell: (row) =>
 							state === "open" &&
