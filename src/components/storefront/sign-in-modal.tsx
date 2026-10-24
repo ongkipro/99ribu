@@ -35,7 +35,7 @@ export function SignInModal({ children }: { children: React.ReactNode }) {
 
 	return (
 		// biome-ignore lint/a11y/useKeyWithClickEvents: the scrim click is a pointer shortcut; Escape and the close button cover keyboards.
-		<dialog ref={ref} className="signin-sheet" aria-label="Masuk" data-testid="signin-modal"
+		<dialog ref={ref} className="signin-sheet" aria-label="Masuk atau daftar" data-testid="signin-modal"
 			onCancel={(event) => { event.preventDefault(); router.back(); }}
 			onClick={(event) => { if (event.target === event.currentTarget) router.back(); }}>
 			<div className="signin-sheet-body">

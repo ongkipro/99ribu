@@ -4,6 +4,10 @@ import {
 	CheckoutFrame,
 	CheckoutHelp,
 } from "../../../../components/storefront/checkout-frame";
+import {
+	OrderLinkCard,
+	OrderSaveCard,
+} from "../../../../components/storefront/order-account";
 import { Icon } from "../../../../components/storefront/ui/icon";
 import {
 	OrderReceiptCopyCode,
@@ -18,6 +22,7 @@ import {
 	orderReceiptPath,
 	type ReceiptCollection,
 	type ReceiptRefund,
+	readOrderAccountOffer,
 	readOrderContinuityExtras,
 	readOrderReceipt,
 } from "../../../../modules/orders/receipt";
@@ -374,6 +379,13 @@ export default async function OrderReceiptPage({
 			getLocalAuth(),
 			orderId,
 		);
+	// S123: save-to-account (guest holding this order) or link (signed-in buyer who does not own it).
+	const account = await readOrderAccountOffer(
+		await storefrontRequest("GET", path),
+		getLocalAuth(),
+		orderId,
+		view.kind === "ready",
+	);
 	if (view.kind !== "ready") {
 		return (
 			<CheckoutFrame back="catalog" payment>
@@ -388,6 +400,9 @@ export default async function OrderReceiptPage({
 							? "Data tanda terima belum tersedia saat ini. Muat ulang halaman untuk memeriksa status yang tersimpan."
 							: "Tanda terima pesanan bersifat pribadi dan hanya terbuka melalui sesi pemilik atau akses tamu yang sah. Nomor pesanan saja tidak membuka rincian."}
 					</p>
+					{view.kind === "denied" && account?.kind === "link" && (
+						<OrderLinkCard orderId={orderId} email={account.email} />
+					)}
 					{view.kind === "denied" ? (
 						<OrderReceiptPaymentForm
 							initial={initialCheckoutPayment(orderId)}
@@ -1143,6 +1158,17 @@ export default async function OrderReceiptPage({
 									{extras.support_conversation_id.slice(0, 8)})
 								</Link>
 							</p>
+						)}
+						{account?.kind === "save" && (
+							<OrderSaveCard
+								path={path}
+								email={account.email}
+								name={account.name}
+								phone={account.phone}
+							/>
+						)}
+						{account?.kind === "link" && (
+							<OrderLinkCard orderId={order.id} email={account.email} />
 						)}
 					</div>
 

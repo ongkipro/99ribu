@@ -9515,6 +9515,8 @@ paths:
           $ref: '#/components/responses/Forbidden'
         '404':
           $ref: '#/components/responses/NotFound'
+        '422':
+          $ref: '#/components/responses/Unprocessable'
         default:
           description: Unexpected server/proxy failure; clients tolerate a non-Problem gateway body. Financial result
             may be unknown; recover the operation before retry.
@@ -23449,12 +23451,21 @@ components:
           type: string
           minLength: 1
           maxLength: 200
+        phone:
+          type:
+          - string
+          - 'null'
+          maxLength: 30
+          description: S123 WhatsApp contact number, unverified (a change clears phone_verified). Accepts the local
+            08… form or +62…/62…; must be an Indonesian mobile number (stored as +628…), otherwise 422 INVALID_WHATSAPP /
+            INVALID_INDONESIAN_PHONE. Null or empty clears it. A verified phone cannot be changed or cleared here (409
+            VERIFIED_PHONE_LOCKED); rebinding a verified contact requires reauthentication.
       required:
       - expected_version
       - display_name
       additionalProperties: false
       description: Single-word full/display names allowed. Login contact changes use verified challenges, never
-        this ordinary profile edit.
+        this ordinary profile edit; the WhatsApp contact `phone` is an unverified contact, not a login contact.
     BuyerProfile:
       type: object
       properties:

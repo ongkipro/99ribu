@@ -4,9 +4,10 @@ import { getLocalAuth } from "../../modules/access/auth";
 import { AccessError, getPrincipal, isStaff } from "../../modules/access/policy";
 import { isAdminPath, safeReturnPath, signInDestination } from "../../modules/access/return-to";
 import { storefrontRequest } from "../../modules/storefront/browser";
-import { codeInput, failureMessage, type SignInFailure, signInHref, stepFromParam } from "./sign-in-copy";
-import { SignInForm, type SignInError } from "./sign-in-form";
+import { codeInput, failureMessage, modeFromParam, SIGN_UP_FAILURES, type SignInFailure, type SignUpFailure, signInHref, stepFromParam } from "./sign-in-copy";
+import type { SignInError } from "./sign-in-form";
 import { SignOutButton } from "./sign-out-button";
+import { AuthForms } from "./sign-up-form";
 import { Wordmark } from "./ui/brand";
 
 type Params = { [key: string]: string | string[] | undefined };
@@ -28,13 +29,15 @@ export async function SignInPanel({ params, modal = false }: { params: Params; m
 	if (typeof state === "object" && !switchAccount) redirect(signInDestination(next, state.staff));
 
 	if (state === "signed-out") {
-		const step = stepFromParam(params.langkah), galat = params.galat, wait = Number(params.tunggu);
-		const error: SignInError | null =
-			galat === "kosong" ? { message: "Isi email dan kata sandi.", field: "email" }
+		// `langkah=daftar|cek-email` (S123) is the sign-up side; `galat` then names a sign-up failure.
+		const mode = modeFromParam(params.langkah), step = stepFromParam(params.langkah), galat = params.galat, wait = Number(params.tunggu);
+		const error: SignInError | null = mode !== "masuk" ? null
+			: galat === "kosong" ? { message: "Isi email dan kata sandi.", field: "email" }
 			: galat === "format" ? { message: codeInput(step, "").error ?? "", field: "code" }
 			: FAILURES.includes(galat as SignInFailure) ? { message: failureMessage(galat as SignInFailure, step, wait > 0 ? wait : null), field: galat === "credential" ? (step === "password" ? "password" : "code") : null }
 			: null;
-		return <SignInForm next={next} step={step} error={error} modal={modal} />;
+		const signUpError = mode !== "masuk" && SIGN_UP_FAILURES.includes(galat as SignUpFailure) ? { kind: galat as SignUpFailure, retry: wait > 0 ? wait : null } : null;
+		return <AuthForms next={next} initialMode={mode} step={step} signInError={error} signUpError={signUpError} resent={params.ulang === "1"} modal={modal} />;
 	}
 	const Heading = modal ? "h2" : "h1";
 	return (

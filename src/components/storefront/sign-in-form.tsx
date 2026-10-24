@@ -2,17 +2,28 @@
 
 import Link from "next/link";
 import { useEffect, useRef, useState } from "react";
-import { codeInput, failureKind, failureMessage, type SignInStep, signInHref } from "./sign-in-copy";
+import { type AuthMode, authHref, codeInput, failureKind, failureMessage, type SignInStep, signInHref } from "./sign-in-copy";
 import { Icon } from "./ui/icon";
 import { Wordmark } from "./ui/brand";
 
 type Field = "email" | "password" | "code";
 export type SignInError = { message: string; field: Field | null };
+export type ModeSwitch = (mode: AuthMode, email?: string) => void;
+
+// "Masuk / Daftar" (S123): real links to the two /masuk URLs, so the switch also works without JS; with
+// JS the panel swaps the form in place (the modal stays open) and keeps the typed email.
+export function AuthSwitch({ mode, next, onMode }: { mode: "masuk" | "daftar"; next: string | null; onMode?: ModeSwitch }) {
+	const item = (target: "masuk" | "daftar", label: string) => (
+		<a href={authHref(next, target)} aria-current={mode === target ? "page" : undefined}
+			onClick={onMode ? (event) => { event.preventDefault(); if (mode !== target) onMode(target); } : undefined}>{label}</a>
+	);
+	return <nav className="signin-switch" aria-label="Masuk atau daftar">{item("masuk", "Masuk")}{item("daftar", "Daftar")}</nav>;
+}
 
 // With JS: posts JSON to the existing Better Auth handler (/api/auth/*), which owns Origin/CSRF checks,
 // per-account rate limits and the signed two_factor challenge cookie. Without JS the same form posts
 // to /masuk/kirim, which calls that handler and redirects back here.
-async function post(path: string, body: Record<string, string>) {
+export async function post(path: string, body: Record<string, string>) {
 	try {
 		const response = await fetch(`/api/auth${path}`, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify(body) });
 		const payload = (await response.json().catch(() => null)) as Record<string, unknown> | null;
@@ -24,7 +35,8 @@ async function post(path: string, body: Record<string, string>) {
 }
 
 // `modal`: rendered in the intercepted sheet over a storefront page (h2, success returns to that page).
-export function SignInForm({ next, step: initialStep = "password", error: initialError = null, modal = false }: { next: string | null; step?: SignInStep; error?: SignInError | null; modal?: boolean }) {
+// `onMode`/`email`: the sign-up switch and the email carried over from it (sign-up-form.tsx:AuthForms).
+export function SignInForm({ next, step: initialStep = "password", error: initialError = null, modal = false, onMode, email = null }: { next: string | null; step?: SignInStep; error?: SignInError | null; modal?: boolean; onMode?: ModeSwitch; email?: string | null }) {
 	const [step, setStep] = useState<SignInStep>(initialStep);
 	const [code, setCode] = useState("");
 	const [error, setError] = useState<SignInError | null>(initialError);
@@ -106,6 +118,7 @@ export function SignInForm({ next, step: initialStep = "password", error: initia
 			<input type="hidden" name="step" value={step} />
 			{next && <input type="hidden" name="next" value={next} />}
 			<span className="brand signin-mark" aria-hidden="true"><Wordmark /></span>
+			{step === "password" && <AuthSwitch mode="masuk" next={next} onMode={onMode} />}
 			<Heading id={headingId}>{step === "password" ? "Masuk ke 99ribu" : "Verifikasi dua langkah"}</Heading>
 			<p className="signin-lead">
 				{step === "password"
@@ -118,7 +131,7 @@ export function SignInForm({ next, step: initialStep = "password", error: initia
 				<>
 					<div className="signin-field">
 						<label htmlFor="signin-email">Email</label>
-						<input id="signin-email" name="email" type="email" inputMode="email" autoComplete="username" autoCapitalize="none" spellCheck={false} required maxLength={254}
+						<input id="signin-email" name="email" type="email" inputMode="email" autoComplete="username" autoCapitalize="none" spellCheck={false} required maxLength={254} defaultValue={email ?? undefined}
 							aria-invalid={invalid("email")} aria-describedby={described("email")} />
 					</div>
 					<div className="signin-field">

@@ -55,13 +55,27 @@ test("real auth: verification, session lifecycle, reset, deny-default and persis
       assert.equal((await handleAuth(new Request("http://localhost:3099/api/auth/get-session", { headers: { host: "localhost:3099" } }), identity)).status, 403);
     });
     await t.test("sign-up is enumeration-safe and grants no session before verification", async () => {
-      const signup = await call("/sign-up/email", { name: "Synthetic Buyer", email, password, role: "owner", emailVerified: true });
+      // S123: fields beyond name/email/password/callbackURL are refused before any effect (no mass assignment).
+      for (const extra of [{ role: "owner" }, { emailVerified: true }, { image: "https://evil.invalid/x.png" }]) {
+        assert.equal((await call("/sign-up/email", { name: "Synthetic Buyer", email, password, ...extra })).status, 400);
+      }
+      const signup = await call("/sign-up/email", { name: "Synthetic Buyer", email, password });
       assert.equal(signup.status, 200);
       assert.ok(!signup.headers.get("set-cookie"));
       const duplicate = await call("/sign-up/email", { name: "Synthetic Buyer", email, password });
       assert.equal(duplicate.status, 200);
       assert.deepEqual(await signup.json(), await duplicate.json());
-      assert.equal((await call("/sign-in/email", { email, password })).status, 401);
+      // S123: the verification link may only return to the landing page with a validated next; a name is required.
+      for (const callbackURL of ["https://evil.invalid/", "/admin", "/masuk/verifikasi?next=%2F%2Fevil.invalid"]) {
+        assert.equal((await call("/sign-up/email", { name: "Synthetic Buyer", email, password, callbackURL })).status, 400, callbackURL);
+        assert.equal((await call("/send-verification-email", { email, callbackURL })).status, 400, callbackURL);
+      }
+      assert.equal((await call("/sign-up/email", { name: " ", email, password })).status, 400);
+      // These 400s answer before the per-email budget, so the counts below are unchanged.
+      // One uniform rejection, EMAIL_NOT_VERIFIED included (handler.ts).
+      const unverified = await call("/sign-in/email", { email, password });
+      assert.equal(unverified.status, 401);
+      assert.deepEqual(await unverified.json(), { code: "INVALID_CREDENTIALS" });
       const rows = await identity.sql`select id, email_verified from app.auth_user where email=${email}`;
       assert.equal(rows.length, 1); assert.equal(rows[0].email_verified, false); userId = rows[0].id;
       const accounts = await identity.sql`select password from app.auth_account where user_id=${userId}`;
@@ -147,6 +161,91 @@ test("real auth: verification, session lifecycle, reset, deny-default and persis
       await identity.sql`delete from app.auth_user where id=${userId}`;
     }
     await identity.sql`delete from app.auth_rate_limit where key in ${identity.sql(keys)}`;
+    await identity.sql.end();
+  }
+});
+
+// S123 (review M1, owner decision 2026-10-25): public sign-up takes name and email only, and every email for
+// an unverified account is a set-password link. Someone who signs up with another person's address never
+// learns a usable password; the address owner creates the only one through the link, which verifies the email.
+test("public sign-up: no client password, set-password links only, the attacker never signs in", async () => {
+  const identity = createLocalAuth("test");
+  const email = `prehijack-${randomUUID()}@example.invalid`;
+  const owner = randomBytes(24).toString("base64url"), guess = randomBytes(24).toString("base64url");
+  const call = (path: string, body: Record<string, unknown>, open = true) => handleAuth(new Request(`${origin}/api/auth${path}`, {
+    method: "POST", headers: { origin, "content-type": "application/json", "x-99ribu-activation": "/admin" }, body: JSON.stringify(body),
+  }), identity, { public: open });
+  const kinds = async () => (await identity.sql`select kind from app.local_delivery where recipient=${email} order by created_at, id`).map((row) => row.kind);
+  const linkFor = async () => {
+    const [latest] = await identity.sql`select url from app.local_delivery where recipient=${email} and kind='password_reset' order by created_at desc, id desc limit 1`;
+    return new URL(latest.url);
+  };
+  const paths = ["/sign-up/email", "/sign-in/email", "/send-verification-email", "/reset-password"];
+  await identity.sql`delete from app.auth_rate_limit where key in ${identity.sql(paths.map((path) => `127.0.0.1|${path}`))}`;
+  let userId = "";
+  try {
+    // A client password (or any other extra field) and a callback other than the activation page are refused.
+    assert.equal((await call("/sign-up/email", { name: "Penyerobot", email, phone: "081111111111", password: guess })).status, 400);
+    assert.equal((await call("/sign-up/email", { name: "Penyerobot", email, phone: "081111111111", callbackURL: "/masuk/verifikasi" })).status, 400);
+    // Contact rules answer before any effect: a WhatsApp number must be a mobile number, the email a dotted domain.
+    const refused = async (body: Record<string, unknown>, code: string) => {
+      const response = await call("/sign-up/email", body);
+      assert.equal(response.status, 400, JSON.stringify(body));
+      assert.equal((await response.json()).code, code);
+    };
+    await refused({ name: "Penyerobot", email }, "INVALID_WHATSAPP");
+    await refused({ name: "Penyerobot", email, phone: "0215550123" }, "INVALID_WHATSAPP");
+    await refused({ name: "Penyerobot", email, phone: "08123" }, "INVALID_WHATSAPP");
+    await refused({ name: "Penyerobot", email: email.replace("@", "@x.."), phone: "081111111111" }, "INVALID_EMAIL");
+    assert.equal((await identity.sql`select id from app.auth_user where email=${email}`).length, 0);
+    const first = await call("/sign-up/email", { name: "Penyerobot", email, phone: "+6281111111111", callbackURL: "/masuk/atur-sandi?aktivasi=1&next=%2Fakun" });
+    assert.equal(first.status, 200);
+    assert.deepEqual(await first.json(), { status: true });
+    [{ id: userId }] = await identity.sql`select id from app.auth_user where email=${email}`;
+    assert.deepEqual(await kinds(), ["password_reset"], "A new public account gets a set-password link, never a verification link");
+    // The client-sent header has no authority: the link returns to the validated callback, `next` included.
+    assert.equal((await linkFor()).searchParams.get("callbackURL"), "/masuk/atur-sandi?aktivasi=1&next=%2Fakun");
+    assert.equal((await call("/sign-in/email", { email, password: guess })).status, 401, "No password the attacker could know");
+    // The address owner signs up and asks for a resend: same replies, only set-password links.
+    const again = await call("/sign-up/email", { name: "Pemilik Email", email, phone: "082222222222" });
+    assert.equal(again.status, 200);
+    assert.deepEqual(await again.json(), { status: true });
+    const resend = await call("/send-verification-email", { email, callbackURL: "/masuk/atur-sandi?aktivasi=1" });
+    assert.equal(resend.status, 200);
+    assert.deepEqual(await resend.json(), { status: true });
+    assert.deepEqual(await kinds(), ["password_reset", "password_reset", "password_reset"]);
+    assert.equal((await identity.sql`select email_verified from app.auth_user where id=${userId}`)[0].email_verified, false);
+    // Following the newest link lands on the set-password page with the token; creating the password activates the account.
+    const landing = await handleAuth(new Request((await linkFor()).href), identity, { public: true });
+    assert.equal(landing.status, 302);
+    assert.equal(landing.headers.get("referrer-policy"), "no-referrer");
+    const target = new URL(landing.headers.get("location") ?? "", origin);
+    assert.equal(target.pathname, "/masuk/atur-sandi");
+    assert.equal(target.searchParams.get("aktivasi"), "1");
+    const token = target.searchParams.get("token");
+    assert.ok(token);
+    assert.equal((await call("/reset-password", { token, newPassword: owner })).status, 200);
+    assert.equal((await identity.sql`select email_verified from app.auth_user where id=${userId}`)[0].email_verified, true);
+    assert.equal((await call("/sign-in/email", { email, password: guess })).status, 401);
+    assert.equal((await call("/sign-in/email", { email, password: owner })).status, 200);
+    // A verified account's sign-up only mails the existing-account notice, with the same reply.
+    const verified = await call("/sign-up/email", { name: "Lagi", email, phone: "083333333333" });
+    assert.equal(verified.status, 200);
+    assert.deepEqual(await verified.json(), { status: true });
+    assert.deepEqual((await kinds()).slice(-1), ["existing_account"]);
+    assert.equal((await kinds()).filter((kind) => kind === "password_reset").length, 3);
+    // The number of the sign-up that created the account stays, unverified; later unauthenticated sign-ups never change it.
+    const [stored] = await identity.sql`select phone, phone_verified_at from app.buyer_profile where user_id=${userId}`;
+    assert.deepEqual([stored.phone, stored.phone_verified_at], ["+6281111111111", null]);
+  } finally {
+    await identity.sql`delete from app.outbox_job where kind='local.notification' and payload->>'deliveryId' in (select id::text from app.local_delivery where recipient=${email})`;
+    await identity.sql`delete from app.local_delivery where recipient=${email}`;
+    if (userId) {
+      await identity.sql`delete from app.buyer_profile where user_id=${userId}`;
+      await identity.sql`delete from app.auth_verification where value=${userId}`;
+      await identity.sql`delete from app.auth_user where id=${userId}`;
+    }
+    await identity.sql`delete from app.auth_rate_limit where key in ${identity.sql(paths.map((path) => `127.0.0.1|${path}`))}`;
     await identity.sql.end();
   }
 });

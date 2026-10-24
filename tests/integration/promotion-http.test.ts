@@ -6,6 +6,7 @@ import {chromium} from '@playwright/test';
 import {connectDatabase} from '../../src/db/client.ts';
 import {validateExchanges,type Exchange} from '../contract/openapi-probe.ts';
 import {totp} from './totp-fixture.ts';
+import {activateOverHttp} from './http-activation.ts';
 
 test('built promotion API enforces browser MFA cookies, immutable configuration history and committed retry across all five operations',async()=>{
  await resetBrowserAuthLimits();
@@ -21,9 +22,9 @@ test('built promotion API enforces browser MFA cookies, immutable configuration 
   const root='/api/v1/admin/shipping-promotions';const dummy=randomUUID();const key=()=>({'idempotency-key':randomUUID()});
   for(const path of ['',`/${dummy}`,`/${dummy}/versions`]) assert.equal((await call(root+path)).status,401);
   for(const path of ['',`/${dummy}/versions`]) assert.equal((await call(root+path,{},key())).status,401);
-  assert.equal((await call('/api/auth/sign-up/email',{name:'Synthetic Promotion Browser Owner',email,password})).status,200);
+  assert.equal((await call('/api/auth/sign-up/email',{name:'Synthetic Promotion Browser Owner',email,phone:'081234567890'})).status,200);
   const [user]=await sql`select id from app.auth_user where email=${email}`;userId=user.id;
-  const [message]=await sql`select url from app.local_delivery where recipient=${email} and kind='verification'`;assert.ok([200,302].includes((await context.request.get(message.url,{maxRedirects:0})).status()));
+  await activateOverHttp(sql,context.request,email,password);
   await sql`insert into app.role_grant (user_id,roles) values (${userId},ARRAY['owner']::text[])`;
   assert.equal((await call('/api/auth/sign-in/email',{email,password})).status,200);assert.equal((await call(root)).status,403);
   const factor=await call('/api/auth/two-factor/enable',{password});assert.equal(factor.status,200);assert.equal((await call('/api/auth/two-factor/verify-totp',{code:totp(factor.payload.totpURI)})).status,200);
@@ -44,7 +45,7 @@ test('built promotion API enforces browser MFA cookies, immutable configuration 
  }finally{
   await browser.close();await sql`delete from app.outbox_job where kind='local.notification' and payload->>'deliveryId' in (select id::text from app.local_delivery where recipient=${email})`;
   await sql`delete from app.local_delivery where recipient=${email}`;
-  if(userId){await sql`delete from app.auth_verification where value=${userId}`;await sql`delete from app.access_operation where actor_id=${userId}`;await sql`delete from app.auth_user where id=${userId}`;}
+  if(userId){await sql`delete from app.auth_verification where value=${userId}`;await sql`delete from app.access_operation where actor_id=${userId}`;await sql`delete from app.buyer_profile where user_id=${userId}`;await sql`delete from app.auth_user where id=${userId}`;}
   await sql.end();
  }
 });

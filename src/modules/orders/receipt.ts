@@ -2,7 +2,7 @@ import { randomUUID } from "node:crypto";
 import type { TransactionSql } from "postgres";
 import type { LocalAuth } from "../access/auth.ts";
 import { assertOrigin, privateJson, problem } from "../access/http.ts";
-import { AccessError } from "../access/policy.ts";
+import { AccessError, getPrincipal, isStaff } from "../access/policy.ts";
 import { id, invalid } from "../catalog/validation.ts";
 import {
 	type CommerceActor,
@@ -821,4 +821,71 @@ export async function recoverOrderReceipt(
 	orderId: string,
 ) {
 	return recoverCheckoutOrder(request, identity, orderId);
+}
+
+// S123: the receipt's account card. A guest who holds this order's access may save it to a new account;
+// the order's contact email, read under that access, pre-fills sign-up. A signed-in buyer who neither owns
+// nor has linked the order is offered the guest-order-link challenge (the account email is the one-tap
+// contact). On a denied receipt that offer is the same for every order id, so it says nothing about whether
+// the order exists. Staff and unverified sessions get no card.
+export type OrderAccountOffer =
+	| { kind: "save"; email: string | null; name: string | null; phone: string | null }
+	| { kind: "link"; email: string }
+	| null;
+
+export async function readOrderAccountOffer(
+	request: Request,
+	identity: LocalAuth,
+	orderId: string,
+	ready: boolean,
+): Promise<OrderAccountOffer> {
+	try {
+		const targetId = id(orderId);
+		const session = await identity.auth.api.getSession({
+			headers: request.headers,
+			query: { disableCookieCache: true },
+		});
+		if (session) {
+			if (!session.user.emailVerified) return null;
+			const principal = await getPrincipal(request, identity);
+			if (isStaff(principal)) return null;
+			if (ready) {
+				const [row] = await identity.sql<{ open: boolean }[]>`
+					select o.owner_user_id is distinct from ${principal.id}
+						and not exists (
+							select 1 from app.buyer_identity_challenge c
+							where c.user_id = ${principal.id} and c.kind = 'guest_order_link'
+								and c.status = 'verified' and c.order_id = o.id
+						) as open
+					from app.commerce_order o
+					where o.id = ${targetId}
+				`;
+				if (!row?.open) return null;
+			}
+			return { kind: "link", email: session.user.email };
+		}
+		if (!ready) return null;
+		const scoped = await orderReceiptRequest(
+			new Request(new URL(orderReceiptPath(targetId), new URL(request.url).origin), {
+				method: "GET",
+				headers: request.headers,
+			}),
+			identity,
+			targetId,
+		);
+		return await identity.sql.begin(async (tx) => {
+			const actor = await commerceActor(scoped, identity);
+			const order = await authorizeOrderOrContinuity(tx, scoped, identity, actor, targetId);
+			if (order.owner_user_id !== null) return null;
+			const [quote] = await tx<{ email: string | null; name: string | null; phone: string | null }[]>`
+				select document->'contact'->>'email' as email, document->'address'->>'recipient_name' as name, document->'contact'->>'phone' as phone
+				from app.checkout_quote
+				where id = ${order.quote_id}
+			`;
+			return { kind: "save" as const, email: quote?.email?.trim() || null, name: quote?.name?.trim() || null, phone: quote?.phone || null };
+		});
+	} catch {
+		// lazy: an optional card; any failure (access, session, database) hides it instead of the receipt.
+		return null;
+	}
 }

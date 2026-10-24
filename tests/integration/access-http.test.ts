@@ -6,6 +6,7 @@ import { chromium } from "@playwright/test";
 import { connectDatabase } from "../../src/db/client.ts";
 import { type Exchange, validateExchanges } from "../contract/openapi-probe.ts";
 import { totp } from "./totp-fixture.ts";
+import { activateOverHttp } from "./http-activation.ts";
 
 test("built access routes require actual browser MFA cookie and project assigned warehouses", async () => {
  await resetBrowserAuthLimits();
@@ -29,10 +30,9 @@ test("built access routes require actual browser MFA cookie and project assigned
       return result;
     };
     assert.equal((await call("/api/v1/me")).status, 401);
-    assert.equal((await call("/api/auth/sign-up/email", { name: "Synthetic MFA", email, password })).status, 200);
+    assert.equal((await call("/api/auth/sign-up/email", { name: "Synthetic MFA", email, phone: "081234567890" })).status, 200);
     const [user] = await connection.sql`select id from app.auth_user where email=${email}`; userId = user.id;
-    const [delivery] = await connection.sql`select url from app.local_delivery where recipient=${email} and kind='verification'`;
-    assert.ok([200, 302].includes((await context.request.get(delivery.url, { maxRedirects: 0 })).status()));
+    await activateOverHttp(connection.sql, context.request, email, password);
     await connection.sql`insert into app.warehouse (id,name,city) values (${warehouseId},'Synthetic Browser Warehouse','Malang')`;
     await connection.sql`insert into app.role_grant (user_id,roles) values (${userId},ARRAY['warehouse']::text[])`;
     await connection.sql`insert into app.warehouse_membership (user_id,warehouse_id) values (${userId},${warehouseId})`;
@@ -79,6 +79,7 @@ test("built access routes require actual browser MFA cookie and project assigned
       await connection.sql`delete from app.auth_verification where value=${userId}`;
       await connection.sql`delete from app.access_operation where actor_id=${userId}`;
       await connection.sql`delete from app.auth_rate_limit where key=${`access-proof:${userId}`}`;
+      await connection.sql`delete from app.buyer_profile where user_id=${userId}`;
       await connection.sql`delete from app.auth_user where id=${userId}`;
     }
     await connection.sql`delete from app.auth_user where id=${subjectId}`;
