@@ -40,14 +40,15 @@ function renderPrintCenterHtml(
 <style>
 *{box-sizing:border-box}
 body{margin:0;font-family:system-ui,sans-serif;background:#fff;color:#18181b}
-main{max-width:76rem;margin:0 auto;padding:1.25rem 1rem;display:grid;gap:1.25rem}
-section{border:1px solid #e4e4e7;border-radius:8px;padding:1rem;display:grid;gap:.75rem}
+main{max-width:76rem;margin:0 auto;padding:1.25rem 1rem;display:grid;grid-template-columns:minmax(0,1fr);gap:1.25rem}
+section{border:1px solid #e4e4e7;border-radius:8px;padding:1rem;display:grid;grid-template-columns:minmax(0,1fr);gap:.75rem}
 input,select,button{font:inherit;padding:.4rem .75rem;border-radius:6px;border:1px solid #d4d4d8;max-width:100%}
 button{min-height:2.25rem;background:#fff;cursor:pointer}
 button:disabled{opacity:.5;cursor:not-allowed}
 ul{list-style:none;margin:0;padding:0;display:grid;gap:.5rem}
 li{border-top:1px solid #f4f4f5;padding-top:.5rem;word-break:break-word;display:grid;gap:.4rem}
 .row{display:flex;flex-wrap:wrap;gap:.4rem;align-items:center}
+#notice{overflow-wrap:anywhere}
 </style>
 </head>
 <body>
@@ -298,7 +299,9 @@ test("S55 browser: admin shipping print center renders thermal/A4 label generati
 				);
 				const opened = await context.newPage();
 				opened.on("console", (msg) => {
-					if (msg.type() === "error") consoleErrors.push(msg.text());
+					// The reprint-reason and partner-template refusals are asserted on their 422 codes; the browser
+					// logs each refused fetch, which is expected and not a page error.
+					if (msg.type() === "error" && !msg.text().includes("status of 422")) consoleErrors.push(msg.text());
 				});
 				opened.on("pageerror", (err) => {
 					pageErrors.push(String(err));
@@ -418,7 +421,7 @@ test("S55 browser: admin shipping print center renders thermal/A4 label generati
 				);
 			}
 
-			assert.equal(consoleErrors.length, 0, "Zero console errors");
+			assert.equal(consoleErrors.length, 0, `Zero console errors: ${consoleErrors.join(" | ")}`);
 			assert.equal(pageErrors.length, 0, "Zero uncaught page errors");
 		} finally {
 			await browser.close();

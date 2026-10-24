@@ -8,13 +8,13 @@ import {photosById} from './department-photos.ts';
 // the current department list). An admin-managed source (S110) can replace this list later.
 // Photos were picked by eye from contact sheets (round 51): item photos that are no product's cover,
 // no hero, tile or department pick (so nothing repeats the sections above), high contrast, with no
-// percentage, price, discount, claim or badge overlay (product labels only): Kopi Bali fragrance
-// packs, a car dent puller, a men's sunglasses collage.
+// percentage, price, discount, claim or badge overlay (product labels only): a reed diffuser
+// still life (round 62 replaced the soft Kopi Bali packs), a car dent puller, a men's sunglasses collage.
 // `tint`: a cut-out product photo on white sits contained on that brand tint (the pill/tile tokens);
 // without it the photo fills the media area edge to edge.
 export type HomeBanner={id:string;title:string;body:string;href:string;action:string;photo:string;tint?:'amber'|'slate'|'rose'|'blue'|'green'|'violet'|'teal';needs:'bundles'|{department:string}};
 export const HOME_BANNERS:readonly HomeBanner[]=[
- {id:'paket-campuran',title:'Paket campuran',body:'Misalnya pengharum mobil dan pengharum ruangan dalam satu pilihan lengkap Rp99.000.',href:'/promo',action:'Lihat paket',photo:'a9955ea80ee2',tint:'amber',needs:'bundles'},
+ {id:'paket-campuran',title:'Paket campuran',body:'Misalnya pengharum mobil dan pengharum ruangan dalam satu pilihan lengkap Rp99.000.',href:'/promo',action:'Lihat paket',photo:'5e496b28d84b',needs:'bundles'},
  {id:'otomotif',title:'Rawat kendaraan sendiri',body:'Perlengkapan otomotif, setiap pilihan lengkap Rp99.000.',href:'/kategori/otomotif',action:'Lihat Otomotif',photo:'c6f35ee579a6',tint:'slate',needs:{department:'otomotif'}},
  {id:'fashion-pria',title:'Gaya pria sehari-hari',body:'Fashion pria, setiap pilihan lengkap Rp99.000.',href:'/kategori/fashion-pria',action:'Lihat Fashion Pria',photo:'0f510b5d7bd5',needs:{department:'fashion-pria'}},
 ];
