@@ -110,7 +110,10 @@ test("Stok Gudang: search, reasoned movement on the row version, conflict copy, 
 		await phone.page.goto(`${origin}/admin/inventory?`);
 		await phone.page.getByLabel("Cari barang").fill(row.sku);
 		await phone.page.getByTestId(`inventory-move-${row.sku}`).click();
-		const box = await phone.page.getByRole("dialog").boundingBox();
+		const dialog = phone.page.getByRole("dialog");
+		// Measure after the open animation (zoom/slide-in) settles, not mid-flight.
+		await dialog.evaluate((el) => Promise.all(el.getAnimations().map((a) => a.finished)));
+		const box = await dialog.boundingBox();
 		assert.ok(box && Math.round(box.y + box.height) >= 843 && box.width >= 389, "bottom sheet on phones");
 		await noOverflow(phone.page);
 	} finally {
