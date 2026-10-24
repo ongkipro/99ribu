@@ -6,7 +6,6 @@ import {
 	CircleAlert,
 	CircleCheck,
 	ImageOff,
-	RefreshCw,
 } from "lucide-react";
 import Link from "next/link";
 import { useCallback, useEffect, useRef, useState } from "react";
@@ -22,17 +21,11 @@ import {
 	DialogTitle,
 } from "@/components/ui/dialog";
 import { Skeleton } from "@/components/ui/skeleton";
-import {
-	Table,
-	TableBody,
-	TableCell,
-	TableHead,
-	TableHeader,
-	TableRow,
-} from "@/components/ui/table";
 import { Textarea } from "@/components/ui/textarea";
 import { rupiah, wibDateTime } from "@/modules/storefront/format";
 import { failureText, getJson, readFailure } from "./admin-errors";
+import { DataTable } from "./data-table";
+import { ErrorState } from "./states";
 import {
 	BLOCKER_LABELS,
 	blockerLabel,
@@ -113,20 +106,7 @@ function SectionError({
 	error: string;
 	onRetry: () => void;
 }) {
-	return (
-		<Alert
-			variant="destructive"
-			className="flex flex-wrap items-center justify-between gap-3 border-destructive/40 bg-destructive-surface"
-		>
-			<AlertDescription className="text-foreground">
-				{label} gagal dimuat. {error}
-			</AlertDescription>
-			<Button type="button" variant="outline" size="sm" onClick={onRetry}>
-				<RefreshCw data-icon="inline-start" aria-hidden="true" />
-				Coba lagi
-			</Button>
-		</Alert>
-	);
+	return <ErrorState message={`${label} gagal dimuat. ${error}`} onRetry={onRetry} />;
 }
 
 function Section({
@@ -457,69 +437,41 @@ export function CatalogProductClient({
 										error={stock.error}
 										onRetry={() => void loadStock(p)}
 									/>
-								) : stock.data.length === 0 ? (
-									<p className="text-sm text-muted-foreground">
-										Belum ada saldo stok untuk komponen produk ini.
-									</p>
-								) : (
-									<Table>
-										<TableHeader>
-											<TableRow>
-												<TableHead>Komponen</TableHead>
-												<TableHead>Gudang</TableHead>
-												<TableHead className="text-right">Tersedia</TableHead>
-												<TableHead className="hidden text-right sm:table-cell">
-													Fisik
-												</TableHead>
-												<TableHead className="hidden text-right sm:table-cell">
-													Dipesan
-												</TableHead>
-												<TableHead className="hidden text-right sm:table-cell">
-													Karantina
-												</TableHead>
-												<TableHead className="hidden sm:table-cell">
-													Lot
-												</TableHead>
-											</TableRow>
-										</TableHeader>
-										<TableBody>
-											{[...stock.data]
-												.sort((a, b) =>
-													componentName(a.stock_item_id).localeCompare(
-														componentName(b.stock_item_id),
-														"id",
-													),
-												)
-												.map((row) => (
-													<TableRow key={row.id}>
-														<TableCell className="max-w-56 whitespace-normal">
-															{componentName(row.stock_item_id)}
-														</TableCell>
-														<TableCell>
-															{warehouseName(row.warehouse_id) ??
-																`Gudang ${row.warehouse_id.slice(0, 8)}`}
-														</TableCell>
-														<TableCell className="text-right font-medium tabular-nums">
-															{row.available}
-														</TableCell>
-														<TableCell className="hidden text-right tabular-nums sm:table-cell">
-															{row.on_hand}
-														</TableCell>
-														<TableCell className="hidden text-right tabular-nums sm:table-cell">
-															{row.reserved}
-														</TableCell>
-														<TableCell className="hidden text-right tabular-nums sm:table-cell">
-															{row.quarantined}
-														</TableCell>
-														<TableCell className="hidden text-xs sm:table-cell">
-															{row.lot_code ?? "—"}
-															{row.expires_on &&
-																` · ${row.expired ? "kedaluwarsa" : "s.d."} ${row.expires_on}`}
-														</TableCell>
-													</TableRow>
-												))}
-										</TableBody>
-									</Table>
+) : (
+									<DataTable
+										rows={[...stock.data].sort((a, b) =>
+											componentName(a.stock_item_id).localeCompare(componentName(b.stock_item_id), "id"),
+										)}
+										rowKey={(row) => row.id}
+										status={{ kind: "ready" }}
+										loadingLabel="Memuat stok…"
+										empty="Belum ada saldo stok untuk komponen produk ini."
+										caption="Stok komponen per gudang"
+										columns={[
+											{ id: "item", header: "Komponen", cellClassName: "max-w-56 whitespace-normal", cell: (row) => componentName(row.stock_item_id) },
+											{
+												id: "warehouse",
+												header: "Gudang",
+												cell: (row) => warehouseName(row.warehouse_id) ?? `Gudang ${row.warehouse_id.slice(0, 8)}`,
+											},
+											{ id: "available", header: "Tersedia", className: "text-right tabular-nums", cellClassName: "font-medium", cell: (row) => row.available },
+											{ id: "on_hand", header: "Fisik", className: "hidden text-right tabular-nums sm:table-cell", cell: (row) => row.on_hand },
+											{ id: "reserved", header: "Dipesan", className: "hidden text-right tabular-nums sm:table-cell", cell: (row) => row.reserved },
+											{ id: "quarantined", header: "Karantina", className: "hidden text-right tabular-nums sm:table-cell", cell: (row) => row.quarantined },
+											{
+												id: "lot",
+												header: "Lot",
+												className: "hidden sm:table-cell",
+												cellClassName: "text-xs",
+												cell: (row) => (
+													<>
+														{row.lot_code ?? "—"}
+														{row.expires_on && ` · ${row.expired ? "kedaluwarsa" : "s.d."} ${row.expires_on}`}
+													</>
+												),
+											},
+										]}
+									/>
 								)}
 							</Section>
 						)}
@@ -844,66 +796,32 @@ function VersionHistory({
 					/>
 				</div>
 			)}
-			{data?.state === "ready" &&
-				(data.data.length === 0 ? (
-					<p className="mt-2 text-muted-foreground">Belum ada versi biaya.</p>
-				) : (
-					<div className="mt-2">
-						<Table>
-							<TableHeader>
-								<TableRow>
-									<TableHead>Versi</TableHead>
-									<TableHead>Berlaku sejak</TableHead>
-									{kind === "component" ? (
-										<TableHead className="text-right">HPP satuan</TableHead>
-									) : (
-										(Object.keys(ASSUMPTION_LABELS) as AssumptionField[]).map(
-											(f) => (
-												<TableHead key={f} className="text-right">
-													{ASSUMPTION_LABELS[f]}
-												</TableHead>
-											),
-										)
-									)}
-									<TableHead>Sumber</TableHead>
-									<TableHead>Alasan</TableHead>
-								</TableRow>
-							</TableHeader>
-							<TableBody>
-								{data.data.map((r) => (
-									<TableRow key={r.id}>
-										<TableCell className="tabular-nums">{r.version}</TableCell>
-										<TableCell className="tabular-nums">
-											{when(r.effective_from)}
-										</TableCell>
-										{kind === "component" ? (
-											<TableCell className="text-right tabular-nums">
-												{money(r.unit_cost ?? null)}
-											</TableCell>
-										) : (
-											(Object.keys(ASSUMPTION_LABELS) as AssumptionField[]).map(
-												(f) => (
-													<TableCell
-														key={f}
-														className="text-right tabular-nums"
-													>
-														{money(r[f] ?? null)}
-													</TableCell>
-												),
-											)
-										)}
-										<TableCell className="max-w-48 whitespace-normal">
-											{r.source}
-										</TableCell>
-										<TableCell className="max-w-48 whitespace-normal">
-											{r.reason}
-										</TableCell>
-									</TableRow>
-								))}
-							</TableBody>
-						</Table>
-					</div>
-				))}
+			{data?.state === "ready" && (
+				<div className="mt-2">
+					<DataTable
+						rows={data.data}
+						rowKey={(r) => r.id}
+						status={{ kind: "ready" }}
+						loadingLabel="Memuat riwayat…"
+						empty="Belum ada versi biaya."
+						caption={title}
+						columns={[
+							{ id: "version", header: "Versi", className: "tabular-nums", cell: (r) => r.version },
+							{ id: "from", header: "Berlaku sejak", className: "tabular-nums", cell: (r) => when(r.effective_from) },
+							...(kind === "component"
+								? [{ id: "unit_cost", header: "HPP satuan", className: "text-right tabular-nums", cell: (r: (typeof data.data)[number]) => money(r.unit_cost ?? null) }]
+								: (Object.keys(ASSUMPTION_LABELS) as AssumptionField[]).map((f) => ({
+										id: f,
+										header: ASSUMPTION_LABELS[f],
+										className: "text-right tabular-nums",
+										cell: (r: (typeof data.data)[number]) => money(r[f] ?? null),
+									}))),
+							{ id: "source", header: "Sumber", cellClassName: "max-w-48 whitespace-normal", cell: (r) => r.source },
+							{ id: "reason", header: "Alasan", cellClassName: "max-w-48 whitespace-normal", cell: (r) => r.reason },
+						]}
+					/>
+				</div>
+			)}
 		</details>
 	);
 }
