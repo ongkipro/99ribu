@@ -10,7 +10,8 @@ import {validateExchanges,type Exchange} from '../contract/openapi-probe.ts';
 import {closeFulfillmentActor,installFulfillmentCalendars} from './fulfillment-fixture.ts';
 import {totp} from './totp-fixture.ts';
 
-test('built return routes keep original browser authority and confirm refunds only through a fresh signed host worker',async()=>{
+// Runs ~28-33 s alone against a production build, at the 30 s default; explicit budget.
+test('built return routes keep original browser authority and confirm refunds only through a fresh signed host worker',{timeout:180000},async()=>{
  const origin='http://127.0.0.1:3099',identity=createLocalAuth('local'),owner=await actor(identity,'owner',[]),samples:Exchange[]=[];
  const browser=await chromium.launch({executablePath:process.env.PLAYWRIGHT_CHROMIUM_EXECUTABLE});
  const host=(mode:string,...args:string[])=>execFileSync(process.execPath,['--env-file=.env.example','scripts/worker.ts','local',mode,...args],{timeout:15000,stdio:'pipe'});

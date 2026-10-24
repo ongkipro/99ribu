@@ -67,7 +67,7 @@ li{border-top:1px solid #f4f4f5;padding-top:.5rem;word-break:break-word;display:
 				<option value="thermal_100x150">Thermal 100×150 mm</option>
 				<option value="a4">A4</option>
 			</select>
-			<button type="button" data-testid="batch-generate-button" id="batch" disabled>Buat label 0 paket</button>
+			<span id="batch-slot">Pilih paket di daftar untuk membuat label sekaligus.</span>
 		</div>
 	</section>
 
@@ -172,9 +172,10 @@ document.addEventListener("change", (e) => {
 	const box = e.target.closest("[data-shipment]");
 	if (!box) return;
 	if (box.checked) selected.add(box.dataset.shipment); else selected.delete(box.dataset.shipment);
-	const batch = document.getElementById("batch");
-	batch.disabled = selected.size === 0;
-	batch.textContent = "Buat label " + selected.size + " paket";
+	// Mirrors the print center (S113 #15): no batch button until a parcel is selected.
+	document.getElementById("batch-slot").innerHTML = selected.size === 0
+		? "Pilih paket di daftar untuk membuat label sekaligus."
+		: '<button type="button" data-testid="batch-generate-button" id="batch">Buat label ' + selected.size + " paket</button>";
 });
 </script>
 </body>

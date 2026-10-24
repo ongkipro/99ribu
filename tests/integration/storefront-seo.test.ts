@@ -11,7 +11,9 @@ import * as seo from '../../src/modules/storefront/seo.ts';
 import {shippingFixture} from './shipping-fixture.ts';
 
 const config=siteConfig(process.env),origin=config.origin,closed=Object.freeze({origin,indexing:false});
-const pages=(dir:string):string[]=>readdirSync(dir).flatMap(name=>{const path=join(dir,name);return statSync(path).isDirectory()?pages(path):name==='page.tsx'?[path]:[];});
+// Parallel-route slots (`@modal`, S112) are not URLs: they render over the page at the same URL, whose
+// own route carries the metadata (a hard load of /masuk renders the noindex page itself).
+const pages=(dir:string):string[]=>readdirSync(dir).flatMap(name=>{const path=join(dir,name);return statSync(path).isDirectory()?(name.startsWith('@')?[]:pages(path)):name==='page.tsx'?[path]:[];});
 const routeOf=(file:string)=>`/${relative('src/app',file).split(sep).slice(0,-1).filter(s=>!/^\(.*\)$/.test(s)).join('/')}`;
 const policyOf=(route:string)=>seo.routePolicy.find(p=>p.route===route||(p.route.endsWith('/**')&&(route===p.route.slice(0,-3)||route.startsWith(p.route.slice(0,-2)))));
 const inRange=(text:string,[min,max]:readonly [number,number])=>seo.textLength(text)>=min&&seo.textLength(text)<=max;

@@ -219,17 +219,26 @@ function renderAdminSupportHtml(targetSavedReplyId: string): string {
       return prefix + '-' + Math.random().toString(36).slice(2, 12) + '-' + Date.now().toString(36);
     }
     async function loadQueue() {
-      const res = await fetch('/api/v1/admin/support/conversations?assignment=all');
-      if (!res.ok) return;
-      const body = await res.json();
+      // Walk the keyset pages until this run's thread is found.
+      const items = [];
+      for (let cursor = null, pages = 0; pages < 50; pages++) {
+        const res = await fetch('/api/v1/admin/support/conversations?assignment=all&limit=100' + (cursor ? '&cursor=' + cursor : ''));
+        if (!res.ok) return;
+        const page = await res.json();
+        items.push(...page.data);
+        cursor = page.pagination?.next_cursor ?? null;
+        if (!cursor || page.data.some((i) => i.conversation.id === new URLSearchParams(location.search).get('conv'))) break;
+      }
       const list = document.getElementById('inbox-list');
       list.innerHTML = '';
-      for (const item of body.data) {
+      for (const item of items) {
         const li = document.createElement('li');
         li.setAttribute('data-testid', 'inbox-item-' + item.conversation.id);
         li.textContent = 'Thread #' + item.conversation.id.slice(0, 8) + ' · ' + item.conversation.status;
         list.appendChild(li);
-        if (!selectedConv) selectedConv = item;
+        // The shared local database holds conversations from earlier runs (some on advanced fixture
+        // clocks), so the queue head is not necessarily this run's thread: select it by id.
+        if (!selectedConv && item.conversation.id === new URLSearchParams(location.search).get('conv')) selectedConv = item;
       }
       const srRes = await fetch('/api/v1/admin/support/saved-replies?limit=100');
       if (srRes.ok) {
@@ -492,7 +501,8 @@ test("S44-S45 browser: customer support chat on /help and staff CS workbench on 
 				})),
 			);
 			const staffPage = await staffContext.newPage();
-			await staffPage.goto(`${baseUrl}/admin/support`);
+			assert.ok(createdConversationIds[0], "the buyer conversation was created");
+			await staffPage.goto(`${baseUrl}/admin/support?conv=${createdConversationIds[0]}`);
 
 			await staffPage.getByRole("button", { name: "Muat Antrean" }).click();
 			await staffPage.getByRole("button", { name: "Klaim Eksklusif" }).click();

@@ -10,7 +10,8 @@ import {validateExchanges,type Exchange} from '../contract/openapi-probe.ts';
 import {closeFulfillmentActor,installFulfillmentCalendars} from './fulfillment-fixture.ts';
 import {totp} from './totp-fixture.ts';
 
-test('built browser replacement and rate routes preserve original charges, first receipt anchors and current staff authority',async()=>{
+// Runs ~28-33 s alone against a production build, at the 30 s default; explicit budget.
+test('built browser replacement and rate routes preserve original charges, first receipt anchors and current staff authority',{timeout:180000},async()=>{
  const origin='http://127.0.0.1:3099',identity=createLocalAuth('local'),owner=await actor(identity,'owner',[]),samples:Exchange[]=[],rates:Exchange[]=[];
  const browser=await chromium.launch({executablePath:process.env.PLAYWRIGHT_CHROMIUM_EXECUTABLE});
  let affiliate:Awaited<ReturnType<typeof actor>>|undefined;
