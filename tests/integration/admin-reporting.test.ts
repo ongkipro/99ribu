@@ -231,18 +231,25 @@ test("T-34: role-scoped dashboards, unknown vs zero cost metrics, drilldown cons
 			assert.deepEqual(
 				Object.keys(row).sort(),
 				[
+					"amount_idr",
 					"due_at",
 					"due_at_kind",
 					"id",
 					"order_id",
 					"reference",
 					"resource_kind",
+					"settlement_source",
 					"state",
 					"version",
 					"warehouse_id",
 				],
 				"Work queue rows must never leak customer contacts or whole-order money",
 			);
+			// Only reconciliation rows carry a settlement amount and feed; order rows never carry money.
+			if (row.resource_kind !== "reconciliation") {
+				assert.equal(row.amount_idr, null);
+				assert.equal(row.settlement_source, null);
+			}
 		}
 		// Rows carry the order number operators see elsewhere, and say which time due_at holds.
 		const orderFacts = await f.identity.sql<

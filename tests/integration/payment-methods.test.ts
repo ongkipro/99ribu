@@ -134,8 +134,9 @@ test('manual bank: unique code added to the total, 24 hour window, instructions,
   const shown=await sql.begin(tx=>projectAttempt(tx,paid.id,a.id));
   assert.equal(shown.action.kind,'bank_transfer');assert.equal(shown.expected_amount,Number(row.buyer_total)+row.transfer_code);
   assert.ok('accounts' in shown.action&&shown.action.accounts[0].account_number==='1234567890');
-  const queue=await handleManualTransfers(finance.browser.request('/api/v1/admin/manual-transfers?state=open'),f.identity);assert.equal(queue.status,200);
-  assert.ok((await queue.json()).data.some((t:{id:string})=>t.id===a.id));
+  // The open queue is keyset-paged (S113); the shared test database holds many open transfers, so walk every page.
+  let listed=false;for(let cursor:string|null='',pages=0;cursor!==null&&!listed&&pages<200;pages++){const queue=await handleManualTransfers(finance.browser.request(`/api/v1/admin/manual-transfers?state=open${cursor?`&cursor=${cursor}`:''}`),f.identity);assert.equal(queue.status,200);const page=await queue.json() as {data:{id:string}[];pagination:{next_cursor:string|null}};listed=page.data.some(t=>t.id===a.id);cursor=page.pagination.next_cursor;}
+  assert.ok(listed,'the new transfer is in the open queue');
   const ok=await confirm(a.id,shown.expected_amount);assert.equal(ok.status,201,JSON.stringify(ok.payload));await runCallbacks(a.id);
   const [order]=await sql`select payment_status from app.commerce_order where id=${paid.id}`;assert.equal(order.payment_status,'confirmed');
   const [receipt]=await sql`select amount,payment_charge,merchandise_amount from app.economic_receipt where order_id=${paid.id}`;

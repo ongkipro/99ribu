@@ -5,51 +5,42 @@ Screenshots: docs/spec/design/renders/pdp-header/pdp-1440.png, docs/spec/design/
 References: docs/spec/design/references/shop-com/2026-10-22-cart/1440.png, docs/spec/design/references/shop-com/2026-10-22-cart/390.png, docs/spec/design/references/shop-com/2026-10-22-help/1440.png, docs/spec/design/references/shop-com/2026-10-22-help/390.png, docs/spec/design/references/shop-com/2026-10-22-home/1440.png, docs/spec/design/references/shop-com/2026-10-22-home/390.png, docs/spec/design/references/shop-com/2026-10-22-pdp-1440.png, docs/spec/design/references/shop-com/2026-10-22-pdp-390-scrolled.png, docs/spec/design/references/shop-com/2026-10-22-pdp-390.png, docs/spec/design/references/shop-com/2026-10-22-search-1440.png, docs/spec/design/references/shop-com/2026-10-22-search-390.png, docs/spec/design/references/shop-com/2026-10-22-search-filters-390.png, docs/spec/design/references/shop-com/2026-10-23-home-1440-full.png, docs/spec/design/references/shop-com/2026-10-23-home-390-full.png, docs/spec/design/references/shop-com/2026-10-24-filter-dropdown/1440.png, docs/spec/design/references/shop-com/2026-10-24-filter-dropdown/390.png, docs/spec/design/references/shop-com/2026-10-24-filters-sheet/1440.png, docs/spec/design/references/shop-com/2026-10-24-filters-sheet/390.png, docs/spec/design/references/shop-com/2026-10-24-pdp/1440.png, docs/spec/design/references/shop-com/2026-10-24-pdp/390.png, docs/spec/design/references/shop-com/2026-10-24-search/1440.png, docs/spec/design/references/shop-com/2026-10-24-search/390.png, docs/spec/design/references/shop-com/2026-10-24-signin/1440.png, docs/spec/design/references/shop-com/2026-10-24-signin/390.png
 Prompt-SHA: 4ae0ce2195b477c4
 Context-SHA: ee2920fe16e94784
-Images-SHA: 9969cb0ed18c7f1e
-Output-SHA: 083b24716900c0fa
+Images-SHA: c1ba679fcc328d91
+Output-SHA: eb66c5cda85af690
 
-Paduka Ongki, **REVISE**. Seluruh **137 gambar dalam daftar utama** berhasil diinspeksi, ditambah **17 render S112** yang dirujuk dalam Direction. Dua temuan visual tersisa: posisi tombol banner mobile tidak sejajar, dan tombol tutup modal sign-in tidak terlihat pada 320px/200%.
+Paduka Ongki, seluruh **137 gambar dalam daftar berhasil dibuka dan diperiksa**, termasuk render 99ribu dan referensi shop.com. Tidak ditemukan masalah visual material yang membutuhkan revisi terhadap kontrak terbaru. “Tidak perlu” berarti tidak ada perbaikan yang didukung bukti visual.
 
-Urutan berikut mengikuti bagian atas–bawah masing-masing halaman. Tanda “—” berarti tidak ada perbaikan visual yang perlu dipaksakan.
-
-| Section | generic or authored | look matched (or none) | One concrete fix |
+| Section, dari atas ke bawah | Penilaian | Look matched | Satu perbaikan konkret |
 |---|---|---|---|
-| Header: pemberitahuan simulasi, wordmark, utilitas | authored | Override brand 99ribu; urutan Promo–Cart–Account terlihat | — |
-| Omnibox dan saran pencarian | authored | Permukaan putih membesar, chip membungkus, tinggi mengikuti jumlah saran | — |
-| Navigasi kategori | authored | Foto lingkaran, label, dan fade tepi mendukung penelusuran horizontal | — |
-| Home: hero | authored | Hierarki harga besar, penjelasan, lalu aksi; foto berada di kanan desktop dan atas ponsel | — |
-| Home: grid kategori | authored | Lima kolom desktop, dua pada ponsel; tint dan foto membedakan departemen | — |
-| Home: Terbaru | generic | Shelf produk Shop; foto persegi dan judul–harga ringkas sesuai pekerjaan membandingkan produk | — |
-| Home: category switcher | authored | Nama besar, kategori aktif gelap, medallion di atas, shelf di bawah | — |
-| Home: Temukan pilihan | authored | Rail editorial berbasis foto; **ritme bawah kartu mobile belum cocok** | Samakan tinggi kartu dalam satu rail dan dorong tombol ke bawah agar baseline tombol sejajar. |
-| Listing: judul dan filter | authored | Chip aktif gelap, popover desktop, serta sheet ponsel mengikuti referensi terbaru | — |
-| Listing: grid produk | generic | Enam kolom desktop, empat tablet, dua ponsel; satu kolom dengan judul membungkus pada 200% | — |
-| Listing: pemuatan dan kelanjutan | generic | Skeleton mengikuti geometri kartu; tombol kelanjutan terpisah jelas dari footer | — |
-| PDP: galeri | authored | Thumbnail desktop dan foto berikutnya mengintip pada ponsel; foto persegi sesuai override | — |
-| PDP: informasi pembelian | authored | Harga per pilihan, isi paket, stok, jumlah, lalu satu aksi utama membentuk urutan keputusan yang jelas | — |
-| PDP: accordion | generic | Hairline dan chevron memisahkan deskripsi, pengiriman, serta pengembalian | — |
-| Keranjang kosong | generic | Judul–penjelasan–satu tombol utama terpusat, seperti referensi | — |
-| Keranjang terisi dan ringkasan | authored | Baris barang tanpa kotak; isi paket dan ringkasan transaksi dibedakan jelas | — |
-| Promo: paket campuran dan ongkir | authored | Grid katalog konsisten; kondisi tanpa promo ongkir dinyatakan tanpa badge diskon rekaan | — |
-| Bantuan: pengantar, topik, chat | generic | Kolom terpusat, dua kartu sejajar desktop dan satu kolom ponsel | — |
-| Sign-in: halaman, error, TOTP | authored | Kolom sempit dan aksi ungu mengikuti referensi; label terlihat dan pesan error berada dekat field | — |
-| Sign-in: modal | authored | Desktop dan 390px cocok dengan kontrak; **state 320px/200% kehilangan kontrol tutup yang terlihat** | Tempatkan tombol tutup pada bagian panel yang tetap terlihat ketika isi modal bergulir. |
-| Dock | generic | Ikon aktif terisi, empat tujuan, tanpa logo mobile sesuai override | — |
-| Footer | authored | Brand terpisah dari kelompok navigasi; dua kolom ponsel berubah menjadi satu pada teks besar | — |
+| Header dan wordmark | authored | Omnibox dominan; identitas 99ribu tetap jelas pada desktop | Tidak perlu; reveal wordmark tetap terpisah dari bidang pencarian. |
+| Navigasi kategori | authored | Foto lingkaran, label, dan rail horizontal mengikuti referensi | Tidak perlu; fade ujung memberi petunjuk bahwa kategori berlanjut. |
+| Omnibox terbuka | authored | Satu permukaan membesar dengan suggestion chips | Tidak perlu; keadaan sedikit hasil mengikuti tinggi kontennya tanpa ruang kosong besar. |
+| Hero | authored | Hierarki judul besar, foto produk, penjelasan, lalu tindakan | Tidak perlu; harga tetap utuh pada 320px/200%, sementara isi dan tombol tumbuh vertikal. |
+| Grid kategori home | authored | Dua kolom pada ponsel, lima pada desktop; gambar dan nama terbaca terpisah | Tidak perlu; label panjang membungkus tanpa bertabrakan dengan foto. |
+| Shelf Terbaru | authored | Foto persegi, judul ringkas, harga kecil, dan kartu berikutnya mengintip | Tidak perlu; kepadatan mendukung pemindaian katalog. |
+| Category switcher | authored | Nama kategori besar dengan shelf di bawahnya | Tidak perlu; medallion di atas nama menjaga label aktif terbaca. |
+| Temukan pilihan | authored | Rail foto editorial dengan adaptasi caption putih yang disetujui | Tidak perlu; tiga tombol sejajar pada desktop, kartu berikutnya terlihat pada ponsel. |
+| Judul dan filter listing | authored | Chip rail, keadaan aktif gelap, popover desktop dan sheet ponsel | Tidak perlu; label filter membungkus di dalam chip pada teks diperbesar. |
+| Grid hasil dan pemuatan lanjutan | authored | Enam kolom desktop, dua ponsel, satu pada 320px/200% | Tidak perlu; skeleton mempertahankan bentuk dan susunan kartu. |
+| Galeri PDP | authored | Thumbnail desktop dan photo rail dengan peek pada ponsel | Tidak perlu; foto persegi menampilkan materi merchant tanpa crop tambahan. |
+| Buy box PDP | authored | Judul → harga → isi → stok → jumlah → aksi utama | Tidak perlu; tombol ungu tetap menjadi tindakan paling menonjol. |
+| Accordion PDP | authored | Hairline dan chevron memisahkan informasi lanjutan | Tidak perlu; judul pengiriman membungkus dengan chevron tetap terpisah pada teks besar. |
+| Keranjang kosong | authored | Pesan terpusat dan satu primary pill | Tidak perlu; tindakan kembali memilih produk terlihat jelas. |
+| Keranjang terisi | authored | Baris barang terbuka dan ringkasan putih yang berbeda fungsi | Tidak perlu; kontrol jumlah membungkus tanpa menimpa rincian barang. |
+| Promo | authored | Grid katalog dengan pemisahan paket campuran dan promo ongkir | Tidak perlu; keadaan tanpa promo ongkir dinyatakan langsung, tanpa diskon rekaan. |
+| Bantuan | authored | Kolom terpusat, kartu topik dua kolom desktop dan bertumpuk pada ponsel | Tidak perlu; bagian chat mengikuti topik kebijakan dengan tindakan yang terbaca. |
+| Footer dan dock | authored | Menu berkolom serta dock dengan ikon aktif terisi | Tidak perlu; footer menjadi satu kolom pada teks besar dan dock tetap terbaca. |
 
-Bukti dan perbandingan yang menentukan:
+Bukti visual dan perbandingan utama:
 
-- **Banner mobile:** pada [banners-390](/home/ongki/Projects/99ribu/design/review-slices/e2c982bd80b7f52c-banners-390-01.png), tombol “Lihat paket” berada sekitar satu baris teks lebih rendah daripada tombol kartu otomotif. Selisih yang sama terlihat pada [home-390 bagian 03](/home/ongki/Projects/99ribu/design/review-slices/b2fa7d0934f1b0da-home-390-03.png), dan membesar pada [home-320/200% bagian 05](/home/ongki/Projects/99ribu/design/review-slices/f9ad8c3bad0b98a7-home-320-text200-05.png). Ini mengganggu ritme rail dan bertentangan dengan keputusan tombol sejajar. [Banner desktop](/home/ongki/Projects/99ribu/design/review-slices/047b8bc560694513-banners-1440-01.png) sudah sejajar. Foto cut-out, tint, dan caption putihnya didukung override; tidak perlu menggantinya dengan gaya foto referensi.
+- **Hierarki dan imagery:** [home desktop](design/review-slices/894181cd6f0102a7-home-1440-01.png) dibandingkan dengan [referensi home](design/review-slices/56ae2fb14286102a-2026-10-23-home-1440-full-01.png). Transfernya terlihat pada headline dominan, kelompok foto, ruang antarseksi, dan kontrol berbentuk pill. Foto barang serta lavender–kuning menghubungkannya dengan katalog dan brand 99ribu.
+- **Rhythm dan density:** [home ponsel](design/review-slices/b2fa7d0934f1b0da-home-390-02.png) dan [referensi switcher](design/review-slices/44fc7af5e1d1773d-2026-10-23-home-390-full-03.png) sama-sama memakai pergantian blok kategori dan shelf horizontal. Medallion yang dipindahkan ke atas merupakan deviasi terdokumentasi.
+- **Listing:** [hasil desktop](design/review-slices/52813708c76d4c86-listing-first-1440-01.png) mengikuti foto persegi dan enam kolom pada [referensi pencarian](design/review-slices/a2c45727ebb50b67-1440-01.png). Metadata lebih pendek sesuai satu merchant dan harga tetap.
+- **Filter:** [popover 99ribu](design/review-slices/c2b5b6161ea2ea51-search-pop-urutkan-768-01.png) dan [popover referensi](design/review-slices/963028353376e5c9-1440-01.png) menunjukkan panel membulat, radio kanan, serta pasangan reset/selesai. [Sheet ponsel](design/review-slices/90c4b3e3f50eb9a8-category-pop-isi-pilihan-390-01.png) mempertahankan susunan tersebut.
+- **PDP:** [render desktop](design/review-slices/3ef4b6ae7c0c22aa-pdp-1440-01.png) dan [referensi PDP](design/review-slices/dfa8bb350ab251c5-1440-01.png) berbagi hierarki media besar dan buy box sempit. [PDP teks besar](design/review-slices/b6b3ad679a106622-pdp-320-text200-03.png) memperlihatkan tombol serta accordion membesar tanpa memotong label.
+- **Banner:** [desktop](design/review-slices/047b8bc560694513-banners-1440-01.png) dan [ponsel](design/review-slices/e2c982bd80b7f52c-banners-390-01.png) memenuhi keputusan foto di atas, caption di bawah, dan aksi sejajar. Perbedaannya dari caption overlay referensi memang diterima.
 
-- **Modal pada teks besar:** [modal-320](/home/ongki/Projects/99ribu/docs/spec/design/renders/s112/modal-320.png) menampilkan logo dekat tepi atas, heading tiga baris, paragraf panjang, dan Email tepat di batas bawah panel; ikon tutup tidak terlihat. Akibatnya, cara meninggalkan modal kurang jelas. Pada [modal-390](/home/ongki/Projects/99ribu/docs/spec/design/renders/s112/modal-390.png), kontrol tutup dan seluruh form terlihat. Screenshot tidak membuktikan bahwa scrolling atau Escape gagal; temuannya adalah hilangnya kontrol keluar yang terlihat pada state tersebut.
+Riset dan alasan transfer tersedia secara spesifik; arah ini tidak hanya ditopang daftar gambar. Klaim pada materi merchant yang sudah diterima tidak saya buka kembali sebagai temuan layout. Batas antar-slice, peek carousel, dan frame tengah animasi juga tidak saya hitung sebagai clipping halaman. Render implementasi S112 tidak tercantum dalam daftar ini, sehingga sign-in 99ribu tidak termasuk penerimaan ini.
 
-- **Hierarki dan imagery home:** [home desktop 99ribu](/home/ongki/Projects/99ribu/design/review-slices/894181cd6f0102a7-home-1440-01.png) mentransfer headline besar di kiri bawah dan media di kanan dari [home referensi](/home/ongki/Projects/99ribu/design/review-slices/56ae2fb14286102a-2026-10-23-home-1440-full-01.png). Foto barang nyata dan harga tetap mengikat komposisi ke katalog ini. [Kategori dan switcher referensi](/home/ongki/Projects/99ribu/design/review-slices/56ae2fb14286102a-2026-10-23-home-1440-full-02.png) juga menjelaskan pergantian ritme tile kecil → nama kategori besar → shelf. Label gelap pada tint terang dan medallion yang tidak menimpa teks merupakan deviasi yang didukung kontrak.
-
-- **Density listing dan filter:** [listing 99ribu](/home/ongki/Projects/99ribu/design/review-slices/52813708c76d4c86-listing-first-1440-01.png) mempertahankan grid tanpa sidebar seperti [referensi search](/home/ongki/Projects/99ribu/design/review-slices/a2c45727ebb50b67-1440-01.png). Metadata lebih sedikit karena hanya ada judul dan harga tetap; tidak ada kebutuhan mengarang rating atau merchant. [Sheet Isi pilihan](/home/ongki/Projects/99ribu/design/review-slices/90c4b3e3f50eb9a8-category-pop-isi-pilihan-390-01.png) mengikuti susunan judul, radio kanan, dan pasangan tombol pada [sheet referensi](/home/ongki/Projects/99ribu/design/review-slices/7411463201568c72-390-01.png).
-
-- **PDP dan transaksi:** [PDP 99ribu](/home/ongki/Projects/99ribu/design/review-slices/3ef4b6ae7c0c22aa-pdp-1440-01.png) mempertahankan pemisahan media–buy box dari [PDP referensi](/home/ongki/Projects/99ribu/design/review-slices/dfa8bb350ab251c5-1440-01.png). Daftar isi paket memberi alasan nyata untuk buy box yang lebih panjang. [Keranjang terisi](/home/ongki/Projects/99ribu/design/review-slices/4567ff2f4faf9334-cart-filled-1440-01.png) dinilai terhadap kontrak R7; referensi yang tersedia hanya menunjukkan keranjang kosong.
-
-Research dan alasan transfer tersedia secara substantif, bukan sekadar daftar gambar. Klaim pada foto merchant yang telah diterima sebagai dummy tidak saya buka kembali sebagai temuan gate ini. Potongan vertikal antarslice dan foto berikutnya yang sengaja mengintip juga tidak saya anggap clipping rusak. Penilaian ini khusus visual, bukan bukti kelulusan interaksi atau aksesibilitas.
-
-Most important change: Pertahankan tombol tutup modal sign-in tetap terlihat pada 320px dengan teks 200% agar pengguna tetap mengenali jalan keluar.
-Verdict: REVISE
+Most important change: Tidak ada perubahan visual wajib pada render yang diperiksa.
+Verdict: PASS
