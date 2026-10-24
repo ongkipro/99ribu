@@ -313,8 +313,7 @@ export function CatalogProductClient({
 									{p.name}
 								</h1>
 								<p className="text-xs text-muted-foreground">
-									<span className="font-mono">{p.catalog_id}</span> · draf versi{" "}
-									{p.version} ·{" "}
+									Draf versi {p.version} ·{" "}
 									{categoryPath(p.category_id, categories) ?? "Tanpa kategori"}
 								</p>
 								<div className="flex flex-wrap items-center gap-2">
