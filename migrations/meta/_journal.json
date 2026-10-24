@@ -267,6 +267,13 @@
       "when": 1792790768631,
       "tag": "0037_retention",
       "breakpoints": true
+    },
+    {
+      "idx": 38,
+      "version": "7",
+      "when": 1792868606568,
+      "tag": "0038_home_banners",
+      "breakpoints": true
     }
   ]
 }

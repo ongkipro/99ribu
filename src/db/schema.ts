@@ -1188,3 +1188,23 @@ export const localAutolarisTransaction = appSchema.table('local_autolaris_transa
  status:text('status').notNull(),createdAt:instant('created_at').notNull().default(sql`clock_timestamp()`),paidAt:instant('paid_at'),
 },t=>[unique('local_autolaris_transaction_reff_unique').on(t.environment,t.reffId),check('local_autolaris_transaction_value_check',sql`${t.environment} IN ('local','test') AND ${t.status} IN ('pending','paid','expired','generic_success')
   AND ${t.amount}>0 AND ${t.adminFee}>=0 AND ${t.total}>0 AND (${t.status}='paid')=(${t.paidAt} IS NOT NULL)`)]);
+// S110 home promo banners: a permanent identity whose revision only advances with an appended,
+// immutable version (create, revise, reorder, retire). Images are catalog media (DEC-005) referenced
+// by SHA-256; links are internal storefront paths only (no external links or tracking pixels).
+export const homeBanner = appSchema.table('home_banner',{
+ id:uuid('id').primaryKey().defaultRandom(),revision:integer('revision').notNull().default(0),createdAt:instant('created_at').notNull().default(sql`clock_timestamp()`),
+},t=>[check('home_banner_revision_check',sql`${t.revision}>=0`)]);
+export const homeBannerVersion = appSchema.table('home_banner_version',{
+ id:uuid('id').primaryKey().defaultRandom(),bannerId:uuid('banner_id').notNull().references(()=>homeBanner.id,{onDelete:'restrict'}),revision:integer('revision').notNull(),
+ title:text('title').notNull(),subtitle:text('subtitle'),actionLabel:text('action_label').notNull(),href:text('href').notNull(),
+ imageSha256:text('image_sha256').notNull(),imageWidth:integer('image_width').notNull(),imageHeight:integer('image_height').notNull(),imageAlt:text('image_alt').notNull(),tint:text('tint'),
+ startsAt:instant('starts_at').notNull(),endsAt:instant('ends_at').notNull(),position:integer('position').notNull(),active:boolean('active').notNull(),retired:boolean('retired').notNull().default(false),
+ actorId:text('actor_id').notNull(),reason:text('reason').notNull(),createdAt:instant('created_at').notNull().default(sql`clock_timestamp()`),
+},t=>[unique('home_banner_version_unique').on(t.bannerId,t.revision),
+ check('home_banner_version_text_check',sql`${t.revision}>0 AND char_length(${t.title}) between 1 and 60 AND (${t.subtitle} IS NULL OR char_length(${t.subtitle}) between 1 and 140)
+  AND char_length(${t.actionLabel}) between 1 and 24 AND char_length(${t.imageAlt}) between 1 and 160 AND char_length(${t.reason}) between 1 and 500`),
+ check('home_banner_version_href_check',sql`${t.href} ~ '^/(promo|kategori|kategori/[a-z0-9-]{1,80}|cari|produk/[a-z0-9-]{1,160})([?][A-Za-z0-9_.~%=&+*-]{1,300})?$'`),
+ check('home_banner_version_image_check',sql`${t.imageSha256} ~ '^[0-9a-f]{64}$' AND ${t.imageWidth} between 1 and 16384 AND ${t.imageHeight} between 1 and 16384
+  AND (${t.tint} IS NULL OR ${t.tint} IN ('amber','slate','rose','blue','green','violet','teal'))`),
+ check('home_banner_version_window_check',sql`${t.startsAt}<${t.endsAt} AND ${t.position} between 0 and 999 AND NOT (${t.retired} AND ${t.active})`),
+]);
