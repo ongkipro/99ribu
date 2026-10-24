@@ -180,6 +180,7 @@ const ACTION_LABELS: Record<string, string> = {
 	"/admin/fulfillment": "Buka Pengiriman Manual",
 	"/admin/payments": "Buka Pembayaran",
 	"/admin/cod-settlements": "Buka Setoran COD",
+	"/admin/support": "Buka Kotak Masuk",
 };
 // Low stock per warehouse shows the largest few; payment methods show all.
 const BREAKDOWN_SHOWN = 3;
@@ -1094,6 +1095,7 @@ export function AdminWorkspacesClient({
 		"/admin/fulfillment": !preview && access.ship,
 		"/admin/payments": !preview && access.reconcileRead,
 		"/admin/cod-settlements": !preview && access.reconcileRead,
+		"/admin/support": !preview && access.support,
 	};
 	const actionLabel = (href: string | null | undefined) =>
 		href && actionAllowed[href] ? ACTION_LABELS[href] : null;
