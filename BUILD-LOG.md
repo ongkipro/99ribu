@@ -8,6 +8,17 @@
 - Local catalog: `catalog:withdraw -- local --apply` withdrew 12 test-fixture publications, leaving the 392 Berlapak products (122 unit, 244 multipack, 26 bundle) as the only live listings. `round.sh` now applies the withdrawal before capture.
 - Lesson: `biome check --write` on the terse storefront sources reflows thousands of lines and breaks source-regex tests. Format only files that are already biome-styled.
 - S112 is built on branch `s112-signin-ux` and has not been merged yet. Independent security review PASS (Low: add a cross-origin POST test and read `x-retry-after`).
+||||||| de746d8
+
+## 2026-10-24 — S113 slice 2: admin console consolidation (branch `s113-admin-slice2`, not merged)
+
+- Finance queues `manual-transfers` / `autolaris-payments` are keyset pages (`cursor`, `pagination.next_cursor`; OpenAPI updated); payments UI pages both lists.
+- Shared admin patterns: `states.tsx` (loading/error/denied/empty on shadcn `Empty`), `form.tsx` (`FormField` on shadcn `Field`, `SegmentedControl`, `FormDialog`, `nativeSelectClass`), `use-keyset-list.ts`, `kpi-card.tsx` (one card for count and money KPIs, drilldown on every card). shadcn `empty`, `field`, `label` added via the registry.
+- Detail tables (order items, product stock, cost history) on DataTable; grouped sidebar (Operasional / Katalog / Keuangan, footer link).
+- Reporting: `delivery_exceptions`, `returns_pending`, `support_unassigned`, `finance_unmatched` count over the SQL fragment their drilldown lists (terminal states and warehouse scope moved from JS into SQL); `support_unassigned` links to `/admin/support`.
+- CS inbox: staff conversation projection adds `order_number` (OpenAPI); queue is a DataTable over the S104 keyset API with order numbers instead of ids.
+- T-37 browser suite reconciled with the current print-center ids; refusals asserted on the API codes.
+- Evidence in the worktree: `npm run check` PASS (123/123), `npm run build` PASS, `check-openapi-contract.py` PASS (192 paths / 228 ops); the new SQL shapes ran in a READ ONLY transaction against the test database; renders `docs/spec/design/renders/s113-slice2/` (owner, cs, keuangan at 390/768/1440 plus the mobile sidebar sheet; no horizontal overflow, no console errors). Integration/browser selectors not run here (shared databases): `admin-kpi-parity`, `T-34`, `PR-22`, `T-37`, `admin-ui-controls`, `consignment-payments`, `autolaris-payments`, `payment-methods`, `demo-orders`, `admin-orders`, `PR-18`.
 
 ## 2026-10-24 — Card price weight, S118 guest lookup by number, S113 admin DataTable (not pushed)
 

@@ -24,7 +24,6 @@ import {
 	DialogHeader,
 	DialogTitle,
 } from "@/components/ui/dialog";
-import { Skeleton } from "@/components/ui/skeleton";
 import { Textarea } from "@/components/ui/textarea";
 import { rupiah, wibDateTime } from "@/modules/storefront/format";
 import {
@@ -33,7 +32,10 @@ import {
 } from "./ad-destinations-panel";
 import { describeFailure, failureText, readFailure } from "./admin-errors";
 import type { ConsoleAccess } from "./console-access";
-import { DataTable, RetryAlert } from "./data-table";
+import { DataTable } from "./data-table";
+import { nativeSelectClass } from "./form";
+import { KpiCard, KpiGrid } from "./kpi-card";
+import { ErrorState, LoadingState } from "./states";
 
 export type CanonicalWorkspace =
 	| "owner"
@@ -178,6 +180,7 @@ const ACTION_LABELS: Record<string, string> = {
 	"/admin/fulfillment": "Buka Pengiriman Manual",
 	"/admin/payments": "Buka Pembayaran",
 	"/admin/cod-settlements": "Buka Setoran COD",
+	"/admin/support": "Buka Kotak Masuk",
 };
 // Low stock per warehouse shows the largest few; payment methods show all.
 const BREAKDOWN_SHOWN = 3;
@@ -1092,6 +1095,7 @@ export function AdminWorkspacesClient({
 		"/admin/fulfillment": !preview && access.ship,
 		"/admin/payments": !preview && access.reconcileRead,
 		"/admin/cod-settlements": !preview && access.reconcileRead,
+		"/admin/support": !preview && access.support,
 	};
 	const actionLabel = (href: string | null | undefined) =>
 		href && actionAllowed[href] ? ACTION_LABELS[href] : null;
@@ -1368,14 +1372,9 @@ export function AdminWorkspacesClient({
 					Antrean kerja · {WINDOW_LABELS[windowRange]}
 				</h2>
 				{dashState === "loading" ? (
-					<div className="flex flex-wrap gap-2" aria-busy="true">
-						<span className="sr-only">Memuat ringkasan…</span>
-						<Skeleton className="h-14 w-36" />
-						<Skeleton className="h-14 w-36" />
-						<Skeleton className="h-14 w-36" />
-					</div>
+					<LoadingState label="Memuat ringkasan…" className="h-14 w-full max-w-md" />
 				) : dashState === "error" ? (
-					<RetryAlert
+					<ErrorState
 						message={`Ringkasan gagal dimuat. ${dashError ?? ""}`}
 						onRetry={() =>
 							void loadDashboard(workspace, warehouseId, windowRange)
@@ -1383,71 +1382,38 @@ export function AdminWorkspacesClient({
 					/>
 				) : (
 					<>
-						<ul data-testid="kpi-cards-grid" className="flex flex-wrap gap-2">
+						<KpiGrid testId="kpi-cards-grid">
 							{countMetrics.map((m) => {
-								const active = metricKey === m.key;
 								const shown =
 									m.breakdown?.slice(
 										0,
 										m.key === "stock_alerts" ? BREAKDOWN_SHOWN : undefined,
 									) ?? [];
 								const hidden = (m.breakdown?.length ?? 0) - shown.length;
+								const action = actionLabel(m.action_href);
 								return (
-									<li
+									<KpiCard
 										key={m.key}
-										data-testid={`kpi-card-${m.key}`}
-										className="flex max-w-64 flex-col gap-1"
-									>
-										<Button
-											type="button"
-											variant="outline"
-											data-testid={`kpi-drilldown-${m.key}`}
-											aria-pressed={active}
-											onClick={() => {
-												openQueue(m.queue_key, m);
-												focusQueue();
-											}}
-											className={cn(
-												"h-auto flex-col items-start gap-0 px-3 py-2 text-left",
-												active && "border-primary ring-1 ring-primary",
-											)}
-										>
-											<span
-												data-testid={`kpi-value-${m.key}`}
-												className="text-lg font-semibold tabular-nums"
-											>
-												{m.complete ? (m.count ?? 0) : "—"}{" "}
-												<span className="text-xs font-normal text-muted-foreground">
-													{METRIC_UNITS[m.key] ?? ""}
-												</span>
-											</span>
-											<span className="text-xs font-medium text-muted-foreground">
-												{METRIC_LABELS[m.key] ?? m.key}
-												{!m.complete && " · belum lengkap"}
-											</span>
-										</Button>
-										{shown.length > 0 && (
-											<p
-												data-testid={`kpi-breakdown-${m.key}`}
-												className="px-1 text-xs text-muted-foreground tabular-nums"
-											>
-												{shown.map((b) => `${b.label} ${b.count}`).join(" · ")}
-												{hidden > 0 && ` · +${hidden} gudang lain`}
-											</p>
-										)}
-										{m.action_href && actionLabel(m.action_href) && (
-											<Link
-												href={m.action_href}
-												data-testid={`kpi-action-${m.key}`}
-												className="px-1 text-xs font-medium text-primary underline-offset-4 hover:underline focus-visible:rounded-sm focus-visible:outline-2 focus-visible:outline-ring"
-											>
-												{actionLabel(m.action_href)}
-											</Link>
-										)}
-									</li>
+										metricKey={m.key}
+										label={`${METRIC_LABELS[m.key] ?? m.key}${m.complete ? "" : " · belum lengkap"}`}
+										value={m.complete ? (m.count ?? 0) : "—"}
+										unit={METRIC_UNITS[m.key]}
+										breakdown={
+											shown.length > 0
+												? `${shown.map((b) => `${b.label} ${b.count}`).join(" · ")}${hidden > 0 ? ` · +${hidden} gudang lain` : ""}`
+												: null
+										}
+										active={metricKey === m.key}
+										drilldownLabel="Lihat baris"
+										onDrilldown={() => {
+											openQueue(m.queue_key, m);
+											focusQueue();
+										}}
+										action={m.action_href && action ? { href: m.action_href, label: action } : null}
+									/>
 								);
 							})}
-						</ul>
+						</KpiGrid>
 						{countMetrics.length > 0 && (
 							<details className="text-xs text-muted-foreground">
 								<summary className="cursor-pointer select-none font-medium">
@@ -1729,7 +1695,8 @@ export function AdminWorkspacesClient({
 						onMore: () => void loadMore(),
 					}}
 					footer={
-						!hasRowActions && (
+						// Rows that link to the S100 order detail need no "no detail page" note.
+						!hasRowActions && !(canOrders && rows.some((r) => r.order_id)) && (
 							<p className="text-xs text-muted-foreground">
 								Halaman detail untuk {QUEUE_LABELS[queue].toLowerCase()} belum
 								tersedia di konsol
@@ -1756,67 +1723,38 @@ export function AdminWorkspacesClient({
 							· nilai belum lengkap tidak dihitung sebagai Rp0
 						</p>
 					</div>
-					<div className="grid grid-cols-[repeat(auto-fill,minmax(min(100%,15rem),1fr))] gap-3">
-						{moneyMetrics.map((m) => (
-							<article
-								key={m.key}
-								data-testid={`kpi-card-${m.key}`}
-								className={cn(
-									"flex min-w-0 flex-col gap-2 rounded-lg border bg-card p-4",
-									metricKey === m.key && "border-primary ring-1 ring-primary",
-								)}
-							>
-								<div className="flex flex-wrap items-start justify-between gap-2">
-									<h3 className="text-sm font-medium text-muted-foreground">
-										{METRIC_LABELS[m.key] ?? m.key}
-									</h3>
-									{m.complete && BASIS_LABELS[m.financial_basis] && (
-										<Badge variant="outline">
-											{BASIS_LABELS[m.financial_basis]}
-										</Badge>
-									)}
-								</div>
-								<p
-									data-testid={`kpi-value-${m.key}`}
-									className={cn(
-										"text-2xl font-semibold tabular-nums break-words",
-										!m.complete && "text-base text-warning",
-									)}
-								>
-									{m.complete && m.amount !== null
-										? rupiah(m.amount)
-										: "Belum lengkap"}
-								</p>
-								<p className="text-xs leading-relaxed text-muted-foreground">
-									{m.complete
-										? m.definition
-										: "Sebagian sumber biaya belum tercatat, jadi nilai belum dihitung."}
-								</p>
-								<Button
-									type="button"
-									variant="link"
-									size="sm"
-									data-testid={`kpi-drilldown-${m.key}`}
-									className="mt-auto self-start px-0"
-									onClick={() => {
+					<KpiGrid>
+						{moneyMetrics.map((m) => {
+							const action = actionLabel(m.action_href);
+							return (
+								<KpiCard
+									key={m.key}
+									metricKey={m.key}
+									money
+									label={METRIC_LABELS[m.key] ?? m.key}
+									value={m.complete && m.amount !== null ? rupiah(m.amount) : "Belum lengkap"}
+									muted={!m.complete}
+									badge={
+										m.complete && BASIS_LABELS[m.financial_basis] ? (
+											<Badge variant="outline">{BASIS_LABELS[m.financial_basis]}</Badge>
+										) : null
+									}
+									description={
+										m.complete
+											? m.definition
+											: "Sebagian sumber biaya belum tercatat, jadi nilai belum dihitung."
+									}
+									active={metricKey === m.key}
+									drilldownLabel={`Lihat antrean ${QUEUE_LABELS[m.queue_key].toLowerCase()}`}
+									onDrilldown={() => {
 										openQueue(m.queue_key, m);
 										focusQueue();
 									}}
-								>
-									Lihat antrean {QUEUE_LABELS[m.queue_key].toLowerCase()}
-								</Button>
-								{m.action_href && actionLabel(m.action_href) && (
-									<Link
-										href={m.action_href}
-										data-testid={`kpi-action-${m.key}`}
-										className="-mt-2 self-start text-sm font-medium text-primary underline-offset-4 hover:underline focus-visible:rounded-sm focus-visible:outline-2 focus-visible:outline-ring"
-									>
-										{actionLabel(m.action_href)}
-									</Link>
-								)}
-							</article>
-						))}
-					</div>
+									action={m.action_href && action ? { href: m.action_href, label: action } : null}
+								/>
+							);
+						})}
+					</KpiGrid>
 				</section>
 			)}
 
@@ -1922,5 +1860,3 @@ export function AdminWorkspacesClient({
 	);
 }
 
-const nativeSelectClass =
-	"h-9 rounded-md border border-input bg-background px-3 text-sm font-medium shadow-xs outline-none focus-visible:border-ring focus-visible:ring-[3px] focus-visible:ring-ring/50";

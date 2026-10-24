@@ -17,250 +17,172 @@ import {
 	fulfillmentFixture,
 } from "../integration/fulfillment-fixture.ts";
 
+// Stand-in page for /admin/print-center served from the isolated TEST database. It mirrors the
+// real PrintCenterClient contract (src/components/admin/print-center-client.tsx): the same test
+// ids, the same API calls and the same Indonesian notices, so the label, print, reprint, batch and
+// template rules are proven against the real handlers. The built page itself reads the LOCAL
+// database; its rendered proof is the console design/browser suites (S113 note: a local-database
+// rewrite of this suite would drive the real component).
 function renderPrintCenterHtml(
 	workspace: Awaited<ReturnType<typeof readPrintCenterWorkspace>>,
 ) {
 	if (!workspace.authorized) {
-		return `<!doctype html><html lang="id"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Print Center · 99ribu</title></head><body><main id="main"><h1 data-testid="print-center-denied">${workspace.code}</h1></main></body></html>`;
+		return `<!doctype html><html lang="id"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Pusat Cetak Label Pengiriman · Admin 99ribu</title></head><body><main id="main"><h1 data-testid="print-center-heading">Pusat Cetak Label Pengiriman</h1><section data-testid="print-center-denied"><p>Kode akses: ${workspace.code}</p></section></main></body></html>`;
 	}
+	const latest = (shipmentId: string) =>
+		workspace.artifacts.find((a) => a.shipment_id === shipmentId);
 	return `<!doctype html>
 <html lang="id">
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
-<title>Pusat Cetak Label Pengiriman · 99ribu Admin</title>
+<title>Pusat Cetak Label Pengiriman · Admin 99ribu</title>
 <style>
 *{box-sizing:border-box}
-body{margin:0;font-family:system-ui,sans-serif;background:#faf8f5;color:#1c1917}
+body{margin:0;font-family:system-ui,sans-serif;background:#fff;color:#18181b}
 main{max-width:76rem;margin:0 auto;padding:1.25rem 1rem;display:grid;gap:1.25rem}
-.card{background:#fff;border:1px solid #d6d3cd;border-radius:12px;padding:1rem;display:grid;gap:.75rem}
-.grid{display:grid;gap:.75rem;grid-template-columns:repeat(auto-fit,minmax(min(100%,18rem),1fr))}
-input,select,button{font:inherit;padding:.5rem .75rem;border-radius:8px;border:1px solid #d6d3cd;max-width:100%}
-button{background:#1c1917;color:#fff;cursor:pointer;min-height:2.5rem}
+section{border:1px solid #e4e4e7;border-radius:8px;padding:1rem;display:grid;gap:.75rem}
+input,select,button{font:inherit;padding:.4rem .75rem;border-radius:6px;border:1px solid #d4d4d8;max-width:100%}
+button{min-height:2.25rem;background:#fff;cursor:pointer}
+button:disabled{opacity:.5;cursor:not-allowed}
 ul{list-style:none;margin:0;padding:0;display:grid;gap:.5rem}
-li{border-top:1px solid #e7e5e4;padding-top:.5rem;word-break:break-word}
+li{border-top:1px solid #f4f4f5;padding-top:.5rem;word-break:break-word;display:grid;gap:.4rem}
+.row{display:flex;flex-wrap:wrap;gap:.4rem;align-items:center}
 </style>
 </head>
 <body>
 <main id="main">
-	<header class="card">
-		<h1 data-testid="print-center-heading">Pusat Cetak Label Pengiriman (Thermal 100×150 & A4)</h1>
-		<p>Batas otoritas: Mencetak atau mencetak ulang label tidak memajukan status serah terima kurir (packed ≠ handed_over).</p>
-		<div id="print-status-banner" data-testid="print-status-banner"></div>
+	<header>
+		<h1 data-testid="print-center-heading">Pusat Cetak Label Pengiriman</h1>
+		<p>Buat dan cetak label Thermal 100×150 mm atau A4. Mencetak label tidak mengubah status pengemasan atau serah terima kurir.</p>
 	</header>
+	<div role="status" data-testid="print-center-status-banner" id="notice" hidden></div>
 
-	<div class="grid">
-		<section class="card" aria-labelledby="shipments-title">
-			<h2 id="shipments-title">Antrean Paket Gudang & Cetak Massal</h2>
-			<label>Format Label
-				<select id="select-format" data-testid="select-format">
-					<option value="thermal_100x150">Thermal 100×150 mm</option>
-					<option value="a4">A4</option>
-				</select>
-			</label>
-			<button type="button" id="btn-batch-generate" data-testid="btn-batch-generate">Buat Batch Label Semua Paket</button>
-			<div id="batch-summary" data-testid="batch-summary"></div>
-			<ul id="shipment-list" data-testid="shipment-list">
-				${workspace.shipments
-					.map(
-						(s) =>
-							`<li data-testid="shipment-row-${s.shipment_id}" data-shipment-id="${s.shipment_id}">
-								<strong>${s.order_number} (${s.parcel_id})</strong> · Gudang: ${s.warehouse_name} · Resi: <span>${s.tracking_number ?? "Belum terbit"}</span> · Status: ${s.fulfillment_status ?? "preparing"}
-								<div>
-									<button type="button" data-testid="btn-gen-${s.shipment_id}" onclick="window.generateSingleLabel('${s.shipment_id}')">Buat Label PDF</button>
-								</div>
-							</li>`,
-					)
-					.join("")}
-			</ul>
-		</section>
-
-		<section class="card" aria-labelledby="artifacts-title">
-			<h2 id="artifacts-title">Artefak Label PDF & Tata Kelola Cetak Ulang</h2>
-			<label>Alasan Cetak Ulang (Wajib untuk Reprint)
-				<input id="input-reprint-reason" data-testid="input-reprint-reason" placeholder="Contoh: Kertas thermal kusut" value="" />
-			</label>
-			<ul id="artifact-list" data-testid="artifact-list">
-				${workspace.artifacts
-					.map(
-						(a) =>
-							`<li data-testid="artifact-row-${a.id}">
-								<strong>${a.tracking_number}</strong> (${a.format}, v${a.template_version}) · Status: <span data-testid="artifact-status-${a.id}">${a.status}</span> · SHA-256: <code>${a.content_sha256.slice(0, 12)}</code>
-								<div>
-									<a href="/api/v1/admin/label-artifacts/${a.id}/content" target="_blank" data-testid="link-pdf-${a.id}">Buka PDF</a>
-									<button type="button" data-testid="btn-initial-print-${a.id}" onclick="window.recordPrint('${a.shipment_id}','${a.id}','initial_print')">Catat Cetak Awal</button>
-									<button type="button" data-testid="btn-reprint-${a.id}" onclick="window.recordPrint('${a.shipment_id}','${a.id}','reprint')">Catat Cetak Ulang</button>
-								</div>
-							</li>`,
-					)
-					.join("")}
-			</ul>
-			<h3>Riwayat Cetak & Cetak Ulang</h3>
-			<ul id="attempt-list" data-testid="attempt-list">
-				${workspace.attempts
-					.map(
-						(att) =>
-							`<li data-testid="attempt-row-${att.id}">${att.kind} (${att.outcome}) ${att.reason ? `— ${att.reason}` : ""}</li>`,
-					)
-					.join("")}
-			</ul>
-		</section>
-	</div>
-
-	<section class="card" aria-labelledby="templates-title">
-		<h2 id="templates-title">Tata Kelola Template Label (99ribu & Neutral Partner)</h2>
-		<div class="grid">
-			<label>Nama Template <input id="tpl-name" data-testid="tpl-name" value="partner-thermal-v1" /></label>
-			<label>Mode Brand
-				<select id="tpl-brand-mode" data-testid="tpl-brand-mode">
-					<option value="99ribu">99ribu</option>
-					<option value="neutral_partner">neutral_partner</option>
-				</select>
-			</label>
-			<label>Mode Privasi Telepon
-				<select id="tpl-privacy-mode" data-testid="tpl-privacy-mode">
-					<option value="masked_phone">masked_phone</option>
-					<option value="carrier_required_full_phone">carrier_required_full_phone</option>
-				</select>
-			</label>
-			<label>Nama Mitra / Bukti Izin <input id="tpl-partner-name" data-testid="tpl-partner-name" value="" /></label>
-			<label>Teks Pengungkapan (Disclosure) <input id="tpl-disclosure" data-testid="tpl-disclosure" value="" /></label>
+	<section data-testid="print-controls-section" aria-labelledby="print-controls-heading">
+		<h2 id="print-controls-heading">Format label dan cetak sekaligus</h2>
+		<div class="row">
+			<label for="label-format-select">Format Kertas Label</label>
+			<select id="label-format-select" data-testid="label-format-select">
+				<option value="thermal_100x150">Thermal 100×150 mm</option>
+				<option value="a4">A4</option>
+			</select>
+			<button type="button" data-testid="batch-generate-button" id="batch" disabled>Buat label 0 paket</button>
 		</div>
-		<button type="button" id="btn-create-template" data-testid="btn-create-template">Simpan Template Baru</button>
-		<ul id="template-list" data-testid="template-list">
-			${workspace.templates
-				.map(
-					(t) =>
-						`<li data-testid="tpl-row-${t.id}"><strong>${t.name}</strong> (${t.format}, ${t.brand_mode}, ${t.privacy_mode}, v${t.active_version})</li>`,
-				)
+	</section>
+
+	<section data-testid="shipments-queue-section" aria-labelledby="shipments-queue-heading">
+		<h2 id="shipments-queue-heading">Daftar Paket &amp; Status Resi Gudang</h2>
+		<ul data-testid="print-shipment-list">
+			${workspace.shipments
+				.map((s) => {
+					const art = latest(s.shipment_id);
+					const name = `${s.order_number} · ${s.parcel_id}`;
+					return `<li data-testid="print-shipment-row-${s.shipment_id}" data-name="${name}">
+						<label class="row"><input type="checkbox" data-testid="select-shipment-${s.shipment_id}" aria-label="Pilih paket ${s.parcel_id}" data-shipment="${s.shipment_id}"> <strong>${s.order_number}</strong> ${s.parcel_id}</label>
+						<span>${s.warehouse_name} · Resi: <span data-testid="shipment-waybill-${s.shipment_id}">${s.tracking_number ?? "Belum terbit"}</span></span>
+						<div class="row" data-actions="${s.shipment_id}">
+							<button type="button" data-testid="generate-label-${s.shipment_id}" data-generate="${s.shipment_id}">Buat label</button>
+							${art && art.status === "valid" ? actionButtons(s.shipment_id, art.id) : ""}
+						</div>
+						<div class="row" data-testid="reprint-modal-${s.shipment_id}" hidden>
+							<label for="reprint-reason-${s.shipment_id}">Alasan cetak ulang (wajib, tercatat di audit)</label>
+							<input id="reprint-reason-${s.shipment_id}" data-testid="reprint-reason-input-${s.shipment_id}" placeholder="Contoh: Kertas thermal kusut">
+							<button type="button" data-testid="confirm-reprint-${s.shipment_id}" disabled>Catat cetak ulang</button>
+						</div>
+					</li>`;
+				})
 				.join("")}
+		</ul>
+	</section>
+
+	<section data-testid="templates-section" aria-labelledby="templates-heading">
+		<h2 id="templates-heading">Template label</h2>
+		<ul data-testid="template-list">
+			${workspace.templates.map((t) => `<li data-testid="template-row-${t.id}"><strong>${t.name}</strong> (${t.format}, ${t.brand_mode}, ${t.privacy_mode}, v${t.active_version})</li>`).join("")}
+		</ul>
+	</section>
+
+	<section data-testid="print-audit-section" aria-labelledby="print-audit-heading">
+		<h2 id="print-audit-heading">Riwayat cetak</h2>
+		<ul data-testid="print-attempts-list">
+			${workspace.attempts.map((a) => `<li data-testid="print-attempt-row-${a.id}">${a.kind} (${a.outcome}) ${a.reason ?? ""}</li>`).join("")}
 		</ul>
 	</section>
 </main>
 <script>
-const shipmentIds = ${JSON.stringify(workspace.shipments.map((s) => s.shipment_id))};
-
-window.generateSingleLabel = async (shipmentId) => {
-	const format = document.getElementById("select-format").value;
-	const res = await fetch("/api/v1/admin/shipments/" + shipmentId + "/label-jobs", {
-		method: "POST",
-		headers: {
-			"content-type": "application/json",
-			"idempotency-key": crypto.randomUUID(),
-		},
-		body: JSON.stringify({ format }),
-	});
+const FORMATS = { thermal_100x150: "Thermal 100×150 mm", a4: "A4" };
+const notice = (text) => { const n = document.getElementById("notice"); n.hidden = false; n.textContent = text; };
+const nameOf = (id) => document.querySelector('[data-testid="print-shipment-row-' + id + '"]').dataset.name;
+const post = (url, body) => fetch(url, { method: "POST", headers: { "content-type": "application/json", "idempotency-key": crypto.randomUUID() }, body: JSON.stringify(body) });
+const selected = new Set();
+${actionButtons.toString()}
+function attachActions(shipmentId, artifactId) {
+	const box = document.querySelector('[data-actions="' + shipmentId + '"]');
+	box.querySelectorAll("[data-art]").forEach((el) => el.remove());
+	box.insertAdjacentHTML("beforeend", actionButtons(shipmentId, artifactId));
+}
+async function recordPrint(shipmentId, artifactId, kind, reason) {
+	const res = await post("/api/v1/admin/shipments/" + shipmentId + "/print-attempts", { artifact_id: artifactId, kind, outcome: "completed", ...(reason ? { reason } : {}) });
 	const data = await res.json();
-	if (!res.ok) {
-		document.getElementById("print-status-banner").textContent = "Gagal: " + (data.code || res.status);
-		return;
-	}
-	const artRes = await fetch("/api/v1/admin/label-artifacts/" + data.artifact_id);
-	const art = await artRes.json();
-	const list = document.getElementById("artifact-list");
-	const li = document.createElement("li");
-	li.setAttribute("data-testid", "artifact-row-" + art.id);
-	li.innerHTML = '<strong>' + art.tracking_number + '</strong> (' + art.format + ', v' + art.template_version + ') · Status: <span data-testid="artifact-status-' + art.id + '">' + art.status + '</span> · SHA-256: <code>' + art.content_sha256.slice(0, 12) + '</code>' +
-		'<div><a href="/api/v1/admin/label-artifacts/' + art.id + '/content" target="_blank" data-testid="link-pdf-' + art.id + '">Buka PDF</a> ' +
-		'<button type="button" data-testid="btn-initial-print-' + art.id + '" onclick="window.recordPrint(\\'' + art.shipment_id + '\\',\\'' + art.id + '\\',\\'initial_print\\')">Catat Cetak Awal</button> ' +
-		'<button type="button" data-testid="btn-reprint-' + art.id + '" onclick="window.recordPrint(\\'' + art.shipment_id + '\\',\\'' + art.id + '\\',\\'reprint\\')">Catat Cetak Ulang</button></div>';
-	list.prepend(li);
-	document.getElementById("print-status-banner").textContent = "Label siap: " + art.id;
-};
-
-window.recordPrint = async (shipmentId, artifactId, kind) => {
-	const reason = document.getElementById("input-reprint-reason").value.trim();
-	if (kind === "reprint" && !reason) {
-		document.getElementById("print-status-banner").textContent = "Gagal cetak: REPRINT_REASON_REQUIRED";
-		return;
-	}
-	const res = await fetch("/api/v1/admin/shipments/" + shipmentId + "/print-attempts", {
-		method: "POST",
-		headers: {
-			"content-type": "application/json",
-			"idempotency-key": crypto.randomUUID(),
-		},
-		body: JSON.stringify({
-			artifact_id: artifactId,
-			kind,
-			outcome: "completed",
-			...(reason ? { reason } : {}),
-		}),
-	});
-	const data = await res.json();
-	if (!res.ok) {
-		document.getElementById("print-status-banner").textContent = "Gagal cetak: " + (data.code || res.status);
-		return;
-	}
-	const list = document.getElementById("attempt-list");
-	const li = document.createElement("li");
-	li.setAttribute("data-testid", "attempt-row-" + data.id);
-	li.textContent = data.kind + " (" + data.outcome + ")" + (data.reason ? " — " + data.reason : "");
-	list.prepend(li);
-	document.getElementById("print-status-banner").textContent = "Cetak tercatat: " + data.kind;
-};
-
-document.getElementById("btn-batch-generate").addEventListener("click", async () => {
-	const format = document.getElementById("select-format").value;
-	const res = await fetch("/api/v1/admin/label-batches", {
-		method: "POST",
-		headers: {
-			"content-type": "application/json",
-			"idempotency-key": crypto.randomUUID(),
-		},
-		body: JSON.stringify({
-			shipment_ids: shipmentIds,
-			format,
-		}),
-	});
-	const data = await res.json();
-	if (res.ok) {
-		document.getElementById("batch-summary").textContent =
-			"Batch " + data.status + ": " + data.items.map((i) => i.status + (i.failure_code ? "(" + i.failure_code + ")" : "")).join(", ");
-		document.getElementById("print-status-banner").textContent = "Batch selesai: " + data.status;
+	if (res.status !== 201) return notice("Cetakan " + nameOf(shipmentId) + " tidak tercatat. (kode: " + (data.code || res.status) + ")");
+	document.querySelector('[data-testid="print-attempts-list"]').insertAdjacentHTML("afterbegin", '<li data-testid="print-attempt-row-' + data.id + '">' + data.kind + " (" + data.outcome + ") " + (data.reason || "") + "</li>");
+	if (kind === "reprint") document.querySelector('[data-testid="reprint-modal-' + shipmentId + '"]').hidden = true;
+	notice(kind === "initial_print" ? "Cetak awal " + nameOf(shipmentId) + " tercatat." : "Cetak ulang " + nameOf(shipmentId) + " tercatat beserta alasannya.");
+}
+document.addEventListener("click", async (e) => {
+	const t = e.target.closest("button");
+	if (!t) return;
+	const format = document.getElementById("label-format-select").value;
+	if (t.dataset.generate) {
+		const id = t.dataset.generate;
+		const res = await post("/api/v1/admin/shipments/" + id + "/label-jobs", { format });
+		const job = await res.json();
+		if (res.status !== 202 || job.status === "failed") return notice("Label " + nameOf(id) + " gagal dibuat. (kode: " + (job.failure_code || job.code || res.status) + ")");
+		if (job.artifact_id) attachActions(id, job.artifact_id);
+		notice(job.artifact_id ? "Label " + FORMATS[format] + " untuk " + nameOf(id) + " siap dicetak." : "Label " + nameOf(id) + " sedang dibuat.");
+	} else if (t.dataset.initial) {
+		await recordPrint(t.dataset.initial, t.dataset.art, "initial_print");
+	} else if (t.dataset.reprint) {
+		const modal = document.querySelector('[data-testid="reprint-modal-' + t.dataset.reprint + '"]');
+		modal.hidden = false;
+		modal.dataset.art = t.dataset.art;
+	} else if (t.dataset.testid && t.dataset.testid.startsWith("confirm-reprint-")) {
+		const id = t.dataset.testid.slice("confirm-reprint-".length);
+		const modal = document.querySelector('[data-testid="reprint-modal-' + id + '"]');
+		await recordPrint(id, modal.dataset.art, "reprint", document.getElementById("reprint-reason-" + id).value.trim());
+	} else if (t.id === "batch") {
+		const res = await post("/api/v1/admin/label-batches", { shipment_ids: [...selected], format });
+		const batch = await res.json();
+		if (res.status !== 202) return notice("Label sekaligus gagal dibuat. (kode: " + (batch.code || res.status) + ")");
+		const ok = batch.items.filter((i) => i.status === "succeeded"), failed = batch.items.filter((i) => i.status === "failed");
+		for (const i of ok) if (i.artifact_id) attachActions(i.shipment_id, i.artifact_id);
+		const parts = [ok.length + " label siap"];
+		if (failed.length) parts.push(failed.length + " gagal: " + failed.map((i) => nameOf(i.shipment_id) + " (kode: " + i.failure_code + ")").join("; "));
+		notice("Label " + FORMATS[batch.format] + " untuk " + batch.items.length + " paket: " + parts.join(", ") + ".");
 	}
 });
-
-document.getElementById("btn-create-template").addEventListener("click", async () => {
-	const name = document.getElementById("tpl-name").value.trim();
-	const brandMode = document.getElementById("tpl-brand-mode").value;
-	const privacyMode = document.getElementById("tpl-privacy-mode").value;
-	const partnerName = document.getElementById("tpl-partner-name").value.trim();
-	const disclosure = document.getElementById("tpl-disclosure").value.trim();
-	if (brandMode === "neutral_partner" && (!partnerName || !disclosure)) {
-		document.getElementById("print-status-banner").textContent = "Template ditolak: PARTNER_BRAND_GOVERNANCE_REQUIRED";
-		return;
-	}
-	const res = await fetch("/api/v1/admin/shipping-label-templates", {
-		method: "POST",
-		headers: {
-			"content-type": "application/json",
-			"idempotency-key": crypto.randomUUID(),
-		},
-		body: JSON.stringify({
-			name,
-			format: "thermal_100x150",
-			brand_mode: brandMode,
-			privacy_mode: privacyMode,
-			...(partnerName ? { partner_brand_name: partnerName } : {}),
-			...(disclosure ? { disclosure_text: disclosure } : {}),
-		}),
-	});
-	const data = await res.json();
-	if (!res.ok) {
-		document.getElementById("print-status-banner").textContent = "Template ditolak: " + (data.code || res.status);
-		return;
-	}
-	const list = document.getElementById("template-list");
-	const li = document.createElement("li");
-	li.setAttribute("data-testid", "tpl-row-" + data.id);
-	li.textContent = data.name + " (" + data.format + ", " + data.brand_mode + ", " + data.privacy_mode + ", v" + data.active_version + ")";
-	list.prepend(li);
-	document.getElementById("print-status-banner").textContent = "Template dibuat: " + data.name;
+document.addEventListener("input", (e) => {
+	const input = e.target.closest("[data-testid^='reprint-reason-input-']");
+	if (!input) return;
+	const id = input.dataset.testid.slice("reprint-reason-input-".length);
+	document.querySelector('[data-testid="confirm-reprint-' + id + '"]').disabled = !input.value.trim();
+});
+document.addEventListener("change", (e) => {
+	const box = e.target.closest("[data-shipment]");
+	if (!box) return;
+	if (box.checked) selected.add(box.dataset.shipment); else selected.delete(box.dataset.shipment);
+	const batch = document.getElementById("batch");
+	batch.disabled = selected.size === 0;
+	batch.textContent = "Buat label " + selected.size + " paket";
 });
 </script>
 </body>
 </html>`;
+}
+
+/** The valid-label actions of a parcel row (real ids: initial-print-*, open-reprint-*, download-pdf-*). */
+function actionButtons(shipmentId: string, artifactId: string) {
+	return `<a data-art="${artifactId}" data-testid="download-pdf-${artifactId}" href="/api/v1/admin/label-artifacts/${artifactId}/content" target="_blank" rel="noreferrer">Unduh PDF</a><button type="button" data-art="${artifactId}" data-initial="${shipmentId}" data-testid="initial-print-${shipmentId}">Catat cetak awal</button><button type="button" data-art="${artifactId}" data-reprint="${shipmentId}" data-testid="open-reprint-${shipmentId}">Cetak ulang</button>`;
 }
 
 test("S55 browser: admin shipping print center renders thermal/A4 label generation, batch partial-failure reporting, reprint reason governance, and neutral_partner template governance at 390x844 and 1440x900 with zero overflow or console errors", async () => {
@@ -384,72 +306,100 @@ test("S55 browser: admin shipping print center renders thermal/A4 label generati
 				return opened;
 			};
 			const page = await openAs(staff);
+			const banner = page.getByTestId("print-center-status-banner");
 
 			await page.goto(`${baseUrl}/admin/print-center`);
 			await expect(page.getByTestId("print-center-heading")).toBeVisible();
 
-			// 1. Generate single label for parcelA (issued waybill)
-			await page.getByTestId(`btn-gen-${parcelA.shipment_id}`).click();
-			await expect(page.getByTestId("print-status-banner")).toContainText(
-				"Label siap:",
-			);
+			// 1. Generate a single label for parcelA (issued waybill)
+			await page.getByTestId(`generate-label-${parcelA.shipment_id}`).click();
+			await expect(banner).toContainText("siap dicetak.");
 
-			// 2. Record initial print, then test reprint governance (fails without reason, succeeds with reason)
-			const initialPrintBtn = page
-				.locator('[data-testid^="btn-initial-print-"]')
-				.first();
-			await initialPrintBtn.click();
-			await expect(page.getByTestId("print-status-banner")).toHaveText(
-				"Cetak tercatat: initial_print",
-			);
+			// 2. Record the initial print, then reprint governance: the confirm stays disabled and the
+			// API refuses a reprint without a reason; with a reason it is recorded.
+			await page.getByTestId(`initial-print-${parcelA.shipment_id}`).click();
+			await expect(banner).toContainText("Cetak awal");
+			await expect(banner).toContainText("tercatat.");
 
-			const reprintBtn = page.locator('[data-testid^="btn-reprint-"]').first();
-			await reprintBtn.click();
-			await expect(page.getByTestId("print-status-banner")).toHaveText(
-				"Gagal cetak: REPRINT_REASON_REQUIRED",
+			await page.getByTestId(`open-reprint-${parcelA.shipment_id}`).click();
+			const confirmReprint = page.getByTestId(`confirm-reprint-${parcelA.shipment_id}`);
+			await expect(confirmReprint).toBeDisabled();
+			const artifactId = await page
+				.locator(`[data-testid^="download-pdf-"]`)
+				.first()
+				.getAttribute("data-art");
+			assert.ok(artifactId);
+			const refused = await page.evaluate(
+				async ({ shipmentId, artifactId }) => {
+					const res = await fetch(`/api/v1/admin/shipments/${shipmentId}/print-attempts`, {
+						method: "POST",
+						headers: { "content-type": "application/json", "idempotency-key": crypto.randomUUID() },
+						body: JSON.stringify({ artifact_id: artifactId, kind: "reprint", outcome: "completed" }),
+					});
+					return { status: res.status, code: (await res.json()).code };
+				},
+				{ shipmentId: parcelA.shipment_id, artifactId },
 			);
+			assert.equal(refused.code, "REPRINT_REASON_REQUIRED", JSON.stringify(refused));
 
 			await page
-				.getByTestId("input-reprint-reason")
+				.getByTestId(`reprint-reason-input-${parcelA.shipment_id}`)
 				.fill("Kertas thermal macet di roller");
-			await reprintBtn.click();
-			await expect(page.getByTestId("print-status-banner")).toHaveText(
-				"Cetak tercatat: reprint",
+			await expect(confirmReprint).toBeEnabled();
+			await confirmReprint.click();
+			await expect(banner).toContainText("tercatat beserta alasannya.");
+			await expect(page.getByTestId("print-attempts-list")).toContainText(
+				"Kertas thermal macet di roller",
 			);
 
-			// 3. Batch label generation across ready + unbooked shipments reports partially_failed
-			await page.getByTestId("btn-batch-generate").click();
-			await expect(page.getByTestId("print-status-banner")).toHaveText(
-				"Batch selesai: partially_failed",
+			// 3. Batch labels for the selected ready + unbooked parcels report partially_failed
+			await expect(page.getByTestId("batch-generate-button")).toBeDisabled();
+			await page.getByTestId(`select-shipment-${parcelA.shipment_id}`).check();
+			await page.getByTestId(`select-shipment-${parcelB.shipment_id}`).check();
+			const batchResponse = page.waitForResponse(
+				(r) => r.url().endsWith("/api/v1/admin/label-batches") && r.request().method() === "POST",
 			);
-			await expect(page.getByTestId("batch-summary")).toContainText(
+			await page.getByTestId("batch-generate-button").click();
+			const batch = (await (await batchResponse).json()) as {
+				status: string;
+				items: { shipment_id: string; status: string; failure_code: string | null }[];
+			};
+			assert.equal(batch.status, "partially_failed");
+			assert.equal(
+				batch.items.find((i) => i.shipment_id === parcelB.shipment_id)?.failure_code,
 				"WAYBILL_REQUIRED",
 			);
+			await expect(banner).toContainText("untuk 2 paket: 1 label siap, 1 gagal");
+			await expect(banner).toContainText("WAYBILL_REQUIRED");
 
-			// 4. Template governance (owner-only): neutral_partner rejected without partner_brand_name & disclosure_text, accepted with both
+			// 4. Template governance (owner-only API; the page lists templates): neutral_partner is
+			// rejected without partner_brand_name and disclosure_text, accepted with both, then listed.
 			const ownerPage = await openAs(f.owner);
 			await ownerPage.goto(`${baseUrl}/admin/print-center`);
 			await expect(ownerPage.getByTestId("print-center-heading")).toBeVisible();
 			const tplName = `mitra-thermal-${randomUUID().slice(0, 6)}`;
-			await ownerPage.getByTestId("tpl-name").fill(tplName);
-			await ownerPage
-				.getByTestId("tpl-brand-mode")
-				.selectOption("neutral_partner");
-			await ownerPage.getByTestId("btn-create-template").click();
-			await expect(ownerPage.getByTestId("print-status-banner")).toHaveText(
-				"Template ditolak: PARTNER_BRAND_GOVERNANCE_REQUIRED",
-			);
-
-			await ownerPage
-				.getByTestId("tpl-partner-name")
-				.fill("Mitra Ekspedisi Nusantara");
-			await ownerPage
-				.getByTestId("tpl-disclosure")
-				.fill("Difasilitasi oleh sistem logistik 99ribu");
-			await ownerPage.getByTestId("btn-create-template").click();
-			await expect(ownerPage.getByTestId("print-status-banner")).toHaveText(
-				`Template dibuat: ${tplName}`,
-			);
+			const createTemplate = (extra: Record<string, string>) =>
+				ownerPage.evaluate(
+					async (body) => {
+						const res = await fetch("/api/v1/admin/shipping-label-templates", {
+							method: "POST",
+							headers: { "content-type": "application/json", "idempotency-key": crypto.randomUUID() },
+							body: JSON.stringify(body),
+						});
+						const data = await res.json();
+						return { status: res.status, code: data.code as string | undefined, id: data.id as string | undefined };
+					},
+					{ name: tplName, format: "thermal_100x150", brand_mode: "neutral_partner", privacy_mode: "masked_phone", ...extra },
+				);
+			const rejected = await createTemplate({});
+			assert.equal(rejected.code, "PARTNER_BRAND_GOVERNANCE_REQUIRED", JSON.stringify(rejected));
+			const accepted = await createTemplate({
+				partner_brand_name: "Mitra Ekspedisi Nusantara",
+				disclosure_text: "Difasilitasi oleh sistem logistik 99ribu",
+			});
+			assert.ok(accepted.status < 300 && accepted.id, JSON.stringify(accepted));
+			await ownerPage.reload();
+			await expect(ownerPage.getByTestId(`template-row-${accepted.id}`)).toContainText(tplName);
 
 			// 5. Verify zero horizontal overflow at 390x844 and 1440x900
 			for (const vp of [

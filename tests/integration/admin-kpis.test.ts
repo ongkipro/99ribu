@@ -156,8 +156,14 @@ test('orders: active counts exclude terminal states; per payment method, near-de
   assert.equal(metric(after,'autolaris_pending').action_href,'/admin/payments');
   // The two payment KPIs are exactly the finance queues (S92/S93), company-wide.
   const finance=await financeUser(f.identity,users);
-  const financeQueue=async(path:string,handle:typeof handleManualTransfers)=>{const response=await handle(finance.browser.request(path),f.identity);assert.equal(response.status,200);
-   const rows=(await response.json()).data as {order_id:string;expires_at:string}[];assert.ok(rows.length<100,'the finance queue fits one page');return rows;};
+  // Every page of the finance queue (S113 keyset paging): the KPI equals the whole list, not page one.
+  const financeQueue=async(path:string,handle:typeof handleManualTransfers)=>{
+   const rows:{id:string;order_id:string;expires_at:string}[]=[];let cursor:string|null=null;
+   do{const response=await handle(finance.browser.request(cursor?`${path}&cursor=${cursor}`:path),f.identity);assert.equal(response.status,200);
+    const page=await response.json() as {data:typeof rows;pagination:{next_cursor:string|null}};rows.push(...page.data);cursor=page.pagination.next_cursor;}while(cursor);
+   assert.equal(new Set(rows.map(r=>r.id)).size,rows.length,'no attempt listed twice across pages');return rows;};
+  for(const [path,handle] of [['/api/v1/admin/autolaris-payments?state=open',handleAutolarisPayments],['/api/v1/admin/manual-transfers?state=open',handleManualTransfers],['/api/v1/admin/manual-transfers?state=resolved',handleManualTransfers]] as const)
+   assert.deepEqual((await financeQueue(`${path}&limit=3`,handle)).map(r=>r.id),(await financeQueue(`${path}&limit=100`,handle)).map(r=>r.id),`${path}: small pages walk the same ordered list`);
   assert.deepEqual(ids(open),[...new Set((await financeQueue('/api/v1/admin/autolaris-payments?state=open&limit=100',handleAutolarisPayments)).map(t=>t.order_id))].sort(),'autolaris_pending equals the open AutoLaris queue');
 
   // Near the 24 h deadline: in at (deadline - N + 1 h), out at (deadline - N - 1 h).

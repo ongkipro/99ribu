@@ -9,14 +9,6 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Skeleton } from "@/components/ui/skeleton";
-import {
-	Table,
-	TableBody,
-	TableCell,
-	TableHead,
-	TableHeader,
-	TableRow,
-} from "@/components/ui/table";
 import { type ApiFailure, failureText, getJson } from "./admin-errors";
 import { DataTable } from "./data-table";
 import { formatWib, rupiah } from "./format";
@@ -504,45 +496,44 @@ export function OrderDetailClient({
 						<h2 id="order-items-heading" className="text-lg font-semibold">
 							Barang
 						</h2>
-						<div className="overflow-x-auto rounded-lg border">
-							<Table data-testid="order-items">
-								<TableHeader>
-									<TableRow>
-										<TableHead scope="col">Produk</TableHead>
-										<TableHead scope="col" className="text-right">
-											Jumlah
-										</TableHead>
-										<TableHead scope="col" className="text-right">
-											Subtotal
-										</TableHead>
-										<TableHead scope="col">Keterangan</TableHead>
-									</TableRow>
-								</TableHeader>
-								<TableBody>
-									{o.items.map((item) => {
+						<DataTable
+							rows={o.items}
+							rowKey={(item) => item.id}
+							status={{ kind: "ready" }}
+							loadingLabel="Memuat barang…"
+							empty="Pesanan ini tidak memiliki barang."
+							testId="order-items"
+							caption="Barang dalam pesanan"
+							columns={[
+								{
+									id: "product",
+									header: "Produk",
+									cellClassName: "min-w-48 whitespace-normal",
+									cell: (item) => (
+										<>
+											<span className="block font-medium">{item.name}</span>
+											<span className="text-xs text-muted-foreground">{item.variant_label}</span>
+										</>
+									),
+								},
+								{ id: "qty", header: "Jumlah", className: "text-right tabular-nums", cell: (item) => item.quantity },
+								{ id: "subtotal", header: "Subtotal", className: "text-right tabular-nums", cell: (item) => rupiah(item.subtotal) },
+								{
+									id: "notes",
+									header: "Keterangan",
+									cellClassName: "text-sm text-muted-foreground",
+									cell: (item) => {
 										const notes = [
 											item.received_quantity && `${item.received_quantity} diterima`,
 											item.cancelled_quantity && `${item.cancelled_quantity} dibatalkan`,
 											item.returned_quantity && `${item.returned_quantity} diretur`,
 											item.refunded_quantity && `${item.refunded_quantity} dana kembali`,
 										].filter(Boolean);
-										return (
-											<TableRow key={item.id}>
-												<TableCell className="min-w-48 whitespace-normal">
-													<span className="block font-medium">{item.name}</span>
-													<span className="text-xs text-muted-foreground">{item.variant_label}</span>
-												</TableCell>
-												<TableCell className="text-right tabular-nums">{item.quantity}</TableCell>
-												<TableCell className="text-right tabular-nums">{rupiah(item.subtotal)}</TableCell>
-												<TableCell className="text-sm text-muted-foreground">
-													{notes.length ? notes.join(", ") : "—"}
-												</TableCell>
-											</TableRow>
-										);
-									})}
-								</TableBody>
-							</Table>
-						</div>
+										return notes.length ? notes.join(", ") : "—";
+									},
+								},
+							]}
+						/>
 					</section>
 
 					<section aria-labelledby="order-shipments-heading" className="flex flex-col gap-3">

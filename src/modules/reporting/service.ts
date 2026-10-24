@@ -192,13 +192,14 @@ const SNAPSHOT_METRICS = new Set<MetricKey>([
 ]);
 
 // The existing screen where staff act on the number; null = the drilldown queue on the dashboard itself
-// (no dedicated screen exists yet: order detail is S100, inventory screens are S102).
+// (no dedicated screen exists yet: inventory screens are S102, returns screens S101).
 const METRIC_ACTION_HREF: Partial<Record<MetricKey, string>> = {
 	manual_booking_pending: "/admin/fulfillment",
 	transfers_near_deadline: "/admin/payments",
 	autolaris_pending: "/admin/payments",
 	cod_receivable: "/admin/cod-settlements",
 	cod_remitted: "/admin/cod-settlements",
+	support_unassigned: "/admin/support",
 };
 
 const PAYMENT_CHANNEL_LABELS: Record<string, string> = {
@@ -530,36 +531,44 @@ function lowStockPositions(sql: Sql, warehouseIds: string[]) {
 	return sql`select * from (${stockPositions(sql, warehouseIds)}) low where low.available <= ${LOW_STOCK_THRESHOLD}`;
 }
 
-// Terminal states a metric leaves out of its queue (the rows' state is the stored status).
-const METRIC_TERMINAL_STATES: Partial<Record<MetricKey, string[]>> = {
-	delivery_exceptions: ["resolved"],
-	returns_pending: ["rejected", "resolved"],
-	finance_unmatched: ["matched"],
-};
-
-async function queryQueueRows(
-	identity: LocalAuth,
-	queue: QueueKey,
-	warehouseIds: string[],
-	from: string,
-	to: string,
-	statuses?: string[],
-	scope?: MetricScope,
-): Promise<QueueRowInternal[]> {
-	const rows = await queueRows(
-		identity,
-		queue,
-		warehouseIds,
-		from,
-		to,
-		statuses,
-		scope,
-	);
-	const terminal = scope ? METRIC_TERMINAL_STATES[scope.metric] : undefined;
-	return terminal ? rows.filter((r) => !terminal.includes(r.state)) : rows;
+/**
+ * Row warehouse of the order-linked queues (exceptions, returns): the order's first shipment.
+ * Rows without an order or a shipment stay visible to every scope (as before S113).
+ */
+function firstShipmentInScope(sql: Sql, warehouseIds: string[], row: "e" | "rc") {
+	const orderId = row === "e" ? sql`e.order_id` : sql`rc.order_id`;
+	return warehouseIds.length > 0
+		? sql`and coalesce((select s.warehouse_id = any(${warehouseIds}::uuid[]) from app.order_shipment s where s.order_id = ${orderId} order by s.id limit 1), true)`
+		: sql``;
 }
 
-async function queueRows(
+// S113: FROM/WHERE of the small queues. A metric's terminal states are excluded here, so the card
+// counts and the drilldown lists the same SQL set (no filter restated in application code).
+function exceptionsSource(sql: Sql, warehouseIds: string[], from: string, to: string, metric: MetricKey | null) {
+	return sql`from app.commerce_exception e
+      where e.occurred_at >= ${from}::timestamptz and e.occurred_at <= ${to}::timestamptz
+        ${metric === "delivery_exceptions" ? sql`and e.status is distinct from 'resolved'` : sql``}
+        ${firstShipmentInScope(sql, warehouseIds, "e")}`;
+}
+function returnsSource(sql: Sql, warehouseIds: string[], from: string, to: string, metric: MetricKey | null) {
+	return sql`from app.return_case rc
+      where rc.created_at >= ${from}::timestamptz and rc.created_at <= ${to}::timestamptz
+        ${metric === "returns_pending" ? sql`and coalesce(rc.status not in ('rejected', 'resolved'), true)` : sql``}
+        ${firstShipmentInScope(sql, warehouseIds, "rc")}`;
+}
+function supportSource(sql: Sql, from: string, to: string, metric: MetricKey | null) {
+	return sql`from app.support_conversation c
+      where c.created_at >= ${from}::timestamptz and c.created_at <= ${to}::timestamptz
+        ${metric === "support_unassigned" ? sql`and c.assigned_user_id is null and c.status in ('open', 'waiting_customer')` : sql``}`;
+}
+function reconciliationSource(sql: Sql, from: string, to: string, metric: MetricKey | null) {
+	return sql`from app.provider_settlement ps
+      left join app.local_settlement_operation lso on lso.id = ps.operation_id
+      where ps.created_at >= ${from}::timestamptz and ps.created_at <= ${to}::timestamptz
+        ${metric === "finance_unmatched" ? sql`and ps.status is distinct from 'matched'` : sql``}`;
+}
+
+async function queryQueueRows(
 	identity: LocalAuth,
 	queue: QueueKey,
 	warehouseIds: string[],
@@ -697,22 +706,11 @@ async function queueRows(
                order by s.id
                limit 1
              ) as warehouse_id
-      from app.commerce_exception e
-      where e.occurred_at >= ${from}::timestamptz
-        and e.occurred_at <= ${to}::timestamptz
+      ${exceptionsSource(sql, warehouseIds, from, to, metric)}
       order by e.occurred_at desc, e.id asc
     `;
 		return rows
-			.filter((r) => {
-				if (statuses?.length && !statuses.includes(r.status)) return false;
-				if (
-					hasWarehouses &&
-					r.warehouse_id &&
-					!warehouseIds.includes(r.warehouse_id)
-				)
-					return false;
-				return true;
-			})
+			.filter((r) => !statuses?.length || statuses.includes(r.status))
 			.map((r) => ({
 				id: String(r.id),
 				resource_kind: "shipment" as const,
@@ -754,22 +752,11 @@ async function queueRows(
                limit 1
              ) as warehouse_id,
              coalesce((select sum(ri.merchandise_amount) from app.return_item ri where ri.case_id = rc.id), 0)::text as merchandise_amount
-      from app.return_case rc
-      where rc.created_at >= ${from}::timestamptz
-        and rc.created_at <= ${to}::timestamptz
+      ${returnsSource(sql, warehouseIds, from, to, metric)}
       order by rc.created_at desc, rc.id asc
     `;
 		return rows
-			.filter((r) => {
-				if (statuses?.length && !statuses.includes(r.status)) return false;
-				if (
-					hasWarehouses &&
-					r.warehouse_id &&
-					!warehouseIds.includes(r.warehouse_id)
-				)
-					return false;
-				return true;
-			})
+			.filter((r) => !statuses?.length || statuses.includes(r.status))
 			.map((r) => ({
 				id: String(r.id),
 				resource_kind: "return" as const,
@@ -844,10 +831,7 @@ async function queueRows(
              c.revision,
              c.updated_at,
              (select o.number from app.commerce_order o where o.id = c.primary_order_id) as order_number
-      from app.support_conversation c
-      where c.created_at >= ${from}::timestamptz
-        and c.created_at <= ${to}::timestamptz
-        ${metric === "support_unassigned" ? sql`and c.assigned_user_id is null and c.status in ('open', 'waiting_customer')` : sql``}
+      ${supportSource(sql, from, to, metric)}
       order by c.updated_at desc, c.id asc
     `;
 		return rows
@@ -883,10 +867,7 @@ async function queueRows(
              ps.created_at,
              coalesce(lso.net_amount, 0)::text as net_amount,
              coalesce(lso.reference, ps.id::text) as reference
-      from app.provider_settlement ps
-      left join app.local_settlement_operation lso on lso.id = ps.operation_id
-      where ps.created_at >= ${from}::timestamptz
-        and ps.created_at <= ${to}::timestamptz
+      ${reconciliationSource(sql, from, to, metric)}
       order by ps.created_at desc, ps.id asc
     `;
 		return rows
@@ -1225,7 +1206,7 @@ export async function getDashboardSnapshot(
 		breakdown: { key: string; label: string; count: number }[] | null;
 	};
 	// Cards are SQL counts over the same fragments the drilldown pages list; rows are only
-	// materialized for the drilldown (and for the small exception/return/support/settlement queues).
+	// materialized for the drilldown.
 	// S113: every count is a count over the exact fragment its drilldown lists (ordersSource,
 	// fulfillmentsSource, lowStockPositions, or the queue rows themselves); no card restates a filter.
 	const countOf = async (
@@ -1287,16 +1268,18 @@ export async function getDashboardSnapshot(
 				})),
 			};
 		}
-		const rows = await queryQueueRows(
-			identity,
-			METRIC_QUEUE_MAP[key],
-			warehouseIds,
-			from,
-			to,
-			undefined,
-			{ metric: key, asOf },
-		);
-		return { count: rows.length, breakdown: null };
+		const source =
+			key === "delivery_exceptions"
+				? exceptionsSource(sql, warehouseIds, from, to, key)
+				: key === "returns_pending"
+					? returnsSource(sql, warehouseIds, from, to, key)
+					: key === "support_unassigned"
+						? supportSource(sql, from, to, key)
+						: key === "finance_unmatched"
+							? reconciliationSource(sql, from, to, key)
+							: null;
+		if (!source) throw new Error(`count metric without a source fragment: ${key}`);
+		return { count: await countOf(source), breakdown: null };
 	};
 
 	const needsMoney = allowedKeys.some((k) => MONEY_METRICS.has(k));

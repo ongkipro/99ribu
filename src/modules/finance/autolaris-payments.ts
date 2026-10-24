@@ -8,6 +8,7 @@ import {lockPaymentOrder} from '../payments/attempts.ts';
 import {registerProviderEvent,settleLocalOperation} from '../payments/local.ts';
 import {financeAuthority} from './costs.ts';
 import {financeEnvironment,financeInstant} from './ledger.ts';
+import {nextPageCursor,readPageCursor,STAMP_FORMAT} from './page-cursor.ts';
 
 // DEC-008 (2) / S93: AutoLaris payments for finance. Advice polling is the automated
 // path; when a status is unproven, owner/finance confirm after checking the AutoLaris
@@ -30,14 +31,18 @@ async function project(tx:TransactionSql,attemptId:string){
    amount:latest.amount===null?null:Number(latest.amount),occurred_at:new Date(String(latest.occurred_at)).toISOString(),recorded_at:new Date(String(latest.recorded_at)).toISOString()}};
 }
 export async function listAutolarisPayments(identity:LocalAuth,principal:Principal,url:URL){
- for(const key of url.searchParams.keys())if(!['state','limit'].includes(key)||url.searchParams.getAll(key).length!==1)throw invalid();
+ for(const key of url.searchParams.keys())if(!['state','limit','cursor'].includes(key)||url.searchParams.getAll(key).length!==1)throw invalid();
  const state=url.searchParams.get('state')??'open',raw=url.searchParams.get('limit')??'50';
- if(!['open','resolved'].includes(state)||!/^\d{1,3}$/.test(raw))throw invalid();const limit=integer(Number(raw),1,100);
+ if(!['open','resolved'].includes(state)||!/^\d{1,3}$/.test(raw))throw invalid();const limit=integer(Number(raw),1,100),cursor=readPageCursor(url.searchParams.get('cursor'));
  return identity.sql.begin(async tx=>{
   await financeAuthority(tx,principal,'finance.reconciliation.read');
-  const rows=await tx`select l.attempt_id from app.autolaris_payment l join app.payment_attempt a on a.id=l.attempt_id
-   where (${state}='open')=(a.status in ('preparing','pending','unknown')) order by a.expires_at desc,l.attempt_id limit ${limit}`;
-  const data=[];for(const row of rows)data.push(await project(tx,String(row.attempt_id)));return {data};
+  // S113 keyset pages: newest deadline first, then attempt id.
+  const rows=await tx<{id:string;k:string}[]>`select l.attempt_id id,to_char(a.expires_at at time zone 'UTC',${STAMP_FORMAT}) k from app.autolaris_payment l join app.payment_attempt a on a.id=l.attempt_id
+   where (${state}='open')=(a.status in ('preparing','pending','unknown'))
+    and (${cursor?.t??null}::timestamptz is null or (a.expires_at,l.attempt_id)<(${cursor?.t??null}::timestamptz,${cursor?.id??null}::uuid))
+   order by a.expires_at desc,l.attempt_id desc limit ${limit+1}`;
+  const data=[];for(const row of rows.slice(0,limit))data.push(await project(tx,String(row.id)));
+  return {data,pagination:{next_cursor:nextPageCursor(rows,limit)}};
  });
 }
 export async function confirmAutolarisPayment(request:Request,identity:LocalAuth,principal:Principal,attemptId:string,value:unknown){

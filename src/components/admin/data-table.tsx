@@ -1,11 +1,8 @@
 "use client";
 
 import { cn } from "cn";
-import { RefreshCw, ShieldAlert } from "lucide-react";
 import { Fragment, type ReactNode } from "react";
-import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
-import { Skeleton } from "@/components/ui/skeleton";
 import {
 	Table,
 	TableBody,
@@ -14,9 +11,11 @@ import {
 	TableHeader,
 	TableRow,
 } from "@/components/ui/table";
+import { DeniedState, EmptyState, ErrorState, LoadingState } from "./states";
 
 // S113: the one list surface of the admin console (shadcn Table). Every list screen passes its
-// columns, its load state and, when it has them, keyset paging, row selection and a mobile card.
+// columns, its load state (states.tsx) and, when it has them, keyset paging, row selection and a
+// mobile card. Detail pages use it too (order items, stock per warehouse, cost history).
 
 export type DataTableColumn<T> = {
 	id: string;
@@ -89,29 +88,6 @@ export type DataTableProps<T> = {
 const checkboxClass =
 	"size-4 accent-primary align-middle focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring";
 
-export function RetryAlert({
-	message,
-	onRetry,
-}: {
-	message: string;
-	onRetry?: () => void;
-}) {
-	return (
-		<Alert
-			variant="destructive"
-			className="flex flex-wrap items-center justify-between gap-3 border-destructive/40 bg-destructive-surface"
-		>
-			<AlertDescription className="text-foreground">{message}</AlertDescription>
-			{onRetry && (
-				<Button type="button" variant="outline" size="sm" onClick={onRetry}>
-					<RefreshCw data-icon="inline-start" aria-hidden="true" />
-					Coba lagi
-				</Button>
-			)}
-		</Alert>
-	);
-}
-
 export function DataTable<T>({
 	rows,
 	rowKey,
@@ -132,33 +108,11 @@ export function DataTable<T>({
 	paging,
 	footer,
 }: DataTableProps<T>) {
-	if (status.kind === "loading")
-		return (
-			<div className="flex flex-col gap-2" aria-busy="true" aria-live="polite">
-				<p className="text-sm text-muted-foreground">{loadingLabel}</p>
-				<Skeleton className="h-12 w-full" />
-				<Skeleton className="h-12 w-full" />
-				<Skeleton className="h-12 w-full" />
-			</div>
-		);
+	if (status.kind === "loading") return <LoadingState label={loadingLabel} />;
 	if (status.kind === "error")
-		return <RetryAlert message={status.message} onRetry={status.onRetry} />;
-	if (status.kind === "denied")
-		return (
-			<div className="flex items-start gap-2 rounded-md border border-warning/40 bg-warning-surface px-4 py-3 text-sm">
-				<ShieldAlert aria-hidden="true" className="mt-0.5 size-4 shrink-0 text-warning" />
-				<p>{status.message}</p>
-			</div>
-		);
-	if (rows.length === 0)
-		return (
-			<div
-				data-testid={emptyTestId}
-				className="flex flex-col items-center gap-2 rounded-md border border-dashed px-4 py-8 text-center text-sm text-muted-foreground"
-			>
-				{empty}
-			</div>
-		);
+		return <ErrorState message={status.message} onRetry={status.onRetry} />;
+	if (status.kind === "denied") return <DeniedState>{status.message}</DeniedState>;
+	if (rows.length === 0) return <EmptyState testId={emptyTestId}>{empty}</EmptyState>;
 
 	const selected = new Set(selection?.selected ?? []);
 	const allSelected = rows.length > 0 && rows.every((r) => selected.has(rowKey(r)));

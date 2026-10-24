@@ -5,19 +5,13 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import {
-	Dialog,
-	DialogContent,
-	DialogDescription,
-	DialogFooter,
-	DialogHeader,
-	DialogTitle,
-} from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { rupiah, wibDateTime, wibInputToIso } from "@/modules/storefront/format";
 import { describeFailure, failureText, getJson, readFailure } from "./admin-errors";
 import { DataTable } from "./data-table";
+import { FormDialog, FormField, nativeSelectClass, SegmentedControl } from "./form";
+import { useKeysetList } from "./use-keyset-list";
 
 // DEC-008 manual bank transfers (finance queue) and DEC-008/009 payment terms (owner).
 type Transfer = {
@@ -77,21 +71,10 @@ const READ_ONLY_ID = "payments-read-only-reason";
 
 export function PaymentsClient({ canManageTerms, canWrite }: { canManageTerms: boolean; canWrite: boolean }) {
 	const [state, setState] = useState<"open" | "resolved">("open");
-	const [rows, setRows] = useState<Transfer[] | null>(null);
-	const [error, setError] = useState<string | null>(null);
+	const list = useKeysetList<Transfer>(`/api/v1/admin/manual-transfers?state=${state}`, (row) => row.id);
 	const [notice, setNotice] = useState<string | null>(null);
 	const [selected, setSelected] = useState<Transfer | null>(null);
 	const noticeRef = useRef<HTMLDivElement>(null);
-	const load = useCallback(async () => {
-		setRows(null);
-		setError(null);
-		const result = await getJson<{ data: Transfer[] }>(`/api/v1/admin/manual-transfers?state=${state}`);
-		if (result.ok) setRows(result.data.data);
-		else setError(failureText(result.failure));
-	}, [state]);
-	useEffect(() => {
-		void load();
-	}, [load]);
 	useEffect(() => {
 		if (notice) noticeRef.current?.focus();
 	}, [notice]);
@@ -113,40 +96,25 @@ export function PaymentsClient({ canManageTerms, canWrite }: { canManageTerms: b
 					<h2 id="transfers-heading" className="text-lg font-semibold">
 						Transfer bank manual
 					</h2>
-					<Button variant="outline" onClick={() => void load()}>
+					<Button variant="outline" onClick={() => void list.reload()}>
 						<RefreshCw aria-hidden="true" />
 						Muat ulang
 					</Button>
 				</div>
-				<fieldset className="inline-flex w-fit gap-1 rounded-lg border bg-muted p-1">
-					<legend className="sr-only">Status transfer</legend>
-					{(
-						[
-							["open", "Menunggu konfirmasi"],
-							["resolved", "Sudah dicatat"],
-						] as const
-					).map(([key, label]) => (
-						<button
-							key={key}
-							type="button"
-							aria-pressed={state === key}
-							className={`rounded-md px-3 py-1.5 text-sm font-medium ${state === key ? "bg-background shadow-sm" : "text-muted-foreground"}`}
-							onClick={() => setState(key)}
-						>
-							{label}
-						</button>
-					))}
-				</fieldset>
+				<SegmentedControl
+					legend="Status transfer"
+					value={state}
+					onChange={setState}
+					options={[
+						["open", "Menunggu konfirmasi"],
+						["resolved", "Sudah dicatat"],
+					]}
+				/>
 				<DataTable
-					rows={rows ?? []}
+					rows={list.rows}
 					rowKey={(row) => row.id}
-					status={
-						error
-							? { kind: "error", message: error, onRetry: () => void load() }
-							: rows === null
-								? { kind: "loading" }
-								: { kind: "ready" }
-					}
+					status={list.status}
+					paging={{ ...list.paging, testId: "manual-transfers-more" }}
 					loadingLabel="Memuat transfer…"
 					empty={state === "open" ? "Tidak ada transfer yang menunggu konfirmasi." : "Belum ada transfer yang dicatat."}
 					testId="manual-transfers"
@@ -191,7 +159,7 @@ export function PaymentsClient({ canManageTerms, canWrite }: { canManageTerms: b
 					onDone={(message) => {
 						setSelected(null);
 						setNotice(message);
-						void load();
+						void list.reload();
 					}}
 				/>
 			)}
@@ -239,48 +207,48 @@ function ConfirmDialog({ transfer, onClose, onDone }: { transfer: Transfer; onCl
 				: `Transfer ${transfer.order_number} dicatat; status pesanan diperbarui setelah diproses.`,
 		);
 	}
-	const field = (id: string, label: string, node: React.ReactNode) => (
-		<div className="flex flex-col gap-1.5">
-			<label htmlFor={id} className="text-sm font-medium">
-				{label}
-			</label>
-			{node}
-		</div>
-	);
 	return (
-		<Dialog open onOpenChange={(next) => { if (!next && !pending) onClose(); }}>
-			<DialogContent>
-				<form noValidate className="flex flex-col gap-4" onSubmit={(e) => { e.preventDefault(); void submit(); }}>
-					<DialogHeader>
-						<DialogTitle>Konfirmasi transfer {transfer.order_number}</DialogTitle>
-						<DialogDescription>
-							Cocokkan dengan mutasi rekening. Nominal tepat {rupiah(transfer.expected_amount)} (kode unik {transfer.transfer_code}). Nominal berbeda tetap dicatat dan masuk tinjauan, bukan dianggap lunas.
-						</DialogDescription>
-					</DialogHeader>
-					{field("transfer-amount", "Nominal diterima", <Input id="transfer-amount" inputMode="numeric" value={form.amount} onChange={set("amount")} />)}
-					{field("transfer-reference", "Referensi mutasi bank", <Input id="transfer-reference" value={form.reference} maxLength={80} onChange={set("reference")} />)}
-					{field("transfer-account", "Rekening penerima", <select id="transfer-account" className="h-9 rounded-md border bg-background px-3 text-sm" value={form.account} onChange={(e) => setForm({ ...form, account: e.target.value })}>{transfer.accounts.map((a) => <option key={a.account_number} value={a.account_number}>{a.bank_name} {a.account_number}</option>)}</select>)}
-					{field("transfer-time", `Waktu transfer (WIB; batas ${wibDateTime(transfer.expires_at)})`, <Input id="transfer-time" type="datetime-local" value={form.time} onChange={set("time")} />)}
-					<label className="flex items-center gap-2 text-sm"><input type="checkbox" checked={form.late} onChange={(e) => setForm({ ...form, late: e.target.checked })} />Transfer dilakukan setelah batas waktu (masuk tinjauan, bukan lunas)</label>
-					{field("transfer-evidence", "Bukti", <Textarea id="transfer-evidence" value={form.evidence} maxLength={500} onChange={set("evidence")} />)}
-					{field("transfer-reason", "Alasan", <Input id="transfer-reason" value={form.reason} maxLength={200} onChange={set("reason")} />)}
-					{field("transfer-password", "Konfirmasi kata sandi", <Input id="transfer-password" type="password" autoComplete="current-password" value={form.password} onChange={set("password")} />)}
-					{error && (
-						<p role="alert" className="text-sm text-destructive">
-							{error}
-						</p>
-					)}
-					<DialogFooter>
-						<Button type="button" variant="outline" disabled={pending} onClick={onClose}>
-							Batal
-						</Button>
-						<Button type="submit" disabled={pending}>
-							{pending ? "Menyimpan…" : "Simpan konfirmasi"}
-						</Button>
-					</DialogFooter>
-				</form>
-			</DialogContent>
-		</Dialog>
+		<FormDialog
+			title={`Konfirmasi transfer ${transfer.order_number}`}
+			description={`Cocokkan dengan mutasi rekening. Nominal tepat ${rupiah(transfer.expected_amount)} (kode unik ${transfer.transfer_code}). Nominal berbeda tetap dicatat dan masuk tinjauan, bukan dianggap lunas.`}
+			pending={pending}
+			error={error}
+			submitLabel="Simpan konfirmasi"
+			onClose={onClose}
+			onSubmit={() => void submit()}
+		>
+			<FormField id="transfer-amount" label="Nominal diterima">
+				<Input id="transfer-amount" inputMode="numeric" value={form.amount} onChange={set("amount")} />
+			</FormField>
+			<FormField id="transfer-reference" label="Referensi mutasi bank">
+				<Input id="transfer-reference" value={form.reference} maxLength={80} onChange={set("reference")} />
+			</FormField>
+			<FormField id="transfer-account" label="Rekening penerima">
+				<select id="transfer-account" className={nativeSelectClass} value={form.account} onChange={(e) => setForm({ ...form, account: e.target.value })}>
+					{transfer.accounts.map((a) => (
+						<option key={a.account_number} value={a.account_number}>
+							{a.bank_name} {a.account_number}
+						</option>
+					))}
+				</select>
+			</FormField>
+			<FormField id="transfer-time" label={`Waktu transfer (WIB; batas ${wibDateTime(transfer.expires_at)})`}>
+				<Input id="transfer-time" type="datetime-local" value={form.time} onChange={set("time")} />
+			</FormField>
+			<label className="flex min-h-9 items-center gap-2 text-sm">
+				<input type="checkbox" className="size-4 accent-primary" checked={form.late} onChange={(e) => setForm({ ...form, late: e.target.checked })} />
+				Transfer dilakukan setelah batas waktu (masuk tinjauan, bukan lunas)
+			</label>
+			<FormField id="transfer-evidence" label="Bukti">
+				<Textarea id="transfer-evidence" value={form.evidence} maxLength={500} onChange={set("evidence")} />
+			</FormField>
+			<FormField id="transfer-reason" label="Alasan">
+				<Input id="transfer-reason" value={form.reason} maxLength={200} onChange={set("reason")} />
+			</FormField>
+			<FormField id="transfer-password" label="Konfirmasi kata sandi">
+				<Input id="transfer-password" type="password" autoComplete="current-password" value={form.password} onChange={set("password")} />
+			</FormField>
+		</FormDialog>
 	);
 }
 
@@ -301,19 +269,8 @@ type Autolaris = {
 const OBSERVED: Record<string, string> = { pending: "Menunggu pembayaran", settled: "Lunas", unknown: "Status belum pasti", failed: "Gagal" };
 function AutolarisPayments({ onNotice, canWrite }: { onNotice: (message: string) => void; canWrite: boolean }) {
 	const [state, setState] = useState<"open" | "resolved">("open");
-	const [rows, setRows] = useState<Autolaris[] | null>(null);
-	const [error, setError] = useState<string | null>(null);
+	const list = useKeysetList<Autolaris>(`/api/v1/admin/autolaris-payments?state=${state}`, (row) => row.id);
 	const [selected, setSelected] = useState<Autolaris | null>(null);
-	const load = useCallback(async () => {
-		setRows(null);
-		setError(null);
-		const result = await getJson<{ data: Autolaris[] }>(`/api/v1/admin/autolaris-payments?state=${state}`);
-		if (result.ok) setRows(result.data.data);
-		else setError(failureText(result.failure));
-	}, [state]);
-	useEffect(() => {
-		void load();
-	}, [load]);
 	return (
 		<section aria-labelledby="autolaris-heading" className="flex flex-col gap-4 border-t pt-6">
 			<div className="flex flex-wrap items-end justify-between gap-3">
@@ -325,34 +282,25 @@ function AutolarisPayments({ onNotice, canWrite }: { onNotice: (message: string)
 						Status diperiksa otomatis lewat advice; hanya status pelunasan eksplisit yang dianggap lunas. Biaya admin ditanggung toko dan dicatat sebagai biaya pembayaran saat penyelesaian dana.
 					</p>
 				</div>
-				<Button variant="outline" onClick={() => void load()}>
+				<Button variant="outline" onClick={() => void list.reload()}>
 					<RefreshCw aria-hidden="true" />
 					Muat ulang
 				</Button>
 			</div>
-			<fieldset className="inline-flex w-fit gap-1 rounded-lg border bg-muted p-1">
-				<legend className="sr-only">Status AutoLaris</legend>
-				{(
-					[
-						["open", "Belum final"],
-						["resolved", "Final"],
-					] as const
-				).map(([key, label]) => (
-					<button key={key} type="button" aria-pressed={state === key} className={`rounded-md px-3 py-1.5 text-sm font-medium ${state === key ? "bg-background shadow-sm" : "text-muted-foreground"}`} onClick={() => setState(key)}>
-						{label}
-					</button>
-				))}
-			</fieldset>
+			<SegmentedControl
+				legend="Status AutoLaris"
+				value={state}
+				onChange={setState}
+				options={[
+					["open", "Belum final"],
+					["resolved", "Final"],
+				]}
+			/>
 			<DataTable
-				rows={rows ?? []}
+				rows={list.rows}
 				rowKey={(row) => row.id}
-				status={
-					error
-						? { kind: "error", message: error, onRetry: () => void load() }
-						: rows === null
-							? { kind: "loading" }
-							: { kind: "ready" }
-				}
+				status={list.status}
+				paging={{ ...list.paging, testId: "autolaris-payments-more" }}
 				loadingLabel="Memuat pembayaran…"
 				empty="Tidak ada pembayaran AutoLaris."
 				testId="autolaris-payments"
@@ -396,7 +344,7 @@ function AutolarisPayments({ onNotice, canWrite }: { onNotice: (message: string)
 					onDone={(message) => {
 						setSelected(null);
 						onNotice(message);
-						void load();
+						void list.reload();
 					}}
 				/>
 			)}
@@ -430,45 +378,32 @@ function AutolarisConfirmDialog({ payment, onClose, onDone }: { payment: Autolar
 		if (!result.ok) return setError(result.text);
 		onDone(`Pembayaran ${payment.order_number} dicatat; status pesanan diperbarui setelah diproses.`);
 	}
-	const field = (id: string, label: string, node: React.ReactNode) => (
-		<div className="flex flex-col gap-1.5">
-			<label htmlFor={id} className="text-sm font-medium">
-				{label}
-			</label>
-			{node}
-		</div>
-	);
 	return (
-		<Dialog open onOpenChange={(next) => { if (!next && !pending) onClose(); }}>
-			<DialogContent>
-				<form noValidate className="flex flex-col gap-4" onSubmit={(e) => { e.preventDefault(); void submit(); }}>
-					<DialogHeader>
-						<DialogTitle>Konfirmasi manual {payment.order_number}</DialogTitle>
-						<DialogDescription>
-							Gunakan hanya setelah memeriksa dashboard AutoLaris (transaksi {payment.trx_id}). Nominal berbeda dari {rupiah(payment.expected_amount)} dicatat dan masuk tinjauan.
-						</DialogDescription>
-					</DialogHeader>
-					{field("autolaris-amount", "Nominal dibayar pembeli", <Input id="autolaris-amount" inputMode="numeric" value={form.amount} onChange={set("amount")} />)}
-					{field("autolaris-time", "Waktu bayar (WIB)", <Input id="autolaris-time" type="datetime-local" value={form.time} onChange={set("time")} />)}
-					{field("autolaris-evidence", "Bukti dari dashboard", <Textarea id="autolaris-evidence" value={form.evidence} maxLength={500} onChange={set("evidence")} />)}
-					{field("autolaris-reason", "Alasan", <Input id="autolaris-reason" value={form.reason} maxLength={200} onChange={set("reason")} />)}
-					{field("autolaris-password", "Konfirmasi kata sandi", <Input id="autolaris-password" type="password" autoComplete="current-password" value={form.password} onChange={set("password")} />)}
-					{error && (
-						<p role="alert" className="text-sm text-destructive">
-							{error}
-						</p>
-					)}
-					<DialogFooter>
-						<Button type="button" variant="outline" disabled={pending} onClick={onClose}>
-							Batal
-						</Button>
-						<Button type="submit" disabled={pending}>
-							{pending ? "Menyimpan…" : "Simpan konfirmasi"}
-						</Button>
-					</DialogFooter>
-				</form>
-			</DialogContent>
-		</Dialog>
+		<FormDialog
+			title={`Konfirmasi manual ${payment.order_number}`}
+			description={`Gunakan hanya setelah memeriksa dashboard AutoLaris (transaksi ${payment.trx_id}). Nominal berbeda dari ${rupiah(payment.expected_amount)} dicatat dan masuk tinjauan.`}
+			pending={pending}
+			error={error}
+			submitLabel="Simpan konfirmasi"
+			onClose={onClose}
+			onSubmit={() => void submit()}
+		>
+			<FormField id="autolaris-amount" label="Nominal dibayar pembeli">
+				<Input id="autolaris-amount" inputMode="numeric" value={form.amount} onChange={set("amount")} />
+			</FormField>
+			<FormField id="autolaris-time" label="Waktu bayar (WIB)">
+				<Input id="autolaris-time" type="datetime-local" value={form.time} onChange={set("time")} />
+			</FormField>
+			<FormField id="autolaris-evidence" label="Bukti dari dashboard">
+				<Textarea id="autolaris-evidence" value={form.evidence} maxLength={500} onChange={set("evidence")} />
+			</FormField>
+			<FormField id="autolaris-reason" label="Alasan">
+				<Input id="autolaris-reason" value={form.reason} maxLength={200} onChange={set("reason")} />
+			</FormField>
+			<FormField id="autolaris-password" label="Konfirmasi kata sandi">
+				<Input id="autolaris-password" type="password" autoComplete="current-password" value={form.password} onChange={set("password")} />
+			</FormField>
+		</FormDialog>
 	);
 }
 
@@ -536,30 +471,18 @@ function PaymentTerms() {
 				</p>
 			</div>
 			<form noValidate className="flex flex-col gap-3" onSubmit={(e) => { e.preventDefault(); void save(); }}>
-				<div className="flex flex-col gap-1.5">
-					<label htmlFor="terms-bps" className="text-sm font-medium">
-						Biaya COD (basis poin; 333 = 3,33%)
-					</label>
+				<FormField id="terms-bps" label="Biaya COD (basis poin; 333 = 3,33%)">
 					<Input id="terms-bps" inputMode="numeric" value={form.bps} onChange={(e) => setForm({ ...form, bps: e.target.value })} />
-				</div>
-				<div className="flex flex-col gap-1.5">
-					<label htmlFor="terms-accounts" className="text-sm font-medium">
-						Rekening transfer (satu per baris: Bank | Nomor | Nama pemilik)
-					</label>
+				</FormField>
+				<FormField id="terms-accounts" label="Rekening transfer (satu per baris: Bank | Nomor | Nama pemilik)">
 					<Textarea id="terms-accounts" value={form.accounts} onChange={(e) => setForm({ ...form, accounts: e.target.value })} />
-				</div>
-				<div className="flex flex-col gap-1.5">
-					<label htmlFor="terms-reason" className="text-sm font-medium">
-						Alasan perubahan
-					</label>
+				</FormField>
+				<FormField id="terms-reason" label="Alasan perubahan">
 					<Input id="terms-reason" value={form.reason} maxLength={200} onChange={(e) => setForm({ ...form, reason: e.target.value })} />
-				</div>
-				<div className="flex flex-col gap-1.5">
-					<label htmlFor="terms-password" className="text-sm font-medium">
-						Konfirmasi kata sandi
-					</label>
+				</FormField>
+				<FormField id="terms-password" label="Konfirmasi kata sandi">
 					<Input id="terms-password" type="password" autoComplete="current-password" value={form.password} onChange={(e) => setForm({ ...form, password: e.target.value })} />
-				</div>
+				</FormField>
 				{message && (
 					<p role={message.kind === "error" ? "alert" : "status"} className={message.kind === "error" ? "text-sm text-destructive" : "text-sm text-success"}>
 						{message.text}

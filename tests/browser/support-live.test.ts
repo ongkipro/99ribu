@@ -128,8 +128,10 @@ test("S74 built browser: customer and staff open on the newest messages, page ol
 				conflicts++;
 		});
 		await desk.page.goto(`${origin}/admin/support`);
+		// S113: the staff queue is the shared DataTable (rows from md, cards below).
 		await desk.page
-			.getByRole("listitem")
+			.getByTestId("support-inbox")
+			.getByRole("row")
 			.filter({ hasText: `#${short}` })
 			.getByRole("button", { name: "Buka Detail" })
 			.click();

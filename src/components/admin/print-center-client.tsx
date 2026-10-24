@@ -18,6 +18,7 @@ import type {
 import { rupiah, wibDateTime } from "@/modules/storefront/format";
 import { describeFailure, failureText, readFailure } from "./admin-errors";
 import { DataTable } from "./data-table";
+import { nativeSelectClass } from "./form";
 
 type ShipmentItem = PrintQueueShipment;
 
@@ -296,7 +297,7 @@ export function PrintCenterClient({
 	const parcelCell = (s: ShipmentItem) => (
 		<div className="flex min-w-0 flex-col">
 			<span className="font-medium">{s.order_number}</span>
-			<span className="font-mono text-xs text-muted-foreground">
+			<span className="font-mono text-xs break-all text-muted-foreground">
 				{s.parcel_id}
 			</span>
 			{s.due_at && (
@@ -716,5 +717,3 @@ export function PrintCenterClient({
 	);
 }
 
-const nativeSelectClass =
-	"h-9 rounded-md border border-input bg-background px-3 text-sm font-medium shadow-xs outline-none focus-visible:border-ring focus-visible:ring-[3px] focus-visible:ring-ring/50";
