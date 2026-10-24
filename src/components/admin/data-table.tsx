@@ -175,18 +175,18 @@ export function DataTable<T>({
 	const last = columns.at(-1)?.id === "actions" ? "actions" : null;
 	// Pinned cells need an opaque background; the pinned edge shows a shadow while columns hide
 	// behind it. Literal classes per mode (Tailwind only sees whole class names).
-	const pinCheckbox = stack ? "md:sticky md:left-0 md:z-10 md:bg-card" : "sticky left-0 z-10 bg-card";
+	const pinCheckbox = stack ? "md:sticky md:left-0 md:z-10 md:bg-card md:group-data-[state=selected]/row:bg-muted" : "sticky left-0 z-10 bg-card group-data-[state=selected]/row:bg-muted";
 	const pin = (id: string | null) =>
 		id === first
 			? cn(
-					stack ? "md:sticky md:z-10 md:bg-card" : "sticky z-10 bg-card",
+					stack ? "md:sticky md:z-10 md:bg-card md:group-data-[state=selected]/row:bg-muted" : "sticky z-10 bg-card group-data-[state=selected]/row:bg-muted",
 					selection ? (stack ? "md:left-12" : "left-12") : stack ? "md:left-0" : "left-0",
 					edges.start &&
 						(stack ? "md:shadow-[8px_0_8px_-6px_oklch(0_0_0/0.18)]" : "shadow-[8px_0_8px_-6px_oklch(0_0_0/0.18)]"),
 				)
 			: id === last
 				? cn(
-						stack ? "md:sticky md:right-0 md:z-10 md:bg-card" : "sticky right-0 z-10 bg-card",
+						stack ? "md:sticky md:right-0 md:z-10 md:bg-card md:group-data-[state=selected]/row:bg-muted" : "sticky right-0 z-10 bg-card group-data-[state=selected]/row:bg-muted",
 						edges.end &&
 							(stack ? "md:shadow-[-8px_0_8px_-6px_oklch(0_0_0/0.18)]" : "shadow-[-8px_0_8px_-6px_oklch(0_0_0/0.18)]"),
 					)
@@ -289,6 +289,7 @@ export function DataTable<T>({
 										data-state={selected.has(id) ? "selected" : undefined}
 										{...role("row")}
 										className={cn(
+											"group/row",
 											rowClassName,
 											stack &&
 												"max-md:flex max-md:h-auto max-md:flex-col max-md:rounded-md max-md:border! max-md:px-3 max-md:py-2",

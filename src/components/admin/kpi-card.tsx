@@ -76,7 +76,7 @@ export function KpiCard({
 				data-testid={`kpi-value-${metricKey}`}
 				className={cn(
 					"font-semibold tabular-nums break-words",
-					money ? "text-2xl" : "text-xl",
+					money ? "text-xl whitespace-nowrap md:text-2xl" : "text-xl",
 					tone === "idle" && "text-muted-foreground",
 					muted && "text-base text-warning",
 				)}
@@ -126,11 +126,23 @@ export function KpiCard({
 	);
 }
 
-export function KpiGrid({ children, testId }: { children: ReactNode; testId?: string }) {
+export function KpiGrid({
+	children,
+	testId,
+	money = false,
+}: {
+	children: ReactNode;
+	testId?: string;
+	/** Rupiah values need wider cards from md (they never wrap mid-number). */
+	money?: boolean;
+}) {
 	return (
 		<ul
 			data-testid={testId}
-			className="grid grid-cols-[repeat(auto-fill,minmax(min(100%,10rem),1fr))] gap-2"
+			className={cn(
+				"grid grid-cols-[repeat(auto-fill,minmax(min(100%,10rem),1fr))] gap-2",
+				money && "md:grid-cols-[repeat(auto-fill,minmax(min(100%,12.5rem),1fr))]",
+			)}
 		>
 			{children}
 		</ul>

@@ -1767,7 +1767,7 @@ export function AdminWorkspacesClient({
 							· nilai belum lengkap tidak dihitung sebagai Rp0
 						</p>
 					</div>
-					<KpiGrid>
+					<KpiGrid money>
 						{moneyMetrics.map((m) => {
 							const action = actionLabel(m.action_href);
 							return (
