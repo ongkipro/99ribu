@@ -264,7 +264,13 @@ function ResolveDialog({
 			onSubmit={() => void submit()}
 		>
 			<FormField id="resolve-reason" label="Alasan" hint={action === "dispatch" ? "Contoh: kurir internal, surat jalan SJ-0412." : undefined}>
-				<Input id="resolve-reason" maxLength={500} value={reason} onChange={(e) => setReason(e.target.value)} />
+				<Input
+					id="resolve-reason"
+					maxLength={500}
+					aria-describedby={action === "dispatch" ? "resolve-reason-hint" : undefined}
+					value={reason}
+					onChange={(e) => setReason(e.target.value)}
+				/>
 			</FormField>
 		</FormDialog>
 	);
