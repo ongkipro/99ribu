@@ -206,10 +206,16 @@ export function BannersClient() {
 				</StatusBadge>
 			),
 		},
-		{ id: "schedule", header: "Jadwal (WIB)", cell: (b) => <span className="tabular-nums">{schedule(b)}</span> },
-		...(current
-			? [{ id: "order", header: "Urutan", cellClassName: "tabular-nums", cell: (b: AdminBanner) => shown.indexOf(b) + 1 }]
-			: []),
+		{
+			id: "schedule",
+			header: "Jadwal (WIB)",
+			cell: (b) => (
+				<span className="flex flex-col tabular-nums whitespace-nowrap">
+					<span>{wibDateTime(b.starts_at)}</span>
+					<span className="text-muted-foreground">s.d. {wibDateTime(b.ends_at)}</span>
+				</span>
+			),
+		},
 		{
 			id: "recorded",
 			header: "Perubahan terakhir",
@@ -227,7 +233,7 @@ export function BannersClient() {
 			cell: (b) => {
 				const index = shown.indexOf(b);
 				return (
-					<div className="flex flex-wrap items-center gap-2">
+					<div className="flex flex-wrap items-center gap-2 md:flex-nowrap">
 						{current && (
 							<>
 								<Button
@@ -335,7 +341,7 @@ export function BannersClient() {
 					testId="banners-preview"
 				>
 					{live.length ? (
-						<div inert className="home-main overflow-hidden pt-0!">
+						<div inert className="home-main overflow-hidden pt-0! [&>.home-shelf]:[content-visibility:visible]">
 							<PromoBanners banners={live.map(toCard)} />
 						</div>
 					) : (
@@ -614,6 +620,8 @@ function BannerEditor({
 								<li className="banner">
 									<BannerCard banner={preview} />
 								</li>
+								{/* Keeps the rail-card layout: a lone banner would switch to the wide single-card layout. */}
+								<li className="banner" aria-hidden="true" style={{ visibility: "hidden" }} />
 							</ul>
 						</div>
 					</div>
