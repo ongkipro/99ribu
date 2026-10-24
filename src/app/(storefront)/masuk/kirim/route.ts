@@ -34,7 +34,7 @@ export async function POST(request: Request) {
 	const raw = form.get("step");
 	const step: SignInStep | "signup" | "resend" | "reset" = raw === "totp" || raw === "backup" || raw === "signup" || raw === "resend" || raw === "reset" ? raw : "password";
 	// Set-password (S123 review M1) answers on /masuk/atur-sandi; the token goes back only so a failed
-	// attempt can be retried (that page sends no Referer), never on success.
+	// attempt can be retried (that page sends an origin-only Referer), never on success.
 	const token = form.get("token") ?? "", activation = form.get("aktivasi") === "1";
 	const back = (query: Record<string, string>) => {
 		const url = new URL(PASSWORD_PATH, "http://localhost");

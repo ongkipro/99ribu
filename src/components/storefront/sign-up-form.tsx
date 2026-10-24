@@ -199,7 +199,7 @@ function PasswordField({ id, label, value, onChange, invalid, errorId }: { id: s
 // decision 2026-10-25: "Buat kata sandi" activates the account). The link proves the email; the password
 // created here is the account's first usable one (public sign-up stores a random one nobody knows) and
 // onPasswordReset verifies the email. The token arrives in the URL from Better Auth's redirect; with JS it is
-// dropped from the address bar at once (the page also sends no Referer). With JS, success signs the buyer
+// dropped from the address bar at once (its Referer carries the origin only). With JS, success signs the buyer
 // in with the new password and returns them to `next`.
 export function SetPasswordForm({ token, activation, email, phone = null, next, error: initialError }: {
 	token: string; activation: boolean; email: string | null; phone?: string | null; next: string | null; error: { kind: SignUpFailure | "token"; retry: number | null } | null;

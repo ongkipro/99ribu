@@ -4,7 +4,7 @@ import test from "node:test";
 import { type Browser, chromium, expect, type Page } from "@playwright/test";
 import { challengeVerificationCode } from "../../src/modules/accounts/service.ts";
 import { createLocalAuth } from "../../src/modules/access/auth.ts";
-import { commerceActor } from "../../src/modules/checkout/access.ts";
+import { bootstrapGuest, capability, commerceActor, prefix, setCookie } from "../../src/modules/checkout/access.ts";
 import { createCart } from "../../src/modules/checkout/carts.ts";
 import { expireOwnedOrderJob } from "../../src/modules/checkout/expiry.ts";
 import { releaseReservation } from "../../src/modules/inventory/reservations.ts";
@@ -120,7 +120,7 @@ test("modal sign-up from /akun: name and email only, uniform check-email, the em
 		// The same email again, on the /masuk page: the same answer and screen. Still unverified, so the address
 		// gets another set-password link, never a second account.
 		const again = await browser.newPage({ viewport: { width: 1440, height: 900 } });
-		await again.goto(`${origin}/masuk?langkah=daftar`);
+		await again.goto(`${origin}/masuk?langkah=daftar&next=%2Fakun`);
 		await again.getByLabel("Nama").fill("Orang Lain");
 		await again.getByLabel("Email").fill(email);
 		await again.getByLabel("Nomor WhatsApp").fill("089876543210");
@@ -140,7 +140,7 @@ test("modal sign-up from /akun: name and email only, uniform check-email, the em
 		assert.ok(!page.url().includes("token="), "The token leaves the address bar");
 		await page.getByRole("heading", { level: 1, name: "Buat kata sandi" }).waitFor();
 		await expect(page.getByTestId("set-password")).toContainText(email);
-		assert.equal(await page.locator('meta[name="referrer"]').getAttribute("content"), "no-referrer");
+		assert.equal(await page.locator('meta[name="referrer"]').getAttribute("content"), "strict-origin", "The token never leaves as a Referer path; Origin stays set for the form post");
 		const field = page.getByLabel("Kata sandi", { exact: true });
 		assert.equal(await field.getAttribute("autocomplete"), "new-password");
 		await field.fill("pendek");
@@ -222,11 +222,11 @@ test("without JavaScript: the switch is a link, sign-up and resend post to /masu
 		await page.goto(link);
 		await page.waitForURL(/\/masuk\/atur-sandi\?aktivasi=1&next=%2Fakun&token=[A-Za-z0-9_-]+$/);
 		await page.getByRole("heading", { level: 1, name: "Buat kata sandi" }).waitFor();
-		assert.equal(await page.locator('meta[name="referrer"]').getAttribute("content"), "no-referrer");
-		await page.getByLabel("Kata sandi").fill("pendek");
+		assert.equal(await page.locator('meta[name="referrer"]').getAttribute("content"), "strict-origin", "The token never leaves as a Referer path; Origin stays set for the form post");
+		await page.getByLabel("Kata sandi", { exact: true }).fill("pendek");
 		await page.getByRole("button", { name: "Buat kata sandi" }).click();
 		await page.getByTestId("set-password-error").getByText("Kata sandi minimal 12 karakter.").waitFor();
-		await page.getByLabel("Kata sandi").fill(password);
+		await page.getByLabel("Kata sandi", { exact: true }).fill(password);
 		await page.getByRole("button", { name: "Buat kata sandi" }).click();
 		await page.waitForURL(`${origin}/masuk/atur-sandi?aktivasi=1&next=%2Fakun&selesai=1`);
 		await page.getByRole("heading", { level: 1, name: "Akun sudah aktif" }).waitFor();
@@ -253,7 +253,7 @@ test("/masuk/kirim sign-up and resend refuse cross-site posts, wrong content typ
 		const response = await fetch(`${origin}/masuk/kirim`, {
 			method: "POST", redirect: "manual",
 			headers: { origin: "http://evil.example", "content-type": "application/x-www-form-urlencoded" },
-			body: new URLSearchParams({ step, name: "Forged", email, next: "/akun" }),
+			body: new URLSearchParams({ step, name: "Forged", email, phone: "081234567890", next: "/akun" }),
 		});
 		assert.equal(response.status, 303, step);
 		const location = new URL(response.headers.get("location") ?? "", origin);
@@ -285,10 +285,16 @@ test("post-checkout prompt: save the guest order to a new account and link it", 
 	const email = newEmail("order");
 	const product = curated.products["shirt-cream"];
 	assert.ok(product.publication_id);
-	const client = new CommerceClient(identity), body = { lines: [{ variant_id: product.offer_id, quantity: 1, expected_publication_id: product.publication_id }] };
+	const client = new CommerceClient(identity), boot = new Response(null);
+	await bootstrapGuest(identity, boot, new Request(`${origin}/api/v1/carts`, { method: "POST" }));
+	client.absorb(boot);
+	const body = { lines: [{ variant_id: product.offer_id, quantity: 1, expected_publication_id: product.publication_id }] };
 	const cartRequest = client.request("/api/v1/carts", body, { key: randomUUID() }), guest = await commerceActor(cartRequest, identity);
 	assert.ok(guest?.kind === "guest");
 	const cart = await identity.sql.begin((tx) => createCart(tx, cartRequest, identity, guest, body, { clock_namespace: namespace }));
+	const access = new Response(null);
+	setCookie(access, `${await prefix(identity)}.cart_access`, `${cart.cart.id}.${await capability(identity, "cart", cart.cart.id, guest.id, cart.cart.cap_issued_at as string)}`);
+	client.absorb(access);
 	const browser = await launch();
 	try {
 		const quote = await client.call("/api/v1/checkout/quotes", { cart_id: cart.cart.id, address: { recipient_name: "Penerima Contoh", phone: "+6281200000000", address_line: "Jalan Contoh 12 RT 01", destination_id: "test-malang", postal_code: "00001" }, contact: { phone: "+6281200000000", email }, payment_method: "prepaid" }, { version: 1 });
