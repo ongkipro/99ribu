@@ -1,5 +1,12 @@
 # Build log — Serba 99ribu
 
+## 2026-10-24 — Card price weight, S118 guest lookup by number, S113 admin DataTable (not pushed)
+
+- Owner call: product card price at regular weight (400, title stays 600). `1a0683f`; design review round 60 PASS, gate `PASS: 0 failing check(s)`.
+- S118 backend: `guest-order-access/challenges` accepts `order_number` (or `order_id`), answers an unknown order or a mismatched contact with a uniform 202 decoy challenge that no code verifies (`f9b0b83`). Independent R4 review REVISE (verify rate-limit bucket differed between real and decoy → contact oracle; unbounded committed rows; extra query on known numbers) → fixed `45c7e9d` (bucket keyed on the requested reference, one left-join lookup, per-IP 20/min in production + global 300/min, retention `support_challenge.guest_order_access` 1 day after expiry) → PASS. Residual (accepted): a known number can be locked out of verification for 15 min; the global limit can be exhausted by a distributed caller. Signed-in link path oracle tracked as S120. UI still sends `order_id` (wired after S111).
+- S113 slice 1 merged (`3044fab`): shared `src/components/admin/data-table.tsx` for every admin list screen; `orders_pending` and `stock_alerts` read the same fragments as their drilldowns; `tests/integration/admin-kpi-parity.test.ts` (`--case=admin-kpi-parity`, ~190 s, budget raised in `d5d0c72`).
+- Evidence on the merge: check, build green; integration admin-kpi-parity 1/1, T-34 10/10, admin-orders 1/1, guest-order-lookup 1/1, T-35 2/2, PR-13 6/6, PR-16 19/19, localhost-readiness 5/5, db-hygiene 5/5; browser admin-ui-controls 6/6, T-34 1/1, T-37 1/1, foundation 10/10, consignment-payments 4/4 (failed 1/4 while the LOCAL worker was running → S121).
+
 ## 2026-10-24 — Integration of admin fixes, demo orders, security, DB hygiene and storefront on main (not pushed)
 
 - Merged `ui-controls-admin-fixes` (`f5ec1a9`), `security-step-up-proofs` (`6ba7afa`, conflicts in `reporting/service.ts` and ARCHITECTURE.md resolved keeping S103 constants and the profile-keyed `mac`; the hard-coded fallback key is gone) and `s104-s105-db-hygiene` (`0e917f1`). Committed demo orders (`8e006b2`) and storefront (`0176403`).
