@@ -2,8 +2,12 @@ import type { LocalAuth } from "../access/auth.ts";
 import { assertOrigin, privateJson, problem, readBody } from "../access/http.ts";
 import { AccessError, getPrincipal } from "../access/policy.ts";
 import { createCategory, createProduct, createStockItem, patchProduct, readCatalog } from "./catalog.ts";
+import { homeSafe } from "../storefront/department-photos.ts";
+import { draftGoogleCategory } from "./google-category.ts";
 import { publishProduct, readPublicationState, withdrawPublication } from "./publication.ts";
 import { listProductSummaries } from "./summary.ts";
+
+type ProductFacts = { name: string; category_id: string; images: { url: string }[]; variants: { id: string }[] };
 
 export async function handleCatalog(request: Request, identity: LocalAuth) {
   try {
@@ -27,7 +31,13 @@ export async function handleCatalog(request: Request, identity: LocalAuth) {
     if (withdrawal && request.method === "POST") return privateJson(await withdrawPublication(request,identity,principal,withdrawal[1],await readBody(request)),201);
     if (request.method === "GET" && url.pathname === "/api/v1/admin/products") return privateJson(await listProductSummaries(identity, principal, url));
     const list = ["/api/v1/admin/categories", "/api/v1/admin/stock-items", "/api/v1/admin/products"].includes(url.pathname);
-    if (request.method === "GET" && (product || list)) return privateJson(await readCatalog(identity, principal, url, product?.[1]));
+    if (request.method === "GET" && product) {
+      // S102: read-only review facts beside the authorized draft (computed only after its scope check).
+      const draft = await readCatalog(identity, principal, url, product[1]) as Awaited<ReturnType<typeof readCatalog>> & ProductFacts;
+      return privateJson({ ...draft, claim_review: !homeSafe(draft),
+        google_product_category: await draftGoogleCategory(identity.sql, draft.category_id, draft.variants.map((v) => v.id)) });
+    }
+    if (request.method === "GET" && list) return privateJson(await readCatalog(identity, principal, url));
     if (request.method === "PATCH" && product) return privateJson(await patchProduct(request, identity, principal, product[1], await readBody(request)));
     if (request.method === "POST" && list) {
       const body = await readBody(request);

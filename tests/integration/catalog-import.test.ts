@@ -218,6 +218,14 @@ test('catalog import: catalog-only rows, served photos, idempotent rerun, guarde
     assert.equal((await readCatalogRevision(sql,multi)).name,`${catalog.products[0].name} Edisi Baru`);
     assert.equal((await readCatalogRevision(sql,bundle)).description,'Staff-written description.');
     assert.equal((await importNow(changed)).changed,false);
+    // S102 content screen: title, photo order and alt text edited by staff survive a re-import too.
+    const staffDraft=await readCatalogRevision(sql,bundle);
+    const reordered=[...staffDraft.images].reverse().map((image,i)=>({...image,alt:`Foto staf ${i+1}`}));
+    const contentReq=editor.browser.request(`/api/v1/admin/products/${bundle}`,{});contentReq.headers.set('idempotency-key',randomUUID());
+    await patchProduct(contentReq,identity,await getPrincipal(editor.browser.request('/api/v1/me'),identity),bundle,{expected_version:staffDraft.version,reason:'Staff content edit',name:'Paket Dapur Bersih Staf',images:reordered});
+    const again=await importNow(changed);assert.deepEqual(again.products.preserved,['BND-01']);assert.equal(again.changed,false);
+    const kept=await readCatalogRevision(sql,bundle);
+    assert.deepEqual({name:kept.name,images:kept.images,description:kept.description},{name:'Paket Dapur Bersih Staf',images:reordered,description:'Staff-written description.'});
 
     // A renamed category is a new slug: it is created through the category service, importer-owned
     // products move to it in one revision (a ready one is republished in the same run), and the

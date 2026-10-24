@@ -188,7 +188,7 @@ export function FormDialog({
 				if (!next && !pending) onClose();
 			}}
 		>
-			<DialogContent {...(description ? {} : { "aria-describedby": undefined })}>
+			<DialogContent className="md:max-h-[90dvh] md:overflow-y-auto" {...(description ? {} : { "aria-describedby": undefined })}>
 				<form
 					noValidate
 					className="flex flex-col gap-4"

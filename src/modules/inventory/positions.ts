@@ -53,31 +53,39 @@ export async function createMovement(request: Request, identity: LocalAuth, prin
   });
 }
 function filters(url: URL, lots: boolean) {
-  const names = lots ? ["warehouse_id", "stock_item_id", "cursor", "limit"] : ["warehouse_id", "stock_item_id", "lot_id", "position_id", "cursor", "limit"];
+  const names = lots ? ["warehouse_id", "stock_item_id", "cursor", "limit"] : ["warehouse_id", "stock_item_id", "lot_id", "position_id", "q", "cursor", "limit"];
   if ([...url.searchParams.keys()].some((key) => !names.includes(key) || url.searchParams.getAll(key).length !== 1)) throw invalid();
   const limit = url.searchParams.get("limit") ?? "20"; if (!/^\d{1,3}$/.test(limit)) throw invalid();
   const selected = (key: string) => url.searchParams.has(key) ? id(url.searchParams.get(key)) : null;
+  // S102: literal, case-insensitive SKU code or name substring (ILIKE metacharacters escaped).
+  const q = url.searchParams.get("q");
+  if (q !== null && (!q.isWellFormed() || q.includes("\0") || !q.trim() || Array.from(q).length > 100)) throw invalid();
   return { limit: integer(Number(limit), 1, 100), cursor: selected("cursor"), warehouseId: selected("warehouse_id"),
-    stockItemId: selected("stock_item_id"), lotId: selected("lot_id"), positionId: selected("position_id") };
+    stockItemId: selected("stock_item_id"), lotId: selected("lot_id"), positionId: selected("position_id"),
+    pattern: q === null ? null : `%${q.trim().replace(/[\\%_]/g, (c) => `\\${c}`)}%` };
 }
 export async function listPositions(identity: LocalAuth, principal: Principal, url: URL) {
   const selected = filters(url, false);
   return identity.sql.begin(async (tx) => {
     const access = await inventoryAuthority(tx, principal);
     if (selected.warehouseId) await assertInventoryWarehouse(tx, selected.warehouseId, access, false);
-    const rows = await tx<Position[]>`select b.id,b.warehouse_id as "warehouseId",b.stock_item_id as "stockItemId",b.lot_id as "lotId",
+    const rows = await tx<(Position & { sku: string; stockItemName: string })[]>`select b.id,b.warehouse_id as "warehouseId",b.stock_item_id as "stockItemId",b.lot_id as "lotId",
       b.on_hand as "onHand",b.reserved,b.quarantined,b.revision,l.code as "lotCode",l.expires_on::text as "expiresOn",
-      coalesce(l.expires_on<(app.inventory_clock(w.id) at time zone w.timezone)::date,false) as expired
-      from app.inventory_balance b join app.warehouse w on w.id=b.warehouse_id left join app.inventory_lot l on l.id=b.lot_id
+      coalesce(l.expires_on<(app.inventory_clock(w.id) at time zone w.timezone)::date,false) as expired,
+      s.sku,s.name as "stockItemName"
+      from app.inventory_balance b join app.warehouse w on w.id=b.warehouse_id join app.stock_item s on s.id=b.stock_item_id
+      left join app.inventory_lot l on l.id=b.lot_id
       where (${selected.cursor}::uuid is null or b.id>${selected.cursor}::uuid)
         and (w.active or ${selected.warehouseId}::uuid is not null)
         and (${selected.warehouseId}::uuid is null or b.warehouse_id=${selected.warehouseId}::uuid)
         and (${selected.stockItemId}::uuid is null or b.stock_item_id=${selected.stockItemId}::uuid)
         and (${selected.lotId}::uuid is null or b.lot_id=${selected.lotId}::uuid)
         and (${selected.positionId}::uuid is null or b.id=${selected.positionId}::uuid)
+        and (${selected.pattern}::text is null or s.sku ilike ${selected.pattern} or s.name ilike ${selected.pattern})
         and (${access.owner} or exists (select 1 from app.warehouse_membership m where m.user_id=${principal.id} and m.warehouse_id=w.id and w.active))
       order by b.id limit ${selected.limit + 1}`;
-    return { data: rows.slice(0, selected.limit).map(projectPosition), pagination: { next_cursor: rows.length > selected.limit ? rows[selected.limit - 1].id : null } };
+    // S102: the physical SKU code and name label a row for warehouse staff (no cost or customer data).
+    return { data: rows.slice(0, selected.limit).map((row) => ({ ...projectPosition(row), sku: row.sku, stock_item_name: row.stockItemName })), pagination: { next_cursor: rows.length > selected.limit ? rows[selected.limit - 1].id : null } };
   });
 }
 export async function listInventoryLots(identity: LocalAuth, principal: Principal, url: URL) {
@@ -107,12 +115,14 @@ export async function movementHistory(identity: LocalAuth, principal: Principal,
   return identity.sql.begin(async (tx) => {
     const access = await inventoryAuthority(tx, principal); const balance = await readPosition(tx, positionId);
     await assertInventoryWarehouse(tx, balance.warehouseId, access, false);
-    const rows = await tx`select id,revision,kind,quantity,on_hand_delta,reserved_delta,quarantined_delta,actor_id,reason,created_at
-      from app.stock_movement where balance_id=${positionId} and (${cursor}::int is null or revision<${cursor}::int)
-      order by revision desc limit ${limit + 1}`;
+    // S102 audit view: the actor's display name (no email or other account data).
+    const rows = await tx`select m.id,m.revision,m.kind,m.quantity,m.on_hand_delta,m.reserved_delta,m.quarantined_delta,m.actor_id,u.name as actor_name,m.reason,m.created_at
+      from app.stock_movement m left join app.auth_user u on u.id=m.actor_id
+      where m.balance_id=${positionId} and (${cursor}::int is null or m.revision<${cursor}::int)
+      order by m.revision desc limit ${limit + 1}`;
     return { data: rows.slice(0,limit).map((m) => ({ id: m.id, warehouse_id: balance.warehouseId, stock_item_id: balance.stockItemId,
       lot_id: balance.lotId, position_id: balance.id, kind: m.kind, quantity: m.quantity, on_hand_delta: m.on_hand_delta,
-      reserved_delta: m.reserved_delta, quarantined_delta: m.quarantined_delta, actor_id: m.actor_id, reason: m.reason,
+      reserved_delta: m.reserved_delta, quarantined_delta: m.quarantined_delta, actor_id: m.actor_id, actor_name: m.actor_name ?? null, reason: m.reason,
       balance_version: m.revision, created_at: new Date(m.created_at).toISOString() })),
       pagination: { next_cursor: rows.length > limit ? String(rows[limit-1].revision) : null } };
   });
