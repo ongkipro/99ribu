@@ -218,7 +218,9 @@ test("staff inbox: console shell, noindex, claim once per double click, visible 
 		await expect(page.locator('meta[name="robots"]')).toHaveAttribute("content", /noindex/);
 		await expect(page.getByRole("navigation", { name: "Navigasi Operator" })).toBeVisible();
 		await expect(page.getByRole("link", { name: "Kotak Masuk Pelanggan" })).toHaveAttribute("aria-current", "page");
-		await expect(page.getByRole("link", { name: "Ke Konsol Operasional" })).toHaveAttribute("href", "/admin");
+		// S113 review: the way back to the console is the sidebar workspace link (no duplicate header button).
+		await expect(page.getByRole("link", { name: "Ke Konsol Operasional" })).toHaveCount(0);
+		await expect(page.getByTestId("workspace-tab-customer_service")).toHaveAttribute("href", "/admin?workspace=customer_service");
 		await expect(page.locator("main")).toHaveCount(1);
 
 		// S113: the inbox lists the printed order number, never the raw order id.

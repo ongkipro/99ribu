@@ -1,14 +1,19 @@
 "use client";
 
-import { RefreshCw } from "lucide-react";
+import { cn } from "cn";
+import { CircleAlert, CircleCheck, RefreshCw } from "lucide-react";
 import Link from "next/link";
 import type React from "react";
 import { useEffect, useId, useLayoutEffect, useRef, useState } from "react";
 import { DataTable } from "@/components/admin/data-table";
 import { FormField, nativeSelectClass } from "@/components/admin/form";
+import { StatusBadge, type StatusTone } from "@/components/admin/status";
 import { useKeysetList } from "@/components/admin/use-keyset-list";
-import { Badge } from "@/components/ui/badge";
+import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Textarea } from "@/components/ui/textarea";
+import { wibDateTime } from "@/modules/storefront/format";
 
 type StaffUser = {
 	id: string;
@@ -111,11 +116,20 @@ const STATUS_LABELS: Record<string, string> = {
 	waiting_customer: "Menunggu pelanggan",
 	resolved: "Selesai",
 };
+const STATUS_TONE: Record<string, StatusTone> = { resolved: "done" };
 const STATUS_ACTIONS = [
 	["waiting_customer", "Set Menunggu Pelanggan"],
-	["resolved", "Tandai Selesai (Resolve)"],
+	["resolved", "Tandai Selesai"],
 	["open", "Buka Kembali"],
 ] as const;
+type SupportAgent = { id: string; name: string };
+
+/**
+ * One human label per conversation, the same in the inbox, the detail pane and the dashboard queue:
+ * the printed order number, else "Percakapan tanpa pesanan" (the row also shows when it started).
+ */
+const conversationLabel = (item: { order_number: string | null }) =>
+	item.order_number ? `Pesanan ${item.order_number}` : "Percakapan tanpa pesanan";
 type StaffAction =
 	| "claim"
 	| "read"
@@ -200,53 +214,6 @@ function makeKey(prefixStr: string) {
 	return `${prefixStr}_${rand}`.slice(0, 48);
 }
 
-const primaryBtn: React.CSSProperties = {
-	minHeight: "44px",
-	padding: "8px 14px",
-	borderRadius: "6px",
-	border: "1px solid #5b35d5",
-	background: "#5b35d5",
-	color: "#fff",
-	fontWeight: 600,
-	fontSize: "0.875rem",
-	display: "inline-flex",
-	alignItems: "center",
-	justifyContent: "center",
-	gap: "6px",
-	maxWidth: "100%",
-};
-
-const secondaryBtn: React.CSSProperties = {
-	...primaryBtn,
-	background: "#fff",
-	color: "#18181b",
-	border: "1px solid #85858e",
-};
-
-const noteBtn: React.CSSProperties = {
-	...primaryBtn,
-	background: "#9c3f0a",
-	border: "1px solid #9c3f0a",
-};
-
-// Inline styles cannot use :disabled; dim disabled actions so the state is visible.
-const off = (style: React.CSSProperties, disabled: boolean): React.CSSProperties =>
-	disabled ? { ...style, opacity: 0.55, cursor: "not-allowed" } : style;
-
-const fieldInput: React.CSSProperties = {
-	minHeight: "44px",
-	width: "100%",
-	minWidth: 0,
-	maxWidth: "100%",
-	padding: "9px 12px",
-	borderRadius: "6px",
-	border: "1px solid #85858e",
-	background: "#fff",
-	color: "#18181b",
-	fontSize: "0.95rem",
-	boxSizing: "border-box",
-};
-
 /** Latest context card title for this conversation's product/order (no raw ids on screen). */
 function contextTitle(
 	messages: SupportMessage[],
@@ -266,9 +233,9 @@ function ContextLink({ id, label, href }: { id: string | undefined; label: strin
 	if (!id) return <>Tidak ada</>;
 	if (!href) return <>{label}</>;
 	return (
-		<a href={href} style={{ color: "#5b2a86", fontWeight: 600 }}>
+		<Link href={href} className="font-medium text-primary underline-offset-4 hover:underline">
 			{label}
-		</a>
+		</Link>
 	);
 }
 
@@ -293,6 +260,9 @@ export function StaffInboxView({ staffUser }: { staffUser: StaffUser }) {
 	);
 	const [savedReplies, setSavedReplies] = useState<SavedReply[]>([]);
 	const [tags, setTags] = useState<SupportTag[]>([]);
+	const [agents, setAgents] = useState<SupportAgent[]>([]);
+	const agentName = (userId: string) =>
+		userId === staffUser.id ? "Saya" : (agents.find((a) => a.id === userId)?.name ?? "Staf lain");
 
 	const [publicDraft, setPublicDraft] = useState("");
 	const [unresolvedPlaceholders, setUnresolvedPlaceholders] = useState<
@@ -358,15 +328,22 @@ export function StaffInboxView({ staffUser }: { staffUser: StaffUser }) {
 	useEffect(() => {
 		let cancelled = false;
 		async function bootstrap() {
-			const [srRes, tagRes] = await Promise.all([
+			const [srRes, tagRes, agentRes] = await Promise.all([
 				fetch("/api/v1/admin/support/saved-replies", {
 					headers: { Accept: "application/json" },
 				}),
 				fetch("/api/v1/admin/support/tags", {
 					headers: { Accept: "application/json" },
 				}),
+				fetch("/api/v1/admin/support/agents", {
+					headers: { Accept: "application/json" },
+				}),
 			]);
 			if (cancelled) return;
+			if (agentRes.ok) {
+				const agentBody = (await agentRes.json()) as { data?: SupportAgent[] };
+				setAgents(agentBody.data ?? []);
+			}
 			if (srRes.ok) {
 				const srBody = (await srRes.json()) as { data: SavedReply[] };
 				setSavedReplies(srBody.data);
@@ -596,7 +573,7 @@ export function StaffInboxView({ staffUser }: { staffUser: StaffUser }) {
 			await handleConflict(
 				res,
 				selected.conversation.id,
-				"Gagal mengubah penugasan. Pastikan target memiliki peran customer_service.",
+				"Gagal mengubah penugasan. Staf tujuan harus staf layanan pelanggan atau Super Admin.",
 			);
 			return;
 		}
@@ -609,7 +586,7 @@ export function StaffInboxView({ staffUser }: { staffUser: StaffUser }) {
 		);
 		setFeedback(
 			targetUserId
-				? `Dialihkan ke ${targetUserId}.`
+				? `Dialihkan ke ${agentName(targetUserId)}.`
 				: "Klaim dilepas ke antrean.",
 		);
 	}
@@ -649,7 +626,7 @@ export function StaffInboxView({ staffUser }: { staffUser: StaffUser }) {
 				x.conversation.id === updated.conversation.id ? updated : x,
 			),
 		);
-		setFeedback(`Status diubah menjadi ${nextStatus}.`);
+		setFeedback(`Status diubah menjadi ${STATUS_LABELS[nextStatus] ?? nextStatus}.`);
 	}
 
 	async function sendPublicReply(e: React.FormEvent) {
@@ -893,18 +870,17 @@ export function StaffInboxView({ staffUser }: { staffUser: StaffUser }) {
 
 	const conversationCell = (item: SupportStaffConversation) => (
 		<div className="flex min-w-0 flex-col">
-			<span className="font-medium">Percakapan #{item.conversation.id.slice(0, 8)}</span>
-			<span className="text-xs text-muted-foreground">
-				{item.order_number ? `Pesanan ${item.order_number}` : "Tanpa pesanan"}
+			<span className="font-medium">{conversationLabel(item)}</span>
+			<span className="text-xs text-muted-foreground tabular-nums">
+				Dibuat {wibDateTime(item.conversation.created_at)}
 			</span>
 		</div>
 	);
 	const assigneeText = (item: SupportStaffConversation) =>
-		item.assignee_user_id === null
-			? "Belum diklaim"
-			: item.assignee_user_id === staffUser.id
-				? "Saya"
-				: "Staf lain";
+		item.assignee_user_id === null ? "Belum diklaim" : agentName(item.assignee_user_id);
+	const statusBadge = (status: string) => (
+		<StatusBadge tone={STATUS_TONE[status] ?? "open"}>{STATUS_LABELS[status] ?? status}</StatusBadge>
+	);
 	const openButton = (item: SupportStaffConversation) => {
 		const open = selected?.conversation.id === item.conversation.id;
 		return (
@@ -919,6 +895,8 @@ export function StaffInboxView({ staffUser }: { staffUser: StaffUser }) {
 			</Button>
 		);
 	};
+	const handoffAgents = agents.filter((a) => a.id !== selected?.assignee_user_id);
+	const claimNeededId = `${baseId}-claim-needed`;
 
 	return (
 		<div className="flex flex-col gap-5 px-4 py-5 md:px-8 md:py-6">
@@ -929,47 +907,29 @@ export function StaffInboxView({ staffUser }: { staffUser: StaffUser }) {
 						Klaim percakapan sebelum membalas. Catatan internal tidak pernah terlihat oleh pelanggan.
 					</p>
 				</div>
-				<div className="flex flex-wrap gap-2">
-					<Button asChild variant="outline">
-						<Link href="/admin">Ke Konsol Operasional</Link>
-					</Button>
-					<Button type="button" variant="outline" onClick={() => void inboxList.reload()}>
-						<RefreshCw data-icon="inline-start" aria-hidden="true" />
-						Segarkan Antrean
-					</Button>
-				</div>
+				<Button type="button" variant="outline" onClick={() => void inboxList.reload()}>
+					<RefreshCw data-icon="inline-start" aria-hidden="true" />
+					Segarkan Antrean
+				</Button>
 			</header>
 
 			{error && (
-				<div
+				<Alert
 					role="alert"
-					style={{
-						padding: "12px 14px",
-						marginBottom: "16px",
-						borderRadius: "6px",
-						borderLeft: "4px solid #8b241d",
-						background: "#fff4f2",
-						color: "#8b241d",
-						overflowWrap: "anywhere",
-					}}
+					variant="destructive"
+					className="border-destructive/40 bg-destructive-surface [overflow-wrap:anywhere]"
 				>
-					{error}
-				</div>
+					<CircleAlert aria-hidden="true" />
+					<AlertDescription className="text-foreground">{error}</AlertDescription>
+				</Alert>
 			)}
 
 			{feedback && (
-				<output
-					style={{
-						display: "block",
-						padding: "12px 14px",
-						marginBottom: "16px",
-						borderRadius: "6px",
-						borderLeft: "4px solid #5b35d5",
-						background: "#f7f5fd",
-						color: "#18181b",
-					}}
-				>
-					{feedback}
+				<output className="block">
+					<Alert className="border-primary/30 bg-secondary">
+						<CircleCheck aria-hidden="true" />
+						<AlertDescription className="text-foreground">{feedback}</AlertDescription>
+					</Alert>
 				</output>
 			)}
 
@@ -1007,7 +967,7 @@ export function StaffInboxView({ staffUser }: { staffUser: StaffUser }) {
 							<option value="low">Rendah</option>
 						</select>
 					</FormField>
-					<label className="flex min-h-9 items-center gap-2 text-sm font-medium">
+					<label className="flex min-h-9 items-center gap-2 text-sm font-medium pointer-coarse:min-h-11">
 						<input
 							type="checkbox"
 							className="size-4 accent-primary"
@@ -1036,7 +996,7 @@ export function StaffInboxView({ staffUser }: { staffUser: StaffUser }) {
 						{
 							id: "status",
 							header: "Status",
-							cell: (item) => <Badge variant="outline">{STATUS_LABELS[item.conversation.status] ?? item.conversation.status}</Badge>,
+							cell: (item) => statusBadge(item.conversation.status),
 						},
 						{
 							id: "assignee",
@@ -1051,7 +1011,7 @@ export function StaffInboxView({ staffUser }: { staffUser: StaffUser }) {
 							cell: (item) => item.current_agent_unread_messages,
 						},
 						{
-							id: "open",
+							id: "actions",
 							header: <span className="sr-only">Tindakan</span>,
 							className: "text-right",
 							cell: (item) => openButton(item),
@@ -1061,7 +1021,7 @@ export function StaffInboxView({ staffUser }: { staffUser: StaffUser }) {
 						<>
 							<div className="flex flex-wrap items-start justify-between gap-2">
 								{conversationCell(item)}
-								<Badge variant="outline">{STATUS_LABELS[item.conversation.status] ?? item.conversation.status}</Badge>
+								{statusBadge(item.conversation.status)}
 							</div>
 							<p className="text-xs text-muted-foreground">
 								{assigneeText(item)} · {item.current_agent_unread_messages} belum dibaca
@@ -1072,89 +1032,62 @@ export function StaffInboxView({ staffUser }: { staffUser: StaffUser }) {
 				/>
 			</section>
 
-			<div
-				style={{
-					display: "grid",
-					gridTemplateColumns:
-						"repeat(auto-fit, minmax(min(100%, 22rem), 1fr))",
-					gap: "20px",
-					alignItems: "start",
-				}}
-			>
-				{/* Pane 2: Active Thread, Public Reply Composer & Separate Internal Note Composer */}
+			<div className="grid items-start gap-5 lg:grid-cols-[minmax(0,1fr)_minmax(0,24rem)]">
+				{/* Thread, public reply and the separate internal note */}
 				<section
 					aria-label="Percakapan aktif dan editor balasan"
-					style={{
-						border: "1px solid #d8d8df",
-						borderRadius: "8px",
-						padding: "16px",
-						background: "#fff",
-						display: "grid",
-						gap: "16px",
-					}}
+					className="flex min-w-0 flex-col gap-4 rounded-lg border bg-card p-4"
 				>
 					{!selected ? (
-						<p style={{ margin: 0, color: "#5b5b63" }}>
-							Pilih satu percakapan dari antrean untuk memeriksa riwayat,
-							mengklaim, atau membalas.
+						<p className="text-sm text-muted-foreground">
+							Pilih satu percakapan dari antrean untuk memeriksa riwayat, mengklaim, atau membalas.
 						</p>
 					) : (
 						<>
-							<div
-								style={{
-									display: "flex",
-									flexWrap: "wrap",
-									justifyContent: "space-between",
-									alignItems: "center",
-									gap: "8px",
-									borderBottom: "1px solid #d8d8df",
-									paddingBottom: "10px",
-								}}
-							>
-								<div>
-									<h2 style={{ margin: 0 }}>
-										Percakapan #{selected.conversation.id.slice(0, 8)}
-									</h2>
-									<small style={{ color: "#5b5b63" }}>
-										Status: <strong>{selected.conversation.status}</strong> •
-										Versi: {selected.assignment_version} • Pemegang klaim:{" "}
-										<strong>
-											{selected.assignee_user_id ?? "Belum diklaim"}
-										</strong>
-									</small>
+							<div className="flex flex-wrap items-start justify-between gap-3 border-b pb-3">
+								<div className="flex min-w-0 flex-col gap-1.5">
+									<h2 className="text-lg font-semibold">{conversationLabel(selected)}</h2>
+									<div className="flex flex-wrap items-center gap-2 text-sm text-muted-foreground">
+										{statusBadge(selected.conversation.status)}
+										<span>
+											Pemegang klaim:{" "}
+											<span className="font-medium text-foreground">{assigneeText(selected)}</span>
+										</span>
+									</div>
 								</div>
-								<div style={{ display: "flex", flexWrap: "wrap", gap: "8px" }}>
+								<div className="flex flex-wrap gap-2">
 									{!isClaimedByMe && (
-										<button
+										<Button
 											type="button"
 											onClick={() => runAction("claim", claimThread)}
 											disabled={busy !== null}
-											style={off(primaryBtn, busy !== null)}
 										>
 											{busy === "claim" ? "Mengklaim…" : "Klaim Percakapan"}
-										</button>
+										</Button>
 									)}
-									<button
+									<Button
 										type="button"
+										variant="outline"
 										onClick={() => runAction("read", markStaffRead)}
 										disabled={busy !== null}
-										style={off(secondaryBtn, busy !== null)}
 									>
 										{busy === "read" ? "Menyimpan…" : "Tandai Dibaca"}
-									</button>
+									</Button>
 								</div>
 							</div>
 
 							{hasOlder && (
-								<button
+								<Button
 									type="button"
+									variant="outline"
+									size="sm"
+									className="self-start"
 									onClick={loadOlderMessages}
 									aria-disabled={loadingOlder}
 									aria-controls={`${baseId}-log`}
-									style={{ ...secondaryBtn, justifySelf: "start" }}
 								>
-									{loadingOlder ? "Memuat pesan..." : "Muat pesan sebelumnya"}
-								</button>
+									{loadingOlder ? "Memuat pesan…" : "Muat pesan sebelumnya"}
+								</Button>
 							)}
 
 							<div
@@ -1165,453 +1098,308 @@ export function StaffInboxView({ staffUser }: { staffUser: StaffUser }) {
 								aria-busy={loadingOlder}
 								// biome-ignore lint/a11y/noNoninteractiveTabindex: scrollable message history must be keyboard-scrollable
 								tabIndex={0}
-								style={{
-									display: "grid",
-									gap: "8px",
-									maxHeight: "300px",
-									overflowY: "auto",
-									padding: "10px",
-									border: "1px solid #e7e5ed",
-									borderRadius: "6px",
-									background: "#faf9fc",
-								}}
+								className="flex max-h-80 flex-col gap-2 overflow-y-auto rounded-md border bg-muted/40 p-2.5 outline-none focus-visible:ring-[3px] focus-visible:ring-ring/50"
 							>
 								{messages.length === 0 ? (
-									<p style={{ margin: 0, color: "#5b5b63" }}>
-										Belum ada pesan publik.
-									</p>
+									<p className="text-sm text-muted-foreground">Belum ada pesan publik.</p>
 								) : (
 									messages.map((m) => (
 										<article
 											key={m.id}
-											style={{
-												padding: "8px 10px",
-												borderRadius: "6px",
-												border: "1px solid #d8d8df",
-												background:
-													m.sender === "customer_service" ? "#f3effb" : "#fff",
-												overflowWrap: "anywhere",
-											}}
+											className={cn(
+												"rounded-md border px-2.5 py-2 text-sm [overflow-wrap:anywhere]",
+												m.sender === "customer_service" ? "border-primary/20 bg-secondary" : "bg-card",
+											)}
 										>
-											<div style={{ fontSize: "0.78rem", color: "#5b5b63" }}>
-												<strong>
-													#{m.sequence} •{" "}
-													{m.sender === "buyer" ? "Pelanggan" : "CS"}
-												</strong>
-											</div>
+											<p className="text-xs font-medium text-muted-foreground">
+												{m.sender === "buyer" ? "Pelanggan" : "CS"} · {wibDateTime(m.created_at)}
+											</p>
 											{m.context && (
-												<div
-													style={{
-														marginTop: "4px",
-														padding: "4px 8px",
-														background: "#fff8de",
-														borderRadius: "4px",
-														fontSize: "0.8rem",
-													}}
-												>
+												<p className="mt-1 rounded-sm bg-warning-surface px-2 py-1 text-xs">
 													Konteks {m.context.kind === "order" ? "pesanan" : "produk"}:{" "}
 													{m.context.kind === "order" && m.context.order_id && m.context.availability === "available" && staffUser.canOpenOrders ? (
-														<a href={`/admin/orders/${m.context.order_id}`} style={{ color: "#5b2a86", fontWeight: 600 }}>
+														<Link href={`/admin/orders/${m.context.order_id}`} className="font-medium text-primary underline-offset-4 hover:underline">
 															{m.context.title}
-														</a>
+														</Link>
 													) : (
 														m.context.title
 													)}
-												</div>
+												</p>
 											)}
-											<p style={{ margin: "4px 0 0", whiteSpace: "pre-wrap" }}>
-												{m.text}
-											</p>
+											<p className="mt-1 whitespace-pre-wrap">{m.text}</p>
 										</article>
 									))
 								)}
 							</div>
 
-							{/* Public Customer Reply Composer */}
-							<form
-								onSubmit={sendPublicReply}
-								style={{
-									padding: "12px",
-									border: "2px solid #5b35d5",
-									borderRadius: "6px",
-									background: "#faf9ff",
-									display: "grid",
-									gap: "10px",
-								}}
-							>
-								<label
-									htmlFor={`${baseId}-pub-reply`}
-									style={{ fontWeight: 700 }}
-								>
-									Balasan Publik ke Pelanggan
-								</label>
-								{!isClaimedByMe && (
-									<p
-										style={{ margin: 0, fontSize: "0.85rem", color: "#8b241d" }}
-									>
-										Klaim percakapan terlebih dahulu sebelum mengirim balasan
-										publik ke pelanggan.
-									</p>
-								)}
-								{unresolvedPlaceholders.length > 0 && (
-									<p
-										style={{ margin: 0, fontSize: "0.85rem", color: "#9c3f0a" }}
-									>
-										Perhatian: Placeholder belum terisi (
-										{unresolvedPlaceholders.join(", ")}). Edit draf secara
-										manual sebelum mengirim.
-									</p>
-								)}
-								<textarea
+							{/* Public customer reply */}
+							<form onSubmit={sendPublicReply} className="flex flex-col gap-3 rounded-md border border-primary/40 p-3">
+								<FormField
 									id={`${baseId}-pub-reply`}
-									rows={3}
-									maxLength={4000}
-									value={publicDraft}
-									onChange={(e) => setPublicDraft(e.target.value)}
-									placeholder="Tulis balasan yang akan dilihat pelanggan..."
-									style={{ ...fieldInput, minHeight: "80px" }}
-								/>
-								<button
-									type="submit"
-									disabled={!isClaimedByMe || submitting}
-									style={off(primaryBtn, !isClaimedByMe || submitting)}
+									label="Balasan publik ke pelanggan"
+									hint={!isClaimedByMe ? "Klaim percakapan terlebih dahulu sebelum mengirim balasan publik ke pelanggan." : undefined}
 								>
+									<Textarea
+										id={`${baseId}-pub-reply`}
+										rows={3}
+										maxLength={4000}
+										value={publicDraft}
+										onChange={(e) => setPublicDraft(e.target.value)}
+										placeholder="Tulis balasan yang akan dilihat pelanggan…"
+										aria-describedby={!isClaimedByMe ? `${baseId}-pub-reply-hint` : undefined}
+									/>
+								</FormField>
+								{unresolvedPlaceholders.length > 0 && (
+									<p className="text-sm text-warning">
+										Isian template belum lengkap ({unresolvedPlaceholders.join(", ")}). Ubah draf sebelum mengirim.
+									</p>
+								)}
+								<Button type="submit" className="self-start" disabled={!isClaimedByMe || submitting}>
 									Kirim Balasan Publik
-								</button>
+								</Button>
 							</form>
 
-							{/* Separate Staff-Only Internal Note Composer */}
+							{/* Staff-only internal note */}
 							<form
 								onSubmit={sendInternalNote}
-								style={{
-									padding: "12px",
-									border: "2px dashed #9c3f0a",
-									borderRadius: "6px",
-									background: "#fff5ed",
-									display: "grid",
-									gap: "10px",
-								}}
+								className="flex flex-col gap-3 rounded-md border border-dashed border-warning/60 bg-warning-surface p-3"
 							>
-								<label
-									htmlFor={`${baseId}-staff-note`}
-									style={{ fontWeight: 700, color: "#9c3f0a" }}
-								>
-									Catatan Internal Staf (Privat — Tidak Pernah Dikirim ke
-									Pelanggan)
-								</label>
-								<textarea
+								<FormField
 									id={`${baseId}-staff-note`}
-									rows={2}
-									maxLength={4000}
-									value={noteDraft}
-									onChange={(e) => setNoteDraft(e.target.value)}
-									placeholder="Tulis catatan internal antar staf CS..."
-									style={{ ...fieldInput, minHeight: "68px" }}
-								/>
-								<button
-									type="submit"
-									disabled={submitting}
-									style={off(noteBtn, submitting)}
+									label="Catatan internal staf"
+									hint="Privat, tidak pernah dikirim ke pelanggan."
 								>
+									<Textarea
+										id={`${baseId}-staff-note`}
+										rows={2}
+										maxLength={4000}
+										value={noteDraft}
+										onChange={(e) => setNoteDraft(e.target.value)}
+										placeholder="Tulis catatan untuk sesama staf CS…"
+										aria-describedby={`${baseId}-staff-note-hint`}
+										className="bg-card"
+									/>
+								</FormField>
+								<Button type="submit" variant="outline" className="self-start bg-card" disabled={submitting}>
 									Simpan Catatan Internal
-								</button>
+								</Button>
 							</form>
 						</>
 					)}
 				</section>
 
-				{/* Pane 3: Context, Assignment Governance, Saved Replies & Internal Notes List */}
+				{/* Context, assignment, saved replies and internal notes */}
 				<section
-					aria-label="Konteks, template, dan catatan internal"
-					style={{
-						border: "1px solid #d8d8df",
-						borderRadius: "8px",
-						padding: "16px",
-						background: "#faf9fc",
-						display: "grid",
-						gap: "16px",
-					}}
+					aria-labelledby={`${baseId}-tools-heading`}
+					className="flex min-w-0 flex-col gap-4 rounded-lg border bg-card p-4"
 				>
-					<h2 style={{ margin: 0 }}>Konteks & Alat Kerja CS</h2>
+					<h2 id={`${baseId}-tools-heading`} className="text-base font-semibold">
+						Konteks dan alat kerja
+					</h2>
 					{selected ? (
 						<>
-							<div
-								style={{
-									padding: "10px",
-									borderRadius: "6px",
-									border: "1px solid #d8d8df",
-									background: "#fff",
-									fontSize: "0.875rem",
-									display: "grid",
-									gap: "6px",
-								}}
-							>
-								<strong>Ringkasan Konteks Aman</strong>
-								<span>
-									Produk Terkait:{" "}
-									<ContextLink
-										id={selected.conversation.product_id}
-										label={contextTitle(messages, "product", selected.conversation.product_id) ?? "Lihat produk"}
-										href={canOpenCatalog ? `/admin/catalog/${selected.conversation.product_id}` : null}
-									/>
-								</span>
-								<span>
-									Pesanan Terverifikasi:{" "}
-									<ContextLink
-										id={selected.conversation.order_id}
-										label={contextTitle(messages, "order", selected.conversation.order_id) ?? "Lihat detail pesanan"}
-										href={staffUser.canOpenOrders ? `/admin/orders/${selected.conversation.order_id}` : null}
-									/>
-								</span>
-								<small style={{ color: "#5b5b63" }}>
-									Catatan: Chat atau klaim CS tidak pernah mengotorisasi refund,
-									payout, atau perubahan stok secara langsung.
-								</small>
-							</div>
+							<dl className="grid gap-1.5 rounded-md border p-3 text-sm">
+								<div className="flex flex-wrap justify-between gap-x-3">
+									<dt className="text-muted-foreground">Produk terkait</dt>
+									<dd>
+										<ContextLink
+											id={selected.conversation.product_id}
+											label={contextTitle(messages, "product", selected.conversation.product_id) ?? "Lihat produk"}
+											href={canOpenCatalog ? `/admin/catalog/${selected.conversation.product_id}` : null}
+										/>
+									</dd>
+								</div>
+								<div className="flex flex-wrap justify-between gap-x-3">
+									<dt className="text-muted-foreground">Pesanan terverifikasi</dt>
+									<dd>
+										<ContextLink
+											id={selected.conversation.order_id}
+											label={selected.order_number ?? contextTitle(messages, "order", selected.conversation.order_id) ?? "Lihat detail pesanan"}
+											href={staffUser.canOpenOrders ? `/admin/orders/${selected.conversation.order_id}` : null}
+										/>
+									</dd>
+								</div>
+								<p className="pt-1 text-xs text-muted-foreground">
+									Chat atau klaim CS tidak mengotorisasi pengembalian dana, pencairan, atau perubahan stok.
+								</p>
+							</dl>
 
-							<div style={{ display: "grid", gap: "8px" }}>
-								<label
-									htmlFor={`${baseId}-reason`}
-									style={{ fontWeight: 600, fontSize: "0.85rem" }}
-								>
-									Alasan Tindakan Audit
-								</label>
-								<input
-									id={`${baseId}-reason`}
-									type="text"
-									value={actionReason}
-									onChange={(e) => setActionReason(e.target.value)}
-									style={fieldInput}
-								/>
+							<div className="flex flex-col gap-3">
+								<FormField id={`${baseId}-reason`} label="Alasan tindakan (tercatat di audit)">
+									<Input
+										id={`${baseId}-reason`}
+										value={actionReason}
+										onChange={(e) => setActionReason(e.target.value)}
+										maxLength={500}
+									/>
+								</FormField>
 								{!canAct && (
-									<p
-										id={`${baseId}-claim-needed`}
-										style={{ margin: 0, fontSize: "0.85rem", color: "#8b241d" }}
-									>
-										Klaim percakapan terlebih dahulu untuk mengubah status atau
-										penugasan.
+									<p id={claimNeededId} className="text-sm text-muted-foreground">
+										Klaim percakapan terlebih dahulu untuk mengubah status atau penugasan.
 									</p>
 								)}
-								<div style={{ display: "flex", flexWrap: "wrap", gap: "6px" }}>
-									{STATUS_ACTIONS.filter(
-										([value]) => value !== selected.conversation.status,
-									).map(([value, label]) => (
-										<button
+								<div className="flex flex-wrap gap-2">
+									{STATUS_ACTIONS.filter(([value]) => value !== selected.conversation.status).map(([value, label]) => (
+										<Button
 											key={value}
 											type="button"
-											onClick={() =>
-												runAction(`status:${value}`, () => changeStatus(value))
-											}
+											variant="outline"
+											onClick={() => runAction(`status:${value}`, () => changeStatus(value))}
 											disabled={!canAct || busy !== null}
-											aria-describedby={
-												canAct ? undefined : `${baseId}-claim-needed`
-											}
-											style={off(secondaryBtn, !canAct || busy !== null)}
+											aria-describedby={canAct ? undefined : claimNeededId}
 										>
 											{busy === `status:${value}` ? "Menyimpan…" : label}
-										</button>
+										</Button>
 									))}
 								</div>
 							</div>
 
-							<div style={{ display: "grid", gap: "8px" }}>
-								<label
-									htmlFor={`${baseId}-handoff`}
-									style={{ fontWeight: 600, fontSize: "0.85rem" }}
-								>
-									Alihkan ke ID Staf CS Lain / Lepas Klaim
-								</label>
-								<input
+							<div className="flex flex-col gap-3 border-t pt-4">
+								<FormField
 									id={`${baseId}-handoff`}
-									type="text"
-									value={handoffTarget}
-									onChange={(e) => setHandoffTarget(e.target.value)}
-									placeholder="ID user CS tujuan..."
-									style={fieldInput}
-								/>
-								<div style={{ display: "flex", flexWrap: "wrap", gap: "6px" }}>
-									<button
+									label="Alihkan ke staf CS lain"
+									hint={agents.length === 0 ? "Daftar staf belum termuat." : undefined}
+								>
+									<select
+										id={`${baseId}-handoff`}
+										value={handoffTarget}
+										onChange={(e) => setHandoffTarget(e.target.value)}
+										className={nativeSelectClass}
+										aria-describedby={agents.length === 0 ? `${baseId}-handoff-hint` : undefined}
+									>
+										<option value="">Pilih staf</option>
+										{handoffAgents.map((a) => (
+											<option key={a.id} value={a.id}>
+												{a.id === staffUser.id ? `${a.name} (saya)` : a.name}
+											</option>
+										))}
+									</select>
+								</FormField>
+								<div className="flex flex-wrap gap-2">
+									<Button
 										type="button"
+										variant="outline"
 										onClick={() => {
-											if (!handoffTarget.trim()) {
+											if (!handoffTarget) {
 												setFeedback(null);
-												setError("Isi ID staf tujuan.");
+												setError("Pilih staf tujuan.");
 												return;
 											}
-											void runAction("assign", () =>
-												handoffOrRelease(handoffTarget.trim()),
-											);
+											void runAction("assign", () => handoffOrRelease(handoffTarget));
 										}}
 										disabled={!canAct || busy !== null}
-										aria-describedby={
-											canAct ? undefined : `${baseId}-claim-needed`
-										}
-										style={off(secondaryBtn, !canAct || busy !== null)}
+										aria-describedby={canAct ? undefined : claimNeededId}
 									>
 										{busy === "assign" ? "Mengalihkan…" : "Alihkan Penugasan"}
-									</button>
+									</Button>
 									{selected.assignee_user_id && (
-										<button
+										<Button
 											type="button"
-											onClick={() =>
-												runAction("release", () => handoffOrRelease(null))
-											}
+											variant="outline"
+											onClick={() => runAction("release", () => handoffOrRelease(null))}
 											disabled={!canAct || busy !== null}
-											aria-describedby={
-												canAct ? undefined : `${baseId}-claim-needed`
-											}
-											style={off(secondaryBtn, !canAct || busy !== null)}
+											aria-describedby={canAct ? undefined : claimNeededId}
 										>
 											{busy === "release" ? "Melepas…" : "Lepas ke Antrean"}
-										</button>
+										</Button>
 									)}
 								</div>
 							</div>
 
 							{classification && (
-								<div style={{ display: "grid", gap: "8px" }}>
-									<label
-										htmlFor={`${baseId}-set-prio`}
-										style={{ fontWeight: 600, fontSize: "0.85rem" }}
-									>
-										Prioritas Percakapan ({classification.priority})
-									</label>
-									<select
-										id={`${baseId}-set-prio`}
-										value={classification.priority}
-										onChange={(e) => {
-											const next = e.target.value as "low" | "normal" | "high";
-											void runAction("priority", () => updatePriority(next));
-										}}
-										disabled={busy !== null}
-										style={fieldInput}
-									>
-										<option value="low">Rendah (low)</option>
-										<option value="normal">Normal</option>
-										<option value="high">Tinggi (high)</option>
-									</select>
+								<div className="flex flex-col gap-2 border-t pt-4">
+									<FormField id={`${baseId}-set-prio`} label="Prioritas percakapan">
+										<select
+											id={`${baseId}-set-prio`}
+											value={classification.priority}
+											onChange={(e) => {
+												const next = e.target.value as "low" | "normal" | "high";
+												void runAction("priority", () => updatePriority(next));
+											}}
+											disabled={busy !== null}
+											className={nativeSelectClass}
+										>
+											<option value="low">Rendah</option>
+											<option value="normal">Normal</option>
+											<option value="high">Tinggi</option>
+										</select>
+									</FormField>
 									{tags.length > 0 && (
-										<div style={{ fontSize: "0.85rem" }}>
+										<p className="text-sm text-muted-foreground">
 											Tag tersedia: {tags.map((t) => t.label).join(", ")}
-										</div>
+										</p>
 									)}
 								</div>
 							)}
 
-							<div style={{ display: "grid", gap: "8px" }}>
-								<strong>Template Balasan Cepat (Saved Replies)</strong>
+							<div className="flex flex-col gap-2 border-t pt-4">
+								<h3 className="text-sm font-semibold">Template balasan</h3>
 								{!staffUser.canManageTools && (
-									<small style={{ color: "#5b5b63" }}>
-										Anda dapat memakai template, namun pengelolaan definisi
-										hanya untuk supervisor / owner.
-									</small>
+									<p className="text-xs text-muted-foreground">
+										Anda dapat memakai template; mengubahnya hanya untuk supervisor atau Super Admin.
+									</p>
 								)}
 								{savedReplies.length === 0 ? (
-									<p
-										style={{ margin: 0, fontSize: "0.85rem", color: "#5b5b63" }}
-									>
-										Belum ada template tersimpan.
-									</p>
+									<p className="text-sm text-muted-foreground">Belum ada template tersimpan.</p>
 								) : (
-									<ul
-										style={{
-											listStyle: "none",
-											padding: 0,
-											margin: 0,
-											display: "grid",
-											gap: "6px",
-										}}
-									>
+									<ul className="flex flex-col divide-y rounded-md border">
 										{savedReplies.map((sr) => (
-											<li
-												key={sr.id}
-												style={{
-													display: "flex",
-													flexWrap: "wrap",
-													justifyContent: "space-between",
-													alignItems: "center",
-													gap: "6px",
-													padding: "8px",
-													background: "#fff",
-													border: "1px solid #d8d8df",
-													borderRadius: "6px",
-												}}
-											>
-												<span style={{ fontSize: "0.85rem", fontWeight: 600 }}>
-													{sr.title}
-												</span>
-												<button
+											<li key={sr.id} className="flex flex-wrap items-center justify-between gap-2 px-3 py-2">
+												<span className="text-sm font-medium">{sr.title}</span>
+												<Button
 													type="button"
-													onClick={() =>
-														runAction("saved-reply", () => insertSavedReply(sr))
-													}
+													variant="outline"
+													size="sm"
+													onClick={() => runAction("saved-reply", () => insertSavedReply(sr))}
 													disabled={busy !== null}
-													style={off(secondaryBtn, busy !== null)}
 												>
 													Sisipkan ke Draf
-												</button>
+												</Button>
 											</li>
 										))}
 									</ul>
 								)}
 							</div>
 
-							<div style={{ display: "grid", gap: "8px" }}>
-								<strong>Riwayat Catatan Internal ({notes.length})</strong>
+							<div className="flex flex-col gap-2 border-t pt-4">
+								<h3 className="text-sm font-semibold">Catatan internal ({notes.length})</h3>
 								<form
 									onSubmit={(e) => {
 										e.preventDefault();
 										void runAction("note-search", searchNotes);
 									}}
-									style={{ display: "flex", flexWrap: "wrap", gap: "6px" }}
+									className="flex flex-wrap gap-2"
 								>
-									<input
+									<Input
 										type="search"
 										aria-label="Cari catatan internal"
 										value={noteSearchQuery}
 										onChange={(e) => setNoteSearchQuery(e.target.value)}
-										placeholder="Cari catatan internal..."
-										style={{ ...fieldInput, flex: "1 1 10rem" }}
+										placeholder="Cari catatan internal…"
+										className="min-w-0 flex-[1_1_10rem]"
 									/>
-									<button
-										type="submit"
-										disabled={busy !== null}
-										style={off(secondaryBtn, busy !== null)}
-									>
+									<Button type="submit" variant="outline" disabled={busy !== null}>
 										{busy === "note-search" ? "Mencari…" : "Cari Catatan"}
-									</button>
+									</Button>
 								</form>
-								<ul
-									style={{
-										listStyle: "none",
-										padding: 0,
-										margin: 0,
-										display: "grid",
-										gap: "6px",
-									}}
-								>
+								<ul className="flex flex-col gap-1.5">
 									{(noteSearchHits ?? notes).map((n) => (
 										<li
 											key={n.id}
-											style={{
-												padding: "8px",
-												borderRadius: "6px",
-												border: "1px solid #f5c5a0",
-												background: "#fff5ed",
-												fontSize: "0.85rem",
-												overflowWrap: "anywhere",
-											}}
+											className="rounded-md border border-dashed border-warning/60 bg-warning-surface px-3 py-2 text-sm [overflow-wrap:anywhere]"
 										>
-											<strong>[{n.author_id}]:</strong> {n.text}
+											<span className="block text-xs font-medium text-muted-foreground">
+												{agentName(n.author_id)} · {wibDateTime(n.created_at)}
+											</span>
+											{n.text}
 										</li>
 									))}
 								</ul>
 							</div>
 						</>
 					) : (
-						<p style={{ margin: 0, fontSize: "0.9rem", color: "#5b5b63" }}>
-							Pilih percakapan untuk melihat konteks, klasifikasi, dan catatan
-							internal.
+						<p className="text-sm text-muted-foreground">
+							Pilih percakapan untuk melihat konteks, klasifikasi, dan catatan internal.
 						</p>
 					)}
 				</section>
