@@ -146,7 +146,7 @@ test("S74 built browser: customer and staff open on the newest messages, page ol
 		// The buyer writes while staff holds a now-stale revision.
 		await say(buyer.browser, conversationId, "Pembeli menulis lagi 1");
 		const waiting = desk.page.getByRole("button", {
-			name: "Set Menunggu Pelanggan",
+			name: "Tandai menunggu pelanggan",
 		});
 		const changed = desk.page.getByText(
 			"Status diubah menjadi Menunggu pelanggan.",

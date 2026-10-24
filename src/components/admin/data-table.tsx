@@ -80,6 +80,8 @@ export type DataTableProps<T> = {
 	bodyTestId?: string;
 	rowTestId?: (row: T) => string;
 	rowClassName?: string;
+	/** Key of the row whose detail is open; it is highlighted like a selected row. */
+	activeKey?: string | null;
 	/** A full-width row under `row` (inline forms); null renders nothing. */
 	expanded?: (row: T) => ReactNode;
 	/** Mobile card: when set the table shows from `md` and these cards below it. */
@@ -109,6 +111,7 @@ export function DataTable<T>({
 	bodyTestId,
 	rowTestId,
 	rowClassName,
+	activeKey,
 	expanded,
 	card,
 	cardTestId,
@@ -291,7 +294,7 @@ export function DataTable<T>({
 								<Fragment key={id}>
 									<TableRow
 										data-testid={rowTestId?.(row)}
-										data-state={selected.has(id) ? "selected" : undefined}
+										data-state={selected.has(id) || id === activeKey ? "selected" : undefined}
 										{...role("row")}
 										className={cn(
 											"group/row",
@@ -357,7 +360,8 @@ export function DataTable<T>({
 							<li
 								key={rowKey(row)}
 								data-testid={cardTestId?.(row)}
-								className="flex items-start gap-2 p-3"
+								data-state={rowKey(row) === activeKey ? "selected" : undefined}
+								className="flex items-start gap-2 p-3 data-[state=selected]:bg-muted"
 							>
 								{checkbox(row, "card-")}
 								<div className="flex min-w-0 flex-1 flex-col gap-2">{card(row)}</div>
