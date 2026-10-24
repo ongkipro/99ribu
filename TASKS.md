@@ -995,6 +995,7 @@ Added 2026-10-23 from the independent admin/DB readiness audit, the repo screeni
 | S135 | T-13 | S128 | CODE (R3: privacy) | Audit log viewer: read API over `app.audit_event` (OpenAPI + parity), keyset paging, filters by actor/action/object/period, redacted details. | Non-permitted roles 403; no secret, OTP or proof material in returned details (test); the read itself is audited; renders. |
 | S136 | T-16 | S128 | CODE (R2) | System health page: read-only API over outbox/job registry states (due, leased, failed, dead) and the last retention runs; owner only. | Counts equal a direct SQL count in a test; non-owner 403; renders. |
 | S137 | T-13 | S128 | CODE (R4: IAM) | Staff & roles (moved out of S102): staff list and user lookup API (OpenAPI + parity); replace roles/grants/warehouse scope through `grantStaffRoles` with the `staff_roles.replace` proof. | Owner lists and edits staff with reauth; non-owner 403; removing the last owner is refused; audit row written; security review PASS; renders. |
+| S138 | T-13 | S128 | CODE (R4: privacy) | Buyer account lookup for CS (`/admin/customers`, spec 17 B29) per DEC-018: lookup API by phone or email (OpenAPI + parity) returning name, masked contact and order/ticket history; the full address only through the order context; every lookup audited. | CS and owner can look up; other roles 403; contacts masked and no address in the response (test); an audit row per lookup; privacy review PASS; renders 390/768/1440. |
 
 ## Fixture-to-implementation ownership
 
