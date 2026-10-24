@@ -23,6 +23,7 @@ import { Separator } from "@/components/ui/separator";
 import {
 	Sidebar,
 	SidebarContent,
+	SidebarFooter,
 	SidebarGroup,
 	SidebarGroupContent,
 	SidebarGroupLabel,
@@ -125,160 +126,44 @@ function ActiveWorkspaceLinks({
 	return <WorkspaceLinks workspaces={workspaces} active={active} />;
 }
 
-function ToolLinks({
-	canCatalog,
-	canOrders,
-	canPrint,
-	canSupport,
-	canShip,
-	canCod,
-}: {
-	canCatalog: boolean;
-	canOrders: boolean;
-	canPrint: boolean;
-	canSupport: boolean;
-	canShip: boolean;
-	canCod: boolean;
-}) {
+type NavItem = { href: string; label: string; icon: LucideIcon; show: boolean };
+type NavGroup = { label: string; items: NavItem[] };
+
+/** Grouped tool links (S113): active on the screen and its detail pages, current only on the exact page. */
+function ToolGroups({ groups }: { groups: NavGroup[] }) {
 	const pathname = usePathname();
 	const close = useCloseOnNavigate();
-	const onPrintCenter = pathname === "/admin/print-center";
-	const onCatalog = pathname.startsWith("/admin/catalog");
-	return (
-		<SidebarMenu>
-			{canCatalog && (
-				<SidebarMenuItem>
-					<SidebarMenuButton asChild isActive={onCatalog} tooltip="Katalog">
-						<Link
-							href="/admin/catalog"
-							aria-current={pathname === "/admin/catalog" ? "page" : undefined}
-							onClick={close}
-						>
-							<Package aria-hidden="true" />
-							<span>Katalog</span>
-						</Link>
-					</SidebarMenuButton>
-				</SidebarMenuItem>
-			)}
-			{canOrders && (
-				<SidebarMenuItem>
-					<SidebarMenuButton
-						asChild
-						isActive={pathname.startsWith("/admin/orders")}
-						tooltip="Pesanan"
-					>
-						<Link
-							href="/admin/orders"
-							aria-current={pathname === "/admin/orders" ? "page" : undefined}
-							onClick={close}
-						>
-							<ReceiptText aria-hidden="true" />
-							<span>Pesanan</span>
-						</Link>
-					</SidebarMenuButton>
-				</SidebarMenuItem>
-			)}
-			{canShip && (
-				<SidebarMenuItem>
-					<SidebarMenuButton
-						asChild
-						isActive={pathname === "/admin/fulfillment"}
-						tooltip="Pengiriman Manual"
-					>
-						<Link
-							href="/admin/fulfillment"
-							aria-current={pathname === "/admin/fulfillment" ? "page" : undefined}
-							onClick={close}
-						>
-							<Truck aria-hidden="true" />
-							<span>Pengiriman Manual</span>
-						</Link>
-					</SidebarMenuButton>
-				</SidebarMenuItem>
-			)}
-			{canCod && (
-				<SidebarMenuItem>
-					<SidebarMenuButton
-						asChild
-						isActive={pathname === "/admin/cod-settlements"}
-						tooltip="Setoran COD"
-					>
-						<Link
-							href="/admin/cod-settlements"
-							aria-current={pathname === "/admin/cod-settlements" ? "page" : undefined}
-							onClick={close}
-						>
-							<Banknote aria-hidden="true" />
-							<span>Setoran COD</span>
-						</Link>
-					</SidebarMenuButton>
-				</SidebarMenuItem>
-			)}
-			{canCod && (
-				<SidebarMenuItem>
-					<SidebarMenuButton
-						asChild
-						isActive={pathname === "/admin/payments"}
-						tooltip="Pembayaran"
-					>
-						<Link
-							href="/admin/payments"
-							aria-current={pathname === "/admin/payments" ? "page" : undefined}
-							onClick={close}
-						>
-							<Landmark aria-hidden="true" />
-							<span>Pembayaran</span>
-						</Link>
-					</SidebarMenuButton>
-				</SidebarMenuItem>
-			)}
-			{canPrint && (
-				<SidebarMenuItem>
-					<SidebarMenuButton
-						asChild
-						isActive={onPrintCenter}
-						tooltip="Pusat Cetak Label"
-					>
-						<Link
-							href="/admin/print-center"
-							aria-current={onPrintCenter ? "page" : undefined}
-							onClick={close}
-						>
-							<Printer aria-hidden="true" />
-							<span>Pusat Cetak Label</span>
-						</Link>
-					</SidebarMenuButton>
-				</SidebarMenuItem>
-			)}
-			{canSupport && (
-				<SidebarMenuItem>
-					<SidebarMenuButton
-						asChild
-						isActive={pathname === "/admin/support"}
-						tooltip="Kotak Masuk Pelanggan"
-					>
-						<Link
-							href="/admin/support"
-							aria-current={pathname === "/admin/support" ? "page" : undefined}
-							onClick={close}
-						>
-							<MessagesSquare aria-hidden="true" />
-							<span>Kotak Masuk Pelanggan</span>
-						</Link>
-					</SidebarMenuButton>
-				</SidebarMenuItem>
-			)}
-			<SidebarMenuItem>
-				<SidebarMenuButton asChild tooltip="Lihat Toko">
-					{/* Full document navigation: the storefront must not inherit the console stylesheet. */}
-					<a href="/">
-						<ExternalLink aria-hidden="true" />
-						<span>Lihat Toko</span>
-					</a>
-				</SidebarMenuButton>
-			</SidebarMenuItem>
-		</SidebarMenu>
-	);
+	return groups.map((group) => {
+		const items = group.items.filter((item) => item.show);
+		if (items.length === 0) return null;
+		return (
+			<SidebarGroup key={group.label}>
+				<SidebarGroupLabel>{group.label}</SidebarGroupLabel>
+				<SidebarGroupContent>
+					<SidebarMenu>
+						{items.map(({ href, label, icon: Icon }) => (
+							<SidebarMenuItem key={href}>
+								<SidebarMenuButton
+									asChild
+									isActive={pathname === href || pathname.startsWith(`${href}/`)}
+									tooltip={label}
+								>
+									<Link
+										href={href}
+										aria-current={pathname === href ? "page" : undefined}
+										onClick={close}
+									>
+										<Icon aria-hidden="true" />
+										<span>{label}</span>
+									</Link>
+								</SidebarMenuButton>
+							</SidebarMenuItem>
+						))}
+					</SidebarMenu>
+				</SidebarGroupContent>
+			</SidebarGroup>
+		);
+	});
 }
 
 export function AdminShell({
@@ -296,6 +181,28 @@ export function AdminShell({
 	const access = consoleAccess(roles, permissions);
 	const canCatalog = catalogAccess(roles, permissions).read;
 	const canOrders = canReadOrders(roles, permissions);
+	const groups: NavGroup[] = [
+		{
+			label: "Operasional",
+			items: [
+				{ href: "/admin/orders", label: "Pesanan", icon: ReceiptText, show: canOrders },
+				{ href: "/admin/fulfillment", label: "Pengiriman Manual", icon: Truck, show: access.ship },
+				{ href: "/admin/print-center", label: "Pusat Cetak Label", icon: Printer, show: access.print },
+				{ href: "/admin/support", label: "Kotak Masuk Pelanggan", icon: MessagesSquare, show: access.support },
+			],
+		},
+		{
+			label: "Katalog",
+			items: [{ href: "/admin/catalog", label: "Katalog", icon: Package, show: canCatalog }],
+		},
+		{
+			label: "Keuangan",
+			items: [
+				{ href: "/admin/payments", label: "Pembayaran", icon: Landmark, show: access.reconcileRead },
+				{ href: "/admin/cod-settlements", label: "Setoran COD", icon: Banknote, show: access.reconcileRead },
+			],
+		},
+	];
 
 	return (
 		<TooltipProvider>
@@ -326,21 +233,22 @@ export function AdminShell({
 									</Suspense>
 								</SidebarGroupContent>
 							</SidebarGroup>
-							<SidebarGroup>
-								<SidebarGroupLabel>Alat</SidebarGroupLabel>
-								<SidebarGroupContent>
-									<ToolLinks
-										canCatalog={canCatalog}
-										canOrders={canOrders}
-										canPrint={access.print}
-										canSupport={access.support}
-										canShip={access.ship}
-										canCod={access.reconcileRead}
-									/>
-								</SidebarGroupContent>
-							</SidebarGroup>
+							<ToolGroups groups={groups} />
 						</nav>
 					</SidebarContent>
+					<SidebarFooter className="border-t border-sidebar-border">
+						<SidebarMenu>
+							<SidebarMenuItem>
+								<SidebarMenuButton asChild tooltip="Lihat Toko">
+									{/* Full document navigation: the storefront must not inherit the console stylesheet. */}
+									<a href="/">
+										<ExternalLink aria-hidden="true" />
+										<span>Lihat Toko</span>
+									</a>
+								</SidebarMenuButton>
+							</SidebarMenuItem>
+						</SidebarMenu>
+					</SidebarFooter>
 				</Sidebar>
 				<SidebarInset id="main" className="min-w-0">
 					<div className="sticky top-0 z-10 flex h-12 items-center gap-2 border-b bg-background/95 px-4 backdrop-blur">
