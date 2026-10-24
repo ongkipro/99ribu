@@ -42,7 +42,6 @@ All in `:root` at the top of `src/app/globals.css`. Use the token, not the liter
 | `--warning`, `--warning-surface` | `#9c3f0a`, `#fff5ed` | Warning text and surface |
 | `--tint-rose` … `--tint-slate` | `#fde8ec`, `#fdf0d5`, `#e2f3e5`, `#e2ecfb`, `#ede7fd`, `#ddf3ef`, `#ececef` | Department tints: pill circles, category tiles, banner cutouts. A department's tint is chosen from words in its name (`departmentTint` in `sections/category-pills.tsx`) |
 | `--page-size/-leading` | 28/36 (24/32 ≤700px) | Global h1 |
-| `--price-size/-leading` | 24/32 (20/28 ≤700px) | PDP price |
 | `--section-size/-leading` | 20 / 1.4 | Global h2 |
 | `--card-size/-leading` | 18/26 | Global h3 (storefront cards override) |
 | `--gutter` | 16px; 32 from 1024; 48 from 1440; 64 from 1920; 96 from 2560 | Page gutters (`.wrap`) |
@@ -62,13 +61,16 @@ Inter 4.1 (SIL OFL), self-hosted; the storefront preloads a 44KB Latin subset. S
 | Card title | 14/18 600 -0.2px, one line |
 | Card price | 12/16 **400** -0.2px, ink |
 | Buttons | 16 600 -0.5px |
+| PDP title / price | 24/28 600 -1px / 16/22 600 -0.5px |
+| Field labels (PDP, filters) | 12/16 600 -0.2px |
+| Filter chip label | 14/16 600 -0.2px |
 | Omnibox caption | 12/16 500, 56% ink |
 | Switcher label | 96/96 800 -1px (phones 42/42) |
 
 ### Shape, elevation, motion
 
-- Radius: pills and buttons `9999px`; product frames and help cards 20px; PDP media 24px; filter sheet and banners 28px; omnibox 32px; hero 36px; dropdown 8px with 6px items; fields 12px.
-- Shadows: resting surface `0 2px 8px rgba(0,0,0,.06)` (cards, chips, secondary pills); shelf arrows `0 4px 24px rgba(0,0,0,.12)`; hero `0 8px 40px rgba(0,0,0,.24)`; omnibox open `0 12px 64px rgba(0,0,0,.24)`.
+- Radius: pills and buttons `9999px`; product frames and help cards 20px; PDP photo cards, filter popovers and sheets, and banners 28px; filter rows 16px; omnibox 32px; hero 36px; thumbnails 8px; fields 12px.
+- Shadows: resting surface `0 2px 8px rgba(0,0,0,.06)` (cards, chips, secondary pills, desktop filter popover); shelf and gallery arrows `0 4px 24px rgba(0,0,0,.12)`; hero and phone filter sheet `0 8px 40px rgba(0,0,0,.24)`; omnibox open `0 12px 64px rgba(0,0,0,.24)`; PDP primary pill: inner highlights plus `0 4px 24px rgba(91,53,213,.24)`.
 - Motion: CSS only, transform/opacity/colour. Controls 150ms `cubic-bezier(.4,0,.2,1)` on colour, background, border and shadow (no lifts). Omnibox and wordmark 240-320ms `cubic-bezier(.2,0,0,1)`. Photo hover scale 1.05-1.08 (150-300ms ease-out). Everything is off under `prefers-reduced-motion: reduce`.
 
 ### Layout
@@ -88,7 +90,7 @@ Inter 4.1 (SIL OFL), self-hosted; the storefront preloads a 44KB Latin subset. S
 | `ui/media.tsx` | `CatalogImage` (a catalog `<img>` with srcset candidates from Next's image optimizer; plain server-rendered markup) and `optimizedUrl`. |
 | `ui/product-card.tsx` | `ProductGrid` (cards as a grid or a shelf row), `Media` (photo or the photo slot), naming helpers. The card: square 20px frame with the hairline overlay, one-line title, price. |
 | `ui/shelf-arrows.tsx` | Carousel arrows for any `.shelf-row`/`.banner-row` (hydration-only, disabled at the ends, one view per press). |
-| `sections/` | Page sections: `home-hero`, `hero-video`, `category-grid`, `category-switcher` (tabs), `promo-banners`, `category-pills` (header pill row), `search-box` (omnibox combobox), `filter-chips` (chip row + popover/sheet), `filter-panel` (no-JS form), `listing`, `listing-more` (infinite scroll), `catalog-listing` (server data for `/cari` and `/kategori/<slug>`). |
+| `sections/` | Page sections: `home-hero`, `hero-video`, `category-grid`, `category-switcher` (tabs), `promo-banners`, `category-pills` (header pill row), `search-box` (omnibox combobox), `filter-chips` (chip rail + popover/sheet), `filter-panel` (no-JS form), `listing`, `listing-more` (infinite scroll), `catalog-listing` (server data for `/cari` and `/kategori/<slug>`), `product-gallery` (PDP photo row, thumbnails, arrows). |
 | top level | Page chrome and flows: `shell`, `navigation` (product links, task Back), `checkout-*`, `cart-forms`, `order-receipt`, `offer-picker`, `sign-in-form`, `sign-out-button`, `buyer-account-client`, `placeholder-page`, `json-ld`. |
 
 Buttons, chips and fields are CSS roles, not components: `.button` (primary purple pill), `.button.secondary` / `.button-secondary` (white hairline pill in storefront shells), `.filter-chip`, the field look (below). Add a component only when a second caller exists.
@@ -98,7 +100,8 @@ Buttons, chips and fields are CSS roles, not components: `.button` (primary purp
 - Links: running prose keeps its underline (WCAG 1.4.1); standalone storefront links change colour on hover, no underline. Admin keeps hover underlines.
 - Current page: `aria-current="page"` plus the lavender fill (header icons, pills, "Semua kategori"); dock tabs swap to the filled icon.
 - Fields: 1px `--field-border`, 12px radius, 44px minimum; focus shows an ink edge plus a 3px soft ring at the same width (no shift); invalid adds the error edge. Selects carry one custom chevron.
-- Filters: choosing a chip option applies at once (a GET link); Escape and light dismiss close; focus returns to the chip; desktop popovers sit on whole pixels at the chip's left edge (flipped near the viewport end); phones get a bottom sheet. Without JS, the native GET form in `<noscript>` replaces the chip row.
+- Filters (shop.com 2026-10-24): a scrolling chip rail (8px gaps, 4px on phones, bleeding to the screen edge on phones, edges fading only toward the side that still scrolls). Each chip opens a 300px popover centred 5px under it on desktop (whole pixels, 16px inside the viewport, above it near the bottom) or a bottom sheet with title and close on phones (40% scrim). Rows are 44px with a radio on the right (a check box for multi-choice facets); choosing a row applies at once (a GET link, owner decision); "Atur ulang" clears the filter, "Selesai" closes. Focus starts on the selected row, arrows/Home/End/typeahead move, Escape and light dismiss close and focus returns to the chip. Without JS, the native GET form in `<noscript>` replaces the rail.
+- Product page (shop.com 2026-10-24): media column (48px thumbnail strip from 1051px, a scroll-snap row of square 28px photo cards with hover arrows from 701px, sticky from 701px; phones: the row bleeds with the next photo peeking) beside a buy box in shop.com's order: category line, title, price, field labels, option pills, contents, stock, quantity pill (native number field between minus/plus), 52px primary pill, Spesifikasi, 52px accordions.
 - Omnibox: one glass surface grows down over the page on focus (no layout shift); combobox with listbox options; Escape/blur/outside click close; works as a plain GET form without JS.
 - Carousels: native scroll and snap, hidden scrollbars, arrows only on hover-capable desktop, no autoplay (WCAG 2.2.2).
 - Listings: the first page is server HTML with a crawlable `rel="next"`; the next pages append automatically three times, then "Lihat produk lainnya" keeps the footer reachable.

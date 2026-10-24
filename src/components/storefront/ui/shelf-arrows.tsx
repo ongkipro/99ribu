@@ -4,7 +4,7 @@ import {Icon} from './icon';
 
 // shop.com desktop carousel arrows. Rendered only after hydration (no dead controls without JS);
 // each press scrolls one view of whole cards, and an arrow is disabled at its end of the row.
-const rowOf=(anchor:HTMLElement|null)=>anchor?.parentElement?.querySelector<HTMLElement>('.shelf-row, .banner-row')??null;
+const rowOf=(anchor:HTMLElement|null)=>anchor?.parentElement?.querySelector<HTMLElement>('.shelf-row, .banner-row, .gallery-row')??null;
 export function ShelfArrows({noun='Produk'}:{noun?:string}){
  const anchor=useRef<HTMLSpanElement>(null),[edge,setEdge]=useState<{start:boolean;end:boolean}|null>(null);
  useEffect(()=>{
