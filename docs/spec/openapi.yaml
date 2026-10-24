@@ -23711,8 +23711,8 @@ components:
           - occurred
           - updated
           - null
-          description: What due_at holds for this row (orders fall back from the payment deadline to creation time,
-            fulfillments from the packing/handover deadline to creation time). Null exactly when due_at is null.
+          description: What due_at holds for this row (orders carry the payment deadline only while a prepaid order
+            awaits payment, else creation time; fulfillments from the packing/handover deadline to creation time). Null exactly when due_at is null.
         reference:
           type:
           - string

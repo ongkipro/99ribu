@@ -149,14 +149,12 @@ export const STATUS_LABELS: Record<CatalogStatus, string> = {
 	ready: "Draf siap terbit",
 	blocked: "Diblokir",
 };
-export const STATUS_BADGE: Record<
-	CatalogStatus,
-	"success" | "secondary" | "warning" | "outline"
-> = {
+/** StatusBadge tones (status.tsx). */
+export const STATUS_TONE: Record<CatalogStatus, "success" | "closed" | "open" | "problem"> = {
 	published: "success",
-	withdrawn: "outline",
-	ready: "secondary",
-	blocked: "warning",
+	withdrawn: "closed",
+	ready: "open",
+	blocked: "problem",
 };
 
 /** Same derivation as the list API's `state`. */

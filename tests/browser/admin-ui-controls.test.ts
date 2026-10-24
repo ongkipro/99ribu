@@ -229,7 +229,7 @@ test("staff inbox: console shell, noindex, claim once per double click, visible 
 		// Unclaimed: status/assignment are disabled with the reason; the current status has no button.
 		await expect(page.getByText("Klaim percakapan terlebih dahulu untuk mengubah status atau penugasan.")).toBeVisible();
 		await expect(page.getByRole("button", { name: "Buka Kembali" })).toHaveCount(0);
-		await expect(page.getByRole("button", { name: "Set Menunggu Pelanggan" })).toBeDisabled();
+		await expect(page.getByRole("button", { name: "Tandai menunggu pelanggan" })).toBeDisabled();
 		await expect(page.getByRole("button", { name: "Lepas ke Antrean" })).toHaveCount(0);
 
 		const before = claims.filter((c) => c.startsWith("POST")).length;

@@ -608,6 +608,7 @@ async function queryQueueRows(
 				created_at: string;
 				warehouse_id: string | null;
 				channel: string;
+				awaiting_payment: boolean;
 			}[]
 		>`
       select o.id,
@@ -617,6 +618,7 @@ async function queryQueueRows(
              o.buyer_total::text as buyer_total,
              o.expires_at,
              o.created_at,
+             (o.payment_method = 'prepaid' and o.payment_status = 'pending') as awaiting_payment,
              coalesce(o.payment_channel, case when o.payment_method = 'cod' then 'cod' else 'local-prepaid' end) as channel,
              (select s.warehouse_id::text from app.order_shipment s where s.order_id = o.id order by s.id limit 1) as warehouse_id
       ${ordersSource(sql, warehouseIds, from, to, metric, asOf)}
@@ -628,12 +630,15 @@ async function queryQueueRows(
 				id: String(r.id),
 				resource_kind: "order" as const,
 				state: String(r.status),
-				due_at: r.expires_at
-					? new Date(r.expires_at).toISOString()
-					: new Date(r.created_at).toISOString(),
-				due_at_kind: r.expires_at
-					? ("payment_deadline" as const)
-					: ("created" as const),
+				// The payment deadline only binds a prepaid order still awaiting payment; paid and COD
+				// orders are timed by their creation.
+				due_at: new Date(
+					r.awaiting_payment && r.expires_at ? r.expires_at : r.created_at,
+				).toISOString(),
+				due_at_kind:
+					r.awaiting_payment && r.expires_at
+						? ("payment_deadline" as const)
+						: ("created" as const),
 				warehouse_id: r.warehouse_id ? String(r.warehouse_id) : null,
 				version: Number(r.revision ?? 1),
 				amount_idr: Number(r.buyer_total ?? 0),

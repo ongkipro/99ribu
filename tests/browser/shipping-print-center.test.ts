@@ -356,7 +356,8 @@ test("S55 browser: admin shipping print center renders thermal/A4 label generati
 			);
 
 			// 3. Batch labels for the selected ready + unbooked parcels report partially_failed
-			await expect(page.getByTestId("batch-generate-button")).toBeDisabled();
+			// No batch action until a parcel is selected (S113 #15: hidden, not a disabled "0 paket").
+			await expect(page.getByTestId("batch-generate-button")).toHaveCount(0);
 			await page.getByTestId(`select-shipment-${parcelA.shipment_id}`).check();
 			await page.getByTestId(`select-shipment-${parcelB.shipment_id}`).check();
 			const batchResponse = page.waitForResponse(

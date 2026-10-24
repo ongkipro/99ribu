@@ -280,7 +280,7 @@ export function OrderSearchClient({
 							cell: (row) => (
 								<Link
 									href={`/admin/orders/${row.id}${back ? `?dari=${encodeURIComponent(back)}` : ""}`}
-									className="font-mono font-medium text-primary underline-offset-4 hover:underline"
+									className="font-mono font-medium text-primary underline-offset-4 hover:underline pointer-coarse:inline-flex pointer-coarse:min-h-11 pointer-coarse:items-center"
 								>
 									{row.number}
 								</Link>
@@ -328,6 +328,16 @@ type OrderItem = {
 	returned_quantity: number;
 	refunded_quantity: number;
 };
+/** "2 diterima, 1 diretur"; empty when nothing happened to the item after ordering. */
+const itemNotes = (item: OrderItem) =>
+	[
+		item.received_quantity && `${item.received_quantity} diterima`,
+		item.cancelled_quantity && `${item.cancelled_quantity} dibatalkan`,
+		item.returned_quantity && `${item.returned_quantity} diretur`,
+		item.refunded_quantity && `${item.refunded_quantity} dana kembali`,
+	]
+		.filter(Boolean)
+		.join(", ");
 type Shipment = {
 	id: string;
 	kind: "original" | "replacement";
@@ -541,20 +551,17 @@ export function OrderDetailClient({
 								},
 								{ id: "qty", header: "Jumlah", className: "text-right tabular-nums", cell: (item) => item.quantity },
 								{ id: "subtotal", header: "Subtotal", className: "text-right tabular-nums", cell: (item) => rupiah(item.subtotal) },
-								{
-									id: "notes",
-									header: "Keterangan",
-									cellClassName: "text-sm text-muted-foreground",
-									cell: (item) => {
-										const notes = [
-											item.received_quantity && `${item.received_quantity} diterima`,
-											item.cancelled_quantity && `${item.cancelled_quantity} dibatalkan`,
-											item.returned_quantity && `${item.returned_quantity} diretur`,
-											item.refunded_quantity && `${item.refunded_quantity} dana kembali`,
-										].filter(Boolean);
-										return notes.length ? notes.join(", ") : "—";
-									},
-								},
+								// Shown only when some item has a note (no column of dashes).
+								...(o.items.some((item) => itemNotes(item))
+									? [
+											{
+												id: "notes",
+												header: "Keterangan",
+												cellClassName: "text-sm text-muted-foreground",
+												cell: (item: OrderItem) => itemNotes(item) || "—",
+											},
+										]
+									: []),
 							]}
 						/>
 					</section>
@@ -647,7 +654,7 @@ export function OrderDetailClient({
 											{event.shipment_id && parcelById.has(event.shipment_id) && o.shipments.length > 1
 												? ` ${parcelById.get(event.shipment_id)?.toLowerCase()}`
 												: ""}
-											: {historyStatus(event.status)}
+											: {historyStatus(event.kind, event.status)}
 										</span>
 										<span className="text-xs text-muted-foreground">
 											{formatWib(event.occurred_at)}

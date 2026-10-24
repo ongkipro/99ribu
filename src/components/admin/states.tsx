@@ -13,18 +13,31 @@ export function LoadingState({
 	label,
 	lines = 3,
 	className = "h-12 w-full",
+	columns,
 }: {
 	label: string;
 	lines?: number;
 	className?: string;
+	/** Table-shaped placeholder (DataTable): a header row and `lines` rows of this many cells. */
+	columns?: number;
 }) {
+	const placeholders = (n: number) => Array.from({ length: n }, (_, i) => i);
 	return (
 		<div className="flex flex-col gap-2" aria-busy="true" aria-live="polite">
 			<p className="text-sm text-muted-foreground">{label}</p>
-			{Array.from({ length: lines }, (_, i) => (
-				// biome-ignore lint/suspicious/noArrayIndexKey: identical placeholders
-				<Skeleton key={i} className={className} />
-			))}
+			{columns ? (
+				<div aria-hidden="true" className="rounded-md border">
+					{placeholders(lines + 1).map((row) => (
+						<div key={row} className="flex h-10 items-center gap-4 border-b px-2 last:border-b-0">
+							{placeholders(columns).map((cell) => (
+								<Skeleton key={cell} className={row === 0 ? "h-3 flex-1" : "h-4 flex-1"} />
+							))}
+						</div>
+					))}
+				</div>
+			) : (
+				placeholders(lines).map((i) => <Skeleton key={i} className={className} />)
+			)}
 		</div>
 	);
 }

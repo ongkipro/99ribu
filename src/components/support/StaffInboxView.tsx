@@ -118,9 +118,9 @@ const STATUS_LABELS: Record<string, string> = {
 };
 const STATUS_TONE: Record<string, StatusTone> = { resolved: "done" };
 const STATUS_ACTIONS = [
-	["waiting_customer", "Set Menunggu Pelanggan"],
-	["resolved", "Tandai Selesai"],
-	["open", "Buka Kembali"],
+	["waiting_customer", "Tandai menunggu pelanggan"],
+	["resolved", "Tandai selesai"],
+	["open", "Buka kembali"],
 ] as const;
 type SupportAgent = { id: string; name: string };
 
@@ -891,7 +891,7 @@ export function StaffInboxView({ staffUser }: { staffUser: StaffUser }) {
 				aria-pressed={open}
 				onClick={() => void selectThread(item)}
 			>
-				Buka Detail
+				Buka detail
 			</Button>
 		);
 	};
@@ -909,7 +909,7 @@ export function StaffInboxView({ staffUser }: { staffUser: StaffUser }) {
 				</div>
 				<Button type="button" variant="outline" onClick={() => void inboxList.reload()}>
 					<RefreshCw data-icon="inline-start" aria-hidden="true" />
-					Segarkan Antrean
+					Segarkan antrean
 				</Button>
 			</header>
 
@@ -986,6 +986,7 @@ export function StaffInboxView({ staffUser }: { staffUser: StaffUser }) {
 					caption="Antrean percakapan pelanggan"
 					testId="support-inbox"
 					rowTestId={(item) => `support-inbox-row-${item.conversation.id}`}
+					activeKey={selected?.conversation.id ?? null}
 					paging={{ ...inboxList.paging, testId: "support-inbox-more" }}
 					columns={[
 						{
@@ -1062,7 +1063,7 @@ export function StaffInboxView({ staffUser }: { staffUser: StaffUser }) {
 											onClick={() => runAction("claim", claimThread)}
 											disabled={busy !== null}
 										>
-											{busy === "claim" ? "Mengklaim…" : "Klaim Percakapan"}
+											{busy === "claim" ? "Mengklaim…" : "Klaim percakapan"}
 										</Button>
 									)}
 									<Button
@@ -1071,7 +1072,7 @@ export function StaffInboxView({ staffUser }: { staffUser: StaffUser }) {
 										onClick={() => runAction("read", markStaffRead)}
 										disabled={busy !== null}
 									>
-										{busy === "read" ? "Menyimpan…" : "Tandai Dibaca"}
+										{busy === "read" ? "Menyimpan…" : "Tandai dibaca"}
 									</Button>
 								</div>
 							</div>
@@ -1155,7 +1156,7 @@ export function StaffInboxView({ staffUser }: { staffUser: StaffUser }) {
 									</p>
 								)}
 								<Button type="submit" className="self-start" disabled={!isClaimedByMe || submitting}>
-									Kirim Balasan Publik
+									Kirim balasan publik
 								</Button>
 							</form>
 
@@ -1181,7 +1182,7 @@ export function StaffInboxView({ staffUser }: { staffUser: StaffUser }) {
 									/>
 								</FormField>
 								<Button type="submit" variant="outline" className="self-start bg-card" disabled={submitting}>
-									Simpan Catatan Internal
+									Simpan catatan internal
 								</Button>
 							</form>
 						</>
@@ -1290,7 +1291,7 @@ export function StaffInboxView({ staffUser }: { staffUser: StaffUser }) {
 										disabled={!canAct || busy !== null}
 										aria-describedby={canAct ? undefined : claimNeededId}
 									>
-										{busy === "assign" ? "Mengalihkan…" : "Alihkan Penugasan"}
+										{busy === "assign" ? "Mengalihkan…" : "Alihkan penugasan"}
 									</Button>
 									{selected.assignee_user_id && (
 										<Button
@@ -1300,7 +1301,7 @@ export function StaffInboxView({ staffUser }: { staffUser: StaffUser }) {
 											disabled={!canAct || busy !== null}
 											aria-describedby={canAct ? undefined : claimNeededId}
 										>
-											{busy === "release" ? "Melepas…" : "Lepas ke Antrean"}
+											{busy === "release" ? "Melepas…" : "Lepas ke antrean"}
 										</Button>
 									)}
 								</div>
@@ -1353,7 +1354,7 @@ export function StaffInboxView({ staffUser }: { staffUser: StaffUser }) {
 													onClick={() => runAction("saved-reply", () => insertSavedReply(sr))}
 													disabled={busy !== null}
 												>
-													Sisipkan ke Draf
+													Sisipkan ke draf
 												</Button>
 											</li>
 										))}
@@ -1379,7 +1380,7 @@ export function StaffInboxView({ staffUser }: { staffUser: StaffUser }) {
 										className="min-w-0 flex-[1_1_10rem]"
 									/>
 									<Button type="submit" variant="outline" disabled={busy !== null}>
-										{busy === "note-search" ? "Mencari…" : "Cari Catatan"}
+										{busy === "note-search" ? "Mencari…" : "Cari catatan"}
 									</Button>
 								</form>
 								<ul className="flex flex-col gap-1.5">
