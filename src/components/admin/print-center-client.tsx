@@ -526,7 +526,7 @@ export function PrintCenterClient({
 							htmlFor="label-format-select"
 							className="text-sm font-medium"
 						>
-							Format Kertas Label
+							Format kertas label
 						</label>
 						<select
 							id="label-format-select"
@@ -539,16 +539,18 @@ export function PrintCenterClient({
 							<option value="a4">A4</option>
 						</select>
 					</div>
-					<Button
-						type="button"
-						data-testid="batch-generate-button"
-						disabled={selectedShipments.length === 0 || pending}
-						onClick={() => void handleGenerateBatch()}
-					>
-						<Printer data-icon="inline-start" aria-hidden="true" />
-						Buat label {selectedShipments.length} paket
-					</Button>
-					{selectedShipments.length === 0 && (
+					{/* The batch action appears once a parcel is selected; until then the hint says how. */}
+					{selectedShipments.length > 0 ? (
+						<Button
+							type="button"
+							data-testid="batch-generate-button"
+							disabled={pending}
+							onClick={() => void handleGenerateBatch()}
+						>
+							<Printer data-icon="inline-start" aria-hidden="true" />
+							Buat label {selectedShipments.length} paket
+						</Button>
+					) : (
 						<p className="text-xs text-muted-foreground">
 							Pilih paket di daftar untuk membuat label sekaligus.
 						</p>
@@ -689,7 +691,7 @@ export function PrintCenterClient({
 						{ id: "brand", header: "Merek", cell: (tpl) => BRAND_LABELS[tpl.brand_mode] ?? tpl.brand_mode },
 						{
 							id: "privacy",
-							header: "Privasi Telepon",
+							header: "Privasi telepon",
 							cell: (tpl) => PRIVACY_LABELS[tpl.privacy_mode] ?? tpl.privacy_mode,
 						},
 						{
