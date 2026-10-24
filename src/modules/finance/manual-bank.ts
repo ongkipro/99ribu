@@ -8,6 +8,7 @@ import {lockPaymentOrder} from '../payments/attempts.ts';
 import {registerProviderEvent,settleLocalOperation} from '../payments/local.ts';
 import {financeAuthority} from './costs.ts';
 import {financeEnvironment,financeInstant} from './ledger.ts';
+import {nextPageCursor,readPageCursor,STAMP_FORMAT} from './page-cursor.ts';
 
 // DEC-008 / S92 manual bank transfer reconciliation queue. Finance confirms a
 // transfer seen on the company bank statement; the confirmation settles the
@@ -30,15 +31,23 @@ async function projectTransfer(tx:TransactionSql,attemptId:string){
    outcome:row.outcome===null?'processing':String(row.outcome),reason:row.result_reason===null?null:String(row.result_reason),mismatch:Number(row.confirmed_amount)!==Number(row.expected_amount)}};
 }
 export async function listManualTransfers(identity:LocalAuth,principal:Principal,url:URL){
- for(const key of url.searchParams.keys())if(!['state','limit'].includes(key)||url.searchParams.getAll(key).length!==1)throw invalid();
+ for(const key of url.searchParams.keys())if(!['state','limit','cursor'].includes(key)||url.searchParams.getAll(key).length!==1)throw invalid();
  const state=url.searchParams.get('state')??'open',raw=url.searchParams.get('limit')??'50';
- if(!['open','resolved'].includes(state)||!/^\d{1,3}$/.test(raw))throw invalid();const limit=integer(Number(raw),1,100);
+ if(!['open','resolved'].includes(state)||!/^\d{1,3}$/.test(raw))throw invalid();const limit=integer(Number(raw),1,100),cursor=readPageCursor(url.searchParams.get('cursor'));
  return identity.sql.begin(async tx=>{
   await financeAuthority(tx,principal,'finance.reconciliation.read');
+  // S113 keyset pages: open by deadline then id, resolved by confirmation time (newest first) then id.
   const rows=state==='open'
-   ?await tx`select a.id from app.payment_attempt a left join app.manual_bank_confirmation c on c.attempt_id=a.id where a.method_id='manual-bank' and a.status in ('pending','unknown') and c.attempt_id is null order by a.expires_at,a.id limit ${limit}`
-   :await tx`select a.id from app.payment_attempt a join app.manual_bank_confirmation c on c.attempt_id=a.id where a.method_id='manual-bank' order by c.created_at desc,a.id limit ${limit}`;
-  const data=[];for(const row of rows)data.push(await projectTransfer(tx,String(row.id)));return {data};
+   ?await tx<{id:string;k:string}[]>`select a.id,to_char(a.expires_at at time zone 'UTC',${STAMP_FORMAT}) k from app.payment_attempt a left join app.manual_bank_confirmation c on c.attempt_id=a.id
+     where a.method_id='manual-bank' and a.status in ('pending','unknown') and c.attempt_id is null
+      and (${cursor?.t??null}::timestamptz is null or (a.expires_at,a.id)>(${cursor?.t??null}::timestamptz,${cursor?.id??null}::uuid))
+     order by a.expires_at,a.id limit ${limit+1}`
+   :await tx<{id:string;k:string}[]>`select a.id,to_char(c.created_at at time zone 'UTC',${STAMP_FORMAT}) k from app.payment_attempt a join app.manual_bank_confirmation c on c.attempt_id=a.id
+     where a.method_id='manual-bank'
+      and (${cursor?.t??null}::timestamptz is null or (c.created_at,a.id)<(${cursor?.t??null}::timestamptz,${cursor?.id??null}::uuid))
+     order by c.created_at desc,a.id desc limit ${limit+1}`;
+  const data=[];for(const row of rows.slice(0,limit))data.push(await projectTransfer(tx,String(row.id)));
+  return {data,pagination:{next_cursor:nextPageCursor(rows,limit)}};
  });
 }
 export async function confirmManualTransfer(request:Request,identity:LocalAuth,principal:Principal,attemptId:string,value:unknown){

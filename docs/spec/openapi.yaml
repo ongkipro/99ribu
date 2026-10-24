@@ -3727,7 +3727,7 @@ paths:
     get:
       operationId: listManualTransfers
       summary: List manual bank transfers
-      description: 'Finance reconciliation queue: open = awaiting confirmation (by expiry), resolved = confirmed.'
+      description: 'Finance reconciliation queue: open = awaiting confirmation (by expiry), resolved = confirmed (newest first). Keyset pages via pagination.next_cursor.'
       tags:
       - Finance
       security:
@@ -3786,6 +3786,15 @@ paths:
           minimum: 1
           maximum: 100
           default: 50
+      - name: cursor
+        in: query
+        required: false
+        description: Opaque next_cursor of the previous page (keyset position; grants no authority).
+        schema:
+          type: string
+          minLength: 1
+          maxLength: 400
+          pattern: ^[A-Za-z0-9_-]+$
       x-proof-group: manual-transfers
       x-implementation: src/app/api/v1/admin/manual-transfers/route.ts
   /admin/manual-transfers/{attemptId}/confirmations:
@@ -3920,6 +3929,15 @@ paths:
           minimum: 1
           maximum: 100
           default: 50
+      - name: cursor
+        in: query
+        required: false
+        description: Opaque next_cursor of the previous page (keyset position; grants no authority).
+        schema:
+          type: string
+          minLength: 1
+          maxLength: 400
+          pattern: ^[A-Za-z0-9_-]+$
       x-proof-group: autolaris-payments
       x-implementation: src/app/api/v1/admin/autolaris-payments/route.ts
   /admin/autolaris-payments/{attemptId}/confirmations:
@@ -14870,8 +14888,11 @@ components:
           items:
             $ref: '#/components/schemas/ManualTransfer'
           maxItems: 100
+        pagination:
+          $ref: '#/components/schemas/Pagination'
       required:
       - data
+      - pagination
       additionalProperties: false
     ManualTransferConfirmationInput:
       type: object
@@ -15034,8 +15055,11 @@ components:
           items:
             $ref: '#/components/schemas/AutolarisPayment'
           maxItems: 100
+        pagination:
+          $ref: '#/components/schemas/Pagination'
       required:
       - data
+      - pagination
       additionalProperties: false
     AutolarisConfirmationInput:
       type: object
