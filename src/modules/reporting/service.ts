@@ -525,6 +525,11 @@ function stockPositions(sql: Sql, warehouseIds: string[]) {
       group by b.warehouse_id, b.stock_item_id`;
 }
 
+/** The stock_alerts set (S113: the card and the inventory queue both read it). */
+function lowStockPositions(sql: Sql, warehouseIds: string[]) {
+	return sql`select * from (${stockPositions(sql, warehouseIds)}) low where low.available <= ${LOW_STOCK_THRESHOLD}`;
+}
+
 // Terminal states a metric leaves out of its queue (the rows' state is the stored status).
 const METRIC_TERMINAL_STATES: Partial<Record<MetricKey, string[]>> = {
 	delivery_exceptions: ["resolved"],
@@ -791,7 +796,7 @@ async function queueRows(
 			}[]
 		>`
       select p.id, p.warehouse_id::text as warehouse_id, p.available, p.revision, si.sku
-      from (${stockPositions(sql, warehouseIds)}) p
+      from (${statuses?.length ? stockPositions(sql, warehouseIds) : lowStockPositions(sql, warehouseIds)}) p
       join app.stock_item si on si.id = p.stock_item_id
       order by p.warehouse_id, si.sku
     `;
@@ -817,9 +822,7 @@ async function queueRows(
 					order_id: null,
 				};
 			})
-			.filter((r) =>
-				!statuses?.length ? r.state !== "in_stock" : statuses.includes(r.state),
-			);
+			.filter((r) => !statuses?.length || statuses.includes(r.state));
 	}
 
 	if (queue === "support") {
@@ -1223,33 +1226,20 @@ export async function getDashboardSnapshot(
 	};
 	// Cards are SQL counts over the same fragments the drilldown pages list; rows are only
 	// materialized for the drilldown (and for the small exception/return/support/settlement queues).
-	// One grouped scan serves both order cards (same period and scope; active is a subset of placed).
-	let orderCounts: Promise<
-		{ channel: string; placed: number; active: number }[]
-	> | null = null;
-	const ordersByChannel = () => {
-		orderCounts ??= (async () =>
-			sql<{ channel: string; placed: number; active: number }[]>`
-        select coalesce(o.payment_channel, case when o.payment_method = 'cod' then 'cod' else 'local-prepaid' end) as channel,
-               count(*)::int as placed,
-               count(*) filter (where o.status in ('pending', 'processing'))::int as active
-        ${ordersSource(sql, warehouseIds, from, to, "orders_by_payment_method", asOf)}
-        group by 1
-      `)();
-		return orderCounts;
-	};
+	// S113: every count is a count over the exact fragment its drilldown lists (ordersSource,
+	// fulfillmentsSource, lowStockPositions, or the queue rows themselves); no card restates a filter.
 	const countOf = async (
 		fragment: ReturnType<typeof ordersSource>,
 	): Promise<number> =>
 		Number((await sql<{ n: number }[]>`select count(*)::int as n ${fragment}`)[0].n);
 	const countFor = async (key: MetricKey): Promise<Counted> => {
-		if (key === "orders_pending" || key === "orders_by_payment_method") {
-			const groups = await ordersByChannel();
-			if (key === "orders_pending")
-				return {
-					count: groups.reduce((n, g) => n + g.active, 0),
-					breakdown: null,
-				};
+		if (key === "orders_by_payment_method") {
+			const groups = await sql<{ channel: string; placed: number }[]>`
+        select coalesce(o.payment_channel, case when o.payment_method = 'cod' then 'cod' else 'local-prepaid' end) as channel,
+               count(*)::int as placed
+        ${ordersSource(sql, warehouseIds, from, to, key, asOf)}
+        group by 1
+      `;
 			const placed = new Map(groups.map((g) => [g.channel, g.placed]));
 			return {
 				count: groups.reduce((n, g) => n + g.placed, 0),
@@ -1259,7 +1249,7 @@ export async function getDashboardSnapshot(
 					.map(([k, label]) => ({ key: k, label, count: placed.get(k) ?? 0 })),
 			};
 		}
-		if (PAYMENT_QUEUE_METRICS.has(key))
+		if (key === "orders_pending" || PAYMENT_QUEUE_METRICS.has(key))
 			return {
 				count: await countOf(ordersSource(sql, warehouseIds, from, to, key, asOf)),
 				breakdown: null,
@@ -1284,8 +1274,7 @@ export async function getDashboardSnapshot(
 				{ id: string; name: string; n: number }[]
 			>`
         select w.id::text as id, w.name, count(*)::int as n
-        from (${stockPositions(sql, warehouseIds)}) p join app.warehouse w on w.id = p.warehouse_id
-        where p.available <= ${LOW_STOCK_THRESHOLD}
+        from (${lowStockPositions(sql, warehouseIds)}) p join app.warehouse w on w.id = p.warehouse_id
         group by w.id, w.name
         order by n desc, w.name
       `;

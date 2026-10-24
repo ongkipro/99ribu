@@ -9,7 +9,6 @@ import {
 	Info,
 	type LucideIcon,
 	Printer,
-	RefreshCw,
 	X,
 } from "lucide-react";
 import Link from "next/link";
@@ -26,14 +25,6 @@ import {
 	DialogTitle,
 } from "@/components/ui/dialog";
 import { Skeleton } from "@/components/ui/skeleton";
-import {
-	Table,
-	TableBody,
-	TableCell,
-	TableHead,
-	TableHeader,
-	TableRow,
-} from "@/components/ui/table";
 import { Textarea } from "@/components/ui/textarea";
 import { rupiah, wibDateTime } from "@/modules/storefront/format";
 import {
@@ -42,6 +33,7 @@ import {
 } from "./ad-destinations-panel";
 import { describeFailure, failureText, readFailure } from "./admin-errors";
 import type { ConsoleAccess } from "./console-access";
+import { DataTable, RetryAlert } from "./data-table";
 
 export type CanonicalWorkspace =
 	| "owner"
@@ -1107,14 +1099,6 @@ export function AdminWorkspacesClient({
 	const canOrders = !preview && canOrdersGrant;
 	// The API reports Asia/Jakarta; every time below is shown and labeled as WIB.
 	const formatTime = (iso: string | null) => (iso ? wibDateTime(iso) : "—");
-	const allSelected = rows.length > 0 && selectedIds.length === rows.length;
-	const someSelected = selectedIds.length > 0 && !allSelected;
-
-	const toggleRow = (id: string) =>
-		setSelectedIds((prev) =>
-			prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id],
-		);
-
 	const openExport = (mode: "filter" | "selection") => {
 		exportOpenerRef.current = document.activeElement as HTMLElement | null;
 		setExportMode(mode);
@@ -1289,18 +1273,6 @@ export function AdminWorkspacesClient({
 			</Badge>
 		);
 	};
-
-	const rowCheckbox = (item: WorkQueueItem) => (
-		<label className="-m-2 inline-flex size-11 cursor-pointer items-center justify-center">
-			<input
-				type="checkbox"
-				aria-label={`Pilih ${KIND_LABELS[item.resource_kind] ?? item.resource_kind} ${referenceText(item)}`}
-				className={checkboxClass}
-				checked={selectedIds.includes(item.id)}
-				onChange={() => toggleRow(item.id)}
-			/>
-		</label>
-	);
 
 	return (
 		<div
@@ -1606,37 +1578,6 @@ export function AdminWorkspacesClient({
 					</div>
 				)}
 
-				{selectedIds.length > 0 && exportConfig && (
-					<div
-						data-testid="export-controls-bar"
-						className="flex flex-wrap items-center justify-between gap-2 rounded-md border border-primary/30 bg-secondary px-3 py-2"
-					>
-						<span className="text-sm font-medium tabular-nums">
-							{selectedIds.length} baris dipilih di halaman ini
-						</span>
-						<div className="flex flex-wrap gap-2">
-							<Button
-								type="button"
-								size="sm"
-								disabled={!canExport}
-								aria-describedby={canExport ? undefined : "export-denied-reason"}
-								onClick={() => openExport("selection")}
-							>
-								<Download data-icon="inline-start" aria-hidden="true" />
-								Ekspor pilihan
-							</Button>
-							<Button
-								type="button"
-								variant="ghost"
-								size="sm"
-								onClick={() => setSelectedIds([])}
-							>
-								Batalkan pilihan
-							</Button>
-						</div>
-					</div>
-				)}
-
 				{exportResult && (
 					<div
 						data-testid="frozen-selection-preview"
@@ -1673,152 +1614,130 @@ export function AdminWorkspacesClient({
 					</div>
 				)}
 
-				{queueState === "loading" ? (
-					<div className="flex flex-col gap-2" aria-busy="true">
-						<span className="sr-only">Memuat antrean…</span>
-						<Skeleton className="h-12 w-full" />
-						<Skeleton className="h-12 w-full" />
-						<Skeleton className="h-12 w-full" />
-					</div>
-				) : queueState === "error" ? (
-					<RetryAlert
-						message={`Antrean gagal dimuat. ${queueError ?? ""}`}
-						onRetry={() =>
-							void loadQueue(
-								workspace,
-								warehouseId,
-								windowRange,
-								queue,
-								filterToken,
-							)
-						}
-					/>
-				) : queueState === "preview" ? (
-					<p className="rounded-md border border-dashed px-4 py-8 text-center text-sm text-muted-foreground">
-						Antrean hanya tampil untuk staf yang masuk dengan MFA aktif.
-					</p>
-				) : rows.length === 0 ? (
-					<p
-						data-testid="empty-queue-message"
-						className="rounded-md border border-dashed px-4 py-8 text-center text-sm text-muted-foreground"
-					>
-						{filterToken
+				<DataTable
+					rows={rows}
+					rowKey={(item) => item.id}
+					status={
+						queueState === "loading"
+							? { kind: "loading" }
+							: queueState === "error"
+								? {
+										kind: "error",
+										message: `Antrean gagal dimuat. ${queueError ?? ""}`,
+										onRetry: () =>
+											void loadQueue(
+												workspace,
+												warehouseId,
+												windowRange,
+												queue,
+												filterToken,
+											),
+									}
+								: queueState === "preview"
+									? {
+											kind: "denied",
+											message:
+												"Antrean hanya tampil untuk staf yang masuk dengan MFA aktif.",
+										}
+									: { kind: "ready" }
+					}
+					loadingLabel="Memuat antrean…"
+					emptyTestId="empty-queue-message"
+					empty={
+						filterToken
 							? "Tidak ada baris untuk filter ini."
-							: `Belum ada ${QUEUE_LABELS[queue].toLowerCase()} pada ${WINDOW_LABELS[windowRange]} dalam cakupan Anda.`}
-					</p>
-				) : (
-					<>
-						<div className="hidden md:block">
-							<Table>
-								<TableHeader>
-									<TableRow>
-										<TableHead className="w-12">
-											<label className="-m-2 inline-flex size-11 cursor-pointer items-center justify-center">
-												<input
-													type="checkbox"
-													aria-label="Pilih semua baris di halaman ini"
-													className={checkboxClass}
-													checked={allSelected}
-													ref={(el) => {
-														if (el) el.indeterminate = someSelected;
-													}}
-													onChange={() =>
-														setSelectedIds(
-															allSelected ? [] : rows.map((r) => r.id),
-														)
-													}
-												/>
-											</label>
-										</TableHead>
-										<TableHead>Referensi</TableHead>
-										<TableHead>Status</TableHead>
-										{timeLabel && <TableHead>{timeLabel}</TableHead>}
-										{hasRowActions && (
-											<TableHead>
-												<span className="sr-only">Tindakan</span>
-											</TableHead>
-										)}
-									</TableRow>
-								</TableHeader>
-								<TableBody>
-									{rows.map((item) => (
-										<TableRow
-											key={item.id}
-											data-testid={`queue-row-${item.id}`}
-											data-state={
-												selectedIds.includes(item.id) ? "selected" : undefined
-											}
-											className="h-12"
-										>
-											<TableCell>{rowCheckbox(item)}</TableCell>
-											<TableCell>{reference(item)}</TableCell>
-											<TableCell>{status(item)}</TableCell>
-											{timeLabel && (
-												<TableCell className="tabular-nums">
-													{rowTimeLabel(item) !== timeLabel && (
-														<span className="block text-xs text-muted-foreground">
-															{rowTimeLabel(item)}
-														</span>
-													)}
-													{formatTime(item.due_at)}
-												</TableCell>
-											)}
-											{hasRowActions && (
-												<TableCell className="text-right">
-													{rowAction(item)}
-												</TableCell>
-											)}
-										</TableRow>
-									))}
-								</TableBody>
-							</Table>
-						</div>
-						<ul className="flex flex-col divide-y rounded-md border md:hidden">
-							{rows.map((item) => (
-								<li
-									key={item.id}
-									data-testid={`queue-card-${item.id}`}
-									className="flex items-start gap-2 p-3"
-								>
-									{rowCheckbox(item)}
-									<div className="flex min-w-0 flex-1 flex-col gap-2">
-										<div className="flex flex-wrap items-start justify-between gap-2">
-											{reference(item)}
-											{status(item)}
-										</div>
-										{timeLabel && (
-											<p className="text-xs text-muted-foreground">
-												{rowTimeLabel(item)}{" "}
-												<span className="font-medium text-foreground tabular-nums">
-													{formatTime(item.due_at)}
-												</span>
-											</p>
-										)}
-										{rowActionFor(item) && <div>{rowAction(item)}</div>}
-									</div>
-								</li>
-							))}
-						</ul>
-						{!hasRowActions && (
+							: `Belum ada ${QUEUE_LABELS[queue].toLowerCase()} pada ${WINDOW_LABELS[windowRange]} dalam cakupan Anda.`
+					}
+					caption={`Antrean ${QUEUE_LABELS[queue]}`}
+					rowTestId={(item) => `queue-row-${item.id}`}
+					rowClassName="h-12"
+					selection={{
+						selected: selectedIds,
+						onChange: setSelectedIds,
+						label: (item) =>
+							`Pilih ${KIND_LABELS[item.resource_kind] ?? item.resource_kind} ${referenceText(item)}`,
+						allLabel: "Pilih semua baris di halaman ini",
+						summary: (n) => `${n} baris dipilih di halaman ini`,
+						barTestId: "export-controls-bar",
+						actions: exportConfig && (
+							<Button
+								type="button"
+								size="sm"
+								disabled={!canExport}
+								aria-describedby={canExport ? undefined : "export-denied-reason"}
+								onClick={() => openExport("selection")}
+							>
+								<Download data-icon="inline-start" aria-hidden="true" />
+								Ekspor pilihan
+							</Button>
+						),
+					}}
+					columns={[
+						{ id: "reference", header: "Referensi", cell: reference },
+						{ id: "status", header: "Status", cell: status },
+						...(timeLabel
+							? [
+									{
+										id: "time",
+										header: timeLabel,
+										className: "tabular-nums",
+										cell: (item: WorkQueueItem) => (
+											<>
+												{rowTimeLabel(item) !== timeLabel && (
+													<span className="block text-xs text-muted-foreground">
+														{rowTimeLabel(item)}
+													</span>
+												)}
+												{formatTime(item.due_at)}
+											</>
+										),
+									},
+								]
+							: []),
+						...(hasRowActions
+							? [
+									{
+										id: "actions",
+										header: <span className="sr-only">Tindakan</span>,
+										className: "text-right",
+										cell: rowAction,
+									},
+								]
+							: []),
+					]}
+					cardTestId={(item) => `queue-card-${item.id}`}
+					card={(item) => (
+						<>
+							<div className="flex flex-wrap items-start justify-between gap-2">
+								{reference(item)}
+								{status(item)}
+							</div>
+							{timeLabel && (
+								<p className="text-xs text-muted-foreground">
+									{rowTimeLabel(item)}{" "}
+									<span className="font-medium text-foreground tabular-nums">
+										{formatTime(item.due_at)}
+									</span>
+								</p>
+							)}
+							{rowActionFor(item) && <div>{rowAction(item)}</div>}
+						</>
+					)}
+					paging={{
+						hasMore: nextCursor !== null,
+						loading: loadingMore,
+						onMore: () => void loadMore(),
+					}}
+					footer={
+						!hasRowActions && (
 							<p className="text-xs text-muted-foreground">
 								Halaman detail untuk {QUEUE_LABELS[queue].toLowerCase()} belum
 								tersedia di konsol
 								{exportConfig ? "; gunakan ekspor CSV untuk rincian." : "."}
 							</p>
-						)}
-						{nextCursor && (
-							<Button
-								type="button"
-								variant="outline"
-								className="self-center"
-								disabled={loadingMore}
-								onClick={() => void loadMore()}
-							>
-								{loadingMore ? "Memuat…" : "Muat baris berikutnya"}
-							</Button>
-						)}
-					</>
-				)}
+						)
+					}
+				/>
 			</section>
 
 			{/* Finance position: owner and finance only, below the daily queue */}
@@ -2003,28 +1922,5 @@ export function AdminWorkspacesClient({
 	);
 }
 
-function RetryAlert({
-	message,
-	onRetry,
-}: {
-	message: string;
-	onRetry: () => void;
-}) {
-	return (
-		<Alert
-			variant="destructive"
-			className="flex flex-wrap items-center justify-between gap-3 border-destructive/40 bg-destructive-surface"
-		>
-			<AlertDescription className="text-foreground">{message}</AlertDescription>
-			<Button type="button" variant="outline" size="sm" onClick={onRetry}>
-				<RefreshCw data-icon="inline-start" aria-hidden="true" />
-				Coba lagi
-			</Button>
-		</Alert>
-	);
-}
-
 const nativeSelectClass =
 	"h-9 rounded-md border border-input bg-background px-3 text-sm font-medium shadow-xs outline-none focus-visible:border-ring focus-visible:ring-[3px] focus-visible:ring-ring/50";
-const checkboxClass =
-	"size-4 accent-primary focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring";

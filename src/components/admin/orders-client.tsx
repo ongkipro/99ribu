@@ -18,6 +18,7 @@ import {
 	TableRow,
 } from "@/components/ui/table";
 import { type ApiFailure, failureText, getJson } from "./admin-errors";
+import { DataTable } from "./data-table";
 import { formatWib, rupiah } from "./format";
 import {
 	HISTORY_KIND,
@@ -255,87 +256,61 @@ export function OrderSearchClient({
 						? `Hasil untuk ${KIND_LABELS[applied.kind].label.toLowerCase()} ${applied.kind === "hp" ? `…${applied.term}` : applied.term}`
 						: "Pesanan terbaru"}
 				</h2>
-				{state === "loading" && (
-					<div className="flex flex-col gap-2" aria-live="polite">
-						<p className="text-sm text-muted-foreground">Memuat pesanan…</p>
-						<Skeleton className="h-10 w-full" />
-						<Skeleton className="h-10 w-full" />
-					</div>
-				)}
-				{state === "error" && (
-					<Alert role="alert">
-						<CircleAlert aria-hidden="true" />
-						<AlertDescription className="flex flex-wrap items-center gap-3 text-foreground">
-							{error}
-							<Button size="sm" variant="outline" onClick={() => void load()}>
-								Coba lagi
-							</Button>
-						</AlertDescription>
-					</Alert>
-				)}
-				{state === "ready" && rows.length === 0 && (
-					<p
-						className="rounded-lg border border-dashed p-6 text-sm text-muted-foreground"
-						data-testid="orders-empty"
-					>
-						{applied.term
+				<DataTable
+					rows={rows}
+					rowKey={(row) => row.id}
+					status={
+						state === "loading"
+							? { kind: "loading" }
+							: state === "error"
+								? { kind: "error", message: error, onRetry: () => void load() }
+								: { kind: "ready" }
+					}
+					loadingLabel="Memuat pesanan…"
+					emptyTestId="orders-empty"
+					empty={
+						applied.term
 							? "Tidak ada pesanan yang cocok dalam cakupan Anda. Periksa kembali isian atau ganti jenis pencarian."
-							: "Belum ada pesanan dalam cakupan Anda."}
-					</p>
-				)}
-				{state === "ready" && rows.length > 0 && (
-					<>
-						<div className="overflow-x-auto rounded-lg border">
-							<Table data-testid="orders-table">
-								<caption className="sr-only">Daftar pesanan, terbaru di atas</caption>
-								<TableHeader>
-									<TableRow>
-										<TableHead scope="col">Nomor pesanan</TableHead>
-										<TableHead scope="col">Dibuat</TableHead>
-										<TableHead scope="col">Status</TableHead>
-										<TableHead scope="col">Pembayaran</TableHead>
-										<TableHead scope="col" className="text-right">
-											Total
-										</TableHead>
-									</TableRow>
-								</TableHeader>
-								<TableBody>
-									{rows.map((row) => (
-										<TableRow key={row.id} data-testid="order-row">
-											<TableCell>
-												<Link
-													href={`/admin/orders/${row.id}${back ? `?dari=${encodeURIComponent(back)}` : ""}`}
-													className="font-mono font-medium text-primary underline-offset-4 hover:underline"
-												>
-													{row.number}
-												</Link>
-											</TableCell>
-											<TableCell className="whitespace-nowrap">{formatWib(row.created_at)}</TableCell>
-											<TableCell>
-												<Badge variant="outline">{ORDER_STATUS[row.status] ?? row.status}</Badge>
-											</TableCell>
-											<TableCell>{paymentText(row.payment_method, row.payment_status)}</TableCell>
-											<TableCell className="text-right tabular-nums">
-												{rupiah(row.buyer_total)}
-											</TableCell>
-										</TableRow>
-									))}
-								</TableBody>
-							</Table>
-						</div>
-						{cursor && (
-							<Button
-								type="button"
-								variant="outline"
-								className="self-start"
-								disabled={more}
-								onClick={() => void loadMore()}
-							>
-								{more ? "Memuat…" : "Muat lebih banyak"}
-							</Button>
-						)}
-					</>
-				)}
+							: "Belum ada pesanan dalam cakupan Anda."
+					}
+					testId="orders-table"
+					caption="Daftar pesanan, terbaru di atas"
+					rowTestId={() => "order-row"}
+					columns={[
+						{
+							id: "number",
+							header: "Nomor pesanan",
+							cell: (row) => (
+								<Link
+									href={`/admin/orders/${row.id}${back ? `?dari=${encodeURIComponent(back)}` : ""}`}
+									className="font-mono font-medium text-primary underline-offset-4 hover:underline"
+								>
+									{row.number}
+								</Link>
+							),
+						},
+						{ id: "created", header: "Dibuat", cell: (row) => formatWib(row.created_at) },
+						{
+							id: "status",
+							header: "Status",
+							cell: (row) => (
+								<Badge variant="outline">{ORDER_STATUS[row.status] ?? row.status}</Badge>
+							),
+						},
+						{
+							id: "payment",
+							header: "Pembayaran",
+							cell: (row) => paymentText(row.payment_method, row.payment_status),
+						},
+						{
+							id: "total",
+							header: "Total",
+							className: "text-right tabular-nums",
+							cell: (row) => rupiah(row.buyer_total),
+						},
+					]}
+					paging={{ hasMore: cursor !== null, loading: more, onMore: () => void loadMore() }}
+				/>
 			</section>
 		</div>
 	);
