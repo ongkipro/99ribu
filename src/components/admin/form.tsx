@@ -50,27 +50,39 @@ export function FormField({
 	);
 }
 
+/** The one tab/filter control look of the console (segmented pills); tablists reuse it. */
+export const segmentedListClass =
+	"inline-flex w-fit max-w-full flex-wrap gap-1 rounded-lg border bg-muted p-1";
+export const segmentedItemClass = (active: boolean) =>
+	cn(
+		"min-h-9 rounded-md px-3 py-1.5 text-sm font-medium outline-none focus-visible:ring-[3px] focus-visible:ring-ring/50 pointer-coarse:min-h-11",
+		active ? "bg-background text-foreground shadow-sm" : "text-muted-foreground hover:text-foreground",
+	);
+
 /** A small set of mutually exclusive filters as pressed toggle buttons. */
 export function SegmentedControl<K extends string>({
 	legend,
 	value,
 	options,
 	onChange,
+	testId,
 }: {
 	legend: string;
 	value: K;
 	options: readonly (readonly [K, string])[];
 	onChange: (value: K) => void;
+	testId?: (key: K) => string;
 }) {
 	return (
-		<fieldset className="inline-flex w-fit max-w-full flex-wrap gap-1 rounded-lg border bg-muted p-1">
+		<fieldset className={segmentedListClass}>
 			<legend className="sr-only">{legend}</legend>
 			{options.map(([key, label]) => (
 				<button
 					key={key}
 					type="button"
 					aria-pressed={value === key}
-					className={`min-h-9 rounded-md px-3 py-1.5 text-sm font-medium outline-none focus-visible:ring-[3px] focus-visible:ring-ring/50 ${value === key ? "bg-background shadow-sm" : "text-muted-foreground"}`}
+					data-testid={testId?.(key)}
+					className={segmentedItemClass(value === key)}
 					onClick={() => onChange(key)}
 				>
 					{label}

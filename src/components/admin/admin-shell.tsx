@@ -189,11 +189,9 @@ export function AdminShell({
 				{ href: "/admin/fulfillment", label: "Pengiriman Manual", icon: Truck, show: access.ship },
 				{ href: "/admin/print-center", label: "Pusat Cetak Label", icon: Printer, show: access.print },
 				{ href: "/admin/support", label: "Kotak Masuk Pelanggan", icon: MessagesSquare, show: access.support },
+				// One item never gets its own group (render review): the catalog sits with the daily tools.
+				{ href: "/admin/catalog", label: "Katalog", icon: Package, show: canCatalog },
 			],
-		},
-		{
-			label: "Katalog",
-			items: [{ href: "/admin/catalog", label: "Katalog", icon: Package, show: canCatalog }],
 		},
 		{
 			label: "Keuangan",
