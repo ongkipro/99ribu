@@ -228,12 +228,15 @@ export function InventoryClient({ canTransfer, canReceiveNew }: { canTransfer: b
 							id: "item",
 							header: "Barang",
 							stack: "title",
-							cellClassName: "whitespace-normal md:max-w-64",
+							cellClassName: "min-w-52 whitespace-normal xl:max-w-80",
+							// md–xl: warehouse, lot and the counts move under the name so the actions never cover a column.
 							cell: (row) => (
 								<div className="flex flex-col">
 									<span className="font-medium">{row.stock_item_name}</span>
 									<span className="font-mono text-xs font-normal text-muted-foreground">{row.sku}</span>
 									<span className="hidden text-xs font-normal text-muted-foreground tabular-nums md:max-xl:block">
+										{warehouseName(row.warehouse_id)} · {lotLabel(row)}
+										<br />
 										Fisik {row.on_hand} · Dipesan {row.reserved} · Karantina {row.quarantined}
 									</span>
 								</div>
@@ -245,26 +248,51 @@ export function InventoryClient({ canTransfer, canReceiveNew }: { canTransfer: b
 							stack: "aside",
 							className: "text-right tabular-nums",
 							cellClassName: "font-semibold",
-							cell: (row) => row.available,
+							cell: (row) => (
+								<>
+									{row.available}
+									<span className="text-xs font-normal text-muted-foreground md:hidden"> tersedia</span>
+								</>
+							),
 						},
-						{ id: "warehouse", header: "Gudang", stack: "meta", cell: (row) => warehouseName(row.warehouse_id) },
+						{
+							id: "warehouse",
+							header: "Gudang dan lot",
+							stack: "meta",
+							className: "md:max-xl:hidden",
+							cellClassName: "whitespace-normal xl:min-w-48",
+							cell: (row) => (
+								<div className="flex flex-col">
+									<span>{warehouseName(row.warehouse_id)}</span>
+									<span className="text-xs text-muted-foreground max-md:hidden">{lotLabel(row)}</span>
+								</div>
+							),
+						},
 						{
 							id: "lot",
 							header: "Lot",
 							stack: "status",
+							className: "md:hidden",
 							cellClassName: "whitespace-normal text-xs",
 							cell: (row) =>
-								row.expired ? <StatusBadge tone="danger">{lotLabel(row)}</StatusBadge> : <span>{lotLabel(row)}</span>,
+								(
+									<span className="flex flex-wrap items-center gap-x-2 gap-y-1 tabular-nums">
+										{row.expired ? <StatusBadge tone="danger">{lotLabel(row)}</StatusBadge> : lotLabel(row)}
+										<span className="text-muted-foreground">
+											Fisik {row.on_hand} · Dipesan {row.reserved} · Karantina {row.quarantined}
+										</span>
+									</span>
+								),
 						},
-						{ id: "on_hand", header: "Fisik", className: "text-right tabular-nums md:max-xl:hidden", cell: (row) => row.on_hand },
-						{ id: "reserved", header: "Dipesan", className: "text-right tabular-nums md:max-xl:hidden", cell: (row) => row.reserved },
-						{ id: "quarantined", header: "Karantina", className: "text-right tabular-nums md:max-xl:hidden", cell: (row) => row.quarantined },
+						{ id: "on_hand", header: "Fisik", className: "text-right tabular-nums md:max-xl:hidden", cellClassName: "max-md:hidden", cell: (row) => row.on_hand },
+						{ id: "reserved", header: "Dipesan", className: "text-right tabular-nums md:max-xl:hidden", cellClassName: "max-md:hidden", cell: (row) => row.reserved },
+						{ id: "quarantined", header: "Karantina", className: "text-right tabular-nums md:max-xl:hidden", cellClassName: "max-md:hidden", cell: (row) => row.quarantined },
 						{
 							id: "actions",
 							header: "Tindakan",
 							className: "text-right",
 							cell: (row) => (
-								<div className="flex justify-end gap-2">
+								<div className="flex justify-end gap-2 max-md:w-full">
 									<Button size="sm" data-testid={`inventory-move-${row.sku}`} onClick={() => setDialog({ kind: "movement", row })}>
 										Catat stok
 									</Button>
@@ -378,7 +406,7 @@ function HistoryDialog({ row, warehouse, onClose }: { row: Position; warehouse: 
 	const delta = (n: number) => (n > 0 ? `+${n}` : String(n));
 	return (
 		<Dialog open onOpenChange={(open) => !open && onClose()}>
-			<DialogContent className="md:max-w-2xl">
+			<DialogContent className="md:max-h-[90dvh] md:max-w-2xl md:overflow-y-auto">
 				<DialogHeader>
 					<DialogTitle>Riwayat stok: {row.stock_item_name}</DialogTitle>
 					<DialogDescription>

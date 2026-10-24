@@ -169,7 +169,7 @@ export function ShippingPromotionsClient({ services, regions }: { services: Opti
 							header: "Tindakan",
 							className: "text-right",
 							cell: (p) => (
-								<div className="flex justify-end gap-2">
+								<div className="flex justify-end gap-2 max-md:w-full">
 									<Button size="sm" variant="outline" data-testid={`promotion-edit-${p.id}`} onClick={() => setDialog({ kind: "edit", row: p })}>
 										Ubah
 									</Button>
@@ -427,7 +427,7 @@ function HistoryDialog({ row, onClose }: { row: Promotion; onClose: () => void }
 	const list = useKeysetList<Promotion>(`/api/v1/admin/shipping-promotions/${row.id}/versions?limit=20`, (p) => String(p.version));
 	return (
 		<Dialog open onOpenChange={(open) => !open && onClose()}>
-			<DialogContent className="md:max-w-2xl">
+			<DialogContent className="md:max-h-[90dvh] md:max-w-2xl md:overflow-y-auto">
 				<DialogHeader>
 					<DialogTitle>Riwayat promo {row.name}</DialogTitle>
 					<DialogDescription>Versi terbaru di atas. Versi lama tidak bisa diubah.</DialogDescription>

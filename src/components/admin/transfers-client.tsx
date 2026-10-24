@@ -173,7 +173,7 @@ export function TransfersClient({ owner }: { owner: boolean }) {
 							header: "Tindakan",
 							className: "text-right",
 							cell: (row) => (
-								<div className="flex justify-end gap-2">
+								<div className="flex justify-end gap-2 max-md:w-full">
 									{row.status === "requested" && inScope(row.from_warehouse_id) && (
 										<>
 											<Button size="sm" data-testid={`transfer-dispatch-${row.sku}`} onClick={() => setDialog({ action: "dispatch", row })}>
