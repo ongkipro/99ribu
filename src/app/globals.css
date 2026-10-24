@@ -3369,6 +3369,11 @@ html:has(.signin-sheet[open]) {
 	justify-self: end;
 	margin: -32px -20px -12px 0;
 }
+/* A white backing so the sticky control never sits on top of scrolled text. */
+.signin-sheet .signin-close {
+	border-radius: 50%;
+	background: #fff;
+}
 @media (max-width: 700px) {
 	.signin-sheet {
 		width: auto;
