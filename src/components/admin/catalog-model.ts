@@ -38,6 +38,9 @@ export type CatalogProduct = {
 	images: CatalogImage[];
 	facts: CatalogAttribute[];
 	variants: CatalogVariant[];
+	/** Admin GET only (S102): DEC-013 claim review flag and the feed's Google category id. */
+	claim_review?: boolean;
+	google_product_category?: string | null;
 };
 /** Row of GET /api/v1/admin/products (summary computed server-side). */
 export type ProductSummary = {
@@ -58,6 +61,8 @@ export type ProductSummary = {
 	published_revision: number | null;
 	ready: boolean;
 	blocker_codes: string[];
+	/** DEC-013 "Perlu tinjauan klaim" (claim term in the name or a screened claim photo). */
+	claim_review: boolean;
 };
 export type Category = {
 	id: string;

@@ -53,6 +53,7 @@ export default async function AdminCatalogPage({
 				q: one("q"),
 				category: one("kategori"),
 				status: STATUSES.includes(status) ? status : "",
+				review: one("tinjauan") === "klaim",
 				cursors: cursors.length <= 200 ? cursors : [],
 			}}
 			access={access}

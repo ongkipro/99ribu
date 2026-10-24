@@ -1,7 +1,7 @@
 "use client";
 
 import { cn } from "cn";
-import { ImageOff, Search } from "lucide-react";
+import { CircleAlert, ImageOff, Search } from "lucide-react";
 import Link from "next/link";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { Badge } from "@/components/ui/badge";
@@ -36,7 +36,7 @@ const STATUSES: CatalogStatus[] = [
 	"blocked",
 ];
 
-type Filters = { q: string; category: string; status: CatalogStatus | "" };
+type Filters = { q: string; category: string; status: CatalogStatus | ""; review: boolean };
 type Access = ReturnType<typeof catalogAccess>;
 type Load =
 	| { state: "loading" }
@@ -55,6 +55,7 @@ export function CatalogListClient({
 		q: initial.q,
 		category: initial.category,
 		status: initial.status,
+		review: initial.review,
 	});
 	const [query, setQuery] = useState(initial.q); // debounced copy of filters.q
 	const [categories, setCategories] = useState<Category[]>([]);
@@ -90,6 +91,7 @@ export function CatalogListClient({
 		if (query) params.set("q", query);
 		if (filters.category) params.set("category_id", filters.category);
 		if (filters.status) params.set("state", filters.status);
+		if (filters.review) params.set("review", "claim");
 		if (cursor) params.set("cursor", cursor);
 		const res = await getJson<Page<ProductSummary>>(
 			`/api/v1/admin/products?${params.toString()}`,
@@ -105,7 +107,7 @@ export function CatalogListClient({
 					}
 				: { state: "error", error: failureText(res.failure) },
 		);
-	}, [query, filters.category, filters.status, cursor]);
+	}, [query, filters.category, filters.status, filters.review, cursor]);
 
 	useEffect(() => {
 		void fetchPage();
@@ -119,6 +121,7 @@ export function CatalogListClient({
 		q: query,
 		kategori: filters.category,
 		status: filters.status,
+		tinjauan: filters.review ? "klaim" : "",
 		hal: page > 1 ? String(page) : "",
 		kursor: chain,
 	};
@@ -135,9 +138,9 @@ export function CatalogListClient({
 		setFilters((prev) => ({ ...prev, ...patch }));
 		setCursors([null]);
 	};
-	const filtered = Boolean(query || filters.category || filters.status);
+	const filtered = Boolean(query || filters.category || filters.status || filters.review);
 	const activeFilters =
-		Number(Boolean(filters.category)) + Number(Boolean(filters.status));
+		Number(Boolean(filters.category)) + Number(Boolean(filters.status)) + Number(filters.review);
 	const detailHref = (id: string) =>
 		`/admin/catalog/${id}${urlQuery ? `?dari=${encodeURIComponent(urlQuery)}` : ""}`;
 	// Readers without stock access get readiness flags, never quantities.
@@ -207,6 +210,7 @@ export function CatalogListClient({
 			{r.published_revision !== null && r.version > r.published_revision && (
 				<span className="text-xs text-muted-foreground">Ada draf baru</span>
 			)}
+			{r.claim_review && <ClaimBadge />}
 		</div>
 	);
 
@@ -235,7 +239,7 @@ export function CatalogListClient({
 				<h2 id="catalog-list-heading" className="sr-only">
 					Daftar produk
 				</h2>
-				<search className="grid gap-3 md:grid-cols-[minmax(0,2fr)_minmax(0,1fr)_minmax(0,1fr)]">
+				<search className="grid gap-3 md:grid-cols-2 xl:grid-cols-[minmax(0,2fr)_repeat(3,minmax(0,1fr))]">
 					<div className="flex flex-col gap-1.5">
 						<label htmlFor="catalog-search" className="text-sm font-medium">
 							Cari produk
@@ -302,6 +306,20 @@ export function CatalogListClient({
 								))}
 							</select>
 						</div>
+						<div className="flex flex-col gap-1.5">
+							<label htmlFor="catalog-review" className="text-sm font-medium">
+								Tinjauan konten
+							</label>
+							<select
+								id="catalog-review"
+								value={filters.review ? "klaim" : ""}
+								onChange={(e) => update({ review: e.target.value === "klaim" })}
+								className={selectClass}
+							>
+								<option value="">Semua produk</option>
+								<option value="klaim">Perlu tinjauan klaim</option>
+							</select>
+						</div>
 					</FilterSheet>
 				</search>
 
@@ -334,7 +352,7 @@ export function CatalogListClient({
 									type="button"
 									variant="outline"
 									size="sm"
-									onClick={() => update({ q: "", category: "", status: "" })}
+									onClick={() => update({ q: "", category: "", status: "", review: false })}
 								>
 									Hapus filter
 								</Button>
@@ -422,6 +440,7 @@ export function CatalogListClient({
 								<CardStatus>
 									{kinds(r)}
 									{stock(r)}
+									{r.claim_review && <ClaimBadge />}
 								</CardStatus>
 							</div>
 						</div>
@@ -460,6 +479,16 @@ export function CatalogListClient({
 				/>
 			</section>
 		</AdminPage>
+	);
+}
+
+/** DEC-013: the name or a photo carries an efficacy, slimming or whitening claim the owner must replace before go-live. */
+export function ClaimBadge() {
+	return (
+		<Badge variant="warning" data-testid="claim-review-badge" className="whitespace-nowrap">
+			<CircleAlert aria-hidden="true" />
+			Perlu tinjauan klaim
+		</Badge>
 	);
 }
 

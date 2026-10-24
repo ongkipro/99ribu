@@ -1,15 +1,22 @@
 "use client";
 
 import {
+	ArrowDown,
 	ArrowLeft,
+	ArrowUp,
 	ChevronRight,
 	CircleAlert,
 	CircleCheck,
 	ImageOff,
+	Pencil,
 } from "lucide-react";
 import Link from "next/link";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { Alert, AlertDescription } from "@/components/ui/alert";
+import { Input } from "@/components/ui/input";
+import { ClaimBadge } from "./catalog-list-client";
+import { FormDialog, FormField } from "./form";
+import { send, useOperationKey } from "./ops-api";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import {
@@ -287,6 +294,7 @@ export function CatalogProductClient({
 									<span className="basis-full">
 										Draf versi {p.version} · {categoryPath(p.category_id, categories) ?? "Tanpa kategori"}
 									</span>
+									{p.claim_review && <ClaimBadge />}
 									{state ? (
 										<StatusBadge tone={STATUS_TONE[catalogStatus(state)]}>
 											{STATUS_LABELS[catalogStatus(state)]}
@@ -360,10 +368,44 @@ export function CatalogProductClient({
 							)}
 						</DetailSection>
 
-						<DetailSection id="info-heading" title="Informasi produk">
+						<DetailSection id="info-heading" title="Informasi produk" testId="product-info">
+							{p.claim_review && (
+								<Alert data-testid="claim-review-notice" className="border-warning/40 bg-warning-surface">
+									<CircleAlert aria-hidden="true" />
+									<AlertDescription className="text-foreground">
+										Perlu tinjauan klaim (DEC-013): nama atau foto memuat klaim khasiat, pelangsing atau pemutih. Ganti nama
+										atau foto sebelum go-live; produk tetap tampil di pencarian, tidak di etalase beranda.
+									</AlertDescription>
+								</Alert>
+							)}
 							<p className="max-w-prose text-sm leading-relaxed whitespace-pre-line">
 								{p.description || "Deskripsi belum diisi."}
 							</p>
+							<dl className="grid gap-x-4 gap-y-1 text-sm sm:grid-cols-[auto_1fr]">
+								<dt className="text-muted-foreground">Kategori Google</dt>
+								<dd data-testid="google-category">
+									{p.google_product_category ? (
+										<>
+											<span className="font-mono">{p.google_product_category}</span>
+											<span className="text-muted-foreground"> · dari dataset katalog, hanya baca</span>
+										</>
+									) : (
+										<span className="text-muted-foreground">Belum ada (produk di luar dataset katalog)</span>
+									)}
+								</dd>
+							</dl>
+							{canEdit && (
+								<ContentAction
+									base={base}
+									product={p}
+									onSaved={(message) => {
+										setNotice(message);
+										void loadProduct(true);
+										void loadPub(true);
+									}}
+									onConflict={() => void loadProduct(true)}
+								/>
+							)}
 							{p.facts.length > 0 && (
 								<dl className="grid gap-x-4 gap-y-1 text-sm sm:grid-cols-[auto_1fr]">
 									{p.facts.map((f) => (
@@ -1323,5 +1365,189 @@ function WithdrawAction({
 				</DialogContent>
 			</Dialog>
 		</div>
+	);
+}
+
+/**
+ * S102 / spec 17 A9: content edit of the draft (title, description, photo order, alt text). Saves a
+ * new draft version with a reason (the API appends a revision; the catalog import then preserves
+ * it). A published product shows the change only after it is published again.
+ */
+function ContentAction({
+	base,
+	product,
+	onSaved,
+	onConflict,
+}: {
+	base: string;
+	product: CatalogProduct;
+	onSaved: (message: string) => void;
+	onConflict: () => void;
+}) {
+	const [open, setOpen] = useState(false);
+	return (
+		<>
+			<Button variant="outline" className="self-start max-md:self-stretch" data-testid="content-edit" onClick={() => setOpen(true)}>
+				<Pencil data-icon="inline-start" aria-hidden="true" />
+				Ubah konten
+			</Button>
+			{open && (
+				<ContentDialog
+					base={base}
+					product={product}
+					onClose={() => setOpen(false)}
+					onConflict={onConflict}
+					onSaved={(message) => {
+						setOpen(false);
+						onSaved(message);
+					}}
+				/>
+			)}
+		</>
+	);
+}
+
+const TITLE_CARD_LIMIT = 40;
+
+function ContentDialog({
+	base,
+	product,
+	onClose,
+	onSaved,
+	onConflict,
+}: {
+	base: string;
+	product: CatalogProduct;
+	onClose: () => void;
+	onSaved: (message: string) => void;
+	onConflict: () => void;
+}) {
+	const [name, setName] = useState(product.name);
+	const [description, setDescription] = useState(product.description);
+	const [images, setImages] = useState(product.images);
+	const [reason, setReason] = useState("");
+	const [error, setError] = useState<string | null>(null);
+	const [pending, setPending] = useState(false);
+	const [moved, setMoved] = useState<{ focus: string; text: string } | null>(null);
+	const key = useOperationKey();
+	const listRef = useRef<HTMLOListElement>(null);
+	// Focus follows the moved photo (same button, or its other button at the list edge) so repeated
+	// moves need no re-navigation; the live region announces the new position.
+	useEffect(() => {
+		if (!moved) return;
+		const list = listRef.current;
+		const target = list?.querySelector<HTMLButtonElement>(`[data-move="${moved.focus}"]:not(:disabled)`);
+		(target ?? list?.querySelector<HTMLButtonElement>(`[data-photo="${moved.focus.split(":")[1]}"] button:not(:disabled)`))?.focus();
+	}, [moved]);
+	const move = (index: number, by: -1 | 1) => {
+		const next = [...images];
+		[next[index], next[index + by]] = [next[index + by], next[index]];
+		setImages(next);
+		setMoved({
+			focus: `${by < 0 ? "up" : "down"}:${index + by}`,
+			text: `Foto dipindah ke posisi ${index + by + 1} dari ${next.length}.`,
+		});
+	};
+	const length = Array.from(name.trim()).length;
+	async function submit() {
+		if (!name.trim()) return setError("Judul wajib diisi.");
+		if (images.some((img) => !img.alt.trim())) return setError("Setiap foto perlu teks alternatif.");
+		if (!reason.trim()) return setError("Alasan wajib diisi.");
+		const cleaned = images.map((img) => ({ ...img, alt: img.alt.trim() }));
+		const changes = {
+			...(name.trim() !== product.name ? { name: name.trim() } : {}),
+			...(description !== product.description ? { description } : {}),
+			...(JSON.stringify(cleaned) !== JSON.stringify(product.images) ? { images: cleaned } : {}),
+		};
+		if (!Object.keys(changes).length) return setError("Belum ada perubahan.");
+		setPending(true);
+		setError(null);
+		const result = await send<CatalogProduct>("PATCH", base, { ...changes, expected_version: product.version, reason: reason.trim() }, key);
+		setPending(false);
+		if (!result.ok) {
+			if (result.code === "VERSION_CONFLICT") onConflict();
+			return setError(result.text);
+		}
+		onSaved(`Konten disimpan sebagai draf versi ${result.data.version}. Produk yang sudah terbit perlu diterbitkan ulang agar perubahan tampil di toko.`);
+	}
+	return (
+		<FormDialog
+			title="Ubah konten produk"
+			description={`Draf versi ${product.version}. Perubahan disimpan sebagai versi draf baru; impor katalog tidak menimpa suntingan staf.`}
+			pending={pending}
+			error={error}
+			submitLabel="Simpan draf"
+			onClose={onClose}
+			onSubmit={() => void submit()}
+		>
+			<FormField
+				id="content-name"
+				label="Judul"
+				hint={`${length} karakter${length > TITLE_CARD_LIMIT ? `; kartu produk menampilkan ±${TITLE_CARD_LIMIT} karakter pertama` : ""}. Tanpa klaim khasiat atau kata promosi.`}
+			>
+				<Input id="content-name" maxLength={200} aria-describedby="content-name-hint" value={name} onChange={(e) => setName(e.target.value)} />
+			</FormField>
+			<FormField id="content-description" label="Deskripsi">
+				<Textarea id="content-description" rows={6} maxLength={10000} value={description} onChange={(e) => setDescription(e.target.value)} />
+			</FormField>
+			<fieldset className="flex min-w-0 flex-col gap-2">
+				<legend className="text-sm font-medium">Foto ({images.length})</legend>
+				<p className="text-xs text-muted-foreground">Foto pertama menjadi sampul. Teks alternatif menjelaskan isi foto untuk pembaca layar.</p>
+				{images.length === 0 ? (
+					<p className="text-sm text-muted-foreground">Belum ada foto.</p>
+				) : (
+					<ol ref={listRef} className="flex flex-col divide-y rounded-md border" data-testid="content-photos">
+						{images.map((img, i) => (
+							<li key={img.url} data-photo={i} className="flex items-start gap-3 p-2">
+								{/* biome-ignore lint/performance/noImgElement: same-origin catalog photo thumbnail */}
+								<img src={img.url} alt="" width={56} height={56} className="size-14 shrink-0 rounded-md border object-cover" />
+								<div className="flex min-w-0 flex-1 flex-col gap-1.5">
+									<FormField id={`content-alt-${i}`} label={i === 0 ? "Foto 1 (sampul): teks alternatif" : `Foto ${i + 1}: teks alternatif`}>
+										<Input
+											id={`content-alt-${i}`}
+											maxLength={500}
+											value={img.alt}
+											onChange={(e) => setImages(images.map((x, j) => (j === i ? { ...x, alt: e.target.value } : x)))}
+										/>
+									</FormField>
+									<div className="flex gap-2">
+										<Button
+											type="button"
+											size="sm"
+											variant="outline"
+											data-move={`up:${i}`}
+											disabled={i === 0}
+											aria-label={`Pindahkan foto ${i + 1} ke atas`}
+											onClick={() => move(i, -1)}
+										>
+											<ArrowUp aria-hidden="true" />
+											Naik
+										</Button>
+										<Button
+											type="button"
+											size="sm"
+											variant="outline"
+											data-move={`down:${i}`}
+											disabled={i === images.length - 1}
+											aria-label={`Pindahkan foto ${i + 1} ke bawah`}
+											onClick={() => move(i, 1)}
+										>
+											<ArrowDown aria-hidden="true" />
+											Turun
+										</Button>
+									</div>
+								</div>
+							</li>
+						))}
+					</ol>
+				)}
+				<p className="sr-only" aria-live="polite">
+					{moved?.text ?? ""}
+				</p>
+			</fieldset>
+			<FormField id="content-reason" label="Alasan" hint="Contoh: ganti klaim di judul, urutkan foto sampul.">
+				<Input id="content-reason" maxLength={500} aria-describedby="content-reason-hint" value={reason} onChange={(e) => setReason(e.target.value)} />
+			</FormField>
+		</FormDialog>
 	);
 }
