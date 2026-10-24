@@ -829,7 +829,7 @@ export async function recoverOrderReceipt(
 // contact). On a denied receipt that offer is the same for every order id, so it says nothing about whether
 // the order exists. Staff and unverified sessions get no card.
 export type OrderAccountOffer =
-	| { kind: "save"; email: string | null }
+	| { kind: "save"; email: string | null; name: string | null }
 	| { kind: "link"; email: string }
 	| null;
 
@@ -877,12 +877,12 @@ export async function readOrderAccountOffer(
 			const actor = await commerceActor(scoped, identity);
 			const order = await authorizeOrderOrContinuity(tx, scoped, identity, actor, targetId);
 			if (order.owner_user_id !== null) return null;
-			const [quote] = await tx<{ email: string | null }[]>`
-				select document->'contact'->>'email' as email
+			const [quote] = await tx<{ email: string | null; name: string | null }[]>`
+				select document->'contact'->>'email' as email, document->'address'->>'recipient_name' as name
 				from app.checkout_quote
 				where id = ${order.quote_id}
 			`;
-			return { kind: "save" as const, email: quote?.email?.trim() || null };
+			return { kind: "save" as const, email: quote?.email?.trim() || null, name: quote?.name?.trim() || null };
 		});
 	} catch {
 		// lazy: an optional card; any failure (access, session, database) hides it instead of the receipt.

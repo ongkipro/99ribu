@@ -2,12 +2,12 @@
 
 import Link from "next/link";
 import { useEffect, useRef, useState } from "react";
-import { type AuthMode, authHref, codeInput, failureKind, failureMessage, type SignInFailure, type SignInStep, signInHref } from "./sign-in-copy";
+import { type AuthMode, authHref, codeInput, failureKind, failureMessage, type SignInStep, signInHref } from "./sign-in-copy";
 import { Icon } from "./ui/icon";
 import { Wordmark } from "./ui/brand";
 
 type Field = "email" | "password" | "code";
-export type SignInError = { message: string; field: Field | null; kind?: SignInFailure };
+export type SignInError = { message: string; field: Field | null };
 export type ModeSwitch = (mode: AuthMode, email?: string) => void;
 
 // "Masuk / Daftar" (S123): real links to the two /masuk URLs, so the switch also works without JS; with
@@ -90,7 +90,7 @@ export function SignInForm({ next, step: initialStep = "password", error: initia
 		else if (result.status === 200) finish();
 		else {
 			const kind = failureKind(result.status, result.payload?.code);
-			setError({ message: failureMessage(kind, step, result.retry), field: kind === "credential" ? (step === "password" ? "password" : "code") : null, kind });
+			setError({ message: failureMessage(kind, step, result.retry), field: kind === "credential" ? (step === "password" ? "password" : "code") : null });
 		}
 	}
 
@@ -107,13 +107,6 @@ export function SignInForm({ next, step: initialStep = "password", error: initia
 			<Icon name="alert" size={16} />
 			<p>{error.message}</p>
 		</div>
-	);
-	// An unverified account (password already matched) gets the resend step with the typed email.
-	const resend = error?.kind === "unverified" && (
-		<p className="signin-links">
-			<a href={authHref(next, "cek-email")} data-testid="signin-resend-link"
-				onClick={onMode ? (event) => { event.preventDefault(); onMode("cek-email", String(new FormData(event.currentTarget.closest("form") ?? undefined).get("email") ?? "").trim()); } : undefined}>Kirim tautan verifikasi baru</a>
-		</p>
 	);
 	const invalid = (field: Field) => error?.field === field || (field === "email" && error?.field === "password") || undefined;
 	const described = (field: Field) => (error?.field === field ? "signin-error" : undefined);
@@ -157,7 +150,6 @@ export function SignInForm({ next, step: initialStep = "password", error: initia
 				</div>
 			)}
 			{alert}
-			{resend}
 			<button className="button signin-submit" type="submit" disabled={pending}>{pending ? "Memeriksa…" : step === "password" ? "Masuk" : "Verifikasi"}</button>
 			{step === "password" ? (
 				<p className="signin-hint">

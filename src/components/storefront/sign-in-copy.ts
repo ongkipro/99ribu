@@ -2,11 +2,10 @@
 // (masuk/kirim/route.ts) and the server-rendered /masuk page. Messages never say whether an email exists:
 // only a credential rejection says the email, password or code did not match.
 export type SignInStep = "password" | "totp" | "backup";
-export type SignInFailure = "origin" | "limit" | "disabled" | "network" | "credential" | "unverified";
+export type SignInFailure = "origin" | "limit" | "disabled" | "network" | "credential";
 
 export function failureKind(status: number, code: unknown): SignInFailure {
 	if (status === 403 && code === "INVALID_ORIGIN") return "origin";
-	if (status === 403 && code === "EMAIL_NOT_VERIFIED") return "unverified";
 	if (status === 429) return "limit";
 	if (status === 503) return "disabled";
 	if (status === 0 || status >= 500) return "network";
@@ -18,7 +17,6 @@ export function failureMessage(kind: SignInFailure, step: SignInStep, retry: num
 	if (kind === "limit") return limitMessage(retry);
 	if (kind === "disabled") return "Layanan masuk sedang dinonaktifkan sementara. Coba lagi nanti.";
 	if (kind === "network") return "Tidak bisa terhubung. Coba lagi.";
-	if (kind === "unverified") return "Email ini belum diverifikasi. Buka tautan verifikasi di email pendaftaran, atau kirim tautan baru.";
 	if (step === "password") return "Email atau kata sandi tidak cocok. Periksa kembali lalu coba lagi.";
 	return "Kode tidak cocok atau verifikasi sudah kedaluwarsa. Coba kode terbaru, atau mulai ulang dari email dan kata sandi.";
 }
@@ -83,7 +81,7 @@ export function signUpFailureMessage(kind: SignUpFailure, retry: number | null) 
 	if (kind === "limit") return limitMessage(retry);
 	if (kind === "closed") return "Pendaftaran belum dibuka. Belanja tetap bisa tanpa akun.";
 	if (kind === "network") return "Tidak bisa terhubung. Coba lagi.";
-	if (kind === "empty") return "Isi nama, email, dan kata sandi.";
+	if (kind === "empty") return "Isi nama dan email.";
 	if (kind === "password") return `Kata sandi minimal ${PASSWORD_MIN} karakter.`;
 	if (kind === "email") return "Masukkan alamat email yang valid, contoh: nama@email.com.";
 	if (kind === "test-email") return "Profil lokal hanya menerima email uji yang berakhiran .test atau .invalid.";

@@ -3,24 +3,24 @@
 import Link from "next/link";
 import { useEffect, useRef, useState } from "react";
 import { authHref, signInHref } from "./sign-in-copy";
-import { handOffSignUpEmail } from "./sign-up-form";
+import { handOffSignUp } from "./sign-up-form";
 import { Icon } from "./ui/icon";
 
 // S123 receipt account cards (pesanan/[orderId]/page.tsx, from orders/receipt.ts:readOrderAccountOffer).
 
 // A guest viewing their own receipt: "Daftar" opens the sign-up modal with `next` back to this receipt and
-// the order's contact email pre-filled (handed over in memory; the server only passes it to a viewer
+// the order's contact email and recipient name pre-filled (handed over in memory; the server only passes it to a viewer
 // holding this order's access).
-export function OrderSaveCard({ path, email }: { path: string; email: string | null }) {
+export function OrderSaveCard({ path, email, name }: { path: string; email: string | null; name: string | null }) {
 	return (
 		<section className="receipt-card receipt-account" aria-labelledby="receipt-account-heading" data-testid="order-save-card">
 			<h2 id="receipt-account-heading">Simpan pesanan ini ke akun</h2>
 			<p>Lacak pesanan dari halaman Akun, simpan alamat untuk belanja berikutnya, dan lihat riwayat belanja.</p>
 			<p className="checkout-hint">
-				Daftar{email ? " dengan email pesanan ini" : ""}, buka tautan verifikasi di email, lalu masuk. Setelah masuk, pesanan dihubungkan ke akun dengan kode 6 digit yang dikirim ke email atau nomor HP pesanan.
+				Daftar{email ? " dengan email pesanan ini" : ""}, lalu buat kata sandi lewat tautan di email; Anda langsung masuk kembali ke halaman ini. Pesanan lalu dihubungkan ke akun dengan kode 6 digit yang dikirim ke email atau nomor HP pesanan.
 			</p>
 			<div className="receipt-account-actions">
-				<Link className="button" href={authHref(path, "daftar")} data-testid="order-save-signup" onClick={() => { if (email) handOffSignUpEmail(path, email); }}>Daftar</Link>
+				<Link className="button" href={authHref(path, "daftar")} data-testid="order-save-signup" onClick={() => { if (email) handOffSignUp(path, email, name); }}>Daftar</Link>
 				<Link className="button button-secondary" href={signInHref(path)}>Sudah punya akun? Masuk</Link>
 			</div>
 		</section>

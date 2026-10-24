@@ -1,6 +1,6 @@
 import { getLocalAuth } from "@/modules/access/auth";
 import { handleAuth } from "@/modules/access/handler";
-import { PASSWORD_PATH, safeReturnPath, verificationCallback } from "@/modules/access/return-to";
+import { PASSWORD_PATH, safeReturnPath, activationCallback } from "@/modules/access/return-to";
 import { type AuthMode, authHref, codeInput, failureKind, type SignInStep, signInHref, signUpFailureKind } from "@/components/storefront/sign-in-copy";
 
 export const runtime = "nodejs";
@@ -39,6 +39,7 @@ export async function POST(request: Request) {
 	const back = (query: Record<string, string>) => {
 		const url = new URL(PASSWORD_PATH, "http://localhost");
 		if (activation) url.searchParams.set("aktivasi", "1");
+		if (next) url.searchParams.set("next", next);
 		for (const [key, value] of Object.entries(query)) url.searchParams.set(key, value);
 		return new Response(null, { status: 303, headers: { location: url.pathname + url.search, "cache-control": "no-store", "referrer-policy": "no-referrer" } });
 	};
@@ -56,10 +57,10 @@ export async function POST(request: Request) {
 		if (!email || !password) return go(step, { galat: "kosong" });
 		body = { email, password };
 	} else if (step === "signup") {
-		const name = form.get("name")?.trim() ?? "", email = form.get("email")?.trim() ?? "", password = form.get("password") ?? "";
-		if (!name || !email || !password) return go("daftar", { galat: "empty" });
+		const name = form.get("name")?.trim() ?? "", email = form.get("email")?.trim() ?? "";
+		if (!name || !email) return go("daftar", { galat: "empty" });
 		path = "/api/auth/sign-up/email";
-		body = { name, email, password, callbackURL: verificationCallback(next) };
+		body = { name, email, callbackURL: activationCallback(next) };
 	} else if (step === "reset") {
 		const password = form.get("password") ?? "";
 		if (!/^[A-Za-z0-9_-]{8,128}$/.test(token)) return back({ galat: "token" });
@@ -70,7 +71,7 @@ export async function POST(request: Request) {
 		const email = form.get("email")?.trim() ?? "";
 		if (!email) return go("cek-email", { galat: "email" });
 		path = "/api/auth/send-verification-email";
-		body = { email, callbackURL: verificationCallback(next) };
+		body = { email, callbackURL: activationCallback(next) };
 	} else {
 		const input = codeInput(step, form.get("code") ?? "");
 		if (input.code === null) return go(step, { galat: "format" });
@@ -80,7 +81,7 @@ export async function POST(request: Request) {
 	const headers = new Headers(request.headers);
 	headers.set("content-type", "application/json");
 	headers.delete("content-length");
-	const response = await handleAuth(new Request(new URL(path, request.url), { method: "POST", headers, body: JSON.stringify(body) }), getLocalAuth());
+	const response = await handleAuth(new Request(new URL(path, request.url), { method: "POST", headers, body: JSON.stringify(body) }), getLocalAuth(), { public: true });
 	const cookies = response.headers.getSetCookie();
 	const payload = (await response.json().catch(() => null)) as Record<string, unknown> | null;
 	// Better Auth's own limiter answers 429 with X-Retry-After; ours sends Retry-After.

@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import { authHref, cooldownLabel, failureKind, modeFromParam, passwordHint, signUpFailureField, signUpFailureKind, signUpFailureMessage } from "../src/components/storefront/sign-in-copy.ts";
-import { isVerificationCallback, safeReturnPath, VERIFIED_PATH, verificationCallback } from "../src/modules/access/return-to.ts";
+import { ACTIVATION_CALLBACK, activationCallback, isActivationCallback, isVerificationCallback, safeReturnPath, VERIFIED_PATH, verificationCallback } from "../src/modules/access/return-to.ts";
 
 // S123 sign-up: pure URL and copy rules shared by the forms, /masuk/kirim and handleAuth.
 
@@ -19,6 +19,17 @@ test("the verification callback only returns to the landing page with a validate
 	// /masuk and everything under it is never a sign-in destination (no loops through the landing page).
 	for (const path of ["/masuk", "/masuk/verifikasi", "/masuk/kirim", "/masuk/verifikasi?next=%2Fakun"]) assert.equal(safeReturnPath(path), null, path);
 	assert.equal(safeReturnPath("/masukan"), "/masukan");
+});
+
+test("the set-password (activation) callback carries only a validated next", () => {
+	assert.equal(activationCallback(null), ACTIVATION_CALLBACK);
+	assert.equal(activationCallback("/pesanan/abc"), "/masuk/atur-sandi?aktivasi=1&next=%2Fpesanan%2Fabc");
+	for (const next of [null, "/akun", "/pesanan/0b1c2d3e-0000-4000-8000-000000000000"]) assert.ok(isActivationCallback(activationCallback(next)), String(next));
+	for (const hostile of [
+		undefined, null, "", "/masuk/atur-sandi", "/masuk/verifikasi", "/masuk/atur-sandi?aktivasi=1&next=%2F%2Fevil.invalid",
+		"/masuk/atur-sandi?aktivasi=1&next=https%3A%2F%2Fevil.invalid", "/masuk/atur-sandi?aktivasi=1&next=%2Fakun&token=x",
+		"/masuk/atur-sandi?aktivasi=1&next=%2Fmasuk%2Fkirim", "https://evil.invalid/masuk/atur-sandi?aktivasi=1",
+	]) assert.equal(isActivationCallback(hostile), false, String(hostile));
 });
 
 test("sign-up URLs keep next and never carry form values", () => {
@@ -41,8 +52,8 @@ test("sign-up and resend failures are named by cause; production's closed gate r
 	assert.equal(signUpFailureField("password"), "password");
 	assert.equal(signUpFailureField("test-email"), "email");
 	assert.equal(signUpFailureField("limit"), null);
-	// Only a matched password reaches EMAIL_NOT_VERIFIED; every other sign-in rejection stays "credential".
-	assert.equal(failureKind(403, "EMAIL_NOT_VERIFIED"), "unverified");
+	// Sign-in has one uniform rejection: an unverified public account holds only a random password nobody knows.
+	assert.equal(failureKind(403, "EMAIL_NOT_VERIFIED"), "credential");
 	assert.equal(failureKind(401, "INVALID_CREDENTIALS"), "credential");
 	assert.equal(failureKind(403, "FORBIDDEN"), "credential");
 });

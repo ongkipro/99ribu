@@ -1160,7 +1160,11 @@ export default async function OrderReceiptPage({
 							</p>
 						)}
 						{account?.kind === "save" && (
-							<OrderSaveCard path={path} email={account.email} />
+							<OrderSaveCard
+								path={path}
+								email={account.email}
+								name={account.name}
+							/>
 						)}
 						{account?.kind === "link" && (
 							<OrderLinkCard orderId={order.id} email={account.email} />
