@@ -5,6 +5,7 @@ import {handleAccess} from '../../src/modules/access/routes.ts';
 import {packingDeadline} from '../../src/modules/fulfillment/calendar.ts';
 import {handleWarehouseCalendars} from '../../src/modules/settings/calendars.ts';
 import {actor,enroll} from '../contract/access-fixture.ts';
+import {validateExchanges,type Exchange} from '../contract/openapi-probe.ts';
 import {closeFulfillmentActor,fulfillmentFixture} from './fulfillment-fixture.ts';
 
 type Row={warehouse_id:string;origin:boolean;state:string;scheduled:boolean;latest_version:number;local_year:number;current:{version:number;values:{year:number;working_weekdays:number[];source:string}}|null};
@@ -12,13 +13,15 @@ type Row={warehouse_id:string;origin:boolean;state:string;scheduled:boolean;late
 // S101: owner calendar coverage and the audited bulk default for origin warehouses that have no
 // current calendar, so resi deadlines compute. Uses the fixture namespace's own warehouses only.
 test('owner applies one default calendar to its uncovered origin warehouses with one proof, all or nothing, audited',{timeout:120000},async()=>{
- const f=await fulfillmentFixture('cod',{calendars:false}),sql=f.identity.sql,users:Awaited<ReturnType<typeof actor>>[]=[];
+ const f=await fulfillmentFixture('cod',{calendars:false}),sql=f.identity.sql,users:Awaited<ReturnType<typeof actor>>[]=[],samples:Exchange[]=[];
  try{
   const warehouses=(await sql`select warehouse_id from app.local_fixture_warehouse where namespace=${f.namespace} order by warehouse_id`).map(row=>String(row.warehouse_id));
   assert.ok(warehouses.length>=2);
   const call=async(browser:typeof f.owner.browser,path:string,body?:Record<string,unknown>,key=randomUUID())=>{
    const request=browser.request(path,body);if(body)request.headers.set('idempotency-key',key);
-   const response=await handleWarehouseCalendars(request,f.identity);return {status:response.status,payload:await response.json(),headers:response.headers};
+   const response=await handleWarehouseCalendars(request,f.identity),payload=await response.json();
+   samples.push({url:request.url,method:request.method,request_headers:Object.fromEntries([...request.headers].filter(([name])=>['idempotency-key','content-type'].includes(name))),...(body?{request_body:JSON.stringify(body),body_bytes:Buffer.byteLength(JSON.stringify(body))}:{}),status:response.status,headers:Object.fromEntries(response.headers),payload});
+   return {status:response.status,payload,headers:response.headers};
   };
   const proof=async(subject='origin-warehouses',action='warehouse_calendar.default_apply')=>{
    const request=f.owner.browser.request('/api/v1/me/reauthentication-proofs',{password:f.owner.password,action,subject_id:subject});request.headers.set('idempotency-key',randomUUID());
@@ -79,5 +82,6 @@ test('owner applies one default calendar to its uncovered origin warehouses with
   assert.equal(again.status,409);assert.equal(again.payload.code,'CALENDAR_ALREADY_CURRENT');
   // A non-origin or unknown warehouse is refused.
   assert.equal((await call(f.owner.browser,'/api/v1/admin/warehouse-calendars/default-applications',body('not-consumed',{warehouse_ids:[randomUUID()]}))).payload.code,'INVALID_WAREHOUSE_SCOPE');
+  validateExchanges(samples,'warehouse-calendars');
  }finally{for(const user of users)await closeFulfillmentActor(f.identity,user);await f.close();}
 });

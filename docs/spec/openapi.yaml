@@ -14877,7 +14877,7 @@ paths:
             application/problem+json:
               schema:
                 $ref: '#/components/schemas/Problem'
-      x-proof-group: returns
+      x-proof-group: return-evidence
       x-implementation: src/app/api/v1/admin/returns/[returnId]/evidence/[evidenceId]/route.ts
   /admin/warehouse-calendars:
     get:
@@ -14896,7 +14896,7 @@ paths:
       x-primary-requirement: PR-20
       x-allowed-roles:
       - owner
-      x-proof-group: settings
+      x-proof-group: warehouse-calendars
       responses:
         '200':
           description: Private coverage list.
@@ -14943,7 +14943,7 @@ paths:
       x-primary-requirement: PR-20
       x-allowed-roles:
       - owner
-      x-proof-group: settings
+      x-proof-group: warehouse-calendars
       parameters:
       - $ref: '#/components/parameters/IdempotencyKey'
       x-request-body-limit-bytes: 16384
@@ -28312,6 +28312,12 @@ x-operation-owners:
 x-implementation-boundary: Only implemented-local operations have handler evidence. Domain ownership records responsibility,
   not implemented modules. Vendor /api/auth endpoints use the separate S06/S09 auth contract and tests.
 x-proof-groups:
+  return-evidence:
+    integration: tests/integration/admin-returns.test.ts
+    browser: tests/integration/admin-returns.test.ts
+  warehouse-calendars:
+    integration: tests/integration/warehouse-calendars.test.ts
+    browser: tests/integration/warehouse-calendars.test.ts
   autolaris-callbacks:
     integration: tests/integration/autolaris-payments.test.ts
     browser: tests/integration/autolaris-payments.test.ts

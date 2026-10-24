@@ -8,6 +8,7 @@ import {createReturn} from '../../src/modules/returns/cases.ts';
 import {ingestParcelReceiptSource,simulateParcelReceipt} from '../../src/modules/returns/receipt-source.ts';
 import {handleReturns} from '../../src/modules/returns/routes.ts';
 import {deletePrivateArtifact,savePrivateArtifact} from '../../src/storage/private.ts';
+import {validateExchanges,type Exchange} from '../contract/openapi-probe.ts';
 import {actor,enroll} from '../contract/access-fixture.ts';
 import {closeFulfillmentActor} from './fulfillment-fixture.ts';
 import {returnFixture} from './return-fixture.ts';
@@ -40,6 +41,14 @@ test('staff return screens read names, history and evidence under scope and deci
    const request=browser.request(path,body);if(body)request.headers.set('idempotency-key',randomUUID());
    return handleReturns(request,f.identity);
   };
+  // Evidence exchanges for the return-evidence contract proof group (binary success, Problem denials).
+  const evidenceSamples:Exchange[]=[];
+  const evidence=async(browser:Requester,path:string)=>{
+   const request=browser.request(path),response=await handleReturns(request,f.identity),headers=Object.fromEntries(response.headers);
+   const binary=response.status<400,body=Buffer.from(await response.clone().arrayBuffer());
+   evidenceSamples.push({url:request.url,method:'GET',request_headers:{},request_valid:true,status:response.status,headers,payload:binary?'':JSON.parse(body.toString('utf8'))});
+   return response;
+  };
   const json=async(browser:Requester,path:string,body?:Record<string,unknown>,status=body?201:200)=>{
    const response=await call(browser,path,body);const payload=await response.json();assert.equal(response.status,status,JSON.stringify(payload));return payload;
   };
@@ -66,12 +75,12 @@ test('staff return screens read names, history and evidence under scope and deci
    values (${evidenceId},${mixed.id},${f.order.id},'SYNTHETIC','image/png',${PNG.byteLength},${'0'.repeat(64)},${artifact},'attached',clock_timestamp()+interval '1 hour')`;
   const withEvidence=await json(f.owner.browser,`/api/v1/admin/returns/${mixed.id}`) as Case;
   assert.deepEqual(withEvidence.evidence?.map(e=>[e.id,e.content_type]),[[evidenceId,'image/png']]);
-  const bytes=await call(f.owner.browser,`/api/v1/admin/returns/${mixed.id}/evidence/${evidenceId}`);
+  const bytes=await evidence(f.owner.browser,`/api/v1/admin/returns/${mixed.id}/evidence/${evidenceId}`);
   assert.equal(bytes.status,200);assert.equal(bytes.headers.get('content-type'),'image/png');assert.equal(bytes.headers.get('cache-control'),'no-store');
   assert.equal(bytes.headers.get('x-content-type-options'),'nosniff');assert.match(bytes.headers.get('content-security-policy')??'',/sandbox/);
   assert.deepEqual(Buffer.from(await bytes.arrayBuffer()),PNG);
   assert.ok((await sql`select 1 from app.audit_event where actor_id=${f.principal.id} and action='return.evidence.read' and subject_id=${mixed.id}`).length);
-  assert.equal((await call(f.owner.browser,`/api/v1/admin/returns/${mixed.id}/evidence/${randomUUID()}`)).status,404);
+  assert.equal((await evidence(f.owner.browser,`/api/v1/admin/returns/${mixed.id}/evidence/${randomUUID()}`)).status,404);
   assert.equal((await call(f.owner.browser,`/api/v1/admin/returns/${mixed.id}/evidence/${evidenceId}?x=1`)).status,400);
 
   // A CS agent scoped to one parcel's warehouse: partial case, no evidence, no components, evidence bytes refused.
@@ -79,8 +88,9 @@ test('staff return screens read names, history and evidence under scope and deci
   const partial=await json(cs.browser,`/api/v1/admin/returns/${mixed.id}`) as Case;
   assert.equal(partial.items_complete,false);assert.deepEqual(partial.evidence,[]);assert.equal(partial.items.length,1);assert.equal(partial.items[0].components,undefined);
   assert.equal(JSON.stringify(partial).includes(`SYNTHETIC staff screen claim ${right.id}`),false);
-  assert.equal((await call(cs.browser,`/api/v1/admin/returns/${mixed.id}/evidence/${evidenceId}`)).status,404);
-  assert.equal((await call(f.client,`/api/v1/admin/returns/${mixed.id}/evidence/${evidenceId}`)).status,401);
+  assert.equal((await evidence(cs.browser,`/api/v1/admin/returns/${mixed.id}/evidence/${evidenceId}`)).status,404);
+  assert.equal((await evidence(f.client,`/api/v1/admin/returns/${mixed.id}/evidence/${evidenceId}`)).status,401);
+  validateExchanges(evidenceSamples,'return-evidence');
 
   // Decide (owner, goods required) → awaiting_goods; the decision appears in the history with the staff name.
   const decided=await json(f.owner.browser,`/api/v1/admin/returns/${mixed.id}/decisions`,{decision:'approve_refund',requires_goods:true,expected_version:detail.version,reason:'SYNTHETIC staff screen approval'});
