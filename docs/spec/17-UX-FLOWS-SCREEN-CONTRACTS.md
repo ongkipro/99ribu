@@ -172,6 +172,7 @@ Acceptance scenario set: guest two-warehouse prepaid and COD; one route COD-inel
 | Date | Change | Approval |
 |---|---|---|
 | 2026-10-15 | Initial buyer, operator and affiliate workflow proposal | Pending owner review |
+| 2026-10-25 | Admin console IA and screen contracts: navigation per role, account menu, inventory of 41 screens (10 exist, 4 partial, 27 missing), gap matrix, slice plan (S101/S102/S110/S125/S126 reused, S128–S137 proposed), dev-log mechanism, owner questions Q1–Q5 | Owner request 2026-10-25; slices pending coordinator insertion into TASKS |
 
 ## Presentation refinement — 2026-10-15 proposal
 Storefront emphasizes search and category/attribute discovery because prices are equal. Sorting proposal: relevance, newest and actual popularity only when measured; no manufactured bestseller count. PDP attributes vary by category: skincare ingredients/size/expiry facts, electronics specification/compatibility/warranty, and fashion size/material with clear variant validation.
@@ -884,3 +885,207 @@ Actors: warehouse staff (assigned warehouses only), ecommerce admin, owner; fina
 | `/admin/cod-settlements` "Setoran COD Mengantar" (finance) | Sidebar "Setoran COD" | Statements: reference, statement date, collected, received, expected net, settlement status, mismatch flags | "Catat setoran COD" dialog: pick shipped COD parcels (amount prefilled with the frozen due), deductions (Mengantar shipping, COD fee, other), net received, evidence, reason, password confirmation (finance.reconcile proof) | live balance hint ("tidak seimbang, akan ditandai"); flags never block recording |
 
 Buyer order page: a manually booked parcel shows the actual courier name, the resi and "Status kurir" (picked up / in transit / delivered / failed) from the tracking seam. Pickup address, PIC name and phone never appear on buyer, public or export surfaces. Rendered browser proof at 390 and 1440 px is required before acceptance.
+
+## Admin console — information architecture and screen contracts (2026-10-25)
+
+Owner request 2026-10-25: complete the admin console (menu, every menu's page, settings, profile and the rest), refine the UI/UX, document first and then develop, and keep a development log. This section is the single inventory for that work. It extends the Screen Inventory, the Permission and Visibility Matrix, the Super Admin/History/Finance/Settings contracts, the Indonesia Admin Workspaces section and the CS inbox contract above; it does not replace them. Roles and permissions stay owned by [07-IAM-RBAC-ABAC.md](07-IAM-RBAC-ABAC.md); wire contracts by [openapi.yaml](openapi.yaml) (operationIds below are cited from it; paths are relative to `/api/v1`); actual implementation by [ARCHITECTURE.md](../../ARCHITECTURE.md#admin-console-architecture-s113); slices by [TASKS.md](../../TASKS.md). Status: proposal; nothing in this section is implemented by this change.
+
+Evidence base (read 2026-10-25 on `main` at `0ac607d`): routes `src/app/admin/(console)/**`, shell `src/components/admin/admin-shell.tsx`, gates `src/components/admin/console-access.ts`, `catalog-model.ts:catalogAccess`, `order-model.ts:canReadOrders`, renders [`design/renders/admin-mobile/`](design/renders/admin-mobile/) (76 PNGs, 390/768/1440).
+
+### Roles and the "client operator" gap
+
+Canonical staff roles (`src/modules/access/policy.ts:roles`): `owner` (UI Super Admin), `ecommerce_admin`, `warehouse`, `customer_service`, `finance`. Grants (`permissions`): `orders.history.read`, `finance.summary.read`, `finance.costs.read|write`, `finance.reconciliation.read|write`, `finance.refunds.read|write`, `exports.read|download`, `shipping.labels.read|generate|print`. Warehouse scope comes from `app.warehouse_membership`.
+
+**Gap:** no document defines a "client operator". The phrase appears once, undefined, in the [Phone pattern catalogue](../../ARCHITECTURE.md#phone-pattern-catalogue-admin-mobile-pass-2026-10-25). There is no matching role, grant or route. DEC-007 rules out any seller payable or settlement, so a Berlapak seller is not a tenant here. This IA plans no client-operator screens until the owner answers Q1 below.
+
+### Navigation per role
+
+Sidebar groups (shadcn `Sidebar`; Sheet below `md`, icon rail `md`–`lg`, expanded from `lg`). An item is shown only when the role could hold the destination's grant. The page and the API check again on every request. Group labels and item labels are UI copy (Indonesian). Routes stay English (DEC-010).
+
+Legend: **Y** = visible; **S** = visible, rows limited to assigned warehouses; **G** = visible only with the named grant; **R** = read-only; **—** = hidden.
+
+| Group | Item → route | owner | ecommerce_admin | warehouse | customer_service | finance |
+|---|---|---|---|---|---|---|
+| Ruang Kerja | Workspace lens → `/admin?workspace=<role>` (one per granted role) | all 5 lenses | own | own | own | own |
+| Operasional | Pesanan → `/admin/orders` | Y | G `orders.history.read`, S | — | G `orders.history.read` | G `orders.history.read`, S |
+| | Pengiriman Manual → `/admin/fulfillment` | Y | S | S | — | — |
+| | Pusat Cetak Label → `/admin/print-center` | Y | S | S | — | — |
+| | Masalah Pengiriman → `/admin/exceptions` (new) | Y | S | S | Y | R |
+| | Retur & Penggantian → `/admin/returns` (new) | Y | S | S (inspection) | Y | R (refund side) |
+| | Kotak Masuk Pelanggan → `/admin/support` | Y | — | — | Y | — |
+| Katalog & Stok | Produk → `/admin/catalog` | Y | S | S R (stock view) | — | G `finance.costs.read` R |
+| | Kategori → `/admin/catalog/categories` (new) | Y | Y | — | — | — |
+| | Stok Gudang → `/admin/inventory` (new) | Y | S | S | — | — |
+| | Transfer Stok → `/admin/inventory/transfers` (new) | Y | S | S | — | — |
+| | Gudang → `/admin/warehouses` (new) | Y | S | S R | — | — |
+| Pemasaran | Promo Ongkir → `/admin/promotions/shipping` (new) | Y | Y | — | — | — |
+| | Banner Beranda → `/admin/banners` (new, S110) | Y | Y | — | — | — |
+| | Afiliasi → `/admin/affiliates` (new) | Y | — | — | — | R (owner question Q5) |
+| | Segmen Pembeli → `/admin/segments` (new, S126) | Y | R | — | — | — |
+| Keuangan | Pembayaran → `/admin/payments` | Y | — | — | — | G `finance.reconciliation.read` |
+| | Setoran COD → `/admin/cod-settlements` | Y | — | — | — | G `finance.reconciliation.read` |
+| | Rekonsiliasi → `/admin/finance/reconciliation` (new) | Y | — | — | — | G `finance.reconciliation.read` |
+| | Pembayaran Komisi → `/admin/finance/payouts` (new) | Y | — | — | — | Y |
+| | Refund → `/admin/finance/refunds` (new) | Y | — | — | — | G `finance.refunds.read` |
+| | Laporan Keuangan → `/admin/finance/summary` (new) | Y | — | — | — | G `finance.summary.read` |
+| Pengaturan | Staf & Peran → `/admin/settings/staff` (new) | Y | — | — | — | — |
+| | Pembayaran & Biaya COD → `/admin/settings/payment` (moved from Pembayaran) | Y | — | — | — | R (Q3) |
+| | Kebijakan Komersial → `/admin/settings/commercial` (new) | Y | — | — | — | R (Q3) |
+| | Template Label → `/admin/settings/label-templates` (new) | Y | R | R | — | — |
+| | Integrasi Iklan → `/admin/settings/advertising` (moved from the owner dashboard) | Y | R (redacted diagnostics) | — | — | — |
+| | Balasan & Tag CS → `/admin/settings/support` (new) | Y | — | — | R (supervisor manages) | — |
+| | Log Audit → `/admin/settings/audit` (new) | Y | — | — | — | — (Q4) |
+| | Kesehatan Sistem → `/admin/settings/system` (new) | Y | — | — | — | — |
+| Footer | Lihat Toko → `/` (full document navigation) | Y | Y | Y | Y | Y |
+| Footer | Account menu (below) | Y | Y | Y | Y | Y |
+
+Rules: a group with zero visible items is not rendered. A one-item group joins its neighbour, which keeps the 2026-10-24 render-review rule. A multi-role user sees the union of items, and switching lens grants nothing. The Pengaturan group starts collapsed for owner, with the current page's group expanded.
+
+Default landing after `/masuk?next=/admin`: `/admin?workspace=<first granted role>` in the fixed order owner → ecommerce_admin → warehouse → customer_service → finance. This is the current behaviour of `admin-workspaces-client.tsx`. An explicit `?workspace=` outside the grants falls back to that role. Each lens opens on its attention queue: warehouse sees fulfillments due, CS sees unclaimed conversations, finance sees unmatched reconciliation.
+
+**Account menu** (sidebar footer trigger showing name and email; on phones it is the last block of the Sheet). It replaces the current `session-bar.tsx` strip:
+
+| Item | Route / action | API | Notes |
+|---|---|---|---|
+| Profil | `/admin/account` | `getCurrentUser` (read) | Name, email, roles, grants, assigned warehouses (read-only; role changes only via Staf & Peran) |
+| Keamanan akun → Kata sandi | `/admin/account/security` | **API missing**: change-password is not on the `access/handler.ts` allowlist; `request-password-reset` exists but is closed in production | Current password, new password ≥ 12 characters, revoke other sessions option |
+| Keamanan akun → Verifikasi dua langkah | same | `two-factor/enable` exists; status, backup-code regeneration and disable: **API missing** | Staff cannot turn off MFA themselves (MFA is mandatory, spec 07). Lost-device recovery path: owner question Q2 |
+| Keamanan akun → Sesi aktif | same | `terminateOwnSessions`; session list: **API missing** | **Broken contract:** OpenAPI `SessionTerminationInput` takes `scope: current\|all_other` and requires `reauthentication_proof` for `all_other`, but `src/modules/accounts/service.ts` (handler 11) accepts `others\|all` and checks no proof. Fix before building UI (S129) |
+| Keluar | `POST /api/auth/sign-out` (existing `SignOutButton`) | existing | Returns to `/masuk?next=%2Fadmin`; clears the console's private state |
+
+Signed-out behaviour: today the console renders a "Pratinjau tanpa sesi staf" preview with all workspaces (`layout.tsx`). In production a signed-out request must redirect to `/masuk?next=<path>`, and the preview stays local/test only (S128).
+
+### Screen inventory
+
+Columns: **Data** = operationIds (paths relative to `/api/v1`); **States** use L loading, E empty (first-use vs filtered), X error, D denied, S stale, C conflict; **Step-up** = `issueStaffReauthenticationProof` purpose; **Phone** = block from the [Phone pattern catalogue](../../ARCHITECTURE.md#phone-pattern-catalogue-admin-mobile-pass-2026-10-25). All screens: MFA-verified staff session; every mutation writes `app.audit_event` in its transaction; private no-store.
+
+#### Existing routes
+
+| # | Route | Purpose / primary user | Data | Primary / secondary actions | States | Step-up / audit | Phone | Status (evidence) |
+|---|---|---|---|---|---|---|---|---|
+| A1 | `/admin` | Role lens: attention KPIs → queue; all roles | `getRoleDashboard`, `listRoleWorkQueue`, `freezeScopedExportSelection`, `downloadScopedCsvExport`, `getCurrentUser` | Open drilldown / Ekspor CSV (`exports.download`) | L E X D S | export audited | Dashboard block, `StickyActions` (export) | exists (`dashboard-*-{390,768,1440}.png`) |
+| A2 | `/admin/queue` | Full work queue behind "Lihat semua" | `listRoleWorkQueue` | Open row / Muat baris berikutnya | L E X D | — | DataTable `card` | exists (`queue-page-owner-*.png`) |
+| A3 | `/admin/orders` | Search orders by number/resi/phone suffix (DEC-014 proposed) | `listAdminOrderHistory` | Open detail / filters | L E X D | search rate limit | DataTable `stack`, FilterSheet | exists (`orders-owner-*.png`, `state-{empty,error,loading}-orders-*.png`) |
+| A4 | `/admin/orders/[orderId]` | Order detail with history; CS/owner/finance/ecommerce | `getAdminOrderHistory` | Links to fulfillment, payments, support; later S101 return actions, S125 "Klaim akun" | L X D S | — | `DetailSection` | exists for S100 read scope (`order-detail-owner-*.png`); actions arrive with S101/S125 |
+| A5 | `/admin/fulfillment` | Manual Mengantar booking (S91/S99); warehouse, ecommerce | `listManualShipments`, `getFulfillment`, `recordManualShipment`, `correctManualTracking`, `recordPurchaseReference`, `recordManualTrackingStatus`, `listAccessibleWarehouses`, `readPickupProfile`, `versionPickupProfile` | Catat resi / Koreksi resi, Catat status, pickup profile | L E X D C | reason + audit | deadline groups, `FormDialog` sheet, Disclosure | exists (`fulfillment-*.png`, `state-sheet-manual-resi-*.png`) |
+| A6 | `/admin/print-center` | Labels by required action; warehouse, ecommerce | `listPrintQueue`, `generateShipmentLabel`, `getShippingLabelJob`, `getShippingLabelArtifact`, `downloadValidatedLabelArtifact`, `generateShippingLabelBatch`, `getShippingLabelBatch`, `recordShippingPrintAttempt`, `listShippingPrintAttempts`, `listShippingLabelCapabilities` | Buat label / batch, Cetak, reasoned reprint | L E X D | reprint reason | deadline groups, bulk bar | exists (`print-center-*.png`, `state-bulk-bar-print-*.png`) |
+| A7 | `/admin/support` | CS inbox, thread, notes; CS, owner | 22 `/admin/support/**` ops (`listSupportInbox` … `previewSavedSupportReply`) | Klaim, balas, serahkan, status / notes, tags | L E X D C | claim version-checked | DataTable `card`, `StickyActions` | exists (`support-cs-*.png`, `support-thread-cs-*.png`) |
+| A8 | `/admin/catalog` | Product list with publication summary | `listProductEditingDrafts`, `listCatalogCategories` | Open product / filters | L E X D | — | DataTable `card`, FilterSheet | exists (`catalog-owner-*.png`, `state-filter-sheet-catalog-390.png`) |
+| A9 | `/admin/catalog/[productId]` | Publish / withdraw; stock and cost history | `getProductEditingDraft`, `getProductPublicationState`, `publishProduct`, `withdrawProductPublication`, `listInventory`, `listComponentCostVersions`, `listOfferCostAssumptionVersions` | Terbitkan, Tarik dari toko | L X D C | publication proof (owner exception) | `DetailSection`, `StickyActions` | **partial**: no content edit (`updateProductDraft` unused), no cost-version writes (`product-detail-owner-*.png`) |
+| A10 | `/admin/payments` | Manual transfer and AutoLaris confirmation; finance, owner | `listManualTransfers`, `confirmManualTransfer`, `listAutolarisPayments`, `confirmAutolarisPayment`, `listPolicyVersions`/`appendPolicyVersion` (kind `payment`) | Konfirmasi transfer / Konfirmasi manual; payment terms | L E X D C | `finance.reconcile`, `payment_policy.version` | DataTable `stack`, `FormDialog` | exists (`payments-*.png`); the payment-terms block moves to B21 |
+| A11 | `/admin/cod-settlements` | Mengantar COD statements; finance | `listCodRemittances`, `readCodRemittance`, `recordCodRemittance`, `listCodCollectibleParcels` | Catat setoran COD | L E X D | `finance.reconcile` | DataTable `stack`, `FormDialog` | exists (`cod-settlements-*.png`) |
+
+#### Missing screens
+
+| # | Route | Purpose / primary user | Data | Primary / secondary actions | States | Step-up / audit | Phone | Status |
+|---|---|---|---|---|---|---|---|---|
+| B1 | `/admin/account` | Own staff profile; all staff | `getCurrentUser` | — / Buka Keamanan akun | L X | — | `AdminPage` + `DetailSection` | missing |
+| B2 | `/admin/account/security` | Password, TOTP, sessions; all staff | `terminateOwnSessions` (contract drift), `two-factor/enable`; change-password, MFA status, backup codes, session list: **API missing** | Ganti kata sandi / Akhiri sesi lain, Buat ulang kode cadangan | L X C | password reauth; audit `auth.*` | `FormDialog` | missing (API broken + missing) |
+| B3 | `/admin/returns` | Return case queue; CS, warehouse (inspection), finance (refund side) | `listAdminReturns` | Open case / filters by state | L E X D | — | DataTable `card`, FilterSheet | missing (API exists; dashboard queue `returns` read-only) |
+| B4 | `/admin/returns/[returnId]` | Decide, inspect, replace or queue a refund | `getAdminReturn`, `decideReturnCase`, `inspectReturnedGoods`, `createReplacement`, `getReplacement`, `reserveReplacement`, `prepareReplacement`, `bookReplacement`, `handoverReplacement`, `queueApprovedRefund` | Putuskan klaim / Catat inspeksi, Buat penggantian, Ajukan refund | L X D C S | `finance.refund` for refund; reasoned decision audit | `DetailSection`, `StickyActions`, `FormDialog` | missing |
+| B5 | `/admin/exceptions` (+ `[exceptionId]`) | Stock discrepancy and recovery cases | `listCommerceExceptions`, `getCommerceException`, `reportStockDiscrepancy`, `decideCommerceException`, `recordExceptionIntake`, `queueRecoveryRefund`, `getRecoveryRefund`, `reconcileRecoveryRefund`, `retryRecoveryRefund` | Putuskan / Catat barang kembali, refund pemulihan | L E X D C S | `finance.recovery_refund` | DataTable `card` + `DetailSection` | missing (routes mounted; OpenAPI description still says "proposal only", so verify) |
+| B6 | `/admin/inventory` | Balances per warehouse; receive, reasoned adjust, lots | `listInventory`, `createStockMovement`, `listStockMovementHistory`, `listInventoryLots`, `createInventoryLot`, `initializeInventoryPosition` | Terima barang / Koreksi stok (reason), riwayat | L E X D C | audit; no balance overwrite | DataTable `stack`, `FormDialog` | missing (S49 forms no longer in the console) |
+| B7 | `/admin/inventory/transfers` (+ `[transferId]`) | Inter-warehouse transfers | `listWarehouseTransfers`, `createWarehouseTransfer`, `getWarehouseTransfer`, `dispatchWarehouseTransfer`, `receiveWarehouseTransfer`, `cancelWarehouseTransfer` | Buat transfer / Kirim, Terima, Batalkan | L E X D C | audit | DataTable `card`, `StickyActions` | missing |
+| B8 | `/admin/catalog/new` + edit on A9 | New draft; content edit (title, description, photo order, alt, DEC-013 claim flag) | `createProductDraft`, `updateProductDraft` | Simpan draf / Terbitkan | L X C | audit | form + `StickyActions` | missing |
+| B9 | `/admin/catalog/stock-items` | Physical SKUs and HPP / cost-assumption versions | `listPhysicalStockItems`, `createPhysicalStockItems`, `listComponentCostVersions`, `createComponentCostVersion`, `listOfferCostAssumptionVersions`, `createOfferCostAssumptionVersion`, `getProductContributionReview` | Tambah SKU / Versi HPP baru | L E X D C | `finance.costs.write`; audit | DataTable `stack`, `FormDialog` | missing |
+| B10 | `/admin/catalog/categories` | Category dictionary | `listCatalogCategories`, `createCatalogCategories` (no rename/retire op) | Tambah kategori | L E X D | audit | DataTable `stack` | missing |
+| B11 | `/admin/warehouses` (+ `[warehouseId]`) | Warehouse list, mode, pickup profile, shipping calendar | `listAccessibleWarehouses`, `readPickupProfile`, `versionPickupProfile`, `listPolicyVersions`/`appendPolicyVersion` (kind `warehouse_calendar`); create/rename warehouse: **API missing** | Revisi profil penjemputan / Atur kalender, terapkan kalender default (owner, bulk) | L E X D C | `warehouse_calendar.version` (owner) | DataTable `card` + `DetailSection` | missing. **Blocker:** `settings/policies.ts` accepts calendar values only with `source: "TEST-ONLY"`, `approval: "test_only"` (Q2) |
+| B12 | `/admin/promotions/shipping` (+ `[promotionId]`) | Shipping subsidies | `listShippingPromotions`, `createShippingPromotion`, `readShippingPromotion`, `listShippingPromotionVersions`, `createShippingPromotionVersion` | Buat promo / Versi baru, akhiri | L E X D C | audit | DataTable `stack`, `FormDialog` | missing |
+| B13 | `/admin/banners` | Home promo banners (S110) | **API missing** (S110 adds it) | Unggah, urutkan, jadwalkan, pensiunkan | L E X D C | audit | DataTable `card`, `FormDialog` | missing |
+| B14 | `/admin/affiliates` (+ `[affiliateId]`) | Affiliate list and rate versions | `setAffiliateRate`; affiliate list/detail: **API missing** | Atur tarif | L E X D C | `affiliate_rate.version` | DataTable `stack` | missing |
+| B15 | `/admin/segments` | Buyer segment counts (S126), no raw contacts | **API missing** (S126) | — / filter | L E X D | read audit | KPI cards | missing |
+| B16 | `/admin/finance/reconciliation` (+ `[itemId]`) | Match / unmatch / escalate settlements | `listReconciliationItems`, `getReconciliationItem`, `reconcileFinanceItem`, `getReconciliationMatch`, `getSettlementSource` | Cocokkan / Lepas, Eskalasi | L E X D C S | `finance.reconcile` | DataTable `stack` + `DetailSection` | missing (dashboard queue rows link to A10/A11 only) |
+| B17 | `/admin/finance/payouts` (+ `[payoutId]`) | Manual affiliate payouts | `listFinancePayoutQueue`, `claimManualPayoutTransfer`, `createPayoutEvidenceUpload`, `putPayoutEvidenceBytes`, `verifyManualPayoutTransfer`, `reconcilePayoutStatus` | Klaim transfer → unggah bukti → verifikasi / rekonsiliasi | L E X D C S | `payout.claim`, `payout.verify` | DataTable `stack`, `FormDialog` | missing |
+| B18 | `/admin/finance/refunds` (+ `[refundId]`) | Refund outcomes | `getAdminRefund`, `reconcileRefundStatus`; refund list: **API missing** (B3 filter as interim) | Rekonsiliasi / coba lagi refund yang terbukti belum terkirim | L E X D C S | `finance.refund` | DataTable `stack` | missing |
+| B19 | `/admin/finance/summary` | Period flows, contribution completeness | `getAdminFinanceSummary` (≤ 366 days), `getRoleDashboard` money metrics | Ubah periode / Ekspor | L X D S | read audited | KPI cards + table | missing (money cards on A1 only) |
+| B20 | `/admin/settings/staff` | Staff list, roles, grants, warehouse scope | `grantStaffRoles`; staff list / user lookup by email / invite: **API missing** | Ubah peran (replace) | L E X D C | `staff_roles.replace` (owner); audit | DataTable `stack`, `FormDialog` | missing |
+| B21 | `/admin/settings/payment` | COD fee, manual bank accounts | `listPolicyVersions`/`appendPolicyVersion` kind `payment` | Simpan versi baru / riwayat | L X D C | `payment_policy.version` | form + Disclosure (history) | **partial** (inside A10) |
+| B22 | `/admin/settings/commercial` | Commercial policy (margin floor, defaults) | same, kind `commercial` | Simpan versi baru / riwayat | L X D C | `company_policy.version` | form | missing |
+| B23 | `/admin/settings/label-templates` | Label template governance | `listShippingLabelCapabilities`, `createShippingLabelTemplate`, `appendShippingLabelTemplateVersion` | Buat / versi template | L E X D C | owner reauth | DataTable `stack` | **partial** (read-only list in A6) |
+| B24 | `/admin/settings/advertising` | Ad destinations, diagnostics, pause, replay | `listAdvertisingDestinations`, `createAdvertisingDestination`, `appendAdvertisingDestinationVersion`, `getAdvertisingDiagnostics`, `setAdvertisingPause`, `replayAdvertisingEvent` | Jeda / Putar ulang | L E X D C | owner; reason | Disclosure → page | **partial** (`ad-destinations-panel.tsx` on the owner dashboard) |
+| B25 | `/admin/settings/support` | Saved replies and tags | `listSupportSavedReplyDefinitions`, `createSupportSavedReplyDefinition`, `appendSupportSavedReplyVersion`, `listSupportTagDefinitions`, `createSupportTagDefinition`, `appendSupportTagVersion` | Buat / versi baru | L E X D C | owner or CS supervisor; audit | DataTable `stack` | missing (the inbox only reads them) |
+| B26 | `/admin/settings/audit` | Append-only audit trail | **API missing** (`app.audit_event` has no read op) | Filter by actor / action / object / period | L E X D | read itself audited | DataTable `stack` | missing |
+| B27 | `/admin/settings/system` | Outbox, worker, retention health | **API missing** (only host probes in [OBSERVABILITY.md](../../OBSERVABILITY.md)) | — / view failed jobs | L X D S | — | KPI cards + table | missing |
+| B28 | A4 section + `/admin/claims` | Guest-order account claims, WhatsApp path (DEC-016) | **API missing** (S125) | Setujui / Tolak klaim | L E X D C | audit | `DetailSection` | missing |
+| B29 | `/admin/customers` | Buyer account lookup for CS | **API missing** | — | L E X D | read audit | DataTable `stack` | missing, not planned until Q5 is answered |
+| B30 | `/admin/fulfillment/[fulfillmentId]` | API-booking path: pack, book, handover, reschedule | `getFulfillment`, `completePacking`, `bookShipment`, `recordCourierHandover`, `prepareFulfillment`, `rescheduleFulfillment`, `getAdminShipment`, `downloadShipmentLabel` | Siapkan / Pesan kurir, Serahkan | L X D C | audit | `DetailSection`, `StickyActions` | missing; deferred: only needed when the Mengantar API flag turns on (gated S94–S96); `rescheduleFulfillment` may move into A5 earlier |
+
+Counts: **exists 10** (A1–A8, A10, A11). **Partial 4** (A9, B21, B23, B24). **Missing 27** (B1–B20, B22, B25–B30). **Broken 0** screens. One API contract is broken (`terminateOwnSessions`, see the account menu).
+
+### Gap matrix
+
+`Y` done; `P` partial; `N` none; `—` not applicable. Tests = an integration or browser selector that exercises the screen's own UI or API. Design = renders at 390/768/1440 plus a passing admin review.
+
+| Screen | UI | API | Permission | Tests | Design | Slice |
+|---|---|---|---|---|---|---|
+| A1–A8, A10, A11 existing | Y | Y | Y | Y (`admin-workspaces`, `admin-ui-controls`, `consignment-payments`, `shipping-print-center`, `support-*`, `admin-kpi-parity`) | Y (round 4 PASS; mobile pass in review) | S122c Lows, admin-mobile |
+| A9 product content edit, B8 | P | Y | Y | P | P | S102 |
+| B1/B2 account, security | N | P (missing ops, drift) | P | N | N | S129 |
+| Navigation IA, account menu, signed-out redirect | P | — | Y | P | P | S128 |
+| B3/B4 returns + replacement | N | Y | Y | Y (API: `return-*`, `replacement-*`) | N | S101 |
+| B11 warehouse calendar | N | P (TEST-ONLY validator) | Y | Y (`settings-*`) | N | S101 (after Q2) |
+| B5 exceptions | N | Y (verify description) | Y | Y (API: `exception-*`) | N | S133 |
+| B6/B7 inventory, transfers | N | Y | Y | Y (API: `inventory-*`) | N | S102 |
+| B12 shipping promotions | N | Y | Y | Y (API: `promotion-*`) | N | S102 |
+| B20 staff & roles | N | P (no list/lookup) | Y | P | N | S137 |
+| B16–B19 finance workbench | N | Y (B18 list missing) | Y | Y (API: `affiliate-payouts`, reconciliation suites) | N | S131 |
+| B21–B25 settings hub | P | Y | Y | P (`settings-http`) | N | S130 |
+| B9/B10/B11 master data (SKU, HPP, categories, warehouses) | N | P (no warehouse create, no category edit) | Y | Y (API) | N | S134 |
+| B13 banners | N | N | N | N | N | S110 |
+| B14 affiliates | N | P (no list) | P | P (`affiliate-rate-policy`) | N | S132 |
+| B15 segments | N | N | N | N | N | S126 |
+| B26 audit log | N | N | N | N | N | S135 |
+| B27 system health | N | N | N | N | N | S136 |
+| B28 guest-order claims | N | N | N | N | N | S125 |
+| B29 customers | N | N | N | N | N | Q5 (no slice) |
+| B30 API-booking fulfillment | N | Y | Y | Y (API) | N | gated S94–S96 |
+
+### Slice plan (build order)
+
+Waves run in parallel where owned paths do not overlap (STATUS "Active workstreams" rule). Every slice builds on the S113 base: `DataTable`, `page-blocks.tsx`, `form.tsx` and `states.tsx`, with no per-screen variant. Shared files (`admin-shell.tsx` nav items after S128, `openapi.yaml`, `globals.css`, `scripts/check-tests.ts`) are changed by the coordinator at merge time. A worker reports the nav item it needs.
+
+| Wave | Slice | Scope | Owned paths | After | Risk | Done when |
+|---|---|---|---|---|---|---|
+| 0 | admin-mobile, S122c | In flight: mobile review fixes and round-4 Lows | as in STATUS | — | R2 | admin re-review PASS |
+| 1 | **S128** (new) | Sidebar groups and items exactly as "Navigation per role"; account menu replacing `session-bar.tsx`; Pengaturan group shell; production signed-out redirect to `/masuk?next=`; nav items for unbuilt screens stay hidden until their slice merges | `src/components/admin/admin-shell.tsx`, `src/app/admin/(console)/{layout,session-bar}.tsx`, `console-access.ts`, `tests/browser/admin-nav.test.ts`, `docs/spec/design/renders/s128-admin-nav/` | admin-mobile merge | R2 | Per-role browser test asserts the visible item set for all 5 roles and multi-role; signed-out production profile redirects; renders 390/768/1440; admin review PASS |
+| 1 | **S129** (new) | Staff profile and security: B1, B2; fix the `terminateOwnSessions` contract drift (one side, with a test); add change-password, MFA status / backup-code regeneration and session list behind `handleAuth` with budgets | `src/app/admin/(console)/account/**`, `src/components/admin/account-*`, `src/modules/access/handler.ts`, `src/modules/accounts/service.ts` (handler 11 only), `tests/auth.test.ts`, `tests/browser/admin-account.test.ts` | S128, Q2 | R4 (auth) | Password change revokes other sessions; wrong current password is rate-limited; `all_other` without proof is 403; MFA cannot be disabled by staff; independent security review PASS |
+| 2 | **S101** (existing) | B3, B4 (incl. replacement and refund queue), B11 calendar form plus the audited bulk default | per TASKS S101 + `src/app/admin/(console)/returns/**`, `src/components/admin/return-*` | S128; calendar part after Q2 | R4 | as TASKS S101; plus renders and a browser case per decision path |
+| 2 | **S133** (new) | B5 exceptions workbench, list and detail with every decision path; correct the stale OpenAPI description | `src/app/admin/(console)/exceptions/**`, `src/components/admin/exception-*`, `tests/browser/admin-exceptions.test.ts` | S128 | R4 (recovery refund) | Each decision, intake and recovery-refund path works in the UI; an unknown outcome stays unresolved without a duplicate; R4 review PASS; renders |
+| 2 | **S102** (existing, minus staff roles) | B6, B7, B8 / A9 content edit with DEC-013 claim filter, B12 | per TASKS S102 + `src/app/admin/(console)/{inventory,promotions,catalog/new}/**` | S128 | R3 | as TASKS S102 (without the staff-role clause) |
+| 2 | **S137** (new) | B20 staff & roles: staff list and lookup API (OpenAPI + parity), grant replace UI with warehouse scope | `src/app/admin/(console)/settings/staff/**`, new staff list route (path named in the slice), `src/modules/access/grants.ts`, tests | S128 | R4 (IAM) | Owner lists staff, replaces roles/grants with reauth; non-owner 403; self-demotion of the last owner refused; audit row; security review PASS |
+| 3 | **S131** (new) | Finance workbench B16–B19; refund list API | `src/app/admin/(console)/finance/**`, `src/components/admin/finance-*`, refund list route + OpenAPI | S128 | R4 (money) | Match/unmatch/escalate, payout claim → evidence → verify, refund reconcile all work in the UI with proofs; summary shows incomplete instead of zero; R4 review PASS |
+| 4 | **S130** (new) | Settings hub B21–B25: move payment terms and ad destinations, add commercial policy, label templates, saved replies and tags, each with version history | `src/app/admin/(console)/settings/{payment,commercial,label-templates,advertising,support}/**`, `src/components/admin/settings-*` | S128, Q3 | R3 | Each policy saves a new version with reauth and shows its history; a stale version gives a conflict with the draft kept; old orders unchanged (test); renders |
+| 4 | **S134** (new) | Master data B9, B10, B11 list/detail (pickup profile moves from A5 to here); warehouse create/rename and category rename/retire APIs only if the owner asks | `src/app/admin/(console)/{catalog/stock-items,catalog/categories,warehouses}/**` | S128, S101 (calendar) | R3 (cost writes) | HPP version write needs `finance.costs.write`; backdated version refused; category and warehouse lists scoped; renders |
+| 4 | **S135** (new) | B26 audit log: read API (OpenAPI), owner-only viewer, keyset paging, redacted details | `src/app/admin/(console)/settings/audit/**`, new audit read route and module | S128, Q4 | R3 (privacy) | Owner filters by actor / action / period; non-owner 403; no secrets or OTP in details (test); the read itself is audited |
+| 4 | **S136** (new) | B27 system health: read-only API over outbox and job registry states, retention last run | `src/app/admin/(console)/settings/system/**`, new route, read helpers next to `src/jobs/worker.ts` | S128 | R2 | Failed/stuck job counts equal a direct SQL count (test); owner only |
+| 5 | **S110** (existing) | B13 banners | per TASKS S110 | S128 | R3 | as TASKS S110 |
+| 5 | **S132** (new) | B14 affiliates: list/detail API, rate versions UI | `src/app/admin/(console)/affiliates/**`, list route + OpenAPI | S128, S131 | R3 | Owner sets a prospective rate with reauth; list hides buyer PII; finance read per Q5 |
+| 5 | **S125** (existing) | B28 claims section and queue | per TASKS S125 | S123, S120 | R4 | as TASKS S125 |
+| 5 | **S126** (existing) | B15 segments | per TASKS S126 | S123 | R4 | as TASKS S126 |
+
+### Dev-log mechanism
+
+No new log file. Each slice moves through the records that already exist ([AGENTS.md](../../AGENTS.md)):
+
+1. **TASKS row** (coordinator) with scope, risk and "Done when". `python3 docs/spec/scripts/development-task.py check` passes.
+2. **STATUS "Active workstreams" row** (coordinator, [STATUS.md](../../STATUS.md)) with branch, owned paths and do-not-touch paths, set before work starts.
+3. **Worktree branch** `s1NN-<slug>` from current `main`. A worker edits only owned paths. For R3/R4, `delivery-ledger start` declares the exact globs.
+4. **Gates**, in order:
+   - `npm run check` and `npm run build`
+   - `python3 docs/spec/scripts/check-openapi-contract.py` plus `--case=PR-18` when OpenAPI changes
+   - the slice's `test:integration` / `test:browser` selectors, registered in `scripts/check-tests.ts` by the coordinator
+   - renders under `docs/spec/design/renders/<slice>/` at 390/768/1440 with `CAPTURE_EVIDENCE=1`
+   - an independent admin design review
+   - a separate-agent security or R4 review where the risk column requires one
+   - `check-boundary` on the final surface
+5. **Merge** (coordinator), then a [BUILD-LOG.md](../../BUILD-LOG.md) entry: changed behaviour, commands with results, open gaps. Then the ARCHITECTURE System map and "Admin console architecture" update, now that code has landed. Then the status column of this section's inventory flips. The STATUS row is removed.
+
+### Owner questions (blocking only)
+
+| # | Question | Blocks |
+|---|---|---|
+| Q1 | Who is a "client operator" (for example a Berlapak seller viewing its origin-warehouse orders)? If one exists: which role or grant, which screens, and which fields (DEC-007 forbids seller settlement)? | Any client-operator screen; nothing else |
+| Q2 | Staff security and calendars. (a) Can staff change their own password and regenerate backup codes, and does the owner reset a lost TOTP device? (b) Real warehouse calendars: the validator only accepts `TEST-ONLY` values today. Who approves a production calendar, and is the bulk default calendar owner-only? | S129, S101 calendar part |
+| Q3 | Policy settings stay owner-only writes (payment terms incl. bank accounts, commercial policy, label templates). Should finance get read access, or write access with a grant? | S130 |
+| Q4 | Audit log visibility: owner-only (proposed), or finance read for money actions? | S135 |
+| Q5 | (a) Can CS look up buyer accounts (B29), and which fields? (b) Can finance read the affiliate list? | B29 (no slice until answered), S132 read scope |
