@@ -139,6 +139,8 @@ body :is(button, a, input, select, textarea, summary):focus-visible {
 			[data-slot="sidebar-trigger"],
 			[data-slot="dialog-close"],
 			[data-slot="sheet-close"],
+			[data-slot="sheet-trigger"],
+			[data-testid="admin-session-bar"] :is(a, button),
 			select,
 			summary
 		) {
@@ -159,10 +161,17 @@ body :is(button, a, input, select, textarea, summary):focus-visible {
  * never covers the focused control (WCAG 2.2 SC 2.4.11): reserve its height as scroll padding. */
 @media (max-width: 767px) {
 	html:has([data-sticky-bar]) {
-		scroll-padding-bottom: 6rem;
+		scroll-padding-bottom: calc(6rem + env(safe-area-inset-bottom));
 	}
-	/* The page's last content scrolls clear of the fixed bar. */
+	/* The page's last content scrolls clear of the fixed bar (44px button + padding + inset). */
 	[data-slot="sidebar-inset"]:has([data-sticky-bar]) {
-		padding-bottom: 5rem;
+		padding-bottom: calc(4.5rem + env(safe-area-inset-bottom));
 	}
+}
+
+/* The console layout sets viewport-fit=cover: keep content clear of notches and the home indicator. */
+[data-slot="sidebar-inset"] {
+	padding-left: env(safe-area-inset-left);
+	padding-right: env(safe-area-inset-right);
+	padding-bottom: env(safe-area-inset-bottom);
 }

@@ -1,8 +1,13 @@
+import type { Viewport } from "next";
 import "./admin.css";
 import { AdminShell } from "../../../components/admin/admin-shell";
 import type { CanonicalWorkspace } from "../../../components/admin/admin-workspaces-client";
 import { AdminSessionBar } from "./session-bar";
 import { readStaffAccess } from "./staff-roles";
+
+// Console only (the storefront keeps the root viewport): safe-area insets apply to the sticky
+// bars and page gutters (admin.css).
+export const viewport: Viewport = { viewportFit: "cover" };
 
 const ALL_WORKSPACES: CanonicalWorkspace[] = [
 	"owner",

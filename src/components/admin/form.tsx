@@ -2,7 +2,7 @@
 
 import { cn } from "cn";
 import { SlidersHorizontal } from "lucide-react";
-import { type ReactNode, useState } from "react";
+import { type ReactNode, useEffect, useRef, useState } from "react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import {
@@ -89,8 +89,20 @@ export function SegmentedControl<K extends string>({
 	onChange: (value: K) => void;
 	testId?: (key: K) => string;
 }) {
+	// Phones scroll the chip row sideways: keep the active chip fully in view.
+	const listRef = useRef<HTMLFieldSetElement>(null);
+	// biome-ignore lint/correctness/useExhaustiveDependencies: re-measure when the active chip changes
+	useEffect(() => {
+		const list = listRef.current;
+		const item = list?.querySelector<HTMLElement>('[aria-pressed="true"]');
+		if (!list || !item || list.scrollWidth <= list.clientWidth) return;
+		const box = list.getBoundingClientRect();
+		const at = item.getBoundingClientRect();
+		if (at.right > box.right) list.scrollLeft += at.right - box.right + 8;
+		else if (at.left < box.left) list.scrollLeft -= box.left - at.left + 8;
+	}, [value]);
 	return (
-		<fieldset className={segmentedListClass}>
+		<fieldset ref={listRef} className={segmentedListClass}>
 			<legend className="sr-only">{legend}</legend>
 			{options.map(([key, label]) => (
 				<button

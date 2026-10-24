@@ -3,7 +3,9 @@
 import { AlarmClock, CircleAlert, CircleCheck, CircleMinus, CircleX, Clock, type LucideIcon } from "lucide-react";
 import Link from "next/link";
 import { type ReactNode, useEffect, useState } from "react";
+import { cn } from "cn";
 import { Badge } from "@/components/ui/badge";
+import { wibDateTime } from "@/modules/storefront/format";
 
 // S113: one status badge (icon + text, never wraps), one order-number link and one overdue flag
 // for every console screen. Tone, not colour alone, carries the meaning (icon and wording too).
@@ -61,6 +63,62 @@ export function OverdueBadge({ testId }: { testId?: string }) {
 			Lewat batas
 		</Badge>
 	);
+}
+
+/**
+ * A deadline as staff read it: the WIB time, then "Lewat batas" right after it on the same
+ * wrapped line once it has passed (the one overdue placement of the console). `done` rows
+ * (handed over, confirmed) never show the badge.
+ */
+export function Deadline({
+	iso,
+	done = false,
+	prefix,
+	testId,
+	overdueTestId,
+	className,
+}: {
+	/** e.g. right-aligned in a stacked row's labelled value */
+	className?: string;
+	iso: string;
+	done?: boolean;
+	/** e.g. "Batas" */
+	prefix?: string;
+	testId?: string;
+	overdueTestId?: string;
+}) {
+	const now = useNow();
+	return (
+		<span className={cn("inline-flex flex-wrap items-center gap-x-1.5 gap-y-1 tabular-nums", className)}>
+			<span data-testid={testId}>
+				{prefix && `${prefix} `}
+				{wibDateTime(iso)}
+			</span>
+			{!done && isOverdue(iso, now) && <OverdueBadge testId={overdueTestId} />}
+		</span>
+	);
+}
+
+/** Deadline groups of a work list (manual fulfillment, print center), in their list order. */
+export const DEADLINE_GROUPS = {
+	overdue: "Lewat batas",
+	today: "Hari ini",
+	later: "Berikutnya",
+	none: "Tanpa batas",
+	done: "Sudah diserahkan",
+} as const;
+const wibDay = new Intl.DateTimeFormat("en-CA", { timeZone: "Asia/Jakarta" });
+/** Group of a row by its deadline in WIB; null before mount (no clock yet, so no headers). */
+export function deadlineGroup(
+	deadline: string | null | undefined,
+	now: number | null,
+	done = false,
+): keyof typeof DEADLINE_GROUPS | null {
+	if (now === null) return null;
+	if (done) return "done";
+	if (!deadline) return "none";
+	if (Date.parse(deadline) < now) return "overdue";
+	return wibDay.format(new Date(deadline)) === wibDay.format(new Date(now)) ? "today" : "later";
 }
 
 /**
