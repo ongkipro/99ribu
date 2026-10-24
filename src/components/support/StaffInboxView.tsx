@@ -978,7 +978,7 @@ export function StaffInboxView({ staffUser }: { staffUser: StaffUser }) {
 				<h2 id={`${baseId}-queue-heading`} className="text-base font-semibold">
 					Antrean percakapan
 				</h2>
-				<div className="flex flex-wrap items-end gap-3">
+				<div className="grid items-end gap-3 sm:grid-cols-2 lg:grid-cols-4">
 					<FormField id={`${baseId}-assign`} label="Klaim penugasan">
 						<select
 							id={`${baseId}-assign`}

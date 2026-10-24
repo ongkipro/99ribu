@@ -297,7 +297,7 @@ export function PrintCenterClient({
 	const parcelCell = (s: ShipmentItem) => (
 		<div className="flex min-w-0 flex-col">
 			<span className="font-medium">{s.order_number}</span>
-			<span className="font-mono text-xs text-muted-foreground">
+			<span className="font-mono text-xs break-all text-muted-foreground">
 				{s.parcel_id}
 			</span>
 			{s.due_at && (

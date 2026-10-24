@@ -1695,7 +1695,8 @@ export function AdminWorkspacesClient({
 						onMore: () => void loadMore(),
 					}}
 					footer={
-						!hasRowActions && (
+						// Rows that link to the S100 order detail need no "no detail page" note.
+						!hasRowActions && !(canOrders && rows.some((r) => r.order_id)) && (
 							<p className="text-xs text-muted-foreground">
 								Halaman detail untuk {QUEUE_LABELS[queue].toLowerCase()} belum
 								tersedia di konsol

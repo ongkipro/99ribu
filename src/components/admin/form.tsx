@@ -1,5 +1,6 @@
 "use client";
 
+import { cn } from "cn";
 import type { ReactNode } from "react";
 import { Button } from "@/components/ui/button";
 import {
@@ -24,8 +25,11 @@ export function FormField({
 	id,
 	label,
 	hint,
+	className,
 	children,
 }: {
+	/** e.g. "w-auto" for an inline filter row; fields are full width by default. */
+	className?: string;
 	/** id of the control inside `children`; the label points at it. */
 	id: string;
 	label: ReactNode;
@@ -34,7 +38,7 @@ export function FormField({
 	children: ReactNode;
 }) {
 	return (
-		<Field className="gap-1.5">
+		<Field className={cn("gap-1.5", className)}>
 			<FieldLabel htmlFor={id}>{label}</FieldLabel>
 			{children}
 			{hint && (
