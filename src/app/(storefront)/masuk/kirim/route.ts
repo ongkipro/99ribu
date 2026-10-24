@@ -56,6 +56,7 @@ export async function POST(request: Request) {
 	const cookies = response.headers.getSetCookie();
 	const payload = (await response.json().catch(() => null)) as Record<string, unknown> | null;
 	if (response.status === 200) return go(step === "password" && payload?.twoFactorRedirect === true ? "totp" : "password", {}, cookies);
-	const retry = Number(response.headers.get("retry-after"));
+	// Better Auth's own limiter answers 429 with X-Retry-After; ours sends Retry-After.
+	const retry = Number(response.headers.get("retry-after") ?? response.headers.get("x-retry-after"));
 	return go(step, { galat: failureKind(response.status, payload?.code), ...(retry > 0 ? { tunggu: String(Math.ceil(retry)) } : {}) }, cookies);
 }

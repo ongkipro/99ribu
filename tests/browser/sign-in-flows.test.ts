@@ -164,3 +164,19 @@ test("without JavaScript the page posts a plain form: errors, rate-limit copy, b
 		await page.screenshot({ path: `${RENDERS}/s112/test-nojs-limit-390.png` });
 	} finally { await browser.close(); }
 });
+
+// Security review (S112): form encoding drops the JSON-only CSRF layer, so the Origin check is the
+// one that stops a cross-site form post; it must answer before any auth effect or cookie.
+test("a cross-site form post to /masuk/kirim is refused without a cookie", async () => {
+	const response = await fetch(`${origin}/masuk/kirim`, {
+		method: "POST",
+		redirect: "manual",
+		headers: { origin: "http://evil.example", "content-type": "application/x-www-form-urlencoded" },
+		body: new URLSearchParams({ step: "password", email: "nobody@example.invalid", password: "x".repeat(12), next: "/akun" }),
+	});
+	assert.equal(response.status, 303);
+	const location = new URL(response.headers.get("location") ?? "", origin);
+	assert.equal(location.pathname, "/masuk");
+	assert.equal(location.searchParams.get("galat"), "origin");
+	assert.deepEqual(response.headers.getSetCookie(), []);
+});
