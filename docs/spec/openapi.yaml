@@ -4110,6 +4110,18 @@ paths:
       parameters:
       - $ref: '#/components/parameters/Cursor'
       - $ref: '#/components/parameters/Limit'
+      - name: state
+        in: query
+        required: false
+        description: 'S101 work group: decide = requested|reviewing, goods = awaiting_goods|inspecting, progress
+          = approved|refunding|replacing, done = rejected|resolved. Omitted lists every permitted case.'
+        schema:
+          type: string
+          enum:
+          - decide
+          - goods
+          - progress
+          - done
       x-proof-group: returns
       x-implementation: src/app/api/v1/admin/returns/route.ts
   /admin/returns/{returnId}/decisions:
@@ -14791,6 +14803,188 @@ paths:
               $ref: '#/components/schemas/BuyerRecoveryActionInput'
       x-proof-group: exceptions
       x-implementation: src/app/api/v1/orders/[orderId]/recovery-actions/route.ts
+  /admin/returns/{returnId}/evidence/{evidenceId}:
+    get:
+      operationId: getAdminReturnEvidence
+      summary: Read one attached buyer return evidence file
+      description: S101. Current verified cookie/MFA and the same scoped return authority as getAdminReturn; the
+        principal must see every unit of the case (otherwise 404). Only attached evidence is served, inline, no-store,
+        nosniff, sandboxed CSP, from private storage; each read writes a return.evidence.read audit row.
+      tags:
+      - Returns
+      security:
+      - sessionCookie: []
+      x-contract-status: implemented-local
+      x-domain-owner: returns
+      x-primary-requirement: PR-7
+      x-allowed-roles:
+      - owner
+      - customer_service
+      - warehouse
+      - finance
+      parameters:
+      - name: returnId
+        in: path
+        required: true
+        schema:
+          $ref: '#/components/schemas/Id'
+      - name: evidenceId
+        in: path
+        required: true
+        schema:
+          $ref: '#/components/schemas/Id'
+      responses:
+        '200':
+          description: Evidence bytes.
+          headers:
+            Cache-Control:
+              schema:
+                type: string
+                const: no-store
+          content:
+            image/jpeg:
+              schema:
+                type: string
+                format: binary
+            image/png:
+              schema:
+                type: string
+                format: binary
+            image/webp:
+              schema:
+                type: string
+                format: binary
+            video/mp4:
+              schema:
+                type: string
+                format: binary
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '429':
+          $ref: '#/components/responses/TooManyRequests'
+        '503':
+          $ref: '#/components/responses/Unavailable'
+        default:
+          description: Unexpected server/proxy failure; clients tolerate a non-Problem gateway body. Financial result
+            may be unknown; recover the operation before retry.
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+      x-proof-group: returns
+      x-implementation: src/app/api/v1/admin/returns/[returnId]/evidence/[evidenceId]/route.ts
+  /admin/warehouse-calendars:
+    get:
+      operationId: listWarehouseCalendars
+      summary: Read warehouse calendar coverage
+      description: S101. Cookie-only owner with session-bound MFA; private no-store. Every active warehouse (at most
+        500) with its live-offer count (origin = default warehouse of a live offer or holding stock of one of its
+        components), the current effective warehouse_calendar version and whether it covers the warehouse's current
+        local year. Calendars remain TEST-ONLY (owner question Q2).
+      tags:
+      - Administration
+      security:
+      - sessionCookie: []
+      x-contract-status: implemented-local
+      x-domain-owner: settings
+      x-primary-requirement: PR-20
+      x-allowed-roles:
+      - owner
+      x-proof-group: settings
+      responses:
+        '200':
+          description: Private coverage list.
+          headers:
+            Cache-Control:
+              schema:
+                const: no-store
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/WarehouseCalendarCoverageList'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '503':
+          $ref: '#/components/responses/Unavailable'
+        default:
+          description: Safe application Problem; a proxy may return a non-Problem failure.
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+      x-implementation: src/app/api/v1/admin/warehouse-calendars/route.ts
+  /admin/warehouse-calendars/default-applications:
+    post:
+      operationId: applyDefaultWarehouseCalendar
+      summary: Apply one default calendar to origin warehouses without a current calendar
+      description: S101. Cookie-only owner with session-bound MFA; private no-store. Consumes one fresh
+        warehouse_calendar.default_apply proof (subject origin-warehouses). All or nothing; every listed warehouse
+        must be active and an origin warehouse, have no calendar for its current local year and no scheduled version.
+        Writes, per warehouse, the same immutable policy_version (TEST-ONLY, effective now, the warehouse's timezone
+        and local year) and warehouse_calendar.version audit row a single appendPolicyVersion writes, plus one
+        warehouse_calendar.default_apply summary audit row; refusals write a denied audit row. A replay with the same
+        key returns the original result.
+      tags:
+      - Administration
+      security:
+      - sessionCookie: []
+      x-contract-status: implemented-local
+      x-domain-owner: settings
+      x-primary-requirement: PR-20
+      x-allowed-roles:
+      - owner
+      x-proof-group: settings
+      parameters:
+      - $ref: '#/components/parameters/IdempotencyKey'
+      x-request-body-limit-bytes: 16384
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/WarehouseCalendarDefaultInput'
+      responses:
+        '201':
+          description: Versions written.
+          headers:
+            Cache-Control:
+              schema:
+                const: no-store
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/WarehouseCalendarDefaultResult'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '409':
+          $ref: '#/components/responses/Conflict'
+        '413':
+          $ref: '#/components/responses/BodyTooLarge'
+        '415':
+          $ref: '#/components/responses/UnsupportedMediaType'
+        '503':
+          $ref: '#/components/responses/Unavailable'
+        default:
+          description: Safe application Problem; a proxy may return a non-Problem failure.
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+      x-implementation: src/app/api/v1/admin/warehouse-calendars/default-applications/route.ts
 components:
   schemas:
     PaymentPolicyValues:
@@ -17637,6 +17831,9 @@ components:
       - claim_state
       - inspection_status
       - can_inspect
+      - product_name
+      - variant_label
+      - warehouse_name
       properties:
         id:
           $ref: '#/components/schemas/Id'
@@ -17679,12 +17876,47 @@ components:
           - needs_review
         can_inspect:
           type: boolean
+        product_name:
+          type: string
+          maxLength: 300
+          description: Purchased offer name from the immutable order snapshot (S101; staff never read row ids).
+        variant_label:
+          type:
+          - string
+          - 'null'
+          maxLength: 300
+        warehouse_name:
+          type: string
+          maxLength: 200
+        components:
+          type: array
+          maxItems: 100
+          description: Detail read only, and only when can_inspect. The exact shipped component allocations an
+            inspection references (balance_id is the inspection's expected_balance_id, never displayed).
+          items:
+            type: object
+            additionalProperties: false
+            required:
+            - balance_id
+            - name
+            - quantity
+            properties:
+              balance_id:
+                $ref: '#/components/schemas/Id'
+              name:
+                type: string
+                maxLength: 300
+              quantity:
+                type: integer
+                minimum: 1
+                maximum: 1000000
     AdminReturnCase:
       type: object
       additionalProperties: false
       required:
       - id
       - order_id
+      - order_number
       - version
       - status
       - requested_resolution
@@ -17749,6 +17981,100 @@ components:
           items:
             $ref: '#/components/schemas/Id'
           description: Only owner or explicit refund-read finance receives this field.
+        order_number:
+          type: string
+          maxLength: 40
+        replacement_ids:
+          type: array
+          maxItems: 100
+          items:
+            $ref: '#/components/schemas/Id'
+          description: Detail read only (S101). Replacement parcels whose warehouse this principal may read.
+        evidence:
+          type: array
+          maxItems: 20
+          description: Detail read only (S101). Attached buyer evidence; empty unless items_complete, because
+            evidence covers the whole case. Bytes via getAdminReturnEvidence.
+          items:
+            type: object
+            additionalProperties: false
+            required:
+            - id
+            - content_type
+            - created_at
+            properties:
+              id:
+                $ref: '#/components/schemas/Id'
+              content_type:
+                type: string
+                enum:
+                - image/jpeg
+                - image/png
+                - image/webp
+                - video/mp4
+              created_at:
+                $ref: '#/components/schemas/DateTime'
+        events:
+          type: array
+          maxItems: 10000
+          description: Detail read only (S101). The case's immutable return_event history, oldest first. actor_name
+            is the staff display name for staff events and null for buyer/system events; no contact data.
+          items:
+            type: object
+            additionalProperties: false
+            required:
+            - version
+            - kind
+            - status
+            - actor
+            - actor_name
+            - reason
+            - occurred_at
+            properties:
+              version:
+                type: integer
+                minimum: 1
+              kind:
+                type: string
+                enum:
+                - create
+                - decision
+                - inspection
+                - refund_queue
+                - refund_confirmed
+                - refund_failed
+                - replacement_started
+                - replacement_received
+                - replacement_cancelled
+              status:
+                type: string
+                enum:
+                - requested
+                - reviewing
+                - approved
+                - rejected
+                - awaiting_goods
+                - inspecting
+                - refunding
+                - replacing
+                - resolved
+              actor:
+                type: string
+                enum:
+                - buyer
+                - staff
+                - system
+              actor_name:
+                type:
+                - string
+                - 'null'
+                maxLength: 200
+              reason:
+                type: string
+                minLength: 1
+                maxLength: 2000
+              occurred_at:
+                $ref: '#/components/schemas/DateTime'
     AdminReturnList:
       type: object
       additionalProperties: false
@@ -20431,6 +20757,7 @@ components:
           - company_policy.version
           - payment_policy.version
           - warehouse_calendar.version
+          - warehouse_calendar.default_apply
           - catalog_publication.exception
           - finance.reconcile
           - finance.refund
@@ -20460,6 +20787,14 @@ components:
           properties:
             subject_id:
               const: company-payment
+      - if:
+          properties:
+            action:
+              const: warehouse_calendar.default_apply
+        then:
+          properties:
+            subject_id:
+              const: origin-warehouses
       - if:
           properties:
             action:
@@ -25093,6 +25428,170 @@ components:
       - closed_dates
       - source
       - approval
+    WarehouseCalendarCoverageList:
+      type: object
+      additionalProperties: false
+      required:
+      - data
+      - truncated
+      properties:
+        truncated:
+          type: boolean
+        data:
+          type: array
+          maxItems: 500
+          items:
+            type: object
+            additionalProperties: false
+            required:
+            - warehouse_id
+            - warehouse_name
+            - city
+            - timezone
+            - local_year
+            - live_products
+            - origin
+            - state
+            - scheduled
+            - latest_version
+            - current
+            properties:
+              warehouse_id:
+                $ref: '#/components/schemas/Id'
+              warehouse_name:
+                type: string
+              city:
+                type: string
+              timezone:
+                type: string
+              local_year:
+                type: integer
+              live_products:
+                type: integer
+                minimum: 0
+              origin:
+                type: boolean
+              state:
+                type: string
+                enum:
+                - current
+                - outdated
+                - missing
+              scheduled:
+                type: boolean
+                description: A later-effective version exists; a new version cannot precede it.
+              latest_version:
+                type: integer
+                minimum: 0
+                description: Use as expected_version for appendPolicyVersion.
+              current:
+                oneOf:
+                - type: 'null'
+                - type: object
+                  additionalProperties: false
+                  required:
+                  - version_id
+                  - version
+                  - effective_at
+                  - values
+                  properties:
+                    version_id:
+                      type: string
+                      format: uuid
+                    version:
+                      type: integer
+                      minimum: 1
+                    effective_at:
+                      $ref: '#/components/schemas/DateTime'
+                    values:
+                      $ref: '#/components/schemas/WarehouseCalendarValues'
+    WarehouseCalendarDefaultInput:
+      type: object
+      additionalProperties: false
+      required:
+      - warehouse_ids
+      - values
+      - reason
+      - reauthentication_proof
+      properties:
+        warehouse_ids:
+          type: array
+          minItems: 1
+          maxItems: 100
+          uniqueItems: true
+          items:
+            type: string
+            format: uuid
+        values:
+          type: object
+          additionalProperties: false
+          required:
+          - working_weekdays
+          - cutoff_local
+          - closed_dates
+          description: Timezone and year come from each warehouse; source/approval are always TEST-ONLY/test_only.
+          properties:
+            working_weekdays:
+              type: array
+              minItems: 1
+              maxItems: 7
+              uniqueItems: true
+              items:
+                type: integer
+                minimum: 0
+                maximum: 6
+            cutoff_local:
+              type: string
+              pattern: ^(?:[01][0-9]|2[0-3]):[0-5][0-9]$
+            closed_dates:
+              type: array
+              maxItems: 366
+              uniqueItems: true
+              items:
+                type: string
+                format: date
+        reason:
+          type: string
+          minLength: 1
+          maxLength: 500
+        reauthentication_proof:
+          type: string
+          minLength: 1
+          maxLength: 100
+    WarehouseCalendarDefaultResult:
+      type: object
+      additionalProperties: false
+      required:
+      - applied
+      properties:
+        applied:
+          type: array
+          maxItems: 100
+          items:
+            type: object
+            additionalProperties: false
+            required:
+            - warehouse_id
+            - warehouse_name
+            - version_id
+            - version
+            - year
+            - effective_at
+            properties:
+              warehouse_id:
+                $ref: '#/components/schemas/Id'
+              warehouse_name:
+                type: string
+              version_id:
+                type: string
+                format: uuid
+              version:
+                type: integer
+                minimum: 1
+              year:
+                type: integer
+              effective_at:
+                $ref: '#/components/schemas/DateTime'
     PolicyVersionInput:
       type: object
       additionalProperties: false
