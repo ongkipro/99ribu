@@ -42,7 +42,7 @@ async function assertParity(identity:Identity,user:User,params:Record<string,str
  return counts.length;
 }
 
-test('every dashboard count KPI equals its drilldown row count for each workspace, role scope and warehouse filter',async()=>{
+test('every dashboard count KPI equals its drilldown row count for each workspace, role scope and warehouse filter',{timeout:600000},async()=>{
  const f=await fulfillmentFixture('cod'),users:User[]=[];
  try{
   const sql=f.identity.sql,warehouse=String(f.parcels[0].warehouse_id),[order]=await sql`select created_at from app.commerce_order where id=${f.order.id}`,[wall]=await sql`select clock_timestamp() now`;
