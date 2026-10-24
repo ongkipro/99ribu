@@ -451,6 +451,13 @@ test("S99/S100 built browser: the manual queue shows the booking facts and the b
 
 		await page.goto(`${origin}/admin?workspace=owner`);
 		const link = page.getByRole("link", { name: `Buka detail pesanan ${order.number}` });
+		// Under all-current, concurrent suites' newer orders can push this one past the first 20 rows: page on.
+		const more = page.getByRole("button", { name: "Muat baris berikutnya" });
+		await expect(page.getByTestId("work-queue-section")).toBeVisible();
+		for (let i = 0; i < 10 && !(await link.count()) && (await more.count()); i++) {
+			await more.click();
+			await expect(more).not.toHaveText("Memuat…");
+		}
 		await expect(link).toHaveAttribute("href", `/admin/orders/${order.id}`);
 		assert.deepEqual(desk2.problems, []);
 	} finally {

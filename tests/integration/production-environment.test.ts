@@ -16,11 +16,14 @@ const SIMULATOR_TABLES = ["local_autolaris_transaction", "local_parcel_outcome",
 const journal = JSON.parse(readFileSync("migrations/meta/_journal.json", "utf8")) as { entries: { tag: string }[] };
 
 test("0035 is recorded on the test database and a re-run applies nothing", async () => {
-  assert.equal(journal.entries.at(-1)?.tag, "0035_production_environment");
+  const sha = (tag: string) => createHash("sha256").update(readFileSync(`migrations/${tag}.sql`)).digest("hex");
+  assert.ok(journal.entries.some((e) => e.tag === "0035_production_environment"));
   const owner = connectDatabase("test", "owner");
   try {
-    const [last] = await owner.sql`select hash from drizzle.__drizzle_migrations order by id desc limit 1`;
-    assert.equal(last.hash, createHash("sha256").update(readFileSync("migrations/0035_production_environment.sql")).digest("hex"));
+    const rows = await owner.sql<{ hash: string }[]>`select hash from drizzle.__drizzle_migrations order by id`;
+    assert.ok(rows.some((r) => r.hash === sha("0035_production_environment")));
+    // Nothing pending: the last applied migration is the journal's last entry.
+    assert.equal(rows.at(-1)?.hash, sha(journal.entries.at(-1)?.tag ?? ""));
   } finally { await owner.sql.end(); }
   const rerun = spawnSync(process.execPath, ["scripts/migrate.ts", "test"], { encoding: "utf8", timeout: 60000 });
   assert.equal(rerun.status, 0, rerun.stderr);
