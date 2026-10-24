@@ -100,3 +100,41 @@ PASS receipt-link-1440 no horizontal overflow (0px)
 PASS receipt-link-code-1440 no horizontal overflow (0px)
 PASS receipt-save-preview-1440 no horizontal overflow (0px)
 PASS receipt-1440 no page or console errors
+
+# Review fix (M1/L1) renders, 2026-10-25
+PASS activation-320 token dropped from the address bar (http://127.0.0.1:3123/masuk/atur-sandi?aktivasi=1)
+PASS activation-320 no-referrer meta
+PASS set-password-activation-320 no horizontal overflow (0px)
+PASS activation-320 posts token and newPassword
+PASS set-password-token-error-320 no horizontal overflow (0px)
+PASS set-password-done-320 no horizontal overflow (0px)
+PASS set-password-invalid-320 no horizontal overflow (0px)
+PASS check-email-320 no horizontal overflow (0px)
+PASS 320 no page or console errors
+PASS activation-390 token dropped from the address bar (http://127.0.0.1:3123/masuk/atur-sandi?aktivasi=1)
+PASS activation-390 no-referrer meta
+PASS set-password-activation-390 no horizontal overflow (0px)
+PASS activation-390 posts token and newPassword
+PASS set-password-token-error-390 no horizontal overflow (0px)
+PASS set-password-done-390 no horizontal overflow (0px)
+PASS set-password-invalid-390 no horizontal overflow (0px)
+PASS check-email-390 no horizontal overflow (0px)
+PASS 390 no page or console errors
+PASS activation-768 token dropped from the address bar (http://127.0.0.1:3123/masuk/atur-sandi?aktivasi=1)
+PASS activation-768 no-referrer meta
+PASS set-password-activation-768 no horizontal overflow (0px)
+PASS activation-768 posts token and newPassword
+PASS set-password-token-error-768 no horizontal overflow (0px)
+PASS set-password-done-768 no horizontal overflow (0px)
+PASS set-password-invalid-768 no horizontal overflow (0px)
+PASS check-email-768 no horizontal overflow (0px)
+PASS 768 no page or console errors
+PASS activation-1440 token dropped from the address bar (http://127.0.0.1:3123/masuk/atur-sandi?aktivasi=1)
+PASS activation-1440 no-referrer meta
+PASS set-password-activation-1440 no horizontal overflow (0px)
+PASS activation-1440 posts token and newPassword
+PASS set-password-token-error-1440 no horizontal overflow (0px)
+PASS set-password-done-1440 no horizontal overflow (0px)
+PASS set-password-invalid-1440 no horizontal overflow (0px)
+PASS check-email-1440 no horizontal overflow (0px)
+PASS 1440 no page or console errors
