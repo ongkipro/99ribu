@@ -138,7 +138,9 @@ body :is(button, a, input, select, textarea, summary):focus-visible {
 			[data-slot="sidebar-menu-button"],
 			[data-slot="sidebar-trigger"],
 			[data-slot="dialog-close"],
-			select
+			[data-slot="sheet-close"],
+			select,
+			summary
 		) {
 		min-height: 44px;
 		min-width: 44px;
@@ -150,5 +152,17 @@ body :is(button, a, input, select, textarea, summary):focus-visible {
 	 */
 	body [data-slot="sidebar"] {
 		--sidebar-width-icon: 3.75rem;
+	}
+}
+
+/* Admin mobile pass: a sticky bottom bar (page-blocks.tsx StickyActions, the DataTable bulk bar)
+ * never covers the focused control (WCAG 2.2 SC 2.4.11): reserve its height as scroll padding. */
+@media (max-width: 767px) {
+	html:has([data-sticky-bar]) {
+		scroll-padding-bottom: 6rem;
+	}
+	/* The page's last content scrolls clear of the fixed bar. */
+	[data-slot="sidebar-inset"]:has([data-sticky-bar]) {
+		padding-bottom: 5rem;
 	}
 }

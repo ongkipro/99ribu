@@ -62,6 +62,9 @@ function DialogContent({
         data-slot="dialog-content"
         className={cn(
           "fixed top-1/2 left-1/2 z-50 grid w-full max-w-[calc(100%-2rem)] -translate-x-1/2 -translate-y-1/2 gap-6 rounded-xl bg-popover p-6 text-sm text-popover-foreground ring-1 ring-foreground/10 duration-100 outline-none sm:max-w-md data-open:animate-in data-open:fade-in-0 data-open:zoom-in-95 data-closed:animate-out data-closed:fade-out-0 data-closed:zoom-out-95",
+          // Admin (local change): below md a dialog is a bottom sheet that scrolls inside itself;
+          // DialogFooter sticks to its bottom edge above the safe-area inset.
+          "max-md:top-auto max-md:bottom-0 max-md:left-0 max-md:max-h-[92dvh] max-md:max-w-full max-md:translate-x-0 max-md:translate-y-0 max-md:gap-4 max-md:overflow-y-auto max-md:overscroll-contain max-md:rounded-b-none max-md:px-4 max-md:pt-5 max-md:pb-0 max-md:data-open:slide-in-from-bottom-10",
           className
         )}
         {...props}
@@ -108,6 +111,8 @@ function DialogFooter({
       data-slot="dialog-footer"
       className={cn(
         "flex flex-col-reverse gap-2 sm:flex-row sm:justify-end",
+        // Admin (local change): the bottom sheet keeps Batal + submit in one sticky row.
+        "max-md:sticky max-md:bottom-0 max-md:z-10 max-md:-mx-4 max-md:flex-row max-md:flex-wrap max-md:border-t max-md:bg-popover max-md:px-4 max-md:pt-3 max-md:pb-[max(1rem,env(safe-area-inset-bottom))] max-md:*:flex-1",
         className
       )}
       {...props}

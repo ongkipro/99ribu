@@ -1,7 +1,9 @@
 "use client";
 
 import { cn } from "cn";
-import type { ReactNode } from "react";
+import { SlidersHorizontal } from "lucide-react";
+import { type ReactNode, useState } from "react";
+import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import {
 	Dialog,
@@ -12,6 +14,17 @@ import {
 	DialogTitle,
 } from "@/components/ui/dialog";
 import { Field, FieldDescription, FieldLabel } from "@/components/ui/field";
+import {
+	Sheet,
+	SheetClose,
+	SheetContent,
+	SheetDescription,
+	SheetFooter,
+	SheetHeader,
+	SheetTitle,
+	SheetTrigger,
+} from "@/components/ui/sheet";
+import { useIsMobile } from "@/components/ui/use-mobile";
 
 // S113: shared form patterns of the admin console (shadcn Field + Dialog). A field is a
 // labelled control with an optional hint; a form dialog is the confirm/edit dialog every money
@@ -50,12 +63,15 @@ export function FormField({
 	);
 }
 
-/** The one tab/filter control look of the console (segmented pills); tablists reuse it. */
+/**
+ * The one tab/filter control look of the console (segmented pills); tablists reuse it. Phones
+ * keep one row of chips that scrolls sideways inside itself instead of wrapping into a toolbar.
+ */
 export const segmentedListClass =
-	"inline-flex w-fit max-w-full flex-wrap gap-1 rounded-lg border bg-muted p-1";
+	"inline-flex w-fit max-w-full min-w-0 flex-wrap gap-1 rounded-lg border bg-muted p-1 max-md:flex-nowrap max-md:overflow-x-auto max-md:overscroll-x-contain max-md:[scrollbar-width:none]";
 export const segmentedItemClass = (active: boolean) =>
 	cn(
-		"min-h-9 rounded-md px-3 py-1.5 text-sm font-medium outline-none focus-visible:ring-[3px] focus-visible:ring-ring/50 pointer-coarse:min-h-11",
+		"min-h-9 shrink-0 rounded-md px-3 py-1.5 text-sm font-medium whitespace-nowrap outline-none focus-visible:ring-[3px] focus-visible:ring-ring/50 pointer-coarse:min-h-11",
 		active ? "bg-background text-foreground shadow-sm" : "text-muted-foreground hover:text-foreground",
 	);
 
@@ -89,6 +105,46 @@ export function SegmentedControl<K extends string>({
 				</button>
 			))}
 		</fieldset>
+	);
+}
+
+/**
+ * The one filter pattern for screens with several filter fields: inline from md (the caller's
+ * grid lays them out), and on phones one "Filter" button with the active count that opens a
+ * bottom sheet holding the same fields (focus trapped, focus returns to the button). Filters
+ * apply as they change; "Tampilkan hasil" only closes the sheet.
+ */
+export function FilterSheet({ active, children }: { active: number; children: ReactNode }) {
+	const isMobile = useIsMobile();
+	const [open, setOpen] = useState(false);
+	if (!isMobile) return <>{children}</>;
+	return (
+		<Sheet open={open} onOpenChange={setOpen}>
+			<SheetTrigger asChild>
+				<Button type="button" variant="outline" className="justify-self-start">
+					<SlidersHorizontal data-icon="inline-start" aria-hidden="true" />
+					Filter
+					{active > 0 && (
+						<Badge variant="secondary" className="tabular-nums">
+							{active}
+							<span className="sr-only"> aktif</span>
+						</Badge>
+					)}
+				</Button>
+			</SheetTrigger>
+			<SheetContent side="bottom" className="max-h-[92dvh] gap-0 overflow-y-auto rounded-t-xl">
+				<SheetHeader>
+					<SheetTitle>Filter</SheetTitle>
+					<SheetDescription>Daftar langsung diperbarui setiap filter berubah.</SheetDescription>
+				</SheetHeader>
+				<div className="flex flex-col gap-4 px-4 pb-4">{children}</div>
+				<SheetFooter className="sticky bottom-0 border-t bg-popover pb-[max(1rem,env(safe-area-inset-bottom))]">
+					<SheetClose asChild>
+						<Button type="button">Tampilkan hasil</Button>
+					</SheetClose>
+				</SheetFooter>
+			</SheetContent>
+		</Sheet>
 	);
 }
 
