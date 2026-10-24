@@ -33,7 +33,9 @@ import {
 } from "./ad-destinations-panel";
 import { describeFailure, failureText, readFailure } from "./admin-errors";
 import type { ConsoleAccess } from "./console-access";
-import { DataTable, RetryAlert } from "./data-table";
+import { DataTable } from "./data-table";
+import { nativeSelectClass } from "./form";
+import { ErrorState } from "./states";
 
 export type CanonicalWorkspace =
 	| "owner"
@@ -1375,7 +1377,7 @@ export function AdminWorkspacesClient({
 						<Skeleton className="h-14 w-36" />
 					</div>
 				) : dashState === "error" ? (
-					<RetryAlert
+					<ErrorState
 						message={`Ringkasan gagal dimuat. ${dashError ?? ""}`}
 						onRetry={() =>
 							void loadDashboard(workspace, warehouseId, windowRange)
@@ -1922,5 +1924,3 @@ export function AdminWorkspacesClient({
 	);
 }
 
-const nativeSelectClass =
-	"h-9 rounded-md border border-input bg-background px-3 text-sm font-medium shadow-xs outline-none focus-visible:border-ring focus-visible:ring-[3px] focus-visible:ring-ring/50";

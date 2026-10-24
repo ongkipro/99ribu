@@ -18,6 +18,7 @@ import type {
 import { rupiah, wibDateTime } from "@/modules/storefront/format";
 import { describeFailure, failureText, readFailure } from "./admin-errors";
 import { DataTable } from "./data-table";
+import { nativeSelectClass } from "./form";
 
 type ShipmentItem = PrintQueueShipment;
 
@@ -716,5 +717,3 @@ export function PrintCenterClient({
 	);
 }
 
-const nativeSelectClass =
-	"h-9 rounded-md border border-input bg-background px-3 text-sm font-medium shadow-xs outline-none focus-visible:border-ring focus-visible:ring-[3px] focus-visible:ring-ring/50";
