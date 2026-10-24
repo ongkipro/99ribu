@@ -7,6 +7,18 @@ Local-Acceptance: PASS on 2026-10-24 at `0176403`+`cce3c76` on the production bu
 Review-Risk: R4 (money-path changes in S91–S93 and the S68 fixes; three independent reviews — S68 final, R4 fix diff, route/storefront security — each REVISE then fixed and re-verified)
 Previous-Claim: `READY_FOR_LOCAL_ACCEPTANCE` / "100% local production readiness" (gemini-4-argon, commits `e34c041` + `bfecdce`). Archived: [`docs/history/STATUS-20261021-pre-audit.md`](docs/history/STATUS-20261021-pre-audit.md)
 
+## Active workstreams (read before starting any work)
+
+One slice per branch or worktree. A session works only inside its slice's owned paths and does not edit paths owned by another active row. Shared files (`globals.css`, `TASKS.md`, `STATUS.md`, `BUILD-LOG.md`, `ARCHITECTURE.md`, `openapi.yaml`, `scripts/check-tests.ts`) are edited by the coordinator at merge time; workers report the changes needed. A row is removed when its branch is merged into `main` and verified. The System map in `ARCHITECTURE.md` changes only after code lands; plans live in `TASKS.md` and `DECISIONS.md`.
+
+| Slice | Branch | Owned paths | Do not touch | State |
+|---|---|---|---|---|
+| Admin mobile pass (S113 follow-up, S122c) | `admin-mobile` | `src/components/admin/**`, `src/app/admin/**`, admin CSS, `tests/browser/{consignment-payments,admin-*}.test.ts`, `docs/spec/design/renders/admin-mobile/` | storefront, `src/modules/access/**` | in progress (worker) |
+| S123 buyer registration | `s123-buyer-signup` | `src/app/(storefront)/{masuk,@modal,akun,pesanan}/**`, `src/components/storefront/sign-*`, `buyer-account-client.tsx`, auth routes, `tests/browser/sign-*`, `docs/spec/design/renders/s123-signup/` | `src/components/admin/**` | in progress (worker) |
+| S125 guest orders in the buyer account (DEC-016) | not started | waits for S123 merge and S120 | — | planned |
+| S124 production email delivery | — | owner picks the provider first | — | owner decision |
+
+
 ## Follow-up audit and slices S69–S79 (2026-10-21/22, Claude Opus 5.5 via Claude Code; committed and pushed 2026-10-23)
 
 Not committed. No `.delivery` run was opened for this surface (the active run belongs to the G1–G10 session); evidence is recorded here. Owner decisions: DEC-001…DEC-003 in `DECISIONS.md`.
