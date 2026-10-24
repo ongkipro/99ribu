@@ -87,7 +87,9 @@ async function currentList(tx:TransactionSql,retired:boolean){
  const rows=retired
   ?await tx`${CURRENT(tx)} where v.retired order by v.created_at desc,v.banner_id limit 50`
   :await tx`${CURRENT(tx)} where not v.retired order by v.position,h.created_at,h.id`;
- const now=new Date();return {data:rows.map(row=>project(row,now))};
+ // `configured`: some banner exists (even retired), so the storefront no longer shows its built-in defaults.
+ const [head]=await tx`select exists(select 1 from app.home_banner) as configured`;
+ const now=new Date();return {configured:Boolean(head.configured),data:rows.map(row=>project(row,now))};
 }
 async function append(tx:TransactionSql,bannerId:string,revision:number,v:BannerContent&{image_width:number;image_height:number;position:number;retired:boolean},actorId:string,reason:string){
  await tx`insert into app.home_banner_version (banner_id,revision,title,subtitle,action_label,href,image_sha256,image_width,image_height,image_alt,tint,starts_at,ends_at,position,active,retired,actor_id,reason)

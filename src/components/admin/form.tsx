@@ -169,10 +169,13 @@ export function FormDialog({
 	pendingLabel = "Menyimpan…",
 	onClose,
 	onSubmit,
+	className,
 	children,
 }: {
 	title: ReactNode;
 	description?: ReactNode;
+	/** Wider or taller dialogs (a form beside its preview); applied to DialogContent. */
+	className?: string;
 	pending: boolean;
 	error: string | null;
 	submitLabel: string;
@@ -188,7 +191,7 @@ export function FormDialog({
 				if (!next && !pending) onClose();
 			}}
 		>
-			<DialogContent {...(description ? {} : { "aria-describedby": undefined })}>
+			<DialogContent className={className} {...(description ? {} : { "aria-describedby": undefined })}>
 				<form
 					noValidate
 					className="flex flex-col gap-4"
