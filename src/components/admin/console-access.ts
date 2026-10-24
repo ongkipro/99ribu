@@ -19,6 +19,8 @@ export type ConsoleAccess = {
 	inventory: boolean;
 	/** Promo Ongkir page (promotions/shipping page guard). */
 	shippingPromo: boolean;
+	/** Banner Beranda page (banners page guard). */
+	banners: boolean;
 };
 
 export function consoleAccess(
@@ -40,5 +42,6 @@ export function consoleAccess(
 		support: owner || roles.includes("customer_service"),
 		inventory: owner || any("ecommerce_admin", "warehouse"),
 		shippingPromo: owner || roles.includes("ecommerce_admin"),
+		banners: owner || roles.includes("ecommerce_admin"),
 	};
 }

@@ -72,7 +72,9 @@ export const segmentedListClass =
 export const segmentedItemClass = (active: boolean) =>
 	cn(
 		"min-h-9 shrink-0 rounded-md px-3 py-1.5 text-sm font-medium whitespace-nowrap outline-none focus-visible:ring-[3px] focus-visible:ring-ring/50 pointer-coarse:min-h-11",
-		active ? "bg-background text-foreground shadow-sm" : "text-muted-foreground hover:text-foreground",
+		active
+			? "bg-background text-foreground shadow-sm"
+			: "text-muted-foreground hover:text-foreground",
 	);
 
 /** A small set of mutually exclusive filters as pressed toggle buttons. */
@@ -126,7 +128,13 @@ export function SegmentedControl<K extends string>({
  * bottom sheet holding the same fields (focus trapped, focus returns to the button). Filters
  * apply as they change; "Tampilkan hasil" only closes the sheet.
  */
-export function FilterSheet({ active, children }: { active: number; children: ReactNode }) {
+export function FilterSheet({
+	active,
+	children,
+}: {
+	active: number;
+	children: ReactNode;
+}) {
 	const isMobile = useIsMobile();
 	const [open, setOpen] = useState(false);
 	if (!isMobile) return <>{children}</>;
@@ -144,10 +152,15 @@ export function FilterSheet({ active, children }: { active: number; children: Re
 					)}
 				</Button>
 			</SheetTrigger>
-			<SheetContent side="bottom" className="max-h-[92dvh] gap-0 overflow-y-auto rounded-t-xl">
+			<SheetContent
+				side="bottom"
+				className="max-h-[92dvh] gap-0 overflow-y-auto rounded-t-xl"
+			>
 				<SheetHeader>
 					<SheetTitle>Filter</SheetTitle>
-					<SheetDescription>Daftar langsung diperbarui setiap filter berubah.</SheetDescription>
+					<SheetDescription>
+						Daftar langsung diperbarui setiap filter berubah.
+					</SheetDescription>
 				</SheetHeader>
 				<div className="flex flex-col gap-4 px-4 pb-4">{children}</div>
 				<SheetFooter className="sticky bottom-0 border-t bg-popover pb-[max(1rem,env(safe-area-inset-bottom))]">
@@ -169,10 +182,13 @@ export function FormDialog({
 	pendingLabel = "Menyimpan…",
 	onClose,
 	onSubmit,
+	className,
 	children,
 }: {
 	title: ReactNode;
 	description?: ReactNode;
+	/** Wider or taller dialogs (a form beside its preview); applied to DialogContent. */
+	className?: string;
 	pending: boolean;
 	error: string | null;
 	submitLabel: string;
@@ -188,7 +204,10 @@ export function FormDialog({
 				if (!next && !pending) onClose();
 			}}
 		>
-			<DialogContent className="md:max-h-[90dvh] md:overflow-y-auto" {...(description ? {} : { "aria-describedby": undefined })}>
+			<DialogContent
+				className={cn("md:max-h-[90dvh] md:overflow-y-auto", className)}
+				{...(description ? {} : { "aria-describedby": undefined })}
+			>
 				<form
 					noValidate
 					className="flex flex-col gap-4"
@@ -199,7 +218,9 @@ export function FormDialog({
 				>
 					<DialogHeader>
 						<DialogTitle>{title}</DialogTitle>
-						{description && <DialogDescription>{description}</DialogDescription>}
+						{description && (
+							<DialogDescription>{description}</DialogDescription>
+						)}
 					</DialogHeader>
 					{children}
 					{error && (
@@ -208,7 +229,12 @@ export function FormDialog({
 						</p>
 					)}
 					<DialogFooter>
-						<Button type="button" variant="outline" disabled={pending} onClick={onClose}>
+						<Button
+							type="button"
+							variant="outline"
+							disabled={pending}
+							onClick={onClose}
+						>
 							Batal
 						</Button>
 						<Button type="submit" disabled={pending}>

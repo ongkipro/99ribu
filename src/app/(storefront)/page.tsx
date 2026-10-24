@@ -6,7 +6,7 @@ import {CategorySwitcher} from '../../components/storefront/sections/category-sw
 import {HomeHero} from '../../components/storefront/sections/home-hero';
 import {CategoryGrid} from '../../components/storefront/sections/category-grid';
 import {PromoBanners,type Banner} from '../../components/storefront/sections/promo-banners';
-import {homeBanners} from '../../modules/storefront/banners';
+import {currentHomeBanners,homeBanners} from '../../modules/storefront/banners';
 import {activeShippingPromotions,bundleOffers,promotionSummary} from '../../modules/storefront/promotions';
 import {rupiah} from '../../modules/storefront/format';
 import {departmentTint} from '../../components/storefront/sections/category-pills';
@@ -43,10 +43,13 @@ export default async function Home(){
  })).then(all=>all.filter(s=>s.products.length));
  // Hero: its own curated photos only, so it does not repeat the tiles and pills below.
  const heroPhotos=(await curatedHero(identity)).map(photo=>media(photo)).filter(x=>x!==null);
- // Promo banners (HOME_BANNERS, data-backed) plus one per active shipping promotion; no banner, no section.
- const [bundles,promotions]=await Promise.all([bundleOffers(identity,1),activeShippingPromotions(identity)]);
+ // Promo banners plus one per active shipping promotion; no banner, no section. S110: the admin-managed
+ // banners current now (WIB windows) while any is not retired; otherwise the data-backed HOME_BANNERS defaults.
+ const [bundles,promotions,managed]=await Promise.all([bundleOffers(identity,1),activeShippingPromotions(identity),currentHomeBanners(identity.sql)]);
  const banners:Banner[]=[
-  ...(await homeBanners(identity,{bundles:bundles.length,departments})).map(b=>({id:b.id,title:b.title,body:b.body,href:b.href,action:b.action,tint:'#efeafd',cutout:b.tint,images:[{src:sameOrigin(b.image.url),width:b.image.width,height:b.image.height,alt:''}]})),
+  ...(managed.configured
+   ?managed.banners.map(b=>({id:b.id,title:b.title,body:b.subtitle??'',href:b.href,action:b.action_label,tint:'#efeafd',cutout:b.tint??undefined,images:[b.image]}))
+   :(await homeBanners(identity,{bundles:bundles.length,departments})).map(b=>({id:b.id,title:b.title,body:b.body,href:b.href,action:b.action,tint:'#efeafd',cutout:b.tint,images:[{src:sameOrigin(b.image.url),width:b.image.width,height:b.image.height,alt:''}]}))),
   ...promotions.map(p=>({id:`shipping-${p.id}`,title:p.name,body:promotionSummary(p,rupiah),href:'/promo',action:'Lihat promo',tint:'#fdf3d6',images:[]})),
  ];
  let signedIn=false;try{await getPrincipal(await storefrontRequest('GET','/'),identity);signedIn=true;}catch{}

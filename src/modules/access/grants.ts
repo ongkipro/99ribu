@@ -33,6 +33,8 @@ export async function consumeAccessProof(tx: TransactionSql, principal: Principa
 const financePurposes: Record<string, "reconciliation" | "refunds"> = { "finance.reconcile": "reconciliation", "finance.refund": "refunds", "finance.recovery_refund": "refunds" };
 const payoutPurposes = ["payout.claim", "payout.verify"];
 const selfPurposes = ["affiliate.beneficiary_change", "support.contact_rebind"];
+// S110: storefront content purposes are owner or ecommerce_admin with fresh MFA; one fixed company subject.
+const contentPurposes: Record<string, string> = { "home_banner.write": "home-banners" };
 const ownerPurposes = [action, "company_policy.version", "payment_policy.version", "warehouse_calendar.version", "catalog_publication.exception", "affiliate_rate.version"];
 const uuidSubjectPurposes = ["warehouse_calendar.version", "catalog_publication.exception", "affiliate_rate.version", "affiliate.beneficiary_change", ...Object.keys(financePurposes), ...payoutPurposes];
 const uuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
@@ -41,17 +43,20 @@ export async function issueAccessProof(request: Request, principal: Principal, i
   const requested = typeof body.action === "string" ? body.action : "";
   const financePurpose = Object.hasOwn(financePurposes, requested) ? financePurposes[requested] : null;
   const payoutPurpose = payoutPurposes.includes(requested), selfPurpose = selfPurposes.includes(requested);
+  const contentPurpose = Object.hasOwn(contentPurposes, requested);
   const authorized = selfPurpose
     ? (requested === "affiliate.beneficiary_change" ? principal.roles.includes("affiliate") : body.subject_id === principal.id)
     : Boolean(principal.mfaAt) && (financePurpose ? hasPermission(principal, `finance.${financePurpose}.read`) && hasPermission(principal, `finance.${financePurpose}.write`)
-      : payoutPurpose ? principal.roles.some((role) => role === "owner" || role === "finance") : principal.roles.includes("owner"));
+      : payoutPurpose ? principal.roles.some((role) => role === "owner" || role === "finance")
+      : contentPurpose ? principal.roles.some((role) => role === "owner" || role === "ecommerce_admin") : principal.roles.includes("owner"));
   if (!authorized) throw new AccessError(403, "FORBIDDEN");
   const key = request.headers.get("idempotency-key");
   if (!key || !/^[A-Za-z0-9_-]{16,200}$/.test(key)) throw new AccessError(400, "INVALID_IDEMPOTENCY_KEY");
   if (Object.keys(body).some((key) => !["password", "action", "subject_id"].includes(key)) || typeof body.action !== "string" ||
-    ![...ownerPurposes, ...Object.keys(financePurposes), ...payoutPurposes, ...selfPurposes].includes(body.action) ||
+    ![...ownerPurposes, ...Object.keys(financePurposes), ...payoutPurposes, ...selfPurposes, ...Object.keys(contentPurposes)].includes(body.action) ||
     !validId(body.subject_id) || typeof body.password !== "string" || body.password.length > 128) throw new AccessError(400, "INVALID_INPUT");
   if ((body.action === "company_policy.version" && body.subject_id !== "company-commercial") || (body.action === "payment_policy.version" && body.subject_id !== "company-payment") ||
+    (Object.hasOwn(contentPurposes, body.action) && body.subject_id !== contentPurposes[body.action]) ||
     (uuidSubjectPurposes.includes(body.action) && !uuid.test(body.subject_id))) throw new AccessError(400, "INVALID_INPUT");
   const proofAction = body.action;
   const subjectId = uuidSubjectPurposes.includes(proofAction) ? body.subject_id.toLowerCase() : body.subject_id;
@@ -73,6 +78,7 @@ export async function issueAccessProof(request: Request, principal: Principal, i
     if(!currentUser?.email_verified)throw new AccessError(403,'FORBIDDEN');
     if(financePurpose){await financeAuthority(tx,principal,`finance.${financePurpose}.read`,true);await financeAuthority(tx,principal,`finance.${financePurpose}.write`,true);}
     else if (payoutPurpose) await assertCurrentOwner(tx, principal, true, ["owner", "finance"]);
+    else if (contentPurpose) await assertCurrentOwner(tx, principal, true, ["owner", "ecommerce_admin"]);
     else if (proofAction === "affiliate.beneficiary_change") {
       // The subject is the caller's own current affiliate account, never another affiliate's.
       const [own] = await tx`select a.id from app.affiliate_account a join app.role_grant g on g.user_id=a.user_id

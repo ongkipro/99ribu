@@ -1,5 +1,12 @@
 # Build log — Serba 99ribu
 
+## 2026-10-25 — S110 merged: home banners (migration 0038)
+
+- Branch `s110-home-banners` merged into `main`. Independent review fixed a critical defect: the `home_banner_version_href_check` regex used `{1,300}` (PostgreSQL's repetition bound is 255), so every banner INSERT failed with `2201B` (API 503); now `+` with `char_length(href) <= 400` (`migrations/0038_home_banners.sql`, `src/db/schema.ts`, snapshot; not yet applied anywhere shared). Also fixed keyboard focus loss when a reorder arrow disables at the list edge (`banners-client.tsx`, `aria-live` announcement, new browser assertion).
+- Branch evidence: `npm run check` 128/128; migrations `0000`–`0038` on fresh test/local DBs; `drizzle-kit generate` no drift; `test:integration --case=home-banners` 7/7 (5 failed before the regex fix); `test:browser --case=home-banners` 4/4; OpenAPI parity 4/4; `check-openapi-contract.py` and `development-task.py check` PASS.
+- Coordinator at merge: resolved `scripts/check-tests.ts` (both `ops-screens` and `home-banners`) and `FormDialog` (S102 scroll classes merged with S110's `className` via `cn`); sidebar Banner Beranda in Pemasaran (owner, ecommerce_admin); README migration range `0038` and registry rows for `ops-screens` and `home-banners`.
+- Open: design gate on the latest `docs/spec/design/renders/s110/` renders still to run; banner image upload needs only a session plus 20/min rate limit (audited; a banner cannot use an image without the proof).
+
 ## 2026-10-25 — S102 merged: inventory, transfers, shipping promotions, product content, DEC-013 claim filter
 
 - Branch `s102-ops-screens` merged into `main`; independent review fixed a missing `aria-describedby` on the dispatch reason (`transfers-client.tsx`) and an animation race in the phone bottom-sheet browser check. Staff grants are not on the branch (moved to S137).

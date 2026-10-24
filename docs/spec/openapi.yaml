@@ -899,7 +899,8 @@ paths:
         grants. payout.claim and payout.verify (payout UUID subject) permit owner or finance with fresh MFA.
         Self purposes reauthenticate by current password only (no MFA enrollment required);
         affiliate.beneficiary_change binds the caller's own affiliate account UUID; support.contact_rebind binds
-        the caller's own user id. Current database authority is checked before proof replay. Proof binds the current
+        the caller's own user id. home_banner.write (subject home-banners) permits owner or ecommerce_admin with fresh
+        MFA. Current database authority is checked before proof replay. Proof binds the current
         session, action and target, expires after five minutes, and is consumed atomically by the mutation. Same
         retry key recovers the same unconsumed proof without extending expiry; consumed or expired proof requires
         a new key. Rate-limited by principal. No raw proof or password in audit/logs. S09 local implementation;
@@ -13693,6 +13694,473 @@ paths:
           application/json:
             schema:
               $ref: '#/components/schemas/PromotionInput'
+  /admin/home-banners:
+    get:
+      operationId: listHomeBanners
+      summary: List home promo banners
+      description: S110. Current version of every banner that is not retired, in storefront rail order (state=current,
+        default), or the 50 most recently retired (state=retired). `configured` tells whether any banner is not retired;
+        while one is, the storefront rail shows only current admin banners (hidden when none is current) instead of its
+        built-in defaults. Current cookie/MFA owner or ecommerce_admin.
+      tags:
+      - Content
+      security:
+      - sessionCookie: []
+      x-contract-status: implemented-local
+      x-domain-owner: content
+      x-primary-requirement: PR-1
+      x-allowed-roles:
+      - owner
+      - ecommerce_admin
+      x-proof-group: home-banners
+      x-implementation: src/app/api/v1/admin/home-banners/route.ts
+      parameters:
+      - name: state
+        in: query
+        schema:
+          type: string
+          enum:
+          - current
+          - retired
+          default: current
+      responses:
+        '200':
+          description: Private banner list.
+          headers:
+            Cache-Control:
+              schema:
+                const: no-store
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HomeBannerList'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '409':
+          $ref: '#/components/responses/Conflict'
+        '503':
+          $ref: '#/components/responses/Unavailable'
+        default:
+          description: Safe application Problem; a gateway may return non-Problem failure.
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+    post:
+      operationId: createHomeBanner
+      summary: Create a home promo banner
+      description: S110. Current cookie/MFA owner or ecommerce_admin. Strict closed JSON; consumes a fresh
+        home_banner.write reauthentication proof (subject home-banners) and, in one transaction, appends an immutable
+        version, writes an audit event and saves an actor-scoped committed retry (same key and body returns the saved
+        response without a new proof). Links are internal storefront paths only. The image hash must name a stored WebP
+        catalog photo of 600-4096 px; its size comes from the stored bytes. The banner is appended last; at most 24
+        banners may be current or scheduled.
+      tags:
+      - Content
+      security:
+      - sessionCookie: []
+      x-contract-status: implemented-local
+      x-domain-owner: content
+      x-primary-requirement: PR-1
+      x-allowed-roles:
+      - owner
+      - ecommerce_admin
+      x-proof-group: home-banners
+      x-implementation: src/app/api/v1/admin/home-banners/route.ts
+      parameters:
+      - $ref: '#/components/parameters/IdempotencyKey'
+      responses:
+        '201':
+          description: Created banner at version 1.
+          headers:
+            Cache-Control:
+              schema:
+                const: no-store
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HomeBanner'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '409':
+          $ref: '#/components/responses/Conflict'
+        '503':
+          $ref: '#/components/responses/Unavailable'
+        '413':
+          $ref: '#/components/responses/BodyTooLarge'
+        '415':
+          $ref: '#/components/responses/UnsupportedMediaType'
+        '422':
+          $ref: '#/components/responses/Unprocessable'
+        '429':
+          $ref: '#/components/responses/TooManyRequests'
+        default:
+          description: Safe application Problem; a gateway may return non-Problem failure.
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+      x-request-body-limit-bytes: 16384
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/HomeBannerInput'
+  /admin/home-banners/order:
+    post:
+      operationId: reorderHomeBanners
+      summary: Reorder home promo banners
+      description: S110. Current cookie/MFA owner or ecommerce_admin. Strict closed JSON; consumes a fresh
+        home_banner.write reauthentication proof (subject home-banners) and, in one transaction, appends an immutable
+        version, writes an audit event and saves an actor-scoped committed retry (same key and body returns the saved
+        response without a new proof). Links are internal storefront paths only. Names every banner that is not retired, in the new rail order, each with
+        its current version; banners whose position changes get one appended version. A stale set is 409.
+      tags:
+      - Content
+      security:
+      - sessionCookie: []
+      x-contract-status: implemented-local
+      x-domain-owner: content
+      x-primary-requirement: PR-1
+      x-allowed-roles:
+      - owner
+      - ecommerce_admin
+      x-proof-group: home-banners
+      x-implementation: src/app/api/v1/admin/home-banners/order/route.ts
+      parameters:
+      - $ref: '#/components/parameters/IdempotencyKey'
+      responses:
+        '201':
+          description: Current banners in the saved order.
+          headers:
+            Cache-Control:
+              schema:
+                const: no-store
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HomeBannerList'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '409':
+          $ref: '#/components/responses/Conflict'
+        '503':
+          $ref: '#/components/responses/Unavailable'
+        '413':
+          $ref: '#/components/responses/BodyTooLarge'
+        '415':
+          $ref: '#/components/responses/UnsupportedMediaType'
+        '422':
+          $ref: '#/components/responses/Unprocessable'
+        '429':
+          $ref: '#/components/responses/TooManyRequests'
+        default:
+          description: Safe application Problem; a gateway may return non-Problem failure.
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+      x-request-body-limit-bytes: 16384
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/HomeBannerOrderInput'
+  /admin/home-banners/{bannerId}/versions:
+    get:
+      operationId: listHomeBannerVersions
+      summary: List one banner's immutable versions
+      description: S110. Every version of one banner, newest first, with actor, reason and time. Keyset cursor is the
+        oldest returned version number. Current cookie/MFA owner or ecommerce_admin.
+      tags:
+      - Content
+      security:
+      - sessionCookie: []
+      x-contract-status: implemented-local
+      x-domain-owner: content
+      x-primary-requirement: PR-1
+      x-allowed-roles:
+      - owner
+      - ecommerce_admin
+      x-proof-group: home-banners
+      x-implementation: src/app/api/v1/admin/home-banners/[bannerId]/versions/route.ts
+      parameters:
+      - name: bannerId
+        in: path
+        required: true
+        schema:
+          $ref: '#/components/schemas/CatalogUuid'
+      - name: cursor
+        in: query
+        schema:
+          type: string
+          pattern: ^\d{1,10}$
+      - name: limit
+        in: query
+        schema:
+          type: integer
+          minimum: 1
+          maximum: 100
+          default: 20
+      responses:
+        '200':
+          description: Private version history.
+          headers:
+            Cache-Control:
+              schema:
+                const: no-store
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HomeBannerVersionList'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '409':
+          $ref: '#/components/responses/Conflict'
+        '503':
+          $ref: '#/components/responses/Unavailable'
+        default:
+          description: Safe application Problem; a gateway may return non-Problem failure.
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+    post:
+      operationId: reviseHomeBanner
+      summary: Revise a home promo banner
+      description: S110. Current cookie/MFA owner or ecommerce_admin. Strict closed JSON; consumes a fresh
+        home_banner.write reauthentication proof (subject home-banners) and, in one transaction, appends an immutable
+        version, writes an audit event and saves an actor-scoped committed retry (same key and body returns the saved
+        response without a new proof). Links are internal storefront paths only. Full replacement of the content at expected_version; the rail position is
+        kept. A retired banner is final (409 BANNER_RETIRED).
+      tags:
+      - Content
+      security:
+      - sessionCookie: []
+      x-contract-status: implemented-local
+      x-domain-owner: content
+      x-primary-requirement: PR-1
+      x-allowed-roles:
+      - owner
+      - ecommerce_admin
+      x-proof-group: home-banners
+      x-implementation: src/app/api/v1/admin/home-banners/[bannerId]/versions/route.ts
+      parameters:
+      - name: bannerId
+        in: path
+        required: true
+        schema:
+          $ref: '#/components/schemas/CatalogUuid'
+      - $ref: '#/components/parameters/IdempotencyKey'
+      responses:
+        '201':
+          description: Appended banner version.
+          headers:
+            Cache-Control:
+              schema:
+                const: no-store
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HomeBanner'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '409':
+          $ref: '#/components/responses/Conflict'
+        '503':
+          $ref: '#/components/responses/Unavailable'
+        '413':
+          $ref: '#/components/responses/BodyTooLarge'
+        '415':
+          $ref: '#/components/responses/UnsupportedMediaType'
+        '422':
+          $ref: '#/components/responses/Unprocessable'
+        '429':
+          $ref: '#/components/responses/TooManyRequests'
+        default:
+          description: Safe application Problem; a gateway may return non-Problem failure.
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+      x-request-body-limit-bytes: 16384
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/HomeBannerRevisionInput'
+  /admin/home-banners/{bannerId}/retirements:
+    post:
+      operationId: retireHomeBanner
+      summary: Retire a home promo banner
+      description: S110. Current cookie/MFA owner or ecommerce_admin. Strict closed JSON; consumes a fresh
+        home_banner.write reauthentication proof (subject home-banners) and, in one transaction, appends an immutable
+        version, writes an audit event and saves an actor-scoped committed retry (same key and body returns the saved
+        response without a new proof). Links are internal storefront paths only. Appends a final, inactive version; the banner leaves the storefront at once and
+        accepts no further version.
+      tags:
+      - Content
+      security:
+      - sessionCookie: []
+      x-contract-status: implemented-local
+      x-domain-owner: content
+      x-primary-requirement: PR-1
+      x-allowed-roles:
+      - owner
+      - ecommerce_admin
+      x-proof-group: home-banners
+      x-implementation: src/app/api/v1/admin/home-banners/[bannerId]/retirements/route.ts
+      parameters:
+      - name: bannerId
+        in: path
+        required: true
+        schema:
+          $ref: '#/components/schemas/CatalogUuid'
+      - $ref: '#/components/parameters/IdempotencyKey'
+      responses:
+        '201':
+          description: Retired banner version.
+          headers:
+            Cache-Control:
+              schema:
+                const: no-store
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HomeBanner'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '409':
+          $ref: '#/components/responses/Conflict'
+        '503':
+          $ref: '#/components/responses/Unavailable'
+        '413':
+          $ref: '#/components/responses/BodyTooLarge'
+        '415':
+          $ref: '#/components/responses/UnsupportedMediaType'
+        '422':
+          $ref: '#/components/responses/Unprocessable'
+        '429':
+          $ref: '#/components/responses/TooManyRequests'
+        default:
+          description: Safe application Problem; a gateway may return non-Problem failure.
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+      x-request-body-limit-bytes: 16384
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/HomeBannerRetirementInput'
+  /admin/home-banner-images:
+    post:
+      operationId: uploadHomeBannerImage
+      summary: Upload a home banner image
+      description: S110. Raw WebP bytes (Content-Type image/webp, at most 524288 bytes). Authority is checked before
+        the body is read; magic bytes, the content scan and the 600-4096 px size are enforced, then the bytes are stored
+        content-addressed in catalog media (idempotent). Rate-limited per actor. Current cookie/MFA owner or
+        ecommerce_admin.
+      tags:
+      - Content
+      security:
+      - sessionCookie: []
+      x-contract-status: implemented-local
+      x-domain-owner: content
+      x-primary-requirement: PR-1
+      x-allowed-roles:
+      - owner
+      - ecommerce_admin
+      x-proof-group: home-banners
+      x-implementation: src/app/api/v1/admin/home-banner-images/route.ts
+      parameters:
+      - $ref: '#/components/parameters/IdempotencyKey'
+      responses:
+        '201':
+          description: Stored image facts.
+          headers:
+            Cache-Control:
+              schema:
+                const: no-store
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HomeBannerImage'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '409':
+          $ref: '#/components/responses/Conflict'
+        '503':
+          $ref: '#/components/responses/Unavailable'
+        '413':
+          $ref: '#/components/responses/BodyTooLarge'
+        '415':
+          $ref: '#/components/responses/UnsupportedMediaType'
+        '422':
+          $ref: '#/components/responses/Unprocessable'
+        '429':
+          $ref: '#/components/responses/TooManyRequests'
+        default:
+          description: Safe application Problem; a gateway may return non-Problem failure.
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+      x-request-body-limit-bytes: 524288
+      requestBody:
+        required: true
+        content:
+          image/webp:
+            schema:
+              type: string
+              format: binary
   /carts/current:
     get:
       operationId: getCurrentCart
@@ -19674,6 +20142,356 @@ components:
       additionalProperties: false
       description: Immutable configuration plus observed lifetime campaign counters, not posted expense/cash. History
         keeps old rules; budget_state is current at this read.
+    HomeBannerInput:
+      type: object
+      properties:
+        title:
+          type: string
+          minLength: 1
+          maxLength: 60
+        subtitle:
+          type:
+          - string
+          - 'null'
+          minLength: 1
+          maxLength: 140
+        action_label:
+          type: string
+          minLength: 1
+          maxLength: 24
+        href:
+          type: string
+          maxLength: 400
+          pattern: ^/(promo|kategori|kategori/[a-z0-9-]{1,80}|cari|produk/[a-z0-9-]{1,160})([?][A-Za-z0-9_.~%=&+*-]{1,300})?$
+          description: Internal storefront path; a query only with listing parameters on /cari and /kategori/<slug>.
+        image_sha256:
+          type: string
+          pattern: ^[0-9a-f]{64}$
+        image_alt:
+          type: string
+          minLength: 1
+          maxLength: 160
+        tint:
+          type:
+          - string
+          - 'null'
+          enum:
+          - amber
+          - slate
+          - rose
+          - blue
+          - green
+          - violet
+          - teal
+          - null
+        starts_at:
+          $ref: '#/components/schemas/DateTime'
+        ends_at:
+          $ref: '#/components/schemas/DateTime'
+        active:
+          type: boolean
+        reason:
+          type: string
+          minLength: 1
+          maxLength: 500
+        reauthentication_proof:
+          type: string
+          pattern: ^[A-Za-z0-9_-]{1,100}$
+      required:
+      - title
+      - subtitle
+      - action_label
+      - href
+      - image_sha256
+      - image_alt
+      - tint
+      - starts_at
+      - ends_at
+      - active
+      - reason
+      - reauthentication_proof
+      additionalProperties: false
+    HomeBannerRevisionInput:
+      type: object
+      properties:
+        title:
+          type: string
+          minLength: 1
+          maxLength: 60
+        subtitle:
+          type:
+          - string
+          - 'null'
+          minLength: 1
+          maxLength: 140
+        action_label:
+          type: string
+          minLength: 1
+          maxLength: 24
+        href:
+          type: string
+          maxLength: 400
+          pattern: ^/(promo|kategori|kategori/[a-z0-9-]{1,80}|cari|produk/[a-z0-9-]{1,160})([?][A-Za-z0-9_.~%=&+*-]{1,300})?$
+          description: Internal storefront path; a query only with listing parameters on /cari and /kategori/<slug>.
+        image_sha256:
+          type: string
+          pattern: ^[0-9a-f]{64}$
+        image_alt:
+          type: string
+          minLength: 1
+          maxLength: 160
+        tint:
+          type:
+          - string
+          - 'null'
+          enum:
+          - amber
+          - slate
+          - rose
+          - blue
+          - green
+          - violet
+          - teal
+          - null
+        starts_at:
+          $ref: '#/components/schemas/DateTime'
+        ends_at:
+          $ref: '#/components/schemas/DateTime'
+        active:
+          type: boolean
+        expected_version:
+          type: integer
+          minimum: 1
+        reason:
+          type: string
+          minLength: 1
+          maxLength: 500
+        reauthentication_proof:
+          type: string
+          pattern: ^[A-Za-z0-9_-]{1,100}$
+      required:
+      - title
+      - subtitle
+      - action_label
+      - href
+      - image_sha256
+      - image_alt
+      - tint
+      - starts_at
+      - ends_at
+      - active
+      - expected_version
+      - reason
+      - reauthentication_proof
+      additionalProperties: false
+    HomeBannerRetirementInput:
+      type: object
+      properties:
+        expected_version:
+          type: integer
+          minimum: 1
+        reason:
+          type: string
+          minLength: 1
+          maxLength: 500
+        reauthentication_proof:
+          type: string
+          pattern: ^[A-Za-z0-9_-]{1,100}$
+      required:
+      - expected_version
+      - reason
+      - reauthentication_proof
+      additionalProperties: false
+    HomeBannerOrderInput:
+      type: object
+      properties:
+        banners:
+          type: array
+          minItems: 1
+          maxItems: 24
+          items:
+            type: object
+            properties:
+              id:
+                $ref: '#/components/schemas/CatalogUuid'
+              expected_version:
+                type: integer
+                minimum: 1
+            required:
+            - id
+            - expected_version
+            additionalProperties: false
+        reason:
+          type: string
+          minLength: 1
+          maxLength: 500
+        reauthentication_proof:
+          type: string
+          pattern: ^[A-Za-z0-9_-]{1,100}$
+      required:
+      - banners
+      - reason
+      - reauthentication_proof
+      additionalProperties: false
+    HomeBanner:
+      type: object
+      properties:
+        id:
+          $ref: '#/components/schemas/CatalogUuid'
+        version:
+          type: integer
+          minimum: 1
+        version_id:
+          $ref: '#/components/schemas/CatalogUuid'
+        title:
+          type: string
+          minLength: 1
+          maxLength: 60
+        subtitle:
+          type:
+          - string
+          - 'null'
+        action_label:
+          type: string
+          minLength: 1
+          maxLength: 24
+        href:
+          type: string
+        tint:
+          type:
+          - string
+          - 'null'
+        image:
+          type: object
+          properties:
+            sha256:
+              type: string
+              pattern: ^[0-9a-f]{64}$
+            width:
+              type: integer
+              minimum: 1
+            height:
+              type: integer
+              minimum: 1
+            alt:
+              type: string
+            url:
+              type: string
+              format: uri-reference
+          required:
+          - sha256
+          - width
+          - height
+          - alt
+          - url
+          additionalProperties: false
+        starts_at:
+          $ref: '#/components/schemas/DateTime'
+        ends_at:
+          $ref: '#/components/schemas/DateTime'
+        position:
+          type: integer
+          minimum: 0
+          maximum: 999
+        active:
+          type: boolean
+        retired:
+          type: boolean
+        phase:
+          type: string
+          enum:
+          - live
+          - scheduled
+          - paused
+          - ended
+          - retired
+        recorded_by:
+          type: string
+        recorded_by_name:
+          type:
+          - string
+          - 'null'
+        reason:
+          type: string
+        recorded_at:
+          $ref: '#/components/schemas/DateTime'
+      required:
+      - id
+      - version
+      - version_id
+      - title
+      - subtitle
+      - action_label
+      - href
+      - tint
+      - image
+      - starts_at
+      - ends_at
+      - position
+      - active
+      - retired
+      - phase
+      - recorded_by
+      - recorded_by_name
+      - reason
+      - recorded_at
+      additionalProperties: false
+    HomeBannerList:
+      type: object
+      properties:
+        configured:
+          type: boolean
+        data:
+          type: array
+          maxItems: 50
+          items:
+            $ref: '#/components/schemas/HomeBanner'
+      required:
+      - configured
+      - data
+      additionalProperties: false
+    HomeBannerVersionList:
+      type: object
+      properties:
+        data:
+          type: array
+          maxItems: 100
+          items:
+            $ref: '#/components/schemas/HomeBanner'
+        pagination:
+          $ref: '#/components/schemas/Pagination'
+      required:
+      - data
+      - pagination
+      additionalProperties: false
+    HomeBannerImage:
+      type: object
+      properties:
+        sha256:
+          type: string
+          pattern: ^[0-9a-f]{64}$
+        width:
+          type: integer
+          minimum: 600
+          maximum: 4096
+        height:
+          type: integer
+          minimum: 600
+          maximum: 4096
+        byte_size:
+          type: integer
+          minimum: 1
+          maximum: 524288
+        url:
+          type: string
+          format: uri-reference
+      required:
+      - sha256
+      - width
+      - height
+      - byte_size
+      - url
+      additionalProperties: false
     PromotionList:
       type: object
       properties:
@@ -20496,6 +21314,7 @@ components:
           - payout.verify
           - affiliate.beneficiary_change
           - support.contact_rebind
+          - home_banner.write
         subject_id:
           type: string
           pattern: ^[A-Za-z0-9_-]{1,100}$
@@ -20516,6 +21335,14 @@ components:
           properties:
             subject_id:
               const: company-payment
+      - if:
+          properties:
+            action:
+              const: home_banner.write
+        then:
+          properties:
+            subject_id:
+              const: home-banners
       - if:
           properties:
             action:
@@ -27884,6 +28711,7 @@ x-operation-owners:
   advertising: Visitor consent and permitted advertising events.
   administration: Role dashboards, work queues and scoped exports.
   operations: Recoverable operation status across domains.
+  content: Storefront content managed by staff (home promo banners).
 x-implementation-boundary: Only implemented-local operations have handler evidence. Domain ownership records responsibility,
   not implemented modules. Vendor /api/auth endpoints use the separate S06/S09 auth contract and tests.
 x-proof-groups:
@@ -27929,6 +28757,9 @@ x-proof-groups:
   promotions:
     integration: tests/integration/promotion-contract.test.ts
     browser: tests/integration/promotion-http.test.ts
+  home-banners:
+    integration: tests/integration/home-banners.test.ts
+    browser: tests/browser/admin-banners.test.ts
   checkout:
     integration: tests/integration/checkout-contract.test.ts
     browser: tests/integration/checkout-http.test.ts
