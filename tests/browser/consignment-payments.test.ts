@@ -124,6 +124,18 @@ async function captureAll(page: Page, name: string) {
 	}
 	await page.setViewportSize({ width: 390, height: 900 });
 }
+// Phones read the manual queue 20 parcels per page (admin mobile pass): page on with "Muat baris
+// berikutnya" until the order's row is listed, then the caller asserts on it as before.
+async function manualRow(page: Page, number: string) {
+	const rows = page.getByRole("row").filter({ hasText: number });
+	const more = page.getByTestId("manual-queue-more");
+	await expect(rows.or(more).first()).toBeVisible();
+	for (let i = 0; i < 20 && !(await rows.count()) && (await more.count()); i++) {
+		await more.click();
+		await expect(more).not.toHaveText("Memuat…");
+	}
+	return rows;
+}
 async function captureBoth(page: Page, name: string, storefront = false) {
 	for (const width of [390, 1440]) {
 		await page.setViewportSize({ width, height: 900 });
@@ -263,7 +275,7 @@ test("S91 built browser: scoped warehouse staff records a Berlapak reference and
 		await page.goto(`${origin}/admin/fulfillment`);
 		await expect(page.getByRole("heading", { name: "Pengiriman Manual", level: 1 })).toBeVisible();
 		await expect(page.getByRole("tab", { name: "Perlu dipesan kurir" })).toHaveAttribute("aria-selected", "true");
-		const rows = page.getByRole("row").filter({ hasText: order.number });
+		const rows = await manualRow(page, order.number);
 		// Scope: the Malang-only staff sees exactly its own parcel of this two-warehouse order.
 		await expect(rows).toHaveCount(1);
 		await expect(rows.first()).toContainText("COD");
@@ -374,7 +386,7 @@ test("S99/S100 built browser: the manual queue shows the booking facts and the b
 		const { page } = desk;
 		await page.goto(`${origin}/admin/fulfillment`);
 		await expect(page.getByTestId("manual-scope-rule")).toContainText("hanya melihat gudang yang ditugaskan");
-		const row = page.getByRole("row").filter({ hasText: order.number });
+		const row = await manualRow(page, order.number);
 		await expect(row).toHaveCount(1);
 		await expect(row).toContainText("Penerima Contoh");
 		await expect(row).toContainText(`${rate.courier_name} · ${rate.service_name}`);

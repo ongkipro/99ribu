@@ -21,6 +21,9 @@ import { DataTable, type DataTableColumn } from "./data-table";
 import { wibInputToIso } from "@/modules/storefront/format";
 import { formatCm, formatKg, formatWib, rupiah } from "./format";
 import { FilterSheet, segmentedItemClass, segmentedListClass } from "./form";
+import { Disclosure } from "./page-blocks";
+import { DEADLINE_GROUPS, Deadline, deadlineGroup, useNow } from "./status";
+import { useIsMobile } from "@/components/ui/use-mobile";
 
 // DEC-007: every resi comes from 99ribu's own Mengantar account. Operators book
 // in the Mengantar dashboard, then record courier + resi here.
@@ -195,6 +198,7 @@ function Field({
 type DialogKind = "ship" | "correct" | "status";
 
 const PAGE_SIZE = "50";
+const PHONE_PAGE_SIZE = "20";
 
 /** Pick list: component units summed by SKU across the parcel's allocations. */
 function pickList(row: Row) {
@@ -212,6 +216,12 @@ const areaText = (row: Row) => {
 	const a = row.booking.destination_area;
 	return `${a.subdistrict}, ${a.district}, ${a.city}, ${a.province} ${a.postal_code}`;
 };
+const deadlineText = (row: Row) =>
+	row.packing_due_at ? (
+		<Deadline iso={row.packing_due_at} className="justify-end md:justify-start" />
+	) : (
+		<span className="text-muted-foreground">Jadwal gudang belum diatur</span>
+	);
 const courierText = (row: Row) =>
 	row.booking.quoted_courier
 		? `${row.booking.quoted_courier.courier_name} · ${row.booking.quoted_courier.service_name}`
@@ -222,6 +232,8 @@ const toBookColumns: DataTableColumn<Row>[] = [
 		id: "contents",
 		header: "Isi paket",
 		stack: "plain",
+		// md–xl too: the pick list stays in the sheet so the deadline and action keep their room.
+		className: "md:max-xl:hidden",
 		// Phones: the "Catat resi" sheet carries the pick list, so the card stays a short task row.
 		cellClassName: "min-w-48 whitespace-normal max-md:hidden",
 		cell: (row) => (
@@ -243,8 +255,10 @@ const toBookColumns: DataTableColumn<Row>[] = [
 		),
 	},
 	{
+		// md–xl: the courier moves under the recipient so the COD amount stays clear of the action.
 		id: "courier",
 		header: "Kurir pilihan pembeli",
+		className: "md:max-xl:hidden",
 		cellClassName: "min-w-36 whitespace-normal",
 		cell: courierText,
 	},
@@ -262,14 +276,12 @@ const toBookColumns: DataTableColumn<Row>[] = [
 			),
 	},
 	{
+		// md–2xl: the deadline sits under the order number so the pinned action never covers it.
 		id: "deadline",
 		header: "Batas resi",
-		cell: (row) =>
-			row.packing_due_at ? (
-				formatTime(row.packing_due_at)
-			) : (
-				<span className="text-muted-foreground">Jadwal gudang belum diatur</span>
-			),
+		className: "md:max-2xl:hidden",
+		cellClassName: "whitespace-nowrap",
+		cell: (row) => deadlineText(row),
 	},
 ];
 const shippedColumns: DataTableColumn<Row>[] = [
@@ -324,10 +336,14 @@ export function ManualFulfillmentClient({
 	const [more, setMore] = useState<"idle" | "loading" | "error">("idle");
 	const [notice, setNotice] = useState<Notice | null>(null);
 	const noticeRef = useRef<HTMLDivElement>(null);
+	const now = useNow();
+	const isMobile = useIsMobile();
 
 	const page = useCallback(
 		(cursor: string | null) => {
-			const params = new URLSearchParams({ queue, limit: PAGE_SIZE });
+			// Phones read 20 parcels per page (a short task list); "Muat baris berikutnya" pages on.
+			const limit = window.matchMedia("(max-width: 767px)").matches ? PHONE_PAGE_SIZE : PAGE_SIZE;
+			const params = new URLSearchParams({ queue, limit });
 			if (warehouseId) params.set("warehouse_id", warehouseId);
 			if (cursor) params.set("cursor", cursor);
 			return getJson<{ data: Row[]; pagination: { next_cursor: string | null } }>(
@@ -409,26 +425,28 @@ export function ManualFulfillmentClient({
 					</AlertDescription>
 				</Alert>
 			)}
+			{/* Settings, not daily work: collapsed above the queue (never after a long list). */}
+			{canManageProfiles && <PickupProfiles warehouses={warehouses} />}
+			<Disclosure key={isMobile ? "phone" : "wide"} id="manual-rules-heading" title="Aturan antrean" open={!isMobile}>
+				<p className="max-w-prose text-sm text-muted-foreground">
+					Pesanan lunas (prabayar) dan COD terkonfirmasi dari gudang mode
+					manual, urut batas resi terdekat lalu pesanan terlama. Pesan kurir
+					di dashboard Mengantar 99ribu, lalu catat kurir dan resinya di sini.
+				</p>
+				<p
+					className="max-w-prose text-sm text-muted-foreground"
+					data-testid="manual-scope-rule"
+				>
+					Super Admin melihat semua gudang. Admin E-Commerce dan staf gudang
+					hanya melihat gudang yang ditugaskan ke akunnya; minta Super Admin
+					menambah penugasan bila gudang tidak muncul.
+				</p>
+			</Disclosure>
 			<section aria-labelledby="manual-queue-heading" className="flex flex-col gap-4">
 				<div className="flex flex-wrap items-end justify-between gap-3">
-					<div className="flex flex-col gap-1">
-						<h2 id="manual-queue-heading" className="text-lg font-semibold">
-							Antrean pengiriman
-						</h2>
-						<p className="max-w-prose text-sm text-muted-foreground">
-							Pesanan lunas (prabayar) dan COD terkonfirmasi dari gudang mode
-							manual, urut batas resi terdekat lalu pesanan terlama. Pesan kurir
-							di dashboard Mengantar 99ribu, lalu catat kurir dan resinya di sini.
-						</p>
-						<p
-							className="max-w-prose text-sm text-muted-foreground"
-							data-testid="manual-scope-rule"
-						>
-							Super Admin melihat semua gudang. Admin E-Commerce dan staf gudang
-							hanya melihat gudang yang ditugaskan ke akunnya; minta Super Admin
-							menambah penugasan bila gudang tidak muncul.
-						</p>
-					</div>
+					<h2 id="manual-queue-heading" className="text-lg font-semibold">
+						Antrean pengiriman
+					</h2>
 					<div className="flex flex-wrap items-end gap-2 max-md:w-full max-md:*:flex-1">
 						<FilterSheet active={warehouseId ? 1 : 0}>
 							<div className="flex flex-col gap-1">
@@ -510,22 +528,37 @@ export function ManualFulfillmentClient({
 					rowTestId={() => "manual-row"}
 					rowClassName="align-top"
 					stack
+					group={
+						queue === "to_book"
+							? (row) => {
+									const key = deadlineGroup(row.packing_due_at, now);
+									return key && DEADLINE_GROUPS[key];
+								}
+							: undefined
+					}
 					columns={[
 						{
 							id: "order",
 							header: "Pesanan",
 							stack: "title",
+							cellClassName: "md:min-w-44 md:max-w-60 md:whitespace-normal",
 							cell: (row) => (
 								<>
 									<OrderLink row={row} enabled={canViewOrders} />
-									<span className="mt-1 block">
-										<Badge variant="outline">
-											{row.payment_method === "cod" ? "COD" : "Prabayar"}
-										</Badge>
-									</span>
-									<span className="mt-1 block text-xs text-muted-foreground">
+									{/* "Prabayar" is said once, in the COD column. */}
+									{row.payment_method === "cod" && (
+										<span className="mt-1 block">
+											<Badge variant="outline">COD</Badge>
+										</span>
+									)}
+									<span className="mt-1 block text-xs font-normal text-muted-foreground">
 										{row.warehouse_name}
 									</span>
+									{queue === "to_book" && (
+										<span className="mt-1 hidden text-xs font-normal md:max-2xl:block">
+											Batas resi {deadlineText(row)}
+										</span>
+									)}
 								</>
 							),
 						},
@@ -538,9 +571,10 @@ export function ManualFulfillmentClient({
 								<>
 									<span className="block font-medium">{row.recipient.recipient_name}</span>
 									<span className="block font-mono text-xs max-md:hidden">{row.recipient.phone}</span>
-									<span className="block max-w-64 text-xs text-muted-foreground">
+									<span className="block max-w-64 text-xs text-muted-foreground md:line-clamp-1" title={areaText(row)}>
 										{areaText(row)}
 									</span>
+									<span className="hidden text-xs md:max-xl:block">Kurir: {courierText(row)}</span>
 								</>
 							),
 						},
@@ -580,6 +614,7 @@ export function ManualFulfillmentClient({
 						onMore: () => void loadMore(),
 						error: more === "error" ? "Halaman berikutnya gagal dimuat. Coba lagi." : null,
 						summary: `${rows.length} paket ditampilkan${nextCursor ? ", masih ada paket berikutnya." : "."}`,
+						testId: "manual-queue-more",
 					}}
 				/>
 			</section>
@@ -592,7 +627,6 @@ export function ManualFulfillmentClient({
 					onDone={done}
 				/>
 			)}
-			{canManageProfiles && <PickupProfiles warehouses={warehouses} />}
 		</div>
 	);
 }
@@ -1037,20 +1071,12 @@ function PickupProfiles({ warehouses }: { warehouses: Warehouse[] }) {
 	}
 
 	return (
-		<section
-			aria-labelledby="pickup-heading"
-			className="flex flex-col gap-4 border-t pt-6"
-		>
-			<div className="flex flex-col gap-1">
-				<h2 id="pickup-heading" className="text-lg font-semibold">
-					Profil penjemputan gudang
-				</h2>
-				<p className="max-w-prose text-sm text-muted-foreground">
-					Data pribadi (alamat jalan, nama dan telepon PIC) untuk pemesanan
-					otomatis Mengantar di masa depan. Selama integrasi otomatis belum
-					aktif, semua gudang tetap mode manual.
-				</p>
-			</div>
+		<Disclosure id="pickup-heading" title="Profil penjemputan gudang">
+			<p className="max-w-prose text-sm text-muted-foreground">
+				Data pribadi (alamat jalan, nama dan telepon PIC) untuk pemesanan
+				otomatis Mengantar di masa depan. Selama integrasi otomatis belum
+				aktif, semua gudang tetap mode manual.
+			</p>
 			<div className="flex max-w-sm flex-col gap-1.5">
 				<label htmlFor="pickup-warehouse" className="text-sm font-medium">
 					Gudang
@@ -1162,6 +1188,6 @@ function PickupProfiles({ warehouses }: { warehouses: Warehouse[] }) {
 					</div>
 				</form>
 			)}
-		</section>
+		</Disclosure>
 	);
 }
