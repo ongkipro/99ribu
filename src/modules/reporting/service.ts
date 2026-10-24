@@ -378,8 +378,10 @@ export interface QueueRowInternal {
 	amount_idr: number | null;
 	/** Human reference: order number, waybill, SKU or settlement reference; null when the row has none. */
 	reference: string | null;
-	/** S100: the order the row belongs to (order detail link target); null for stock and settlement rows. */
+	/** S100: the order the row belongs to (order detail link target); null for stock rows and unmatched settlements. */
 	order_id: string | null;
+	/** Reconciliation rows: which settlement feed the mutation came from. */
+	settlement_source?: "payment" | "cod";
 }
 
 export type DueAtKind =
@@ -567,6 +569,18 @@ function reconciliationSource(sql: Sql, from: string, to: string, metric: Metric
       where ps.created_at >= ${from}::timestamptz and ps.created_at <= ${to}::timestamptz
         ${metric === "finance_unmatched" ? sql`and ps.status is distinct from 'matched'` : sql``}`;
 }
+
+const TERMINAL_QUEUE_STATES: Record<QueueRowInternal["resource_kind"], readonly string[]> = {
+	order: ["cancelled"],
+	fulfillment: ["handed_over"],
+	shipment: ["resolved"],
+	return: ["rejected", "resolved"],
+	stock_item: ["in_stock"],
+	conversation: ["resolved", "closed"],
+	reconciliation: ["matched"],
+};
+export const isTerminalQueueState = (kind: QueueRowInternal["resource_kind"], state: string) =>
+	TERMINAL_QUEUE_STATES[kind].includes(state);
 
 async function queryQueueRows(
 	identity: LocalAuth,
@@ -858,7 +872,10 @@ async function queryQueueRows(
 				revision: number;
 				created_at: string;
 				net_amount: string;
-				reference: string;
+				reference: string | null;
+				provider: string | null;
+				order_number: string | null;
+				order_id: string | null;
 			}[]
 		>`
       select ps.id,
@@ -866,7 +883,13 @@ async function queryQueueRows(
              ps.revision,
              ps.created_at,
              coalesce(lso.net_amount, 0)::text as net_amount,
-             coalesce(lso.reference, ps.id::text) as reference
+             lso.reference,
+             lso.provider,
+             -- First allocated order of the current (else last) match: the order staff open.
+             (select o.number from app.settlement_allocation sa join app.commerce_order o on o.id = sa.order_id
+               where sa.match_id = coalesce(ps.current_match_id, ps.last_match_id) order by sa.ordinal limit 1) as order_number,
+             (select sa.order_id::text from app.settlement_allocation sa
+               where sa.match_id = coalesce(ps.current_match_id, ps.last_match_id) order by sa.ordinal limit 1) as order_id
       ${reconciliationSource(sql, from, to, metric)}
       order by ps.created_at desc, ps.id asc
     `;
@@ -881,8 +904,10 @@ async function queryQueueRows(
 				warehouse_id: null,
 				version: Number(r.revision ?? 1),
 				amount_idr: Number(r.net_amount ?? 0),
-				reference: String(r.reference),
-				order_id: null,
+				// S113: the matched order number staff know; else the mutation reference, never the row id.
+				reference: r.order_number ?? r.reference ?? null,
+				order_id: r.order_id,
+				settlement_source: r.provider === "local.cod" ? ("cod" as const) : ("payment" as const),
 			}));
 	}
 
@@ -1523,14 +1548,22 @@ export async function listWorkQueue(request: Request, identity: LocalAuth) {
 		throw new AccessError(400, "INVALID_INPUT");
 	}
 
-	const allRows = await queryQueueRows(
-		identity,
-		rawQueue,
-		warehouseIds,
-		from,
-		to,
-		undefined,
-		scope,
+	// S113: rows staff still act on come first, terminal states last (stable: each group keeps
+	// the queue order). The cursor is a row id in this same ordering.
+	const allRows = (
+		await queryQueueRows(
+			identity,
+			rawQueue,
+			warehouseIds,
+			from,
+			to,
+			undefined,
+			scope,
+		)
+	).sort(
+		(a, b) =>
+			Number(isTerminalQueueState(a.resource_kind, a.state)) -
+			Number(isTerminalQueueState(b.resource_kind, b.state)),
 	);
 	let startIndex = 0;
 	if (cursor) {
@@ -1555,6 +1588,9 @@ export async function listWorkQueue(request: Request, identity: LocalAuth) {
 			version: row.version,
 			reference: row.reference,
 			order_id: row.order_id,
+			// Settlement amount and feed for reconciliation rows only (no order totals in this contract).
+			amount_idr: row.resource_kind === "reconciliation" ? row.amount_idr : null,
+			settlement_source: row.settlement_source ?? null,
 		})),
 		pagination: {
 			next_cursor: nextCursor,

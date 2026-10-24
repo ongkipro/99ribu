@@ -23645,13 +23645,31 @@ components:
           maxLength: 200
           description: Human reference the operator already sees elsewhere in scope - order number (orders, returns,
             delivery exceptions, conversations linked to an order), waybill number or else order number
-            (fulfillments), SKU (stock) or settlement reference (reconciliation). Null when the row has none.
+            (fulfillments), SKU (stock) or, for reconciliation, the matched order number else the settlement
+            mutation reference (never the row id). Null when the row has none. Rows staff still act on come
+            first and terminal states last; each group keeps the queue's own order.
         order_id:
           anyOf:
           - $ref: '#/components/schemas/Id'
           - type: 'null'
-          description: S100 order the row belongs to (staff order detail link); null for stock and settlement rows.
-            Opening it re-checks whole-order authorization.
+          description: S100 order the row belongs to (staff order detail link); null for stock rows and unmatched
+            settlements. Opening it re-checks whole-order authorization.
+        amount_idr:
+          type:
+          - integer
+          - 'null'
+          minimum: 0
+          description: Net settlement amount in rupiah for reconciliation rows; null for every other kind (no order
+            totals here).
+        settlement_source:
+          type:
+          - string
+          - 'null'
+          enum:
+          - payment
+          - cod
+          - null
+          description: Reconciliation rows only - the settlement feed (prepaid payment or COD remittance).
       required:
       - id
       - resource_kind
@@ -23662,6 +23680,8 @@ components:
       - version
       - reference
       - order_id
+      - amount_idr
+      - settlement_source
       additionalProperties: false
       description: Safe operational row, no customer contacts/private labels/costs/whole-order totals. Logical target
         still requires current object authorization.
