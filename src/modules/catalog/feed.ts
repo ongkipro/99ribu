@@ -33,37 +33,17 @@ export function feedItem(origin:string,product:PublicProduct,offer:Offer,product
  return {item,issues};
 }
 
-// Google product category by offer SKU (product override) or by department slug (default).
-type CategoryRow=Record<string,unknown>;
-function googleMaps(){
- const dataset=readCatalogDocument(defaultCatalogDatasetDir);
- return {bySlug:new Map(dataset.categories.flatMap(c=>c.google_product_category?[[c.slug,String(c.google_product_category)] as const]:[])),
-  bySku:new Map(dataset.products.flatMap(p=>p.google_product_category?[[p.offer.sku,String(p.google_product_category)] as const]:[]))};
-}
-function googleLookup(maps:ReturnType<typeof googleMaps>,categories:Map<string,CategoryRow>){
- return (categoryId:string,sku:string)=>{let c=categories.get(categoryId);while(c?.parent_id) c=categories.get(c.parent_id as string);return maps.bySku.get(sku)??(c?maps.bySlug.get(c.slug as string):undefined)??null;};
-}
-// lazy: the admin detail reads the committed dataset once per process (it changes only with a deploy);
-// S106 replaces this with a stored per-product column.
-let cachedMaps:ReturnType<typeof googleMaps>|null=null;
-/** S102 admin product detail: the feed's Google category for the draft's active offers (read-only); null when none. */
-export async function draftGoogleCategory(sql:Sql,categoryId:string|null,offerIds:readonly string[]){
- if(!categoryId) return null;
- try{cachedMaps??=googleMaps();}catch{return null;}
- const categories=new Map((await sql`with recursive up as (select id,slug,parent_id from app.category where id=${categoryId}
-  union select c.id,c.slug,c.parent_id from app.category c join up on c.id=up.parent_id) select * from up`).map(c=>[c.id as string,c]));
- const skus=offerIds.length?(await sql`select sku from app.offer where id in ${sql(offerIds)} order by sku`).map(o=>o.sku as string):[''];
- const google=googleLookup(cachedMaps,categories);
- return skus.map(sku=>google(categoryId,sku)).find(Boolean)??null;
-}
-
 // Published-only export through the same frozen publication/availability reader as
 // the storefront. Invalid items are reported before export and never serialized.
 export async function catalogFeed(sql:Sql,productIds?:readonly string[]){
  const origin=appOrigin();
  return sql.begin(async tx=>{
   const categories=new Map((await tx`select id,slug,name,parent_id from app.category`).map(c=>[c.id as string,c]));
-  const google=googleLookup(googleMaps(),categories);
+  // Google product category by offer SKU (product override) or by department slug (default).
+  const dataset=readCatalogDocument(defaultCatalogDatasetDir);
+  const bySlug=new Map(dataset.categories.flatMap(c=>c.google_product_category?[[c.slug,String(c.google_product_category)] as const]:[]));
+  const bySku=new Map(dataset.products.flatMap(p=>p.google_product_category?[[p.offer.sku,String(p.google_product_category)] as const]:[]));
+  const google=(categoryId:string,sku:string)=>{let c=categories.get(categoryId);while(c?.parent_id) c=categories.get(c.parent_id);return bySku.get(sku)??(c?bySlug.get(c.slug as string):undefined)??null;};
   const path=(id:string)=>{const names:string[]=[];for(let c=categories.get(id);c;c=categories.get(c.parent_id)) names.unshift(c.name);return names.join(' > ');};
   // lazy: one transaction scans every current publication head; page by product id
   // once the published catalog outgrows a single local export.

@@ -3,7 +3,7 @@ import { assertOrigin, privateJson, problem, readBody } from "../access/http.ts"
 import { AccessError, getPrincipal } from "../access/policy.ts";
 import { createCategory, createProduct, createStockItem, patchProduct, readCatalog } from "./catalog.ts";
 import { homeSafe } from "../storefront/department-photos.ts";
-import { draftGoogleCategory } from "./feed.ts";
+import { draftGoogleCategory } from "./google-category.ts";
 import { publishProduct, readPublicationState, withdrawPublication } from "./publication.ts";
 import { listProductSummaries } from "./summary.ts";
 
