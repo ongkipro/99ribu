@@ -1,0 +1,30 @@
+{
+  "capturedAt": "2026-10-24T07:35:00.000Z",
+  "note": "Sign-in flow: the shop.com 'Sign in' control (a button in the desktop rail and the phone dock, also 'Sign in to view saved items') navigates the whole tab to a dedicated page on shop.app; there is no in-page modal or sheet. Email-first form, nothing submitted (empty submit only, a client-side check). Headless Chromium via Playwright, read-only, DPR 1, viewport screenshots.",
+  "viewports": {
+    "390": { "url": "https://shop.app/accounts/login", "width": 390, "height": 844 },
+    "1440": { "url": "https://shop.app/accounts/login", "width": 1440, "height": 900 }
+  },
+  "files": {
+    "entry-1440.png": "shop.com home; 'Sign in' sits at the bottom of the left rail (56px icon button with label)",
+    "entry-390.png": "shop.com home on a phone; 'Sign in' is the dock's last button",
+    "1440.png": "Sign-in page after the click (full-page navigation)",
+    "390.png": "Sign-in page on a phone",
+    "error-1440.png": "Empty submit: red field edge and a 12/16 message under the field (role=alert)",
+    "error-390.png": "Same on a phone",
+    "nojs-1440.png": "JavaScript disabled: the sign-in page renders blank (no form)"
+  },
+  "measured": {
+    "page": "white page, no store chrome; one centred column 344px wide (phones: 24px side gutters), top at ~90px desktop / 16px phones; language switcher pinned to the bottom",
+    "logo": "32px brand mark centred, 24px above the heading",
+    "heading": "h2 'Sign in to Shop' 32/35.2 800 -0.5px desktop, 28/30.8 phones, black, centred",
+    "subtitle": "16/22 450 -0.5px, rgba(0,0,0,.56), 8px under the heading",
+    "field": "52px pill wrapper: 1px solid #000, radius 999px, background rgba(0,0,0,.04), padding 0 16px, shadow 0 2px 4px rgba(0,0,0,.02), 0 6px 16px rgba(0,0,0,.04); input 16/22 450 -0.5px, placeholder rgba(0,0,0,.35) as the only label (aria-label 'Enter your email'), type=email, autocomplete='email webauthn', autofocus; 24px under the subtitle",
+    "primary": "52px pill 'Continue', 16/22 500 -0.5px, brand fill, 1px white edge, inset highlights rgba(255,255,255,.32) and 0 4px 24px brand at .24; 16px under the field",
+    "legal": "12/16 450 -0.2px rgba(0,0,0,.56), underlined links, centred, 16px under the button",
+    "error": "field edge turns red rgb(217,42,15); message 12/16 under the field, 8px gap, left-aligned 24px in; role=alert; input aria-invalid=true (no aria-describedby)",
+    "focus": "no visible focus change on the field (outline transparent)",
+    "keyboard": "focus starts in the email field; Tab order field, Continue, terms, privacy, language; Escape does nothing (it is a page)",
+    "noJs": "blank page"
+  }
+}

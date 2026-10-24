@@ -2,20 +2,19 @@
 
 import Link from "next/link";
 import { useEffect, useRef, useState } from "react";
+import { codeInput, failureKind, failureMessage, type SignInStep, signInHref } from "./sign-in-copy";
 import { Icon } from "./ui/icon";
+import { Wordmark } from "./ui/brand";
 
-type Step = "password" | "totp" | "backup";
+type Field = "email" | "password" | "code";
+export type SignInError = { message: string; field: Field | null };
 
-// Posts only to the existing Better Auth handler (/api/auth/*): it owns Origin/CSRF checks,
-// per-account rate limits and the signed two_factor challenge cookie. Messages never say
-// whether an email exists.
+// With JS: posts JSON to the existing Better Auth handler (/api/auth/*), which owns Origin/CSRF checks,
+// per-account rate limits and the signed two_factor challenge cookie. Without JS the same form posts
+// to /masuk/kirim, which calls that handler and redirects back here.
 async function post(path: string, body: Record<string, string>) {
 	try {
-		const response = await fetch(`/api/auth${path}`, {
-			method: "POST",
-			headers: { "content-type": "application/json" },
-			body: JSON.stringify(body),
-		});
+		const response = await fetch(`/api/auth${path}`, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify(body) });
 		const payload = (await response.json().catch(() => null)) as Record<string, unknown> | null;
 		const retry = Number(response.headers.get("retry-after") ?? response.headers.get("x-retry-after"));
 		return { status: response.status, payload, retry: Number.isFinite(retry) && retry > 0 ? Math.ceil(retry) : null };
@@ -24,151 +23,131 @@ async function post(path: string, body: Record<string, string>) {
 	}
 }
 
-type Result = Awaited<ReturnType<typeof post>>;
-// Each response gets its own message: only a credential rejection says the email, password or
-// code did not match. Origin, rate limit, disabled service and connection problems say so.
-function failure({ status, payload, retry }: Result, step: Step) {
-	if (status === 403 && payload?.code === "INVALID_ORIGIN")
-		return "Halaman ini dibuka dari alamat yang tidak diizinkan. Buka toko dari alamat resminya lalu coba lagi.";
-	if (status === 429)
-		return retry ? `Terlalu banyak percobaan. Coba lagi dalam ${Math.ceil(retry / 60)} menit.` : "Terlalu banyak percobaan. Coba lagi dalam beberapa menit.";
-	if (status === 503) return "Layanan masuk sedang dinonaktifkan sementara. Coba lagi nanti.";
-	if (status === 0 || status >= 500) return "Tidak bisa terhubung. Coba lagi.";
-	if (step === "password") return "Email atau kata sandi tidak cocok. Periksa kembali lalu coba lagi.";
-	return "Kode tidak cocok atau verifikasi sudah kedaluwarsa. Coba kode terbaru, atau mulai ulang dari email dan kata sandi.";
-}
-// Only a credential rejection marks a field invalid.
-const credential = ({ status, payload }: Result) => status !== 429 && status !== 0 && status < 500 && !(status === 403 && payload?.code === "INVALID_ORIGIN");
-
-export function SignInForm({ next }: { next: string | null }) {
-	const [step, setStep] = useState<Step>("password");
-	const [email, setEmail] = useState("");
-	const [password, setPassword] = useState("");
+// `modal`: rendered in the intercepted sheet over a storefront page (h2, success returns to that page).
+export function SignInForm({ next, step: initialStep = "password", error: initialError = null, modal = false }: { next: string | null; step?: SignInStep; error?: SignInError | null; modal?: boolean }) {
+	const [step, setStep] = useState<SignInStep>(initialStep);
 	const [code, setCode] = useState("");
-	const [error, setError] = useState<{ message: string; field: "email" | "password" | "code" | null } | null>(null);
+	const [error, setError] = useState<SignInError | null>(initialError);
 	const [pending, setPending] = useState(false);
 	const codeRef = useRef<HTMLInputElement>(null);
 	const alertRef = useRef<HTMLDivElement>(null);
-	const resume = next ? `/masuk?next=${encodeURIComponent(next)}` : "/masuk";
+	const moved = useRef(false);
+	const Heading = modal ? "h2" : "h1";
 
+	// A step change moves focus to the code field (not on first render, so a page load does not jump).
 	useEffect(() => {
-		if (step !== "password") codeRef.current?.focus();
+		if (moved.current && step !== "password") codeRef.current?.focus();
+		moved.current = true;
 	}, [step]);
-
-	// Every failed submit (a new error object) moves focus to its message, so keyboard and
-	// screen-reader users land on the reason and the invalid field is the next Tab stop.
+	// Every failed submit (a new error object) moves focus to its message, so keyboard and screen-reader
+	// users land on the reason and the invalid field is the next Tab stop.
 	useEffect(() => {
-		if (error) alertRef.current?.focus();
-	}, [error]);
+		if (error && error !== initialError) alertRef.current?.focus();
+	}, [error, initialError]);
 
 	function finish() {
-		// Full navigation: the server re-reads the new session and routes by role.
-		window.location.assign(resume);
+		// Full navigation so the server re-reads the new session. /masuk routes it by role to `next`; the
+		// modal without a `next` reloads the page it covers, so the shopper stays where they were.
+		if (modal && !next) {
+			window.addEventListener("popstate", () => window.location.reload(), { once: true });
+			window.history.back();
+		} else window.location.assign(signInHref(next));
 	}
 
-	async function submitPassword(event: React.FormEvent<HTMLFormElement>) {
+	async function submit(event: React.FormEvent<HTMLFormElement>) {
 		event.preventDefault();
-		if (!email.trim() || !password) {
-			setError({ message: "Isi email dan kata sandi.", field: !email.trim() ? "email" : "password" });
-			return;
+		const data = new FormData(event.currentTarget);
+		let path: string;
+		let body: Record<string, string>;
+		if (step === "password") {
+			const email = String(data.get("email") ?? "").trim(), password = String(data.get("password") ?? "");
+			if (!email || !password) return setError({ message: "Isi email dan kata sandi.", field: email ? "password" : "email" });
+			path = "/sign-in/email";
+			body = { email, password };
+		} else {
+			const input = codeInput(step, code);
+			if (input.code === null) return setError({ message: input.error, field: "code" });
+			path = step === "backup" ? "/two-factor/verify-backup-code" : "/two-factor/verify-totp";
+			body = { code: input.code };
 		}
 		setPending(true);
 		setError(null);
-		const result = await post("/sign-in/email", { email: email.trim(), password });
+		const result = await post(path, body);
 		setPending(false);
-		if (result.status === 200 && result.payload?.twoFactorRedirect === true) {
-			setPassword("");
-			setStep("totp");
-		} else if (result.status === 200) finish();
-		else setError({ message: failure(result, "password"), field: credential(result) ? "password" : null });
-	}
-
-	async function submitCode(event: React.FormEvent<HTMLFormElement>) {
-		event.preventDefault();
-		const value = code.replace(/\s+/g, "");
-		const backup = step === "backup";
-		const normalized = backup && /^[A-Za-z0-9]{10}$/.test(value) ? `${value.slice(0, 5)}-${value.slice(5)}` : value;
-		if (backup ? !/^[A-Za-z0-9]{5}-[A-Za-z0-9]{5}$/.test(normalized) : !/^\d{6}$/.test(normalized)) {
-			setError({ message: backup ? "Masukkan kode cadangan 10 karakter, contoh: abcde-12345." : "Masukkan 6 digit kode dari aplikasi autentikator.", field: "code" });
-			return;
+		if (result.status === 200 && step === "password" && result.payload?.twoFactorRedirect === true) setStep("totp");
+		else if (result.status === 200) finish();
+		else {
+			const kind = failureKind(result.status, result.payload?.code);
+			setError({ message: failureMessage(kind, step, result.retry), field: kind === "credential" ? (step === "password" ? "password" : "code") : null });
 		}
-		setPending(true);
-		setError(null);
-		const result = await post(backup ? "/two-factor/verify-backup-code" : "/two-factor/verify-totp", { code: normalized });
-		setPending(false);
-		if (result.status === 200) finish();
-		else setError({ message: failure(result, step), field: credential(result) ? "code" : null });
 	}
 
-	function restart() {
-		setStep("password");
+	// Step switches are links, so they also work without JS (the pending two_factor cookie stays).
+	const switchTo = (target: SignInStep) => (event: React.MouseEvent) => {
+		event.preventDefault();
+		setStep(target);
 		setCode("");
 		setError(null);
-	}
+	};
 
 	const alert = error && (
-		<div ref={alertRef} tabIndex={-1} className="signin-alert" role="alert" aria-live="assertive" id="signin-error" data-testid="signin-error">
-			<Icon name="alert" />
+		<div ref={alertRef} tabIndex={-1} className="signin-alert" role="alert" id="signin-error" data-testid="signin-error">
+			<Icon name="alert" size={16} />
 			<p>{error.message}</p>
 		</div>
 	);
-	const described = (field: "email" | "password" | "code") => (error?.field === field ? "signin-error" : undefined);
-
-	if (step === "password") {
-		return (
-			<form className="signin-card" method="post" onSubmit={submitPassword} noValidate aria-labelledby="signin-heading">
-				<h1 id="signin-heading">Masuk ke akun 99ribu</h1>
-				<p className="signin-lead">Lihat pesanan, alamat tersimpan, dan status pengiriman Anda.</p>
-				{alert}
-				<div className="signin-field">
-					<label htmlFor="signin-email">Email</label>
-					<input id="signin-email" name="email" type="email" inputMode="email" autoComplete="username" required maxLength={254}
-						value={email} onChange={(event) => setEmail(event.currentTarget.value)}
-						aria-invalid={error?.field === "email" || error?.field === "password" || undefined} aria-describedby={described("email")} />
-				</div>
-				<div className="signin-field">
-					<label htmlFor="signin-password">Kata sandi</label>
-					<input id="signin-password" name="password" type="password" autoComplete="current-password" required maxLength={128}
-						value={password} onChange={(event) => setPassword(event.currentTarget.value)}
-						aria-invalid={error?.field === "password" || undefined} aria-describedby={described("password")} />
-				</div>
-				<div className="signin-actions">
-					<button className="button" type="submit" disabled={pending}>{pending ? "Memeriksa…" : "Masuk"}</button>
-					<Link className="button button-secondary" href={next ?? "/"}>Batal</Link>
-				</div>
-				<p className="signin-hint">Akun staf meminta kode verifikasi dua langkah setelah kata sandi.</p>
-				<p className="signin-hint">Belanja tetap bisa tanpa akun. Pesanan tamu dapat dibuka dari halaman <Link href="/akun">Akun</Link>.</p>
-			</form>
-		);
-	}
-
+	const invalid = (field: Field) => error?.field === field || (field === "email" && error?.field === "password") || undefined;
+	const described = (field: Field) => (error?.field === field ? "signin-error" : undefined);
 	const backup = step === "backup";
+	const headingId = step === "password" ? "signin-heading" : "signin-verify-heading";
+
 	return (
-		<form className="signin-card" method="post" onSubmit={submitCode} noValidate aria-labelledby="signin-verify-heading">
-			<h1 id="signin-verify-heading">Verifikasi dua langkah</h1>
+		<form className="signin-card" method="post" action="/masuk/kirim" onSubmit={submit} noValidate aria-labelledby={headingId}>
+			<input type="hidden" name="step" value={step} />
+			{next && <input type="hidden" name="next" value={next} />}
+			<span className="brand signin-mark" aria-hidden="true"><Wordmark /></span>
+			<Heading id={headingId}>{step === "password" ? "Masuk ke 99ribu" : "Verifikasi dua langkah"}</Heading>
 			<p className="signin-lead">
-				{backup
-					? "Masukkan salah satu kode cadangan yang Anda simpan saat mengaktifkan verifikasi dua langkah. Setiap kode hanya berlaku sekali."
-					: "Buka aplikasi autentikator lalu masukkan 6 digit kode untuk 99ribu. Kode berganti setiap 30 detik."}
+				{step === "password"
+					? "Lihat pesanan, alamat tersimpan, dan status pengiriman."
+					: backup
+						? "Masukkan salah satu kode cadangan yang Anda simpan. Setiap kode hanya berlaku sekali."
+						: "Buka aplikasi autentikator, lalu masukkan 6 digit kode untuk 99ribu."}
 			</p>
+			{step === "password" ? (
+				<>
+					<div className="signin-field">
+						<label htmlFor="signin-email">Email</label>
+						<input id="signin-email" name="email" type="email" inputMode="email" autoComplete="username" autoCapitalize="none" spellCheck={false} required maxLength={254}
+							aria-invalid={invalid("email")} aria-describedby={described("email")} />
+					</div>
+					<div className="signin-field">
+						<label htmlFor="signin-password">Kata sandi</label>
+						<input id="signin-password" name="password" type="password" autoComplete="current-password" required maxLength={128}
+							aria-invalid={invalid("password")} aria-describedby={described("password")} />
+					</div>
+				</>
+			) : (
+				<div className="signin-field">
+					<label htmlFor="signin-code">{backup ? "Kode cadangan" : "Kode autentikator"}</label>
+					<input ref={codeRef} id="signin-code" name="code" type="text" required inputMode={backup ? "text" : "numeric"} autoComplete={backup ? "off" : "one-time-code"}
+						maxLength={backup ? 11 : 6} autoCapitalize="none" spellCheck={false} value={code} onChange={(event) => setCode(event.currentTarget.value)}
+						aria-invalid={invalid("code")} aria-describedby={described("code") ?? "signin-code-hint"} />
+					<p id="signin-code-hint" className="signin-field-hint">Berlaku 5 menit sejak kata sandi diterima.</p>
+				</div>
+			)}
 			{alert}
-			<div className="signin-field">
-				<label htmlFor="signin-code">{backup ? "Kode cadangan" : "Kode autentikator"}</label>
-				<input ref={codeRef} id="signin-code" name="code" type="text" required
-					inputMode={backup ? "text" : "numeric"} autoComplete={backup ? "off" : "one-time-code"} maxLength={backup ? 11 : 6}
-					autoCapitalize="none" spellCheck={false} value={code} onChange={(event) => setCode(event.currentTarget.value)}
-					aria-invalid={error?.field === "code" || undefined} aria-describedby={described("code") ?? "signin-code-hint"} />
-				<p id="signin-code-hint" className="signin-hint">Verifikasi ini berlaku 5 menit sejak kata sandi diterima.</p>
-			</div>
-			<div className="signin-actions">
-				<button className="button" type="submit" disabled={pending}>{pending ? "Memeriksa…" : "Verifikasi"}</button>
-				<button className="button button-secondary" type="button" onClick={() => { setStep(backup ? "totp" : "backup"); setCode(""); setError(null); }}>
-					{backup ? "Pakai kode autentikator" : "Pakai kode cadangan"}
-				</button>
-			</div>
-			<button className="signin-restart" type="button" onClick={restart}>
-				Mulai ulang dari email dan kata sandi
-			</button>
+			<button className="button signin-submit" type="submit" disabled={pending}>{pending ? "Memeriksa…" : step === "password" ? "Masuk" : "Verifikasi"}</button>
+			{step === "password" ? (
+				<p className="signin-hint">
+					Akun staf diminta kode verifikasi dua langkah. Belanja tetap bisa tanpa akun; pesanan tamu dibuka dari halaman <Link href="/akun">Akun</Link>.
+				</p>
+			) : (
+				<p className="signin-links">
+					<a href={signInHref(next, backup ? "totp" : "backup")} onClick={switchTo(backup ? "totp" : "backup")}>{backup ? "Pakai kode autentikator" : "Pakai kode cadangan"}</a>
+					<a href={signInHref(next)} onClick={switchTo("password")}>Mulai ulang dari email dan kata sandi</a>
+				</p>
+			)}
 		</form>
 	);
 }

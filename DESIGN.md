@@ -91,7 +91,7 @@ Inter 4.1 (SIL OFL), self-hosted; the storefront preloads a 44KB Latin subset. S
 | `ui/product-card.tsx` | `ProductGrid` (cards as a grid or a shelf row), `Media` (photo or the photo slot), naming helpers. The card: square 20px frame with the hairline overlay, one-line title, price. |
 | `ui/shelf-arrows.tsx` | Carousel arrows for any `.shelf-row`/`.banner-row` (hydration-only, disabled at the ends, one view per press). |
 | `sections/` | Page sections: `home-hero`, `hero-video`, `category-grid`, `category-switcher` (tabs), `promo-banners`, `category-pills` (header pill row), `search-box` (omnibox combobox), `filter-chips` (chip rail + popover/sheet), `filter-panel` (no-JS form), `listing`, `listing-more` (infinite scroll), `catalog-listing` (server data for `/cari` and `/kategori/<slug>`), `product-gallery` (PDP photo row, thumbnails, arrows). |
-| top level | Page chrome and flows: `shell`, `navigation` (product links, task Back), `checkout-*`, `cart-forms`, `order-receipt`, `offer-picker`, `sign-in-form`, `sign-out-button`, `buyer-account-client`, `placeholder-page`, `json-ld`. |
+| top level | Page chrome and flows: `shell`, `navigation` (product links, task Back), `checkout-*`, `cart-forms`, `order-receipt`, `offer-picker`, `sign-in-panel` (server: session state and role redirect), `sign-in-form` (client form, also posts without JS), `sign-in-modal` (the `<dialog>` for the intercepted `/masuk`), `sign-in-copy` (failure copy and `/masuk` URLs), `sign-out-button`, `buyer-account-client`, `placeholder-page`, `json-ld`. |
 
 Buttons, chips and fields are CSS roles, not components: `.button` (primary purple pill), `.button.secondary` / `.button-secondary` (white hairline pill in storefront shells), `.filter-chip`, the field look (below). Add a component only when a second caller exists.
 
@@ -104,6 +104,7 @@ Buttons, chips and fields are CSS roles, not components: `.button` (primary purp
 - Product page (shop.com 2026-10-24): media column (48px thumbnail strip from 1051px, a scroll-snap row of square 28px photo cards with hover arrows from 701px, sticky from 701px; phones: the row bleeds with the next photo peeking) beside a buy box in shop.com's order: category line, title, price, field labels, option pills, contents, stock, quantity pill (native number field between minus/plus), 52px primary pill, Spesifikasi, 52px accordions.
 - Omnibox: one glass surface grows down over the page on focus (no layout shift); combobox with listbox options; Escape/blur/outside click close; works as a plain GET form without JS.
 - Carousels: native scroll and snap, hidden scrollbars, arrows only on hover-capable desktop, no autoplay (WCAG 2.2.2).
+- Sign-in (shop.com 2026-10-24, S112): one centred 344px column (wordmark, 32/35 800 heading, 16/22 muted lead, labelled 52px pill fields with the 4% ink fill, the 52px primary pill, a 12/16 footnote). Errors sit under the fields (14/20, error edge on the field) and take focus. `/masuk` is the page; storefront links open the same content as a modal (`@modal/(.)masuk`): a native `<dialog>` centred from 701px, a bottom sheet on phones, focus kept inside, Escape/close/scrim go back and focus returns to the opener. Without JS the form posts to `/masuk/kirim` and comes back with the step or error in the URL.
 - Listings: the first page is server HTML with a crawlable `rel="next"`; the next pages append automatically three times, then "Lihat produk lainnya" keeps the footer reachable.
 
 ## Accessibility
@@ -112,7 +113,8 @@ Buttons, chips and fields are CSS roles, not components: `.button` (primary purp
 - Contrast: body and labels ≥4.5:1; large text and icons ≥3:1 (inactive switcher labels `#858585`, inactive dock icons `--field-border`).
 - Focus is always visible: a 3px purple outline globally, 2px ink rings on pills and tiles, an inset ink ring on dropdown items.
 - Names: icon-only links carry `aria-label` (e.g. "Keranjang, N pilihan"); decorative images are `alt=""` and `aria-hidden`; tests depend on these names, so keep them.
-- Patterns: WAI-ARIA combobox (omnibox), tabs with roving tabindex (switcher), popover dialogs (filters), carousels with `aria-roledescription`.
+- Patterns: WAI-ARIA combobox (omnibox), tabs with roving tabindex (switcher), popover dialogs (filters), a modal dialog (sign-in), carousels with `aria-roledescription`.
+- Forms: visible labels, `autocomplete` hints (`username`, `current-password`, `one-time-code`), `aria-invalid` plus `aria-describedby` on the field an error names.
 - Everything works at 320px with 200% text: chips wrap inside their pill, grids drop to one column, the dock becomes static at short heights.
 - Reduced motion disables every animation and transition listed above.
 
