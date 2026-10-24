@@ -1,5 +1,6 @@
 import { ShieldAlert } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { AdminPage, PageHeader } from "./page-blocks";
 
 /** Server-rendered notice for a console page the current role cannot use. */
 export function AccessDenied({
@@ -12,10 +13,8 @@ export function AccessDenied({
 	children: React.ReactNode;
 }) {
 	return (
-		<div className="flex flex-col gap-6 px-4 py-5 md:px-8 md:py-6">
-			<header className="border-b pb-5">
-				<h1 className="text-2xl font-semibold tracking-tight">{title}</h1>
-			</header>
+		<AdminPage>
+			<PageHeader title={title} />
 			<section
 				aria-labelledby="access-denied-heading"
 				className="flex max-w-2xl flex-col gap-3 rounded-lg border border-warning/40 bg-warning-surface p-5"
@@ -27,10 +26,10 @@ export function AccessDenied({
 					</h2>
 				</div>
 				<p className="text-sm leading-relaxed">{children}</p>
-				<Button asChild className="self-start">
+				<Button asChild className="self-start max-md:self-stretch">
 					<a href="/admin">Ke Konsol Operasional</a>
 				</Button>
 			</section>
-		</div>
+		</AdminPage>
 	);
 }

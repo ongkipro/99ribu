@@ -13,7 +13,7 @@ export async function AdminSessionBar() {
 		.catch(() => null);
 	return (
 		<div
-			className="flex flex-wrap items-center justify-end gap-x-3 gap-y-1 border-b px-4 py-2 text-sm"
+			className="flex flex-wrap items-center justify-end gap-x-3 gap-y-1 border-b px-4 py-1.5 text-sm md:py-2"
 			data-testid="admin-session-bar"
 		>
 			{session?.user.emailVerified ? (

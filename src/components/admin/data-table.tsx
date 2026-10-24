@@ -11,6 +11,7 @@ import {
 	TableHeader,
 	TableRow,
 } from "@/components/ui/table";
+import { stickyBarClass } from "./page-blocks";
 import { DeniedState, EmptyState, ErrorState, LoadingState } from "./states";
 
 // S113: the one list surface of the admin console (shadcn Table). Every list screen passes its
@@ -20,6 +21,9 @@ import { DeniedState, EmptyState, ErrorState, LoadingState } from "./states";
 // labelled card (one DOM, so row/cell locators and accessible names hold at every width).
 // Otherwise the table scrolls: the first column and an "actions" column stay pinned and a fade
 // marks the edge that has more columns.
+// Admin mobile pass: a stacked row and a custom card share one anatomy (`stack` roles and the
+// Card* helpers below): title line (identifier link left, amount right), meta line, status
+// badges, labelled values, then the actions as a full-width bottom row.
 
 export type DataTableColumn<T> = {
 	id: string;
@@ -28,8 +32,12 @@ export type DataTableColumn<T> = {
 	/** Applied to the header and every cell: alignment and responsive hiding. */
 	className?: string;
 	cellClassName?: string;
-	/** Stacked card (`stack`): "label" shows the header beside the value, "plain" the value only. */
-	stack?: "label" | "plain";
+	/**
+	 * Place in the stacked card (`stack`): "title" (identifier, top left), "aside" (amount, top
+	 * right), "meta" (small muted line), "status" (badges), "label" (header beside the value, the
+	 * default) or "plain" (value only, full width). A column with id "actions" is the bottom row.
+	 */
+	stack?: "title" | "aside" | "meta" | "status" | "label" | "plain";
 };
 
 export type DataTableStatus =
@@ -210,21 +218,40 @@ export function DataTable<T>({
 	const stackCell = (c: DataTableColumn<T>) =>
 		stack &&
 		cn(
-			"max-md:flex max-md:min-h-8 max-md:items-center max-md:justify-between max-md:gap-3 max-md:px-0 max-md:py-1 max-md:text-right max-md:whitespace-normal",
-			c.id === "actions" && "max-md:justify-stretch max-md:pt-2 max-md:[&_a]:flex-1 max-md:[&_button]:flex-1",
+			"max-md:flex max-md:min-h-8 max-md:min-w-0 max-md:items-center max-md:gap-3 max-md:px-0 max-md:py-1 max-md:whitespace-normal",
+			c.id === "actions"
+				? "max-md:col-span-2 max-md:justify-stretch max-md:pt-2 max-md:[&_a]:flex-1 max-md:[&_button]:flex-1"
+				: c.stack === "title"
+					? "max-md:col-start-1 max-md:row-start-1 max-md:flex-col max-md:items-start max-md:justify-center max-md:gap-0.5 max-md:text-left max-md:font-medium"
+					: c.stack === "aside"
+						? "max-md:col-start-2 max-md:row-start-1 max-md:items-start max-md:justify-end max-md:text-right max-md:font-semibold"
+						: c.stack === "meta"
+							? "max-md:col-span-2 max-md:min-h-0 max-md:justify-start max-md:py-0 max-md:text-left max-md:text-xs max-md:text-muted-foreground"
+							: c.stack === "status"
+								? "max-md:col-span-2 max-md:justify-start max-md:text-left"
+								: c.stack === "plain"
+									? "max-md:col-span-2 max-md:block max-md:text-left"
+									: "max-md:col-span-2 max-md:justify-between max-md:text-right",
 		);
+	// Only "label" columns (the default) show their header inside the stacked card.
+	const stackLabel = (c: DataTableColumn<T>) => stack && (c.stack ?? "label") === "label" && c.id !== "actions";
 
 	return (
 		<>
 			{selection && selected.size > 0 && (
+				// Phones: a sticky bottom bar (safe-area inset; admin.css pads the page and the scroll area).
 				<div
 					data-testid={selection.barTestId}
-					className="flex flex-wrap items-center justify-between gap-2 rounded-md border border-primary/30 bg-secondary px-3 py-2"
+					data-sticky-bar=""
+					className={cn(
+						"flex flex-wrap items-center justify-between gap-2 rounded-md border border-primary/30 bg-secondary px-3 py-2",
+						stickyBarClass,
+					)}
 				>
 					<span className="text-sm font-medium tabular-nums">
 						{selection.summary?.(selected.size) ?? `${selected.size} baris dipilih`}
 					</span>
-					<div className="flex flex-wrap gap-2">
+					<div className="flex flex-wrap gap-2 max-md:w-full max-md:*:flex-1">
 						{selection.actions}
 						<Button
 							type="button"
@@ -309,13 +336,13 @@ export function DataTable<T>({
 											selectedBadge,
 											rowClassName,
 											stack &&
-												"max-md:flex max-md:h-auto max-md:flex-col max-md:rounded-md max-md:border! max-md:px-3 max-md:py-2",
+												"max-md:grid max-md:h-auto max-md:grid-cols-[minmax(0,1fr)_auto] max-md:gap-x-3 max-md:rounded-md max-md:border! max-md:px-3 max-md:py-2",
 										)}
 									>
 										{selection && (
 											<TableCell
 												{...role("cell")}
-												className={cn(cellBg, pinCheckbox)}
+												className={cn(cellBg, pinCheckbox, stack && "max-md:col-span-2 max-md:px-0")}
 											>
 												{checkbox(row, "")}
 											</TableCell>
@@ -326,7 +353,7 @@ export function DataTable<T>({
 												{...role("cell")}
 												className={cn(c.className, cellBg, pin(c.id), stackCell(c), c.cellClassName)}
 											>
-												{stack && c.stack !== "plain" && typeof c.header === "string" && (
+												{stackLabel(c) && typeof c.header === "string" && (
 													<span
 														aria-hidden="true"
 														className="shrink-0 text-left text-xs text-muted-foreground md:hidden"
@@ -359,17 +386,20 @@ export function DataTable<T>({
 								type="checkbox"
 								className={checkboxClass}
 								checked={allSelected}
+								ref={(el) => {
+									if (el) el.indeterminate = someSelected;
+								}}
 								onChange={toggleAll}
 							/>
 							{selection.allLabel}
 						</label>
 					)}
-					<ul className="flex flex-col divide-y rounded-md border">
+					<ul className="flex flex-col divide-y rounded-md border text-sm">
 						{rows.map((row) => (
 							<li
 								key={rowKey(row)}
 								data-testid={cardTestId?.(row)}
-								data-state={rowKey(row) === activeKey ? "selected" : undefined}
+								data-state={selected.has(rowKey(row)) || rowKey(row) === activeKey ? "selected" : undefined}
 								className={cn("flex items-start gap-2 p-3 data-[state=selected]:bg-muted", selectedBadge)}
 							>
 								{checkbox(row, "card-")}
@@ -407,4 +437,31 @@ export function DataTable<T>({
 			{footer}
 		</>
 	);
+}
+
+/**
+ * Card mode (`card`): the title line, identifier left; right the amount, or the status badge
+ * when the row has no amount (same slots as the stacked row's "title" and "aside").
+ */
+export function CardTitle({ title, aside }: { title: ReactNode; aside?: ReactNode }) {
+	return (
+		<div className="flex items-start justify-between gap-3">
+			<div className="flex min-w-0 flex-col font-medium">{title}</div>
+			{aside && (
+				<div className="flex shrink-0 flex-wrap justify-end gap-1 pt-0.5 text-right font-semibold tabular-nums">{aside}</div>
+			)}
+		</div>
+	);
+}
+/** Card mode: one small muted line (time, warehouse, counts). */
+export function CardMeta({ children }: { children: ReactNode }) {
+	return <p className="text-xs text-muted-foreground tabular-nums">{children}</p>;
+}
+/** Card mode: status badges. */
+export function CardStatus({ children }: { children: ReactNode }) {
+	return <div className="flex flex-wrap items-center gap-1">{children}</div>;
+}
+/** Card mode: the actions as a full-width bottom row. */
+export function CardActions({ children }: { children: ReactNode }) {
+	return <div className="flex flex-wrap gap-2 pt-1 *:flex-1 [&_a]:whitespace-nowrap [&_button]:whitespace-nowrap">{children}</div>;
 }

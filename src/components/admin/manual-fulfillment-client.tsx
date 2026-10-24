@@ -20,7 +20,7 @@ import { describeFailure, failureText, getJson, readFailure } from "./admin-erro
 import { DataTable, type DataTableColumn } from "./data-table";
 import { wibInputToIso } from "@/modules/storefront/format";
 import { formatCm, formatKg, formatWib, rupiah } from "./format";
-import { segmentedItemClass, segmentedListClass } from "./form";
+import { FilterSheet, segmentedItemClass, segmentedListClass } from "./form";
 
 // DEC-007: every resi comes from 99ribu's own Mengantar account. Operators book
 // in the Mengantar dashboard, then record courier + resi here.
@@ -221,7 +221,9 @@ const toBookColumns: DataTableColumn<Row>[] = [
 	{
 		id: "contents",
 		header: "Isi paket",
-		cellClassName: "min-w-48 whitespace-normal",
+		stack: "plain",
+		// Phones: the "Catat resi" sheet carries the pick list, so the card stays a short task row.
+		cellClassName: "min-w-48 whitespace-normal max-md:hidden",
 		cell: (row) => (
 			<>
 				<ul className="flex flex-col gap-0.5">
@@ -249,6 +251,7 @@ const toBookColumns: DataTableColumn<Row>[] = [
 	{
 		id: "cod",
 		header: "Tagihan COD",
+		stack: "aside",
 		className: "text-right",
 		cellClassName: "font-medium tabular-nums",
 		cell: (row) =>
@@ -426,25 +429,27 @@ export function ManualFulfillmentClient({
 							menambah penugasan bila gudang tidak muncul.
 						</p>
 					</div>
-					<div className="flex flex-wrap items-end gap-2">
-						<div className="flex flex-col gap-1">
-							<label htmlFor="manual-warehouse" className="text-xs font-medium">
-								Gudang
-							</label>
-							<select
-								id="manual-warehouse"
-								className={selectClass}
-								value={warehouseId}
-								onChange={(e) => setWarehouseId(e.target.value)}
-							>
-								<option value="">Semua gudang saya</option>
-								{warehouses.map((w) => (
-									<option key={w.id} value={w.id}>
-										{w.name}
-									</option>
-								))}
-							</select>
-						</div>
+					<div className="flex flex-wrap items-end gap-2 max-md:w-full max-md:*:flex-1">
+						<FilterSheet active={warehouseId ? 1 : 0}>
+							<div className="flex flex-col gap-1">
+								<label htmlFor="manual-warehouse" className="text-xs font-medium">
+									Gudang
+								</label>
+								<select
+									id="manual-warehouse"
+									className={selectClass}
+									value={warehouseId}
+									onChange={(e) => setWarehouseId(e.target.value)}
+								>
+									<option value="">Semua gudang saya</option>
+									{warehouses.map((w) => (
+										<option key={w.id} value={w.id}>
+											{w.name}
+										</option>
+									))}
+								</select>
+							</div>
+						</FilterSheet>
 						<Button
 							type="button"
 							variant="outline"
@@ -504,10 +509,12 @@ export function ManualFulfillmentClient({
 					}
 					rowTestId={() => "manual-row"}
 					rowClassName="align-top"
+					stack
 					columns={[
 						{
 							id: "order",
 							header: "Pesanan",
+							stack: "title",
 							cell: (row) => (
 								<>
 									<OrderLink row={row} enabled={canViewOrders} />
@@ -525,11 +532,12 @@ export function ManualFulfillmentClient({
 						{
 							id: "recipient",
 							header: "Penerima & tujuan",
+							stack: "plain",
 							cellClassName: "min-w-48 whitespace-normal",
 							cell: (row) => (
 								<>
 									<span className="block font-medium">{row.recipient.recipient_name}</span>
-									<span className="block font-mono text-xs">{row.recipient.phone}</span>
+									<span className="block font-mono text-xs max-md:hidden">{row.recipient.phone}</span>
 									<span className="block max-w-64 text-xs text-muted-foreground">
 										{areaText(row)}
 									</span>

@@ -17,7 +17,7 @@ import type {
 } from "@/modules/documents/labels";
 import { rupiah, wibDateTime } from "@/modules/storefront/format";
 import { describeFailure, failureText, readFailure } from "./admin-errors";
-import { DataTable } from "./data-table";
+import { CardActions, CardStatus, CardTitle, DataTable } from "./data-table";
 import { nativeSelectClass } from "./form";
 import { isOverdue, OrderNumberLink, OverdueBadge, type StatusTone, StatusBadge, useNow } from "./status";
 
@@ -539,18 +539,9 @@ export function PrintCenterClient({
 							<option value="a4">A4</option>
 						</select>
 					</div>
-					{/* The batch action appears once a parcel is selected; until then the hint says how. */}
-					{selectedShipments.length > 0 ? (
-						<Button
-							type="button"
-							data-testid="batch-generate-button"
-							disabled={pending}
-							onClick={() => void handleGenerateBatch()}
-						>
-							<Printer data-icon="inline-start" aria-hidden="true" />
-							Buat label {selectedShipments.length} paket
-						</Button>
-					) : (
+					{/* The batch action lives in the list's selection bar (sticky on phones) once a parcel
+					    is selected; until then the hint says how. */}
+					{selectedShipments.length === 0 && (
 						<p className="text-xs text-muted-foreground">
 							Pilih paket di daftar untuk membuat label sekaligus.
 						</p>
@@ -561,7 +552,7 @@ export function PrintCenterClient({
 			<section
 				aria-labelledby="shipments-queue-heading"
 				data-testid="shipments-queue-section"
-				className="flex flex-col gap-3 rounded-lg border bg-card p-4"
+				className="flex flex-col gap-3 md:rounded-lg md:border md:bg-card md:p-4"
 			>
 				<div className="flex flex-col gap-1">
 					<h2 id="shipments-queue-heading" className="text-base font-semibold">
@@ -589,6 +580,19 @@ export function PrintCenterClient({
 						label: (s) => `Pilih paket ${parcelName(s.shipment_id)}`,
 						allLabel: "Pilih semua paket",
 						testId: (s, p) => `${p}select-shipment-${s.shipment_id}`,
+						summary: (n) => `${n} paket dipilih`,
+						actions: (
+							<Button
+								type="button"
+								size="sm"
+								data-testid="batch-generate-button"
+								disabled={pending}
+								onClick={() => void handleGenerateBatch()}
+							>
+								<Printer data-icon="inline-start" aria-hidden="true" />
+								Buat label {selectedShipments.length} paket
+							</Button>
+						),
 					}}
 					columns={[
 						{ id: "parcel", header: "Pesanan · Paket", cell: parcelCell },
@@ -631,19 +635,15 @@ export function PrintCenterClient({
 						const art = latestArtifactFor(s.shipment_id);
 						return (
 							<>
-								<div className="flex flex-wrap items-start justify-between gap-2">
-									{parcelCell(s)}
-									{statusBadge(s, "card-")}
-								</div>
+								<CardTitle title={parcelCell(s)} aside={codText(s)} />
+								<CardStatus>{statusBadge(s, "card-")}</CardStatus>
 								<dl className="grid grid-cols-[auto_1fr] gap-x-3 gap-y-1 text-xs">
 									<dt className="text-muted-foreground">Resi</dt>
 									<dd>{waybill(s, "card-")}</dd>
-									<dt className="text-muted-foreground">COD</dt>
-									<dd className="tabular-nums">{codText(s)}</dd>
 									<dt className="text-muted-foreground">Label</dt>
 									<dd>{artifactCell(art, "card-")}</dd>
 								</dl>
-								<div className="flex flex-wrap gap-1.5">{actions(s, art, "card-")}</div>
+								<CardActions>{actions(s, art, "card-")}</CardActions>
 								{activeShipmentForReprint === s.shipment_id &&
 									art &&
 									reprintForm(s, art, "card-")}
@@ -662,7 +662,7 @@ export function PrintCenterClient({
 			<section
 				aria-labelledby="templates-heading"
 				data-testid="templates-section"
-				className="flex flex-col gap-3 rounded-lg border bg-card p-4"
+				className="flex flex-col gap-3 md:rounded-lg md:border md:bg-card md:p-4"
 			>
 				<h2 id="templates-heading" className="text-base font-semibold">
 					Template label
@@ -675,13 +675,19 @@ export function PrintCenterClient({
 					empty="Belum ada template label."
 					bodyTestId="template-list"
 					rowTestId={(tpl) => `template-row-${tpl.id}`}
+					stack
 					columns={[
 						{
 							id: "name",
 							header: "Nama",
+							stack: "title",
+							cellClassName: "whitespace-normal max-md:block md:max-w-64",
 							cell: (tpl) => (
 								<div className="flex flex-col">
 									<span className="font-medium">{templateName(tpl)}</span>
+									<span className="hidden text-xs font-normal text-muted-foreground md:max-xl:block">
+										{BRAND_LABELS[tpl.brand_mode] ?? tpl.brand_mode}
+									</span>
 									{tpl.partner_brand_name && (
 										<span className="text-xs text-muted-foreground">
 											Mitra: {tpl.partner_brand_name} · {tpl.disclosure_text}
@@ -691,7 +697,7 @@ export function PrintCenterClient({
 							),
 						},
 						{ id: "format", header: "Format", cell: (tpl) => FORMAT_LABELS[tpl.format] },
-						{ id: "brand", header: "Merek", cell: (tpl) => BRAND_LABELS[tpl.brand_mode] ?? tpl.brand_mode },
+						{ id: "brand", header: "Merek", className: "md:max-xl:hidden", cell: (tpl) => BRAND_LABELS[tpl.brand_mode] ?? tpl.brand_mode },
 						{
 							id: "privacy",
 							header: "Privasi telepon",
@@ -700,6 +706,7 @@ export function PrintCenterClient({
 						{
 							id: "version",
 							header: "Versi",
+							stack: "aside",
 							className: "text-right tabular-nums",
 							cell: (tpl) => `v${tpl.active_version}`,
 						},
@@ -710,7 +717,7 @@ export function PrintCenterClient({
 			<section
 				aria-labelledby="print-audit-heading"
 				data-testid="print-audit-section"
-				className="flex flex-col gap-3 rounded-lg border bg-card p-4"
+				className="flex flex-col gap-3 md:rounded-lg md:border md:bg-card md:p-4"
 			>
 				<h2 id="print-audit-heading" className="text-base font-semibold">
 					Riwayat cetak
@@ -723,10 +730,12 @@ export function PrintCenterClient({
 					empty="Belum ada cetakan yang tercatat."
 					bodyTestId="print-attempts-list"
 					rowTestId={(att) => `print-attempt-row-${att.id}`}
+					stack
 					columns={[
 						{
 							id: "kind",
 							header: "Jenis",
+							stack: "title",
 							cellClassName: "font-medium",
 							cell: (att) => ATTEMPT_KIND_LABELS[att.kind],
 						},
@@ -735,6 +744,7 @@ export function PrintCenterClient({
 						{
 							id: "time",
 							header: "Waktu (WIB)",
+							stack: "meta",
 							className: "tabular-nums",
 							cell: (att) => wibDateTime(att.created_at),
 						},

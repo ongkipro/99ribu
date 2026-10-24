@@ -1,6 +1,6 @@
 "use client";
 
-import { ArrowLeft, CircleAlert, Search } from "lucide-react";
+import { CircleAlert, Search } from "lucide-react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useCallback, useEffect, useState } from "react";
@@ -25,6 +25,7 @@ import {
 	TRACKING_STATUS,
 } from "./order-model";
 import { StatusBadge } from "./status";
+import { AdminPage, DetailSection, PageHeader } from "./page-blocks";
 
 export type SearchKind = "nomor" | "resi" | "hp";
 type Summary = {
@@ -158,17 +159,19 @@ export function OrderSearchClient({
 	const label = KIND_LABELS[kind];
 
 	return (
-		<div className="flex flex-col gap-6 px-4 py-5 md:px-8 md:py-6">
-			<header className="flex flex-col gap-1.5 border-b pb-5">
-				<h1 className="text-2xl font-semibold tracking-tight">Pesanan</h1>
-				<p className="max-w-prose text-sm text-muted-foreground">
-					Cari pesanan dengan nomor pesanan, nomor resi atau akhiran nomor HP, lalu
-					buka detail pembayaran, pengiriman dan riwayatnya.{" "}
-					{companyWide
-						? "Super Admin melihat pesanan semua gudang."
-						: "Anda hanya melihat pesanan yang semua paketnya berasal dari gudang yang ditugaskan ke akun Anda."}
-				</p>
-			</header>
+		<AdminPage>
+			<PageHeader
+				title="Pesanan"
+				description={
+					<>
+						Cari pesanan dengan nomor pesanan, nomor resi atau akhiran nomor HP, lalu
+						buka detail pembayaran, pengiriman dan riwayatnya.{" "}
+						{companyWide
+							? "Super Admin melihat pesanan semua gudang."
+							: "Anda hanya melihat pesanan yang semua paketnya berasal dari gudang yang ditugaskan ke akun Anda."}
+					</>
+				}
+			/>
 			<search aria-label="Cari pesanan">
 			<form
 				noValidate
@@ -275,21 +278,33 @@ export function OrderSearchClient({
 						{
 							id: "number",
 							header: "Nomor pesanan",
-							stack: "plain",
-							cellClassName: "max-md:justify-start max-md:text-left",
+							stack: "title",
+							// md–xl: the creation time moves under the number so the payment text never clips.
 							cell: (row) => (
-								<Link
-									href={`/admin/orders/${row.id}${back ? `?dari=${encodeURIComponent(back)}` : ""}`}
-									className="font-mono font-medium text-primary underline-offset-4 hover:underline pointer-coarse:inline-flex pointer-coarse:min-h-11 pointer-coarse:items-center"
-								>
-									{row.number}
-								</Link>
+								<div className="flex flex-col items-start">
+									<Link
+										href={`/admin/orders/${row.id}${back ? `?dari=${encodeURIComponent(back)}` : ""}`}
+										className="font-mono font-medium text-primary underline-offset-4 hover:underline pointer-coarse:inline-flex pointer-coarse:min-h-11 pointer-coarse:items-center"
+									>
+										{row.number}
+									</Link>
+									<span className="hidden text-xs font-normal text-muted-foreground md:max-xl:block">
+										{formatWib(row.created_at)}
+									</span>
+								</div>
 							),
 						},
-						{ id: "created", header: "Dibuat", cell: (row) => formatWib(row.created_at) },
+						{
+							id: "created",
+							header: "Dibuat",
+							stack: "meta",
+							className: "md:max-xl:hidden",
+							cell: (row) => formatWib(row.created_at),
+						},
 						{
 							id: "status",
 							header: "Status",
+							stack: "status",
 							cell: (row) => (
 								<StatusBadge tone={ORDER_TONE[row.status] ?? "open"}>
 									{ORDER_STATUS[row.status] ?? row.status}
@@ -305,6 +320,7 @@ export function OrderSearchClient({
 							// Before the COD fee or transfer code; the detail page shows both totals.
 							id: "total",
 							header: "Total pesanan",
+							stack: "aside",
 							className: "text-right tabular-nums",
 							cell: (row) => rupiah(row.buyer_total),
 						},
@@ -312,7 +328,7 @@ export function OrderSearchClient({
 					paging={{ hasMore: cursor !== null, loading: more, onMore: () => void loadMore() }}
 				/>
 			</section>
-		</div>
+		</AdminPage>
 	);
 }
 
@@ -450,20 +466,12 @@ export function OrderDetailClient({
 		setHistoryState("idle");
 	};
 
-	const backLink = (
-		<Button asChild variant="ghost" size="sm" className="self-start">
-			<Link href={backHref}>
-				<ArrowLeft aria-hidden="true" />
-				Kembali ke pencarian pesanan
-			</Link>
-		</Button>
-	);
+	const back = { href: backHref, label: "Kembali ke pencarian pesanan" };
 
 	if (failure)
 		return (
-			<div className="flex flex-col gap-4 px-4 py-5 md:px-8 md:py-6">
-				{backLink}
-				<h1 className="text-2xl font-semibold tracking-tight">Detail pesanan</h1>
+			<AdminPage>
+				<PageHeader back={back} title="Detail pesanan" />
 				<Alert role="alert" data-testid="order-detail-error">
 					<CircleAlert aria-hidden="true" />
 					<AlertDescription className="flex flex-wrap items-center gap-3 text-foreground">
@@ -477,16 +485,18 @@ export function OrderDetailClient({
 						)}
 					</AlertDescription>
 				</Alert>
-			</div>
+			</AdminPage>
 		);
 	if (!detail)
 		return (
-			<div className="flex flex-col gap-4 px-4 py-5 md:px-8 md:py-6" aria-live="polite">
-				{backLink}
-				<p className="text-sm text-muted-foreground">Memuat detail pesanan…</p>
-				<Skeleton className="h-8 w-64" />
-				<Skeleton className="h-40 w-full" />
-			</div>
+			<AdminPage>
+				<PageHeader back={back} title="Detail pesanan" />
+				<div className="flex flex-col gap-3" aria-live="polite">
+					<p className="text-sm text-muted-foreground">Memuat detail pesanan…</p>
+					<Skeleton className="h-8 w-64 bg-border/70" />
+					<Skeleton className="h-40 w-full bg-border/70" />
+				</div>
+			</AdminPage>
 		);
 
 	const o = detail.order;
@@ -494,17 +504,19 @@ export function OrderDetailClient({
 	const manualBank = o.payment_channel === "manual-bank";
 	const itemName = new Map(o.items.map((i) => [i.id, `${i.name} · ${i.variant_label}`]));
 	// A revision that keeps its status (e.g. payment confirmed while the order is still "Menunggu",
-	// a parcel re-queued as "Siap dikemas") would repeat the same line: show only the first time a
-	// subject entered that status (history is newest first; the line has no other detail).
-	const timeline = history.filter((e, i) => {
-		const prev = history[i + 1];
-		return !(
-			prev &&
-			prev.kind === e.kind &&
-			prev.status === e.status &&
-			(prev.shipment_id ?? null) === (e.shipment_id ?? null)
-		);
-	});
+	// a parcel re-queued as "Siap dikemas" or "Dikemas") would repeat the same line: show each
+	// subject's status only the first time it entered it, adjacent or not (history is newest first,
+	// so the oldest occurrence is the one kept; the line has no other detail).
+	const firstSeen = new Set<string>();
+	const timeline = [...history]
+		.reverse()
+		.filter((e) => {
+			const key = `${e.kind}\u0000${e.status}\u0000${e.shipment_id ?? ""}`;
+			if (firstSeen.has(key)) return false;
+			firstSeen.add(key);
+			return true;
+		})
+		.reverse();
 	// "Paket 1/2" in the shipment cards and the history, so per-parcel events read as distinct.
 	const originals = o.shipments.filter((s) => s.kind !== "replacement");
 	const parcelLabel = (s: Shipment) =>
@@ -516,29 +528,60 @@ export function OrderDetailClient({
 	const parcelById = new Map(o.shipments.map((s) => [s.id, parcelLabel(s)]));
 
 	return (
-		<div className="flex flex-col gap-6 px-4 py-5 md:px-8 md:py-6">
-			{backLink}
-			<header className="flex flex-col gap-2 border-b pb-5">
-				<h1 className="font-mono text-2xl font-semibold tracking-tight break-all">{o.number}</h1>
-				<div className="flex flex-wrap items-center gap-2">
-					<StatusBadge tone={ORDER_TONE[o.status] ?? "open"}>{ORDER_STATUS[o.status] ?? o.status}</StatusBadge>
-					<StatusBadge tone={PAYMENT_TONE[o.payment_status] ?? "open"}>
-						{paymentText(o.payment_method, o.payment_status)}
-					</StatusBadge>
-					<span className="text-sm text-muted-foreground">Dibuat {formatWib(o.created_at)}</span>
-				</div>
-				<p className="text-xs text-muted-foreground">
-					Data per {formatWib(detail.as_of)}. Kontak dan alamat pembeli tidak ditampilkan di
-					riwayat pesanan.
-				</p>
-			</header>
+		<AdminPage>
+			<PageHeader
+				back={back}
+				mono
+				title={o.number}
+				meta={
+					<>
+						<StatusBadge tone={ORDER_TONE[o.status] ?? "open"}>{ORDER_STATUS[o.status] ?? o.status}</StatusBadge>
+						<StatusBadge tone={PAYMENT_TONE[o.payment_status] ?? "open"}>
+							{paymentText(o.payment_method, o.payment_status)}
+						</StatusBadge>
+						<span className="text-sm">Dibuat {formatWib(o.created_at)}</span>
+						<span className="basis-full">
+							Data per {formatWib(detail.as_of)}. Kontak dan alamat pembeli tidak ditampilkan di riwayat pesanan.
+						</span>
+					</>
+				}
+			/>
 
-			<div className="grid gap-6 lg:grid-cols-[minmax(0,1fr)_22rem]">
-				<div className="flex min-w-0 flex-col gap-6">
-					<section aria-labelledby="order-items-heading" className="flex flex-col gap-3">
-						<h2 id="order-items-heading" className="text-lg font-semibold">
-							Barang
-						</h2>
+			{/* Key facts first: on phones the payment summary leads; from lg it is the right column. */}
+			<div className="grid gap-5 md:gap-6 lg:grid-cols-[minmax(0,1fr)_22rem] lg:items-start">
+				<DetailSection id="order-payment-heading" title="Pembayaran" className="lg:col-start-2 lg:row-start-1">
+					<dl className="flex flex-col gap-1.5 text-sm" data-testid="order-payment">
+						<div className="flex justify-between gap-4">
+							<dt className="text-muted-foreground">Metode</dt>
+							<dd className="text-right">{o.payment_channel_label}</dd>
+						</div>
+						<div className="flex justify-between gap-4">
+							<dt className="text-muted-foreground">Status</dt>
+							<dd className="text-right">{PAYMENT_STATUS[o.payment_status] ?? o.payment_status}</dd>
+						</div>
+						<Money label="Barang" value={rupiah(o.merchandise_total)} />
+						<Money label="Ongkos kirim" value={rupiah(o.shipping_total)} />
+						{o.subsidy_total > 0 && <Money label="Subsidi ongkir" value={`−${rupiah(o.subsidy_total)}`} />}
+						{/* The orders list shows this total; the fee or transfer code below makes the amount due. */}
+						{o.payment_charge_total > 0 && <Money label="Total pesanan" value={rupiah(o.buyer_total)} />}
+						{cod && o.payment_charge_total > 0 && (
+							<Money label={`Biaya COD (${percent(o.cod_fee_bps ?? 0)})`} value={rupiah(o.payment_charge_total)} />
+						)}
+						{manualBank && <Money label="Kode unik transfer" value={rupiah(o.payment_charge_total)} />}
+						<Money label={cod ? "Total ditagih kurir" : "Total dibayar"} value={rupiah(o.amount_due)} strong />
+						{(o.refund_total > 0 || o.pending_refund_total > 0) && (
+							<>
+								<Money label="Dana dikembalikan" value={rupiah(o.refund_total)} />
+								{o.pending_refund_total > 0 && (
+									<Money label="Pengembalian diproses" value={rupiah(o.pending_refund_total)} />
+								)}
+							</>
+						)}
+					</dl>
+				</DetailSection>
+
+				<div className="flex min-w-0 flex-col gap-5 md:gap-6 lg:col-start-1 lg:row-start-1">
+					<DetailSection id="order-items-heading" title="Barang">
 						<DataTable
 							rows={o.items}
 							rowKey={(item) => item.id}
@@ -552,17 +595,17 @@ export function OrderDetailClient({
 								{
 									id: "product",
 									header: "Produk",
-									stack: "plain",
-									cellClassName: "min-w-48 whitespace-normal max-md:block max-md:text-left",
+									stack: "title",
+									cellClassName: "min-w-48 whitespace-normal max-md:block",
 									cell: (item) => (
 										<>
 											<span className="block font-medium">{item.name}</span>
-											<span className="text-xs text-muted-foreground">{item.variant_label}</span>
+											<span className="text-xs font-normal text-muted-foreground">{item.variant_label}</span>
 										</>
 									),
 								},
 								{ id: "qty", header: "Jumlah", className: "text-right tabular-nums", cell: (item) => item.quantity },
-								{ id: "subtotal", header: "Subtotal", className: "text-right tabular-nums", cell: (item) => rupiah(item.subtotal) },
+								{ id: "subtotal", header: "Subtotal", stack: "aside", className: "text-right tabular-nums", cell: (item) => rupiah(item.subtotal) },
 								// Shown only when some item has a note (no column of dashes).
 								...(o.items.some((item) => itemNotes(item))
 									? [
@@ -576,15 +619,12 @@ export function OrderDetailClient({
 									: []),
 							]}
 						/>
-					</section>
+					</DetailSection>
 
-					<section aria-labelledby="order-shipments-heading" className="flex flex-col gap-3">
-						<h2 id="order-shipments-heading" className="text-lg font-semibold">
-							Pengiriman
-						</h2>
+					<DetailSection id="order-shipments-heading" title="Pengiriman">
 						<ul className="flex flex-col gap-3" data-testid="order-shipments">
 							{o.shipments.map((s) => (
-								<li key={s.id} className="flex flex-col gap-2 rounded-lg border p-4">
+								<li key={s.id} className="flex flex-col gap-2 rounded-md border p-3">
 									<div className="flex flex-wrap items-center justify-between gap-2">
 										<p className="font-medium">
 											{parcelLabel(s)} · dari {s.origin_city}
@@ -649,12 +689,9 @@ export function OrderDetailClient({
 								</li>
 							))}
 						</ul>
-					</section>
+					</DetailSection>
 
-					<section aria-labelledby="order-history-heading" className="flex flex-col gap-3">
-						<h2 id="order-history-heading" className="text-lg font-semibold">
-							Riwayat
-						</h2>
+					<DetailSection id="order-history-heading" title="Riwayat">
 						{timeline.length === 0 ? (
 							<p className="text-sm text-muted-foreground">Belum ada riwayat.</p>
 						) : (
@@ -692,43 +729,9 @@ export function OrderDetailClient({
 								Riwayat lebih lama gagal dimuat. Coba lagi.
 							</p>
 						)}
-					</section>
+					</DetailSection>
 				</div>
-
-				<aside aria-labelledby="order-payment-heading" className="flex flex-col gap-3">
-					<h2 id="order-payment-heading" className="text-lg font-semibold">
-						Pembayaran
-					</h2>
-					<dl className="flex flex-col gap-1.5 rounded-lg border p-4 text-sm" data-testid="order-payment">
-						<div className="flex justify-between gap-4">
-							<dt className="text-muted-foreground">Metode</dt>
-							<dd className="text-right">{o.payment_channel_label}</dd>
-						</div>
-						<div className="flex justify-between gap-4">
-							<dt className="text-muted-foreground">Status</dt>
-							<dd className="text-right">{PAYMENT_STATUS[o.payment_status] ?? o.payment_status}</dd>
-						</div>
-						<Money label="Barang" value={rupiah(o.merchandise_total)} />
-						<Money label="Ongkos kirim" value={rupiah(o.shipping_total)} />
-						{o.subsidy_total > 0 && <Money label="Subsidi ongkir" value={`−${rupiah(o.subsidy_total)}`} />}
-						{/* The orders list shows this total; the fee or transfer code below makes the amount due. */}
-						{o.payment_charge_total > 0 && <Money label="Total pesanan" value={rupiah(o.buyer_total)} />}
-						{cod && o.payment_charge_total > 0 && (
-							<Money label={`Biaya COD (${percent(o.cod_fee_bps ?? 0)})`} value={rupiah(o.payment_charge_total)} />
-						)}
-						{manualBank && <Money label="Kode unik transfer" value={rupiah(o.payment_charge_total)} />}
-						<Money label={cod ? "Total ditagih kurir" : "Total dibayar"} value={rupiah(o.amount_due)} strong />
-						{(o.refund_total > 0 || o.pending_refund_total > 0) && (
-							<>
-								<Money label="Dana dikembalikan" value={rupiah(o.refund_total)} />
-								{o.pending_refund_total > 0 && (
-									<Money label="Pengembalian diproses" value={rupiah(o.pending_refund_total)} />
-								)}
-							</>
-						)}
-					</dl>
-				</aside>
 			</div>
-		</div>
+		</AdminPage>
 	);
 }

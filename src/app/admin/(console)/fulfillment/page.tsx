@@ -2,6 +2,7 @@ import { ManualFulfillmentClient } from "../../../../components/admin/manual-ful
 import { AccessDenied } from "../../../../components/admin/access-denied";
 import { canReadOrders } from "../../../../components/admin/order-model";
 import { readStaffAccess } from "../staff-roles";
+import { AdminPage, PageHeader } from "../../../../components/admin/page-blocks";
 
 export const dynamic = "force-dynamic";
 export const metadata = {
@@ -21,18 +22,20 @@ export default async function ManualFulfillmentPage() {
 			</AccessDenied>
 		);
 	return (
-		<div className="flex flex-col gap-6 px-4 py-5 md:px-8 md:py-6">
-			<header className="flex flex-col gap-1.5 border-b pb-5">
-				<h1 className="text-2xl font-semibold tracking-tight">Pengiriman Manual</h1>
-				<p className="max-w-prose text-sm text-muted-foreground">
-					Pesan kurir di dashboard Mengantar 99ribu dengan penjemputan di gudang
-					seller Berlapak, lalu catat kurir dan resi agar pembeli bisa melacak paketnya.
-				</p>
-			</header>
+		<AdminPage>
+			<PageHeader
+				title="Pengiriman Manual"
+				description={
+					<>
+						Pesan kurir di dashboard Mengantar 99ribu dengan penjemputan di gudang
+						seller Berlapak, lalu catat kurir dan resi agar pembeli bisa melacak paketnya.
+					</>
+				}
+			/>
 			<ManualFulfillmentClient
 				canManageProfiles={roles.some((r) => ["owner", "ecommerce_admin"].includes(r))}
 				canViewOrders={canReadOrders(roles, permissions)}
 			/>
-		</div>
+		</AdminPage>
 	);
 }

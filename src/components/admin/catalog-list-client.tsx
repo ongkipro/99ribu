@@ -1,7 +1,7 @@
 "use client";
 
 import { cn } from "cn";
-import { ImageOff, Search, SlidersHorizontal } from "lucide-react";
+import { ImageOff, Search } from "lucide-react";
 import Link from "next/link";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { Badge } from "@/components/ui/badge";
@@ -9,7 +9,8 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { rupiah } from "@/modules/storefront/format";
 import { failureText, getJson } from "./admin-errors";
-import { DataTable } from "./data-table";
+import { CardMeta, CardStatus, CardTitle, DataTable } from "./data-table";
+import { FilterSheet } from "./form";
 import {
 	blockerLabel,
 	type CatalogStatus,
@@ -25,6 +26,7 @@ import {
 	STATUS_TONE,
 } from "./catalog-model";
 import { StatusBadge } from "./status";
+import { AdminPage, PageHeader } from "./page-blocks";
 
 const PAGE_SIZE = 25;
 const STATUSES: CatalogStatus[] = [
@@ -62,7 +64,6 @@ export function CatalogListClient({
 		...initial.cursors,
 	]);
 	// Below md the category/status filters sit behind a toggle so rows stay in view.
-	const [filtersOpen, setFiltersOpen] = useState(false);
 	const [load, setLoad] = useState<Load>({ state: "loading" });
 	const request = useRef<AbortController | null>(null);
 
@@ -210,26 +211,26 @@ export function CatalogListClient({
 	);
 
 	return (
-		<div className="flex flex-col gap-6 px-4 py-5 md:px-8 md:py-6">
-			<header className="flex flex-col gap-1.5 border-b pb-5">
-				<h1 className="text-2xl font-semibold tracking-tight">
-					Katalog Produk
-				</h1>
-				<p className="max-w-prose text-sm text-muted-foreground">
-					{access.company ? "Semua produk" : "Produk dari gudang Anda"},
-					termasuk draf dan yang ditarik dari toko. Harga{" "}
-					{rupiah(PRICE_IDR)} per varian.
-					{access.edit
-						? " Produk bisa terbit setelah stok lengkap, HPP, dan asumsi biaya tercatat."
-						: access.costs
-							? " Produk bisa terbit setelah HPP dan asumsi biaya tercatat."
-							: ""}
-				</p>
-			</header>
+		<AdminPage>
+			<PageHeader
+				title="Katalog Produk"
+				description={
+					<>
+						{access.company ? "Semua produk" : "Produk dari gudang Anda"},
+						termasuk draf dan yang ditarik dari toko. Harga{" "}
+						{rupiah(PRICE_IDR)} per varian.
+						{access.edit
+							? " Produk bisa terbit setelah stok lengkap, HPP, dan asumsi biaya tercatat."
+							: access.costs
+								? " Produk bisa terbit setelah HPP dan asumsi biaya tercatat."
+								: ""}
+					</>
+				}
+			/>
 
 			<section
 				aria-labelledby="catalog-list-heading"
-				className="flex flex-col gap-4 rounded-lg border bg-card p-4 md:p-5"
+				className="flex flex-col gap-4 md:rounded-lg md:border md:bg-card md:p-5"
 			>
 				<h2 id="catalog-list-heading" className="sr-only">
 					Daftar produk
@@ -256,27 +257,7 @@ export function CatalogListClient({
 							/>
 						</div>
 					</div>
-					<Button
-						type="button"
-						variant="outline"
-						className="justify-self-start md:hidden"
-						aria-expanded={filtersOpen}
-						aria-controls="catalog-filters"
-						onClick={() => setFiltersOpen((open) => !open)}
-					>
-						<SlidersHorizontal data-icon="inline-start" aria-hidden="true" />
-						Filter
-						{activeFilters > 0 && (
-							<Badge variant="secondary" className="tabular-nums">
-								{activeFilters}
-								<span className="sr-only"> aktif</span>
-							</Badge>
-						)}
-					</Button>
-					<div
-						id="catalog-filters"
-						className={cn("gap-3 md:contents", filtersOpen ? "grid" : "hidden")}
-					>
+					<FilterSheet active={activeFilters}>
 						<div className="flex flex-col gap-1.5">
 							<label htmlFor="catalog-category" className="text-sm font-medium">
 								Kategori
@@ -321,7 +302,7 @@ export function CatalogListClient({
 								))}
 							</select>
 						</div>
-					</div>
+					</FilterSheet>
 				</search>
 
 				{load.state === "ready" && load.rows.length > 0 && (
@@ -415,19 +396,21 @@ export function CatalogListClient({
 						<div className="flex gap-3">
 							{thumb(r)}
 							<div className="flex min-w-0 flex-1 flex-col gap-1.5">
-								<Link
-									href={detailHref(r.id)}
-									className="inline-flex min-h-11 items-center font-medium text-primary underline-offset-4 hover:underline"
-								>
-									{r.name}
-								</Link>
-								<span className="text-xs text-muted-foreground">
-									{r.category_path ?? "Tanpa kategori"}
-								</span>
-								<div className="flex flex-wrap items-center gap-1.5">
+								<CardTitle
+									title={
+										<Link
+											href={detailHref(r.id)}
+											className="inline-flex min-h-11 items-center text-primary underline-offset-4 hover:underline"
+										>
+											{r.name}
+										</Link>
+									}
+								/>
+								<CardMeta>{r.category_path ?? "Tanpa kategori"}</CardMeta>
+								<CardStatus>
 									{kinds(r)}
 									{stock(r)}
-								</div>
+								</CardStatus>
 								{status(r)}
 							</div>
 						</div>
@@ -465,7 +448,7 @@ export function CatalogListClient({
 					}
 				/>
 			</section>
-		</div>
+		</AdminPage>
 	);
 }
 

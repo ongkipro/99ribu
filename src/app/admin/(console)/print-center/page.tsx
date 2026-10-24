@@ -6,6 +6,7 @@ import { getLocalAuth } from "../../../../modules/access/auth";
 import { readPrintCenterWorkspace } from "../../../../modules/documents/labels";
 import { storefrontRequest } from "../../../../modules/storefront/browser";
 import { readStaffAccess } from "../staff-roles";
+import { AdminPage, PageHeader } from "../../../../components/admin/page-blocks";
 
 export const dynamic = "force-dynamic";
 export const metadata = {
@@ -20,19 +21,17 @@ export default async function AdminPrintCenterPage() {
 
 	if (!workspace.authorized) {
 		return (
-			<div className="flex flex-col gap-6 px-4 py-5 md:px-8 md:py-6">
-				<header className="flex flex-col gap-1.5 border-b pb-5">
-					<h1
-						data-testid="print-center-heading"
-						className="text-2xl font-semibold tracking-tight"
-					>
-						Pusat Cetak Label Pengiriman
-					</h1>
-					<p className="max-w-prose text-sm text-muted-foreground">
-						Cetak label pengiriman Thermal 100×150 mm atau A4 tanpa mengubah
-						status pengemasan atau serah terima kurir secara otomatis.
-					</p>
-				</header>
+			<AdminPage>
+				<PageHeader
+					titleTestId="print-center-heading"
+					title="Pusat Cetak Label Pengiriman"
+					description={
+						<>
+							Cetak label pengiriman Thermal 100×150 mm atau A4 tanpa mengubah
+							status pengemasan atau serah terima kurir secara otomatis.
+						</>
+					}
+				/>
 				<section
 					data-testid="print-center-denied"
 					aria-labelledby="print-center-denied-heading"
@@ -70,24 +69,22 @@ export default async function AdminPrintCenterPage() {
 						</Button>
 					</div>
 				</section>
-			</div>
+			</AdminPage>
 		);
 	}
 
 	return (
-		<div className="flex flex-col gap-6 px-4 py-5 md:px-8 md:py-6">
-			<header className="flex flex-col gap-1.5 border-b pb-5">
-				<h1
-					data-testid="print-center-heading"
-					className="text-2xl font-semibold tracking-tight"
-				>
-					Pusat Cetak Label Pengiriman
-				</h1>
-				<p className="max-w-prose text-sm text-muted-foreground">
-					Buat dan cetak label Thermal 100×150 mm atau A4. Mencetak label tidak
-					mengubah status pengemasan atau serah terima kurir.
-				</p>
-			</header>
+		<AdminPage>
+			<PageHeader
+				titleTestId="print-center-heading"
+				title="Pusat Cetak Label Pengiriman"
+				description={
+					<>
+						Buat dan cetak label Thermal 100×150 mm atau A4. Mencetak label tidak
+						mengubah status pengemasan atau serah terima kurir.
+					</>
+				}
+			/>
 			<PrintCenterClient
 				initialTemplates={workspace.templates}
 				initialShipments={workspace.shipments}
@@ -96,6 +93,6 @@ export default async function AdminPrintCenterPage() {
 				initialNextCursor={workspace.next_cursor}
 				canOrders={canReadOrders(staff.roles, staff.permissions)}
 			/>
-		</div>
+		</AdminPage>
 	);
 }
