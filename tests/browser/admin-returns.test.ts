@@ -227,4 +227,11 @@ test("warehouse calendars: owner sees uncovered origin warehouses and applies th
 		await expect(other.page.getByRole("heading", { name: "Pengiriman Manual" })).toBeVisible();
 		await expect(other.page.getByTestId("warehouse-calendars")).toHaveCount(0);
 	} finally { await other.close(); }
+	// DEC-018 Q2: the e-commerce admin manages pickup profiles on this page but never calendars.
+	const ecommerce = await open(await staff("ecommerce_admin"));
+	try {
+		await ecommerce.page.goto(`${origin}/admin/fulfillment`);
+		await expect(ecommerce.page.getByRole("heading", { name: "Pengiriman Manual" })).toBeVisible();
+		await expect(ecommerce.page.getByTestId("warehouse-calendars")).toHaveCount(0);
+	} finally { await ecommerce.close(); }
 });

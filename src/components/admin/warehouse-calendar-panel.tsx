@@ -15,8 +15,10 @@ import { StatusBadge, type StatusTone } from "./status";
 
 // S101: owner-only warehouse calendars (policy kind `warehouse_calendar`) next to the pickup
 // profiles. Packing/resi deadlines compute only for a warehouse with a current-year calendar.
-// The validator accepts TEST-ONLY calendars only (owner question Q2, spec 17), so this panel is
-// labelled as local testing and always sends source TEST-ONLY / approval test_only.
+// DEC-018 Q2: production calendars, including the bulk default, are approved and written by the
+// owner only (the page renders this panel for the owner role; both APIs refuse everyone else).
+// The validator still accepts TEST-ONLY calendars only, so this panel is labelled as local
+// testing and always sends source TEST-ONLY / approval test_only until production values exist.
 
 type Values = { timezone: string; year: number; working_weekdays: number[]; cutoff_local: string; closed_dates: string[] };
 type Coverage = {
@@ -167,7 +169,7 @@ export function WarehouseCalendarPanel() {
 		>
 			<p className="flex items-start gap-2 rounded-md border border-dashed p-3 text-sm text-muted-foreground" data-testid="calendar-test-only">
 				<FlaskConical aria-hidden="true" className="mt-0.5 size-4 shrink-0" />
-				Uji lokal: kalender tersimpan sebagai TEST-ONLY. Kalender produksi menunggu keputusan siapa yang menyetujuinya.
+				Hanya Super Admin yang menyetujui dan menulis kalender gudang. Uji lokal: kalender masih tersimpan sebagai TEST-ONLY sampai kalender produksi diaktifkan.
 			</p>
 			{notice && (
 				<Alert ref={noticeRef} tabIndex={-1} role="status" className="outline-none" data-testid="calendar-notice">

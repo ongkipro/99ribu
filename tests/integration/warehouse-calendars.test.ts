@@ -38,6 +38,10 @@ test('owner applies one default calendar to its uncovered origin warehouses with
   const finance=await actor(f.identity,'finance',[]);users.push(finance);await enroll(finance.browser,finance.password);
   assert.equal((await call(finance.browser,'/api/v1/admin/warehouse-calendars')).status,403);
   assert.equal((await call(finance.browser,'/api/v1/admin/warehouse-calendars/default-applications',body('x'))).status,403);
+  // DEC-018 Q2: owner only, even for the role that manages pickup profiles next to this panel.
+  const ecommerce=await actor(f.identity,'ecommerce_admin',[]);users.push(ecommerce);await enroll(ecommerce.browser,ecommerce.password);
+  assert.equal((await call(ecommerce.browser,'/api/v1/admin/warehouse-calendars')).status,403);
+  assert.equal((await call(ecommerce.browser,'/api/v1/admin/warehouse-calendars/default-applications',body('x'))).status,403);
   assert.equal((await call(f.owner.browser,'/api/v1/admin/warehouse-calendars?x=1')).status,400);
   // Input refusals happen before the proof is consumed, so one proof serves them all (5 proofs/min per user).
   const spare=await proof();
