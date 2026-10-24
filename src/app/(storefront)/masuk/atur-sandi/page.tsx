@@ -5,17 +5,23 @@ import { Wordmark } from "../../../../components/storefront/ui/brand";
 import { Icon } from "../../../../components/storefront/ui/icon";
 import { getLocalAuth } from "../../../../modules/access/auth";
 import { safeReturnPath } from "../../../../modules/access/return-to";
+import { maskedPhone } from "../../../../modules/storefront/contact";
 
 export const dynamic = "force-dynamic";
 // The emailed token sits in this page's URL (Better Auth's redirect): never send it on as a Referer.
 export const metadata = { title: "Buat kata sandi", robots: { index: false, follow: false }, referrer: "no-referrer" as const };
 
-// The account a live set-password token belongs to (read-only; the token holder controls that inbox).
-async function tokenEmail(token: string) {
-	const context = await getLocalAuth().auth.$context;
+// The account a live set-password token belongs to (read-only; the token holder controls that inbox), and its
+// WhatsApp number masked: whoever signed up first chose it, so the owner sees it before activating.
+async function tokenAccount(token: string) {
+	const identity = getLocalAuth();
+	const context = await identity.auth.$context;
 	const row = await context.internalAdapter.findVerificationValue(`reset-password:${token}`);
 	if (!row || row.expiresAt < new Date()) return null;
-	return (await context.internalAdapter.findUserById(row.value))?.email ?? null;
+	const user = await context.internalAdapter.findUserById(row.value);
+	if (!user) return null;
+	const [profile] = await identity.sql<{ phone: string | null }[]>`select phone from app.buyer_profile where user_id=${user.id}`;
+	return { email: user.email, phone: profile?.phone ? maskedPhone(profile.phone) : null };
 }
 
 // S123: where every set-password link lands (GET /api/auth/reset-password/<token> redirects here with
@@ -27,11 +33,11 @@ export default async function SetPasswordPage({ searchParams }: { searchParams: 
 	const next = safeReturnPath(params.next);
 	const activation = params.aktivasi === "1";
 	const token = typeof params.token === "string" && /^[A-Za-z0-9_-]{8,128}$/.test(params.token) ? params.token : null;
-	const email = token && params.error === undefined ? await tokenEmail(token) : null;
+	const account = token && params.error === undefined ? await tokenAccount(token) : null;
 	const galat = params.galat, wait = Number(params.tunggu);
 	let body: React.ReactNode;
 	if (params.selesai === "1") body = <PasswordDone activation={activation} next={next} />;
-	else if (!token || !email) {
+	else if (!token || !account) {
 		body = (
 			<section className="signin-card" aria-labelledby="set-password-invalid-heading" data-testid="set-password-invalid">
 				<span className="brand signin-mark" aria-hidden="true"><Wordmark /></span>
@@ -45,7 +51,7 @@ export default async function SetPasswordPage({ searchParams }: { searchParams: 
 	} else {
 		const error = galat === "token" ? { kind: "token" as const, retry: null }
 			: SIGN_UP_FAILURES.includes(galat as SignUpFailure) ? { kind: galat as SignUpFailure, retry: wait > 0 ? wait : null } : null;
-		body = <SetPasswordForm token={token} activation={activation} email={email} next={next} error={error} />;
+		body = <SetPasswordForm token={token} activation={activation} email={account.email} phone={account.phone} next={next} error={error} />;
 	}
 	return (
 		<Shell active="account">

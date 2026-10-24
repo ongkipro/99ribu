@@ -57,10 +57,10 @@ export async function POST(request: Request) {
 		if (!email || !password) return go(step, { galat: "kosong" });
 		body = { email, password };
 	} else if (step === "signup") {
-		const name = form.get("name")?.trim() ?? "", email = form.get("email")?.trim() ?? "";
-		if (!name || !email) return go("daftar", { galat: "empty" });
+		const name = form.get("name")?.trim() ?? "", email = form.get("email")?.trim() ?? "", phone = form.get("phone")?.trim() ?? "";
+		if (!name || !email || !phone) return go("daftar", { galat: "empty" });
 		path = "/api/auth/sign-up/email";
-		body = { name, email, callbackURL: activationCallback(next) };
+		body = { name, email, phone, callbackURL: activationCallback(next) };
 	} else if (step === "reset") {
 		const password = form.get("password") ?? "";
 		if (!/^[A-Za-z0-9_-]{8,128}$/.test(token)) return back({ galat: "token" });

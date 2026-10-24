@@ -13,6 +13,7 @@ import {clean,normalizeAddress,normalizePhone,shippingFixture} from '../shipping
 import {readCartView,type BrowserCart} from './cart.ts';
 import {rupiah} from './format.ts';
 import {checkoutDraftFields,checkoutDraftLimits,readCheckoutDraft,type CheckoutProgress} from './checkout-draft.ts';
+import {displayPhone} from './contact.ts';
 
 export type CheckoutDraft={recipient_name:string;phone:string;email:string;destination_id:string;address_line:string;buyer_note:string;payment_method:string};
 export type CheckoutQuote=ReturnType<typeof projectQuote>;
@@ -129,7 +130,7 @@ export async function readCheckout(request:Request,identity:LocalAuth,dispatch:t
   const actor=await commerceActor(request,identity);if(!actor)throw new AccessError(401,'UNAUTHENTICATED');
   document=await identity.sql.begin(async tx=>(await ownedQuote(tx,request,identity,actor,quote?.id??'')).quote.document);
  }catch(error){return {...checkoutUnavailableView(),kind:error instanceof AccessError&&[401,403].includes(error.status)?'denied':'unavailable',code:error instanceof AccessError?error.code:'SERVICE_UNAVAILABLE'};}}
- let draft:CheckoutDraft=quote?{recipient_name:quote.address.recipient_name,phone:quote.contact.phone,email:quote.contact.email??'',destination_id:quote.address.destination_id,address_line:quote.address.address_line,buyer_note:'',payment_method:quote.payment_channel==='manual-bank'?'transfer':quote.payment_channel==='autolaris'?'va':quote.payment_method}:emptyCheckoutDraft();
+ let draft:CheckoutDraft=quote?{recipient_name:quote.address.recipient_name,phone:displayPhone(quote.contact.phone),email:quote.contact.email??'',destination_id:quote.address.destination_id,address_line:quote.address.address_line,buyer_note:'',payment_method:quote.payment_channel==='manual-bank'?'transfer':quote.payment_channel==='autolaris'?'va':quote.payment_method}:emptyCheckoutDraft();
  const expired=Date.parse(current.cart.expires_at)<=Date.parse(current.now),issue=current.cart.state==='submitted'?'submitted':expired||current.cart.state!=='open'?'expired':current.lines.some(l=>!l.product||!l.offer||!l.stock||l.publicationChanged)?'cart':null;
  let progress:CheckoutProgress|null=null,draftExpired=false;
  if(current.cart.state==='open'&&!expired)try{const saved=await readCheckoutDraft(request,identity,current.cart.id);progress=saved.progress;draftExpired=saved.kind==='expired';if(progress)draft=progress.draft;}

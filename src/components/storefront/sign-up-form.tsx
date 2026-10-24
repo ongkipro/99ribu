@@ -9,7 +9,9 @@ import {
 } from "./sign-in-copy";
 import { AuthSwitch, type ModeSwitch, post, SignInForm, type SignInError } from "./sign-in-form";
 import { Wordmark } from "./ui/brand";
+import { EmailSuggestion, filterContact } from "./ui/contact-fields";
 import { Icon } from "./ui/icon";
+import { displayPhone, isValidEmail, looksLikeWhatsApp, normalizeEmailInput, WHATSAPP_PATTERN } from "../../modules/storefront/contact";
 
 // S123 buyer sign-up, shared by /masuk and the intercepted modal (owner decision 2026-10-25: name and email
 // only). With JS it posts JSON to Better Auth (/api/auth/sign-up/email, then /send-verification-email for
@@ -20,12 +22,12 @@ import { Icon } from "./ui/icon";
 
 // The receipt's "Simpan pesanan ini ke akun" card hands its order's contact email and recipient name to the
 // sign-up form it opens by client navigation: kept in memory only (never in a URL or storage), used once.
-let handoff: { next: string; email: string; name: string | null } | null = null;
-export function handOffSignUp(next: string, email: string, name: string | null) {
-	handoff = { next, email, name };
+let handoff: { next: string; email: string; name: string | null; phone: string | null } | null = null;
+export function handOffSignUp(next: string, email: string, name: string | null, phone: string | null) {
+	handoff = { next, email, name, phone };
 }
 
-type Notice = { message: string; field: "name" | "email" | "password" | null };
+type Notice = { message: string; field: "name" | "email" | "phone" | "password" | null };
 const notice = (kind: SignUpFailure, retry: number | null = null): Notice => ({ message: signUpFailureMessage(kind, retry), field: signUpFailureField(kind) });
 
 // Holds the mode so the switch swaps forms without a navigation (the modal stays open). URL errors
@@ -70,6 +72,7 @@ function SignUpForm({ next, sent: initialSent, error: initialError, resent, moda
 	const [pending, setPending] = useState(false);
 	const [email, setEmail] = useState(() => carried ?? handed?.email ?? "");
 	const [name, setName] = useState(() => handed?.name ?? "");
+	const [phone, setPhone] = useState(() => displayPhone(handed?.phone));
 	const alertRef = useRef<HTMLDivElement>(null);
 	const headingRef = useRef<HTMLHeadingElement>(null);
 	const moved = useRef(false);
@@ -89,12 +92,12 @@ function SignUpForm({ next, sent: initialSent, error: initialError, resent, moda
 
 	async function submit(event: React.FormEvent<HTMLFormElement>) {
 		event.preventDefault();
-		const person = name.trim(), address = email.trim();
-		const local: SignUpFailure | null = !person || !address ? "empty" : !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(address) ? "email" : null;
-		if (local) return setError({ ...notice(local), field: local === "empty" ? (!person ? "name" : "email") : "email" });
+		const person = name.trim(), address = normalizeEmailInput(email);
+		const local: SignUpFailure | null = !person || !address || !phone ? "empty" : !isValidEmail(address) ? "email" : !looksLikeWhatsApp(phone) ? "whatsapp" : null;
+		if (local) return setError({ ...notice(local), field: local === "empty" ? (!person ? "name" : !address ? "email" : "phone") : signUpFailureField(local) });
 		setPending(true);
 		setError(null);
-		const result = await post("/sign-up/email", { name: person, email: address, callbackURL: activationCallback(next) });
+		const result = await post("/sign-up/email", { name: person, email: address, phone, callbackURL: activationCallback(next) });
 		setPending(false);
 		if (result.status === 200) {
 			setSentTo(address);
@@ -139,8 +142,16 @@ function SignUpForm({ next, sent: initialSent, error: initialError, resent, moda
 			<div className="signin-field">
 				<label htmlFor="signup-email">Email</label>
 				<input id="signup-email" name="email" type="email" inputMode="email" autoComplete="email" autoCapitalize="none" spellCheck={false} required maxLength={254}
-					value={email} onChange={(event) => setEmail(event.currentTarget.value)} aria-invalid={invalid("email")} aria-describedby={described("email", "signup-email-hint")} />
+					value={email} onChange={(event) => setEmail(event.currentTarget.value)} onBlur={() => setEmail(normalizeEmailInput(email))}
+					aria-invalid={invalid("email")} aria-describedby={described("email", "signup-email-hint")} />
+				<EmailSuggestion value={email} onPick={setEmail} />
 				<p id="signup-email-hint" className="signin-field-hint">Kata sandi dibuat lewat tautan yang kami kirim ke email ini.</p>
+			</div>
+			<div className="signin-field">
+				<label htmlFor="signup-phone">Nomor WhatsApp</label>
+				<input id="signup-phone" name="phone" type="tel" inputMode="numeric" autoComplete="tel" required maxLength={14} pattern={WHATSAPP_PATTERN} placeholder="08…"
+					value={phone} onChange={(event) => setPhone(filterContact(event))} aria-invalid={invalid("phone")} aria-describedby={described("phone", "signup-phone-hint")} />
+				<p id="signup-phone-hint" className="signin-field-hint">Nomor HP yang aktif di WhatsApp, diawali 08.</p>
 			</div>
 			{error && (
 				<div ref={alertRef} tabIndex={-1} className="signin-alert" role="alert" id="signup-error" data-testid="signup-error">
@@ -190,8 +201,8 @@ function PasswordField({ id, label, value, onChange, invalid, errorId }: { id: s
 // onPasswordReset verifies the email. The token arrives in the URL from Better Auth's redirect; with JS it is
 // dropped from the address bar at once (the page also sends no Referer). With JS, success signs the buyer
 // in with the new password and returns them to `next`.
-export function SetPasswordForm({ token, activation, email, next, error: initialError }: {
-	token: string; activation: boolean; email: string | null; next: string | null; error: { kind: SignUpFailure | "token"; retry: number | null } | null;
+export function SetPasswordForm({ token, activation, email, phone = null, next, error: initialError }: {
+	token: string; activation: boolean; email: string | null; phone?: string | null; next: string | null; error: { kind: SignUpFailure | "token"; retry: number | null } | null;
 }) {
 	const [password, setPassword] = useState("");
 	const [error, setError] = useState<Notice | null>(initialError ? (initialError.kind === "token" ? { message: TOKEN_MESSAGE, field: null } : notice(initialError.kind, initialError.retry)) : null);
@@ -249,6 +260,7 @@ export function SetPasswordForm({ token, activation, email, next, error: initial
 					{email ? <> <strong className="signin-address">{email}</strong>.</> : "."}
 					{activation ? "" : " Semua sesi yang masih masuk akan keluar."}
 				</p>
+				{activation && phone && <p className="signin-field-hint signin-account-phone" data-testid="set-password-phone">Nomor WhatsApp di akun: {phone}. Bukan nomor Anda? Ubah di halaman Akun setelah masuk.</p>}
 				<PasswordField id="set-password" label="Kata sandi" value={password} onChange={setPassword} invalid={error?.field === "password" || undefined} errorId={error?.field === "password" ? "set-password-error" : undefined} />
 				{error && (
 					<div ref={alertRef} tabIndex={-1} className="signin-alert" role="alert" id="set-password-error" data-testid="set-password-error">
@@ -286,6 +298,7 @@ export function ResendForm({ next, email, resent = false, cooldown = 0, initialE
 	const [status, setStatus] = useState(resent);
 	const [error, setError] = useState<{ message: string; field: boolean } | null>(initialError && { message: initialError.message, field: initialError.field === "email" });
 	const [pending, setPending] = useState(false);
+	const [typed, setTyped] = useState("");
 	const alertRef = useRef<HTMLDivElement>(null);
 	const shown = useRef(error);
 
@@ -300,8 +313,8 @@ export function ResendForm({ next, email, resent = false, cooldown = 0, initialE
 
 	async function submit(event: React.FormEvent<HTMLFormElement>) {
 		event.preventDefault();
-		const address = (email ?? String(new FormData(event.currentTarget).get("email") ?? "")).trim();
-		if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(address)) return setError({ message: signUpFailureMessage("email", null), field: true });
+		const address = normalizeEmailInput(email ?? typed);
+		if (!isValidEmail(address)) return setError({ message: signUpFailureMessage("email", null), field: true });
 		setPending(true);
 		setError(null);
 		setStatus(false);
@@ -324,8 +337,10 @@ export function ResendForm({ next, email, resent = false, cooldown = 0, initialE
 			{email ? <input type="hidden" name="email" value={email} /> : (
 				<div className="signin-field">
 					<label htmlFor="resend-email">Email</label>
-					<input id="resend-email" name="email" type="email" inputMode="email" autoComplete="username" autoCapitalize="none" spellCheck={false} required maxLength={254}
+					<input id="resend-email" name="email" type="email" inputMode="email" autoComplete="email" autoCapitalize="none" spellCheck={false} required maxLength={254}
+						value={typed} onChange={(event) => setTyped(event.currentTarget.value)} onBlur={() => setTyped(normalizeEmailInput(typed))}
 						aria-invalid={error?.field || undefined} aria-describedby={error?.field ? "resend-error" : undefined} />
+					<EmailSuggestion value={typed} onPick={setTyped} />
 				</div>
 			)}
 			{status && (

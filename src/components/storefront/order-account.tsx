@@ -4,14 +4,15 @@ import Link from "next/link";
 import { useEffect, useRef, useState } from "react";
 import { authHref, signInHref } from "./sign-in-copy";
 import { handOffSignUp } from "./sign-up-form";
+import { EmailSuggestion, filterContact } from "./ui/contact-fields";
 import { Icon } from "./ui/icon";
 
 // S123 receipt account cards (pesanan/[orderId]/page.tsx, from orders/receipt.ts:readOrderAccountOffer).
 
 // A guest viewing their own receipt: "Daftar" opens the sign-up modal with `next` back to this receipt and
-// the order's contact email and recipient name pre-filled (handed over in memory; the server only passes it to a viewer
+// the order's contact email, recipient name and contact phone pre-filled (handed over in memory; the server only passes it to a viewer
 // holding this order's access).
-export function OrderSaveCard({ path, email, name }: { path: string; email: string | null; name: string | null }) {
+export function OrderSaveCard({ path, email, name, phone }: { path: string; email: string | null; name: string | null; phone: string | null }) {
 	return (
 		<section className="receipt-card receipt-account" aria-labelledby="receipt-account-heading" data-testid="order-save-card">
 			<h2 id="receipt-account-heading">Simpan pesanan ini ke akun</h2>
@@ -20,7 +21,7 @@ export function OrderSaveCard({ path, email, name }: { path: string; email: stri
 				Daftar{email ? " dengan email pesanan ini" : ""}, lalu buat kata sandi lewat tautan di email; Anda langsung masuk kembali ke halaman ini. Pesanan lalu dihubungkan ke akun dengan kode 6 digit yang dikirim ke email atau nomor HP pesanan.
 			</p>
 			<div className="receipt-account-actions">
-				<Link className="button" href={authHref(path, "daftar")} data-testid="order-save-signup" onClick={() => { if (email) handOffSignUp(path, email, name); }}>Daftar</Link>
+				<Link className="button" href={authHref(path, "daftar")} data-testid="order-save-signup" onClick={() => { if (email) handOffSignUp(path, email, name, phone); }}>Daftar</Link>
 				<Link className="button button-secondary" href={signInHref(path)}>Sudah punya akun? Masuk</Link>
 			</div>
 		</section>
@@ -119,7 +120,8 @@ export function OrderLinkCard({ orderId, email }: { orderId: string; email: stri
 						<div className="checkout-field">
 							<label htmlFor="order-link-contact">Email atau nomor HP pesanan</label>
 							<input ref={field} id="order-link-contact" type="text" autoComplete="off" autoCapitalize="none" spellCheck={false} maxLength={254} value={contact}
-								onChange={(event) => setContact(event.currentTarget.value)} aria-invalid={message?.error || undefined} aria-describedby={message ? "order-link-message" : undefined} />
+								onChange={(event) => setContact(filterContact(event, true))} aria-invalid={message?.error || undefined} aria-describedby={message ? "order-link-message" : undefined} />
+							<EmailSuggestion value={contact} onPick={setContact} />
 						</div>
 					) : (
 						<p className="checkout-hint">Kode dikirim ke <strong>{email}</strong> jika email ini dipakai saat memesan.</p>

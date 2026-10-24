@@ -8,7 +8,15 @@ import type {
 	PrivateNotificationResponse,
 } from "@/modules/accounts/service";
 import type { ProjectedOrder } from "@/modules/orders/receipt";
+import {
+	displayPhone,
+	looksLikeWhatsApp,
+	maskedPhone,
+	WHATSAPP_HINT,
+	WHATSAPP_PATTERN,
+} from "@/modules/storefront/contact";
 import { rupiah } from "@/modules/storefront/format";
+import { EmailSuggestion, filterContact } from "./ui/contact-fields";
 
 type Props = {
 	initialAuthenticated: boolean;
@@ -36,6 +44,8 @@ export function BuyerAccountClient({
 		initialProfile?.display_name ?? "",
 	);
 	const [statusMsg, setStatusMsg] = useState<string | null>(null);
+	const [editingPhone, setEditingPhone] = useState(false);
+	const [phone, setPhone] = useState("");
 	// One action at a time: every account action shares one busy state, so a double click or a
 	// second control cannot send a duplicate request (fresh idempotency keys would not dedupe it,
 	// and preference toggles would reuse a stale version). A network failure shows a message.
@@ -74,6 +84,10 @@ export function BuyerAccountClient({
 	async function handleProfileSaveRun(e: React.FormEvent) {
 		e.preventDefault();
 		if (!profile) return;
+		if (editingPhone && phone && !looksLikeWhatsApp(phone)) {
+			setStatusMsg(WHATSAPP_HINT);
+			return;
+		}
 		const res = await fetch("/api/v1/me/profile", {
 			method: "POST",
 			headers: {
@@ -83,14 +97,24 @@ export function BuyerAccountClient({
 			body: JSON.stringify({
 				expected_version: profile.version,
 				display_name: displayName,
+				...(editingPhone ? { phone: phone || null } : {}),
 			}),
 		});
 		if (res.ok) {
 			const updated = (await res.json()) as BuyerProfileResponse;
 			setProfile(updated);
+			setEditingPhone(false);
 			setStatusMsg("Profil berhasil diperbarui.");
 		} else {
-			setStatusMsg("Gagal memperbarui profil.");
+			const problem = (await res.json().catch(() => null)) as {
+				code?: string;
+			} | null;
+			setStatusMsg(
+				problem?.code === "INVALID_WHATSAPP" ||
+					problem?.code === "INVALID_INDONESIAN_PHONE"
+					? WHATSAPP_HINT
+					: "Gagal memperbarui profil.",
+			);
 		}
 	}
 
@@ -297,14 +321,49 @@ export function BuyerAccountClient({
 									maxLength={120}
 									required
 								/>
+								{/* S123: the WhatsApp contact, masked except the last 4 digits until the buyer edits it. */}
+								<label htmlFor="buyer-phone">Nomor WhatsApp</label>
+								{editingPhone ? (
+									<>
+										<input
+											id="buyer-phone"
+											data-testid="profile-phone-input"
+											type="tel"
+											inputMode="numeric"
+											autoComplete="tel"
+											maxLength={14}
+											pattern={WHATSAPP_PATTERN}
+											placeholder="08…"
+											value={phone}
+											onChange={(e) => setPhone(filterContact(e))}
+											aria-describedby="buyer-phone-hint"
+										/>
+										<p id="buyer-phone-hint" className="checkout-hint">
+											Diawali 08. Kosongkan untuk menghapus.
+										</p>
+									</>
+								) : (
+									<p className="checkout-hint">
+										<strong data-testid="profile-phone">
+											{profile.phone ? maskedPhone(profile.phone) : "Belum diatur"}
+										</strong>{" "}
+										<button
+											type="button"
+											className="receipt-inline-link"
+											data-testid="profile-phone-edit"
+											onClick={() => {
+												setPhone(displayPhone(profile.phone));
+												setEditingPhone(true);
+											}}
+										>
+											Ubah
+										</button>
+									</p>
+								)}
 								<p className="checkout-hint">
 									Email:{" "}
 									<strong data-testid="profile-email">
 										{profile.email ?? "Belum diatur (opsional)"}
-									</strong>{" "}
-									· Telepon:{" "}
-									<strong data-testid="profile-phone">
-										{profile.phone ?? "Belum diverifikasi"}
 									</strong>{" "}
 									· Versi:{" "}
 									<span data-testid="profile-version">v{profile.version}</span>
@@ -547,10 +606,15 @@ export function BuyerAccountClient({
 						id="guest-order-contact"
 						data-testid="guest-recovery-contact"
 						type="text"
+						autoComplete="off"
+						autoCapitalize="none"
+						spellCheck={false}
+						maxLength={254}
 						value={guestContact}
-						onChange={(e) => setGuestContact(e.target.value)}
-						placeholder="+62812..."
+						onChange={(e) => setGuestContact(filterContact(e, true))}
+						placeholder="08… atau nama@email.com"
 					/>
+					<EmailSuggestion value={guestContact} onPick={setGuestContact} />
 					<button
 						disabled={busy}
 						type="submit"

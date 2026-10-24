@@ -6143,6 +6143,34 @@ body:has(> .store-header) {
 	color: #64606e;
 	box-shadow: none;
 }
+/* S123 contact inputs: the one-tap email typo fix ("Maksud Anda …?") under any email field, a 44px link-style button. */
+.contact-suggest {
+	margin: 0;
+	color: var(--muted);
+	font-size: 0.875rem;
+	line-height: 1.25rem;
+	text-align: left;
+}
+.signin-field .contact-suggest {
+	padding-inline: 16px;
+}
+.contact-suggest-fix {
+	display: inline-flex;
+	align-items: center;
+	min-height: 44px;
+	padding: 0 2px;
+	border: 0;
+	background: none;
+	color: var(--purple);
+	font: inherit;
+	font-weight: 600;
+	text-decoration: underline;
+	text-underline-offset: 3px;
+	overflow-wrap: anywhere;
+}
+.contact-suggest-fix:hover {
+	color: var(--purple-hover);
+}
 /* S123 receipt account cards ("Simpan pesanan ini ke akun", "Hubungkan pesanan ini ke akun"). */
 .receipt-account-form {
 	display: grid;

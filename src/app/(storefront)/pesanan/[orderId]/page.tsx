@@ -1164,6 +1164,7 @@ export default async function OrderReceiptPage({
 								path={path}
 								email={account.email}
 								name={account.name}
+								phone={account.phone}
 							/>
 						)}
 						{account?.kind === "link" && (
