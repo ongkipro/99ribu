@@ -19,6 +19,7 @@ import { rupiah, wibDateTime } from "@/modules/storefront/format";
 import { describeFailure, failureText, readFailure } from "./admin-errors";
 import { DataTable } from "./data-table";
 import { nativeSelectClass } from "./form";
+import { isOverdue, OrderNumberLink, OverdueBadge, type StatusTone, StatusBadge, useNow } from "./status";
 
 type ShipmentItem = PrintQueueShipment;
 
@@ -28,6 +29,8 @@ type Props = {
 	initialArtifacts: ShippingLabelArtifactResponse[];
 	initialAttempts: ShippingPrintAttemptResponse[];
 	initialNextCursor: string | null;
+	/** orders.history.read: order numbers link to the order search. */
+	canOrders?: boolean;
 };
 
 const FORMAT_LABELS: Record<ShippingLabelFormat, string> = {
@@ -50,6 +53,15 @@ const FULFILLMENT_LABELS: Record<string, string> = {
 	handed_over: "Diserahkan ke kurir",
 	exception: "Bermasalah",
 };
+const FULFILLMENT_TONE: Record<string, StatusTone> = {
+	handed_over: "done",
+	exception: "problem",
+};
+/** Seeded templates carry a slug as name ("99ribu-a4-default"); staff read the format instead. */
+const templateName = (tpl: ShippingLabelTemplateResponse) =>
+	/^[a-z0-9-]+$/.test(tpl.name)
+		? `Label ${FORMAT_LABELS[tpl.format]}${tpl.name.endsWith("-default") ? " (bawaan)" : ""}`
+		: tpl.name;
 const BRAND_LABELS: Record<string, string> = {
 	"99ribu": "Merek 99ribu",
 	neutral_partner: "Netral (mitra)",
@@ -92,6 +104,7 @@ export function PrintCenterClient({
 	initialArtifacts,
 	initialAttempts,
 	initialNextCursor,
+	canOrders = false,
 }: Props) {
 	const [format, setFormat] = useState<ShippingLabelFormat>("thermal_100x150");
 	const [shipments, setShipments] = useState(initialShipments);
@@ -107,9 +120,20 @@ export function PrintCenterClient({
 	const [notice, setNotice] = useState<Notice | null>(null);
 	const [pending, setPending] = useState(false);
 
+	const now = useNow();
+	// "Paket 1/2" among the loaded rows of the same order; the parcel hash is not shown to staff.
+	const parcelIndex = (s: ShipmentItem) => {
+		const siblings = shipments
+			.filter((x) => x.order_number === s.order_number)
+			.map((x) => x.parcel_id)
+			.sort();
+		return siblings.length > 1 ? `Paket ${siblings.indexOf(s.parcel_id) + 1}/${siblings.length}` : null;
+	};
 	const parcelName = (shipmentId: string) => {
 		const s = shipments.find((x) => x.shipment_id === shipmentId);
-		return s ? `${s.order_number} · ${s.parcel_id}` : shipmentId.slice(0, 8);
+		if (!s) return "paket ini";
+		const index = parcelIndex(s);
+		return index ? `${s.order_number} · ${index}` : s.order_number;
 	};
 
 	// The inline reprint form unmounts on close; put focus back on its opener.
@@ -295,29 +319,34 @@ export function PrintCenterClient({
 	// `p` prefixes test ids/ids in the mobile card variant so the hidden
 	// desktop table and the cards never share a DOM id.
 	const parcelCell = (s: ShipmentItem) => (
-		<div className="flex min-w-0 flex-col">
-			<span className="font-medium">{s.order_number}</span>
-			<span className="font-mono text-xs break-all text-muted-foreground">
-				{s.parcel_id}
-			</span>
+		<div className="flex min-w-0 flex-col items-start gap-0.5">
+			<OrderNumberLink number={s.order_number} enabled={canOrders} />
+			{parcelIndex(s) && (
+				<span className="text-xs text-muted-foreground">{parcelIndex(s)}</span>
+			)}
 			{s.due_at && (
-				<span
-					data-testid={`shipment-due-${s.shipment_id}`}
-					className="text-xs text-muted-foreground tabular-nums"
-				>
-					Batas {wibDateTime(s.due_at)}
+				<span className="flex flex-wrap items-center gap-1.5">
+					<span
+						data-testid={`shipment-due-${s.shipment_id}`}
+						className="text-xs text-muted-foreground tabular-nums"
+					>
+						Batas {wibDateTime(s.due_at)}
+					</span>
+					{s.fulfillment_status !== "handed_over" && isOverdue(s.due_at, now) && (
+						<OverdueBadge testId={`shipment-overdue-${s.shipment_id}`} />
+					)}
 				</span>
 			)}
 		</div>
 	);
 	const statusBadge = (s: ShipmentItem, p: string) => (
-		<Badge
-			variant="outline"
-			data-testid={`${p}fulfillment-status-${s.shipment_id}`}
+		<StatusBadge
+			tone={FULFILLMENT_TONE[s.fulfillment_status ?? "preparing"] ?? "open"}
+			testId={`${p}fulfillment-status-${s.shipment_id}`}
 		>
 			{FULFILLMENT_LABELS[s.fulfillment_status ?? "preparing"] ??
 				s.fulfillment_status}
-		</Badge>
+		</StatusBadge>
 	);
 	const waybill = (s: ShipmentItem, p: string) => (
 		<span
@@ -347,8 +376,7 @@ export function PrintCenterClient({
 					{ARTIFACT_LABELS[art.status]}
 				</Badge>
 				<span className="text-xs text-muted-foreground">
-					{FORMAT_LABELS[art.format]} · sidik{" "}
-					<code className="font-mono">{art.content_sha256.slice(0, 12)}</code>
+					{FORMAT_LABELS[art.format]}
 				</span>
 			</div>
 		) : (
@@ -556,16 +584,17 @@ export function PrintCenterClient({
 					selection={{
 						selected: selectedShipments,
 						onChange: setSelectedShipments,
-						label: (s) => `Pilih paket ${s.parcel_id}`,
+						label: (s) => `Pilih paket ${parcelName(s.shipment_id)}`,
 						allLabel: "Pilih semua paket",
 						testId: (s, p) => `${p}select-shipment-${s.shipment_id}`,
 					}}
 					columns={[
 						{ id: "parcel", header: "Pesanan · Paket", cell: parcelCell },
 						{
+							// Low value per row (staff work one warehouse at a time): wide screens only.
 							id: "warehouse",
 							header: "Gudang",
-							className: "hidden lg:table-cell",
+							className: "hidden xl:table-cell",
 							cell: (s) => s.warehouse_name,
 						},
 						{ id: "status", header: "Status", cell: (s) => statusBadge(s, "") },
@@ -647,7 +676,7 @@ export function PrintCenterClient({
 							header: "Nama",
 							cell: (tpl) => (
 								<div className="flex flex-col">
-									<span className="font-medium">{tpl.name}</span>
+									<span className="font-medium">{templateName(tpl)}</span>
 									{tpl.partner_brand_name && (
 										<span className="text-xs text-muted-foreground">
 											Mitra: {tpl.partner_brand_name} · {tpl.disclosure_text}
