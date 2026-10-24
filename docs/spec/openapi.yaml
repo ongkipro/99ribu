@@ -6646,7 +6646,7 @@ paths:
         authorization for the entire order. Warehouse role cannot authorize these whole-order endpoints: parent
         totals and unrelated shipment data would exceed its warehouse scope. Warehouse history uses existing scoped
         fulfillment/shipment views instead. No partially filtered buyer Order is returned as a complete authorized
-        order. Bind opaque cursors to actor, filters and effective scope; stable occurred_at/id ordering for events.
+        order. Bind opaque cursors to actor, filters and effective scope; stable occurred_at/recorded_at/id ordering for events.
         Audit sensitive access; enforce no-store and exclude PII/secrets from logs/analytics. Financial costs and
         private proofs are never included.'
       tags:

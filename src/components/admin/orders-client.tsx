@@ -493,6 +493,18 @@ export function OrderDetailClient({
 	const cod = o.payment_method === "cod";
 	const manualBank = o.payment_channel === "manual-bank";
 	const itemName = new Map(o.items.map((i) => [i.id, `${i.name} · ${i.variant_label}`]));
+	// A revision that keeps its status (e.g. payment confirmed while the order is still "Menunggu",
+	// a parcel re-queued as "Siap dikemas") would repeat the same line: show only the first time a
+	// subject entered that status (history is newest first; the line has no other detail).
+	const timeline = history.filter((e, i) => {
+		const prev = history[i + 1];
+		return !(
+			prev &&
+			prev.kind === e.kind &&
+			prev.status === e.status &&
+			(prev.shipment_id ?? null) === (e.shipment_id ?? null)
+		);
+	});
 	// "Paket 1/2" in the shipment cards and the history, so per-parcel events read as distinct.
 	const originals = o.shipments.filter((s) => s.kind !== "replacement");
 	const parcelLabel = (s: Shipment) =>
@@ -643,11 +655,11 @@ export function OrderDetailClient({
 						<h2 id="order-history-heading" className="text-lg font-semibold">
 							Riwayat
 						</h2>
-						{history.length === 0 ? (
+						{timeline.length === 0 ? (
 							<p className="text-sm text-muted-foreground">Belum ada riwayat.</p>
 						) : (
 							<ol className="flex flex-col gap-2 border-l pl-4" data-testid="order-history">
-								{history.map((event) => (
+								{timeline.map((event) => (
 									<li key={`${event.kind}:${event.id}`} className="flex flex-col">
 										<span className="text-sm font-medium">
 											{HISTORY_KIND[event.kind] ?? event.kind}

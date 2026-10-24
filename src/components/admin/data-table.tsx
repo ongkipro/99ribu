@@ -95,6 +95,11 @@ export type DataTableProps<T> = {
 	footer?: ReactNode;
 };
 
+// A selected/active row paints bg-muted, which swallows tinted badges: outline them in their own
+// text colour (outline badges also get the card fill).
+const selectedBadge =
+	"[&[data-state=selected]_[data-slot=badge]]:border-current/40 [&[data-state=selected]_[data-slot=badge][data-variant=outline]]:bg-card";
+
 const checkboxClass =
 	"size-4 accent-primary align-middle focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring";
 
@@ -178,8 +183,10 @@ export function DataTable<T>({
 	const first = columns[0]?.id;
 	const last = columns.at(-1)?.id === "actions" ? "actions" : null;
 	// Pinned cells need an opaque background, so every cell paints the same one (row hover and
-	// selection included) and no column bands; the pinned edge shows a shadow while columns hide
-	// behind it. Literal classes per mode (Tailwind only sees whole class names).
+	// selection included) and no column bands; while columns hide behind a pinned edge it draws a
+	// 1px line in the 3:1 input tone (an inset shadow: collapsed table borders stay in the grid and do
+	// not follow a sticky cell), and action buttons never wrap. Literal classes per mode (Tailwind only sees whole
+	// class names).
 	const headBg = stack ? "md:bg-card" : "bg-card";
 	const cellBg = stack
 		? "md:bg-card md:group-hover/row:bg-muted md:group-has-aria-expanded/row:bg-muted md:group-data-[state=selected]/row:bg-muted"
@@ -190,14 +197,14 @@ export function DataTable<T>({
 			? cn(
 					stack ? "md:sticky md:z-10" : "sticky z-10",
 					selection ? (stack ? "md:left-12" : "left-12") : stack ? "md:left-0" : "left-0",
-					edges.start &&
-						(stack ? "md:shadow-[8px_0_8px_-6px_oklch(0_0_0/0.18)]" : "shadow-[8px_0_8px_-6px_oklch(0_0_0/0.18)]"),
+					edges.start && (stack ? "md:shadow-[inset_-1px_0_0_var(--color-input)]" : "shadow-[inset_-1px_0_0_var(--color-input)]"),
 				)
 			: id === last
 				? cn(
-						stack ? "md:sticky md:right-0 md:z-10" : "sticky right-0 z-10",
-						edges.end &&
-							(stack ? "md:shadow-[-8px_0_8px_-6px_oklch(0_0_0/0.18)]" : "shadow-[-8px_0_8px_-6px_oklch(0_0_0/0.18)]"),
+						stack
+							? "md:sticky md:right-0 md:z-10 md:[&_a]:whitespace-nowrap md:[&_button]:whitespace-nowrap"
+							: "sticky right-0 z-10 [&_a]:whitespace-nowrap [&_button]:whitespace-nowrap",
+						edges.end && (stack ? "md:shadow-[inset_1px_0_0_var(--color-input)]" : "shadow-[inset_1px_0_0_var(--color-input)]"),
 					)
 				: undefined;
 	const stackCell = (c: DataTableColumn<T>) =>
@@ -299,6 +306,7 @@ export function DataTable<T>({
 										{...role("row")}
 										className={cn(
 											"group/row",
+											selectedBadge,
 											rowClassName,
 											stack &&
 												"max-md:flex max-md:h-auto max-md:flex-col max-md:rounded-md max-md:border! max-md:px-3 max-md:py-2",
@@ -362,7 +370,7 @@ export function DataTable<T>({
 								key={rowKey(row)}
 								data-testid={cardTestId?.(row)}
 								data-state={rowKey(row) === activeKey ? "selected" : undefined}
-								className="flex items-start gap-2 p-3 data-[state=selected]:bg-muted"
+								className={cn("flex items-start gap-2 p-3 data-[state=selected]:bg-muted", selectedBadge)}
 							>
 								{checkbox(row, "card-")}
 								<div className="flex min-w-0 flex-1 flex-col gap-2">{card(row)}</div>
