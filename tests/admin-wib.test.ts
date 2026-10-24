@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import { bpsToPercent, percentToBps } from "../src/components/admin/format.ts";
-import { searchQuery } from "../src/components/admin/order-model.ts";
+import { historyStatus, searchQuery } from "../src/components/admin/order-model.ts";
 import { wibInputToIso } from "../src/modules/storefront/format.ts";
 
 test("datetime-local values are read as WIB regardless of the device timezone", () => {
@@ -30,4 +30,15 @@ test("S113: the COD fee is typed as a percent and stored as basis points", () =>
 	assert.equal(bpsToPercent(333), "3,33");
 	assert.equal(bpsToPercent(250), "2,5");
 	assert.equal(percentToBps(bpsToPercent(333)), 333);
+});
+
+test("S113: order history labels a status by its event kind (order pending is not payment pending)", () => {
+	// A COD order's `order:pending` event is the order state, never "Menunggu pembayaran".
+	assert.equal(historyStatus("order", "pending"), "Menunggu");
+	assert.equal(historyStatus("payment", "pending"), "Menunggu pembayaran");
+	assert.equal(historyStatus("order", "cancelled"), "Dibatalkan");
+	assert.equal(historyStatus("payment", "collection_recorded"), "Pembayaran tercatat");
+	assert.equal(historyStatus("fulfillment", "handed_over"), "Diserahkan ke kurir");
+	assert.equal(historyStatus("refund", "succeeded"), "Berhasil");
+	assert.equal(historyStatus("order", "new_state"), "new_state");
 });

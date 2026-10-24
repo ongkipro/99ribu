@@ -647,7 +647,7 @@ export function OrderDetailClient({
 											{event.shipment_id && parcelById.has(event.shipment_id) && o.shipments.length > 1
 												? ` ${parcelById.get(event.shipment_id)?.toLowerCase()}`
 												: ""}
-											: {historyStatus(event.status)}
+											: {historyStatus(event.kind, event.status)}
 										</span>
 										<span className="text-xs text-muted-foreground">
 											{formatWib(event.occurred_at)}

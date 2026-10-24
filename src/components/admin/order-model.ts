@@ -95,7 +95,10 @@ const HISTORY_STATUS: Record<string, string> = {
 	unknown: "Hasil belum pasti",
 	succeeded: "Berhasil",
 };
-export const historyStatus = (status: string) => HISTORY_STATUS[status] ?? status;
+// Order and payment states share keys (`pending`), so the event kind picks the vocabulary.
+const KIND_STATUS: Record<string, Record<string, string>> = { order: ORDER_STATUS, payment: PAYMENT_STATUS };
+export const historyStatus = (kind: string, status: string) =>
+	KIND_STATUS[kind]?.[status] ?? HISTORY_STATUS[status] ?? status;
 
 // Tones for StatusBadge (status.tsx); unknown values fall back to "open".
 export const ORDER_TONE: Record<string, "open" | "done" | "closed"> = {
