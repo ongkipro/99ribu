@@ -5463,6 +5463,13 @@ paths:
         in: query
         schema:
           $ref: '#/components/schemas/CatalogListState'
+      - name: review
+        in: query
+        description: '`claim` lists only drafts that need a DEC-013 claim review (claim_review true).'
+        schema:
+          type: string
+          enum:
+          - claim
   /admin/products/{productId}:
     patch:
       operationId: updateProductDraft
@@ -18429,6 +18436,16 @@ components:
           type: integer
           minimum: 0
           maximum: 2147483647
+        sku:
+          type: string
+          minLength: 1
+          maxLength: 100
+          description: Physical SKU code (inventory list rows only).
+        stock_item_name:
+          type: string
+          minLength: 1
+          maxLength: 200
+          description: Physical SKU name (inventory list rows only).
       required:
       - id
       - warehouse_id
@@ -18562,6 +18579,12 @@ components:
           type: integer
           minimum: 1
           maximum: 2147483647
+        actor_name:
+          type:
+          - string
+          - 'null'
+          maxLength: 200
+          description: Display name of the actor (movement history only; no email or other account data).
       required:
       - id
       - warehouse_id
@@ -25639,6 +25662,18 @@ components:
         status:
           type: string
           const: draft
+        claim_review:
+          type: boolean
+          description: DEC-013 "Perlu tinjauan klaim". The current draft's name carries a listed claim term or one
+            of its photos is a screened claim photo (the rule that keeps it off curated home surfaces). Admin GET only; read-only;
+            replacing the name or photos clears it.
+        google_product_category:
+          type:
+          - string
+          - 'null'
+          pattern: ^[0-9]{1,8}$
+          description: Admin GET only. Google product taxonomy id the catalog feed emits for this draft (product
+            override, else its department default); read-only, null when none applies.
       required:
       - id
       - catalog_id
@@ -25755,6 +25790,11 @@ components:
             - BELOW_MARGIN_FLOOR
             - POLICY_UNCONFIGURED
             - FINANCIAL_REVIEW_REQUIRED
+        claim_review:
+          type: boolean
+          description: DEC-013 "Perlu tinjauan klaim". The current draft's name carries a listed claim term or one
+            of its photos is a screened claim photo (the rule that keeps it off curated home surfaces). Read-only;
+            replacing the name or photos clears it.
       required:
       - id
       - catalog_id
@@ -25773,6 +25813,7 @@ components:
       - published_revision
       - ready
       - blocker_codes
+      - claim_review
       additionalProperties: false
     CatalogCategoryList:
       type: object
