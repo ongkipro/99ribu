@@ -20,12 +20,16 @@ async function historyAuthority(tx:TransactionSql,principal:Principal){
  const current:Principal={...principal,roles:g.roles,permissions:g.permissions,mfaAt:new Date(g.verified_at),warehouseIds:warehouses.map(w=>w.id)};
  if(!hasPermission(current,'orders.history.read')) throw new AccessError(403,'FORBIDDEN');return current;
 }
-type Position={t:string;id:string;h:string};
-function cursor(value:string|null,hash:string):Position|null{
+// `r` (recorded instant) is present only in order-detail history cursors: same-instant events are
+// ordered by when they were recorded, then by id.
+type Position={t:string;r?:string;id:string;h:string};
+const stampPattern=/^\d{4}-\d\d-\d\dT\d\d:\d\d:\d\d\.\d{6}Z$/;
+const stamp=(value:unknown)=>{if(typeof value!=='string'||!stampPattern.test(value)) throw invalid();financeInstant(`${value.slice(0,23)}Z`);return value;};
+function cursor(value:string|null,hash:string,recorded=false):Position|null{
  if(value===null) return null;if(!/^[A-Za-z0-9_-]{1,2000}$/.test(value)) throw invalid();
- try{const p=object(JSON.parse(Buffer.from(value,'base64url').toString()),['t','id','h']);if(p.h!==hash||typeof p.t!=='string'||!/^\d{4}-\d\d-\d\dT\d\d:\d\d:\d\d\.\d{6}Z$/.test(p.t)) throw invalid();financeInstant(`${p.t.slice(0,23)}Z`);return {t:p.t,id:id(p.id),h:hash};}catch{throw invalid();}
+ try{const p=object(JSON.parse(Buffer.from(value,'base64url').toString()),recorded?['t','r','id','h']:['t','id','h']);if(p.h!==hash) throw invalid();return {t:stamp(p.t),...(recorded?{r:stamp(p.r)}:{}),id:id(p.id),h:hash};}catch{throw invalid();}
 }
-const encode=(row:{stamp:string;id:string},hash:string)=>Buffer.from(JSON.stringify({t:row.stamp,id:row.id,h:hash})).toString('base64url');
+const encode=(row:{stamp:string;rstamp?:string;id:string},hash:string)=>Buffer.from(JSON.stringify({t:row.stamp,...(row.rstamp?{r:row.rstamp}:{}),id:row.id,h:hash})).toString('base64url');
 function limit(value:string|null){const raw=value??'20';if(!/^(?:[1-9]|[1-9][0-9]|100)$/.test(raw)) throw invalid();return Number(raw);}
 function parameters(url:URL,allowed:string[]){for(const key of url.searchParams.keys()) if(!allowed.includes(key)||url.searchParams.getAll(key).length!==1) throw invalid();return url.searchParams;}
 // 6–8 digits (DEC-014): enough to narrow a lookup, never a free-text PII search.
@@ -88,7 +92,7 @@ export async function listOrderHistory(identity:LocalAuth,principal:Principal,ur
 export async function readOrderHistory(identity:LocalAuth,principal:Principal,orderId:string,url:URL){
  const order=id(orderId),p=parameters(url,['history_cursor','history_limit']),take=limit(p.get('history_limit'));
  return identity.sql.begin(async tx=>{
-  const access=await historyAuthority(tx,principal),hash=await fingerprint(identity,{scope:scope(access),order}),position=cursor(p.get('history_cursor'),hash);
+  const access=await historyAuthority(tx,principal),hash=await fingerprint(identity,{scope:scope(access),order}),position=cursor(p.get('history_cursor'),hash,true);
   const [replacementSchema]=await tx`select to_regclass('app.replacement_shipment') is not null installed`;
   const replacementScope=replacementSchema.installed?tx`not exists(select 1 from app.replacement_shipment s join app.return_case c on c.id=s.case_id where c.order_id=o.id and not (s.warehouse_id=any(${access.warehouseIds}::uuid[])))`:tx`true`;
   const [stored]=await tx`select id from app.commerce_order o where o.id=${order} and o.revision>0 and (${access.roles.includes('owner')} or (exists(select 1 from app.order_shipment s where s.order_id=o.id) and not exists(select 1 from app.order_shipment s where s.order_id=o.id and not (s.warehouse_id=any(${access.warehouseIds}::uuid[]))))) for share of o`;
@@ -109,8 +113,9 @@ export async function readOrderHistory(identity:LocalAuth,principal:Principal,or
    union all select id,'payment',occurred_at,recorded_at,'collection_recorded',null from app.economic_receipt where order_id=${order}
    union all select id,'reconciliation',occurred_at,recorded_at,'journal_reversed',null from app.finance_transaction where order_id=${order} and kind='reversal'
    union all ${fulfillmentHistory} union all ${receiptHistory} union all ${returnHistory} union all ${refundHistory} union all ${replacementHistory})
-   select *,to_char(occurred_at at time zone 'UTC','YYYY-MM-DD"T"HH24:MI:SS.US"Z"') stamp from events where ${position===null} or (occurred_at,id)<(${position?.t??'1970-01-01T00:00:00.000000Z'}::timestamptz,${position?.id??'00000000-0000-0000-0000-000000000000'}::uuid) order by occurred_at desc,id desc limit ${take+1}`;
+   ,ordered as (select *,coalesce(recorded_at,occurred_at) recorded_order from events)
+   select *,to_char(occurred_at at time zone 'UTC','YYYY-MM-DD"T"HH24:MI:SS.US"Z"') stamp,to_char(recorded_order at time zone 'UTC','YYYY-MM-DD"T"HH24:MI:SS.US"Z"') rstamp from ordered where ${position===null} or (occurred_at,recorded_order,id)<(${position?.t??'1970-01-01T00:00:00.000000Z'}::timestamptz,${position?.r??'1970-01-01T00:00:00.000000Z'}::timestamptz,${position?.id??'00000000-0000-0000-0000-000000000000'}::uuid) order by occurred_at desc,recorded_order desc,id desc limit ${take+1}`;
   const selected=rows.slice(0,take);await audit(tx,access,order,false);const [clock]=await tx`select clock_timestamp() as now`;
-  return {order:await projectOrder(tx,order),history:selected.map(e=>({id:e.id,kind:e.kind,occurred_at:new Date(e.occurred_at).toISOString(),recorded_at:e.recorded_at===null?null:new Date(e.recorded_at).toISOString(),status:e.status,shipment_id:e.shipment_id===null?null:String(e.shipment_id)})),history_pagination:{next_cursor:rows.length>take?encode(selected[selected.length-1] as {stamp:string;id:string},hash):null},as_of:new Date(clock.now).toISOString()};
+  return {order:await projectOrder(tx,order),history:selected.map(e=>({id:e.id,kind:e.kind,occurred_at:new Date(e.occurred_at).toISOString(),recorded_at:e.recorded_at===null?null:new Date(e.recorded_at).toISOString(),status:e.status,shipment_id:e.shipment_id===null?null:String(e.shipment_id)})),history_pagination:{next_cursor:rows.length>take?encode(selected[selected.length-1] as {stamp:string;rstamp:string;id:string},hash):null},as_of:new Date(clock.now).toISOString()};
  });
 }

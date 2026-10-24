@@ -29,6 +29,8 @@ test('actual history APIs enforce all seven roles, whole-order scope, bound pagi
   await f.identity.sql.begin(tx=>postEconomicReceipt(tx,{order_id:one.id,shipment_id:null,source:'local.payment',environment:'test',event_id:randomUUID(),effect_reference:randomUUID(),amount:one.buyer_total,occurred_at:new Date().toISOString()}));
   const detail=await observe(f.owner.browser,`/${one.id}?history_limit=1`,200,true);assert.equal(detail.payload.history.length,1);assert.ok(detail.payload.history_pagination.next_cursor);assert.ok(detail.payload.history[0].recorded_at);
   const older=await observe(f.owner.browser,`/${one.id}?history_limit=1&history_cursor=${detail.payload.history_pagination.next_cursor}`,200,true);assert.equal(older.payload.history.length,1);assert.notEqual(older.payload.history[0].id,detail.payload.history[0].id);assert.equal(older.payload.history_pagination.next_cursor,null);assert.ok(older.payload.history[0].recorded_at);
+  // Newest first; events at the same instant follow their recorded order (then id), across the cursor.
+  const [newer,earlier]=[detail.payload.history[0],older.payload.history[0]];assert.ok(newer.occurred_at>earlier.occurred_at||(newer.occurred_at===earlier.occurred_at&&newer.recorded_at>=earlier.recorded_at));
   for(const key of ['recipient_name','phone','address_line','unit_cost','reason','source_id','payment_credentials']) assert.ok(!JSON.stringify(detail.payload).includes(`"${key}"`));
   assert.equal((await observe(f.owner.browser,`?reference=${one.number}`,200,true)).payload.data.length,1);
   assert.equal((await observe(f.owner.browser,`?warehouse_id=${home.warehouse_id}&status=cancelled`,200,true)).payload.data.length,0);
