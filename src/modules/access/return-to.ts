@@ -17,6 +17,9 @@ export function safeReturnPath(value: unknown): string | null {
 // adds `error=` for a bad link). Sign-up and resend accept no other callbackURL, so a link can only carry
 // a validated `next` on to sign-in.
 export const VERIFIED_PATH = "/masuk/verifikasi";
+// S123 review M1: the set-password page. `aktivasi=1` marks the link that activates an unverified account.
+export const PASSWORD_PATH = "/masuk/atur-sandi";
+export const ACTIVATION_CALLBACK = `${PASSWORD_PATH}?aktivasi=1`;
 export const verificationCallback = (next: string | null) => (next ? `${VERIFIED_PATH}?${new URLSearchParams({ next })}` : VERIFIED_PATH);
 export function isVerificationCallback(value: unknown) {
   if (value === VERIFIED_PATH) return true;

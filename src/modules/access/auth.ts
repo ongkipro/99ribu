@@ -7,6 +7,8 @@ import * as schema from "../../db/schema.ts";
 import { readRuntimeConfig, runtimeTarget } from "../../config/runtime.ts";
 import { localSigningKey } from "./local-key.ts";
 import { enqueueLocalDelivery } from "../../jobs/outbox.ts";
+import { randomBytes } from "node:crypto";
+import { ACTIVATION_CALLBACK } from "./return-to.ts";
 
 export function isSyntheticEmail(value: unknown): value is string {
   return typeof value === "string" && /@[^@\s]+\.(?:invalid|test)$/i.test(value);
@@ -27,6 +29,19 @@ export function createLocalAuth(target: DatabaseTarget) {
       const [message] = await tx`insert into app.local_delivery (recipient, kind, url, expires_at) values (${recipient}, ${kind}, ${url}, now() + interval '30 minutes') returning id`;
       await enqueueLocalDelivery(tx, message.id);
     });
+  }
+  // S123 review M1 (account pre-hijacking): an unverified account may hold a password its email owner never
+  // set, so a later sign-up or resend for it never sends a plain verification link. It sends a set-password
+  // link instead (Better Auth's own reset token, same identifier, store and 30-minute expiry as
+  // /request-password-reset); onPasswordReset below verifies the email only once its owner has set a new
+  // password, which also replaces the old one and revokes sessions.
+  async function sendActivation(user: { id: string; email: string }) {
+    const context = await auth.$context;
+    const token = randomBytes(24).toString("base64url");
+    await context.internalAdapter.createVerificationValue({
+      value: user.id, identifier: `reset-password:${token}`, expiresAt: new Date(Date.now() + 1800 * 1000),
+    });
+    await deliver(user.email, "password_reset", `${config.origin}/api/auth/reset-password/${token}?callbackURL=${encodeURIComponent(ACTIVATION_CALLBACK)}`);
   }
   const auth = betterAuth({
     appName: "99ribu", basePath: "/api/auth",
@@ -61,11 +76,19 @@ export function createLocalAuth(target: DatabaseTarget) {
       minPasswordLength: 12, maxPasswordLength: 128, resetPasswordTokenExpiresIn: 1800,
       revokeSessionsOnPasswordReset: true,
       sendResetPassword: ({ user, url }) => deliver(user.email, "password_reset", url),
-      onExistingUserSignUp: ({ user }) => deliver(user.email, "existing_account", `${config.origin}/masuk`),
+      // Same reply either way (Better Auth's generic duplicate response); only the email differs.
+      onExistingUserSignUp: ({ user }) => user.emailVerified ? deliver(user.email, "existing_account", `${config.origin}/masuk`) : sendActivation(user),
+      // Called by POST /reset-password after the token was consumed and the new password stored.
+      onPasswordReset: async ({ user }) => {
+        if (!user.emailVerified) await connection.sql`update app.auth_user set email_verified=true, updated_at=now() where id=${user.id}`;
+      },
     },
     emailVerification: {
       sendOnSignUp: true, sendOnSignIn: false, autoSignInAfterVerification: false, expiresIn: 1800,
-      sendVerificationEmail: ({ user, url }) => deliver(user.email, "verification", url),
+      // Sign-up of a new account: the caller just set the password, so a plain link is safe. A resend
+      // (/send-verification-email, only ever called for an unverified account) gets the set-password link.
+      sendVerificationEmail: ({ user, url }, request) =>
+        request && new URL(request.url).pathname.endsWith("/send-verification-email") ? sendActivation(user) : deliver(user.email, "verification", url),
     },
     session: { expiresIn: 60 * 60 * 24 * 7, updateAge: 60 * 60 * 24, freshAge: 900, cookieCache: { enabled: false } },
     account: { accountLinking: { enabled: false } },

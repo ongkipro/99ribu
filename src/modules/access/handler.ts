@@ -36,6 +36,9 @@ const ACCOUNT_LIMITS: Record<string, readonly [number, number]> = {
   "/api/auth/two-factor/verify-backup-code": [5, 60_000],
 };
 
+const MAIL_PATHS = ["/api/auth/sign-up/email", "/api/auth/send-verification-email", "/api/auth/request-password-reset"];
+const MAIL_PER_DAY = [10, 86_400_000] as const;
+
 export async function handleAuth(request: Request, identity: LocalAuth) {
   const incoming = new URL(request.url);
   const path = incoming.pathname;
@@ -87,10 +90,13 @@ export async function handleAuth(request: Request, identity: LocalAuth) {
     if (profile === "local" && body.email !== undefined && !isSyntheticEmail(body.email)) {
       return Response.json({ code: "SYNTHETIC_EMAIL_REQUIRED" }, { status: 400 });
     }
-    // S123: a verification link may only return to the landing page with a validated `next` (no open
-    // redirect through a trusted origin's other paths), and a display name is 1-100 characters.
+    // S123: only the reviewed fields (no `image` or other user columns), a verification link may only return
+    // to the landing page with a validated `next` (no open redirect through a trusted origin's other
+    // paths), and a display name is 1-100 characters.
+    const signUpKeys = path.endsWith("/sign-up/email") ? ["name", "email", "password", "callbackURL"] : ["email", "callbackURL"];
     if (["/api/auth/sign-up/email", "/api/auth/send-verification-email"].includes(path) &&
-        ((body.callbackURL !== undefined && !isVerificationCallback(body.callbackURL)) ||
+        (Object.keys(body).some((key) => !signUpKeys.includes(key)) ||
+         (body.callbackURL !== undefined && !isVerificationCallback(body.callbackURL)) ||
          (path.endsWith("/sign-up/email") && (typeof body.name !== "string" || !body.name.trim() || body.name.length > 100)))) {
       return Response.json({ code: "INVALID_INPUT" }, { status: 400, headers: { "Cache-Control": "no-store" } });
     }
@@ -121,8 +127,11 @@ export async function handleAuth(request: Request, identity: LocalAuth) {
         : p ? authCookie(request, `${p}.session_token`)
         : path.endsWith("/reset-password") ? body.token
         : typeof body.email === "string" ? body.email.trim().toLowerCase() : null;
-      if (typeof subject === "string" && subject)
+      if (typeof subject === "string" && subject) {
         await rateLimit(identity.sql, `auth-account:${path}:${await mac(identity, "auth-account", [subject])}`, limit);
+        // S123 review L1: every flow that mails an address shares one daily budget per address (mail bombing).
+        if (MAIL_PATHS.includes(path)) await rateLimit(identity.sql, `auth-mail-day:${await mac(identity, "auth-account", [subject])}`, MAIL_PER_DAY);
+      }
     } catch (error) {
       const limited = problem(error);
       const retryAfter = limited.headers.get("Retry-After");

@@ -55,7 +55,11 @@ test("real auth: verification, session lifecycle, reset, deny-default and persis
       assert.equal((await handleAuth(new Request("http://localhost:3099/api/auth/get-session", { headers: { host: "localhost:3099" } }), identity)).status, 403);
     });
     await t.test("sign-up is enumeration-safe and grants no session before verification", async () => {
-      const signup = await call("/sign-up/email", { name: "Synthetic Buyer", email, password, role: "owner", emailVerified: true });
+      // S123: fields beyond name/email/password/callbackURL are refused before any effect (no mass assignment).
+      for (const extra of [{ role: "owner" }, { emailVerified: true }, { image: "https://evil.invalid/x.png" }]) {
+        assert.equal((await call("/sign-up/email", { name: "Synthetic Buyer", email, password, ...extra })).status, 400);
+      }
+      const signup = await call("/sign-up/email", { name: "Synthetic Buyer", email, password });
       assert.equal(signup.status, 200);
       assert.ok(!signup.headers.get("set-cookie"));
       const duplicate = await call("/sign-up/email", { name: "Synthetic Buyer", email, password });
@@ -157,6 +161,64 @@ test("real auth: verification, session lifecycle, reset, deny-default and persis
       await identity.sql`delete from app.auth_user where id=${userId}`;
     }
     await identity.sql`delete from app.auth_rate_limit where key in ${identity.sql(keys)}`;
+    await identity.sql.end();
+  }
+});
+
+// S123 review M1: someone signs up with another person's email and their own password. The email owner's
+// later sign-up and resend must never send a plain verification link for that account: they get a
+// set-password link, the account is verified only by setting a new password, and the first password dies.
+test("account pre-hijacking: an unverified account is activated only by its email owner setting a new password", async () => {
+  const identity = createLocalAuth("test");
+  const email = `prehijack-${randomUUID()}@example.invalid`;
+  const attacker = randomBytes(24).toString("base64url"), owner = randomBytes(24).toString("base64url");
+  const call = (path: string, body: Record<string, unknown>) => handleAuth(new Request(`${origin}/api/auth${path}`, {
+    method: "POST", headers: { origin, "content-type": "application/json" }, body: JSON.stringify(body),
+  }), identity);
+  const kinds = async () => (await identity.sql`select kind from app.local_delivery where recipient=${email} order by created_at, id`).map((row) => row.kind);
+  const paths = ["/sign-up/email", "/sign-in/email", "/send-verification-email", "/reset-password"];
+  await identity.sql`delete from app.auth_rate_limit where key in ${identity.sql(paths.map((path) => `127.0.0.1|${path}`))}`;
+  let userId = "";
+  try {
+    const first = await call("/sign-up/email", { name: "Penyerobot", email, password: attacker });
+    assert.equal(first.status, 200);
+    [{ id: userId }] = await identity.sql`select id from app.auth_user where email=${email}`;
+    assert.deepEqual(await kinds(), ["verification"]);
+    // The email owner signs up and asks for a resend: same replies as for any address, but only set-password links go out.
+    const again = await call("/sign-up/email", { name: "Pemilik Email", email, password: owner });
+    assert.equal(again.status, 200);
+    assert.deepEqual(await again.json(), await first.json());
+    const resend = await call("/send-verification-email", { email, callbackURL: "/masuk/verifikasi" });
+    assert.equal(resend.status, 200);
+    assert.deepEqual(await resend.json(), { status: true });
+    assert.deepEqual(await kinds(), ["verification", "password_reset", "password_reset"], "No new verification link for an account the owner did not set");
+    assert.equal((await identity.sql`select email_verified from app.auth_user where id=${userId}`)[0].email_verified, false);
+    // Following the newest link lands on the set-password page with the token; setting the password activates the account.
+    const [latest] = await identity.sql`select url from app.local_delivery where recipient=${email} and kind='password_reset' order by created_at desc, id desc limit 1`;
+    const landing = await handleAuth(new Request(latest.url), identity);
+    assert.equal(landing.status, 302);
+    const target = new URL(landing.headers.get("location") ?? "", origin);
+    assert.equal(target.pathname, "/masuk/atur-sandi");
+    assert.equal(target.searchParams.get("aktivasi"), "1");
+    const token = target.searchParams.get("token");
+    assert.ok(token);
+    assert.equal(landing.headers.get("referrer-policy"), "no-referrer");
+    assert.equal((await call("/reset-password", { token, newPassword: owner })).status, 200);
+    assert.equal((await identity.sql`select email_verified from app.auth_user where id=${userId}`)[0].email_verified, true);
+    assert.equal((await call("/sign-in/email", { email, password: attacker })).status, 401, "The first password no longer works");
+    assert.equal((await call("/sign-in/email", { email, password: owner })).status, 200);
+    // A verified account's sign-up still only mails the existing-account notice.
+    assert.equal((await call("/sign-up/email", { name: "Lagi", email, password: attacker })).status, 200);
+    assert.deepEqual((await kinds()).slice(-1), ["existing_account"]);
+    assert.equal((await kinds()).filter((kind) => kind === "password_reset").length, 2);
+  } finally {
+    await identity.sql`delete from app.outbox_job where kind='local.notification' and payload->>'deliveryId' in (select id::text from app.local_delivery where recipient=${email})`;
+    await identity.sql`delete from app.local_delivery where recipient=${email}`;
+    if (userId) {
+      await identity.sql`delete from app.auth_verification where value=${userId}`;
+      await identity.sql`delete from app.auth_user where id=${userId}`;
+    }
+    await identity.sql`delete from app.auth_rate_limit where key in ${identity.sql(paths.map((path) => `127.0.0.1|${path}`))}`;
     await identity.sql.end();
   }
 });
