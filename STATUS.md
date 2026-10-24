@@ -13,11 +13,17 @@ One slice per branch or worktree. A session works only inside its slice's owned 
 
 | Slice | Branch | Owned paths | Do not touch | State |
 |---|---|---|---|---|
-| Admin mobile pass (S113 follow-up, S122c) | `admin-mobile` | `src/components/admin/**`, `src/app/admin/**`, admin CSS, `tests/browser/{consignment-payments,admin-*}.test.ts`, `docs/spec/design/renders/admin-mobile/` | storefront, `src/modules/access/**` | merged `c2f6eb0`; the design review returned REVISE, so the fix is in progress on the same branch |
-| S123 buyer registration | `s123-buyer-signup` | `src/app/(storefront)/{masuk,@modal,akun,pesanan}/**`, `src/components/storefront/sign-*`, `buyer-account-client.tsx`, auth routes, `tests/browser/sign-*`, `docs/spec/design/renders/s123-signup/` | `src/components/admin/**` | security review REVISE fixed; now reworking per owner (sign-up = name + email, password set through the emailed link) |
+| Admin mobile pass (S113 follow-up, S122c) | `admin-mobile` | merged `0ac607d` | — | design re-review running |
+| S123 buyer registration (name, email, WhatsApp; password via link; locked inputs) | `s123-buyer-signup` | `src/app/(storefront)/{masuk,@modal,akun,pesanan}/**`, `src/components/storefront/{sign-*,checkout-forms,buyer-account-client}*`, `src/modules/access/**`, `tests/browser/sign-*`, `tests/auth.test.ts` | `src/components/admin/**` | in progress (worker) |
+| Admin IA + screen contracts (spec 17 section) | `admin-ia-spec` | `docs/spec/17-UX-FLOWS-SCREEN-CONTRACTS.md` | code, TASKS, STATUS | in progress (docs only) |
+| S101 returns + warehouse calendar | `s101-returns-calendar` | `src/app/admin/**/returns/**`, `src/components/admin/returns*`, fulfillment pickup-profile/calendar UI, `src/modules/returns/**` | sidebar, storefront | in progress (worker) |
+| S102 inventory, staff roles, shipping promos, product content | `s102-ops-screens` | `src/app/admin/**/{inventory,staff,shipping-promotions}/**`, catalog product content UI, `src/components/admin/{inventory,staff,promo}*` | sidebar, storefront, returns | in progress (worker) |
+| S110 home banners | `s110-home-banners` | banner migration, `src/modules/storefront/banners.ts`, `src/app/admin/**/banners/**`, `src/components/storefront/sections/promo-banners.tsx` | sidebar, sign-in/up, admin returns/inventory | in progress (worker) |
 | S125 guest orders in the buyer account (DEC-016) | not started | waits for S123 merge and S120 | — | planned |
 | S126 buyer profile completion (DEC-017) | not started | waits for S123 merge (shares `/akun`) | — | planned |
 | S124 production email delivery | — | owner picks the provider first | — | owner decision |
+
+Sidebar/navigation entries for new screens are added by the coordinator at merge; workers report them.
 
 
 ## Follow-up audit and slices S69–S79 (2026-10-21/22, Claude Opus 5.5 via Claude Code; committed and pushed 2026-10-23)
