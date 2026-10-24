@@ -152,6 +152,11 @@ test("S110 list, preview, reorder, create (WIB schedule, link check, upload) and
 		// Reorder: move the first banner down, save once with a password.
 		await expect(page.getByTestId(`banner-up-${BANNERS[0].id}`)).toBeDisabled();
 		await page.getByTestId(`banner-down-${BANNERS[0].id}`).click();
+		// Keyboard: at the list edge the pressed arrow disables, so focus moves to the row's other arrow; moves are announced.
+		await page.getByTestId(`banner-down-${BANNERS[0].id}`).press("Enter");
+		await expect(page.getByTestId(`banner-up-${BANNERS[0].id}`)).toBeFocused();
+		await page.keyboard.press("Enter");
+		await expect(page.getByTestId("banners-moved")).toHaveText(`${BANNERS[0].title} di urutan 2 dari 3.`);
 		await expect(page.getByTestId("banners-order-save")).toBeVisible();
 		await expect(page.getByTestId("banners-create")).toBeDisabled();
 		await page.getByTestId("banners-order-save").click();

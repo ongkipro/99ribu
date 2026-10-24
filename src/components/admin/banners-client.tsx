@@ -131,6 +131,7 @@ export function BannersClient() {
 	const [history, setHistory] = useState<AdminBanner | null>(null);
 	const [savingOrder, setSavingOrder] = useState(false);
 	const [notice, setNotice] = useState<string | null>(null);
+	const [moved, setMoved] = useState("");
 	const noticeRef = useRef<HTMLDivElement>(null);
 	const load = useCallback(async () => {
 		setStatus({ kind: "loading" });
@@ -145,6 +146,7 @@ export function BannersClient() {
 		}
 		setRows(result.data.data);
 		setOrder(null);
+		setMoved("");
 		setStatus({ kind: "ready" });
 	}, [state]);
 	useEffect(() => {
@@ -162,6 +164,10 @@ export function BannersClient() {
 		const next = [...ids];
 		[next[from], next[to]] = [next[to], next[from]];
 		setOrder(next.join() === rows.map((row) => row.id).join() ? null : next);
+		setMoved(`${rows.find((row) => row.id === id)?.title} di urutan ${to + 1} dari ${ids.length}.`);
+		// Keep keyboard focus on the moved row: the pressed arrow, or the other one once the pressed arrow is disabled at the list edge.
+		const arrow = to === 0 ? "down" : to === ids.length - 1 ? "up" : delta < 0 ? "up" : "down";
+		requestAnimationFrame(() => document.querySelector<HTMLButtonElement>(`[data-testid="banner-${arrow}-${id}"]`)?.focus());
 	};
 	const done = (text: string) => {
 		setEditing(null);
@@ -284,6 +290,9 @@ export function BannersClient() {
 					<AlertDescription className="text-foreground">{notice}</AlertDescription>
 				</Alert>
 			)}
+			<p className="sr-only" aria-live="polite" data-testid="banners-moved">
+				{moved}
+			</p>
 			<section aria-labelledby="banners-list-heading" className="flex flex-col gap-4">
 				<div className="flex flex-wrap items-center justify-between gap-3">
 					<h2 id="banners-list-heading" className="text-lg font-semibold">
