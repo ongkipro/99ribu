@@ -1007,7 +1007,7 @@ Columns: **Data** = operationIds (paths relative to `/api/v1`); **States** use L
 | B26 | `/admin/settings/audit` | Append-only audit trail | **API missing** (`app.audit_event` has no read op) | Filter by actor / action / object / period | L E X D | read itself audited | DataTable `stack` | missing |
 | B27 | `/admin/settings/system` | Outbox, worker, retention health | **API missing** (only host probes in [OBSERVABILITY.md](../../OBSERVABILITY.md)) | — / view failed jobs | L X D S | — | KPI cards + table | missing |
 | B28 | A4 section + `/admin/claims` | Guest-order account claims, WhatsApp path (DEC-016) | **API missing** (S125) | Setujui / Tolak klaim | L E X D C | audit | `DetailSection` | missing |
-| B29 | `/admin/customers` | Buyer account lookup for CS | **API missing** | — | L E X D | read audit | DataTable `stack` | missing, not planned until Q5 is answered |
+| B29 | `/admin/customers` | Buyer account lookup for CS | **API missing** | — | L E X D | read audit | DataTable `stack` | missing; S138 (Q5 answered, DEC-018) |
 | B30 | `/admin/fulfillment/[fulfillmentId]` | API-booking path: pack, book, handover, reschedule | `getFulfillment`, `completePacking`, `bookShipment`, `recordCourierHandover`, `prepareFulfillment`, `rescheduleFulfillment`, `getAdminShipment`, `downloadShipmentLabel` | Siapkan / Pesan kurir, Serahkan | L X D C | audit | `DetailSection`, `StickyActions` | missing; deferred: only needed when the Mengantar API flag turns on (gated S94–S96); `rescheduleFulfillment` may move into A5 earlier |
 
 Counts: **exists 10** (A1–A8, A10, A11). **Partial 4** (A9, B21, B23, B24). **Missing 27** (B1–B20, B22, B25–B30). **Broken 0** screens. One API contract is broken (`terminateOwnSessions`, see the account menu).
@@ -1037,7 +1037,7 @@ Counts: **exists 10** (A1–A8, A10, A11). **Partial 4** (A9, B21, B23, B24). **
 | B26 audit log | N | N | N | N | N | S135 |
 | B27 system health | N | N | N | N | N | S136 |
 | B28 guest-order claims | N | N | N | N | N | S125 |
-| B29 customers | N | N | N | N | N | Q5 (no slice) |
+| B29 customers | N | N | N | N | N | S138 |
 | B30 API-booking fulfillment | N | Y | Y | Y (API) | N | gated S94–S96 |
 
 ### Slice plan (build order)
@@ -1082,10 +1082,12 @@ No new log file. Each slice moves through the records that already exist ([AGENT
 
 ### Owner questions (blocking only)
 
+All five were answered on 2026-10-25 and recorded as DEC-018; the slices below follow those answers.
+
 | # | Question | Blocks |
 |---|---|---|
 | Q1 | Who is a "client operator" (for example a Berlapak seller viewing its origin-warehouse orders)? If one exists: which role or grant, which screens, and which fields (DEC-007 forbids seller settlement)? | Any client-operator screen; nothing else |
 | Q2 | Staff security and calendars. (a) Can staff change their own password and regenerate backup codes, and does the owner reset a lost TOTP device? (b) Real warehouse calendars: the validator only accepts `TEST-ONLY` values today. Who approves a production calendar, and is the bulk default calendar owner-only? | S129, S101 calendar part |
 | Q3 | Policy settings stay owner-only writes (payment terms incl. bank accounts, commercial policy, label templates). Should finance get read access, or write access with a grant? | S130 |
 | Q4 | Audit log visibility: owner-only (proposed), or finance read for money actions? | S135 |
-| Q5 | (a) Can CS look up buyer accounts (B29), and which fields? (b) Can finance read the affiliate list? | B29 (no slice until answered), S132 read scope |
+| Q5 | (a) Can CS look up buyer accounts (B29), and which fields? (b) Can finance read the affiliate list? | B29 (S138), S132 read scope — answered: DEC-018 |
