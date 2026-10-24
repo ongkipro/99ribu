@@ -3904,8 +3904,8 @@ body:has(> .store-header, > .task-header) {
 		letter-spacing: -0.5px;
 	}
 }
-/* Product cards (shop.com bodyTitleSmall / captionBold): title 14/18 weight 600 at -0.2px
-   on one line, price 12/16 weight 600 at -0.2px in full ink. */
+/* Product cards (shop.com bodyTitleSmall): title 14/18 weight 600 at -0.2px on one line,
+   price 12/16 at regular weight in full ink (owner call 2026-10-24: price not bold). */
 .product-grid .product h3,
 .shelf-row .product h3 {
 	font-size: 0.875rem;
@@ -3917,7 +3917,7 @@ body:has(> .store-header, > .task-header) {
 .shelf-row .product-price {
 	font-size: 0.75rem;
 	line-height: 1rem;
-	font-weight: 600;
+	font-weight: 400;
 	letter-spacing: -0.2px;
 	color: #18181b;
 	margin-top: 2px;
