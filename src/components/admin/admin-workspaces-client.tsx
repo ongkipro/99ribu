@@ -24,12 +24,12 @@ import {
 } from "./ad-destinations-panel";
 import { describeFailure, failureText, readFailure } from "./admin-errors";
 import type { ConsoleAccess } from "./console-access";
-import { CardActions, CardMeta, CardTitle, DataTable } from "./data-table";
+import { CardActions, CardMeta, CardStatus, CardTitle, DataTable } from "./data-table";
 import { nativeSelectClass, SegmentedControl } from "./form";
 import { KpiCard, KpiGrid } from "./kpi-card";
 import { AdminPage, Disclosure, PageHeader } from "./page-blocks";
 import { ErrorState, LoadingState } from "./states";
-import { isOverdue, OverdueBadge, StatusBadge, useNow } from "./status";
+import { Deadline, StatusBadge } from "./status";
 
 export type CanonicalWorkspace =
 	| "owner"
@@ -225,7 +225,8 @@ const QUEUE_LABELS: Record<QueueKey, string> = {
 // it differs. Orders mix payment deadlines and creation times, so their heading is neutral.
 const TIME_LABELS: Record<QueueKey, string | null> = {
 	orders: "Waktu",
-	fulfillments: "Batas kemas",
+	// Fulfillment rows carry packing deadlines and creation times: a neutral heading, like orders.
+	fulfillments: "Waktu",
 	delivery_exceptions: "Waktu kejadian",
 	returns: "Dibuat",
 	inventory: null,
@@ -1175,7 +1176,6 @@ export function AdminWorkspacesClient({
 	const canOrders = !preview && canOrdersGrant;
 	// The API reports Asia/Jakarta; every time below is shown and labeled as WIB.
 	const formatTime = (iso: string | null) => (iso ? wibDateTime(iso) : "—");
-	const now = useNow();
 	// Phones: the dashboard is a task list, so its queue shows the first rows and links on.
 	const isMobile = useIsMobile();
 	const compactQueue = isMobile && view === "dashboard";
@@ -1312,7 +1312,7 @@ export function AdminWorkspacesClient({
 		if (item.resource_kind === "conversation" && canSupport)
 			return (
 				<Button asChild variant="outline" size="sm">
-					<Link href="/admin/support">Buka percakapan</Link>
+					<Link href="/admin/support">Buka Kotak Masuk</Link>
 				</Button>
 			);
 		return null;
@@ -1347,13 +1347,13 @@ export function AdminWorkspacesClient({
 		const mono = item.reference !== null;
 		return (
 			<div className="flex min-w-0 flex-col">
-				{!card && <span className="text-xs text-muted-foreground">{kindText(item)}</span>}
+				{!card && <span className="text-xs font-normal text-muted-foreground">{kindText(item)}</span>}
 				{href ? (
 					<Link
 						href={href}
 						className={cn(
-							"text-sm font-medium break-all text-primary underline-offset-4 hover:underline pointer-coarse:inline-flex pointer-coarse:min-h-11 pointer-coarse:items-center",
-							mono && "font-mono",
+							"text-sm font-medium break-words text-primary underline-offset-4 hover:underline pointer-coarse:inline-flex pointer-coarse:min-h-11 pointer-coarse:items-center",
+							mono && "font-mono break-all",
 						)}
 						aria-label={
 							item.order_id
@@ -1364,14 +1364,14 @@ export function AdminWorkspacesClient({
 						{referenceText(item)}
 					</Link>
 				) : (
-					<span className={cn("text-sm font-medium break-all", mono && "font-mono")}>
+					<span className={cn("text-sm font-medium break-words", mono && "font-mono break-all")}>
 						{referenceText(item)}
 					</span>
 				)}
 				{/* md–xl: queues with a row action move the time here so the pinned action never covers it. */}
 				{!card && timeLabel && hasRowActions && (
-					<span className="hidden text-xs text-muted-foreground tabular-nums md:block xl:hidden">
-						{rowTimeLabel(item)} {formatTime(item.due_at)}
+					<span className="hidden text-xs font-normal text-muted-foreground tabular-nums md:block xl:hidden">
+						{rowTimeLabel(item)} {time(item)}
 					</span>
 				)}
 			</div>
@@ -1382,17 +1382,14 @@ export function AdminWorkspacesClient({
 
 	const status = (item: WorkQueueItem) => {
 		const [label, tone] = describeState(item.resource_kind, item.state);
-		const late =
-			(tone === "open" || tone === "problem") &&
-			item.due_at_kind !== null &&
-			DEADLINE_KINDS.has(item.due_at_kind) &&
-			isOverdue(item.due_at, now);
-		return (
-			<span className="flex flex-wrap gap-1">
-				<StatusBadge tone={tone}>{label}</StatusBadge>
-				{late && <OverdueBadge />}
-			</span>
-		);
+		return <StatusBadge tone={tone}>{label}</StatusBadge>;
+	};
+	// The row's time; a passed deadline of a row still open carries "Lewat batas" right after it.
+	const time = (item: WorkQueueItem) => {
+		const [, tone] = describeState(item.resource_kind, item.state);
+		const deadline =
+			(tone === "open" || tone === "problem") && item.due_at_kind !== null && DEADLINE_KINDS.has(item.due_at_kind);
+		return item.due_at && deadline ? <Deadline iso={item.due_at} /> : formatTime(item.due_at);
 	};
 
 	return (
@@ -1564,7 +1561,11 @@ export function AdminWorkspacesClient({
 							id="work-queue-heading"
 							ref={queueHeadingRef}
 							tabIndex={-1}
-							className="scroll-mt-16 text-base font-semibold outline-none focus-visible:ring-2 focus-visible:ring-ring/50"
+							// The full queue page already titles itself "Antrean …": the section heading stays for focus and readers.
+							className={cn(
+								"scroll-mt-16 text-base font-semibold outline-none focus-visible:ring-2 focus-visible:ring-ring/50",
+								view === "queue" && "sr-only",
+							)}
 						>
 							Antrean {QUEUE_LABELS[queue]}
 						</h2>
@@ -1766,7 +1767,7 @@ export function AdminWorkspacesClient({
 														{rowTimeLabel(item)}
 													</span>
 												)}
-												{formatTime(item.due_at)}
+												{time(item)}
 											</>
 										),
 									},
@@ -1786,17 +1787,24 @@ export function AdminWorkspacesClient({
 					cardTestId={(item) => `queue-card-${item.id}`}
 					card={(item) => (
 						<>
-							<CardTitle title={reference(item, true)} aside={status(item)} />
+							{/* Top right: the amount (finance rows), else the status badge. */}
+							<CardTitle
+								title={reference(item, true)}
+								aside={item.amount_idr != null ? rupiah(item.amount_idr) : status(item)}
+							/>
 							<CardMeta>
-								{kindText(item)}
+								{item.resource_kind === "reconciliation" && item.settlement_source
+									? SETTLEMENT_SOURCE_LABELS[item.settlement_source]
+									: (KIND_LABELS[item.resource_kind] ?? item.resource_kind)}
 								{timeLabel && (
 									<>
 										{" · "}
 										{rowTimeLabel(item)}{" "}
-										<span className="font-medium text-foreground">{formatTime(item.due_at)}</span>
+										<span className="font-medium text-foreground">{time(item)}</span>
 									</>
 								)}
 							</CardMeta>
+							{item.amount_idr != null && <CardStatus>{status(item)}</CardStatus>}
 							{rowActionFor(item) && <CardActions>{rowAction(item)}</CardActions>}
 						</>
 					)}

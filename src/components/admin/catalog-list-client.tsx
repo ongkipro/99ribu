@@ -405,13 +405,24 @@ export function CatalogListClient({
 											{r.name}
 										</Link>
 									}
+									aside={<StatusBadge tone={STATUS_TONE[r.state]}>{STATUS_LABELS[r.state]}</StatusBadge>}
 								/>
-								<CardMeta>{r.category_path ?? "Tanpa kategori"}</CardMeta>
+								<CardMeta>
+									{r.category_path ?? "Tanpa kategori"}
+									{r.state !== "published" && r.blocker_codes.length > 0 && (
+										<span className="block">
+											{blockerLabel(r.blocker_codes[0])}
+											{r.blocker_codes.length > 1 ? ` · +${r.blocker_codes.length - 1} lainnya` : ""}
+										</span>
+									)}
+									{r.published_revision !== null && r.version > r.published_revision && (
+										<span className="block">Ada draf baru</span>
+									)}
+								</CardMeta>
 								<CardStatus>
 									{kinds(r)}
 									{stock(r)}
 								</CardStatus>
-								{status(r)}
 							</div>
 						</div>
 					)}

@@ -79,9 +79,11 @@ function TabletRail() {
 function WorkspaceLinks({
 	workspaces,
 	active,
+	current = true,
 }: {
 	workspaces: CanonicalWorkspace[];
 	active: CanonicalWorkspace | null;
+	current?: boolean;
 }) {
 	const close = useCloseOnNavigate();
 	return (
@@ -98,7 +100,7 @@ function WorkspaceLinks({
 							<Link
 								href={`/admin?workspace=${ws}`}
 								data-testid={`workspace-tab-${ws}`}
-								aria-current={isActive ? "page" : undefined}
+								aria-current={isActive && current ? "page" : undefined}
 								onClick={close}
 							>
 								<Icon aria-hidden="true" />
@@ -119,11 +121,12 @@ function ActiveWorkspaceLinks({
 }) {
 	const pathname = usePathname();
 	const requested = useSearchParams().get("workspace");
+	// The full work-queue page belongs to its workspace: the item stays active (not "current page").
 	const active =
-		pathname === "/admin"
+		pathname === "/admin" || pathname === "/admin/queue"
 			? (workspaces.find((ws) => ws === requested) ?? null)
 			: null;
-	return <WorkspaceLinks workspaces={workspaces} active={active} />;
+	return <WorkspaceLinks workspaces={workspaces} active={active} current={pathname === "/admin"} />;
 }
 
 type NavItem = { href: string; label: string; icon: LucideIcon; show: boolean };
