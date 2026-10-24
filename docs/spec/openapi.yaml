@@ -20911,12 +20911,20 @@ components:
         status:
           type: string
           maxLength: 100
+        shipment_id:
+          anyOf:
+          - $ref: '#/components/schemas/Id'
+          - type: 'null'
+          description: Parcel of a fulfillment event (order shipment or replacement shipment, matching
+            Order.shipments[].id) so staff see which parcel moved; null for order, payment, return, refund and
+            reconciliation events.
       required:
       - id
       - kind
       - occurred_at
       - recorded_at
       - status
+      - shipment_id
       additionalProperties: false
       description: Sanitized event metadata; no freeform provider payload, private notes, credentials or proof URLs.
     AdminOrderDetail:
