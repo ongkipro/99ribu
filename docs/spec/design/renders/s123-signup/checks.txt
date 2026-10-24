@@ -138,3 +138,114 @@ PASS set-password-done-1440 no horizontal overflow (0px)
 PASS set-password-invalid-1440 no horizontal overflow (0px)
 PASS check-email-1440 no horizontal overflow (0px)
 PASS 1440 no page or console errors
+
+# Owner decisions 2026-10-25 (name + email + WhatsApp sign-up, password via link, contact inputs) renders
+PASS real sign-up queued a set-password link
+PASS akun-signed-out-320 no horizontal overflow (0px)
+PASS modal-320 focus in name
+PASS modal-signup-320 no horizontal overflow (0px)
+PASS page-320 phone shows 08…
+PASS page-signup-suggestion-320 no horizontal overflow (0px)
+PASS page-320 suggestion applied
+PASS page-320 WhatsApp error focused
+PASS error-whatsapp-320 no horizontal overflow (0px)
+PASS check-email-320 no horizontal overflow (0px)
+PASS error-limit-320 no horizontal overflow (0px)
+PASS error-closed-320 no horizontal overflow (0px)
+PASS activation-320 token dropped from the URL (http://127.0.0.1:3123/masuk/atur-sandi?aktivasi=1&next=%2Fakun)
+PASS set-password-activation-320 no horizontal overflow (0px)
+PASS set-password-token-error-320 no horizontal overflow (0px)
+PASS set-password-done-320 no horizontal overflow (0px)
+PASS set-password-invalid-320 no horizontal overflow (0px)
+PASS 320 no page or console errors
+PASS akun-signed-out-390 no horizontal overflow (0px)
+PASS modal-390 focus in name
+PASS modal-signup-390 no horizontal overflow (0px)
+PASS page-390 phone shows 08…
+PASS page-signup-suggestion-390 no horizontal overflow (0px)
+PASS page-390 suggestion applied
+PASS page-390 WhatsApp error focused
+PASS error-whatsapp-390 no horizontal overflow (0px)
+PASS check-email-390 no horizontal overflow (0px)
+PASS error-limit-390 no horizontal overflow (0px)
+PASS error-closed-390 no horizontal overflow (0px)
+PASS error-domain-390 no horizontal overflow (0px)
+PASS error-origin-390 no horizontal overflow (0px)
+PASS error-network-390 no horizontal overflow (0px)
+PASS check-email-resend-limit-390 no horizontal overflow (0px)
+PASS guest lookup phone shows 08…
+PASS akun-guest-lookup-suggestion-390 no horizontal overflow (0px)
+PASS activation-390 token dropped from the URL (http://127.0.0.1:3123/masuk/atur-sandi?aktivasi=1&next=%2Fakun)
+PASS set-password-activation-390 no horizontal overflow (0px)
+PASS set-password-token-error-390 no horizontal overflow (0px)
+PASS set-password-done-390 no horizontal overflow (0px)
+PASS set-password-invalid-390 no horizontal overflow (0px)
+PASS 390 no page or console errors
+PASS akun-signed-out-768 no horizontal overflow (0px)
+PASS modal-768 focus in name
+PASS modal-signup-768 no horizontal overflow (0px)
+PASS page-768 phone shows 08…
+PASS page-signup-suggestion-768 no horizontal overflow (0px)
+PASS page-768 suggestion applied
+PASS page-768 WhatsApp error focused
+PASS error-whatsapp-768 no horizontal overflow (0px)
+PASS check-email-768 no horizontal overflow (0px)
+PASS error-limit-768 no horizontal overflow (0px)
+PASS error-closed-768 no horizontal overflow (0px)
+PASS activation-768 token dropped from the URL (http://127.0.0.1:3123/masuk/atur-sandi?aktivasi=1&next=%2Fakun)
+PASS set-password-activation-768 no horizontal overflow (0px)
+PASS set-password-token-error-768 no horizontal overflow (0px)
+PASS set-password-done-768 no horizontal overflow (0px)
+PASS set-password-invalid-768 no horizontal overflow (0px)
+PASS 768 no page or console errors
+PASS akun-signed-out-1440 no horizontal overflow (0px)
+PASS modal-1440 focus in name
+PASS modal-signup-1440 no horizontal overflow (0px)
+PASS page-1440 phone shows 08…
+PASS page-signup-suggestion-1440 no horizontal overflow (0px)
+PASS page-1440 suggestion applied
+PASS page-1440 WhatsApp error focused
+PASS error-whatsapp-1440 no horizontal overflow (0px)
+PASS check-email-1440 no horizontal overflow (0px)
+PASS error-limit-1440 no horizontal overflow (0px)
+PASS error-closed-1440 no horizontal overflow (0px)
+PASS activation-1440 token dropped from the URL (http://127.0.0.1:3123/masuk/atur-sandi?aktivasi=1&next=%2Fakun)
+PASS set-password-activation-1440 no horizontal overflow (0px)
+PASS set-password-token-error-1440 no horizontal overflow (0px)
+PASS set-password-done-1440 no horizontal overflow (0px)
+PASS set-password-invalid-1440 no horizontal overflow (0px)
+PASS 1440 no page or console errors
+PASS nojs-signup-whatsapp-390 no horizontal overflow (0px)
+PASS nojs-check-email-resent-390 no horizontal overflow (0px)
+PASS akun-profile-phone-320 no horizontal overflow (0px)
+PASS akun-320 phone shows 08…
+PASS akun-profile-phone-error-320 no horizontal overflow (0px)
+PASS receipt-link-320 no horizontal overflow (0px)
+PASS receipt-link-suggestion-320 no horizontal overflow (0px)
+PASS receipt-link-code-320 no horizontal overflow (0px)
+PASS receipt-save-preview-320 no horizontal overflow (0px)
+PASS signed-in-320 no page or console errors
+PASS akun-profile-phone-390 no horizontal overflow (0px)
+PASS akun-390 phone shows 08…
+PASS akun-profile-phone-error-390 no horizontal overflow (0px)
+PASS receipt-link-390 no horizontal overflow (0px)
+PASS receipt-link-suggestion-390 no horizontal overflow (0px)
+PASS receipt-link-code-390 no horizontal overflow (0px)
+PASS receipt-save-preview-390 no horizontal overflow (0px)
+PASS signed-in-390 no page or console errors
+PASS akun-profile-phone-768 no horizontal overflow (0px)
+PASS akun-768 phone shows 08…
+PASS akun-profile-phone-error-768 no horizontal overflow (0px)
+PASS receipt-link-768 no horizontal overflow (0px)
+PASS receipt-link-suggestion-768 no horizontal overflow (0px)
+PASS receipt-link-code-768 no horizontal overflow (0px)
+PASS receipt-save-preview-768 no horizontal overflow (0px)
+PASS signed-in-768 no page or console errors
+PASS akun-profile-phone-1440 no horizontal overflow (0px)
+PASS akun-1440 phone shows 08…
+PASS akun-profile-phone-error-1440 no horizontal overflow (0px)
+PASS receipt-link-1440 no horizontal overflow (0px)
+PASS receipt-link-suggestion-1440 no horizontal overflow (0px)
+PASS receipt-link-code-1440 no horizontal overflow (0px)
+PASS receipt-save-preview-1440 no horizontal overflow (0px)
+PASS signed-in-1440 no page or console errors
