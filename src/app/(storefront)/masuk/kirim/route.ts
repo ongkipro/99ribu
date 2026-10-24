@@ -1,6 +1,6 @@
 import { getLocalAuth } from "@/modules/access/auth";
 import { handleAuth } from "@/modules/access/handler";
-import { safeReturnPath, verificationCallback } from "@/modules/access/return-to";
+import { PASSWORD_PATH, safeReturnPath, verificationCallback } from "@/modules/access/return-to";
 import { type AuthMode, authHref, codeInput, failureKind, type SignInStep, signInHref, signUpFailureKind } from "@/components/storefront/sign-in-copy";
 
 export const runtime = "nodejs";
@@ -32,7 +32,16 @@ export async function POST(request: Request) {
 	if (!form) return new Response(null, { status: 413 });
 	const next = safeReturnPath(form.get("next"));
 	const raw = form.get("step");
-	const step: SignInStep | "signup" | "resend" = raw === "totp" || raw === "backup" || raw === "signup" || raw === "resend" ? raw : "password";
+	const step: SignInStep | "signup" | "resend" | "reset" = raw === "totp" || raw === "backup" || raw === "signup" || raw === "resend" || raw === "reset" ? raw : "password";
+	// Set-password (S123 review M1) answers on /masuk/atur-sandi; the token goes back only so a failed
+	// attempt can be retried (that page sends no Referer), never on success.
+	const token = form.get("token") ?? "", activation = form.get("aktivasi") === "1";
+	const back = (query: Record<string, string>) => {
+		const url = new URL(PASSWORD_PATH, "http://localhost");
+		if (activation) url.searchParams.set("aktivasi", "1");
+		for (const [key, value] of Object.entries(query)) url.searchParams.set(key, value);
+		return new Response(null, { status: 303, headers: { location: url.pathname + url.search, "cache-control": "no-store", "referrer-policy": "no-referrer" } });
+	};
 	const go = (target: SignInStep | AuthMode, query: Record<string, string> = {}, cookies: string[] = []) => {
 		const url = new URL(target === "daftar" || target === "cek-email" || target === "masuk" ? authHref(next, target) : signInHref(next, target), "http://localhost");
 		for (const [key, value] of Object.entries(query)) url.searchParams.set(key, value);
@@ -51,6 +60,12 @@ export async function POST(request: Request) {
 		if (!name || !email || !password) return go("daftar", { galat: "empty" });
 		path = "/api/auth/sign-up/email";
 		body = { name, email, password, callbackURL: verificationCallback(next) };
+	} else if (step === "reset") {
+		const password = form.get("password") ?? "";
+		if (!/^[A-Za-z0-9_-]{8,128}$/.test(token)) return back({ galat: "token" });
+		if (!password) return back({ token, galat: "password" });
+		path = "/api/auth/reset-password";
+		body = { token, newPassword: password };
 	} else if (step === "resend") {
 		const email = form.get("email")?.trim() ?? "";
 		if (!email) return go("cek-email", { galat: "email" });
@@ -72,6 +87,11 @@ export async function POST(request: Request) {
 	const retry = Number(response.headers.get("retry-after") ?? response.headers.get("x-retry-after"));
 	const wait: Record<string, string> = retry > 0 ? { tunggu: String(Math.ceil(retry)) } : {};
 	// Sign-up and resend set no cookie (autoSignIn is off); nothing from their answer is passed on.
+	if (step === "reset") {
+		if (response.status === 200) return back({ selesai: "1" });
+		const kind = signUpFailureKind(response.status, payload?.code);
+		return kind === "input" ? back({ galat: "token" }) : back({ token, galat: kind, ...wait });
+	}
 	if (step === "signup" || step === "resend") {
 		if (response.status === 200) return go("cek-email", step === "resend" ? { ulang: "1" } : {});
 		return go(step === "signup" ? "daftar" : "cek-email", { galat: signUpFailureKind(response.status, payload?.code), ...wait });

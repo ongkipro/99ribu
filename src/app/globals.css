@@ -3392,7 +3392,7 @@ body:has(> .store-header) {
 :where(.signin-field-hint svg) {
 	flex: none;
 }
-/* "Cek email kamu untuk verifikasi" and the verification landing: a 56px lavender disc with the glyph. */
+/* "Cek email Anda untuk verifikasi" and the verification landing: a 56px lavender disc with the glyph. */
 .signin-sent-icon {
 	justify-self: center;
 	display: grid;

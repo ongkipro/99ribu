@@ -43,8 +43,11 @@ export const signInHref = (next: string | null, step: SignInStep = "password") =
 	return text ? `/masuk?${text}` : "/masuk";
 };
 
+// Waits of an hour or more come from the daily email budget (S123 review L1) and read in hours.
 const limitMessage = (retry: number | null) =>
-	retry ? `Terlalu banyak percobaan. Coba lagi dalam ${Math.ceil(retry / 60)} menit.` : "Terlalu banyak percobaan. Coba lagi dalam beberapa menit.";
+	!retry ? "Terlalu banyak percobaan. Coba lagi dalam beberapa menit."
+	: retry >= 3600 ? `Terlalu banyak permintaan email untuk alamat ini. Coba lagi dalam ${Math.ceil(retry / 3600)} jam.`
+	: `Terlalu banyak percobaan. Coba lagi dalam ${Math.ceil(retry / 60)} menit.`;
 
 // S123 sign-up. `/masuk?langkah=daftar` is the form, `langkah=cek-email` the uniform "check your email"
 // state (also where the no-JS post lands); both keep `next`, which the verification link carries on.
@@ -95,4 +98,5 @@ export const signUpFailureField = (kind: SignUpFailure): "name" | "email" | "pas
 export const passwordHint = (length: number) =>
 	length >= PASSWORD_MIN ? "Panjang kata sandi sudah cukup." : `Minimal ${PASSWORD_MIN} karakter${length ? `, kurang ${PASSWORD_MIN - length} lagi` : ""}.`;
 
-export const cooldownLabel = (seconds: number) => `Kirim ulang dalam ${Math.floor(seconds / 60)}:${String(seconds % 60).padStart(2, "0")}`;
+export const cooldownLabel = (seconds: number) =>
+	seconds >= 3600 ? `Kirim ulang dalam ${Math.ceil(seconds / 3600)} jam` : `Kirim ulang dalam ${Math.floor(seconds / 60)}:${String(seconds % 60).padStart(2, "0")}`;

@@ -29,6 +29,7 @@ export const routePolicy:readonly {route:string;index:boolean;rule:string}[]=[
  {route:'/afiliasi',index:false,rule:'noindex, nofollow; robots.txt Disallow'},
  {route:'/masuk',index:false,rule:'noindex, nofollow; robots.txt Disallow'},
  {route:'/masuk/verifikasi',index:false,rule:'noindex, nofollow; robots.txt Disallow (under /masuk); email verification landing (S123)'},
+ {route:'/masuk/atur-sandi',index:false,rule:'noindex, nofollow; robots.txt Disallow (under /masuk); set-password and account activation landing, no Referer (S123)'},
  {route:'/admin/**',index:false,rule:'noindex, nofollow; robots.txt Disallow'},
 ];
 export const disallowedPaths=['/admin','/api/','/keranjang','/checkout','/akun','/pesanan','/masuk','/afiliasi'] as const;

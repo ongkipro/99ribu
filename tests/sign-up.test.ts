@@ -53,4 +53,7 @@ test("the password hint counts down to 12 and the resend label shows the wait", 
 	assert.equal(passwordHint(12), "Panjang kata sandi sudah cukup.");
 	assert.equal(cooldownLabel(60), "Kirim ulang dalam 1:00");
 	assert.equal(cooldownLabel(9), "Kirim ulang dalam 0:09");
+	// The daily email budget (10 per address) answers with waits of hours.
+	assert.equal(cooldownLabel(80000), "Kirim ulang dalam 23 jam");
+	assert.equal(signUpFailureMessage("limit", 80000), "Terlalu banyak permintaan email untuk alamat ini. Coba lagi dalam 23 jam.");
 });

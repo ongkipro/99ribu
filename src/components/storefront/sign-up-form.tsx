@@ -14,7 +14,7 @@ import { Icon } from "./ui/icon";
 // S123 buyer sign-up, shared by /masuk and the intercepted modal. With JS it posts JSON to Better Auth
 // (/api/auth/sign-up/email, then /send-verification-email for a resend) through handleAuth: Origin
 // check, per-email budget 3/min, NOTIFICATION_DISABLED in production. Without JS the same forms post to
-// /masuk/kirim. A new and a registered email both end on "Cek email kamu untuk verifikasi".
+// /masuk/kirim. A new and a registered email both end on "Cek email Anda untuk verifikasi".
 
 // The receipt's "Simpan pesanan ini ke akun" card hands its order's contact email to the sign-up form it
 // opens by client navigation: kept in memory only (never in a URL or storage) and used once.
@@ -67,8 +67,6 @@ function SignUpForm({ next, sent: initialSent, error: initialError, resent, moda
 	const [pending, setPending] = useState(false);
 	const [email, setEmail] = useState(() => carried ?? (handoff?.next === next ? handoff.email : ""));
 	const [password, setPassword] = useState("");
-	const [visible, setVisible] = useState(false);
-	const [hydrated, setHydrated] = useState(false);
 	const alertRef = useRef<HTMLDivElement>(null);
 	const headingRef = useRef<HTMLHeadingElement>(null);
 	const moved = useRef(false);
@@ -76,7 +74,6 @@ function SignUpForm({ next, sent: initialSent, error: initialError, resent, moda
 
 	useEffect(() => {
 		handoff = null;
-		setHydrated(true);
 	}, []);
 	useEffect(() => {
 		if (error && moved.current) alertRef.current?.focus();
@@ -111,7 +108,7 @@ function SignUpForm({ next, sent: initialSent, error: initialError, resent, moda
 			<div className="signin-card" data-testid="signup-sent">
 				<span className="brand signin-mark" aria-hidden="true"><Wordmark /></span>
 				<span className="signin-sent-icon" aria-hidden="true"><Icon name="mail" size={28} /></span>
-				<Heading ref={headingRef} tabIndex={-1} id="signup-sent-heading">Cek email kamu untuk verifikasi</Heading>
+				<Heading ref={headingRef} tabIndex={-1} id="signup-sent-heading">Cek email Anda untuk verifikasi</Heading>
 				<p className="signin-lead">
 					{sentTo ? <>Kami mengirim email ke <strong className="signin-address">{sentTo}</strong>. </> : "Kami mengirim email ke alamat yang didaftarkan. "}
 					Buka tautan di dalamnya untuk melanjutkan; tautan berlaku 30 menit.
@@ -145,24 +142,7 @@ function SignUpForm({ next, sent: initialSent, error: initialError, resent, moda
 				<input id="signup-email" name="email" type="email" inputMode="email" autoComplete="username" autoCapitalize="none" spellCheck={false} required maxLength={254}
 					value={email} onChange={(event) => setEmail(event.currentTarget.value)} aria-invalid={invalid("email")} aria-describedby={described("email")} />
 			</div>
-			<div className="signin-field">
-				<label htmlFor="signup-password">Kata sandi</label>
-				<div className="signin-password">
-					<input id="signup-password" name="password" type={visible ? "text" : "password"} autoComplete="new-password" required minLength={PASSWORD_MIN} maxLength={PASSWORD_MAX}
-						autoCapitalize="none" spellCheck={false} value={password} onChange={(event) => setPassword(event.currentTarget.value)}
-						aria-invalid={invalid("password")} aria-describedby={described("password", "signup-password-hint")} />
-					{hydrated && (
-						<button type="button" className="signin-reveal" aria-label="Tampilkan kata sandi" aria-pressed={visible} aria-controls="signup-password"
-							onClick={() => setVisible((value) => !value)}>
-							<Icon name={visible ? "eye-off" : "eye"} size={20} />
-						</button>
-					)}
-				</div>
-				<p id="signup-password-hint" className="signin-field-hint" data-ok={password.length >= PASSWORD_MIN || undefined}>
-					{password.length >= PASSWORD_MIN && <Icon name="check" size={14} />}
-					{passwordHint(password.length)}
-				</p>
-			</div>
+			<PasswordField id="signup-password" label="Kata sandi" value={password} onChange={setPassword} invalid={invalid("password")} errorId={error?.field === "password" ? "signup-error" : undefined} />
 			{error && (
 				<div ref={alertRef} tabIndex={-1} className="signin-alert" role="alert" id="signup-error" data-testid="signup-error">
 					<Icon name="alert" size={16} />
@@ -176,6 +156,112 @@ function SignUpForm({ next, sent: initialSent, error: initialError, resent, moda
 		</form>
 	);
 }
+
+// New-password pill with the 44px show/hide toggle (rendered only once hydrated, so no dead button
+// without JS) and the live length hint. Sign-up and the set-password page.
+function PasswordField({ id, label, value, onChange, invalid, errorId }: { id: string; label: string; value: string; onChange: (value: string) => void; invalid?: true; errorId?: string }) {
+	const [visible, setVisible] = useState(false);
+	const [hydrated, setHydrated] = useState(false);
+	useEffect(() => setHydrated(true), []);
+	const ok = value.length >= PASSWORD_MIN;
+	return (
+		<div className="signin-field">
+			<label htmlFor={id}>{label}</label>
+			<div className="signin-password">
+				<input id={id} name="password" type={visible ? "text" : "password"} autoComplete="new-password" required minLength={PASSWORD_MIN} maxLength={PASSWORD_MAX}
+					autoCapitalize="none" spellCheck={false} value={value} onChange={(event) => onChange(event.currentTarget.value)}
+					aria-invalid={invalid} aria-describedby={[errorId, `${id}-hint`].filter(Boolean).join(" ")} />
+				{hydrated && (
+					<button type="button" className="signin-reveal" aria-label="Tampilkan kata sandi" aria-pressed={visible} aria-controls={id} onClick={() => setVisible((shown) => !shown)}>
+						<Icon name={visible ? "eye-off" : "eye"} size={20} />
+					</button>
+				)}
+			</div>
+			<p id={`${id}-hint`} className="signin-field-hint" data-ok={ok || undefined}>
+				{ok && <Icon name="check" size={14} />}
+				{passwordHint(value.length)}
+			</p>
+		</div>
+	);
+}
+
+// S123 review M1: the set-password form behind an emailed link (/masuk/atur-sandi). It activates an
+// unverified account (the link proves the email, the new password replaces any earlier one) and doubles as
+// a plain password reset. The token arrives in the URL from Better Auth's redirect; with JS it is dropped
+// from the address bar at once (the page also sends no Referer).
+export function SetPasswordForm({ token, activation, error: initialError }: { token: string; activation: boolean; error: { kind: SignUpFailure | "token"; retry: number | null } | null }) {
+	const [password, setPassword] = useState("");
+	const [error, setError] = useState<Notice | null>(initialError ? (initialError.kind === "token" ? { message: TOKEN_MESSAGE, field: null } : notice(initialError.kind, initialError.retry)) : null);
+	const [pending, setPending] = useState(false);
+	const [done, setDone] = useState(false);
+	const alertRef = useRef<HTMLDivElement>(null);
+	const doneRef = useRef<HTMLHeadingElement>(null);
+	const shown = useRef(error);
+
+	useEffect(() => {
+		const url = new URL(window.location.href);
+		if (url.searchParams.has("token")) {
+			url.searchParams.delete("token");
+			window.history.replaceState(window.history.state, "", url.pathname + url.search);
+		}
+	}, []);
+	useEffect(() => {
+		if (error && error !== shown.current) alertRef.current?.focus();
+	}, [error]);
+	useEffect(() => {
+		if (done) doneRef.current?.focus();
+	}, [done]);
+
+	async function submit(event: React.FormEvent<HTMLFormElement>) {
+		event.preventDefault();
+		if (password.length < PASSWORD_MIN) return setError(notice("password"));
+		setPending(true);
+		setError(null);
+		const result = await post("/reset-password", { token, newPassword: password });
+		setPending(false);
+		if (result.status === 200) return setDone(true);
+		const kind = signUpFailureKind(result.status, result.payload?.code);
+		setError(result.status === 400 && kind === "input" ? { message: TOKEN_MESSAGE, field: null } : notice(kind, result.retry));
+	}
+
+	if (done) {
+		return (
+			<div className="signin-card" data-testid="set-password-done">
+				<span className="brand signin-mark" aria-hidden="true"><Wordmark /></span>
+				<span className="signin-sent-icon" aria-hidden="true"><Icon name="check" size={28} /></span>
+				<h1 ref={doneRef} tabIndex={-1}>{activation ? "Akun sudah aktif" : "Kata sandi tersimpan"}</h1>
+				<p className="signin-lead">Masuk dengan email dan kata sandi baru Anda.</p>
+				<a className="button signin-submit" href={signInHref(null)}>Masuk</a>
+			</div>
+		);
+	}
+	return (
+		<div className="signin-card" data-testid="set-password">
+			<form className="signin-forms" method="post" action="/masuk/kirim" onSubmit={submit} noValidate aria-labelledby="set-password-heading">
+				<input type="hidden" name="step" value="reset" />
+				<input type="hidden" name="token" value={token} />
+				{activation && <input type="hidden" name="aktivasi" value="1" />}
+				<span className="brand signin-mark" aria-hidden="true"><Wordmark /></span>
+				<h1 id="set-password-heading">{activation ? "Atur kata sandi untuk mengaktifkan akun" : "Atur kata sandi baru"}</h1>
+				<p className="signin-lead">
+					{activation
+						? "Email ini sudah didaftarkan tetapi belum diverifikasi. Buat kata sandi untuk mengaktifkan akun; kata sandi yang dipakai saat pendaftaran sebelumnya tidak berlaku lagi."
+						: "Buat kata sandi baru. Semua sesi yang masih masuk akan keluar."}
+				</p>
+				<PasswordField id="set-password" label="Kata sandi baru" value={password} onChange={setPassword} invalid={error?.field === "password" || undefined} errorId={error?.field === "password" ? "set-password-error" : undefined} />
+				{error && (
+					<div ref={alertRef} tabIndex={-1} className="signin-alert" role="alert" id="set-password-error" data-testid="set-password-error">
+						<Icon name="alert" size={16} />
+						<p>{error.message}</p>
+					</div>
+				)}
+				<button className="button signin-submit" type="submit" disabled={pending}>{pending ? "Menyimpan…" : "Simpan kata sandi"}</button>
+			</form>
+			{error?.message === TOKEN_MESSAGE && <ResendForm next={null} email={null} />}
+		</div>
+	);
+}
+const TOKEN_MESSAGE = "Tautan ini sudah dipakai atau kedaluwarsa. Minta tautan baru di bawah.";
 
 // "Kirim ulang email" with a cooldown (the per-email budget is 3/min; a 429 sets the wait from
 // Retry-After). The answer is the same whether or not the address waits for verification. Also used by
@@ -228,7 +314,7 @@ export function ResendForm({ next, email, resent = false, cooldown = 0, initialE
 				</div>
 			)}
 			{status && (
-				<p className="signin-status" role="status" data-testid="resend-status"><Icon name="check" size={16} />Jika alamat ini menunggu verifikasi, tautan baru sudah dikirim.</p>
+				<p className="signin-status" role="status" data-testid="resend-status"><Icon name="check" size={16} />Jika alamat ini menunggu verifikasi, kami mengirim tautan untuk mengatur kata sandi dan mengaktifkan akun.</p>
 			)}
 			{error && (
 				<div ref={alertRef} tabIndex={-1} className="signin-alert" role="alert" id="resend-error" data-testid="resend-error">
