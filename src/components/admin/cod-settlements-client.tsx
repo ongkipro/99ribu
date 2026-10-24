@@ -1,6 +1,6 @@
 "use client";
 
-import { CircleAlert, CircleCheck, Plus, RefreshCw } from "lucide-react";
+import { CircleCheck, Plus, RefreshCw } from "lucide-react";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Badge } from "@/components/ui/badge";
@@ -14,17 +14,10 @@ import {
 	DialogTitle,
 } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
-import {
-	Table,
-	TableBody,
-	TableCell,
-	TableHead,
-	TableHeader,
-	TableRow,
-} from "@/components/ui/table";
 import { Textarea } from "@/components/ui/textarea";
 import { rupiah, wibDate, wibInput, wibInputToIso } from "@/modules/storefront/format";
 import { describeFailure, failureText, getJson, readFailure } from "./admin-errors";
+import { DataTable } from "./data-table";
 
 // DEC-007: Mengantar collects COD on 99ribu's own account and remits through its
 // balance/settlement. Finance records each dashboard statement; money posts only
@@ -106,6 +99,11 @@ async function post(url: string, body: unknown, key: string) {
 	}
 }
 
+const page = (cursor: string | null) =>
+	getJson<{ data: Statement[]; pagination: { next_cursor: string | null } }>(
+		`/api/v1/admin/cod-remittances?limit=50${cursor ? `&cursor=${encodeURIComponent(cursor)}` : ""}`,
+	);
+
 export function CodSettlementsClient({ canWrite }: { canWrite: boolean }) {
 	const [rows, setRows] = useState<Statement[]>([]);
 	const [state, setState] = useState<"loading" | "ready" | "error">("loading");
@@ -114,19 +112,33 @@ export function CodSettlementsClient({ canWrite }: { canWrite: boolean }) {
 	const [notice, setNotice] = useState<string | null>(null);
 	const noticeRef = useRef<HTMLDivElement>(null);
 
+	const [nextCursor, setNextCursor] = useState<string | null>(null);
+	const [more, setMore] = useState<"idle" | "loading" | "error">("idle");
 	const load = useCallback(async () => {
 		setState("loading");
-		const result = await getJson<{ data: Statement[] }>(
-			"/api/v1/admin/cod-remittances?limit=50",
-		);
+		setMore("idle");
+		const result = await page(null);
 		if (result.ok) {
 			setRows(result.data.data);
+			setNextCursor(result.data.pagination.next_cursor);
 			setState("ready");
 		} else {
 			setLoadError(failureText(result.failure));
 			setState("error");
 		}
 	}, []);
+	const loadMore = async () => {
+		if (!nextCursor) return;
+		setMore("loading");
+		const result = await page(nextCursor);
+		if (!result.ok) return setMore("error");
+		setRows((current) => {
+			const seen = new Set(current.map((r) => r.id));
+			return [...current, ...result.data.data.filter((r) => !seen.has(r.id))];
+		});
+		setNextCursor(result.data.pagination.next_cursor);
+		setMore("idle");
+	};
 	useEffect(() => {
 		void load();
 	}, [load]);
@@ -162,69 +174,60 @@ export function CodSettlementsClient({ canWrite }: { canWrite: boolean }) {
 					</p>
 				)}
 			</div>
-			{state === "loading" && (
-				<p className="text-sm text-muted-foreground" aria-live="polite">
-					Memuat setoran…
-				</p>
-			)}
-			{state === "error" && (
-				<Alert role="alert">
-					<CircleAlert aria-hidden="true" />
-					<AlertDescription className="text-foreground">{loadError}</AlertDescription>
-				</Alert>
-			)}
-			{state === "ready" && rows.length === 0 && (
-				<p className="rounded-lg border border-dashed p-6 text-sm text-muted-foreground">
-					Belum ada setoran COD Mengantar yang dicatat.
-				</p>
-			)}
-			{state === "ready" && rows.length > 0 && (
-				<div className="overflow-x-auto rounded-lg border">
-					<Table data-testid="cod-statements">
-						<TableHeader>
-							<TableRow>
-								<TableHead>Referensi</TableHead>
-								<TableHead>Tanggal laporan</TableHead>
-								<TableHead className="text-right">Tertagih</TableHead>
-								<TableHead className="text-right">Diterima</TableHead>
-								<TableHead className="text-right">Perkiraan bersih</TableHead>
-								<TableHead>Status</TableHead>
-							</TableRow>
-						</TableHeader>
-						<TableBody>
-							{rows.map((row) => (
-								<TableRow key={row.id}>
-									<TableCell className="font-medium">
-										{row.reference}
-										<span className="block text-xs text-muted-foreground">
-											{row.lines.length} paket
-										</span>
-									</TableCell>
-									<TableCell>{wibDate(row.statement_at)}</TableCell>
-									<TableCell className="text-right tabular-nums">{rupiah(row.gross_amount)}</TableCell>
-									<TableCell className="text-right tabular-nums">{rupiah(row.net_amount)}</TableCell>
-									<TableCell className="text-right tabular-nums">
-										{rupiah(row.expected_net_amount)}
-									</TableCell>
-									<TableCell>
-										<div className="flex flex-wrap gap-1">
-											<Badge variant={row.settlement?.status === "matched" ? "default" : "outline"}>
-												{SETTLEMENT_LABELS[row.settlement?.status ?? "pending"] ??
-													row.settlement?.status}
-											</Badge>
-											{row.flags.map((flag) => (
-												<Badge key={flag} variant="destructive">
-													{FLAG_LABELS[flag] ?? flag}
-												</Badge>
-											))}
-										</div>
-									</TableCell>
-								</TableRow>
-							))}
-						</TableBody>
-					</Table>
-				</div>
-			)}
+			<DataTable
+				rows={rows}
+				rowKey={(row) => row.id}
+				status={
+					state === "loading"
+						? { kind: "loading" }
+						: state === "error"
+							? { kind: "error", message: loadError, onRetry: () => void load() }
+							: { kind: "ready" }
+				}
+				loadingLabel="Memuat setoran…"
+				empty="Belum ada setoran COD Mengantar yang dicatat."
+				testId="cod-statements"
+				caption="Setoran COD Mengantar yang dicatat, terbaru di atas"
+				columns={[
+					{
+						id: "reference",
+						header: "Referensi",
+						cellClassName: "font-medium",
+						cell: (row) => (
+							<>
+								{row.reference}
+								<span className="block text-xs text-muted-foreground">{row.lines.length} paket</span>
+							</>
+						),
+					},
+					{ id: "date", header: "Tanggal laporan", cell: (row) => wibDate(row.statement_at) },
+					{ id: "gross", header: "Tertagih", className: "text-right tabular-nums", cell: (row) => rupiah(row.gross_amount) },
+					{ id: "net", header: "Diterima", className: "text-right tabular-nums", cell: (row) => rupiah(row.net_amount) },
+					{ id: "expected", header: "Perkiraan bersih", className: "text-right tabular-nums", cell: (row) => rupiah(row.expected_net_amount) },
+					{
+						id: "status",
+						header: "Status",
+						cell: (row) => (
+							<div className="flex flex-wrap gap-1">
+								<Badge variant={row.settlement?.status === "matched" ? "default" : "outline"}>
+									{SETTLEMENT_LABELS[row.settlement?.status ?? "pending"] ?? row.settlement?.status}
+								</Badge>
+								{row.flags.map((flag) => (
+									<Badge key={flag} variant="destructive">
+										{FLAG_LABELS[flag] ?? flag}
+									</Badge>
+								))}
+							</div>
+						),
+					},
+				]}
+				paging={{
+					hasMore: nextCursor !== null,
+					loading: more === "loading",
+					onMore: () => void loadMore(),
+					error: more === "error" ? "Halaman berikutnya gagal dimuat. Coba lagi." : null,
+				}}
+			/>
 			{open && (
 				<RecordDialog
 					onClose={() => setOpen(false)}

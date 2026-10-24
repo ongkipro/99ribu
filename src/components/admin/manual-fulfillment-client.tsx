@@ -15,17 +15,9 @@ import {
 	DialogTitle,
 } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
-import { Skeleton } from "@/components/ui/skeleton";
-import {
-	Table,
-	TableBody,
-	TableCell,
-	TableHead,
-	TableHeader,
-	TableRow,
-} from "@/components/ui/table";
 import { Textarea } from "@/components/ui/textarea";
 import { describeFailure, failureText, getJson, readFailure } from "./admin-errors";
+import { DataTable, type DataTableColumn } from "./data-table";
 import { wibInputToIso } from "@/modules/storefront/format";
 import { formatCm, formatKg, formatWib, rupiah } from "./format";
 
@@ -224,6 +216,81 @@ const courierText = (row: Row) =>
 		? `${row.booking.quoted_courier.courier_name} · ${row.booking.quoted_courier.service_name}`
 		: "—";
 
+const toBookColumns: DataTableColumn<Row>[] = [
+	{
+		id: "contents",
+		header: "Isi paket",
+		cellClassName: "min-w-48 whitespace-normal",
+		cell: (row) => (
+			<>
+				<ul className="flex flex-col gap-0.5">
+					{row.booking.parcel_items.map((item) => (
+						<li key={`${item.name}:${item.variant_label}`}>
+							{item.quantity}× {item.name}
+							<span className="text-muted-foreground"> · {item.variant_label}</span>
+						</li>
+					))}
+				</ul>
+				<span className="mt-1 block text-xs text-muted-foreground">
+					Berat awal {formatKg(row.booking.parcel.weight_grams)}
+					{row.booking.cancelled_units > 0 &&
+						`; ${row.booking.cancelled_units} unit batal, timbang ulang`}
+				</span>
+			</>
+		),
+	},
+	{
+		id: "courier",
+		header: "Kurir pilihan pembeli",
+		cellClassName: "min-w-36 whitespace-normal",
+		cell: courierText,
+	},
+	{
+		id: "cod",
+		header: "Tagihan COD",
+		className: "text-right",
+		cellClassName: "font-medium tabular-nums",
+		cell: (row) =>
+			row.payment_method === "cod" ? (
+				rupiah(row.booking.cod_amount_due)
+			) : (
+				<span className="font-normal text-muted-foreground">Prabayar</span>
+			),
+	},
+	{
+		id: "deadline",
+		header: "Batas resi",
+		cell: (row) =>
+			row.packing_due_at ? (
+				formatTime(row.packing_due_at)
+			) : (
+				<span className="text-muted-foreground">Jadwal gudang belum diatur</span>
+			),
+	},
+];
+const shippedColumns: DataTableColumn<Row>[] = [
+	{
+		id: "tracking",
+		header: "Kurir & resi",
+		cell: (row) => (
+			<>
+				{row.manual?.courier_name ?? "—"}
+				<span className="block font-mono text-xs">
+					{row.manual?.tracking_number ?? row.tracking_number}
+				</span>
+			</>
+		),
+	},
+	{
+		id: "status",
+		header: "Status",
+		cell: (row) =>
+			row.manual?.tracking_status
+				? TRACKING_LABELS[row.manual.tracking_status]
+				: "Menunggu pembaruan kurir",
+	},
+];
+
 function OrderLink({ row, enabled }: { row: Row; enabled: boolean }) {
 	if (!enabled) return <span className="font-medium">{row.order_number}</span>;
 	return (
@@ -412,192 +479,100 @@ export function ManualFulfillmentClient({
 						</button>
 					))}
 				</div>
-				{state === "loading" && (
-					<div className="flex flex-col gap-2" aria-live="polite">
-						<p className="text-sm text-muted-foreground">Memuat antrean…</p>
-						<Skeleton className="h-10 w-full" />
-						<Skeleton className="h-10 w-full" />
-					</div>
-				)}
-				{state === "error" && (
-					<Alert role="alert">
-						<CircleAlert aria-hidden="true" />
-						<AlertDescription className="flex flex-wrap items-center gap-3 text-foreground">
-							{loadError}
-							<Button size="sm" variant="outline" onClick={() => void load()}>
-								Coba lagi
-							</Button>
-						</AlertDescription>
-					</Alert>
-				)}
-				{state === "ready" && rows.length === 0 && (
-					<p className="rounded-lg border border-dashed p-6 text-sm text-muted-foreground">
-						{queue === "to_book"
+				<DataTable
+					rows={rows}
+					rowKey={(row) => row.id}
+					status={
+						state === "loading"
+							? { kind: "loading" }
+							: state === "error"
+								? { kind: "error", message: loadError, onRetry: () => void load() }
+								: { kind: "ready" }
+					}
+					loadingLabel="Memuat antrean…"
+					empty={
+						queue === "to_book"
 							? "Tidak ada paket yang menunggu dipesan kurir."
-							: "Tidak ada paket yang menunggu status terkirim."}
-					</p>
-				)}
-				{state === "ready" && rows.length > 0 && (
-					<>
-						<div className="overflow-x-auto rounded-lg border">
-							<Table data-testid="manual-queue">
-								<caption className="sr-only">
-									{queue === "to_book"
-										? "Paket yang perlu dipesan kurir, urut batas resi"
-										: "Paket yang menunggu status terkirim"}
-								</caption>
-								<TableHeader>
-									<TableRow>
-										<TableHead scope="col">Pesanan</TableHead>
-										<TableHead scope="col">Penerima & tujuan</TableHead>
-										{queue === "to_book" ? (
-											<>
-												<TableHead scope="col">Isi paket</TableHead>
-												<TableHead scope="col">Kurir pilihan pembeli</TableHead>
-												<TableHead scope="col" className="text-right">
-													Tagihan COD
-												</TableHead>
-												<TableHead scope="col">Batas resi</TableHead>
-											</>
-										) : (
-											<>
-												<TableHead scope="col">Kurir & resi</TableHead>
-												<TableHead scope="col">Status</TableHead>
-											</>
-										)}
-										<TableHead scope="col" className="text-right">
-											Tindakan
-										</TableHead>
-									</TableRow>
-								</TableHeader>
-								<TableBody>
-									{rows.map((row) => (
-										<TableRow key={row.id} data-testid="manual-row" className="align-top">
-											<TableCell>
-												<OrderLink row={row} enabled={canViewOrders} />
-												<span className="mt-1 block">
-													<Badge variant="outline">
-														{row.payment_method === "cod" ? "COD" : "Prabayar"}
-													</Badge>
-												</span>
-												<span className="mt-1 block text-xs text-muted-foreground">
-													{row.warehouse_name}
-												</span>
-											</TableCell>
-											<TableCell className="min-w-48 whitespace-normal">
-												<span className="block font-medium">
-													{row.recipient.recipient_name}
-												</span>
-												<span className="block font-mono text-xs">{row.recipient.phone}</span>
-												<span className="block max-w-64 text-xs text-muted-foreground">
-													{areaText(row)}
-												</span>
-											</TableCell>
-											{queue === "to_book" ? (
-												<>
-													<TableCell className="min-w-48 whitespace-normal">
-														<ul className="flex flex-col gap-0.5">
-															{row.booking.parcel_items.map((item) => (
-																<li key={`${item.name}:${item.variant_label}`}>
-																	{item.quantity}× {item.name}
-																	<span className="text-muted-foreground"> · {item.variant_label}</span>
-																</li>
-															))}
-														</ul>
-														<span className="mt-1 block text-xs text-muted-foreground">
-															Berat awal {formatKg(row.booking.parcel.weight_grams)}
-															{row.booking.cancelled_units > 0 &&
-																`; ${row.booking.cancelled_units} unit batal, timbang ulang`}
-														</span>
-													</TableCell>
-													<TableCell className="min-w-36 whitespace-normal">{courierText(row)}</TableCell>
-													<TableCell className="text-right font-medium tabular-nums">
-														{row.payment_method === "cod" ? (
-															rupiah(row.booking.cod_amount_due)
-														) : (
-															<span className="font-normal text-muted-foreground">Prabayar</span>
-														)}
-													</TableCell>
-													<TableCell>
-														{row.packing_due_at ? (
-															formatTime(row.packing_due_at)
-														) : (
-															<span className="text-muted-foreground">
-																Jadwal gudang belum diatur
-															</span>
-														)}
-													</TableCell>
-												</>
-											) : (
-												<>
-													<TableCell>
-														{row.manual?.courier_name ?? "—"}
-														<span className="block font-mono text-xs">
-															{row.manual?.tracking_number ?? row.tracking_number}
-														</span>
-													</TableCell>
-													<TableCell>
-														{row.manual?.tracking_status
-															? TRACKING_LABELS[row.manual.tracking_status]
-															: "Menunggu pembaruan kurir"}
-													</TableCell>
-												</>
-											)}
-											<TableCell className="text-right">
-												{queue === "to_book" ? (
-													<Button
-														size="sm"
-														onClick={() => setDialog({ kind: "ship", row })}
-													>
-														Catat resi
-													</Button>
-												) : (
-													<div className="flex justify-end gap-2">
-														<Button
-															size="sm"
-															variant="outline"
-															onClick={() => setDialog({ kind: "correct", row })}
-														>
-															Koreksi resi
-														</Button>
-														<Button
-															size="sm"
-															variant="outline"
-															onClick={() => setDialog({ kind: "status", row })}
-														>
-															Catat status
-														</Button>
-													</div>
-												)}
-											</TableCell>
-										</TableRow>
-									))}
-								</TableBody>
-							</Table>
-						</div>
-						<div className="flex flex-wrap items-center gap-3">
-							<p className="text-sm text-muted-foreground" aria-live="polite">
-								{rows.length} paket ditampilkan
-								{nextCursor ? ", masih ada paket berikutnya." : "."}
-							</p>
-							{nextCursor && (
-								<Button
-									type="button"
-									variant="outline"
-									disabled={more === "loading"}
-									onClick={() => void loadMore()}
-								>
-									{more === "loading" ? "Memuat…" : "Muat lebih banyak"}
-								</Button>
-							)}
-							{more === "error" && (
-								<p role="alert" className="text-sm text-destructive">
-									Halaman berikutnya gagal dimuat. Coba lagi.
-								</p>
-							)}
-						</div>
-					</>
-				)}
+							: "Tidak ada paket yang menunggu status terkirim."
+					}
+					testId="manual-queue"
+					caption={
+						queue === "to_book"
+							? "Paket yang perlu dipesan kurir, urut batas resi"
+							: "Paket yang menunggu status terkirim"
+					}
+					rowTestId={() => "manual-row"}
+					rowClassName="align-top"
+					columns={[
+						{
+							id: "order",
+							header: "Pesanan",
+							cell: (row) => (
+								<>
+									<OrderLink row={row} enabled={canViewOrders} />
+									<span className="mt-1 block">
+										<Badge variant="outline">
+											{row.payment_method === "cod" ? "COD" : "Prabayar"}
+										</Badge>
+									</span>
+									<span className="mt-1 block text-xs text-muted-foreground">
+										{row.warehouse_name}
+									</span>
+								</>
+							),
+						},
+						{
+							id: "recipient",
+							header: "Penerima & tujuan",
+							cellClassName: "min-w-48 whitespace-normal",
+							cell: (row) => (
+								<>
+									<span className="block font-medium">{row.recipient.recipient_name}</span>
+									<span className="block font-mono text-xs">{row.recipient.phone}</span>
+									<span className="block max-w-64 text-xs text-muted-foreground">
+										{areaText(row)}
+									</span>
+								</>
+							),
+						},
+						...(queue === "to_book" ? toBookColumns : shippedColumns),
+						{
+							id: "actions",
+							header: "Tindakan",
+							className: "text-right",
+							cell: (row) =>
+								queue === "to_book" ? (
+									<Button size="sm" onClick={() => setDialog({ kind: "ship", row })}>
+										Catat resi
+									</Button>
+								) : (
+									<div className="flex justify-end gap-2">
+										<Button
+											size="sm"
+											variant="outline"
+											onClick={() => setDialog({ kind: "correct", row })}
+										>
+											Koreksi resi
+										</Button>
+										<Button
+											size="sm"
+											variant="outline"
+											onClick={() => setDialog({ kind: "status", row })}
+										>
+											Catat status
+										</Button>
+									</div>
+								),
+						},
+					]}
+					paging={{
+						hasMore: nextCursor !== null,
+						loading: more === "loading",
+						onMore: () => void loadMore(),
+						error: more === "error" ? "Halaman berikutnya gagal dimuat. Coba lagi." : null,
+						summary: `${rows.length} paket ditampilkan${nextCursor ? ", masih ada paket berikutnya." : "."}`,
+					}}
+				/>
 			</section>
 			{dialog && (
 				<ActionDialog

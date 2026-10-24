@@ -1,6 +1,6 @@
 "use client";
 
-import { CircleAlert, CircleCheck, RefreshCw } from "lucide-react";
+import { CircleCheck, RefreshCw } from "lucide-react";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Badge } from "@/components/ui/badge";
@@ -14,17 +14,10 @@ import {
 	DialogTitle,
 } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
-import {
-	Table,
-	TableBody,
-	TableCell,
-	TableHead,
-	TableHeader,
-	TableRow,
-} from "@/components/ui/table";
 import { Textarea } from "@/components/ui/textarea";
 import { rupiah, wibDateTime, wibInputToIso } from "@/modules/storefront/format";
 import { describeFailure, failureText, getJson, readFailure } from "./admin-errors";
+import { DataTable } from "./data-table";
 
 // DEC-008 manual bank transfers (finance queue) and DEC-008/009 payment terms (owner).
 type Transfer = {
@@ -144,65 +137,52 @@ export function PaymentsClient({ canManageTerms, canWrite }: { canManageTerms: b
 						</button>
 					))}
 				</fieldset>
-				{error && (
-					<Alert role="alert">
-						<CircleAlert aria-hidden="true" />
-						<AlertDescription className="text-foreground">{error}</AlertDescription>
-					</Alert>
-				)}
-				{!error && rows === null && (
-					<p className="text-sm text-muted-foreground" aria-live="polite">
-						Memuat transfer…
-					</p>
-				)}
-				{rows?.length === 0 && (
-					<p className="rounded-lg border border-dashed p-6 text-sm text-muted-foreground">
-						{state === "open" ? "Tidak ada transfer yang menunggu konfirmasi." : "Belum ada transfer yang dicatat."}
-					</p>
-				)}
-				{rows && rows.length > 0 && (
-					<div className="overflow-x-auto rounded-lg border">
-						<Table data-testid="manual-transfers">
-							<TableHeader>
-								<TableRow>
-									<TableHead>Pesanan</TableHead>
-									<TableHead className="text-right">Nominal tepat</TableHead>
-									<TableHead>Kode unik</TableHead>
-									<TableHead>{state === "open" ? "Batas transfer" : "Hasil"}</TableHead>
-									<TableHead className="text-right">Tindakan</TableHead>
-								</TableRow>
-							</TableHeader>
-							<TableBody>
-								{rows.map((row) => (
-									<TableRow key={row.id}>
-										<TableCell className="font-medium">{row.order_number}</TableCell>
-										<TableCell className="text-right tabular-nums">{rupiah(row.expected_amount)}</TableCell>
-										<TableCell>{row.transfer_code}</TableCell>
-										<TableCell>
-											{row.confirmation ? (
-												<div className="flex flex-wrap gap-1">
-													<Badge variant={row.confirmation.outcome === "confirmed" ? "default" : "outline"}>
-														{row.confirmation.outcome === "confirmed" ? "Lunas" : row.confirmation.outcome === "recovery" ? "Perlu tinjauan" : "Diproses"}
-													</Badge>
-													{row.confirmation.mismatch && <Badge variant="destructive">Nominal berbeda</Badge>}
-												</div>
-											) : (
-												wibDateTime(row.expires_at)
-											)}
-										</TableCell>
-										<TableCell className="text-right">
-											{!row.confirmation && (
-												<Button size="sm" disabled={!canWrite} aria-describedby={canWrite ? undefined : READ_ONLY_ID} onClick={() => setSelected(row)}>
-													Konfirmasi transfer
-												</Button>
-											)}
-										</TableCell>
-									</TableRow>
-								))}
-							</TableBody>
-						</Table>
-					</div>
-				)}
+				<DataTable
+					rows={rows ?? []}
+					rowKey={(row) => row.id}
+					status={
+						error
+							? { kind: "error", message: error, onRetry: () => void load() }
+							: rows === null
+								? { kind: "loading" }
+								: { kind: "ready" }
+					}
+					loadingLabel="Memuat transfer…"
+					empty={state === "open" ? "Tidak ada transfer yang menunggu konfirmasi." : "Belum ada transfer yang dicatat."}
+					testId="manual-transfers"
+					caption={state === "open" ? "Transfer yang menunggu konfirmasi" : "Transfer yang sudah dicatat"}
+					columns={[
+						{ id: "order", header: "Pesanan", cellClassName: "font-medium", cell: (row) => row.order_number },
+						{ id: "amount", header: "Nominal tepat", className: "text-right tabular-nums", cell: (row) => rupiah(row.expected_amount) },
+						{ id: "code", header: "Kode unik", cell: (row) => row.transfer_code },
+						{
+							id: "deadline",
+							header: state === "open" ? "Batas transfer" : "Hasil",
+							cell: (row) =>
+								row.confirmation ? (
+									<div className="flex flex-wrap gap-1">
+										<Badge variant={row.confirmation.outcome === "confirmed" ? "default" : "outline"}>
+											{row.confirmation.outcome === "confirmed" ? "Lunas" : row.confirmation.outcome === "recovery" ? "Perlu tinjauan" : "Diproses"}
+										</Badge>
+										{row.confirmation.mismatch && <Badge variant="destructive">Nominal berbeda</Badge>}
+									</div>
+								) : (
+									wibDateTime(row.expires_at)
+								),
+						},
+						{
+							id: "actions",
+							header: "Tindakan",
+							className: "text-right",
+							cell: (row) =>
+								!row.confirmation && (
+									<Button size="sm" disabled={!canWrite} aria-describedby={canWrite ? undefined : READ_ONLY_ID} onClick={() => setSelected(row)}>
+										Konfirmasi transfer
+									</Button>
+								),
+						},
+					]}
+				/>
 			</section>
 			{selected && (
 				<ConfirmDialog
@@ -363,56 +343,52 @@ function AutolarisPayments({ onNotice, canWrite }: { onNotice: (message: string)
 					</button>
 				))}
 			</fieldset>
-			{error && (
-				<Alert role="alert">
-					<CircleAlert aria-hidden="true" />
-					<AlertDescription className="text-foreground">{error}</AlertDescription>
-				</Alert>
-			)}
-			{!error && rows === null && <p className="text-sm text-muted-foreground" aria-live="polite">Memuat pembayaran…</p>}
-			{rows?.length === 0 && <p className="rounded-lg border border-dashed p-6 text-sm text-muted-foreground">Tidak ada pembayaran AutoLaris.</p>}
-			{rows && rows.length > 0 && (
-				<div className="overflow-x-auto rounded-lg border">
-					<Table data-testid="autolaris-payments">
-						<TableHeader>
-							<TableRow>
-								<TableHead>Pesanan</TableHead>
-								<TableHead>Kanal</TableHead>
-								<TableHead className="text-right">Tagihan pembeli</TableHead>
-								<TableHead className="text-right">Biaya admin (toko)</TableHead>
-								<TableHead>Status</TableHead>
-								<TableHead className="text-right">Tindakan</TableHead>
-							</TableRow>
-						</TableHeader>
-						<TableBody>
-							{rows.map((row) => (
-								<TableRow key={row.id}>
-									<TableCell className="font-medium">{row.order_number}</TableCell>
-									<TableCell>{row.channel_code}</TableCell>
-									<TableCell className="text-right tabular-nums">{rupiah(row.expected_amount)}</TableCell>
-									<TableCell className="text-right tabular-nums">{row.admin_fee === null ? "—" : rupiah(row.admin_fee)}</TableCell>
-									<TableCell>
-										{row.refusal_code ? (
-											<Badge variant="destructive">Ditolak: total tidak sama</Badge>
-										) : (
-											<Badge variant={row.latest_observation?.classification === "settled" ? "default" : "outline"}>
-												{row.latest_observation ? OBSERVED[row.latest_observation.classification] ?? row.latest_observation.classification : row.trx_id ? "Menunggu pembayaran" : "Instruksi dibuat"}
-											</Badge>
-										)}
-									</TableCell>
-									<TableCell className="text-right">
-										{state === "open" && row.trx_id && !row.refusal_code && (
-											<Button size="sm" variant="outline" disabled={!canWrite} aria-describedby={canWrite ? undefined : READ_ONLY_ID} onClick={() => setSelected(row)}>
-												Konfirmasi manual
-											</Button>
-										)}
-									</TableCell>
-								</TableRow>
-							))}
-						</TableBody>
-					</Table>
-				</div>
-			)}
+			<DataTable
+				rows={rows ?? []}
+				rowKey={(row) => row.id}
+				status={
+					error
+						? { kind: "error", message: error, onRetry: () => void load() }
+						: rows === null
+							? { kind: "loading" }
+							: { kind: "ready" }
+				}
+				loadingLabel="Memuat pembayaran…"
+				empty="Tidak ada pembayaran AutoLaris."
+				testId="autolaris-payments"
+				caption={state === "open" ? "Pembayaran AutoLaris yang belum final" : "Pembayaran AutoLaris yang sudah final"}
+				columns={[
+					{ id: "order", header: "Pesanan", cellClassName: "font-medium", cell: (row) => row.order_number },
+					{ id: "channel", header: "Kanal", cell: (row) => row.channel_code },
+					{ id: "amount", header: "Tagihan pembeli", className: "text-right tabular-nums", cell: (row) => rupiah(row.expected_amount) },
+					{ id: "fee", header: "Biaya admin (toko)", className: "text-right tabular-nums", cell: (row) => (row.admin_fee === null ? "—" : rupiah(row.admin_fee)) },
+					{
+						id: "status",
+						header: "Status",
+						cell: (row) =>
+							row.refusal_code ? (
+								<Badge variant="destructive">Ditolak: total tidak sama</Badge>
+							) : (
+								<Badge variant={row.latest_observation?.classification === "settled" ? "default" : "outline"}>
+									{row.latest_observation ? OBSERVED[row.latest_observation.classification] ?? row.latest_observation.classification : row.trx_id ? "Menunggu pembayaran" : "Instruksi dibuat"}
+								</Badge>
+							),
+					},
+					{
+						id: "actions",
+						header: "Tindakan",
+						className: "text-right",
+						cell: (row) =>
+							state === "open" &&
+							row.trx_id &&
+							!row.refusal_code && (
+								<Button size="sm" variant="outline" disabled={!canWrite} aria-describedby={canWrite ? undefined : READ_ONLY_ID} onClick={() => setSelected(row)}>
+									Konfirmasi manual
+								</Button>
+							),
+					},
+				]}
+			/>
 			{selected && (
 				<AutolarisConfirmDialog
 					payment={selected}

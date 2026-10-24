@@ -1,19 +1,11 @@
 "use client";
 
 import { CircleAlert, CircleCheck, FileText, Printer } from "lucide-react";
-import { Fragment, useState } from "react";
+import { useState } from "react";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import {
-	Table,
-	TableBody,
-	TableCell,
-	TableHead,
-	TableHeader,
-	TableRow,
-} from "@/components/ui/table";
 import type {
 	PrintQueueShipment,
 	ShippingLabelArtifactResponse,
@@ -25,6 +17,7 @@ import type {
 } from "@/modules/documents/labels";
 import { rupiah, wibDateTime } from "@/modules/storefront/format";
 import { describeFailure, failureText, readFailure } from "./admin-errors";
+import { DataTable } from "./data-table";
 
 type ShipmentItem = PrintQueueShipment;
 
@@ -130,14 +123,6 @@ export function PrintCenterClient({
 			)
 				.find((el) => el.offsetParent !== null)
 				?.focus(),
-		);
-	}
-
-	function toggleShipmentSelection(shipmentId: string) {
-		setSelectedShipments((prev) =>
-			prev.includes(shipmentId)
-				? prev.filter((id) => id !== shipmentId)
-				: [...prev, shipmentId],
 		);
 	}
 
@@ -304,29 +289,10 @@ export function PrintCenterClient({
 		}
 	}
 
-	const allSelected =
-		shipments.length > 0 && selectedShipments.length === shipments.length;
-
 	const latestArtifactFor = (shipmentId: string) =>
 		artifacts.find((a) => a.shipment_id === shipmentId);
-	const toggleAll = () =>
-		setSelectedShipments(
-			allSelected ? [] : shipments.map((x) => x.shipment_id),
-		);
 	// `p` prefixes test ids/ids in the mobile card variant so the hidden
 	// desktop table and the cards never share a DOM id.
-	const selectBox = (s: ShipmentItem, p: string) => (
-		<label className="-m-2 inline-flex size-11 shrink-0 cursor-pointer items-center justify-center">
-			<input
-				type="checkbox"
-				aria-label={`Pilih paket ${s.parcel_id}`}
-				data-testid={`${p}select-shipment-${s.shipment_id}`}
-				className={checkboxClass}
-				checked={selectedShipments.includes(s.shipment_id)}
-				onChange={() => toggleShipmentSelection(s.shipment_id)}
-			/>
-		</label>
-	);
 	const parcelCell = (s: ShipmentItem) => (
 		<div className="flex min-w-0 flex-col">
 			<span className="font-medium">{s.order_number}</span>
@@ -576,145 +542,86 @@ export function PrintCenterClient({
 						selesai di urutan terakhir.
 					</p>
 				</div>
-				{shipments.length === 0 ? (
-					<p className="rounded-md border border-dashed px-4 py-8 text-center text-sm text-muted-foreground">
-						Belum ada paket gudang yang siap dicetak labelnya.
-					</p>
-				) : (
-					<>
-						<div className="hidden md:block">
-							<Table>
-								<TableHeader>
-									<TableRow>
-										<TableHead className="w-12">
-											<label className="-m-2 inline-flex size-11 cursor-pointer items-center justify-center">
-												<input
-													type="checkbox"
-													aria-label="Pilih semua paket"
-													className={checkboxClass}
-													checked={allSelected}
-													ref={(el) => {
-														if (el)
-															el.indeterminate =
-																selectedShipments.length > 0 && !allSelected;
-													}}
-													onChange={toggleAll}
-												/>
-											</label>
-										</TableHead>
-										<TableHead>Pesanan · Paket</TableHead>
-										<TableHead className="hidden lg:table-cell">
-											Gudang
-										</TableHead>
-										<TableHead>Status</TableHead>
-										<TableHead>Resi</TableHead>
-										<TableHead className="text-right">COD</TableHead>
-										<TableHead>Label</TableHead>
-										<TableHead>
-											<span className="sr-only">Tindakan</span>
-										</TableHead>
-									</TableRow>
-								</TableHeader>
-								<TableBody data-testid="print-shipment-list">
-									{shipments.map((s) => {
-										const art = latestArtifactFor(s.shipment_id);
-										const selected = selectedShipments.includes(s.shipment_id);
-										return (
-											<Fragment key={s.shipment_id}>
-												<TableRow
-													data-testid={`print-shipment-row-${s.shipment_id}`}
-													data-state={selected ? "selected" : undefined}
-													className="h-12"
-												>
-													<TableCell>{selectBox(s, "")}</TableCell>
-													<TableCell>{parcelCell(s)}</TableCell>
-													<TableCell className="hidden lg:table-cell">
-														{s.warehouse_name}
-													</TableCell>
-													<TableCell>{statusBadge(s, "")}</TableCell>
-													<TableCell>{waybill(s, "")}</TableCell>
-													<TableCell className="text-right tabular-nums">
-														{codText(s)}
-													</TableCell>
-													<TableCell>{artifactCell(art, "")}</TableCell>
-													<TableCell>
-														<div className="flex flex-wrap justify-end gap-1.5">
-															{actions(s, art, "")}
-														</div>
-													</TableCell>
-												</TableRow>
-												{activeShipmentForReprint === s.shipment_id && art && (
-													<TableRow className="bg-muted/50 hover:bg-muted/50">
-														<TableCell colSpan={8}>
-															{reprintForm(s, art, "")}
-														</TableCell>
-													</TableRow>
-												)}
-											</Fragment>
-										);
-									})}
-								</TableBody>
-							</Table>
-						</div>
-						<div className="flex flex-col gap-2 md:hidden">
-							<label className="inline-flex min-h-11 items-center gap-2 self-start text-sm font-medium">
-								<input
-									type="checkbox"
-									className={checkboxClass}
-									checked={allSelected}
-									onChange={toggleAll}
-								/>
-								Pilih semua paket
-							</label>
-							<ul className="flex flex-col divide-y rounded-md border">
-								{shipments.map((s) => {
-									const art = latestArtifactFor(s.shipment_id);
-									return (
-										<li
-											key={s.shipment_id}
-											data-testid={`card-print-shipment-row-${s.shipment_id}`}
-											className="flex items-start gap-2 p-3"
-										>
-											{selectBox(s, "card-")}
-											<div className="flex min-w-0 flex-1 flex-col gap-2">
-												<div className="flex flex-wrap items-start justify-between gap-2">
-													{parcelCell(s)}
-													{statusBadge(s, "card-")}
-												</div>
-												<dl className="grid grid-cols-[auto_1fr] gap-x-3 gap-y-1 text-xs">
-													<dt className="text-muted-foreground">Resi</dt>
-													<dd>{waybill(s, "card-")}</dd>
-													<dt className="text-muted-foreground">COD</dt>
-													<dd className="tabular-nums">{codText(s)}</dd>
-													<dt className="text-muted-foreground">Label</dt>
-													<dd>{artifactCell(art, "card-")}</dd>
-												</dl>
-												<div className="flex flex-wrap gap-1.5">
-													{actions(s, art, "card-")}
-												</div>
-												{activeShipmentForReprint === s.shipment_id &&
-													art &&
-													reprintForm(s, art, "card-")}
-											</div>
-										</li>
-									);
-								})}
-							</ul>
-						</div>
-						{nextCursor && (
-							<Button
-								type="button"
-								variant="outline"
-								className="self-center"
-								data-testid="print-queue-load-more"
-								disabled={loadingMore}
-								onClick={() => void loadMore()}
-							>
-								{loadingMore ? "Memuat…" : "Muat paket berikutnya"}
-							</Button>
-						)}
-					</>
-				)}
+				<DataTable
+					rows={shipments}
+					rowKey={(s) => s.shipment_id}
+					status={{ kind: "ready" }}
+					loadingLabel="Memuat paket…"
+					empty="Belum ada paket gudang yang siap dicetak labelnya."
+					caption="Paket gudang dan status labelnya"
+					bodyTestId="print-shipment-list"
+					rowTestId={(s) => `print-shipment-row-${s.shipment_id}`}
+					rowClassName="h-12"
+					selection={{
+						selected: selectedShipments,
+						onChange: setSelectedShipments,
+						label: (s) => `Pilih paket ${s.parcel_id}`,
+						allLabel: "Pilih semua paket",
+						testId: (s, p) => `${p}select-shipment-${s.shipment_id}`,
+					}}
+					columns={[
+						{ id: "parcel", header: "Pesanan · Paket", cell: parcelCell },
+						{
+							id: "warehouse",
+							header: "Gudang",
+							className: "hidden lg:table-cell",
+							cell: (s) => s.warehouse_name,
+						},
+						{ id: "status", header: "Status", cell: (s) => statusBadge(s, "") },
+						{ id: "waybill", header: "Resi", cell: (s) => waybill(s, "") },
+						{ id: "cod", header: "COD", className: "text-right tabular-nums", cell: codText },
+						{
+							id: "label",
+							header: "Label",
+							cell: (s) => artifactCell(latestArtifactFor(s.shipment_id), ""),
+						},
+						{
+							id: "actions",
+							header: <span className="sr-only">Tindakan</span>,
+							cell: (s) => (
+								<div className="flex flex-wrap justify-end gap-1.5">
+									{actions(s, latestArtifactFor(s.shipment_id), "")}
+								</div>
+							),
+						},
+					]}
+					expanded={(s) => {
+						const art = latestArtifactFor(s.shipment_id);
+						return activeShipmentForReprint === s.shipment_id && art
+							? reprintForm(s, art, "")
+							: null;
+					}}
+					cardTestId={(s) => `card-print-shipment-row-${s.shipment_id}`}
+					card={(s) => {
+						const art = latestArtifactFor(s.shipment_id);
+						return (
+							<>
+								<div className="flex flex-wrap items-start justify-between gap-2">
+									{parcelCell(s)}
+									{statusBadge(s, "card-")}
+								</div>
+								<dl className="grid grid-cols-[auto_1fr] gap-x-3 gap-y-1 text-xs">
+									<dt className="text-muted-foreground">Resi</dt>
+									<dd>{waybill(s, "card-")}</dd>
+									<dt className="text-muted-foreground">COD</dt>
+									<dd className="tabular-nums">{codText(s)}</dd>
+									<dt className="text-muted-foreground">Label</dt>
+									<dd>{artifactCell(art, "card-")}</dd>
+								</dl>
+								<div className="flex flex-wrap gap-1.5">{actions(s, art, "card-")}</div>
+								{activeShipmentForReprint === s.shipment_id &&
+									art &&
+									reprintForm(s, art, "card-")}
+							</>
+						);
+					}}
+					paging={{
+						hasMore: nextCursor !== null,
+						loading: loadingMore,
+						onMore: () => void loadMore(),
+						testId: "print-queue-load-more",
+					}}
+				/>
 			</section>
 
 			<section
@@ -725,50 +632,44 @@ export function PrintCenterClient({
 				<h2 id="templates-heading" className="text-base font-semibold">
 					Template label
 				</h2>
-				{initialTemplates.length === 0 ? (
-					<p className="text-sm text-muted-foreground">
-						Belum ada template label.
-					</p>
-				) : (
-					<Table>
-						<TableHeader>
-							<TableRow>
-								<TableHead>Nama</TableHead>
-								<TableHead>Format</TableHead>
-								<TableHead>Merek</TableHead>
-								<TableHead>Privasi Telepon</TableHead>
-								<TableHead className="text-right">Versi</TableHead>
-							</TableRow>
-						</TableHeader>
-						<TableBody data-testid="template-list">
-							{initialTemplates.map((tpl) => (
-								<TableRow key={tpl.id} data-testid={`template-row-${tpl.id}`}>
-									<TableCell>
-										<div className="flex flex-col">
-											<span className="font-medium">{tpl.name}</span>
-											{tpl.partner_brand_name && (
-												<span className="text-xs text-muted-foreground">
-													Mitra: {tpl.partner_brand_name} ·{" "}
-													{tpl.disclosure_text}
-												</span>
-											)}
-										</div>
-									</TableCell>
-									<TableCell>{FORMAT_LABELS[tpl.format]}</TableCell>
-									<TableCell>
-										{BRAND_LABELS[tpl.brand_mode] ?? tpl.brand_mode}
-									</TableCell>
-									<TableCell>
-										{PRIVACY_LABELS[tpl.privacy_mode] ?? tpl.privacy_mode}
-									</TableCell>
-									<TableCell className="text-right tabular-nums">
-										v{tpl.active_version}
-									</TableCell>
-								</TableRow>
-							))}
-						</TableBody>
-					</Table>
-				)}
+				<DataTable
+					rows={initialTemplates}
+					rowKey={(tpl) => tpl.id}
+					status={{ kind: "ready" }}
+					loadingLabel="Memuat template…"
+					empty="Belum ada template label."
+					bodyTestId="template-list"
+					rowTestId={(tpl) => `template-row-${tpl.id}`}
+					columns={[
+						{
+							id: "name",
+							header: "Nama",
+							cell: (tpl) => (
+								<div className="flex flex-col">
+									<span className="font-medium">{tpl.name}</span>
+									{tpl.partner_brand_name && (
+										<span className="text-xs text-muted-foreground">
+											Mitra: {tpl.partner_brand_name} · {tpl.disclosure_text}
+										</span>
+									)}
+								</div>
+							),
+						},
+						{ id: "format", header: "Format", cell: (tpl) => FORMAT_LABELS[tpl.format] },
+						{ id: "brand", header: "Merek", cell: (tpl) => BRAND_LABELS[tpl.brand_mode] ?? tpl.brand_mode },
+						{
+							id: "privacy",
+							header: "Privasi Telepon",
+							cell: (tpl) => PRIVACY_LABELS[tpl.privacy_mode] ?? tpl.privacy_mode,
+						},
+						{
+							id: "version",
+							header: "Versi",
+							className: "text-right tabular-nums",
+							cell: (tpl) => `v${tpl.active_version}`,
+						},
+					]}
+				/>
 			</section>
 
 			<section
@@ -779,43 +680,37 @@ export function PrintCenterClient({
 				<h2 id="print-audit-heading" className="text-base font-semibold">
 					Riwayat cetak
 				</h2>
-				{attempts.length === 0 ? (
-					<p className="text-sm text-muted-foreground">
-						Belum ada cetakan yang tercatat.
-					</p>
-				) : (
-					<Table>
-						<TableHeader>
-							<TableRow>
-								<TableHead>Jenis</TableHead>
-								<TableHead>Hasil</TableHead>
-								<TableHead>Paket</TableHead>
-								<TableHead>Waktu (WIB)</TableHead>
-								<TableHead>Alasan</TableHead>
-							</TableRow>
-						</TableHeader>
-						<TableBody data-testid="print-attempts-list">
-							{attempts.map((att) => (
-								<TableRow
-									key={att.id}
-									data-testid={`print-attempt-row-${att.id}`}
-								>
-									<TableCell className="font-medium">
-										{ATTEMPT_KIND_LABELS[att.kind]}
-									</TableCell>
-									<TableCell>{ATTEMPT_OUTCOME_LABELS[att.outcome]}</TableCell>
-									<TableCell>{parcelName(att.shipment_id)}</TableCell>
-									<TableCell className="tabular-nums">
-										{wibDateTime(att.created_at)}
-									</TableCell>
-									<TableCell className="whitespace-normal text-muted-foreground">
-										{att.reason ?? "—"}
-									</TableCell>
-								</TableRow>
-							))}
-						</TableBody>
-					</Table>
-				)}
+				<DataTable
+					rows={attempts}
+					rowKey={(att) => att.id}
+					status={{ kind: "ready" }}
+					loadingLabel="Memuat riwayat…"
+					empty="Belum ada cetakan yang tercatat."
+					bodyTestId="print-attempts-list"
+					rowTestId={(att) => `print-attempt-row-${att.id}`}
+					columns={[
+						{
+							id: "kind",
+							header: "Jenis",
+							cellClassName: "font-medium",
+							cell: (att) => ATTEMPT_KIND_LABELS[att.kind],
+						},
+						{ id: "outcome", header: "Hasil", cell: (att) => ATTEMPT_OUTCOME_LABELS[att.outcome] },
+						{ id: "parcel", header: "Paket", cell: (att) => parcelName(att.shipment_id) },
+						{
+							id: "time",
+							header: "Waktu (WIB)",
+							className: "tabular-nums",
+							cell: (att) => wibDateTime(att.created_at),
+						},
+						{
+							id: "reason",
+							header: "Alasan",
+							cellClassName: "whitespace-normal text-muted-foreground",
+							cell: (att) => att.reason ?? "—",
+						},
+					]}
+				/>
 			</section>
 		</div>
 	);
@@ -823,5 +718,3 @@ export function PrintCenterClient({
 
 const nativeSelectClass =
 	"h-9 rounded-md border border-input bg-background px-3 text-sm font-medium shadow-xs outline-none focus-visible:border-ring focus-visible:ring-[3px] focus-visible:ring-ring/50";
-const checkboxClass =
-	"size-4 accent-primary align-middle focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring";
