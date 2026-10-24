@@ -15,6 +15,10 @@ export type ConsoleAccess = {
 	print: boolean;
 	/** Customer support inbox. */
 	support: boolean;
+	/** Stok Gudang and Transfer Stok pages (inventory page guard). */
+	inventory: boolean;
+	/** Promo Ongkir page (promotions/shipping page guard). */
+	shippingPromo: boolean;
 };
 
 export function consoleAccess(
@@ -34,5 +38,7 @@ export function consoleAccess(
 		// Owner decision (UI-controls audit #9): ecommerce_admin prints like the labels API allows.
 		print: owner || any("warehouse", "ecommerce_admin"),
 		support: owner || roles.includes("customer_service"),
+		inventory: owner || any("ecommerce_admin", "warehouse"),
+		shippingPromo: owner || roles.includes("ecommerce_admin"),
 	};
 }

@@ -1,5 +1,12 @@
 # Build log — Serba 99ribu
 
+## 2026-10-25 — S102 merged: inventory, transfers, shipping promotions, product content, DEC-013 claim filter
+
+- Branch `s102-ops-screens` merged into `main`; independent review fixed a missing `aria-describedby` on the dispatch reason (`transfers-client.tsx`) and an animation race in the phone bottom-sheet browser check. Staff grants are not on the branch (moved to S137).
+- Branch evidence: `npm run check` PASS (unit 125/125); `test:integration --case=ops-screens` 10/10 (twice); `test:browser --case=ops-screens` 3/3 (three consecutive runs); OpenAPI parity 4/4; `npm run build` PASS. Renders: `docs/spec/design/renders/s102/`.
+- Coordinator at merge: sidebar entries Stok Gudang and Transfer Stok (owner, ecommerce_admin, warehouse) and Promo Ongkir in a Pemasaran group (owner, ecommerce_admin); active state now picks the longest matching href. On `main`: lint, typecheck, unit 125/125 PASS.
+- Open (non-blocking): warehouse staff cannot receive a SKU without a stock row (`canReceiveNew` editor-only); one extra query per transfer row in `projectTransfer`; `google-category.ts` bundles `catalog.json` until S106.
+
 ## 2026-10-24 — S112 + S113 slice 2 and three admin review rounds merged; storefront round 64 PASS (not pushed)
 
 - Merged `s112-signin-ux` (security review PASS; Low fixes `0e49e01`), `s113-admin-slice2`, `s113-admin-revise`, `s113-admin-revise2` and `s113-admin-revise3`.

@@ -1,6 +1,7 @@
 "use client";
 
 import {
+	ArrowLeftRight,
 	Banknote,
 	ExternalLink,
 	Headset,
@@ -9,8 +10,10 @@ import {
 	type LucideIcon,
 	MessagesSquare,
 	Package,
+	PackageOpen,
 	Printer,
 	ReceiptText,
+	TicketPercent,
 	Store,
 	Truck,
 	Wallet,
@@ -126,7 +129,13 @@ function ActiveWorkspaceLinks({
 		pathname === "/admin" || pathname === "/admin/queue"
 			? (workspaces.find((ws) => ws === requested) ?? null)
 			: null;
-	return <WorkspaceLinks workspaces={workspaces} active={active} current={pathname === "/admin"} />;
+	return (
+		<WorkspaceLinks
+			workspaces={workspaces}
+			active={active}
+			current={pathname === "/admin"}
+		/>
+	);
 }
 
 type NavItem = { href: string; label: string; icon: LucideIcon; show: boolean };
@@ -138,6 +147,8 @@ function ToolGroups({ groups }: { groups: NavGroup[] }) {
 	const close = useCloseOnNavigate();
 	return groups.map((group) => {
 		const items = group.items.filter((item) => item.show);
+		const matches = (href: string) =>
+			pathname === href || pathname.startsWith(`${href}/`);
 		if (items.length === 0) return null;
 		return (
 			<SidebarGroup key={group.label}>
@@ -148,7 +159,13 @@ function ToolGroups({ groups }: { groups: NavGroup[] }) {
 							<SidebarMenuItem key={href}>
 								<SidebarMenuButton
 									asChild
-									isActive={pathname === href || pathname.startsWith(`${href}/`)}
+									// Longest matching href wins (Stok Gudang vs Transfer Stok).
+									isActive={
+										matches(href) &&
+										!items.some(
+											(o) => o.href.length > href.length && matches(o.href),
+										)
+									}
 									tooltip={label}
 								>
 									<Link
@@ -188,19 +205,77 @@ export function AdminShell({
 		{
 			label: "Operasional",
 			items: [
-				{ href: "/admin/orders", label: "Pesanan", icon: ReceiptText, show: canOrders },
-				{ href: "/admin/fulfillment", label: "Pengiriman Manual", icon: Truck, show: access.ship },
-				{ href: "/admin/print-center", label: "Pusat Cetak Label", icon: Printer, show: access.print },
-				{ href: "/admin/support", label: "Kotak Masuk Pelanggan", icon: MessagesSquare, show: access.support },
+				{
+					href: "/admin/orders",
+					label: "Pesanan",
+					icon: ReceiptText,
+					show: canOrders,
+				},
+				{
+					href: "/admin/fulfillment",
+					label: "Pengiriman Manual",
+					icon: Truck,
+					show: access.ship,
+				},
+				{
+					href: "/admin/print-center",
+					label: "Pusat Cetak Label",
+					icon: Printer,
+					show: access.print,
+				},
+				{
+					href: "/admin/support",
+					label: "Kotak Masuk Pelanggan",
+					icon: MessagesSquare,
+					show: access.support,
+				},
 				// One item never gets its own group (render review): the catalog sits with the daily tools.
-				{ href: "/admin/catalog", label: "Katalog", icon: Package, show: canCatalog },
+				{
+					href: "/admin/catalog",
+					label: "Katalog",
+					icon: Package,
+					show: canCatalog,
+				},
+				{
+					href: "/admin/inventory",
+					label: "Stok Gudang",
+					icon: PackageOpen,
+					show: access.inventory,
+				},
+				{
+					href: "/admin/inventory/transfers",
+					label: "Transfer Stok",
+					icon: ArrowLeftRight,
+					show: access.inventory,
+				},
+			],
+		},
+		{
+			label: "Pemasaran",
+			items: [
+				{
+					href: "/admin/promotions/shipping",
+					label: "Promo Ongkir",
+					icon: TicketPercent,
+					show: access.shippingPromo,
+				},
 			],
 		},
 		{
 			label: "Keuangan",
 			items: [
-				{ href: "/admin/payments", label: "Pembayaran", icon: Landmark, show: access.reconcileRead },
-				{ href: "/admin/cod-settlements", label: "Setoran COD", icon: Banknote, show: access.reconcileRead },
+				{
+					href: "/admin/payments",
+					label: "Pembayaran",
+					icon: Landmark,
+					show: access.reconcileRead,
+				},
+				{
+					href: "/admin/cod-settlements",
+					label: "Setoran COD",
+					icon: Banknote,
+					show: access.reconcileRead,
+				},
 			],
 		},
 	];
