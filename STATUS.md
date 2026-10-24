@@ -16,7 +16,6 @@ One slice per branch or worktree. A session works only inside its slice's owned 
 | Admin mobile pass (S113 follow-up, S122c) | `admin-mobile` | merged `0ac607d` | — | design re-review running |
 | S123 buyer registration (name, email, WhatsApp; password via link; locked inputs) | `s123-buyer-signup` | `src/app/(storefront)/{masuk,@modal,akun,pesanan}/**`, `src/components/storefront/{sign-*,checkout-forms,buyer-account-client}*`, `src/modules/access/**`, `tests/browser/sign-*`, `tests/auth.test.ts` | `src/components/admin/**` | in progress (worker) |
 | Admin IA + screen contracts (spec 17 section) | `admin-ia-spec` | `docs/spec/17-UX-FLOWS-SCREEN-CONTRACTS.md` | code, TASKS, STATUS | in progress (docs only) |
-| S101 returns + warehouse calendar | `s101-returns-calendar` | `src/app/admin/**/returns/**`, `src/components/admin/returns*`, fulfillment pickup-profile/calendar UI, `src/modules/returns/**` | sidebar, storefront | in progress (worker) |
 | S125 guest orders in the buyer account (DEC-016) | not started | waits for S123 merge and S120 | — | planned |
 | S126 buyer profile completion (DEC-017) | not started | waits for S123 merge (shares `/akun`) | — | planned |
 | S124 production email delivery | — | owner picks the provider first | — | owner decision |

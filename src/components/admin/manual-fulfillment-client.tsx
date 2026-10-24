@@ -22,6 +22,7 @@ import { wibInputToIso } from "@/modules/storefront/format";
 import { formatCm, formatKg, formatWib, rupiah } from "./format";
 import { FilterSheet, segmentedItemClass, segmentedListClass } from "./form";
 import { Disclosure } from "./page-blocks";
+import { WarehouseCalendarPanel } from "./warehouse-calendar-panel";
 import { DEADLINE_GROUPS, Deadline, deadlineGroup, useNow } from "./status";
 import { useIsMobile } from "@/components/ui/use-mobile";
 
@@ -321,9 +322,12 @@ function OrderLink({ row, enabled }: { row: Row; enabled: boolean }) {
 
 export function ManualFulfillmentClient({
 	canManageProfiles,
+	canManageCalendars = false,
 	canViewOrders,
 }: {
 	canManageProfiles: boolean;
+	/** Owner only: warehouse calendars (policy-versions and the bulk default are owner APIs). */
+	canManageCalendars?: boolean;
 	canViewOrders: boolean;
 }) {
 	const [queue, setQueue] = useState<Queue>("to_book");
@@ -427,6 +431,7 @@ export function ManualFulfillmentClient({
 			)}
 			{/* Settings, not daily work: collapsed above the queue (never after a long list). */}
 			{canManageProfiles && <PickupProfiles warehouses={warehouses} />}
+			{canManageCalendars && <WarehouseCalendarPanel />}
 			<Disclosure key={isMobile ? "phone" : "wide"} id="manual-rules-heading" title="Aturan antrean" open={!isMobile}>
 				<p className="max-w-prose text-sm text-muted-foreground">
 					Pesanan lunas (prabayar) dan COD terkonfirmasi dari gudang mode

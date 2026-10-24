@@ -14,9 +14,10 @@ import {
 	PackageOpen,
 	Printer,
 	ReceiptText,
-	TicketPercent,
 	Store,
+	TicketPercent,
 	Truck,
+	Undo2,
 	Wallet,
 	Warehouse,
 } from "lucide-react";
@@ -45,6 +46,7 @@ import type { CanonicalWorkspace } from "./admin-workspaces-client";
 import { catalogAccess } from "./catalog-model";
 import { consoleAccess } from "./console-access";
 import { canReadOrders } from "./order-model";
+import { returnAccess } from "./return-model";
 
 export const WORKSPACE_NAV: Record<
 	CanonicalWorkspace,
@@ -202,6 +204,7 @@ export function AdminShell({
 	const access = consoleAccess(roles, permissions);
 	const canCatalog = catalogAccess(roles, permissions).read;
 	const canOrders = canReadOrders(roles, permissions);
+	const canReturns = returnAccess(roles, permissions).read;
 	const groups: NavGroup[] = [
 		{
 			label: "Operasional",
@@ -217,6 +220,12 @@ export function AdminShell({
 					label: "Pengiriman Manual",
 					icon: Truck,
 					show: access.ship,
+				},
+				{
+					href: "/admin/returns",
+					label: "Retur & Penggantian",
+					icon: Undo2,
+					show: canReturns,
 				},
 				{
 					href: "/admin/print-center",

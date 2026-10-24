@@ -34,6 +34,7 @@ export default async function ManualFulfillmentPage() {
 			/>
 			<ManualFulfillmentClient
 				canManageProfiles={roles.some((r) => ["owner", "ecommerce_admin"].includes(r))}
+				canManageCalendars={roles.includes("owner")}
 				canViewOrders={canReadOrders(roles, permissions)}
 			/>
 		</AdminPage>

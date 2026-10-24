@@ -74,7 +74,7 @@ async function assertProblemJson(
 	return body;
 }
 
-test("S64.1: check-openapi-contract.py validates all 198 paths, 236 operations, and 346 schemas", async () => {
+test("S64.1: check-openapi-contract.py validates all 201 paths, 239 operations, and 349 schemas", async () => {
 	const { stdout } = await exec(
 		"python3",
 		["docs/spec/scripts/check-openapi-contract.py"],
@@ -82,7 +82,7 @@ test("S64.1: check-openapi-contract.py validates all 198 paths, 236 operations, 
 			timeout: 20000,
 		},
 	);
-	assert.match(stdout, /198 paths, 236 operations, 346 schemas/);
+	assert.match(stdout, /201 paths, 239 operations, 349 schemas/);
 });
 
 // S75/DEC-001: 'preparing' (revision 0) is created and promoted to 'pending'
@@ -210,14 +210,14 @@ test("S64.2: every implemented OpenAPI operation has a matching route.ts HTTP me
 		}[];
 		schemas: number;
 	};
-	assert.equal(parsed.paths, 198);
-	assert.equal(parsed.ops.length, 236);
-	assert.equal(parsed.schemas, 346);
+	assert.equal(parsed.paths, 201);
+	assert.equal(parsed.ops.length, 239);
+	assert.equal(parsed.schemas, 349);
 
 	const implementedOps = parsed.ops.filter(
 		(op) => op.status === "implemented-local",
 	);
-	assert.equal(implementedOps.length, 236);
+	assert.equal(implementedOps.length, 239);
 
 	// Bidirectional parity over ALL spec operations: every operation has an exported handler at its exact
 	// path (no parameter aliases), and every exported handler method is a spec operation.
