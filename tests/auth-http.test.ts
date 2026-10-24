@@ -28,7 +28,7 @@ test("built localhost auth uses browser HttpOnly cookies, denies CSRF and keeps 
       const response = await fetch(`/api/auth${path}`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) });
       return { status: response.status, payload: await response.json() };
     }, { path, body });
-    const signup = await post("/sign-up/email", { name: "Browser Synthetic", email });
+    const signup = await post("/sign-up/email", { name: "Browser Synthetic", email, phone: "081234567890" });
     assert.equal(signup.status, 200);
     const [user] = await connection.sql`select id from app.auth_user where email=${email}`;
     userId = user.id;
@@ -74,6 +74,7 @@ test("built localhost auth uses browser HttpOnly cookies, denies CSRF and keeps 
     await connection.sql`delete from app.local_delivery where recipient=${email}`;
     if (userId) {
       await connection.sql`delete from app.auth_verification where value=${userId}`;
+      await connection.sql`delete from app.buyer_profile where user_id=${userId}`;
       await connection.sql`delete from app.auth_user where id=${userId}`;
     }
     await connection.sql.end();

@@ -29,7 +29,7 @@ test("built policy API uses real owner MFA/proof cookies, scoped history and imm
     const endpoint = "/api/v1/admin/policy-versions";
     assert.equal((await call(`${endpoint}?kind=commercial`)).status, 401);
     assert.equal((await call(endpoint, {})).status, 401);
-    assert.equal((await call("/api/auth/sign-up/email", { name: "Synthetic Policy Owner", email })).status, 200);
+    assert.equal((await call("/api/auth/sign-up/email", { name: "Synthetic Policy Owner", email, phone: "081234567890" })).status, 200);
     const [user] = await sql`select id from app.auth_user where email=${email}`; userId = user.id;
     await activateOverHttp(sql, context.request, email, password);
     await sql`insert into app.role_grant (user_id,roles) values (${userId},ARRAY['owner']::text[])`;
@@ -67,6 +67,7 @@ test("built policy API uses real owner MFA/proof cookies, scoped history and imm
       await sql`delete from app.auth_verification where value=${userId}`;
       await sql`delete from app.access_operation where actor_id=${userId}`;
       await sql`delete from app.auth_rate_limit where key=${`access-proof:${userId}`}`;
+      await sql`delete from app.buyer_profile where user_id=${userId}`;
       await sql`delete from app.auth_user where id=${userId}`;
     }
     if(warehouseId) await sql`update app.warehouse set active=false where id=${warehouseId}`;

@@ -30,7 +30,7 @@ test("built access routes require actual browser MFA cookie and project assigned
       return result;
     };
     assert.equal((await call("/api/v1/me")).status, 401);
-    assert.equal((await call("/api/auth/sign-up/email", { name: "Synthetic MFA", email })).status, 200);
+    assert.equal((await call("/api/auth/sign-up/email", { name: "Synthetic MFA", email, phone: "081234567890" })).status, 200);
     const [user] = await connection.sql`select id from app.auth_user where email=${email}`; userId = user.id;
     await activateOverHttp(connection.sql, context.request, email, password);
     await connection.sql`insert into app.warehouse (id,name,city) values (${warehouseId},'Synthetic Browser Warehouse','Malang')`;
@@ -79,6 +79,7 @@ test("built access routes require actual browser MFA cookie and project assigned
       await connection.sql`delete from app.auth_verification where value=${userId}`;
       await connection.sql`delete from app.access_operation where actor_id=${userId}`;
       await connection.sql`delete from app.auth_rate_limit where key=${`access-proof:${userId}`}`;
+      await connection.sql`delete from app.buyer_profile where user_id=${userId}`;
       await connection.sql`delete from app.auth_user where id=${userId}`;
     }
     await connection.sql`delete from app.auth_user where id=${subjectId}`;

@@ -31,7 +31,7 @@ test("built catalog API uses real MFA cookies, dynamic product paths, durable re
       ["GET", "/products"], ["POST", "/products"], ["GET", `/products/${dummy}`], ["PATCH", `/products/${dummy}`]]) {
       assert.equal((await call(base + path, method, method === "GET" ? undefined : {})).status, 401);
     }
-    assert.equal((await call("/api/auth/sign-up/email", "POST", { name: "Synthetic Catalog Owner", email })).status, 200);
+    assert.equal((await call("/api/auth/sign-up/email", "POST", { name: "Synthetic Catalog Owner", email, phone: "081234567890" })).status, 200);
     const [user] = await sql`select id from app.auth_user where email=${email}`; userId = user.id;
     await activateOverHttp(sql, context.request, email, password);
     await sql`insert into app.role_grant (user_id,roles) values (${userId},ARRAY['owner']::text[])`;
@@ -68,6 +68,7 @@ test("built catalog API uses real MFA cookies, dynamic product paths, durable re
     await sql`delete from app.local_delivery where recipient=${email}`;
     if (userId) {
       await sql`delete from app.auth_verification where value=${userId}`; await sql`delete from app.access_operation where actor_id=${userId}`;
+      await sql`delete from app.buyer_profile where user_id=${userId}`;
       await sql`delete from app.auth_user where id=${userId}`;
     }
     if (warehouseId) await sql`update app.warehouse set active=false where id=${warehouseId}`;

@@ -85,10 +85,24 @@ test("modal sign-up from /akun: name and email only, uniform check-email, the em
 		assert.equal(page.url(), `${origin}/masuk?langkah=daftar&next=%2Fakun`, "Switching does not navigate");
 		await modal.getByRole("link", { name: "Daftar", exact: true }).click();
 		await modal.getByRole("button", { name: "Daftar", exact: true }).click();
-		await modal.getByTestId("signup-error").getByText("Isi nama dan email.").waitFor();
+		await modal.getByTestId("signup-error").getByText("Isi nama, email, dan nomor WhatsApp.").waitFor();
 		assert.equal(await modal.getByLabel("Nama").getAttribute("aria-invalid"), "true");
 		await modal.getByLabel("Nama").fill("Pembeli Uji");
-		await modal.getByLabel("Email").fill(email);
+		// Contact inputs (owner 2026-10-25): a typo domain gets a one-tap fix, the WhatsApp field keeps digits
+		// only (a pasted +62 number shows as 08…) and refuses a landline before anything is sent.
+		const emailField = modal.getByLabel("Email"), phoneField = modal.getByLabel("Nomor WhatsApp");
+		assert.deepEqual([await phoneField.getAttribute("inputmode"), await phoneField.getAttribute("autocomplete")], ["numeric", "tel"]);
+		await emailField.fill("pembeli@gmial.com");
+		await modal.getByTestId("email-suggestion").getByRole("button", { name: "pembeli@gmail.com" }).click();
+		assert.equal(await emailField.inputValue(), "pembeli@gmail.com");
+		await emailField.fill(email);
+		await phoneField.fill("+62 812-3456-7890");
+		assert.equal(await phoneField.inputValue(), "081234567890");
+		await phoneField.fill("0215550123");
+		await modal.getByRole("button", { name: "Daftar", exact: true }).click();
+		await modal.getByTestId("signup-error").getByText("Masukkan nomor WhatsApp (diawali 08).").waitFor();
+		assert.equal(await phoneField.getAttribute("aria-invalid"), "true");
+		await phoneField.fill("081234567890");
 		const answer = page.waitForResponse((response) => response.url().endsWith("/api/auth/sign-up/email"));
 		await modal.getByRole("button", { name: "Daftar", exact: true }).click();
 		const first = await answer;
@@ -109,6 +123,7 @@ test("modal sign-up from /akun: name and email only, uniform check-email, the em
 		await again.goto(`${origin}/masuk?langkah=daftar`);
 		await again.getByLabel("Nama").fill("Orang Lain");
 		await again.getByLabel("Email").fill(email);
+		await again.getByLabel("Nomor WhatsApp").fill("089876543210");
 		const duplicateAnswer = again.waitForResponse((response) => response.url().endsWith("/api/auth/sign-up/email"));
 		await again.getByRole("button", { name: "Daftar", exact: true }).click();
 		const duplicate = await duplicateAnswer;
@@ -142,6 +157,15 @@ test("modal sign-up from /akun: name and email only, uniform check-email, the em
 		await page.waitForURL(`${origin}/akun`);
 		await page.getByTestId("sign-out-button").first().waitFor();
 		assert.equal((await identity.sql`select email_verified from app.auth_user where email=${email}`)[0].email_verified, true);
+		// /akun shows the sign-up WhatsApp number masked (stored +62…, shown 08…) and edits it.
+		await expect(page.getByTestId("profile-phone")).toHaveText("08••••••7890");
+		await page.getByTestId("profile-phone-edit").click();
+		await page.getByTestId("profile-phone-input").fill("+6281299990000");
+		await expect(page.getByTestId("profile-phone-input")).toHaveValue("081299990000");
+		await page.getByTestId("profile-save-button").click();
+		await expect(page.getByTestId("profile-phone")).toHaveText("08••••••0000");
+		const [profile] = await identity.sql`select p.phone, p.phone_verified_at from app.buyer_profile p join app.auth_user u on u.id=p.user_id where u.email=${email}`;
+		assert.deepEqual([profile.phone, profile.phone_verified_at], ["+6281299990000", null]);
 		assert.deepEqual(errors, []);
 	} finally { await browser.close(); }
 });
@@ -179,9 +203,10 @@ test("without JavaScript: the switch is a link, sign-up and resend post to /masu
 		await page.waitForURL(`${origin}/masuk?langkah=daftar&next=%2Fakun`);
 		assert.equal(await page.locator("form.signin-card").getAttribute("action"), "/masuk/kirim");
 		await page.getByRole("button", { name: "Daftar", exact: true }).click();
-		await page.getByTestId("signup-error").getByText("Isi nama dan email.").waitFor();
+		await page.getByTestId("signup-error").getByText("Isi nama, email, dan nomor WhatsApp.").waitFor();
 		await page.getByLabel("Nama").fill("Pembeli Tanpa JS");
 		await page.getByLabel("Email").fill(email);
+		await page.getByLabel("Nomor WhatsApp").fill("081234567890");
 		await page.getByRole("button", { name: "Daftar", exact: true }).click();
 		await page.waitForURL(`${origin}/masuk?langkah=cek-email&next=%2Fakun`);
 		await page.getByRole("heading", { level: 1, name: "Cek email Anda untuk verifikasi" }).waitFor();
@@ -287,6 +312,7 @@ test("post-checkout prompt: save the guest order to a new account and link it", 
 		await modal.getByRole("heading", { name: "Buat akun 99ribu" }).waitFor();
 		assert.equal(new URL(page.url()).searchParams.get("next"), path);
 		assert.equal(await modal.getByLabel("Email").inputValue(), email, "The order's contact email is pre-filled");
+		assert.equal(await modal.getByLabel("Nomor WhatsApp").inputValue(), "081200000000", "The order contact phone is pre-filled in the local 08 form");
 		assert.equal(await modal.getByLabel("Nama").inputValue(), "Penerima Contoh", "The order's recipient name is pre-filled");
 		assert.ok(!page.url().includes("s123-"), "The email never goes into the URL");
 		await modal.getByRole("button", { name: "Daftar", exact: true }).click();

@@ -30,7 +30,7 @@ test('built finance/publication APIs enforce real browser MFA cookies, private c
     const root='/api/v1/admin';const dummy=randomUUID();const key=()=>({'idempotency-key':randomUUID()});
     for(const path of [`/stock-items/${dummy}/cost-versions`,`/offers/${dummy}/cost-assumption-versions`,`/products/${dummy}/contribution-reviews`,`/products/${dummy}/publications`]) assert.equal((await call(root+path)).status,401);
     for(const path of [`/stock-items/${dummy}/cost-versions`,`/offers/${dummy}/cost-assumption-versions`,`/products/${dummy}/publications`]) assert.equal((await call(root+path,{},key())).status,401);
-    assert.equal((await call('/api/auth/sign-up/email',{name:'Synthetic Finance Browser Owner',email})).status,200);
+    assert.equal((await call('/api/auth/sign-up/email',{name:'Synthetic Finance Browser Owner',email,phone:'081234567890'})).status,200);
     const [user]=await sql`select id from app.auth_user where email=${email}`;userId=user.id;
     await activateOverHttp(sql,context.request,email,password);
     await sql`insert into app.role_grant (user_id,roles) values (${userId},ARRAY['owner']::text[])`;
@@ -80,7 +80,7 @@ test('built finance/publication APIs enforce real browser MFA cookies, private c
     await browser.close();
     await sql`delete from app.outbox_job where kind='local.notification' and payload->>'deliveryId' in (select id::text from app.local_delivery where recipient=${email})`;
     await sql`delete from app.local_delivery where recipient=${email}`;
-    if(userId){await sql`delete from app.auth_verification where value=${userId}`;await sql`delete from app.access_operation where actor_id=${userId}`;await sql`delete from app.auth_rate_limit where key=${`access-proof:${userId}`}`;await sql`delete from app.auth_user where id=${userId}`;}
+    if(userId){await sql`delete from app.auth_verification where value=${userId}`;await sql`delete from app.access_operation where actor_id=${userId}`;await sql`delete from app.auth_rate_limit where key=${`access-proof:${userId}`}`;await sql`delete from app.buyer_profile where user_id=${userId}`;await sql`delete from app.auth_user where id=${userId}`;}
     if(warehouseId) await sql`update app.warehouse set active=false where id=${warehouseId}`;await sql.end();
   }
 });
