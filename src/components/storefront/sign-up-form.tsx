@@ -149,7 +149,7 @@ function SignUpForm({ next, sent: initialSent, error: initialError, resent, moda
 			</div>
 			<div className="signin-field">
 				<label htmlFor="signup-phone">Nomor WhatsApp</label>
-				<input id="signup-phone" name="phone" type="tel" inputMode="numeric" autoComplete="tel" required maxLength={14} pattern={WHATSAPP_PATTERN} placeholder="08…"
+				<input id="signup-phone" name="phone" type="tel" inputMode="numeric" autoComplete="tel" required maxLength={24} pattern={WHATSAPP_PATTERN} placeholder="08…"
 					value={phone} onChange={(event) => setPhone(filterContact(event))} aria-invalid={invalid("phone")} aria-describedby={described("phone", "signup-phone-hint")} />
 				<p id="signup-phone-hint" className="signin-field-hint">Nomor HP yang aktif di WhatsApp, diawali 08.</p>
 			</div>

@@ -3,7 +3,8 @@
 // (shipping/address.ts normalizePhone, unchanged: order search, guest-lookup digests, rate-limit keys and ad
 // hashing depend on it); screens show and accept the local `08…` form.
 
-// What a phone field keeps while typing or pasting: digits only, a pasted `+62…`/`62…` shown as `08…`.
+// What a phone field keeps while typing or pasting: digits only (at most 14), a pasted `+62…`/`62…` shown as
+// `08…`. Inputs allow 24 characters so a formatted paste ("+62 812-3456-7890") is not cut before filtering.
 export function phoneInput(raw: string) {
 	const digits = raw.replace(/\D/g, "");
 	return (digits.startsWith("62") ? `0${digits.slice(2)}` : digits).slice(0, 14);

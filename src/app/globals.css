@@ -6143,7 +6143,8 @@ body:has(> .store-header) {
 	color: #64606e;
 	box-shadow: none;
 }
-/* S123 contact inputs: the one-tap email typo fix ("Maksud Anda …?") under any email field, a 44px link-style button. */
+/* S123 contact inputs: the one-tap email typo fix ("Maksud Anda …?") under any email field, a 44px link-style
+   button (also the /akun "Ubah" for the WhatsApp number). */
 .contact-suggest {
 	margin: 0;
 	color: var(--muted);

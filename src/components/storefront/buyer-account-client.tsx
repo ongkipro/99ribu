@@ -308,7 +308,8 @@ export function BuyerAccountClient({
 							data-testid="account-profile-section"
 						>
 							<h2 id="account-profile-heading">Profil & Identitas Pembeli</h2>
-							<form onSubmit={handleProfileSave}>
+							{/* noValidate: the WhatsApp check answers with its own message (the pattern stays for no-JS hints). */}
+							<form onSubmit={handleProfileSave} noValidate>
 								<label htmlFor="buyer-display-name">
 									Nama tampilan (mendukung nama satu kata / mononim)
 								</label>
@@ -331,7 +332,7 @@ export function BuyerAccountClient({
 											type="tel"
 											inputMode="numeric"
 											autoComplete="tel"
-											maxLength={14}
+											maxLength={24}
 											pattern={WHATSAPP_PATTERN}
 											placeholder="08…"
 											value={phone}
@@ -349,7 +350,7 @@ export function BuyerAccountClient({
 										</strong>{" "}
 										<button
 											type="button"
-											className="receipt-inline-link"
+											className="contact-suggest-fix"
 											data-testid="profile-phone-edit"
 											onClick={() => {
 												setPhone(displayPhone(profile.phone));
