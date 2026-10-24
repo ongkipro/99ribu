@@ -5133,86 +5133,170 @@ body:has(> .store-header, > .task-header) {
 	}
 }
 
-/* ===== Listing filters (shop.com observed 2026-10-24, round 43) =====
-   A chip row above the results; each chip opens its choices (popover anchored to the chip on
-   desktop, bottom sheet on phones). Chip: 1px rgba(5,41,77,.1) hairline (the card/chip token),
-   0 2px 8px rgba(0,0,0,.06) shadow, 16/600 text, 15px down chevron; 44px tall for the target
-   rule (shop.com's are 40px). A chip with a non-default value is filled ink, as on shop.com. */
+/* ===== Listing filters (shop.com observed 2026-10-24, S111 phase 2a; DESIGN.md "Filters") =====
+   Row: one horizontally scrolling chip rail, hidden scrollbar, no snap; 8px apart (4px on phones),
+   bleeding to the screen edge on phones with the gutter as inner padding. Each edge fades over 32px
+   only while there is more to scroll that way (shop.com's --filter-rail-fade-*, 200ms).
+   Chip: 1px hairline, 0 2px 8px rgba(0,0,0,.06), 14/16 600 -0.2px, 8px 8px 8px 16px, 4px gap,
+   15px chevron at stroke 2.67; filled #121212 while open or holding a value. 44px tall for the
+   target rule (shop.com's are 40px). */
+@property --fade-start {
+	syntax: "<length>";
+	inherits: false;
+	initial-value: 0px;
+}
+@property --fade-end {
+	syntax: "<length>";
+	inherits: false;
+	initial-value: 0px;
+}
 .filter-chips {
 	display: flex;
+	align-items: center;
 	gap: 8px;
 	min-width: 0;
-	margin: 0 0 16px;
-	padding: 4px 2px;
+	min-height: 52px;
+	margin: 0 -8px 16px;
+	padding: 4px 8px 8px;
 	border: 0;
 	overflow-x: auto;
+	overscroll-behavior-x: contain;
 	scrollbar-width: none;
+	scroll-padding-inline: 8px;
+	-webkit-mask-image: linear-gradient(90deg, transparent, #000 var(--fade-start), #000 calc(100% - var(--fade-end)), transparent);
+	mask-image: linear-gradient(90deg, transparent, #000 var(--fade-start), #000 calc(100% - var(--fade-end)), transparent);
+	transition:
+		--fade-start 0.2s,
+		--fade-end 0.2s;
+}
+.filter-chips::-webkit-scrollbar {
+	display: none;
+}
+.filter-chips[data-fade-start] {
+	--fade-start: 32px;
+}
+.filter-chips[data-fade-end] {
+	--fade-end: 32px;
+}
+@media (max-width: 700px) {
+	.filter-chips {
+		gap: 4px;
+		margin-inline: calc(-1 * var(--gutter));
+		padding-inline: var(--gutter);
+		scroll-padding-inline: var(--gutter);
+	}
 }
 @media (scripting: none) {
 	.filter-chips {
 		display: none;
 	}
 }
+.filter-chip-item {
+	flex: none;
+	display: flex;
+	max-width: 100%;
+	min-width: 0;
+}
 .filter-chip {
 	display: inline-flex;
 	align-items: center;
 	gap: 4px;
+	min-width: 0;
 	min-height: 44px;
-	padding: 0 12px 0 16px;
+	padding: 6px 8px 6px 16px;
 	border: 1px solid var(--hairline);
+	border-radius: 22px;
 	background: #fff;
 	box-shadow: 0 2px 8px rgba(0, 0, 0, 0.06);
 	color: var(--ink);
 	font: inherit;
-	font-size: 1rem;
+	font-size: 0.875rem;
+	line-height: 1rem;
 	font-weight: 600;
-	letter-spacing: -0.5px;
+	letter-spacing: -0.2px;
+	text-align: start;
+	white-space: normal;
 	cursor: pointer;
 }
-.filter-chips .filter-chip[type="button"] svg {
+/* Enlarged text (review 54): the label wraps inside the pill instead of outgrowing the row. */
+.filter-chips .filter-chip[type="button"] > svg {
+	flex: none;
+	width: max(15px, 0.9375em);
+	height: max(15px, 0.9375em);
 	stroke-width: 2.67;
 }
-.filter-chip[data-active] {
+.filter-chip:is([data-active], [aria-expanded="true"]) {
 	border-color: #121212;
 	background: #121212;
 	color: #fff;
 }
-.filter-chips .filter-chip[type="button"][aria-expanded="true"] svg {
+.filter-chips .filter-chip[type="button"][aria-expanded="true"] > svg {
 	transform: rotate(180deg);
 }
-/* Popover: shadcn Select/Popover content mirrored in storefront CSS (no Tailwind/shadcn import,
-   DEC-004). shadcn new-york-v4 select.tsx: content `rounded-md border shadow-md min-w-[8rem]`,
-   viewport `p-1`, min width = trigger width, popper offset 4px; item `rounded-sm py-1.5 pl-2
-   pr-8 text-sm` (32px), `focus:bg-accent`, check `absolute right-2 size-4`, disabled 50%;
-   separator `-mx-1 my-1 h-px bg-border`; open `fade-in-0 zoom-in-95 slide-in-from-top-2`.
-   Tokens: radius .625rem (md 8px, sm 6px), border = the storefront hairline, accent #f5f5f5,
-   muted #737373, shadow-md 0 4px 6px -1px / 0 2px 4px -2px rgb(0 0 0 / .1). Script places it on
-   whole pixels 4px under the chip's left edge (right edge or above near the viewport end). */
+/* An active chip carries its own remove control, joined to its right (round 46). */
+.filter-chip[data-active]:has(+ .filter-chip-clear) {
+	padding-right: 8px;
+	border-radius: 22px 0 0 22px;
+}
+.filter-chip-clear {
+	display: grid;
+	place-items: center;
+	width: 40px;
+	min-height: 44px;
+	border: 1px solid #121212;
+	border-left-color: rgba(255, 255, 255, 0.24);
+	border-radius: 0 9999px 9999px 0;
+	background: #121212;
+	color: #fff;
+}
+.filter-chip-clear:hover {
+	background: #000;
+}
+/* biome-ignore lint/style/noDescendingSpecificity: different elements (not the chip chevron); order is irrelevant. */
+.filter-chips .filter-chip-clear[href] > svg {
+	width: 16px;
+	height: 16px;
+}
+.filter-clear-all {
+	flex: none;
+	display: inline-flex;
+	align-items: center;
+	min-height: 44px;
+	padding: 0 8px;
+	color: var(--ink);
+	font-size: 0.875rem;
+	font-weight: 600;
+	letter-spacing: -0.2px;
+	text-decoration: underline;
+	text-underline-offset: 3px;
+	white-space: nowrap;
+}
+
+/* Dropdown (desktop): shop.com's 300px popover centred 5px under its chip (script, whole pixels,
+   kept 16px inside the viewport, flipped above near the bottom): white, 28px radius, 1px #f6f6f6
+   edge, 0 2px 8px rgba(0,0,0,.06), 12px padding, no scrim, no visible title. Rows 44px, 16px radius,
+   16/22 text left and a 20px radio right (selected: #121212 fill with a 4px white inset); hover
+   4% ink. Reset and Done pills end it. Phones: the same panel as a bottom sheet 16px from the sides
+   and bottom with a title row and close button, 0 8px 40px rgba(0,0,0,.24) and a 40% scrim. */
 .filter-pop {
 	box-sizing: border-box;
-	min-width: 8rem;
-	width: max-content;
-	max-width: min(320px, calc(100vw - 32px));
-	max-height: min(384px, calc(100dvh - 32px));
+	width: 300px;
+	max-width: calc(100vw - 32px);
+	max-height: min(480px, calc(100dvh - 32px));
 	margin: 0;
-	padding: 4px;
+	padding: 12px;
 	overflow: hidden auto;
 	overscroll-behavior: contain;
-	border: 1px solid var(--hairline);
-	border-radius: 8px;
+	border: 1px solid #f6f6f6;
+	border-radius: 28px;
 	background: #fff;
 	color: var(--ink);
-	box-shadow:
-		0 4px 6px -1px rgb(0 0 0 / 0.1),
-		0 2px 4px -2px rgb(0 0 0 / 0.1);
-	transform-origin: top left;
+	box-shadow: 0 2px 8px rgba(0, 0, 0, 0.06);
 	opacity: 1;
-	scale: 1;
 	translate: 0 0;
 	transition:
-		opacity 150ms ease-out,
-		scale 150ms ease-out,
-		translate 150ms ease-out,
+		opacity 150ms cubic-bezier(0.4, 0, 0.2, 1),
+		translate 150ms cubic-bezier(0.4, 0, 0.2, 1),
 		overlay 150ms allow-discrete,
 		display 150ms allow-discrete;
 }
@@ -5222,110 +5306,177 @@ body:has(> .store-header, > .task-header) {
 @starting-style {
 	.filter-pop:popover-open {
 		opacity: 0;
-		scale: 0.95;
-		translate: 0 -8px;
+		translate: 0 -4px;
 	}
 }
-.filter-pop-title {
-	margin: 0;
-	padding: 6px 8px;
-	color: #737373;
-	font-size: 0.75rem;
-	line-height: 1rem;
-	font-weight: 400;
+.filter-pop-head {
+	display: none;
 }
 .filter-pop ul {
 	list-style: none;
 	margin: 0;
 	padding: 0;
 }
-.filter-pop li + li.filter-separated {
-	margin-top: 9px;
-	position: relative;
-}
-.filter-pop li.filter-separated::before {
-	content: "";
-	position: absolute;
-	inset: -5px -4px auto;
-	height: 1px;
-	/* A visible hairline (shadcn bg-border). */
-	background: rgba(24, 24, 27, 0.12);
-}
 .filter-option {
-	position: relative;
 	display: flex;
 	align-items: center;
 	gap: 8px;
-	min-height: 32px;
-	padding: 6px 32px 6px 8px;
-	border-radius: 6px;
+	min-height: 44px;
+	padding: 6px 6px 6px 8px;
+	border-radius: 16px;
 	color: inherit;
-	font-size: 0.875rem;
-	line-height: 1.25rem;
-	white-space: nowrap;
+	font-size: 1rem;
+	line-height: 1.375rem;
+	letter-spacing: -0.5px;
 	outline: none;
-	cursor: default;
+	cursor: pointer;
+}
+.filter-pop .filter-option > span:first-child {
+	flex: 1;
+	min-width: 0;
 }
 .filter-option:is(:hover, :focus) {
-	background: #f5f5f5;
+	background: rgba(0, 0, 0, 0.04);
 	text-decoration: none;
 }
 .filter-option:focus-visible {
 	box-shadow: inset 0 0 0 2px var(--ink);
 }
-.filter-option[aria-disabled="true"] {
-	pointer-events: none;
-	opacity: 0.5;
+.filter-radio {
+	flex: none;
+	width: 20px;
+	height: 20px;
+	border: 1px solid rgba(0, 0, 0, 0.2);
+	border-radius: 9999px;
+	transition:
+		background-color 0.2s,
+		border-color 0.2s,
+		box-shadow 0.2s;
 }
-.filter-pop .filter-option[href][aria-current] svg {
-	position: absolute;
-	right: 8px;
-	width: 16px;
-	height: 16px;
+.filter-option[aria-current] .filter-radio {
+	border-color: #121212;
+	background: #121212;
+	box-shadow: inset 0 0 0 4px #fff;
+}
+/* Multi-choice facets: a rounded check box instead of the radio. */
+.filter-pop[data-multi] .filter-radio {
+	display: grid;
+	place-items: center;
+	border-radius: 6px;
+	color: #fff;
+}
+.filter-pop[data-multi] .filter-option[aria-current] .filter-radio {
+	box-shadow: none;
+}
+/* biome-ignore lint/style/noDescendingSpecificity: different elements (not the chip chevron); order is irrelevant. */
+.filter-pop .filter-radio > svg {
+	width: 14px;
+	height: 14px;
+	stroke-width: 3;
+}
+.filter-pop-actions {
+	display: flex;
+	gap: 8px;
+	margin-top: 4px;
+}
+.filter-pop-actions > * {
+	flex: 1;
+	display: inline-flex;
+	align-items: center;
+	justify-content: center;
+	min-height: 44px;
+	padding: 12px;
+	border: 0;
+	border-radius: 9999px;
+	font: inherit;
+	font-size: 1rem;
+	line-height: 1.25rem;
+	font-weight: 600;
+	letter-spacing: -0.5px;
+	text-decoration: none;
+	cursor: pointer;
+}
+.filter-reset {
+	background: #eef0f1;
+	color: var(--ink);
+}
+.filter-reset:disabled {
+	color: rgba(0, 0, 0, 0.4);
+	cursor: default;
+}
+.filter-done {
+	background: #121212;
+	color: #fff;
+}
+:is(.filter-reset, .filter-done):hover {
+	text-decoration: none;
+}
+.filter-done:hover {
+	background: #000;
+}
+.filter-reset:not(:disabled):hover {
+	background: #e3e6e8;
 }
 @media (max-width: 700px) {
-	/* Bottom sheet (shop.com mobile: 16px from the sides and bottom, 28px radius, 40% scrim);
-	   touch rows stay 44px tall. */
 	.filter-pop {
 		inset: auto 16px 16px;
 		width: auto;
 		max-width: none;
-		max-height: 70dvh;
-		padding: 8px 8px 16px;
-		border-radius: 28px;
-		transform-origin: bottom center;
+		max-height: 80dvh;
+		padding: 0 0 16px;
+		border: 0;
+		box-shadow: 0 8px 40px rgba(0, 0, 0, 0.24);
 	}
 	@starting-style {
 		.filter-pop:popover-open {
-			scale: 1;
 			translate: 0 16px;
 		}
 	}
 	.filter-pop::backdrop {
 		background: rgba(0, 0, 0, 0.4);
 	}
-	.filter-pop-title {
-		padding: 12px 12px 8px;
-		color: var(--ink);
-		font-size: 1.125rem;
-		line-height: 1.25rem;
-		font-weight: 600;
+	.filter-pop-head {
+		display: flex;
+		align-items: center;
+		justify-content: space-between;
+		gap: 8px;
+		padding: 6px 4px 0 16px;
 	}
-	.filter-option {
-		min-height: 44px;
-		padding-inline: 12px 40px;
-		font-size: 1rem;
-		line-height: 1.375rem;
-		border-radius: 14px;
-	}
-	.filter-pop .filter-option[href][aria-current] svg {
-		right: 12px;
-		width: 20px;
-		height: 20px;
+	.filter-pop ul,
+	.filter-pop-actions {
+		padding-inline: 16px;
 	}
 }
+.filter-pop-title {
+	margin: 0;
+	font-size: 1.125rem;
+	line-height: 1.25rem;
+	font-weight: 600;
+	letter-spacing: -0.5px;
+}
+.filter-pop-close {
+	display: grid;
+	place-items: center;
+	width: 44px;
+	height: 44px;
+	padding: 0;
+	border: 0;
+	background: transparent;
+}
+/* biome-ignore lint/style/noDescendingSpecificity: different elements (not the chip chevron); order is irrelevant. */
+.filter-pop .filter-pop-close > svg {
+	width: 20px;
+	height: 20px;
+	padding: 4px;
+	border-radius: 9999px;
+	background: rgba(0, 0, 0, 0.56);
+	color: #fff;
+	stroke-width: 3;
+}
 @media (prefers-reduced-motion: reduce) {
-	.filter-pop {
+	.filter-pop,
+	.filter-chips,
+	.filter-radio {
 		transition: none;
 	}
 }
@@ -5406,43 +5557,6 @@ body:has(> .store-header, > .task-header) {
 	white-space: nowrap;
 }
 
-/* Round 46 (review 45). An active chip carries its own remove control (joined to the right of the
-   filled chip), and "Hapus semua" ends the row, so no second row repeats the same values. */
-.filter-chip-item {
-	flex: none;
-	display: flex;
-}
-.filter-chip-clear {
-	display: grid;
-	place-items: center;
-	width: 40px;
-	min-height: 44px;
-	border: 1px solid #121212;
-	border-left-color: rgba(255, 255, 255, 0.24);
-	border-radius: 0 9999px 9999px 0;
-	background: #121212;
-	color: #fff;
-}
-.filter-chips .filter-chip-clear:hover {
-	background: #000;
-}
-/* biome-ignore lint/style/noDescendingSpecificity: different elements (not the chip chevron); order is irrelevant. */
-.filter-chips .filter-chip-clear > svg {
-	width: 16px;
-	height: 16px;
-}
-.filter-clear-all {
-	flex: none;
-	display: inline-flex;
-	align-items: center;
-	min-height: 44px;
-	padding: 0 8px;
-	color: var(--ink);
-	font-weight: 600;
-	text-decoration: underline;
-	text-underline-offset: 3px;
-	white-space: nowrap;
-}
 /* Enlarged text: the pill row's end fade widens with it, and the omnibox search icon scales. */
 @media (max-width: 1023px) {
 	.category-pills ul {
@@ -5627,19 +5741,6 @@ body:has(> .store-header, > .task-header) {
 	}
 }
 
-/* Round 45 rules, restored (review 44/48): the chip row fades at its end while it scrolls, and a
-   focused dropdown option shows only its inset ink ring (no global purple outline). */
-@media (max-width: 1023px) {
-	.filter-chips {
-		-webkit-mask-image: linear-gradient(90deg, #000 calc(100% - 48px), transparent);
-		mask-image: linear-gradient(90deg, #000 calc(100% - 48px), transparent);
-		padding-right: 48px;
-	}
-}
-.filter-pop .filter-option[href]:focus-visible {
-	outline: none;
-}
-
 /* Lone-banner layout (review 48; the caption's min-width: 0 and the wrapping action pill keep
    enlarged text inside the card): a lone banner spans the container
    from 701px with its photos on the left and the caption on the right (phones keep the rail card). */
@@ -5717,35 +5818,6 @@ body:has(> .store-header, > .task-header) {
 	font-size: 1.125rem;
 	line-height: 1.375rem;
 }
-/* Enlarged text (review 54): a chip never outgrows the row; its label wraps inside the pill instead
-   of pushing the value and chevron off-screen. The row grows with it (no fixed height). */
-.filter-chips {
-	height: auto;
-	min-height: 52px;
-	align-items: center;
-}
-.filter-chip-item {
-	max-width: 100%;
-	min-width: 0;
-}
-.filter-chips .filter-chip {
-	min-width: 0;
-	white-space: normal;
-	text-align: start;
-	padding-block: 6px;
-	border-radius: 22px;
-}
-.filter-chips .filter-chip[data-active]:has(+ .filter-chip-clear) {
-	padding-right: 8px;
-	border-radius: 22px 0 0 22px;
-}
-/* biome-ignore lint/style/noDescendingSpecificity: same chevron, scaled with enlarged text. */
-.filter-chips .filter-chip[type="button"] > svg {
-	flex: none;
-	width: max(15px, 0.9375em);
-	height: max(15px, 0.9375em);
-}
-
 /* Round 57 (review 56). Storefront secondary buttons are the
    white hairline pill (R3), the same as the chips and "Lihat produk lainnya"; admin keeps its own. */
 :where(body:has(> .store-header, > .task-header, > .checkout-header, > .receipt-shell)) :is(.button.secondary, .button.button-secondary) {

@@ -1,0 +1,16 @@
+{
+  "capturedAt": "2026-10-24T05:52:29.000Z",
+  "note": "Ratings chip open: 300px popover centred under the chip (desktop), bottom sheet with title, close, radio rows, Reset/Done (phone). Headless Chromium via Playwright, read-only (no sign-in, no cart action), DPR 1, viewport screenshots.",
+  "viewports": {
+    "390": {
+      "url": "https://shop.com/search/results?query=tote%20bag",
+      "width": 390,
+      "height": 844
+    },
+    "1440": {
+      "url": "https://shop.com/search/results?query=tote%20bag",
+      "width": 1440,
+      "height": 900
+    }
+  }
+}
