@@ -451,12 +451,23 @@ test("S99/S100 built browser: the manual queue shows the booking facts and the b
 
 		await page.goto(`${origin}/admin?workspace=owner`);
 		const link = page.getByRole("link", { name: `Buka detail pesanan ${order.number}` });
-		// Under all-current, concurrent suites' newer orders can push this one past the first 20 rows: page on.
-		const more = page.getByRole("button", { name: "Muat baris berikutnya" });
 		await expect(page.getByTestId("work-queue-section")).toBeVisible();
-		for (let i = 0; i < 10 && !(await link.count()) && (await more.count()); i++) {
-			await more.click();
-			await expect(more).not.toHaveText("Memuat…");
+		// Phones list the dashboard queue's first 5 rows; past those, "Lihat semua" opens the full queue
+		// page, where (under all-current, concurrent suites' newer orders) the order can sit past the
+		// first 20 rows: page on there.
+		const seeAll = page.getByTestId("queue-see-all");
+		await expect(link.or(seeAll).first()).toBeVisible();
+		if (!(await link.count())) {
+			await expect(seeAll).toHaveAttribute("href", /^\/admin\/queue\?workspace=owner&queue=orders&window=30d$/);
+			await seeAll.click();
+			await page.waitForURL(`${origin}/admin/queue?workspace=owner&queue=orders&window=30d`);
+			await expect(page.getByTestId("work-queue-section")).toBeVisible();
+			const more = page.getByRole("button", { name: "Muat baris berikutnya" });
+			await expect(link.or(more).first()).toBeVisible();
+			for (let i = 0; i < 10 && !(await link.count()) && (await more.count()); i++) {
+				await more.click();
+				await expect(more).not.toHaveText("Memuat…");
+			}
 		}
 		await expect(link).toHaveAttribute("href", `/admin/orders/${order.id}`);
 		assert.deepEqual(desk2.problems, []);
