@@ -2,7 +2,7 @@ import Link from 'next/link';
 import {redirect} from 'next/navigation';
 import {CheckoutFrame,CheckoutHelp} from '../../../../../components/storefront/checkout-frame';
 import {CheckoutPaymentForm} from '../../../../../components/storefront/checkout-forms';
-import {Icon} from '../../../../../components/storefront/icon';
+import {Icon} from '../../../../../components/storefront/ui/icon';
 import {rupiah} from '../../../../../modules/storefront/format';
 import {getLocalAuth} from '../../../../../modules/access/auth';
 import {id} from '../../../../../modules/catalog/validation';

@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useEffect, useRef, useState } from "react";
-import { Icon } from "./icon";
+import { Icon } from "./ui/icon";
 
 type Step = "password" | "totp" | "backup";
 

@@ -1,10 +1,10 @@
 import Link from 'next/link';
-import type {CatalogQuery,PublicProduct} from '../../modules/storefront/catalog';
-import {ProductGrid} from './products';
+import type {CatalogQuery,PublicProduct} from '../../../modules/storefront/catalog';
+import {ProductGrid} from '../ui/product-card';
 import {FilterPanel} from './filter-panel';
 import {FilterChips,type FilterGroup} from './filter-chips';
 import {ListingMore} from './listing-more';
-import {Icon} from './shell';
+import {Icon} from '../ui/icon';
 type Category={id:string;name:string;slug:string;parent_id:string|null};
 type Facet={key:string;label:string;values:string[]};
 const kinds:Record<string,string>={unit:'Satuan',multipack:'Paket barang yang sama',bundle:'Paket campuran'};

@@ -1,10 +1,10 @@
-import {ProductLink} from './navigation';
+import {ProductLink} from '../navigation';
 import {ShelfArrows} from './shelf-arrows';
-import {responsiveImage} from './media';
-import {matchingVariant,type CatalogQuery,type PublicProduct} from '../../modules/storefront/catalog';
-import {rupiah} from '../../modules/storefront/format';
+import {CatalogImage} from './media';
+import {matchingVariant,type CatalogQuery,type PublicProduct} from '../../../modules/storefront/catalog';
+import {rupiah} from '../../../modules/storefront/format';
 
-export {rupiah} from '../../modules/storefront/format';
+export {rupiah} from '../../../modules/storefront/format';
 export const isSampleUrl=(url:string|undefined)=>/^http:\/\/127\.0\.0\.1:3099\/fixtures\/(shirt|cream|mixed|bag)\.svg$/.test(url??'');
 // Stored local media URLs are absolute loopback URLs; serve them origin-relative so they also load on the
 // opt-in tailnet origin. Remote URLs stay untouched.
@@ -26,9 +26,8 @@ export function Media({product,offer,caption=false,eager=false,sizes}:{product:P
   const slot=<div className="photo-slot" role="img" aria-label={`Slot foto ${product.name}; foto produk asli belum tersedia`}><span>Foto belum tersedia</span>{!caption&&<small>{brief}</small>}</div>;
   return caption?<figure className="product-media">{slot}<figcaption>{brief}</figcaption></figure>:slot;
  }
- // Local catalog photos are resized by Next's built-in optimizer (media.ts); other media stays native.
- // biome-ignore lint/performance/noImgElement: server-rendered srcset; next/image would add a client component.
- return image?<img className="product-image" {...(caption?responsiveImage(sameOrigin(image.url),sizes??'(max-width: 700px) 100vw, 50vw',1080,384):responsiveImage(sameOrigin(image.url),sizes??'(max-width: 700px) 50vw, 240px',384,256))} alt={image.alt} width={image.width} height={image.height} loading={eager?'eager':'lazy'} fetchPriority={eager?'high':undefined} referrerPolicy="no-referrer"/>:<div className="photo-slot">Foto belum tersedia</div>;
+ // Local catalog photos are resized by Next's built-in optimizer (media.tsx); other media stays native.
+ return image?<CatalogImage className="product-image" src={sameOrigin(image.url)} sizes={sizes??(caption?'(max-width: 700px) 100vw, 50vw':'(max-width: 700px) 50vw, 240px')} max={caption?1080:384} min={caption?384:256} alt={image.alt} width={image.width} height={image.height} loading={eager?'eager':'lazy'} fetchPriority={eager?'high':undefined} referrerPolicy="no-referrer"/>:<div className="photo-slot">Foto belum tersedia</div>;
 }
 // `eager`: the first cards are above the fold on the home (the phone LCP image), so they load
 // eagerly at high priority instead of waiting for lazy-load layout.

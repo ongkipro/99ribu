@@ -4,7 +4,7 @@ import {useEffect,useRef} from 'react';
 import Link from 'next/link';
 import {usePathname,useRouter,useSearchParams} from 'next/navigation';
 import {productHref,productSlug,publicReturnPath} from '../../modules/storefront/navigation';
-import {Icon} from './icon';
+import {Icon} from './ui/icon';
 
 let pending:{path:string;from:string}|null=null;
 

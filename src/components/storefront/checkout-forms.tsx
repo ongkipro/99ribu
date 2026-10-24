@@ -7,7 +7,7 @@ import type {CheckoutAllocation,CheckoutDraft,CheckoutIntent,CheckoutQuote,Check
 import type {CheckoutPaymentState} from '../../modules/storefront/checkout-order';
 import {CheckoutHelp} from './checkout-frame';
 import {rupiah} from '../../modules/storefront/format';
-import {Icon} from './icon';
+import {Icon} from './ui/icon';
 
 type RetryChild=(capture:(data:FormData|null,snapshot?:CheckoutState)=>void,retry:FormData|null)=>React.ReactNode;
 class CheckoutBoundary extends Component<{children:RetryChild;heading?:boolean;href:string},{failed:boolean;revision:number;retry:FormData|null}>{

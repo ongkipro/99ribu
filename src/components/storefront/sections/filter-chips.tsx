@@ -1,7 +1,7 @@
 'use client';
 import {useEffect,useRef,useState} from 'react';
 import Link from 'next/link';
-import {Icon} from './icon';
+import {Icon} from '../ui/icon';
 
 export type FilterGroup={key:string;label:string;value:string;active:boolean;multi?:boolean;clear?:string;options:{label:string;href:string;selected:boolean}[]};
 // shop.com listing filters (observed 2026-10-24): a row of pill chips, each opening its choices.

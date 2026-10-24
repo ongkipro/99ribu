@@ -1,6 +1,6 @@
 import Link from 'next/link';
-import {Icon} from './icon';
-import {responsiveImage} from './media';
+import {Icon} from '../ui/icon';
+import {CatalogImage} from '../ui/media';
 import {HeroVideo,type HeroVideoSource} from './hero-video';
 
 // shop.com home hero card (observed 2026-10-23): a 36px-radius card with a background media layer
@@ -13,8 +13,7 @@ export function HomeHero({photos,signedIn,video}:{photos:HeroPhoto[];signedIn:bo
  return <section className="home-hero" aria-labelledby="offer-heading">
   <div className="hero-media" aria-hidden="true">
    {video?<HeroVideo {...video}/>:photos.slice(0,8).map((photo,index)=><span key={photo.src} className="hero-photo" data-slot={index}>
-    {/* biome-ignore lint/performance/noImgElement: same native local media as product cards; no image proxy. */}
-    <img {...responsiveImage(photo.src,'(max-width: 700px) 30vw, 240px',384,128)} alt="" width={photo.width} height={photo.height} loading="lazy" fetchPriority="low" decoding="async" referrerPolicy="no-referrer"/>
+    <CatalogImage src={photo.src} sizes="(max-width: 700px) 30vw, 240px" max={384} min={128} alt="" width={photo.width} height={photo.height} loading="lazy" fetchPriority="low" decoding="async" referrerPolicy="no-referrer"/>
    </span>)}
   </div>
   <div className="hero-copy">

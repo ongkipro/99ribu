@@ -5,7 +5,7 @@ import Link from 'next/link';
 import {useFormStatus} from 'react-dom';
 import {changeCart,restartShopping} from '../../app/(storefront)/keranjang/actions';
 import type {CartIntent,CartMutationState} from '../../modules/storefront/cart';
-import {Icon} from './icon';
+import {Icon} from './ui/icon';
 import {rupiah} from '../../modules/storefront/format';
 
 const formData=(intent:CartIntent)=>{const data=new FormData();for(const [key,value] of Object.entries(intent))data.set(key,value);return data;};

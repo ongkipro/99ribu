@@ -18,20 +18,39 @@
 	font-display: swap;
 	unicode-range: U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+2000-206F, U+20AC, U+2122, U+2190-2193, U+2212, U+2215, U+FEFF, U+FFFD;
 }
+/* ===== Design tokens =====
+   The single source for storefront colour, type scale, spacing and department tints;
+   DESIGN.md (repo root) documents each token. Component rules reference these tokens
+   instead of repeating literals. */
 :root {
 	font-family: Inter, system-ui, sans-serif;
-	color: #18181b;
+	color: var(--ink);
 	background: #fff;
 	font-synthesis: none;
+	/* Colour */
+	--ink: #18181b;
 	--purple: #5b35d5;
+	--purple-hover: #4823b6;
 	--yellow: #f6c945;
 	--muted: #5b5b63;
 	--line: #d8d8df;
+	/* shop.com's hairline edge on white surfaces (chips, cards, popovers, banners). */
+	--hairline: rgba(5, 41, 77, 0.1);
+	/* Form-field boundary (3:1 on white). */
+	--field-border: #85858e;
 	--error: #8b241d;
 	--error-surface: #fff4f2;
 	--warning: #9c3f0a;
 	--warning-surface: #fff5ed;
-	--bottom: 0px;
+	/* Department tints (pills, category tiles, banner cutouts); names map in category-pills.tsx. */
+	--tint-rose: #fde8ec;
+	--tint-amber: #fdf0d5;
+	--tint-green: #e2f3e5;
+	--tint-blue: #e2ecfb;
+	--tint-violet: #ede7fd;
+	--tint-teal: #ddf3ef;
+	--tint-slate: #ececef;
+	/* Global type scale (storefront components set their own observed shop.com sizes). */
 	--page-size: 1.75rem;
 	--page-leading: 2.25rem;
 	--price-size: 1.5rem;
@@ -40,6 +59,41 @@
 	--section-leading: 1.4;
 	--card-size: 1.125rem;
 	--card-leading: 1.625rem;
+	/* Layout: the phone dock height (0 without a dock) and the page gutter. shop.com gutters
+	   (observed 2026-10-23): 16px to 1023px, 32px from 1024px, 48px from 1440px, 64px from
+	   1920px, 96px from 2560px. Content caps at 1250px (owner decision, narrower than
+	   shop.com's full-width pages), so the larger gutters only matter below that. */
+	--bottom: 0px;
+	--gutter: 16px;
+}
+@media (min-width: 1024px) {
+	:root {
+		--gutter: 32px;
+	}
+}
+@media (min-width: 1440px) {
+	:root {
+		--gutter: 48px;
+	}
+}
+@media (min-width: 1920px) {
+	:root {
+		--gutter: 64px;
+	}
+}
+@media (min-width: 2560px) {
+	:root {
+		--gutter: 96px;
+	}
+}
+@media (max-width: 700px) {
+	:root {
+		--bottom: calc(3.5rem + env(safe-area-inset-bottom, 0px));
+		--page-size: 1.5rem;
+		--page-leading: 2rem;
+		--price-size: 1.25rem;
+		--price-leading: 1.75rem;
+	}
 }
 :where(.stock-status, .cart-feedback, .cart-form-error) svg {
 	width: 1.25em;
@@ -76,7 +130,6 @@ h1 {
 	font-size: var(--page-size);
 	line-height: var(--page-leading);
 }
-.product-price,
 .detail-price {
 	font-size: var(--price-size);
 	line-height: var(--price-leading);
@@ -134,32 +187,6 @@ summary:focus-visible {
 html {
 	scroll-padding-bottom: calc(var(--bottom) + 20px);
 }
-:root {
-	/* shop.com page gutters (observed 2026-10-23): 16px to 1023px, 32px from 1024px, 48px
-	   from 1440px, 64px from 1920px, 96px from 2560px. Content caps at 1250px (owner decision,
-	   narrower than shop.com's full-width pages), so the larger gutters only matter below that. */
-	--gutter: 16px;
-}
-@media (min-width: 1024px) {
-	:root {
-		--gutter: 32px;
-	}
-}
-@media (min-width: 1440px) {
-	:root {
-		--gutter: 48px;
-	}
-}
-@media (min-width: 1920px) {
-	:root {
-		--gutter: 64px;
-	}
-}
-@media (min-width: 2560px) {
-	:root {
-		--gutter: 96px;
-	}
-}
 .wrap {
 	width: min(1250px, calc(100% - 2 * var(--gutter)));
 	margin-inline: auto;
@@ -210,7 +237,6 @@ html {
 }
 .header-main {
 	display: flex;
-	gap: 40px;
 	align-items: center;
 	padding-block: 16px;
 }
@@ -248,7 +274,6 @@ body:has(> .store-header, > .task-header) {
 }
 .utilities {
 	display: flex;
-	gap: 24px;
 	font-size: 0.8rem;
 }
 .utilities a {
@@ -288,9 +313,6 @@ body:has(> .store-header, > .task-header) {
 .product-grid {
 	list-style: none;
 	display: grid;
-	grid-template-columns: repeat(auto-fill, minmax(min(100%, 12.5rem), 1fr));
-	/* R4 rhythm: 12px between card rows (subgrid tracks inside a card add no gap). */
-	gap: 12px 16px;
 	padding: 0;
 	margin: 0;
 }
@@ -302,16 +324,6 @@ body:has(> .store-header, > .task-header) {
 	grid-row: span 4;
 	grid-template-rows: subgrid;
 	row-gap: 0;
-}
-/* R5: compact shop.com card rhythm; the Rp99.000 basis stays visible. */
-.product h3 {
-	margin: 12px 0 4px;
-	font-size: 1rem;
-	line-height: 1.375;
-	/* Owner call (round 16): regular title weight; the price carries the emphasis. */
-	font-weight: 400;
-	letter-spacing: -0.01em;
-	overflow-wrap: anywhere;
 }
 .photo-slot {
 	aspect-ratio: 1;
@@ -350,21 +362,6 @@ body:has(> .store-header, > .task-header) {
 	border-radius: 20px;
 	box-shadow: 0 2px 8px rgba(0, 0, 0, 0.06);
 }
-.product-price {
-	font-size: 1.125rem;
-	line-height: 1.5rem;
-	font-weight: 600;
-	letter-spacing: -0.01em;
-}
-.product-price span {
-	font-size: 0.8125rem;
-	line-height: 1.125rem;
-	font-weight: 450;
-	letter-spacing: 0;
-	display: inline-block;
-	white-space: nowrap;
-	color: var(--muted);
-}
 .unavailable {
 	justify-self: start;
 	align-self: start;
@@ -388,12 +385,6 @@ body:has(> .store-header, > .task-header) {
 :is(.home-main, .listing-main, .cart-page, .categories-main) :is(h1, h2) {
 	letter-spacing: -0.02em;
 }
-.listing-note {
-	font-size: 0.85rem;
-	line-height: 1.6;
-	color: var(--muted);
-	margin-bottom: 32px;
-}
 /* R4: filters sit above a full-width result grid (shop.com chip row + sheet). */
 .listing-layout {
 	display: grid;
@@ -409,7 +400,7 @@ body:has(> .store-header, > .task-header) {
 	background: #fff;
 	border-radius: 20px;
 	padding: 12px 20px 20px;
-	border: 1px solid rgba(5, 41, 77, 0.1);
+	border: 1px solid var(--hairline);
 }
 .filters summary {
 	font-size: 0.875rem;
@@ -420,10 +411,16 @@ body:has(> .store-header, > .task-header) {
 	border-radius: 9999px;
 	background: #fff;
 	border: 1px solid rgba(24, 24, 27, 0.1);
+	list-style: none;
+	display: flex;
+	align-items: center;
+	gap: 12px;
+	width: fit-content;
+	justify-content: flex-start;
 }
 .filters:where([open]) summary {
-	border-color: #18181b;
-	box-shadow: inset 0 0 0 0.5px #18181b;
+	border-color: var(--ink);
+	box-shadow: inset 0 0 0 0.5px var(--ink);
 }
 .filters form {
 	display: flex;
@@ -481,7 +478,7 @@ body:has(> .store-header, > .task-header) {
 }
 .button:hover {
 	text-decoration: none;
-	background: #4823b6;
+	background: var(--purple-hover);
 }
 .secondary,
 .button-secondary {
@@ -512,7 +509,7 @@ body:has(> .store-header, > .task-header) {
 	border-radius: 9999px;
 	border: 1px solid rgba(24, 24, 27, 0.16);
 	background: #fff;
-	color: #18181b;
+	color: var(--ink);
 	font-weight: 600;
 	text-decoration: none;
 }
@@ -540,7 +537,6 @@ body:has(> .store-header, > .task-header) {
 :where(.signin-actions) > .button {
 	width: 100%;
 	min-height: 52px;
-	font-size: 1rem;
 }
 /* Storefront buttons (observed shop.com typography): 16px weight 600 at -0.5px. */
 :is(.home-main, .listing-main, .product-detail, .cart-page, .help-main, .categories-main, .signin-main) .button {
@@ -595,28 +591,12 @@ body:has(> .store-header, > .task-header) {
 	overflow-wrap: anywhere;
 }
 @media (max-width: 1050px) {
-	.header-main {
-		gap: 24px;
-	}
-	.utilities span {
-		display: none;
-	}
-	.utilities {
-		gap: 16px;
-	}
 	.detail-layout {
 		gap: 32px;
 		grid-template-columns: minmax(0, 1fr) minmax(18rem, 1fr);
 	}
 }
 @media (max-width: 700px) {
-	:root {
-		--bottom: calc(3.5rem + env(safe-area-inset-bottom, 0px));
-		--page-size: 1.5rem;
-		--page-leading: 2rem;
-		--price-size: 1.25rem;
-		--price-leading: 1.75rem;
-	}
 	html {
 		scroll-padding-bottom: max(4.25rem, calc(14rem - 25vw));
 	}
@@ -625,44 +605,23 @@ body:has(> .store-header, > .task-header) {
 		padding-block: 6px;
 	}
 	.header-main {
-		flex-wrap: wrap;
-		gap: 12px;
 		padding-block: 14px;
 	}
 	.brand {
 		font-size: 1.8rem;
 	}
-	.search-region {
-		order: 3;
-		flex-basis: 100%;
-	}
 	.utilities {
 		margin-left: auto;
-	}
-	.utilities a {
-		width: 44px;
-		justify-content: center;
 	}
 	.active-filters li {
 		flex: 0 1 auto;
 		max-width: 100%;
-	}
-	.product-grid {
-		grid-template-columns: repeat(
-				auto-fill,
-				minmax(min(100%, max(8rem, calc(50% - 6px))), 1fr)
-			);
-		gap: 12px;
 	}
 	.photo-slot {
 		padding: 14px 8px;
 	}
 	.listing-main {
 		padding-top: 24px;
-	}
-	.listing-note {
-		font-size: 0.75rem;
-		margin-bottom: 20px;
 	}
 	.listing-layout {
 		gap: 20px;
@@ -736,8 +695,8 @@ body:has(> .store-header, > .task-header) {
 	cursor: pointer;
 }
 .facet .facet-option:has(:checked) {
-	border-color: #18181b;
-	box-shadow: inset 0 0 0 0.5px #18181b;
+	border-color: var(--ink);
+	box-shadow: inset 0 0 0 0.5px var(--ink);
 }
 .facet input {
 	accent-color: var(--purple);
@@ -746,7 +705,6 @@ body:has(> .store-header, > .task-header) {
 	margin: 0;
 	flex-shrink: 0;
 }
-
 
 .product-link {
 	display: grid;
@@ -758,16 +716,6 @@ body:has(> .store-header, > .task-header) {
 }
 .product-link:hover {
 	text-decoration: none;
-}
-
-.filters summary {
-	list-style: none;
-	display: flex;
-	align-items: center;
-
-	gap: 12px;
-	width: fit-content;
-	justify-content: flex-start;
 }
 .filters summary::-webkit-details-marker {
 	display: none;
@@ -793,11 +741,11 @@ body:has(> .store-header, > .task-header) {
 	overflow-wrap: anywhere;
 	font-size: 0.875rem;
 	font-weight: 500;
-	color: #18181b;
+	color: var(--ink);
 }
 .active-filters a:hover {
 	text-decoration: none;
-	border-color: #18181b;
+	border-color: var(--ink);
 }
 .active-filters svg {
 	width: 1em;
@@ -843,12 +791,13 @@ body:has(> .store-header, > .task-header) {
 	margin-bottom: 40px;
 }
 .help-topics > section {
-	align-self: start;
 	background: #fff;
 	border-radius: 20px;
 	padding: 20px clamp(14px, 5vw, 24px);
-	border: 1px solid rgba(5, 41, 77, 0.1);
+	border: 1px solid var(--hairline);
 	scroll-margin-top: 16px;
+	/* Cards in one row share a height (round 57). */
+	align-self: stretch;
 }
 .help-topics > #privacy {
 	grid-column: 1 / -1;
@@ -899,14 +848,14 @@ body:has(> .store-header, > .task-header) {
 		display: grid;
 		place-items: center;
 		min-height: 3.5rem;
-		color: #85858e;
+		color: var(--field-border);
 		-webkit-tap-highlight-color: transparent;
 	}
 	.shopping-tabs a:active {
 		opacity: 0.6;
 	}
 	.shopping-tabs a[aria-current] {
-		color: #18181b;
+		color: var(--ink);
 	}
 	.shopping-tabs .tab-outline,
 	.shopping-tabs .tab-filled {
@@ -1005,8 +954,8 @@ body:has(> .store-header, > .task-header) {
 	cursor: pointer;
 }
 .offer-picker label:has(:checked) {
-	border-color: #18181b;
-	box-shadow: inset 0 0 0 0.5px #18181b;
+	border-color: var(--ink);
+	box-shadow: inset 0 0 0 0.5px var(--ink);
 }
 .offer-picker input {
 	accent-color: var(--purple);
@@ -1030,18 +979,6 @@ body:has(> .store-header, > .task-header) {
 	font-weight: 600;
 	min-width: 0;
 }
-.cart-mutation input[type="number"] {
-	font: inherit;
-	font-size: 1rem;
-	color: inherit;
-	background: #fff;
-	border: 1px solid rgba(24, 24, 27, 0.16);
-	border-radius: 9999px;
-	min-height: 46px;
-	padding: 10px 16px;
-	text-align: center;
-	max-width: 100%;
-}
 .detail-price small {
 	display: inline-block;
 	white-space: nowrap;
@@ -1063,6 +1000,16 @@ body:has(> .store-header, > .task-header) {
 	min-width: 0;
 }
 .cart-mutation input[type="number"] {
+	font: inherit;
+	font-size: 1rem;
+	color: inherit;
+	background: #fff;
+	border: 1px solid rgba(24, 24, 27, 0.16);
+	border-radius: 9999px;
+	min-height: 46px;
+	padding: 10px 16px;
+	text-align: center;
+	max-width: 100%;
 	width: 7rem;
 }
 .cart-warning > .button {
@@ -1070,16 +1017,13 @@ body:has(> .store-header, > .task-header) {
 }
 .cart-mutation .button {
 	flex: 1 1 auto;
+	gap: 6px;
 }
 .cart-mutation .button:disabled {
 	background: #efedf3;
 	border-color: #d8d8df;
 	color: #64606e;
 	cursor: not-allowed;
-}
-.cart-feedback:not(:empty) {
-	padding: 16px 0;
-	line-height: 1.7;
 }
 :where(.cart-feedback, .cart-warning) a:not(.button) {
 	text-decoration: underline;
@@ -1201,7 +1145,7 @@ body:has(> .store-header, > .task-header) {
 .cart-summary {
 	padding: 24px;
 	background: #fff;
-	border: 1px solid rgba(5, 41, 77, 0.1);
+	border: 1px solid var(--hairline);
 	border-radius: 20px;
 	line-height: 1.7;
 	min-width: 0;
@@ -1355,9 +1299,6 @@ body:has(> .store-header, > .task-header) {
 	margin: 0;
 	padding: 0;
 }
-.cart-mutation .button {
-	gap: 6px;
-}
 .cart-feedback > a {
 	display: inline-flex;
 	align-items: center;
@@ -1382,7 +1323,7 @@ body:has(> .store-header, > .task-header) {
 	align-items: center;
 }
 .product-category a:hover {
-	color: #18181b;
+	color: var(--ink);
 }
 .product-media {
 	margin: 0;
@@ -1421,6 +1362,7 @@ body:has(> .store-header, > .task-header) {
 	font-weight: 600;
 }
 .cart-feedback:not(:empty) {
+	line-height: 1.7;
 	border-left: 3px solid var(--purple);
 	background: #f7f5fd;
 	padding: 16px;
@@ -1804,7 +1746,7 @@ body:has(> .store-header, > .task-header) {
 	width: 100%;
 	min-width: 0;
 	min-height: 48px;
-	border: 1px solid #85858e;
+	border: 1px solid var(--field-border);
 	border-radius: 12px;
 	padding: 11px 12px;
 	background: #fff;
@@ -2452,7 +2394,7 @@ body:has(> .store-header, > .task-header) {
 	line-height: 1.18;
 	font-weight: 700;
 	letter-spacing: -0.01em;
-	color: #18181b;
+	color: var(--ink);
 }
 .receipt-lead {
 	color: var(--muted);
@@ -2493,7 +2435,7 @@ body:has(> .store-header, > .task-header) {
 	word-break: normal;
 	font-size: 1rem;
 	font-weight: 700;
-	color: #18181b;
+	color: var(--ink);
 	font-variant-numeric: normal;
 	font-feature-settings: "tnum" 0;
 	letter-spacing: -0.02em;
@@ -2531,7 +2473,7 @@ body:has(> .store-header, > .task-header) {
 	border-color: #e7d9a3;
 	border-left-color: #c78a12;
 	background: #fff8de;
-	color: #18181b;
+	color: var(--ink);
 }
 .receipt-status-card .checkout-payment-status[data-phase="pending"] > svg {
 	color: #9c5f08;
@@ -2540,7 +2482,7 @@ body:has(> .store-header, > .task-header) {
 	border-color: #d8cff4;
 	border-left-color: var(--purple);
 	background: #f7f5fd;
-	color: #18181b;
+	color: var(--ink);
 }
 .receipt-status-card .checkout-payment-status[data-phase="success"] > svg {
 	color: var(--purple);
@@ -2549,7 +2491,7 @@ body:has(> .store-header, > .task-header) {
 	border-color: #f5c5a0;
 	border-left-color: var(--warning);
 	background: #fde8d7;
-	color: #18181b;
+	color: var(--ink);
 }
 .receipt-status-card .checkout-payment-status[data-phase="unknown"] > svg {
 	color: var(--warning);
@@ -2558,7 +2500,7 @@ body:has(> .store-header, > .task-header) {
 	border-color: #d8d8df;
 	border-left-color: #9e9ca8;
 	background: #f4f3f7;
-	color: #18181b;
+	color: var(--ink);
 }
 .receipt-status-card .checkout-payment-status[data-phase="closed"] > svg {
 	color: var(--muted);
@@ -2569,7 +2511,7 @@ body:has(> .store-header, > .task-header) {
 :where(.receipt-summary-card summary > strong) {
 	font-size: 1.125rem;
 	font-weight: 700;
-	color: #18181b;
+	color: var(--ink);
 }
 :where(.receipt-summary-card .summary-chevron svg) {
 	width: 1.125em;
@@ -2641,7 +2583,7 @@ body:has(> .store-header, > .task-header) {
 	line-height: 1.3;
 	font-weight: 700;
 	letter-spacing: 0.04em;
-	color: #18181b;
+	color: var(--ink);
 }
 .receipt-copy-btn {
 	display: inline-flex;
@@ -2692,14 +2634,14 @@ body:has(> .store-header, > .task-header) {
 	font-size: 0.875rem;
 	line-height: 1.4;
 	font-weight: 600;
-	color: #18181b;
+	color: var(--ink);
 }
 .receipt-cod-figure {
 	font-size: clamp(1.875rem, 3.2vw, 2.5rem);
 	line-height: 1.12;
 	font-weight: 800;
 	letter-spacing: -0.025em;
-	color: #18181b;
+	color: var(--ink);
 }
 :where(.receipt-cod-hero > small) {
 	font-size: 0.875rem;
@@ -2757,7 +2699,7 @@ body:has(> .store-header, > .task-header) {
 		dd
 ) {
 	font-weight: 650;
-	color: #18181b;
+	color: var(--ink);
 }
 .receipt-refresh-row {
 	display: flex;
@@ -2816,7 +2758,7 @@ body:has(> .store-header, > .task-header) {
 	line-height: 1.4;
 	font-weight: 600;
 	background: #efedf4;
-	color: #18181b;
+	color: var(--ink);
 	border: 0;
 	max-width: 100%;
 	overflow-wrap: anywhere;
@@ -2842,12 +2784,12 @@ body:has(> .store-header, > .task-header) {
 	grid-template-columns: minmax(0, 1fr);
 	gap: 8px;
 	font-size: 0.9375rem;
-	color: #18181b;
+	color: var(--ink);
 	font-weight: 600;
 	min-width: 0;
 }
 .receipt-parcel > ul > li > span {
-	color: #18181b;
+	color: var(--ink);
 	font-weight: 600;
 }
 :where(.receipt-parcel-items small) {
@@ -2861,7 +2803,7 @@ body:has(> .store-header, > .task-header) {
 	font-size: 0.875rem;
 }
 :where(.receipt-carrier strong) {
-	color: #18181b;
+	color: var(--ink);
 	font-weight: 500;
 }
 .receipt-tracking {
@@ -2928,7 +2870,7 @@ body:has(> .store-header, > .task-header) {
 :where(.receipt-timeline strong) {
 	font-weight: 600;
 	line-height: 1.5;
-	color: #18181b;
+	color: var(--ink);
 }
 :where(.receipt-timeline li[data-state="current"] strong) {
 	color: var(--purple);
@@ -3097,7 +3039,7 @@ body:has(> .store-header, > .task-header) {
 :where(.receipt-returns-list dd) {
 	margin: 0;
 	font-weight: 600;
-	color: #18181b;
+	color: var(--ink);
 }
 .receipt-address-list {
 	margin: 0;
@@ -3354,7 +3296,7 @@ body:has(> .store-header, > .task-header) {
 	gap: 6px;
 	font-size: 0.875rem;
 	font-weight: 600;
-	color: var(--ink);
+	color: inherit;
 	min-width: 0;
 }
 :where(
@@ -3385,11 +3327,11 @@ body:has(> .store-header, > .task-header) {
 	width: 100%;
 	min-width: 0;
 	min-height: 46px;
-	border: 1px solid #85858e;
+	border: 1px solid var(--field-border);
 	border-radius: 6px;
 	padding: 10px 12px;
 	background: #fff;
-	color: var(--ink);
+	color: inherit;
 	font: inherit;
 	font-weight: 400;
 	line-height: 1.5;
@@ -3427,7 +3369,7 @@ body:has(> .store-header, > .task-header) {
 	line-height: 1.15;
 	font-weight: 700;
 	letter-spacing: -0.02em;
-	color: var(--ink);
+	color: inherit;
 	font-variant-numeric: tabular-nums;
 }
 .affiliate-card {
@@ -3549,7 +3491,7 @@ body:has(> .store-header, > .task-header) {
 	background: #fff;
 	border-radius: 20px;
 	padding: 32px clamp(16px, 6vw, 28px);
-	border: 1px solid rgba(5, 41, 77, 0.1);
+	border: 1px solid var(--hairline);
 	line-height: 1.6;
 }
 .signin-card h1 {
@@ -3564,8 +3506,6 @@ body:has(> .store-header, > .task-header) {
 	color: var(--muted);
 }
 :where(.signin-hint a) {
-	color: var(--purple);
-	text-decoration: underline;
 	text-underline-offset: 3px;
 }
 .signin-field {
@@ -3578,10 +3518,7 @@ body:has(> .store-header, > .task-header) {
 }
 .signin-field input {
 	width: 100%;
-	min-height: 48px;
 	padding: 12px 16px;
-	border: 1px solid #85858e;
-	border-radius: 12px;
 	background: #fff;
 	color: inherit;
 	font: inherit;
@@ -3694,17 +3631,6 @@ body:has(> .store-header, > .task-header) {
 	overflow-wrap: anywhere;
 }
 
-/* A single-column product grid (very narrow screen or enlarged browser text: the
-   two-column minimum of 8rem no longer fits) shows full titles; with one card per
-   row there is nothing to align. */
-@media (max-width: calc(16rem + 44px)) {
-	.product h3 {
-		display: block;
-		-webkit-line-clamp: unset;
-		line-clamp: none;
-		overflow: visible;
-	}
-}
 :where(.contents-more > summary svg) {
 	display: inline-block;
 	vertical-align: middle;
@@ -3712,8 +3638,6 @@ body:has(> .store-header, > .task-header) {
 }
 /* Sign-in "Batal": a quiet text action, clearly secondary to the filled "Masuk". */
 :where(.signin-actions) > .button.button-secondary {
-	background: transparent;
-	border-color: transparent;
 	min-height: 44px;
 }
 :where(.signin-actions) > .button.button-secondary:hover {
@@ -3729,7 +3653,7 @@ body:has(> .store-header, > .task-header) {
 }
 /* Standalone links: colour feedback on hover. */
 :is(.detail-help, .cart-heading > a):hover {
-	color: #4823b6;
+	color: var(--purple-hover);
 }
 /* Light motion (owner: "light, without sacrificing PageSpeed"): CSS only, transform and
    opacity, 150–250ms ease-out, state feedback only; no GSAP is needed for any of it. */
@@ -3778,7 +3702,7 @@ body:has(> .store-header, > .task-header) {
 }
 /* One field look: 1px #85858e boundary (3:1 on white), 12px radius, 44px minimum. */
 :where(body:has(> .store-header, > .task-header, > .checkout-header, > .receipt-shell)) :is(select, textarea, input:not([type="checkbox"], [type="radio"], [type="hidden"], [type="search"])) {
-	border: 1px solid #85858e;
+	border: 1px solid var(--field-border);
 	border-radius: 12px;
 	min-height: 44px;
 	background-color: #fff;
@@ -3799,7 +3723,7 @@ body:has(> .store-header, > .task-header) {
 /* Focus: ink border plus a thin soft ring, the same width at rest and focus (no shift). */
 :where(body:has(> .store-header, > .task-header, > .checkout-header, > .receipt-shell)) :is(select, textarea, input:not([type="checkbox"], [type="radio"], [type="hidden"], [type="search"])):focus {
 	outline: none;
-	border-color: #18181b;
+	border-color: var(--ink);
 	box-shadow: 0 0 0 3px rgba(24, 24, 27, 0.12);
 }
 :where(body:has(> .store-header, > .task-header, > .checkout-header, > .receipt-shell)) :is(select, textarea, input):is([aria-invalid="true"]):focus {
@@ -3819,7 +3743,7 @@ body:has(> .store-header, > .task-header) {
 	align-items: center;
 	gap: 4px;
 	min-height: 44px;
-	color: #18181b;
+	color: var(--ink);
 }
 :is(.home-main, .home-shelf) .shelf-heading a:hover {
 	color: var(--purple);
@@ -3904,24 +3828,6 @@ body:has(> .store-header, > .task-header) {
 		letter-spacing: -0.5px;
 	}
 }
-/* Product cards (shop.com bodyTitleSmall): title 14/18 weight 600 at -0.2px on one line,
-   price 12/16 at regular weight in full ink (owner call 2026-10-24: price not bold). */
-.product-grid .product h3,
-.shelf-row .product h3 {
-	font-size: 0.875rem;
-	line-height: 1.125rem;
-	font-weight: 600;
-	letter-spacing: -0.2px;
-}
-.product-grid .product-price,
-.shelf-row .product-price {
-	font-size: 0.75rem;
-	line-height: 1rem;
-	font-weight: 400;
-	letter-spacing: -0.2px;
-	color: #18181b;
-	margin-top: 2px;
-}
 
 /* ===== Category pill row (shop.com, observed 2026-10-23, round 21) =====
    Navigation under the header: one horizontally scrolling row, hidden scrollbar, snap to
@@ -3960,7 +3866,7 @@ body:has(> .store-header, > .task-header) {
 	padding-block: 4px;
 	padding-inline-end: 12px;
 	border-radius: 9999px;
-	color: #18181b;
+	color: var(--ink);
 	font-size: 1rem;
 	line-height: 1.25rem;
 	font-weight: 600;
@@ -3971,7 +3877,7 @@ body:has(> .store-header, > .task-header) {
 	text-decoration: none;
 }
 .store-header .category-pills a:focus-visible {
-	outline: 2px solid #18181b;
+	outline: 2px solid var(--ink);
 	outline-offset: 2px;
 }
 .pill-art {
@@ -4006,31 +3912,31 @@ body:has(> .store-header, > .task-header) {
 }
 /* Department tints behind the photo (and the whole circle when a department has none). */
 .pill-art[data-tint="rose"] {
-	background: #fde8ec;
+	background: var(--tint-rose);
 	color: #9f1239;
 }
 .pill-art[data-tint="amber"] {
-	background: #fdf0d5;
+	background: var(--tint-amber);
 	color: #92400e;
 }
 .pill-art[data-tint="green"] {
-	background: #e2f3e5;
+	background: var(--tint-green);
 	color: #166534;
 }
 .pill-art[data-tint="blue"] {
-	background: #e2ecfb;
+	background: var(--tint-blue);
 	color: #1e40af;
 }
 .pill-art[data-tint="violet"] {
-	background: #ede7fd;
+	background: var(--tint-violet);
 	color: #5b21b6;
 }
 .pill-art[data-tint="teal"] {
-	background: #ddf3ef;
+	background: var(--tint-teal);
 	color: #115e59;
 }
 .pill-art[data-tint="slate"] {
-	background: #ececef;
+	background: var(--tint-slate);
 	color: #3f3f46;
 }
 /* Current department (owner, round 35): the header's soft lavender current fill on the pill, with
@@ -4049,13 +3955,6 @@ body:has(> .store-header, > .task-header) {
 }
 .store-header .category-pills .pill-all[aria-current] {
 	background: rgba(91, 53, 213, 0.08);
-}
-/* Below 1024px the five pills usually overflow: a short end fade says the row scrolls. */
-@media (max-width: 1023px) {
-	.category-pills ul {
-		-webkit-mask-image: linear-gradient(90deg, #000 calc(100% - 64px), transparent);
-		mask-image: linear-gradient(90deg, #000 calc(100% - 64px), transparent);
-	}
 }
 @media (prefers-reduced-motion: reduce) {
 	.pill-art img {
@@ -4089,7 +3988,6 @@ body:has(> .store-header, > .task-header) {
 	position: absolute;
 	top: 10px;
 	left: 10px;
-	width: 40px;
 	height: var(--field);
 	padding-inline: 10px;
 	color: #6b6b73;
@@ -4108,7 +4006,7 @@ body:has(> .store-header, > .task-header) {
 	outline: none;
 }
 #site-search:autofill {
-	-webkit-text-fill-color: #18181b;
+	-webkit-text-fill-color: var(--ink);
 	transition: background-color 600000s 0s;
 }
 #site-search {
@@ -4116,7 +4014,7 @@ body:has(> .store-header, > .task-header) {
 	width: 100%;
 	height: var(--field);
 	padding: 0 54px 0 46px;
-	color: #18181b;
+	color: var(--ink);
 	font-size: 1rem;
 	line-height: 1.375rem;
 	letter-spacing: -0.5px;
@@ -4139,7 +4037,6 @@ body:has(> .store-header, > .task-header) {
 	right: 10px;
 	display: grid;
 	place-items: center;
-	width: 44px;
 	height: var(--field);
 	border: 0;
 	border-radius: 9999px;
@@ -4147,11 +4044,7 @@ body:has(> .store-header, > .task-header) {
 	color: #fff;
 }
 .omnibox-field button:hover {
-	background: #4823b6;
-}
-:where(.omnibox-field button svg) {
-	width: 20px;
-	height: 20px;
+	background: var(--purple-hover);
 }
 .omnibox-panel {
 	position: absolute;
@@ -4260,7 +4153,7 @@ body:has(> .store-header, > .task-header) {
 	}
 }
 .omnibox-panel [role="option"][aria-selected="true"] {
-	box-shadow: inset 0 0 0 2px #18181b;
+	box-shadow: inset 0 0 0 2px var(--ink);
 }
 /* Desktop: the open surface also widens 32px each side, as shop.com's does (512 to 576). */
 @media (min-width: 1051px) {
@@ -4352,7 +4245,7 @@ body:has(> .store-header, > .task-header) {
 	text-decoration: none;
 }
 .switcher-row > :is([aria-selected="true"], [aria-current]) {
-	color: #18181b;
+	color: var(--ink);
 }
 .switcher-label {
 	position: relative;
@@ -4441,7 +4334,7 @@ body:has(> .store-header, > .task-header) {
 	content: "";
 	position: absolute;
 	inset: 0;
-	border: 0.5px solid rgba(5, 41, 77, 0.1);
+	border: 0.5px solid var(--hairline);
 	border-radius: inherit;
 	pointer-events: none;
 }
@@ -4459,14 +4352,29 @@ body:has(> .store-header, > .task-header) {
 .product-link:hover .product-frame .product-image {
 	scale: 1.05;
 }
+/* Title (shop.com bodyTitleSmall): 14/18 weight 600 at -0.2px on one line. Price: 12/16 at
+   regular weight in full ink (owner call 2026-10-24: price not bold), 2px below. */
 .product-grid .product h3,
 .shelf-row .product h3 {
+	font-size: 0.875rem;
+	line-height: 1.125rem;
+	font-weight: 600;
+	letter-spacing: -0.2px;
 	margin: 8px 0 0;
 	padding-left: 4px;
 	white-space: nowrap;
 	overflow: hidden;
 	text-overflow: ellipsis;
 	overflow-wrap: normal;
+}
+.product-grid .product-price,
+.shelf-row .product-price {
+	font-size: 0.75rem;
+	line-height: 1rem;
+	font-weight: 400;
+	letter-spacing: -0.2px;
+	color: var(--ink);
+	margin-top: 2px;
 }
 .product-grid .product-price,
 .shelf-row .product-price,
@@ -4530,10 +4438,10 @@ body:has(> .store-header, > .task-header) {
 	width: 44px;
 	height: 44px;
 	padding: 10px;
-	border: 1px solid rgba(5, 41, 77, 0.1);
+	border: 1px solid var(--hairline);
 	border-radius: 9999px;
 	background: #fff;
-	color: #18181b;
+	color: var(--ink);
 	box-shadow: 0 4px 24px rgba(0, 0, 0, 0.12);
 	translate: 0 -50%;
 	opacity: 0;
@@ -4801,11 +4709,11 @@ body:has(> .store-header, > .task-header) {
 	box-shadow: inset -0.5px -0.5px 1px rgba(255, 255, 255, 0.32);
 }
 .hero-actions .hero-primary:hover {
-	background: #4823b6;
+	background: var(--purple-hover);
 }
 .hero-actions .hero-secondary {
 	background: #fff;
-	color: #18181b;
+	color: var(--ink);
 	box-shadow: 0 2px 8px rgba(0, 0, 0, 0.06);
 }
 :where(.hero-secondary svg) {
@@ -4920,13 +4828,13 @@ body:has(> .store-header, > .task-header) {
 	padding: 8px 12px;
 	overflow: hidden;
 	border-radius: 16px;
-	color: #18181b;
+	color: var(--ink);
 }
 :is(.home-main, .categories-main) .category-grid a:hover {
 	text-decoration: none;
 }
 :is(.home-main, .categories-main) .category-grid a:focus-visible {
-	outline: 2px solid #18181b;
+	outline: 2px solid var(--ink);
 	outline-offset: 2px;
 }
 .category-tile-label {
@@ -4965,13 +4873,13 @@ body:has(> .store-header, > .task-header) {
 :is(.home-main, .categories-main) .category-grid a:hover .category-tile-art img {
 	scale: 1.05;
 }
-:is(.home-main, .categories-main) .category-grid a[data-tint="rose"] { background: #fde8ec; }
-:is(.home-main, .categories-main) .category-grid a[data-tint="amber"] { background: #fdf0d5; }
-:is(.home-main, .categories-main) .category-grid a[data-tint="green"] { background: #e2f3e5; }
-:is(.home-main, .categories-main) .category-grid a[data-tint="blue"] { background: #e2ecfb; }
-:is(.home-main, .categories-main) .category-grid a[data-tint="violet"] { background: #ede7fd; }
-:is(.home-main, .categories-main) .category-grid a[data-tint="teal"] { background: #ddf3ef; }
-:is(.home-main, .categories-main) .category-grid a[data-tint="slate"] { background: #ececef; }
+:is(.home-main, .categories-main) .category-grid a[data-tint="rose"] { background: var(--tint-rose); }
+:is(.home-main, .categories-main) .category-grid a[data-tint="amber"] { background: var(--tint-amber); }
+:is(.home-main, .categories-main) .category-grid a[data-tint="green"] { background: var(--tint-green); }
+:is(.home-main, .categories-main) .category-grid a[data-tint="blue"] { background: var(--tint-blue); }
+:is(.home-main, .categories-main) .category-grid a[data-tint="violet"] { background: var(--tint-violet); }
+:is(.home-main, .categories-main) .category-grid a[data-tint="teal"] { background: var(--tint-teal); }
+:is(.home-main, .categories-main) .category-grid a[data-tint="slate"] { background: var(--tint-slate); }
 @media (min-width: 768px) {
 	:is(.home-main, .categories-main) .category-grid a {
 		--art: 62px;
@@ -5047,7 +4955,7 @@ body:has(> .store-header, > .task-header) {
 	line-height: 1.125rem;
 	font-weight: 500;
 	letter-spacing: -0.2px;
-	color: #18181b;
+	color: var(--ink);
 }
 .store-footer ul {
 	list-style: none;
@@ -5062,7 +4970,7 @@ body:has(> .store-header, > .task-header) {
 	font-size: 1rem;
 	line-height: 1.125rem;
 	letter-spacing: -0.5px;
-	color: #18181b;
+	color: var(--ink);
 }
 .store-footer .footer-menus a:hover,
 .store-footer .footer-legal a:hover {
@@ -5234,7 +5142,6 @@ body:has(> .store-header, > .task-header) {
 	display: flex;
 	gap: 8px;
 	min-width: 0;
-	height: 52px;
 	margin: 0 0 16px;
 	padding: 4px 2px;
 	border: 0;
@@ -5246,30 +5153,23 @@ body:has(> .store-header, > .task-header) {
 		display: none;
 	}
 }
-.filter-chip-item {
-	flex: none;
-}
 .filter-chip {
 	display: inline-flex;
 	align-items: center;
 	gap: 4px;
 	min-height: 44px;
 	padding: 0 12px 0 16px;
-	border: 1px solid rgba(5, 41, 77, 0.1);
-	border-radius: 9999px;
+	border: 1px solid var(--hairline);
 	background: #fff;
 	box-shadow: 0 2px 8px rgba(0, 0, 0, 0.06);
-	color: #18181b;
+	color: var(--ink);
 	font: inherit;
 	font-size: 1rem;
 	font-weight: 600;
 	letter-spacing: -0.5px;
-	white-space: nowrap;
 	cursor: pointer;
 }
 .filter-chips .filter-chip[type="button"] svg {
-	width: 15px;
-	height: 15px;
 	stroke-width: 2.67;
 }
 .filter-chip[data-active] {
@@ -5298,10 +5198,10 @@ body:has(> .store-header, > .task-header) {
 	padding: 4px;
 	overflow: hidden auto;
 	overscroll-behavior: contain;
-	border: 1px solid rgba(5, 41, 77, 0.1);
+	border: 1px solid var(--hairline);
 	border-radius: 8px;
 	background: #fff;
-	color: #18181b;
+	color: var(--ink);
 	box-shadow:
 		0 4px 6px -1px rgb(0 0 0 / 0.1),
 		0 2px 4px -2px rgb(0 0 0 / 0.1);
@@ -5348,7 +5248,8 @@ body:has(> .store-header, > .task-header) {
 	position: absolute;
 	inset: -5px -4px auto;
 	height: 1px;
-	background: rgba(5, 41, 77, 0.1);
+	/* A visible hairline (shadcn bg-border). */
+	background: rgba(24, 24, 27, 0.12);
 }
 .filter-option {
 	position: relative;
@@ -5370,7 +5271,7 @@ body:has(> .store-header, > .task-header) {
 	text-decoration: none;
 }
 .filter-option:focus-visible {
-	box-shadow: inset 0 0 0 2px #18181b;
+	box-shadow: inset 0 0 0 2px var(--ink);
 }
 .filter-option[aria-disabled="true"] {
 	pointer-events: none;
@@ -5405,7 +5306,7 @@ body:has(> .store-header, > .task-header) {
 	}
 	.filter-pop-title {
 		padding: 12px 12px 8px;
-		color: #18181b;
+		color: var(--ink);
 		font-size: 1.125rem;
 		line-height: 1.25rem;
 		font-weight: 600;
@@ -5508,12 +5409,8 @@ body:has(> .store-header, > .task-header) {
 /* Round 46 (review 45). An active chip carries its own remove control (joined to the right of the
    filled chip), and "Hapus semua" ends the row, so no second row repeats the same values. */
 .filter-chip-item {
+	flex: none;
 	display: flex;
-}
-.filter-chips .filter-chip[data-active]:has(+ .filter-chip-clear) {
-	border-top-right-radius: 0;
-	border-bottom-right-radius: 0;
-	padding-right: 8px;
 }
 .filter-chip-clear {
 	display: grid;
@@ -5540,7 +5437,7 @@ body:has(> .store-header, > .task-header) {
 	align-items: center;
 	min-height: 44px;
 	padding: 0 8px;
-	color: #18181b;
+	color: var(--ink);
 	font-weight: 600;
 	text-decoration: underline;
 	text-underline-offset: 3px;
@@ -5557,9 +5454,6 @@ body:has(> .store-header, > .task-header) {
 .search-form .omnibox-field > svg {
 	width: calc(1.25rem + 20px);
 }
-.search-form #site-search {
-	padding-left: calc(1.25rem + 26px);
-}
 
 /* Round 47 (review 46). Enlarged text: the omnibox submit stays a circle and its arrow scales with
    the field. "Lihat produk lainnya"/"Coba lagi" use the white hairline pill of the chips (R3). The
@@ -5573,6 +5467,7 @@ body:has(> .store-header, > .task-header) {
 	height: calc(0.75rem + 8px);
 }
 .search-form #site-search {
+	padding-left: calc(1.25rem + 26px);
 	padding-right: calc(var(--field) + 10px);
 }
 .listing-more-button {
@@ -5580,11 +5475,11 @@ body:has(> .store-header, > .task-header) {
 	align-items: center;
 	min-height: 44px;
 	padding: 0 20px;
-	border: 1px solid rgba(5, 41, 77, 0.1);
+	border: 1px solid var(--hairline);
 	border-radius: 9999px;
 	background: #fff;
 	box-shadow: 0 2px 8px rgba(0, 0, 0, 0.06);
-	color: #18181b;
+	color: var(--ink);
 	font: inherit;
 	font-size: 1rem;
 	font-weight: 600;
@@ -5628,8 +5523,8 @@ body:has(> .store-header, > .task-header) {
 	clip-path: inset(0 round 28px);
 	border-radius: 28px;
 	background: #fff;
-	box-shadow: inset 0 0 0 1px rgba(5, 41, 77, 0.1);
-	color: #18181b;
+	box-shadow: inset 0 0 0 1px var(--hairline);
+	color: var(--ink);
 }
 .banner-card:hover {
 	text-decoration: none;
@@ -5668,10 +5563,9 @@ body:has(> .store-header, > .task-header) {
 	justify-items: start;
 	gap: 6px;
 	padding: 20px 24px 24px;
+	min-width: 0;
 }
 .home-main .home-banners .banner-caption strong {
-	font-size: 1.5rem;
-	line-height: 1.625rem;
 	font-weight: 600;
 	letter-spacing: -0.5px;
 }
@@ -5687,12 +5581,15 @@ body:has(> .store-header, > .task-header) {
 	min-height: 44px;
 	margin-top: 8px;
 	padding: 8px 18px 8px 20px;
-	border-radius: 9999px;
-	background: #18181b;
+	background: var(--ink);
 	color: #fff;
 	font-size: 1rem;
 	font-weight: 600;
 	letter-spacing: -0.5px;
+	max-width: 100%;
+	white-space: normal;
+	overflow-wrap: break-word;
+	border-radius: 22px;
 }
 .home-main .home-banners .banner-card .banner-action > svg {
 	flex: none;
@@ -5723,10 +5620,6 @@ body:has(> .store-header, > .task-header) {
 	.banner-caption {
 		padding: 16px 20px 20px;
 	}
-	.home-main .home-banners .banner-caption strong {
-		font-size: 1.25rem;
-		line-height: 1.5rem;
-	}
 }
 @media (prefers-reduced-motion: reduce) {
 	.banner-row {
@@ -5747,20 +5640,10 @@ body:has(> .store-header, > .task-header) {
 	outline: none;
 }
 
-/* Banner fit and lone-banner layout (review 48): the caption may shrink below its content's width and
-   the action pill wraps, so enlarged text stays inside the card; a lone banner spans the container
+/* Lone-banner layout (review 48; the caption's min-width: 0 and the wrapping action pill keep
+   enlarged text inside the card): a lone banner spans the container
    from 701px with its photos on the left and the caption on the right (phones keep the rail card). */
-.banner-caption {
-	min-width: 0;
-}
-.home-main .home-banners .banner-action {
-	max-width: 100%;
-	white-space: normal;
-}
 @media (min-width: 701px) {
-	.banner-row:has(> .banner:only-child) {
-		grid-auto-columns: 100%;
-	}
 	.banner:only-child .banner-card {
 		grid-template-columns: minmax(0, 7fr) minmax(0, 5fr);
 		grid-template-rows: auto;
@@ -5779,10 +5662,6 @@ body:has(> .store-header, > .task-header) {
 .banner-card {
 	grid-template-columns: minmax(0, 1fr);
 }
-.home-main .home-banners .banner-action {
-	overflow-wrap: break-word;
-	border-radius: 22px;
-}
 /* A lone banner has nothing to peek at: on phones it takes the full row width. */
 .banner-row:has(> .banner:only-child) {
 	grid-auto-columns: 100%;
@@ -5793,11 +5672,6 @@ body:has(> .store-header, > .task-header) {
 	grid-template-rows: 1fr;
 	align-content: end;
 }
-/* The separator after the "all" choice is a visible hairline (shadcn bg-border). */
-.filter-pop li.filter-separated::before {
-	background: rgba(24, 24, 27, 0.12);
-}
-
 /* The action pill sits at the card bottom, so the pills of one row align whatever the body length. */
 .banner-card > .banner-caption {
 	grid-template-rows: auto auto 1fr;
@@ -5819,13 +5693,13 @@ body:has(> .store-header, > .task-header) {
 
 /* Cut-out product photos (white ground) sit contained on a brand tint (the pill/tile tokens), blended
    with multiply so the white cut-out edges disappear into the tint; edge-to-edge photos stay as they are. */
-.banner-media[data-cutout="amber"] { background: #fdf0d5; }
-.banner-media[data-cutout="slate"] { background: #ececef; }
-.banner-media[data-cutout="rose"] { background: #fde8ec; }
-.banner-media[data-cutout="blue"] { background: #e2ecfb; }
-.banner-media[data-cutout="green"] { background: #e2f3e5; }
-.banner-media[data-cutout="violet"] { background: #ede7fd; }
-.banner-media[data-cutout="teal"] { background: #ddf3ef; }
+.banner-media[data-cutout="amber"] { background: var(--tint-amber); }
+.banner-media[data-cutout="slate"] { background: var(--tint-slate); }
+.banner-media[data-cutout="rose"] { background: var(--tint-rose); }
+.banner-media[data-cutout="blue"] { background: var(--tint-blue); }
+.banner-media[data-cutout="green"] { background: var(--tint-green); }
+.banner-media[data-cutout="violet"] { background: var(--tint-violet); }
+.banner-media[data-cutout="teal"] { background: var(--tint-teal); }
 .home-main .home-banners .banner-media[data-cutout] img[alt] {
 	box-sizing: border-box;
 	padding: 28px;
@@ -5859,11 +5733,10 @@ body:has(> .store-header, > .task-header) {
 	white-space: normal;
 	text-align: start;
 	padding-block: 6px;
-}
-.filter-chips .filter-chip {
 	border-radius: 22px;
 }
 .filter-chips .filter-chip[data-active]:has(+ .filter-chip-clear) {
+	padding-right: 8px;
 	border-radius: 22px 0 0 22px;
 }
 /* biome-ignore lint/style/noDescendingSpecificity: same chevron, scaled with enlarged text. */
@@ -5873,15 +5746,12 @@ body:has(> .store-header, > .task-header) {
 	height: max(15px, 0.9375em);
 }
 
-/* Round 57 (review 56). Help topic cards in one row share a height. Storefront secondary buttons are the
+/* Round 57 (review 56). Storefront secondary buttons are the
    white hairline pill (R3), the same as the chips and "Lihat produk lainnya"; admin keeps its own. */
-.help-topics > section {
-	align-self: stretch;
-}
 :where(body:has(> .store-header, > .task-header, > .checkout-header, > .receipt-shell)) :is(.button.secondary, .button.button-secondary) {
-	border-color: rgba(5, 41, 77, 0.1);
+	border-color: var(--hairline);
 	background: #fff;
-	color: #18181b;
+	color: var(--ink);
 	box-shadow: 0 2px 8px rgba(0, 0, 0, 0.06);
 }
 :where(body:has(> .store-header, > .task-header, > .checkout-header, > .receipt-shell)) :is(.button.secondary, .button.button-secondary):hover {

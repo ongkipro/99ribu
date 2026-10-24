@@ -1,16 +1,16 @@
 import Link from "next/link";
-import { getLocalAuth } from "../../modules/access/auth";
-import { AccessError } from "../../modules/access/policy";
+import { getLocalAuth } from "../../../modules/access/auth";
+import { AccessError } from "../../../modules/access/policy";
 import {
 	catalogQuery,
 	listCategories,
 	listProducts,
 	type PublicCategory,
 	publicCategory,
-} from "../../modules/storefront/catalog";
-import { isListingParam } from "../../modules/storefront/navigation";
+} from "../../../modules/storefront/catalog";
+import { isListingParam } from "../../../modules/storefront/navigation";
 import { Listing } from "./listing";
-import { Shell } from "./shell";
+import { Shell } from "../shell";
 
 type Raw = Record<string, string | string[] | undefined>;
 // The public list pages by category id; follow its cursor so a category is never dropped.
