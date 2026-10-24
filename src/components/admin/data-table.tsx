@@ -173,20 +173,25 @@ export function DataTable<T>({
 		stack ? { role: name } : {};
 	const first = columns[0]?.id;
 	const last = columns.at(-1)?.id === "actions" ? "actions" : null;
-	// Pinned cells need an opaque background; the pinned edge shows a shadow while columns hide
+	// Pinned cells need an opaque background, so every cell paints the same one (row hover and
+	// selection included) and no column bands; the pinned edge shows a shadow while columns hide
 	// behind it. Literal classes per mode (Tailwind only sees whole class names).
-	const pinCheckbox = stack ? "md:sticky md:left-0 md:z-10 md:bg-card md:group-data-[state=selected]/row:bg-muted" : "sticky left-0 z-10 bg-card group-data-[state=selected]/row:bg-muted";
+	const headBg = stack ? "md:bg-card" : "bg-card";
+	const cellBg = stack
+		? "md:bg-card md:group-hover/row:bg-muted md:group-has-aria-expanded/row:bg-muted md:group-data-[state=selected]/row:bg-muted"
+		: "bg-card group-hover/row:bg-muted group-has-aria-expanded/row:bg-muted group-data-[state=selected]/row:bg-muted";
+	const pinCheckbox = stack ? "md:sticky md:left-0 md:z-10" : "sticky left-0 z-10";
 	const pin = (id: string | null) =>
 		id === first
 			? cn(
-					stack ? "md:sticky md:z-10 md:bg-card md:group-data-[state=selected]/row:bg-muted" : "sticky z-10 bg-card group-data-[state=selected]/row:bg-muted",
+					stack ? "md:sticky md:z-10" : "sticky z-10",
 					selection ? (stack ? "md:left-12" : "left-12") : stack ? "md:left-0" : "left-0",
 					edges.start &&
 						(stack ? "md:shadow-[8px_0_8px_-6px_oklch(0_0_0/0.18)]" : "shadow-[8px_0_8px_-6px_oklch(0_0_0/0.18)]"),
 				)
 			: id === last
 				? cn(
-						stack ? "md:sticky md:right-0 md:z-10 md:bg-card md:group-data-[state=selected]/row:bg-muted" : "sticky right-0 z-10 bg-card group-data-[state=selected]/row:bg-muted",
+						stack ? "md:sticky md:right-0 md:z-10" : "sticky right-0 z-10",
 						edges.end &&
 							(stack ? "md:shadow-[-8px_0_8px_-6px_oklch(0_0_0/0.18)]" : "shadow-[-8px_0_8px_-6px_oklch(0_0_0/0.18)]"),
 					)
@@ -246,7 +251,7 @@ export function DataTable<T>({
 								<TableHead
 									scope="col"
 									{...role("columnheader")}
-									className={cn("w-12", pinCheckbox)}
+									className={cn("w-12", headBg, pinCheckbox)}
 								>
 									<label className="-m-2 inline-flex size-11 cursor-pointer items-center justify-center">
 										<input
@@ -267,7 +272,7 @@ export function DataTable<T>({
 									key={c.id}
 									scope="col"
 									{...role("columnheader")}
-									className={cn(c.className, pin(c.id))}
+									className={cn(c.className, headBg, pin(c.id))}
 								>
 									{c.header}
 								</TableHead>
@@ -298,7 +303,7 @@ export function DataTable<T>({
 										{selection && (
 											<TableCell
 												{...role("cell")}
-												className={pinCheckbox}
+												className={cn(cellBg, pinCheckbox)}
 											>
 												{checkbox(row, "")}
 											</TableCell>
@@ -307,7 +312,7 @@ export function DataTable<T>({
 											<TableCell
 												key={c.id}
 												{...role("cell")}
-												className={cn(c.className, pin(c.id), stackCell(c), c.cellClassName)}
+												className={cn(c.className, cellBg, pin(c.id), stackCell(c), c.cellClassName)}
 											>
 												{stack && c.stack !== "plain" && typeof c.header === "string" && (
 													<span
