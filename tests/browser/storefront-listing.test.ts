@@ -65,12 +65,12 @@ test('the header logo goes home from every storefront page, also while its name 
  try{
   const desktop=await browser.newPage({viewport:{width:1440,height:900}});
   await desktop.goto(origin+listing);const product=await desktop.locator('.product-link').first().getAttribute('href');assert.ok(product);
-  for(const path of ['/kategori',listing,'/cari','/keranjang','/bantuan','/promo']){
+  for(const path of ['/kategori',listing,'/cari','/keranjang','/bantuan','/promo',product]){
    await desktop.goto(origin+path);const logo=desktop.getByRole('link',{name:'Serba 99ribu, beranda',exact:true});
    await logo.hover();await desktop.waitForTimeout(300);await expect(logo).toContainText('Serba');await logo.click();await expect(desktop).toHaveURL(`${origin}/`);
   }
-  // Task pages (PDP) keep the compact wordmark at every width, phones included.
-  for(const width of [1440,390]){await desktop.setViewportSize({width,height:900});await desktop.goto(origin+product);await desktop.getByRole('link',{name:'99rb - 99ribu, beranda',exact:true}).click();await expect(desktop).toHaveURL(`${origin}/`);}
+  // The PDP carries the same header (owner call 2026-10-24), so it is in the loop above.
+  await desktop.setViewportSize({width:390,height:900});
   // Phones: no header logo (shop.com mobile header); home is the dock's first tab.
   await desktop.goto(`${origin}/cari`);await expect(desktop.locator('.store-header .brand')).toBeHidden();
   await desktop.getByRole('navigation',{name:'Navigasi belanja'}).getByRole('link',{name:'Beranda',exact:true}).click();await expect(desktop).toHaveURL(`${origin}/`);

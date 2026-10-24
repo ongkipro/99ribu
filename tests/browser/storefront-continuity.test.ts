@@ -198,8 +198,6 @@ test("S61 browser: responsive mobile/short-IME/desktop shell, category-preservin
 					title: string;
 					q?: string;
 					active?: "home" | "category" | "cart" | "account" | "none";
-					task?: boolean;
-					backTo?: string;
 					main: string;
 				}) => {
 					const cartLabel = badgeCount
@@ -207,12 +205,8 @@ test("S61 browser: responsive mobile/short-IME/desktop shell, category-preservin
 						: "Keranjang";
 					// Mirrors the shell markup (icon-only search button and utilities, category pills) so the
 					// shared stylesheet is measured against the same structure.
-					const header = opts.task
-						? `<header class="task-header wrap"><a class="task-back" href="${escapeHtml(opts.backTo ?? "/cari")}"><span>Kembali</span></a><a href="/" class="brand" aria-label="99ribu, beranda">99<span>ribu</span><i aria-hidden="true">.</i></a><a href="/keranjang" class="task-cart" aria-label="${escapeHtml(cartLabel)}">${badgeCount > 0 ? `<span class="cart-count">${badgeCount}</span>` : ""}</a></header>`
-						: `<header class="store-header"><div class="header-main wrap"><a href="/" class="brand" aria-label="99ribu, beranda">99<span>ribu</span><i aria-hidden="true">.</i></a><search class="search-region"><form action="/cari" class="search-form"><label class="sr-only" for="site-search">Cari produk</label><input type="search" id="site-search" name="q" placeholder="Cari produk" value="${escapeHtml(opts.q ?? "")}" maxlength="200"/><button type="submit" aria-label="Cari produk"></button></form></search><nav class="utilities" aria-label="Belanja"><a href="/keranjang" aria-label="${escapeHtml(cartLabel)}"${opts.active === "cart" ? ' aria-current="page"' : ""}>${badgeCount > 0 ? `<b class="cart-count utility-count">${badgeCount}</b>` : ""}</a><a href="/akun" aria-label="Akun"${opts.active === "account" ? ' aria-current="page"' : ""}></a></nav></div><nav class="category-pills" aria-label="Kategori produk"><ul><li><a href="/kategori/shop-commerce-demo-busana"><span class="pill-art" data-tint="rose"></span><span class="pill-label">Busana</span></a></li><li><a href="/kategori/shop-commerce-demo-perawatan"><span class="pill-art" data-tint="blue"></span><span class="pill-label">Perawatan</span></a></li><li><a class="pill-all" aria-label="Semua kategori" href="/kategori"></a></li></ul></nav></header>`;
-					const tabs = opts.task
-						? ""
-						: `<nav class="shopping-tabs" aria-label="Navigasi belanja"><a href="/"${opts.active === "home" ? ' aria-current="page"' : ""}><span>Beranda</span></a><a href="/kategori"${opts.active === "category" ? ' aria-current="page"' : ""}><span>Kategori</span></a><a href="/keranjang"${badgeCount > 0 ? ` data-count="${badgeCount}"` : ""} aria-label="${escapeHtml(cartLabel)}"${opts.active === "cart" ? ' aria-current="page"' : ""}><span>Keranjang</span></a><a href="/akun"${opts.active === "account" ? ' aria-current="page"' : ""}><span>Akun</span></a></nav>`;
+					const header = `<header class="store-header"><div class="header-main wrap"><a href="/" class="brand" aria-label="99ribu, beranda">99<span>ribu</span><i aria-hidden="true">.</i></a><search class="search-region"><form action="/cari" class="search-form"><label class="sr-only" for="site-search">Cari produk</label><input type="search" id="site-search" name="q" placeholder="Cari produk" value="${escapeHtml(opts.q ?? "")}" maxlength="200"/><button type="submit" aria-label="Cari produk"></button></form></search><nav class="utilities" aria-label="Belanja"><a href="/keranjang" aria-label="${escapeHtml(cartLabel)}"${opts.active === "cart" ? ' aria-current="page"' : ""}>${badgeCount > 0 ? `<b class="cart-count utility-count">${badgeCount}</b>` : ""}</a><a href="/akun" aria-label="Akun"${opts.active === "account" ? ' aria-current="page"' : ""}></a></nav></div><nav class="category-pills" aria-label="Kategori produk"><ul><li><a href="/kategori/shop-commerce-demo-busana"><span class="pill-art" data-tint="rose"></span><span class="pill-label">Busana</span></a></li><li><a href="/kategori/shop-commerce-demo-perawatan"><span class="pill-art" data-tint="blue"></span><span class="pill-label">Perawatan</span></a></li><li><a class="pill-all" aria-label="Semua kategori" href="/kategori"></a></li></ul></nav></header>`;
+					const tabs = `<nav class="shopping-tabs" aria-label="Navigasi belanja"><a href="/"${opts.active === "home" ? ' aria-current="page"' : ""}><span>Beranda</span></a><a href="/kategori"${opts.active === "category" ? ' aria-current="page"' : ""}><span>Kategori</span></a><a href="/keranjang"${badgeCount > 0 ? ` data-count="${badgeCount}"` : ""} aria-label="${escapeHtml(cartLabel)}"${opts.active === "cart" ? ' aria-current="page"' : ""}><span>Keranjang</span></a><a href="/akun"${opts.active === "account" ? ' aria-current="page"' : ""}><span>Akun</span></a></nav>`;
 					return `<!doctype html><html lang="id"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>${escapeHtml(opts.title)}</title><style>${css}</style></head><body><a class="skip" href="#main">Lewati ke konten</a><div class="local-notice">Data contoh. Pesanan dan pengiriman simulasi.</div>${header}${tabs}${opts.main}<footer class="store-footer wrap"><p class="brand footer-name">99<span>ribu</span><i aria-hidden="true">.</i></p><div><a href="/bantuan#returns">Cara pesan dan pengembalian</a></div></footer></body></html>`;
 				};
 
@@ -335,9 +329,7 @@ test("S61 browser: responsive mobile/short-IME/desktop shell, category-preservin
 						prod.variants.find((v) => v.id === offerId) ?? prod.variants[0];
 					const html = renderShell({
 						title: prod.name,
-						task: true,
-						backTo: safeFrom,
-						main: `<main id="main" class="wrap detail-main"><h1>${escapeHtml(prod.name)}</h1><section class="offer-detail"><p class="detail-price">${escapeHtml(rupiah(offer?.price ?? 99000))}</p><form action="/keranjang" method="get" class="cart-mutation"><label>Jumlah pilihan<input aria-label="Jumlah pilihan" type="number" name="quantity" min="1" max="50" value="1"/></label><button class="button" type="submit">Tambah ke keranjang</button></form></section></main>`,
+						main: `<main id="main" class="wrap detail-main"><a class="task-back" href="${escapeHtml(safeFrom)}"><span>Kembali</span></a><h1>${escapeHtml(prod.name)}</h1><section class="offer-detail"><p class="detail-price">${escapeHtml(rupiah(offer?.price ?? 99000))}</p><form action="/keranjang" method="get" class="cart-mutation"><label>Jumlah pilihan<input aria-label="Jumlah pilihan" type="number" name="quantity" min="1" max="50" value="1"/></label><button class="button" type="submit">Tambah ke keranjang</button></form></section></main>`,
 					});
 					res.writeHead(200, { "content-type": "text/html; charset=utf-8" });
 					res.end(html);
@@ -538,10 +530,10 @@ test("S61 browser: responsive mobile/short-IME/desktop shell, category-preservin
 				firstCardHref,
 			);
 
-			// 6. Task page (PDP) uses single bottom/task region (.task-header, no .shopping-tabs) and Back restores list
+			// 6. The PDP keeps the store header and dock (owner call 2026-10-24) and its Back link restores the list
 			await page.locator(".product-link").first().click();
-			await expect(page.locator(".task-header")).toBeVisible();
-			await expect(page.locator(".shopping-tabs")).toHaveCount(0);
+			await expect(page.locator(".store-header")).toBeVisible();
+			await expect(page.locator(".shopping-tabs")).toHaveCount(1);
 			await page.locator(".task-back").click();
 			assert.ok(
 				page.url().startsWith(`${firstPageUrl}#product-`),

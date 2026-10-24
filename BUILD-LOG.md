@@ -1,5 +1,14 @@
 # Build log — Serba 99ribu
 
+## 2026-10-24 — S111 merged (filters + PDP like shop.com), PDP keeps the store header, guest lookup UI (not pushed)
+
+- `7a3ea20`: the /akun guest recovery form sends the printed number as `order_number` (a UUID still goes as `order_id`); `storefront-controls` asserts the request body. The header-logo test got an explicit 120 s budget because it runs about 31 s alone, past the 30 s default.
+- `de746d8` merges `s111-storefront-design`. It contains the S111 refactor (no visual diff on 8 pages × 4 widths), phase 2a filters (300px popover with 28px radius and Reset/Done, phone bottom sheet, rail fade) and phase 2b PDP (thumbnail strip, photo row, shop.com buy box order, quantity pill, 52px accordions). References are in `docs/spec/design/references/shop-com/2026-10-24-*`. The PDP price is 16/22 600, so the stale 20/24px assertion was updated.
+- Owner call: the PDP uses the same store header as the listing pages (search, category pills, phone dock). The compact task header is removed, and the "Kembali" or "Katalog" return link stays as a row above the product. Tests that pinned the task header were updated, including the continuity test's mirror. Renders are in `docs/spec/design/renders/pdp-header/`.
+- Local catalog: `catalog:withdraw -- local --apply` withdrew 12 test-fixture publications, leaving the 392 Berlapak products (122 unit, 244 multipack, 26 bundle) as the only live listings. `round.sh` now applies the withdrawal before capture.
+- Lesson: `biome check --write` on the terse storefront sources reflows thousands of lines and breaks source-regex tests. Format only files that are already biome-styled.
+- S112 is built on branch `s112-signin-ux` and has not been merged yet. Independent security review PASS (Low: add a cross-origin POST test and read `x-retry-after`).
+
 ## 2026-10-24 — Card price weight, S118 guest lookup by number, S113 admin DataTable (not pushed)
 
 - Owner call: product card price at regular weight (400, title stays 600). `1a0683f`; design review round 60 PASS, gate `PASS: 0 failing check(s)`.

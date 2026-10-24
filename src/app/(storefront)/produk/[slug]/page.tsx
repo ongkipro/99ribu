@@ -6,6 +6,7 @@ import {Shell} from '../../../../components/storefront/shell';
 import {Media,rupiah,contentName,isSampleProduct,keepHyphens,sameOrigin} from '../../../../components/storefront/ui/product-card';
 import {ProductGallery} from '../../../../components/storefront/sections/product-gallery';
 import {Icon} from '../../../../components/storefront/ui/icon';
+import {TaskBack} from '../../../../components/storefront/navigation';
 import {OfferPicker} from '../../../../components/storefront/offer-picker';
 import {CartForm,CartMutations} from '../../../../components/storefront/cart-forms';
 import {getLocalAuth} from '../../../../modules/access/auth';
@@ -44,7 +45,7 @@ export default async function Product({params,searchParams}:Props){
  // The selected offer's photo leads, then the product's other photos (bundles: one per item).
  const photos=[...new Map([offer?.image,...product.images].filter(i=>i!==undefined&&i!==null).map(i=>[i.url,{src:sameOrigin(i.url),alt:i.alt,width:i.width,height:i.height}])).values()];
  const facts=[...(offer?.attributes??[]),...product.facts.filter(f=>!offer?.attributes.some(a=>a.key===f.key))],alternative=product.variants.find(v=>v.availability==='available'&&v.id!==offer?.id);
- return <Shell active="none" task backTo={from}><main id="main" className="wrap product-detail"><JsonLd data={jsonLdGraph(productJsonLd(siteConfig(),product,category),breadcrumbJsonLd(siteConfig(),[{name:'Beranda',path:'/'},...(category?[{name:category.name,path:categoryPath(category.slug)}]:[]),{name:product.name,path:productPath(product.id,product.name)}]))}/><div className="detail-layout">{sample||!photos.length?<Media product={product} offer={offer??undefined} caption/>:<ProductGallery images={photos}/>}<section className="buy-box"><nav className="product-category" aria-label="Kategori produk"><Link href="/cari">Semua produk</Link>{category&&<><span aria-hidden="true">/</span><Link href={`/kategori/${category.slug}`}>{category.name}</Link></>}</nav><h1>{keepHyphens(product.name)}</h1>
+ return <Shell active="none"><main id="main" className="wrap product-detail"><TaskBack from={from}/><JsonLd data={jsonLdGraph(productJsonLd(siteConfig(),product,category),breadcrumbJsonLd(siteConfig(),[{name:'Beranda',path:'/'},...(category?[{name:category.name,path:categoryPath(category.slug)}]:[]),{name:product.name,path:productPath(product.id,product.name)}]))}/><div className="detail-layout">{sample||!photos.length?<Media product={product} offer={offer??undefined} caption/>:<ProductGallery images={photos}/>}<section className="buy-box"><nav className="product-category" aria-label="Kategori produk"><Link href="/cari">Semua produk</Link>{category&&<><span aria-hidden="true">/</span><Link href={`/kategori/${category.slug}`}>{category.name}</Link></>}</nav><h1>{keepHyphens(product.name)}</h1>
   {offer&&<p className="detail-price">{rupiah(offer.price)} <small>/ pilihan lengkap</small></p>}
   {invalid&&<section className="cart-warning" role="alert"><h2>Pilihan belum ditemukan</h2><p>Pilih kembali opsi produk ini sebelum menambahkannya.</p></section>}
   <OfferPicker from={from} selected={offer?.id??''} choices={product.variants.map(v=>({id:v.id,label:v.label,available:v.availability==='available'}))}/>

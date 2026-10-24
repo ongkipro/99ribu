@@ -159,7 +159,7 @@ button {
 /* Hover underline stays for operator/admin surfaces only; the storefront, checkout,
    receipt and sign-in shells give UI links colour feedback instead (see the
    interaction contract at the end of this file). */
-:where(body:not(:has(> .store-header, > .task-header, > .checkout-header, > .receipt-shell))) a:hover {
+:where(body:not(:has(> .store-header, > .checkout-header, > .receipt-shell))) a:hover {
 	text-decoration: underline;
 	text-underline-offset: 4px;
 }
@@ -255,8 +255,8 @@ html {
 	min-width: 0;
 }
 /* shop.com parity R1: near-white storefront canvas, white raised surfaces. */
-:root:has(body > .store-header, body > .task-header),
-body:has(> .store-header, > .task-header) {
+:root:has(body > .store-header),
+body:has(> .store-header) {
 	background: #fafafa;
 }
 .utilities {
@@ -808,36 +808,23 @@ body:has(> .store-header, > .task-header) {
 	}
 }
 
-/* Purchase task chrome stays in flow so short/enlarged views retain controls. */
-.task-header {
-	display: grid;
-	grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr);
-	align-items: center;
-	gap: 12px;
-	padding-block: 16px;
-	border-bottom: 1px solid rgba(24, 24, 27, 0.08);
-}
-.task-back,
-.task-cart {
+/* PDP return link (owner call 2026-10-24: the PDP keeps the full store header, as on shop.com):
+   one small row above the product that goes back to the list position it came from. */
+.task-back {
 	display: inline-flex;
 	align-items: center;
-	justify-content: center;
-	gap: 6px;
-	min-width: 44px;
+	gap: 4px;
 	min-height: 44px;
-	font-size: 0.85rem;
+	font-size: 0.875rem;
+	line-height: 1.125rem;
+	color: var(--muted);
 }
-.task-back {
-	justify-self: start;
+.task-back:hover {
+	color: var(--ink);
 }
-.task-cart {
-	position: relative;
-	justify-self: end;
-	font-size: 1rem;
-}
-.task-header svg {
-	width: 1.5em;
-	height: 1.5em;
+.task-back svg {
+	width: 1.25rem;
+	height: 1.25rem;
 	flex: none;
 }
 .cart-count {
@@ -1083,12 +1070,6 @@ body:has(> .store-header, > .task-header) {
 	.cart-page {
 		padding-top: 24px;
 	}
-	.task-header .brand {
-		font-size: 1.6rem;
-	}
-	.task-back span {
-		font-size: 0.8rem;
-	}
 	.cart-line-actions .cart-mutation {
 		flex-basis: 100%;
 	}
@@ -1218,20 +1199,6 @@ body:has(> .store-header, > .task-header) {
 }
 .session-actions .button {
 	width: 100%;
-}
-@media (max-width: 22rem) {
-	.task-header {
-		grid-template-columns: minmax(0, 1fr) auto;
-	}
-	.task-back {
-		grid-column: 1 / -1;
-	}
-	.task-header .brand {
-		grid-column: 1;
-	}
-	.task-cart {
-		grid-column: 2;
-	}
 }
 .cart-advisory a {
 	color: var(--purple);
@@ -3393,7 +3360,7 @@ body:has(> .store-header, > .task-header) {
 }
 /* Light motion (owner: "light, without sacrificing PageSpeed"): CSS only, transform and
    opacity, 150–250ms ease-out, state feedback only; no GSAP is needed for any of it. */
-:where(body:has(> .store-header, > .task-header, > .checkout-header, > .receipt-shell) summary svg) {
+:where(body:has(> .store-header, > .checkout-header, > .receipt-shell) summary svg) {
 	transition: transform 0.2s cubic-bezier(0.4, 0, 0.2, 1);
 }
 /* Add-to-cart success: the check draws itself and the message settles in. */
@@ -3416,7 +3383,7 @@ body:has(> .store-header, > .task-header) {
 	animation: sf-draw 0.25s cubic-bezier(0, 0, 0.2, 1) 0.05s backwards;
 }
 @media (prefers-reduced-motion: reduce) {
-	:where(body:has(> .store-header, > .task-header, > .checkout-header, > .receipt-shell) summary svg),
+	:where(body:has(> .store-header, > .checkout-header, > .receipt-shell) summary svg),
 	.cart-feedback[data-phase="success"] > h2,
 	.cart-feedback[data-phase="success"] > h2 svg path {
 		transition: none;
@@ -3424,7 +3391,7 @@ body:has(> .store-header, > .task-header) {
 	}
 }
 /* 150ms ease (cubic-bezier(.4,0,.2,1)) on colour, border and shadow only: no lifts, no scale. */
-:where(body:has(> .store-header, > .task-header, > .checkout-header, > .receipt-shell)) :is(a, button, summary, input, select, textarea) {
+:where(body:has(> .store-header, > .checkout-header, > .receipt-shell)) :is(a, button, summary, input, select, textarea) {
 	transition:
 		color 0.15s cubic-bezier(0.4, 0, 0.2, 1),
 		background-color 0.15s cubic-bezier(0.4, 0, 0.2, 1),
@@ -3432,19 +3399,19 @@ body:has(> .store-header, > .task-header) {
 		box-shadow 0.15s cubic-bezier(0.4, 0, 0.2, 1);
 }
 @media (prefers-reduced-motion: reduce) {
-	:where(body:has(> .store-header, > .task-header, > .checkout-header, > .receipt-shell)) :is(a, button, summary, input, select, textarea) {
+	:where(body:has(> .store-header, > .checkout-header, > .receipt-shell)) :is(a, button, summary, input, select, textarea) {
 		transition: none;
 	}
 }
 /* One field look: 1px #85858e boundary (3:1 on white), 12px radius, 44px minimum. */
-:where(body:has(> .store-header, > .task-header, > .checkout-header, > .receipt-shell)) :is(select, textarea, input:not([type="checkbox"], [type="radio"], [type="hidden"], [type="search"])) {
+:where(body:has(> .store-header, > .checkout-header, > .receipt-shell)) :is(select, textarea, input:not([type="checkbox"], [type="radio"], [type="hidden"], [type="search"])) {
 	border: 1px solid var(--field-border);
 	border-radius: 12px;
 	min-height: 44px;
 	background-color: #fff;
 }
 /* Selects: one custom chevron, no native double arrow. */
-:where(body:has(> .store-header, > .task-header, > .checkout-header, > .receipt-shell) select) {
+:where(body:has(> .store-header, > .checkout-header, > .receipt-shell) select) {
 	appearance: none;
 	padding: 10px 40px 10px 14px;
 	background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='16' height='16' viewBox='0 0 24 24' fill='none' stroke='%2318181b' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='m6 9 6 6 6-6'/%3E%3C/svg%3E");
@@ -3457,12 +3424,12 @@ body:has(> .store-header, > .task-header) {
 	padding-right: 40px;
 }
 /* Focus: ink border plus a thin soft ring, the same width at rest and focus (no shift). */
-:where(body:has(> .store-header, > .task-header, > .checkout-header, > .receipt-shell)) :is(select, textarea, input:not([type="checkbox"], [type="radio"], [type="hidden"], [type="search"])):focus {
+:where(body:has(> .store-header, > .checkout-header, > .receipt-shell)) :is(select, textarea, input:not([type="checkbox"], [type="radio"], [type="hidden"], [type="search"])):focus {
 	outline: none;
 	border-color: var(--ink);
 	box-shadow: 0 0 0 3px rgba(24, 24, 27, 0.12);
 }
-:where(body:has(> .store-header, > .task-header, > .checkout-header, > .receipt-shell)) :is(select, textarea, input):is([aria-invalid="true"]):focus {
+:where(body:has(> .store-header, > .checkout-header, > .receipt-shell)) :is(select, textarea, input):is([aria-invalid="true"]):focus {
 	border-color: var(--error);
 	box-shadow:
 		inset 0 0 0 1px var(--error),
@@ -3546,7 +3513,7 @@ body:has(> .store-header, > .task-header) {
    copied or hotlinked. The closest open-licence grotesque already self-hosted
    here is Inter (SIL OFL, public/fonts/inter-4.1), and the observed metrics are
    matched 1:1: size, weight, line-height and tracking. Storefront shells only. */
-body:has(> .store-header, > .task-header) {
+body:has(> .store-header) {
 	line-height: 1.375;
 	letter-spacing: -0.5px;
 }
@@ -5556,13 +5523,13 @@ body:has(> .store-header, > .task-header) {
 }
 /* Round 57 (review 56). Storefront secondary buttons are the
    white hairline pill (R3), the same as the chips and "Lihat produk lainnya"; admin keeps its own. */
-:where(body:has(> .store-header, > .task-header, > .checkout-header, > .receipt-shell)) :is(.button.secondary, .button.button-secondary) {
+:where(body:has(> .store-header, > .checkout-header, > .receipt-shell)) :is(.button.secondary, .button.button-secondary) {
 	border-color: var(--hairline);
 	background: #fff;
 	color: var(--ink);
 	box-shadow: 0 2px 8px rgba(0, 0, 0, 0.06);
 }
-:where(body:has(> .store-header, > .task-header, > .checkout-header, > .receipt-shell)) :is(.button.secondary, .button.button-secondary):hover {
+:where(body:has(> .store-header, > .checkout-header, > .receipt-shell)) :is(.button.secondary, .button.button-secondary):hover {
 	border-color: rgba(5, 41, 77, 0.24);
 	background: #fff;
 }
@@ -5574,7 +5541,10 @@ body:has(> .store-header, > .task-header) {
    a 40px quantity pill, the 52px primary pill, then 52px accordions (18/20 600) between hairlines.
    Phones: the photo row bleeds to the screen edge with the next photo peeking; the buy box follows. */
 .product-detail {
-	padding-top: 24px;
+	padding-top: 8px;
+}
+.product-detail > .task-back {
+	margin-bottom: 8px;
 }
 .product-detail .detail-layout {
 	display: grid;

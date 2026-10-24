@@ -35,8 +35,8 @@ async function ownHome(page:Page){
 }
 async function capture(page:Page,file:string){
  await page.evaluate(()=>document.fonts.ready);const viewport=page.viewportSize();assert.ok(viewport);
- if(new URL(page.url()).pathname.startsWith('/produk/')){await expect(page.locator('.shopping-tabs')).toHaveCount(0);await expect(page.locator('.task-header')).toBeVisible();}
- else{await expect(page.locator('.shopping-tabs')).toHaveCount(1);if(viewport.width<=700)await expect(page.locator('.shopping-tabs')).toBeInViewport({ratio:1});else await expect(page.locator('.shopping-tabs')).toBeHidden();}
+ // Every storefront page, the PDP included (owner call 2026-10-24), carries the phone dock.
+ await expect(page.locator('.shopping-tabs')).toHaveCount(1);if(viewport.width<=700)await expect(page.locator('.shopping-tabs')).toBeInViewport({ratio:1});else await expect(page.locator('.shopping-tabs')).toBeHidden();
  const fullPage=await page.evaluate(()=>document.documentElement.scrollHeight>innerHeight);
  await page.screenshot({path:`${output}/${file}`,fullPage});
 }

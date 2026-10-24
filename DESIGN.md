@@ -47,11 +47,11 @@ All in `:root` at the top of `src/app/globals.css`. Use the token, not the liter
 | `--gutter` | 16px; 32 from 1024; 48 from 1440; 64 from 1920; 96 from 2560 | Page gutters (`.wrap`) |
 | `--bottom` | 0; dock height + safe area ≤700px | Scroll padding above the phone dock |
 
-Canvas: storefront shells paint `#fafafa` (`:root:has(body > .store-header, body > .task-header)`); raised surfaces are white. Checkout and receipt stay white.
+Canvas: storefront shells paint `#fafafa` (`:root:has(body > .store-header)`); raised surfaces are white. Checkout and receipt stay white.
 
 ### Type
 
-Inter 4.1 (SIL OFL), self-hosted; the storefront preloads a 44KB Latin subset. Storefront body is 16/22 at -0.5px (`body:has(> .store-header, > .task-header)`). Observed shop.com roles matched 1:1 (table in visual-context.md, "Typography contract"):
+Inter 4.1 (SIL OFL), self-hosted; the storefront preloads a 44KB Latin subset. Storefront body is 16/22 at -0.5px (`body:has(> .store-header)`). Observed shop.com roles matched 1:1 (table in visual-context.md, "Typography contract"):
 
 | Role | Size/leading, weight, tracking |
 |---|---|

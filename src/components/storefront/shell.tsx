@@ -10,7 +10,6 @@ import {sameOrigin} from './ui/product-card';
 import {hasPromoContent} from '../../modules/storefront/promotions';
 import {CategoryPills} from './sections/category-pills';
 import {SearchBox} from './sections/search-box';
-import {TaskBack} from './navigation';
 
 import {FilledIcon,Icon} from './ui/icon';
 import {SiteNotice,Wordmark} from './ui/brand';
@@ -33,7 +32,7 @@ function chrome(){
  cached={at:Date.now(),value};value.catch(()=>{if(cached?.value===value) cached=null;});
  return value;
 }
-export async function Shell({children,q='',active='home',task=false,backTo=null,department=null}:{children:React.ReactNode;q?:string;active?:'home'|'category'|'cart'|'account'|'promo'|'none';task?:boolean;backTo?:string|null;department?:string|null}){
+export async function Shell({children,q='',active='home',department=null}:{children:React.ReactNode;q?:string;active?:'home'|'category'|'cart'|'account'|'promo'|'none';department?:string|null}){
  // Every page using this shell already renders per request (it reads the cart cookies). Saying so up front keeps
  // `next build` from querying the database while prerendering, which a production image build cannot reach (S82/S84).
  await connection();
@@ -42,21 +41,20 @@ export async function Shell({children,q='',active='home',task=false,backTo=null,
  preload('/fonts/inter-4.1/InterVariable-latin.woff2',{as:'font',type:'font/woff2',crossOrigin:'anonymous'});
  const current=await currentBrowserCart(),count=current.kind==='ready'&&current.cart.state==='open'&&Date.parse(current.cart.expires_at)>Date.parse(current.now)?cartUnits(current.cart):0;
  const cartLabel=count?`Keranjang, ${count} pilihan`:'Keranjang';
- // Task pages hide the header chrome but keep the same footer menus, so the chrome is read for every page.
  const {departments,pills,suggestions,promo}=await chrome();
  const destinations=[{key:'home',label:'Beranda',href:'/',icon:'home'},{key:'category',label:'Kategori',href:'/kategori',icon:'category'},{key:'cart',label:'Keranjang',href:'/keranjang',icon:'cart'},{key:'account',label:'Akun',href:'/akun',icon:'user'}] as const;
  return <>
   <SiteNotice/>
-  {task?<header className="task-header wrap"><TaskBack from={backTo}/><Link href="/" className="brand" aria-label="99rb - 99ribu, beranda"><Wordmark/></Link><Link href="/keranjang" className="task-cart" aria-label={cartLabel}><Icon name="cart"/>{count>0&&<span className="cart-count">{count}</span>}</Link></header>:<header className="store-header"><div className="header-main wrap">
+  <header className="store-header"><div className="header-main wrap">
    {/* Pointer hover/focus reveals "Serba 99ribu" (CSS only); the link is always named by its label. */}
    <Link href="/" className="brand brand-reveal" aria-label="Serba 99ribu, beranda"><span className="grow" aria-hidden="true"><span>Serba&nbsp;</span></span>99<span>r<span className="grow" aria-hidden="true"><span>i</span></span>b<span className="grow" aria-hidden="true"><span>u</span></span></span><i aria-hidden="true">.</i></Link>
    <search className="search-region"><SearchBox key={q} q={q} suggestions={suggestions}/></search>
    <nav className="utilities" aria-label="Belanja">{promo&&<Link href="/promo" aria-label="Promo" aria-current={active==='promo'?'page':undefined}><Icon name="tag"/></Link>}<Link href="/keranjang" aria-label={cartLabel} aria-current={active==='cart'?'page':undefined}><Icon name="cart"/>{count>0&&<b className="cart-count utility-count" aria-hidden="true">{count}</b>}</Link><Link href="/akun" aria-label="Akun" aria-current={active==='account'?'page':undefined}><Icon name="user"/></Link></nav>
-  </div><CategoryPills departments={pills} current={department} allCurrent={active==='category'&&department===null}/></header>}
+  </div><CategoryPills departments={pills} current={department} allCurrent={active==='category'&&department===null}/></header>
   {children}
   {/* After main: on short phone screens the dock is static, so it follows the page content instead of preceding it. */}
   {/* Icon-only dock (shop.com mobile tab bar): the label is the accessible name; the active tab shows the filled icon. */}
-  {!task&&<nav className="shopping-tabs" aria-label="Navigasi belanja">{destinations.map(d=><Link key={d.key} href={d.href} data-count={d.key==='cart'&&count>0?count:undefined} aria-label={d.key==='cart'?cartLabel:d.label} aria-current={active===d.key?'page':undefined}><span className="tab-outline"><Icon name={d.icon}/></span><span className="tab-filled"><FilledIcon name={d.icon}/></span></Link>)}</nav>}
+  <nav className="shopping-tabs" aria-label="Navigasi belanja">{destinations.map(d=><Link key={d.key} href={d.href} data-count={d.key==='cart'&&count>0?count:undefined} aria-label={d.key==='cart'?cartLabel:d.label} aria-current={active===d.key?'page':undefined}><span className="tab-outline"><Icon name={d.icon}/></span><span className="tab-filled"><FilledIcon name={d.icon}/></span></Link>)}</nav>
   <footer className="store-footer"><div className="wrap footer-inner">
    <div className="footer-brand"><p className="brand footer-name"><Wordmark/></p><p>Semua pilihan lengkap Rp99.000.</p><p className="local-footnote">Pesanan, pembayaran, dan pengiriman masih simulasi lokal.</p></div>
    <div className="footer-menus">
@@ -66,7 +64,7 @@ export async function Shell({children,q='',active='home',task=false,backTo=null,
    </div>
    <div className="footer-bottom"><p>© 2026 99ribu</p><nav className="footer-legal" aria-label="Legal"><ul><li><Link href="/bantuan#privacy">Kebijakan privasi</Link></li><li><Link href="/syarat">Syarat dan ketentuan</Link></li></ul></nav></div>
   </div></footer>
-  {!task&&<div className="shopping-tabs-space" aria-hidden="true"/>}
+  <div className="shopping-tabs-space" aria-hidden="true"/>
 
  </>;
 }
