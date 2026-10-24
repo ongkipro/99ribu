@@ -45,12 +45,19 @@ export function BuyerAccountClient({
 		<A extends unknown[]>(task: (...args: A) => Promise<void>) =>
 		(...args: A) => {
 			const first = args[0] as { preventDefault?: () => void } | undefined;
-			if (first && typeof first === "object" && typeof first.preventDefault === "function") first.preventDefault();
+			if (
+				first &&
+				typeof first === "object" &&
+				typeof first.preventDefault === "function"
+			)
+				first.preventDefault();
 			if (busyRef.current) return;
 			busyRef.current = true;
 			setBusy(true);
 			void task(...args)
-				.catch(() => setStatusMsg("Tidak bisa terhubung. Periksa koneksi lalu coba lagi."))
+				.catch(() =>
+					setStatusMsg("Tidak bisa terhubung. Periksa koneksi lalu coba lagi."),
+				)
 				.finally(() => {
 					busyRef.current = false;
 					setBusy(false);
@@ -210,8 +217,13 @@ export function BuyerAccountClient({
 				"content-type": "application/json",
 				"idempotency-key": crypto.randomUUID(),
 			},
+			// S118: buyers hold the printed number (99-…); an order id still works for old links.
 			body: JSON.stringify({
-				order_id: guestOrderId.trim(),
+				...(/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(
+					guestOrderId.trim(),
+				)
+					? { order_id: guestOrderId.trim() }
+					: { order_number: guestOrderId.trim() }),
 				contact: guestContact.trim(),
 			}),
 		});
@@ -520,14 +532,15 @@ export function BuyerAccountClient({
 					Pulihkan Akses Pesanan Tamu Tanpa Akun
 				</h2>
 				<form onSubmit={handleRequestGuestRecovery}>
-					<label htmlFor="guest-order-id">ID Pesanan</label>
+					<label htmlFor="guest-order-id">Nomor Pesanan</label>
 					<input
 						id="guest-order-id"
 						data-testid="guest-recovery-order-id"
 						type="text"
 						value={guestOrderId}
 						onChange={(e) => setGuestOrderId(e.target.value)}
-						placeholder="UUID pesanan"
+						placeholder="99-XXXXXXXXXXXXXXXX"
+						autoComplete="off"
 					/>
 					<label htmlFor="guest-order-contact">Nomor HP / Email Pesanan</label>
 					<input

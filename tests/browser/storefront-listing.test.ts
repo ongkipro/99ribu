@@ -59,7 +59,8 @@ test('without JavaScript the next page is a working link with the same filters',
  }finally{await browser.close();}
 });
 
-test('the header logo goes home from every storefront page, also while its name is revealed',async()=>{
+// Twelve full navigations against a production build take ~31 s alone, past the 30 s default.
+test('the header logo goes home from every storefront page, also while its name is revealed',{timeout:120000},async()=>{
  const browser=await chromium.launch({executablePath:process.env.PLAYWRIGHT_CHROMIUM_EXECUTABLE});
  try{
   const desktop=await browser.newPage({viewport:{width:1440,height:900}});

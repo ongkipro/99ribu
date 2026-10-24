@@ -10,12 +10,12 @@ test('guest order recovery sends one request per submit and reports a lost conne
  const browser=await chromium.launch({executablePath:process.env.PLAYWRIGHT_CHROMIUM_EXECUTABLE});
  try{
   const page=await browser.newPage({viewport:{width:390,height:900}});
-  let calls=0,release!:()=>void;const held=new Promise<void>(resolve=>{release=resolve;});
-  await page.route('**/api/v1/guest-order-access/challenges',async route=>{calls++;await held;await route.abort('internetdisconnected');});
+  let calls=0,sent:unknown,release!:()=>void;const held=new Promise<void>(resolve=>{release=resolve;});
+  await page.route('**/api/v1/guest-order-access/challenges',async route=>{calls++;sent=route.request().postDataJSON();await held;await route.abort('internetdisconnected');});
   await page.goto(`${origin}/akun`);
   // The visible heading is the accessible name (no aria-label that hides it).
   await expect(page.getByRole('heading',{level:1,name:'Akun opsional',exact:true})).toBeVisible();
-  await page.getByTestId('guest-recovery-order-id').fill('00000000-0000-4000-8000-000000000001');
+  await page.getByTestId('guest-recovery-order-id').fill(' 99-ab12cd34ef56gh78 ');
   await page.getByTestId('guest-recovery-contact').fill('+6281200000000');
   const submit=page.getByTestId('guest-recovery-request-button');
   await submit.click();await expect(submit).toBeDisabled();
@@ -23,6 +23,8 @@ test('guest order recovery sends one request per submit and reports a lost conne
   release();
   await expect(page.getByTestId('account-status-banner')).toHaveText('Tidak bisa terhubung. Periksa koneksi lalu coba lagi.');
   await expect(submit).toBeEnabled();
+  // S118: the printed number goes out as order_number (the server uppercases it).
+  assert.deepEqual(sent,{order_number:'99-ab12cd34ef56gh78',contact:'+6281200000000'});
   assert.equal(calls,1,'A second submit while the first is pending sends nothing');
   assert.equal(page.url(),`${origin}/akun`,'The form never falls back to a native submit');
  }finally{await browser.close();}
