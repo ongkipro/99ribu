@@ -1,5 +1,16 @@
 # Build log — Serba 99ribu
 
+## 2026-10-24 — S112 + S113 slice 2 and three admin review rounds merged; storefront round 64 PASS (not pushed)
+
+- Merged `s112-signin-ux` (security review PASS; Low fixes `0e49e01`), `s113-admin-slice2`, `s113-admin-revise`, `s113-admin-revise2` and `s113-admin-revise3`.
+- Admin design reviews: REVISE (raw ids, clipped tables, English leftovers), then REVISE (overdue flag on paid/COD orders, history labels from merged status maps, unlayered `font: inherit`), then REVISE (pinned column hiding values at 768), then **PASS** (round 4, Lows in S122).
+- Storefront design gate: rounds 62 and 63 REVISE (lead banner photo, a pre-lazy-load citation, rail action baseline, sign-in close at 320/200%), then **round 64 PASS** with the codex reviewer at `49dcad7`. The claude reviewer timed out three times at the skill's fixed 900 s. Later admin-only merges make the gate's critique check stale by mtime; storefront sources are unchanged since.
+- The local DB container stopped at 16:51 WIB (fast shutdown during a system snap/AppArmor profile regeneration). Restarted with `npm run db:up`; crash recovery completed and the data is intact (392 live Berlapak listings).
+- Final run on `8de1b94` + test budgets: `npm run check` and `npm run build` PASS; OpenAPI 193/229/338.
+  - `test:integration -- --case=all-current`: 530/531. The miss was the sitemap test at the 30 s default (~30 s on the grown test DB); it now has an explicit budget and passes alone.
+  - `test:browser -- --case=all-current`: 82/83, then **83/83** on rerun (a `support-chat` claim flake, S122).
+- Tests updated for the new contracts: the work-queue settlement fields must be null outside reconciliation; the paged manual-transfer queue is walked; the SEO test skips parallel-route slots; the print-center and support stand-ins mirror the current UI.
+
 ## 2026-10-24 — S111 merged (filters + PDP like shop.com), PDP keeps the store header, guest lookup UI (not pushed)
 
 - `7a3ea20`: the /akun guest recovery form sends the printed number as `order_number` (a UUID still goes as `order_id`); `storefront-controls` asserts the request body. The header-logo test got an explicit 120 s budget because it runs about 31 s alone, past the 30 s default.

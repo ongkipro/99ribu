@@ -111,7 +111,8 @@ test('JSON-LD parses back and carries the required Product, Offer, ProductGroup 
  assert.equal(site[1].inLanguage,'id-ID');
 });
 
-test('sitemap lists sellable publications at their canonical URL with publication lastmod, and drops a withdrawn one',async()=>{
+// lazy: ~30 s on the shared test database as it grows (2.8 s on a fresh one); explicit budget until test-data growth is addressed (TASKS S122).
+test('sitemap lists sellable publications at their canonical URL with publication lastmod, and drops a withdrawn one',{timeout:180000},async()=>{
  const f=await shippingFixture();try{
   const published=Object.entries(f.seeded.publications).filter(([,p])=>p.id).map(([key])=>f.seeded.products[key]);assert.ok(published.length>=2);
   const urls=async(c=config)=>new Map((await seo.sitemapEntries(f.identity.sql,c)).map(e=>[e.url,e]));
