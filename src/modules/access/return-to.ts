@@ -9,8 +9,21 @@ export function safeReturnPath(value: unknown): string | null {
   if (!value.startsWith("/") || value.startsWith("//") || /[\\\p{Cc}\p{Cf}]/u.test(value)) return null;
   let url: URL;
   try { url = new URL(value, BASE); } catch { return null; }
-  if (url.origin !== BASE || url.pathname === "/masuk" || /^\/(?:api|_next)(?:\/|$)/.test(url.pathname)) return null;
+  if (url.origin !== BASE || /^\/(?:masuk|api|_next)(?:\/|$)/.test(url.pathname)) return null;
   return url.pathname + url.search + url.hash;
+}
+
+// S123: the email verification link lands here (Better Auth redirects to the sign-up's callbackURL and
+// adds `error=` for a bad link). Sign-up and resend accept no other callbackURL, so a link can only carry
+// a validated `next` on to sign-in.
+export const VERIFIED_PATH = "/masuk/verifikasi";
+export const verificationCallback = (next: string | null) => (next ? `${VERIFIED_PATH}?${new URLSearchParams({ next })}` : VERIFIED_PATH);
+export function isVerificationCallback(value: unknown) {
+  if (value === VERIFIED_PATH) return true;
+  if (typeof value !== "string" || !value.startsWith(`${VERIFIED_PATH}?`)) return false;
+  const query = new URLSearchParams(value.slice(VERIFIED_PATH.length + 1));
+  const next = safeReturnPath(query.get("next"));
+  return next !== null && value === verificationCallback(next);
 }
 
 export const isAdminPath = (path: string) => path === "/admin" || path.startsWith("/admin/") || path.startsWith("/admin?");

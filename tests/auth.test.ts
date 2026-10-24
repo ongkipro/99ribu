@@ -61,7 +61,17 @@ test("real auth: verification, session lifecycle, reset, deny-default and persis
       const duplicate = await call("/sign-up/email", { name: "Synthetic Buyer", email, password });
       assert.equal(duplicate.status, 200);
       assert.deepEqual(await signup.json(), await duplicate.json());
-      assert.equal((await call("/sign-in/email", { email, password })).status, 401);
+      // S123: the verification link may only return to the landing page with a validated next; a name is required.
+      for (const callbackURL of ["https://evil.invalid/", "/admin", "/masuk/verifikasi?next=%2F%2Fevil.invalid"]) {
+        assert.equal((await call("/sign-up/email", { name: "Synthetic Buyer", email, password, callbackURL })).status, 400, callbackURL);
+        assert.equal((await call("/send-verification-email", { email, callbackURL })).status, 400, callbackURL);
+      }
+      assert.equal((await call("/sign-up/email", { name: " ", email, password })).status, 400);
+      // These 400s answer before the per-email budget, so the counts below are unchanged.
+      // EMAIL_NOT_VERIFIED is named only after the password matched (a wrong one stays 401 INVALID_CREDENTIALS below).
+      const unverified = await call("/sign-in/email", { email, password });
+      assert.equal(unverified.status, 403);
+      assert.deepEqual(await unverified.json(), { code: "EMAIL_NOT_VERIFIED" });
       const rows = await identity.sql`select id, email_verified from app.auth_user where email=${email}`;
       assert.equal(rows.length, 1); assert.equal(rows[0].email_verified, false); userId = rows[0].id;
       const accounts = await identity.sql`select password from app.auth_account where user_id=${userId}`;

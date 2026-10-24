@@ -4,6 +4,7 @@ import { getPrincipal, isStaff, projectMe, AccessError } from "./policy.ts";
 import { clientIp, privateJson, problem, requestOrigin } from "./http.ts";
 import { readRuntimeConfig } from "../../config/runtime.ts";
 import { rateLimit } from "./rate-limit.ts";
+import { isVerificationCallback } from "./return-to.ts";
 import { parseCookies } from "better-auth/cookies";
 import { createHmac, timingSafeEqual } from "node:crypto";
 
@@ -86,6 +87,13 @@ export async function handleAuth(request: Request, identity: LocalAuth) {
     if (profile === "local" && body.email !== undefined && !isSyntheticEmail(body.email)) {
       return Response.json({ code: "SYNTHETIC_EMAIL_REQUIRED" }, { status: 400 });
     }
+    // S123: a verification link may only return to the landing page with a validated `next` (no open
+    // redirect through a trusted origin's other paths), and a display name is 1-100 characters.
+    if (["/api/auth/sign-up/email", "/api/auth/send-verification-email"].includes(path) &&
+        ((body.callbackURL !== undefined && !isVerificationCallback(body.callbackURL)) ||
+         (path.endsWith("/sign-up/email") && (typeof body.name !== "string" || !body.name.trim() || body.name.length > 100)))) {
+      return Response.json({ code: "INVALID_INPUT" }, { status: 400, headers: { "Cache-Control": "no-store" } });
+    }
     if (path.includes("/two-factor/")) {
       const enable = path.endsWith("/enable");
       const allowed = enable ? ["password"] : ["code"];
@@ -136,6 +144,11 @@ export async function handleAuth(request: Request, identity: LocalAuth) {
       delete body.token;
       if (body.session) delete body.session.token;
       if (path === "/api/auth/sign-up/email" && response.ok) body = { status: true };
+      // Better Auth answers EMAIL_NOT_VERIFIED only after the password matched, so naming it tells the
+      // caller nothing they did not prove; every other rejection stays one uniform code.
+      if (path === "/api/auth/sign-in/email" && response.status === 403 && body.code === "EMAIL_NOT_VERIFIED") {
+        return Response.json({ code: "EMAIL_NOT_VERIFIED" }, { status: 403, headers: response.headers });
+      }
       if (path === "/api/auth/sign-in/email" && [401, 403].includes(response.status)) {
         return Response.json({ code: "INVALID_CREDENTIALS" }, { status: 401, headers: response.headers });
       }
