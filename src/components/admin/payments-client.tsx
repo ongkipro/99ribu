@@ -3,19 +3,21 @@
 import { CircleCheck, RefreshCw } from "lucide-react";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { Alert, AlertDescription } from "@/components/ui/alert";
-import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { rupiah, wibDateTime, wibInputToIso } from "@/modules/storefront/format";
 import { describeFailure, failureText, getJson, readFailure } from "./admin-errors";
+import { bpsToPercent, percentToBps } from "./format";
 import { DataTable } from "./data-table";
 import { FormDialog, FormField, nativeSelectClass, SegmentedControl } from "./form";
+import { isOverdue, OrderNumberLink, OverdueBadge, StatusBadge, useNow } from "./status";
 import { useKeysetList } from "./use-keyset-list";
 
 // DEC-008 manual bank transfers (finance queue) and DEC-008/009 payment terms (owner).
 type Transfer = {
 	id: string;
+	order_id: string;
 	order_number: string;
 	transfer_code: number;
 	expected_amount: number;
@@ -68,8 +70,20 @@ async function proof(password: string, action: string, subject: string) {
 }
 
 const READ_ONLY_ID = "payments-read-only-reason";
+/** AutoLaris channel codes as staff read them: VABCA → VA BCA. */
+const channelLabel = (code: string) => (code.startsWith("VA") ? `VA ${code.slice(2)}` : code);
 
-export function PaymentsClient({ canManageTerms, canWrite }: { canManageTerms: boolean; canWrite: boolean }) {
+export function PaymentsClient({
+	canManageTerms,
+	canWrite,
+	canOrders,
+}: {
+	canManageTerms: boolean;
+	canWrite: boolean;
+	/** orders.history.read: order numbers link to the order detail. */
+	canOrders: boolean;
+}) {
+	const now = useNow();
 	const [state, setState] = useState<"open" | "resolved">("open");
 	const list = useKeysetList<Transfer>(`/api/v1/admin/manual-transfers?state=${state}`, (row) => row.id);
 	const [notice, setNotice] = useState<string | null>(null);
@@ -119,8 +133,15 @@ export function PaymentsClient({ canManageTerms, canWrite }: { canManageTerms: b
 					empty={state === "open" ? "Tidak ada transfer yang menunggu konfirmasi." : "Belum ada transfer yang dicatat."}
 					testId="manual-transfers"
 					caption={state === "open" ? "Transfer yang menunggu konfirmasi" : "Transfer yang sudah dicatat"}
+					stack
 					columns={[
-						{ id: "order", header: "Pesanan", cellClassName: "font-medium", cell: (row) => row.order_number },
+						{
+							id: "order",
+							header: "Pesanan",
+							stack: "plain",
+							cellClassName: "max-md:justify-start max-md:text-left",
+							cell: (row) => <OrderNumberLink number={row.order_number} orderId={row.order_id} enabled={canOrders} />,
+						},
 						{ id: "amount", header: "Nominal tepat", className: "text-right tabular-nums", cell: (row) => rupiah(row.expected_amount) },
 						{ id: "code", header: "Kode unik", cell: (row) => row.transfer_code },
 						{
@@ -128,19 +149,25 @@ export function PaymentsClient({ canManageTerms, canWrite }: { canManageTerms: b
 							header: state === "open" ? "Batas transfer" : "Hasil",
 							cell: (row) =>
 								row.confirmation ? (
-									<div className="flex flex-wrap gap-1">
-										<Badge variant={row.confirmation.outcome === "confirmed" ? "default" : "outline"}>
+									<div className="flex flex-wrap justify-end gap-1 md:justify-start">
+										<StatusBadge
+											tone={row.confirmation.outcome === "confirmed" ? "success" : row.confirmation.outcome === "recovery" ? "problem" : "open"}
+										>
 											{row.confirmation.outcome === "confirmed" ? "Lunas" : row.confirmation.outcome === "recovery" ? "Perlu tinjauan" : "Diproses"}
-										</Badge>
-										{row.confirmation.mismatch && <Badge variant="destructive">Nominal berbeda</Badge>}
+										</StatusBadge>
+										{row.confirmation.mismatch && <StatusBadge tone="danger">Nominal berbeda</StatusBadge>}
 									</div>
 								) : (
-									wibDateTime(row.expires_at)
+									<div className="flex flex-wrap items-center justify-end gap-1.5 tabular-nums md:justify-start">
+										{wibDateTime(row.expires_at)}
+										{isOverdue(row.expires_at, now) && <OverdueBadge />}
+									</div>
 								),
 						},
 						{
 							id: "actions",
 							header: "Tindakan",
+							stack: "plain",
 							className: "text-right",
 							cell: (row) =>
 								!row.confirmation && (
@@ -163,7 +190,7 @@ export function PaymentsClient({ canManageTerms, canWrite }: { canManageTerms: b
 					}}
 				/>
 			)}
-			<AutolarisPayments onNotice={setNotice} canWrite={canWrite} />
+			<AutolarisPayments onNotice={setNotice} canWrite={canWrite} canOrders={canOrders} />
 			{canManageTerms && <PaymentTerms />}
 		</div>
 	);
@@ -256,6 +283,7 @@ function ConfirmDialog({ transfer, onClose, onDone }: { transfer: Transfer; onCl
 // explicit settlement status; finance confirms manually after checking the AutoLaris dashboard.
 type Autolaris = {
 	id: string;
+	order_id: string;
 	order_number: string;
 	channel_code: string;
 	trx_id: string | null;
@@ -267,7 +295,16 @@ type Autolaris = {
 	latest_observation: { source: string; classification: string; ket: string | null } | null;
 };
 const OBSERVED: Record<string, string> = { pending: "Menunggu pembayaran", settled: "Lunas", unknown: "Status belum pasti", failed: "Gagal" };
-function AutolarisPayments({ onNotice, canWrite }: { onNotice: (message: string) => void; canWrite: boolean }) {
+const OBSERVED_TONE: Record<string, "success" | "problem" | "danger"> = { settled: "success", unknown: "problem", failed: "danger" };
+function AutolarisPayments({
+	onNotice,
+	canWrite,
+	canOrders,
+}: {
+	onNotice: (message: string) => void;
+	canWrite: boolean;
+	canOrders: boolean;
+}) {
 	const [state, setState] = useState<"open" | "resolved">("open");
 	const list = useKeysetList<Autolaris>(`/api/v1/admin/autolaris-payments?state=${state}`, (row) => row.id);
 	const [selected, setSelected] = useState<Autolaris | null>(null);
@@ -279,7 +316,7 @@ function AutolarisPayments({ onNotice, canWrite }: { onNotice: (message: string)
 						Virtual Account / QRIS (AutoLaris, simulasi lokal)
 					</h2>
 					<p className="max-w-prose text-sm text-muted-foreground">
-						Status diperiksa otomatis lewat advice; hanya status pelunasan eksplisit yang dianggap lunas. Biaya admin ditanggung toko dan dicatat sebagai biaya pembayaran saat penyelesaian dana.
+						Status dicek otomatis dari laporan AutoLaris; hanya status lunas yang tegas dianggap lunas. Biaya admin ditanggung toko dan dicatat sebagai biaya pembayaran saat dana diselesaikan.
 					</p>
 				</div>
 				<Button variant="outline" onClick={() => void list.reload()}>
@@ -305,9 +342,16 @@ function AutolarisPayments({ onNotice, canWrite }: { onNotice: (message: string)
 				empty="Tidak ada pembayaran AutoLaris."
 				testId="autolaris-payments"
 				caption={state === "open" ? "Pembayaran AutoLaris yang belum final" : "Pembayaran AutoLaris yang sudah final"}
+				stack
 				columns={[
-					{ id: "order", header: "Pesanan", cellClassName: "font-medium", cell: (row) => row.order_number },
-					{ id: "channel", header: "Kanal", cell: (row) => row.channel_code },
+					{
+						id: "order",
+						header: "Pesanan",
+						stack: "plain",
+						cellClassName: "max-md:justify-start max-md:text-left",
+						cell: (row) => <OrderNumberLink number={row.order_number} orderId={row.order_id} enabled={canOrders} />,
+					},
+					{ id: "channel", header: "Kanal", cell: (row) => channelLabel(row.channel_code) },
 					{ id: "amount", header: "Tagihan pembeli", className: "text-right tabular-nums", cell: (row) => rupiah(row.expected_amount) },
 					{ id: "fee", header: "Biaya admin (toko)", className: "text-right tabular-nums", cell: (row) => (row.admin_fee === null ? "—" : rupiah(row.admin_fee)) },
 					{
@@ -315,16 +359,17 @@ function AutolarisPayments({ onNotice, canWrite }: { onNotice: (message: string)
 						header: "Status",
 						cell: (row) =>
 							row.refusal_code ? (
-								<Badge variant="destructive">Ditolak: total tidak sama</Badge>
+								<StatusBadge tone="danger">Ditolak: total tidak sama</StatusBadge>
 							) : (
-								<Badge variant={row.latest_observation?.classification === "settled" ? "default" : "outline"}>
+								<StatusBadge tone={OBSERVED_TONE[row.latest_observation?.classification ?? ""] ?? "open"}>
 									{row.latest_observation ? OBSERVED[row.latest_observation.classification] ?? row.latest_observation.classification : row.trx_id ? "Menunggu pembayaran" : "Instruksi dibuat"}
-								</Badge>
+								</StatusBadge>
 							),
 					},
 					{
 						id: "actions",
 						header: "Tindakan",
+						stack: "plain",
 						className: "text-right",
 						cell: (row) =>
 							state === "open" &&
@@ -409,7 +454,8 @@ function AutolarisConfirmDialog({ payment, onClose, onDone }: { payment: Autolar
 
 function PaymentTerms() {
 	const [current, setCurrent] = useState<{ version: number; terms: Terms } | null>(null);
-	const [form, setForm] = useState({ bps: "333", accounts: "", reason: "", password: "" });
+	// The API keeps basis points; staff edit a percent (333 bps = 3,33%), converted at this boundary.
+	const [form, setForm] = useState({ percent: "3,33", accounts: "", reason: "", password: "" });
 	const [message, setMessage] = useState<{ kind: "ok" | "error"; text: string } | null>(null);
 	const [pending, setPending] = useState(false);
 	const load = useCallback(async () => {
@@ -420,7 +466,7 @@ function PaymentTerms() {
 		if (terms)
 			setForm((f) => ({
 				...f,
-				bps: String(terms.cod_fee_bps),
+				percent: bpsToPercent(terms.cod_fee_bps),
 				accounts: terms.manual_bank_accounts.map((a) => `${a.bank_name} | ${a.account_number} | ${a.account_holder}`).join("\n"),
 			}));
 	}, []);
@@ -436,6 +482,8 @@ function PaymentTerms() {
 				const [bank_name, account_number, account_holder] = line.split("|").map((part) => part.trim());
 				return { bank_name, account_number, account_holder };
 			});
+		const bps = percentToBps(form.percent);
+		if (bps === null) return setMessage({ kind: "error", text: "Biaya COD diisi persen 0–100 dengan paling banyak dua angka desimal, contoh 3,33." });
 		if (!form.reason.trim() || !form.password) return setMessage({ kind: "error", text: "Alasan dan kata sandi wajib diisi." });
 		if (pending) return;
 		setPending(true);
@@ -449,7 +497,7 @@ function PaymentTerms() {
 				warehouse_id: null,
 				expected_version: current?.version ?? 0,
 				effective_at: null,
-				values: { cod_fee_bps: Number(form.bps), manual_bank_accounts: accounts },
+				values: { cod_fee_bps: bps, manual_bank_accounts: accounts },
 				reason: form.reason.trim(),
 				reauthentication_proof: issued.data.proof,
 			});
@@ -467,12 +515,22 @@ function PaymentTerms() {
 				</h2>
 				<p className="text-sm text-muted-foreground">
 					Biaya COD dibayar pembeli dan dibekukan di setiap penawaran; perubahan hanya berlaku untuk penawaran baru. Rekening dipakai untuk transfer bank manual.
-					{current?.terms ? ` Berlaku sekarang: ${(current.terms.cod_fee_bps / 100).toLocaleString("id-ID")}% dan ${current.terms.manual_bank_accounts.length} rekening.` : " Belum diatur: tanpa biaya COD dan transfer manual tidak tersedia."}
+					{current?.terms ? ` Berlaku sekarang: ${bpsToPercent(current.terms.cod_fee_bps)}% dan ${current.terms.manual_bank_accounts.length} rekening.` : " Belum diatur: tanpa biaya COD dan transfer manual tidak tersedia."}
 				</p>
 			</div>
 			<form noValidate className="flex flex-col gap-3" onSubmit={(e) => { e.preventDefault(); void save(); }}>
-				<FormField id="terms-bps" label="Biaya COD (basis poin; 333 = 3,33%)">
-					<Input id="terms-bps" inputMode="numeric" value={form.bps} onChange={(e) => setForm({ ...form, bps: e.target.value })} />
+				<FormField id="terms-cod-fee" label="Biaya COD (%)" hint="Persen dari tagihan COD, contoh 3,33.">
+					<div className="flex items-center gap-2">
+						<Input
+							id="terms-cod-fee"
+							inputMode="decimal"
+							className="max-w-32"
+							value={form.percent}
+							aria-describedby="terms-cod-fee-hint"
+							onChange={(e) => setForm({ ...form, percent: e.target.value })}
+						/>
+						<span aria-hidden="true" className="text-sm text-muted-foreground">%</span>
+					</div>
 				</FormField>
 				<FormField id="terms-accounts" label="Rekening transfer (satu per baris: Bank | Nomor | Nama pemilik)">
 					<Textarea id="terms-accounts" value={form.accounts} onChange={(e) => setForm({ ...form, accounts: e.target.value })} />

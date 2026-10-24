@@ -1,5 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
+import { bpsToPercent, percentToBps } from "../src/components/admin/format.ts";
 import { searchQuery } from "../src/components/admin/order-model.ts";
 import { wibInputToIso } from "../src/modules/storefront/format.ts";
 
@@ -17,4 +18,16 @@ test("S100: a phone suffix never enters a page URL or the detail page's back lin
 	assert.equal(searchQuery("hp", "12345678").toString(), "jenis=hp");
 	assert.equal(searchQuery("resi", "JP1234567890").toString(), "jenis=resi&cari=JP1234567890");
 	assert.equal(searchQuery("nomor", "").toString(), "");
+});
+
+test("S113: the COD fee is typed as a percent and stored as basis points", () => {
+	assert.equal(percentToBps("3,33"), 333);
+	assert.equal(percentToBps("3.33"), 333);
+	assert.equal(percentToBps(" 0 "), 0);
+	assert.equal(percentToBps("100"), 10000);
+	assert.equal(percentToBps("2,5"), 250);
+	for (const bad of ["", "333%", "-1", "100,01", "3,333", "1e2", "abc"]) assert.equal(percentToBps(bad), null, bad);
+	assert.equal(bpsToPercent(333), "3,33");
+	assert.equal(bpsToPercent(250), "2,5");
+	assert.equal(percentToBps(bpsToPercent(333)), 333);
 });
