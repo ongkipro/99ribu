@@ -67,6 +67,12 @@ export const RETENTION_JOBS: Readonly<Record<string, RetentionJob>> = {
   "auth.rate_limit": { table: "auth_rate_limit", window: "1 day after the last request",
     run: async (sql) => (await sql`delete from app.auth_rate_limit where id in (select id from app.auth_rate_limit
       where last_request<floor(extract(epoch from clock_timestamp())*1000)-86400000 limit ${RETENTION_BATCH} for update skip locked)`).count },
+  // lazy: no expires_at index (small table, bounded batch); add one if the scan shows up.
+  // Guest order-access challenges (decoys included) that expired unverified grant nothing; verified ones are
+  // the 7-day access capability and go a day after that expiry.
+  "support_challenge.guest_order_access": { table: "support_challenge", window: "1 day after expiry (guest order access only)",
+    run: async (sql) => (await sql`delete from app.support_challenge where id in (select id from app.support_challenge
+      where kind='guest_order_access' and expires_at<clock_timestamp()-interval '1 day' order by expires_at limit ${RETENTION_BATCH} for update skip locked)`).count },
   "visitor.history": { table: "visitor_session", window: "90 days after visitor expiry, without order, receipt or transmitted-signal references",
     run: async (sql) => Number((await sql`select app.purge_expired_visitor_history(${RETENTION_BATCH}) purged`)[0].purged) },
 };

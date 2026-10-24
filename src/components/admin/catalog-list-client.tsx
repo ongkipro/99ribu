@@ -1,24 +1,15 @@
 "use client";
 
 import { cn } from "cn";
-import { ImageOff, RefreshCw, Search, SlidersHorizontal } from "lucide-react";
+import { ImageOff, Search, SlidersHorizontal } from "lucide-react";
 import Link from "next/link";
 import { useCallback, useEffect, useRef, useState } from "react";
-import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Skeleton } from "@/components/ui/skeleton";
-import {
-	Table,
-	TableBody,
-	TableCell,
-	TableHead,
-	TableHeader,
-	TableRow,
-} from "@/components/ui/table";
 import { rupiah } from "@/modules/storefront/format";
 import { failureText, getJson } from "./admin-errors";
+import { DataTable } from "./data-table";
 import {
 	blockerLabel,
 	type CatalogStatus,
@@ -332,137 +323,117 @@ export function CatalogListClient({
 					</div>
 				</search>
 
-				{load.state === "loading" ? (
-					<div className="flex flex-col gap-2" aria-busy="true">
-						<span className="sr-only">Memuat katalog…</span>
-						<Skeleton className="h-14 w-full" />
-						<Skeleton className="h-14 w-full" />
-						<Skeleton className="h-14 w-full" />
-					</div>
-				) : load.state === "error" ? (
-					<Alert
-						variant="destructive"
-						className="flex flex-wrap items-center justify-between gap-3 border-destructive/40 bg-destructive-surface"
-					>
-						<AlertDescription className="text-foreground">
-							Katalog gagal dimuat. {load.error}
-						</AlertDescription>
-						<Button
-							type="button"
-							variant="outline"
-							size="sm"
-							onClick={() => void fetchPage()}
-						>
-							<RefreshCw data-icon="inline-start" aria-hidden="true" />
-							Coba lagi
-						</Button>
-					</Alert>
-				) : load.rows.length === 0 ? (
-					filtered ? (
-						<div className="flex flex-col items-center gap-2 rounded-md border border-dashed px-4 py-8 text-center text-sm text-muted-foreground">
-							<p>Tidak ada produk yang cocok dengan filter ini.</p>
-							<Button
-								type="button"
-								variant="outline"
-								size="sm"
-								onClick={() => update({ q: "", category: "", status: "" })}
-							>
-								Hapus filter
-							</Button>
-						</div>
-					) : (
-						<p className="rounded-md border border-dashed px-4 py-8 text-center text-sm text-muted-foreground">
-							Katalog belum berisi produk.
-						</p>
-					)
-				) : (
-					<>
-						<p className="text-sm tabular-nums" role="status">
-							Halaman {page} · {load.rows.length} produk
-							{filtered ? " cocok" : ""}
-						</p>
-						<div className="hidden md:block">
-							<Table>
-								<TableHeader>
-									<TableRow>
-										<TableHead className="w-16">
-											<span className="sr-only">Foto</span>
-										</TableHead>
-										<TableHead>Produk</TableHead>
-										<TableHead className="hidden lg:table-cell">
-											Kategori
-										</TableHead>
-										<TableHead>Jenis varian</TableHead>
-										{!uniformPrice && (
-											<TableHead className="text-right">Harga</TableHead>
-										)}
-										<TableHead>
-											{access.stock ? "Stok" : "Kesiapan stok"}
-										</TableHead>
-										<TableHead>Status</TableHead>
-									</TableRow>
-								</TableHeader>
-								<TableBody>
-									{load.rows.map((r) => (
-										<TableRow key={r.id} data-testid={`catalog-row-${r.id}`}>
-											<TableCell>{thumb(r)}</TableCell>
-											<TableCell className="max-w-72 whitespace-normal">
-												<Link
-													href={detailHref(r.id)}
-													className="font-medium text-primary underline-offset-4 hover:underline"
-												>
-													{r.name}
-												</Link>
-												<span className="block font-mono text-xs text-muted-foreground">
-													{r.catalog_id}
-												</span>
-											</TableCell>
-											<TableCell className="hidden max-w-56 whitespace-normal lg:table-cell">
-												{r.category_path ?? "Tanpa kategori"}
-											</TableCell>
-											<TableCell>{kinds(r)}</TableCell>
-											{!uniformPrice && (
-												<TableCell className="text-right tabular-nums">
-													{rupiah(r.price_idr)}
-												</TableCell>
-											)}
-											<TableCell>{stock(r)}</TableCell>
-											<TableCell className="max-w-56 whitespace-normal">
-												{status(r)}
-											</TableCell>
-										</TableRow>
-									))}
-								</TableBody>
-							</Table>
-						</div>
-						<ul className="flex flex-col divide-y rounded-md border md:hidden">
-							{load.rows.map((r) => (
-								<li
-									key={r.id}
-									data-testid={`catalog-card-${r.id}`}
-									className="flex gap-3 p-3"
+				{load.state === "ready" && load.rows.length > 0 && (
+					<p className="text-sm tabular-nums" role="status">
+						Halaman {page} · {load.rows.length} produk
+						{filtered ? " cocok" : ""}
+					</p>
+				)}
+				<DataTable
+					rows={load.state === "ready" ? load.rows : []}
+					rowKey={(r) => r.id}
+					status={
+						load.state === "ready"
+							? { kind: "ready" }
+							: load.state === "error"
+								? {
+										kind: "error",
+										message: `Katalog gagal dimuat. ${load.error}`,
+										onRetry: () => void fetchPage(),
+									}
+								: { kind: "loading" }
+					}
+					loadingLabel="Memuat katalog…"
+					empty={
+						filtered ? (
+							<>
+								<p>Tidak ada produk yang cocok dengan filter ini.</p>
+								<Button
+									type="button"
+									variant="outline"
+									size="sm"
+									onClick={() => update({ q: "", category: "", status: "" })}
 								>
-									{thumb(r)}
-									<div className="flex min-w-0 flex-1 flex-col gap-1.5">
-										<Link
-											href={detailHref(r.id)}
-											className="inline-flex min-h-11 items-center font-medium text-primary underline-offset-4 hover:underline"
-										>
-											{r.name}
-										</Link>
-										<span className="text-xs text-muted-foreground">
-											{r.category_path ?? "Tanpa kategori"}
-										</span>
-										<div className="flex flex-wrap items-center gap-1.5">
-											{kinds(r)}
-											{stock(r)}
-										</div>
-										{status(r)}
-									</div>
-								</li>
-							))}
-						</ul>
-						{(page > 1 || load.next) && (
+									Hapus filter
+								</Button>
+							</>
+						) : (
+							"Katalog belum berisi produk."
+						)
+					}
+					caption="Daftar produk katalog"
+					rowTestId={(r) => `catalog-row-${r.id}`}
+					columns={[
+						{ id: "photo", header: <span className="sr-only">Foto</span>, className: "w-16", cell: thumb },
+						{
+							id: "product",
+							header: "Produk",
+							cellClassName: "max-w-72 whitespace-normal",
+							cell: (r) => (
+								<>
+									<Link
+										href={detailHref(r.id)}
+										className="font-medium text-primary underline-offset-4 hover:underline"
+									>
+										{r.name}
+									</Link>
+									<span className="block font-mono text-xs text-muted-foreground">
+										{r.catalog_id}
+									</span>
+								</>
+							),
+						},
+						{
+							id: "category",
+							header: "Kategori",
+							className: "hidden lg:table-cell",
+							cellClassName: "max-w-56 whitespace-normal",
+							cell: (r) => r.category_path ?? "Tanpa kategori",
+						},
+						{ id: "kinds", header: "Jenis varian", cell: kinds },
+						...(uniformPrice
+							? []
+							: [
+									{
+										id: "price",
+										header: "Harga",
+										className: "text-right tabular-nums",
+										cell: (r: ProductSummary) => rupiah(r.price_idr),
+									},
+								]),
+						{ id: "stock", header: access.stock ? "Stok" : "Kesiapan stok", cell: stock },
+						{
+							id: "status",
+							header: "Status",
+							cellClassName: "max-w-56 whitespace-normal",
+							cell: status,
+						},
+					]}
+					cardTestId={(r) => `catalog-card-${r.id}`}
+					card={(r) => (
+						<div className="flex gap-3">
+							{thumb(r)}
+							<div className="flex min-w-0 flex-1 flex-col gap-1.5">
+								<Link
+									href={detailHref(r.id)}
+									className="inline-flex min-h-11 items-center font-medium text-primary underline-offset-4 hover:underline"
+								>
+									{r.name}
+								</Link>
+								<span className="text-xs text-muted-foreground">
+									{r.category_path ?? "Tanpa kategori"}
+								</span>
+								<div className="flex flex-wrap items-center gap-1.5">
+									{kinds(r)}
+									{stock(r)}
+								</div>
+								{status(r)}
+							</div>
+						</div>
+					)}
+					footer={
+						load.state === "ready" &&
+						(page > 1 || load.next) && (
 							<nav
 								aria-label="Halaman katalog"
 								className="flex flex-wrap items-center justify-between gap-2"
@@ -483,16 +454,15 @@ export function CatalogListClient({
 									size="sm"
 									disabled={!load.next}
 									onClick={() =>
-										load.next &&
-										setCursors((prev) => [...prev, load.next as string])
+										load.next && setCursors((prev) => [...prev, load.next as string])
 									}
 								>
 									Berikutnya
 								</Button>
 							</nav>
-						)}
-					</>
-				)}
+						)
+					}
+				/>
 			</section>
 		</div>
 	);

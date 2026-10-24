@@ -64,11 +64,21 @@ test("guest order access by order number: matched recovers, unknown and mismatch
 		assert.equal(ok.status, 201);
 		assert.equal(ok.body.order_id, f.order.id);
 		assert.match(ok.body.order_access_token, /^ord_/);
+
+		// Review R4 finding: a decoy and a real challenge for one number share the verify bucket, so
+		// exhausting it through a decoy cannot tell whether a contact matches.
+		const junk = await challenge({ order_number: order.number, contact: "081299990000" });
+		const real = await challenge({ order_number: order.number, contact: order.phone });
+		let spent = await verify(junk.body.challenge_id, "000000");
+		for (let i = 0; i < 25 && spent.status !== 429; i++) spent = await verify(junk.body.challenge_id, "000000");
+		assert.equal(spent.status, 429);
+		assert.equal((await verify(real.body.challenge_id, "000000")).status, 429);
 	} finally {
 		const refs = [f.order.id, `n:${digest(order.number)}`, `n:${digest(unknown)}`];
 		const keys = refs.flatMap((r) => [`rl:guest-access-challenge-order:${r}`, `rl:guest-access-verify-order:${r}`]);
 		for (const phone of [order.phone, "081299990000"]) keys.push(`rl:guest-access-challenge-contact:${digest(`phone:${normalizePhone(phone)}`)}`);
 		await identity.sql`delete from app.auth_rate_limit where key = any(${keys})`;
+		await identity.sql`delete from app.support_challenge where kind = 'guest_order_access' and (order_id = ${f.order.id} or target_reference = any(${refs}))`;
 		await f.close();
 	}
 });
