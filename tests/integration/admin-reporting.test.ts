@@ -251,8 +251,10 @@ test("T-34: role-scoped dashboards, unknown vs zero cost metrics, drilldown cons
 				number: string;
 				expires_at: string | null;
 				created_at: string;
+				payment_method: string;
+				payment_status: string;
 			}[]
-		>`select id, number, expires_at, created_at from app.commerce_order where id in ${f.identity.sql(drilldownQueue.data.map((r: { id: string }) => r.id))}`;
+		>`select id, number, expires_at, created_at, payment_method, payment_status from app.commerce_order where id in ${f.identity.sql(drilldownQueue.data.map((r: { id: string }) => r.id))}`;
 		assert.equal(orderFacts.length, drilldownQueue.data.length);
 		for (const row of drilldownQueue.data) {
 			const fact = orderFacts.find((o) => o.id === row.id);
@@ -260,15 +262,26 @@ test("T-34: role-scoped dashboards, unknown vs zero cost metrics, drilldown cons
 			assert.equal(row.reference, fact.number);
 			// S100: the order detail link target is the order itself.
 			assert.equal(row.order_id, fact.id);
-			assert.equal(
-				row.due_at_kind,
-				fact.expires_at ? "payment_deadline" : "created",
-			);
+			// The payment deadline applies only while a prepaid order awaits payment.
+			const awaiting =
+				fact.payment_method === "prepaid" && fact.payment_status === "pending";
+			assert.equal(row.due_at_kind, awaiting ? "payment_deadline" : "created");
 			assert.equal(
 				row.due_at,
-				new Date(fact.expires_at ?? fact.created_at).toISOString(),
+				new Date(
+					awaiting && fact.expires_at ? fact.expires_at : fact.created_at,
+				).toISOString(),
 			);
 		}
+		// The paid order is never shown against its (past) payment deadline.
+		const paidFact = orderFacts.find((o) => o.id === placedOrder.id);
+		assert.ok(paidFact, "the paid order is in the pending-orders drilldown");
+		assert.notEqual(paidFact.payment_status, "pending");
+		const paidRow = drilldownQueue.data.find(
+			(r: { id: string }) => r.id === placedOrder.id,
+		);
+		assert.equal(paidRow.due_at_kind, "created");
+		assert.equal(paidRow.due_at, new Date(paidFact.created_at).toISOString());
 
 		// Fulfillment rows: waybill (else order number) and the deadline source behind due_at.
 		const fulfillmentRes = await handleReporting(
