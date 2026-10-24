@@ -609,7 +609,7 @@ export function PrintCenterClient({
 							id: "actions",
 							header: <span className="sr-only">Tindakan</span>,
 							cell: (s) => (
-								<div className="flex flex-wrap justify-end gap-1.5">
+								<div className="flex flex-wrap justify-end gap-1.5 [&_a]:whitespace-nowrap [&_button]:whitespace-nowrap">
 									{actions(s, latestArtifactFor(s.shipment_id), "")}
 								</div>
 							),

@@ -1467,6 +1467,7 @@ export function AdminWorkspacesClient({
 										}
 										active={metricKey === m.key}
 										tone={kpiTone(m)}
+										reserveAction={countMetrics.some((x) => actionLabel(x.action_href))}
 										drilldownLabel="Lihat baris"
 										onDrilldown={() => {
 											openQueue(m.queue_key, m);
@@ -1477,6 +1478,15 @@ export function AdminWorkspacesClient({
 								);
 							})}
 						</KpiGrid>
+						{countMetrics.some((m) => kpiTone(m) === "idle") && (
+							<p className="text-xs text-muted-foreground md:hidden">
+								Kosong:{" "}
+								{countMetrics
+									.filter((m) => kpiTone(m) === "idle")
+									.map((m) => METRIC_LABELS[m.key] ?? m.key)
+									.join(", ")}
+							</p>
+						)}
 						<Definitions metrics={countMetrics} />
 					</>
 				)}
@@ -1768,6 +1778,7 @@ export function AdminWorkspacesClient({
 									label={METRIC_LABELS[m.key] ?? m.key}
 									value={m.complete && m.amount !== null ? rupiah(m.amount) : "Belum lengkap"}
 									muted={!m.complete}
+									reserveAction={moneyMetrics.some((x) => actionLabel(x.action_href))}
 									badge={
 										m.complete && BASIS_LABELS[m.financial_basis] ? (
 											<Badge variant="outline">{BASIS_LABELS[m.financial_basis]}</Badge>

@@ -25,6 +25,7 @@ export function KpiCard({
 	money = false,
 	muted = false,
 	tone = "neutral",
+	reserveAction = false,
 	drilldownLabel,
 	onDrilldown,
 	action,
@@ -41,6 +42,8 @@ export function KpiCard({
 	/** Value not complete: shown in the warning tone instead of a number. */
 	muted?: boolean;
 	tone?: "attention" | "neutral" | "idle";
+	/** Keep the action line's height when this card has none, so drilldown links align in a row. */
+	reserveAction?: boolean;
 	drilldownLabel: string;
 	onDrilldown: () => void;
 	action?: { href: string; label: string } | null;
@@ -52,7 +55,8 @@ export function KpiCard({
 			className={cn(
 				"flex min-w-0 flex-col gap-1.5 rounded-lg border bg-card p-3",
 				tone === "attention" && "border-l-4 border-l-warning bg-warning-surface",
-				tone === "idle" && "bg-muted/40",
+				// Below md a zero queue is listed in one line under the grid instead (phone = task subset).
+				tone === "idle" && "bg-muted/40 max-md:hidden",
 				active && "border-primary ring-1 ring-primary",
 			)}
 		>
@@ -93,7 +97,7 @@ export function KpiCard({
 					{breakdown}
 				</p>
 			)}
-			<div className="mt-auto flex flex-wrap items-center gap-x-3 gap-y-1 pt-1">
+			<div className="mt-auto flex flex-col items-start pt-1">
 				<Button
 					type="button"
 					variant="link"
@@ -116,6 +120,7 @@ export function KpiCard({
 						{action.label}
 					</Link>
 				)}
+				{!action && reserveAction && <span aria-hidden="true" className="min-h-8 pointer-coarse:min-h-11" />}
 			</div>
 		</li>
 	);
@@ -125,7 +130,7 @@ export function KpiGrid({ children, testId }: { children: ReactNode; testId?: st
 	return (
 		<ul
 			data-testid={testId}
-			className="grid grid-cols-[repeat(auto-fill,minmax(min(100%,11.5rem),1fr))] gap-2"
+			className="grid grid-cols-[repeat(auto-fill,minmax(min(100%,10rem),1fr))] gap-2"
 		>
 			{children}
 		</ul>

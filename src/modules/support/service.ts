@@ -156,6 +156,17 @@ async function saveOperation(
 	`;
 }
 
+// Order context card title in the buyer's and staff's language (no raw status codes).
+const ORDER_STATUS_ID: Record<string, string> = {
+	preparing: "disiapkan",
+	pending: "menunggu",
+	processing: "diproses",
+	partially_completed: "sebagian selesai",
+	cancelled: "dibatalkan",
+};
+const orderContextTitle = (number: string, status: string) =>
+	`Pesanan ${number} (${ORDER_STATUS_ID[status] ?? "status lain"})`;
+
 export async function resolveSupportStaff(
 	request: Request,
 	identity: LocalAuth,
@@ -1431,7 +1442,7 @@ async function projectMessage(
 				order_id: card.resource_id,
 				title:
 					available && ord
-						? `Pesanan ${ord.number} (${ord.status})`
+						? orderContextTitle(ord.number, ord.status)
 						: "Pesanan tidak tersedia",
 				availability: available ? "available" : "unavailable",
 				snapshot_at: snapshotAt,
@@ -1729,7 +1740,7 @@ export async function commitPublicMessage(
 					kind: "order",
 					resourceId: ord.id,
 					snapshot: {
-						title: `Pesanan ${ord.number} (${ord.status})`,
+						title: orderContextTitle(ord.number, ord.status),
 						snapshot_at: nowIso,
 					},
 				};
@@ -1758,7 +1769,7 @@ export async function commitPublicMessage(
 					kind: "order",
 					resourceId: ord.id,
 					snapshot: {
-						title: `Pesanan ${ord.number} (${ord.status})`,
+						title: orderContextTitle(ord.number, ord.status),
 						snapshot_at: nowIso,
 					},
 				};
