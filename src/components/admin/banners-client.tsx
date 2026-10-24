@@ -124,7 +124,6 @@ const schedule = (b: Pick<AdminBanner, "starts_at" | "ends_at">) => `${wibDateTi
 export function BannersClient() {
 	const [state, setState] = useState<"current" | "retired">("current");
 	const [rows, setRows] = useState<AdminBanner[]>([]);
-	const [configured, setConfigured] = useState(false);
 	const [status, setStatus] = useState<DataTableStatus>({ kind: "loading" });
 	const [order, setOrder] = useState<string[] | null>(null);
 	const [editing, setEditing] = useState<AdminBanner | "new" | null>(null);
@@ -135,7 +134,7 @@ export function BannersClient() {
 	const noticeRef = useRef<HTMLDivElement>(null);
 	const load = useCallback(async () => {
 		setStatus({ kind: "loading" });
-		const result = await getJson<{ configured: boolean; data: AdminBanner[] }>(`/api/v1/admin/home-banners?state=${state}`);
+		const result = await getJson<{ data: AdminBanner[] }>(`/api/v1/admin/home-banners?state=${state}`);
 		if (!result.ok) {
 			setStatus(
 				result.failure.status === 403 || result.failure.status === 401
@@ -145,7 +144,6 @@ export function BannersClient() {
 			return;
 		}
 		setRows(result.data.data);
-		setConfigured(result.data.configured);
 		setOrder(null);
 		setStatus({ kind: "ready" });
 	}, [state]);
@@ -313,9 +311,7 @@ export function BannersClient() {
 					emptyTestId="banners-empty"
 					empty={
 						current
-							? configured
-								? "Tidak ada banner aktif atau terjadwal. Bagian banner disembunyikan di beranda."
-								: "Belum ada banner buatan admin. Beranda masih menampilkan tiga kartu bawaan (Paket campuran, Otomotif, Fashion Pria); setelah banner pertama dibuat, hanya banner dari daftar ini yang tampil."
+							? "Belum ada banner di daftar ini, jadi beranda menampilkan kartu bawaan (Paket campuran, Otomotif, Fashion Pria). Setelah ada banner, hanya banner dari daftar ini yang tampil sesuai jadwalnya."
 							: "Belum ada banner yang diarsipkan."
 					}
 				/>
@@ -344,9 +340,9 @@ export function BannersClient() {
 						</div>
 					) : (
 						<EmptyState>
-							{configured
+							{rows.length
 								? "Tidak ada banner yang tayang sekarang, jadi bagian ini tidak tampil di beranda."
-								: "Beranda menampilkan kartu bawaan sampai banner pertama dibuat."}
+								: "Beranda menampilkan kartu bawaan sampai ada banner di daftar ini."}
 						</EmptyState>
 					)}
 				</DetailSection>
@@ -658,7 +654,7 @@ function RetireDialog({ banner, onClose, onDone }: { banner: AdminBanner; onClos
 	return (
 		<FormDialog
 			title={`Arsipkan banner ${banner.title}?`}
-			description="Banner langsung hilang dari beranda dan tidak dapat diaktifkan lagi. Riwayatnya tetap tersimpan; buat banner baru bila perlu."
+			description="Banner langsung hilang dari beranda dan tidak dapat diaktifkan lagi. Riwayatnya tetap tersimpan. Bila tidak ada banner tersisa di daftar, beranda kembali menampilkan kartu bawaan."
 			pending={pending}
 			error={error}
 			submitLabel="Arsipkan banner"

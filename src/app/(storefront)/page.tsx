@@ -44,7 +44,7 @@ export default async function Home(){
  // Hero: its own curated photos only, so it does not repeat the tiles and pills below.
  const heroPhotos=(await curatedHero(identity)).map(photo=>media(photo)).filter(x=>x!==null);
  // Promo banners plus one per active shipping promotion; no banner, no section. S110: the admin-managed
- // banners current now (WIB windows) once staff have created any; until then the data-backed HOME_BANNERS defaults.
+ // banners current now (WIB windows) while any is not retired; otherwise the data-backed HOME_BANNERS defaults.
  const [bundles,promotions,managed]=await Promise.all([bundleOffers(identity,1),activeShippingPromotions(identity),currentHomeBanners(identity.sql)]);
  const banners:Banner[]=[
   ...(managed.configured

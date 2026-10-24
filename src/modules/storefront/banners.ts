@@ -7,8 +7,8 @@ import {photosById} from './department-photos.ts';
 // photo-led cards, at least three, each linking to a real destination. Content is dummy but true
 // (no invented prices, savings or promises) and data-backed: a banner shows only while its photo is
 // still published and its destination has content (a published mixed bundle, or the department in
-// the current department list). S110: once staff have created any admin-managed banner, the home rail
-// shows only the current admin banners (homeRailBanners below) and this list is no longer used.
+// the current department list). S110: while any admin-managed banner is not retired, the home rail shows only
+// the current admin banners (currentHomeBanners below) and this list is not used.
 // Photos were picked by eye from contact sheets (round 51): item photos that are no product's cover,
 // no hero, tile or department pick (so nothing repeats the sections above), high contrast, with no
 // percentage, price, discount, claim or badge overlay (product labels only): a reed diffuser
@@ -33,8 +33,9 @@ export async function homeBanners(identity:LocalAuth,context:{bundles:number;dep
 
 // S110 public projection: the current version of every admin-managed banner that is active, not retired and
 // inside its window at `now` (starts_at inclusive, ends_at exclusive), in rail order. Only public fields leave
-// this function (no actor, reason or audit data). `configured` is true once any banner identity exists, even
-// retired or expired, so an empty result then hides the rail instead of bringing the defaults back.
+// this function (no actor, reason or audit data). `configured` is true while any banner is not retired (live,
+// scheduled, paused or ended): the admin list then owns the rail, and with none current the rail hides. Retiring
+// every banner hands the rail back to the data-backed defaults (also keeps test-created, retired banners inert).
 export type CurrentBanner={id:string;title:string;subtitle:string|null;action_label:string;href:string;tint:string|null;image:{src:string;width:number;height:number;alt:string}};
 export async function currentHomeBanners(sql:Sql,now=new Date()):Promise<{configured:boolean;banners:CurrentBanner[]}>{
  const at=now.toISOString();
@@ -43,7 +44,7 @@ export async function currentHomeBanners(sql:Sql,now=new Date()):Promise<{config
    from app.home_banner h join app.home_banner_version v on v.banner_id=h.id and v.revision=h.revision
    where v.active and not v.retired and v.starts_at<=${at}::timestamptz and v.ends_at>${at}::timestamptz
    order by v.position,h.created_at,h.id limit 24`,
-  sql`select exists(select 1 from app.home_banner) as configured`,
+  sql`select exists(select 1 from app.home_banner h join app.home_banner_version v on v.banner_id=h.id and v.revision=h.revision where not v.retired) as configured`,
  ]);
  return {configured:Boolean(head?.configured),banners:rows.map(row=>({id:String(row.id),title:String(row.title),subtitle:row.subtitle===null?null:String(row.subtitle),
   action_label:String(row.action_label),href:String(row.href),tint:row.tint===null?null:String(row.tint),

@@ -18,7 +18,7 @@ const origin='https://storefront.invalid';
 // /kategori/<slug>, never tracking parameters or fragments. Returns the normalized path, or null.
 const PATHS=/^\/(?:promo|kategori|kategori\/[a-z0-9-]{1,80}|cari|produk\/[a-z0-9-]{1,160})$/;
 export function bannerHref(value:unknown):string|null{
- if(typeof value!=='string'||value.length<1||value.length>400||!value.startsWith('/')||value.startsWith('//')||/[\\\s\p{Cc}\p{Cf}]/u.test(value))return null;
+ if(typeof value!=='string'||value.length<1||value.length>400||!value.startsWith('/')||value.startsWith('//')||/[\\\p{Cc}\p{Cf}]/u.test(value))return null;
  let url:URL;
  try{url=new URL(value,origin);}catch{return null;}
  if(url.origin!==origin||url.hash||value.includes('#')||!PATHS.test(url.pathname))return null;

@@ -20,7 +20,7 @@ const EDITORS=['owner','ecommerce_admin'];
 const DAY=86_400_000;
 const FIELDS=['title','subtitle','action_label','href','image_sha256','image_alt','tint','starts_at','ends_at','active'] as const;
 
-const line=(value:unknown,maximum:number)=>{const result=text(value,maximum);if(result!==result.trim()||/[\p{Cc}\p{Cf}]/u.test(result)) throw invalid();return result;};
+const line=(value:unknown,maximum:number)=>{const result=text(value,maximum);if(result!==value||/[\p{Cc}\p{Cf}]/u.test(result)) throw invalid();return result;};
 const proofText=(value:unknown)=>{if(typeof value!=='string'||!/^[A-Za-z0-9_-]{1,100}$/.test(value)) throw invalid();return value;};
 const sha=(value:unknown)=>{if(typeof value!=='string'||!/^[0-9a-f]{64}$/.test(value)) throw invalid();return value;};
 
@@ -87,8 +87,8 @@ async function currentList(tx:TransactionSql,retired:boolean){
  const rows=retired
   ?await tx`${CURRENT(tx)} where v.retired order by v.created_at desc,v.banner_id limit 50`
   :await tx`${CURRENT(tx)} where not v.retired order by v.position,h.created_at,h.id`;
- // `configured`: some banner exists (even retired), so the storefront no longer shows its built-in defaults.
- const [head]=await tx`select exists(select 1 from app.home_banner) as configured`;
+ // `configured`: some banner is not retired, so the storefront shows admin banners instead of its built-in defaults.
+ const [head]=await tx`select exists(select 1 from app.home_banner h join app.home_banner_version v on v.banner_id=h.id and v.revision=h.revision where not v.retired) as configured`;
  const now=new Date();return {configured:Boolean(head.configured),data:rows.map(row=>project(row,now))};
 }
 async function append(tx:TransactionSql,bannerId:string,revision:number,v:BannerContent&{image_width:number;image_height:number;position:number;retired:boolean},actorId:string,reason:string){
