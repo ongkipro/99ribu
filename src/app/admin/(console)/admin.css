@@ -105,7 +105,7 @@
 
 /*
  * globals.css is unlayered, so its element rules (h1-h3 sizes, `a` color and
- * decoration, 3px focus outline) beat every Tailwind layer. This file only
+ * decoration, control fonts, 3px focus outline) beat every Tailwind layer. This file only
  * loads in console documents, so roll those properties back to the layered
  * (Tailwind) values for the whole body, including portalled dialogs/sheets.
  */
@@ -119,6 +119,10 @@ body a,
 body a:hover {
 	color: revert-layer;
 	text-decoration: revert-layer;
+}
+/* globals.css `button, input, select { font: inherit }` would override `text-sm` and friends. */
+body :is(button, input, select, textarea) {
+	font: revert-layer;
 }
 body :is(button, a, input, select, textarea, summary):focus-visible {
 	outline: revert-layer;

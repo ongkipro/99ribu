@@ -104,7 +104,7 @@ export function KpiCard({
 					size="sm"
 					data-testid={`kpi-drilldown-${metricKey}`}
 					aria-pressed={active}
-					className="h-auto min-h-8 justify-start px-0 text-left whitespace-normal pointer-coarse:min-h-11"
+					className="h-auto min-h-8 justify-start px-0 text-left whitespace-normal pointer-coarse:min-h-11 has-data-[icon=inline-start]:pl-0"
 					onClick={onDrilldown}
 				>
 					<ListFilter data-icon="inline-start" aria-hidden="true" />
