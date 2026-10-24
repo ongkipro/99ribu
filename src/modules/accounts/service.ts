@@ -1,6 +1,6 @@
 import { createHash, randomBytes, randomUUID } from "node:crypto";
 import type { TransactionSql } from "postgres";
-import { appOrigin } from "../../config/runtime.ts";
+import { appOrigin, readRuntimeConfig } from "../../config/runtime.ts";
 import { sniffImageOrMp4ContentType, scanImagePayload } from "../../storage/media-sniff.ts";
 import {
 	deletePrivateArtifact,
@@ -8,7 +8,9 @@ import {
 } from "../../storage/private.ts";
 import type { LocalAuth } from "../access/auth.ts";
 import {
+	addressBucket,
 	assertOrigin,
+	clientIp,
 	privateJson,
 	problem,
 	readBody,
@@ -445,22 +447,53 @@ function normalizeContactReference(raw: unknown): {
 	return { channel: "phone", value: normalizeIndonesianPhone(str) };
 }
 
+// One statement whether or not the order exists (left join from a one-row seed), so a known number
+// costs the same round trips as an unknown one.
 async function findOrderContactMatch(
 	tx: TransactionSql,
 	where: { id: string } | { number: string },
 	contact: { channel: "phone" | "email"; value: string },
 ) {
-	const [row] = await tx<{ id: string }[]>`
-		select id from app.commerce_order
-		where ${"id" in where ? tx`id = ${where.id}` : tx`number = ${where.number}`}
+	const [row] = await tx<OrderContactRow[]>`
+		select
+			o.id,
+			o.owner_guest_id,
+			q.document->'contact'->>'phone' as contact_phone,
+			q.document->'address'->>'phone' as address_phone,
+			q.document->'contact'->>'email' as contact_email
+		from (select 1) seed
+		left join app.commerce_order o
+			on ${"id" in where ? tx`o.id = ${where.id}` : tx`o.number = ${where.number}`}
+		left join app.checkout_quote q on q.id = o.quote_id
 	`;
-	if (!row) return null;
-	try {
-		return await assertOrderContactMatches(tx, row.id, contact);
-	} catch (error) {
-		if (error instanceof AccessError && error.status === 403) return null;
-		throw error;
+	return row?.id && orderContactMatches(row, contact) ? row : null;
+}
+
+type OrderContactRow = {
+	id: string;
+	owner_guest_id: string | null;
+	contact_phone: string | null;
+	address_phone: string | null;
+	contact_email: string | null;
+};
+
+function orderContactMatches(
+	row: OrderContactRow,
+	contact: { channel: "phone" | "email"; value: string },
+) {
+	if (contact.channel === "email") {
+		return (row.contact_email?.trim().toLowerCase() ?? null) === contact.value;
 	}
+	return [row.contact_phone, row.address_phone]
+		.filter((v): v is string => Boolean(v))
+		.map((v) => {
+			try {
+				return normalizeIndonesianPhone(v);
+			} catch {
+				return v;
+			}
+		})
+		.includes(contact.value);
 }
 
 async function assertOrderContactMatches(
@@ -468,15 +501,7 @@ async function assertOrderContactMatches(
 	orderId: string,
 	contact: { channel: "phone" | "email"; value: string },
 ) {
-	const [row] = await tx<
-		{
-			id: string;
-			owner_guest_id: string | null;
-			contact_phone: string | null;
-			address_phone: string | null;
-			contact_email: string | null;
-		}[]
-	>`
+	const [row] = await tx<OrderContactRow[]>`
 		select
 			o.id,
 			o.owner_guest_id,
@@ -488,25 +513,7 @@ async function assertOrderContactMatches(
 		where o.id = ${orderId}
 	`;
 	if (!row) throw new AccessError(404, "NOT_FOUND");
-	if (contact.channel === "phone") {
-		const phones = [row.contact_phone, row.address_phone]
-			.filter((v): v is string => Boolean(v))
-			.map((v) => {
-				try {
-					return normalizeIndonesianPhone(v);
-				} catch {
-					return v;
-				}
-			});
-		if (!phones.includes(contact.value)) {
-			throw new AccessError(403, "ORDER_CONTACT_MISMATCH");
-		}
-	} else {
-		const email = row.contact_email?.trim().toLowerCase() ?? null;
-		if (!email || email !== contact.value) {
-			throw new AccessError(403, "ORDER_CONTACT_MISMATCH");
-		}
-	}
+	if (!orderContactMatches(row, contact)) throw new AccessError(403, "ORDER_CONTACT_MISMATCH");
 	return row;
 }
 
@@ -764,6 +771,16 @@ export async function handleAccounts(request: Request, identity: LocalAuth) {
 			});
 			const actorKey = `guest_access:${orderRef}`;
 			// Counted in autocommit before any lookup, so known and unknown orders spend the same budget.
+			// Every request commits a challenge row (decoys included), so attacker-rotated order/contact
+			// pairs are also bounded per client (production, behind the trusted proxy) and globally.
+			if (readRuntimeConfig(process.env).profile === "production") {
+				await rateLimit(
+					identity.sql,
+					`guest-access-challenge-ip:${addressBucket(clientIp(request))}`,
+					[20, 60_000],
+				);
+			}
+			await rateLimit(identity.sql, "guest-access-challenge-global", [300, 60_000]);
 			await rateLimit(
 				identity.sql,
 				`guest-access-challenge-order:${orderRef}`,
@@ -788,13 +805,14 @@ export async function handleAccounts(request: Request, identity: LocalAuth) {
 				// Enumeration-safe: an unknown order or a contact that does not match gets the same 202
 				// with a decoy challenge (no order, random digest) that no code can verify.
 				const challengeId = randomUUID();
-				const codeHash = order
-					? await challengeDigest(
-							identity,
-							challengeId,
-							await challengeVerificationCode(identity, challengeId),
-						)
-					: digest(`decoy:${randomBytes(32).toString("base64url")}`);
+				// Same HMAC work either way; a decoy digests a random code nobody receives.
+				const codeHash = await challengeDigest(
+					identity,
+					challengeId,
+					order
+						? await challengeVerificationCode(identity, challengeId)
+						: randomBytes(32).toString("base64url"),
+				);
 				const [inserted] = await tx<{ id: string; expires_at: string }[]>`
 					insert into app.support_challenge (
 						id,
@@ -809,7 +827,7 @@ export async function handleAccounts(request: Request, identity: LocalAuth) {
 						${challengeId},
 						'guest_order_access',
 						${order ? `guest:${order.owner_guest_id ?? order.id}` : "guest:unmatched"},
-						${order ? contact.value : orderRef},
+						${orderRef},
 						${order?.id ?? null},
 						${codeHash},
 						clock_timestamp() + interval '15 minutes'
@@ -867,10 +885,11 @@ export async function handleAccounts(request: Request, identity: LocalAuth) {
 			}
 			const expectedDigest = await challengeDigest(identity, challengeId, code);
 			if (!challengeRow.verified_at) {
-				// A decoy (unmatched) challenge is limited and answered exactly like a wrong code.
+				// Keyed on the reference the challenge was requested with (target_reference until verified), so a
+				// decoy and a real challenge for the same number share one bucket and answer alike.
 				await rateLimit(
 					identity.sql,
-					`guest-access-verify-order:${challengeRow.order_id ?? challengeRow.target_reference}`,
+					`guest-access-verify-order:${challengeRow.target_reference}`,
 					LIMITS.guestAccessVerifyPerOrder,
 				);
 				const attempts = await reserveChallengeAttempt(
@@ -2008,7 +2027,8 @@ export async function handleAccounts(request: Request, identity: LocalAuth) {
 					`buyer-challenge-user:${principal.id}`,
 					LIMITS.buyerChallengePerUser,
 				);
-				// Signed-in callers are bounded per user; the order budget is shared with the public path.
+				// Signed-in callers are bounded per user; the order budget is shared with the public order_id path
+				// (the public order_number path has its own per-number bucket).
 				await rateLimit(
 					identity.sql,
 					`guest-access-challenge-order:${orderId}`,
