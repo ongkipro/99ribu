@@ -162,7 +162,8 @@ export function ReturnDetailClient({ caseId, access, canOrders }: { caseId: stri
 	const [statusLabel, statusTone] = RETURN_STATUS[d.status];
 	const decidable = d.can_decide && ["requested", "reviewing"].includes(d.status);
 	const redecidable = d.can_decide && ["approved", "awaiting_goods", "inspecting"].includes(d.status);
-	const inspectable = ["awaiting_goods", "inspecting"].includes(d.status) && d.items.some((i) => i.can_inspect);
+	// The API sets can_inspect per unit; the role gate mirrors it so a stale or wider projection never offers it to CS/finance.
+	const inspectable = access.warehouse && ["awaiting_goods", "inspecting"].includes(d.status) && d.items.some((i) => i.can_inspect);
 	const refundable = access.refundWrite && d.status === "approved" && d.resolution === "refund" && !(d.refund_ids ?? []).length;
 	const replaceable =
 		access.review && d.items_complete && d.status === "replacing" &&
