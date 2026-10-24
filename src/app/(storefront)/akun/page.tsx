@@ -30,21 +30,45 @@ export default async function AccountPage() {
 						akun. Status pengiriman dan pembayaran selalu mengikuti tautan tanda
 						terima pesanan Anda.
 					</p>
-					<div className="notice-actions">
-						<Link className="button" href="/">
-							Belanja produk
-						</Link>
-						<Link className="button button-secondary" href="/bantuan">
-							Bantuan pesanan
-						</Link>
-						{workspace.authenticated ? (
+					{!workspace.authenticated && (
+						<p data-testid="account-signup-value">
+							Dengan akun: lacak pesanan dari halaman ini, simpan alamat untuk
+							belanja berikutnya, dan lihat riwayat belanja.
+						</p>
+					)}
+					{workspace.authenticated ? (
+						<div className="notice-actions">
+							<Link className="button" href="/">
+								Belanja produk
+							</Link>
+							<Link className="button button-secondary" href="/bantuan">
+								Bantuan pesanan
+							</Link>
 							<SignOutButton to="/" />
-						) : (
-							<Link className="button button-secondary" href="/masuk?next=%2Fakun">
+						</div>
+					) : (
+						// S123: signed out, the account actions lead; Daftar opens the sign-up modal.
+						<div className="notice-actions">
+							<Link
+								className="button"
+								href="/masuk?langkah=daftar&next=%2Fakun"
+							>
+								Daftar
+							</Link>
+							<Link
+								className="button button-secondary"
+								href="/masuk?next=%2Fakun"
+							>
 								Masuk
 							</Link>
-						)}
-					</div>
+							<Link className="button button-secondary" href="/">
+								Belanja produk
+							</Link>
+							<Link className="button button-secondary" href="/bantuan">
+								Bantuan pesanan
+							</Link>
+						</div>
+					)}
 				</section>
 				<BuyerAccountClient
 					initialAuthenticated={workspace.authenticated}
