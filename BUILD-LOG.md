@@ -8,7 +8,6 @@
 - Local catalog: `catalog:withdraw -- local --apply` withdrew 12 test-fixture publications, leaving the 392 Berlapak products (122 unit, 244 multipack, 26 bundle) as the only live listings. `round.sh` now applies the withdrawal before capture.
 - Lesson: `biome check --write` on the terse storefront sources reflows thousands of lines and breaks source-regex tests. Format only files that are already biome-styled.
 - S112 is built on branch `s112-signin-ux` and has not been merged yet. Independent security review PASS (Low: add a cross-origin POST test and read `x-retry-after`).
-||||||| de746d8
 
 ## 2026-10-24 — S113 slice 2: admin console consolidation (branch `s113-admin-slice2`, not merged)
 
