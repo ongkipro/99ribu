@@ -281,10 +281,9 @@ body:has(> .store-header, > .task-header) {
 :where(.filters summary) svg {
 	width: 1em;
 	height: 1em;
-	transform: rotate(-90deg);
 }
 :where(.filters[open] summary) svg {
-	transform: rotate(90deg);
+	transform: rotate(180deg);
 }
 .product-grid {
 	list-style: none;
@@ -612,7 +611,7 @@ body:has(> .store-header, > .task-header) {
 }
 @media (max-width: 700px) {
 	:root {
-		--bottom: calc(4.25rem + env(safe-area-inset-bottom, 0px));
+		--bottom: calc(3.5rem + env(safe-area-inset-bottom, 0px));
 		--page-size: 1.5rem;
 		--page-leading: 2rem;
 		--price-size: 1.25rem;
@@ -748,14 +747,6 @@ body:has(> .store-header, > .task-header) {
 	flex-shrink: 0;
 }
 
-.shopping-tabs span {
-	max-width: 100%;
-	text-align: center;
-
-	letter-spacing: normal;
-	white-space: normal;
-	overflow-wrap: normal;
-}
 
 .product-link {
 	display: grid;
@@ -880,60 +871,60 @@ body:has(> .store-header, > .task-header) {
 }
 
 @media (max-width: 700px) {
-	.shopping-tabs,
-	.shopping-tabs-space {
-		display: grid;
-		grid-template-columns: repeat(auto-fit, minmax(min(100%, 4.5rem), 1fr));
-		gap: 0;
-		padding: 6px 8px calc(6px + env(safe-area-inset-bottom, 0px));
-		background: #fff;
-	}
+	/* Dock (shop.com mobile tab bar, observed 2026-10-24): white, 28px top radius, a 2% ink ring
+	   and a 0 -4px 24px shadow, 56px tall plus the safe area; icon-only 24px tabs in equal columns.
+	   Inactive: outline icon in #85858e (3.6:1 on white); active: the filled icon in ink. */
 	.shopping-tabs {
 		position: fixed;
 		bottom: 0;
 		left: 0;
 		right: 0;
 		z-index: 10;
-		border-radius: 20px 20px 0 0;
-		box-shadow: 0 -4px 20px rgba(24, 24, 27, 0.06), 0 -1px 0 #e7e5ed;
+		display: grid;
+		grid-auto-flow: column;
+		grid-auto-columns: minmax(0, 1fr);
+		padding: 0 8px env(safe-area-inset-bottom, 0px);
+		background: #fff;
+		border-radius: 28px 28px 0 0;
+		box-shadow:
+			0 0 0 1px rgba(16, 10, 31, 0.02),
+			0 -4px 24px rgba(16, 10, 31, 0.12);
 	}
 	.shopping-tabs-space {
-		visibility: hidden;
+		display: block;
+		height: calc(3.5rem + env(safe-area-inset-bottom, 0px));
 	}
-	.shopping-tabs a,
-	.tab-space {
-		display: flex;
-		flex-direction: column;
-		align-items: center;
-		justify-content: center;
+	.shopping-tabs a {
+		position: relative;
+		display: grid;
+		place-items: center;
 		min-height: 3.5rem;
-		gap: 0.25rem;
-		font-size: 0.75rem;
-		line-height: 1.25rem;
-		text-align: center;
-		padding-inline: 4px;
-		color: var(--muted);
+		color: #85858e;
+		-webkit-tap-highlight-color: transparent;
 	}
-	/* R10: every icon reserves a pill; the active one fills (shop.com dock). */
-	.shopping-tabs svg,
-	.shopping-tabs-space svg {
-		width: max(22px, 1.35em);
-		height: max(22px, 1.35em);
-		padding: 4px 16px;
-		box-sizing: content-box;
-		border-radius: 9999px;
-		flex-shrink: 0;
+	.shopping-tabs a:active {
+		opacity: 0.6;
 	}
 	.shopping-tabs a[aria-current] {
-		color: var(--purple);
-		font-weight: 600;
+		color: #18181b;
 	}
-	.shopping-tabs a[aria-current] svg {
-		stroke-width: 2.5;
-		background: #efeafd;
+	.shopping-tabs .tab-outline,
+	.shopping-tabs .tab-filled {
+		display: grid;
+	}
+	.shopping-tabs a:not([aria-current]) .tab-filled,
+	.shopping-tabs a[aria-current] .tab-outline {
+		display: none;
+	}
+	.shopping-tabs svg {
+		width: 24px;
+		height: 24px;
+	}
+	/* Phones while typing in the search field: the keyboard is up, so the dock steps aside. */
+	body:has(#site-search:focus) .shopping-tabs {
+		display: none;
 	}
 }
-
 
 /* Purchase task chrome stays in flow so short/enlarged views retain controls. */
 .task-header {
@@ -1307,16 +1298,11 @@ body:has(> .store-header, > .task-header) {
 }
 
 @media (max-width: 700px) {
-	.shopping-tabs a,
-	.tab-space {
-		position: relative;
-	}
-	.shopping-tabs a[data-count]::after,
-	.tab-space[data-count]::after {
+	.shopping-tabs a[data-count]::after {
 		content: attr(data-count);
 		position: absolute;
-		top: 2px;
-		left: calc(50% + 0.4rem);
+		top: 8px;
+		left: calc(50% + 6px);
 		font-size: 0.75rem;
 		line-height: 1.5;
 		min-width: 1.5em;
@@ -2671,6 +2657,13 @@ body:has(> .store-header, > .task-header) {
 	border: 1px solid #c9c7d3;
 	border-radius: 6px;
 	cursor: pointer;
+}
+.receipt-copy-manual {
+	flex-basis: 100%;
+	margin: 0;
+	font-size: 0.8125rem;
+	line-height: 1.4;
+	color: #55515f;
 }
 .receipt-cod-panel {
 	background: #fff8de;
@@ -4103,27 +4096,42 @@ body:has(> .store-header, > .task-header) {
 	stroke-width: 2.67;
 	pointer-events: none;
 }
+/* The field itself is bare in every state (rest, hover, focus, typing, autofill): no UA search
+   chrome, border, radius, background, shadow or outline. Focus shows on the outer surface. */
+#site-search,
+#site-search:is(:hover, :focus, :focus-visible, :autofill) {
+	appearance: none;
+	border: 0;
+	border-radius: 0;
+	background: transparent;
+	box-shadow: none;
+	outline: none;
+}
+#site-search:autofill {
+	-webkit-text-fill-color: #18181b;
+	transition: background-color 600000s 0s;
+}
 #site-search {
 	display: block;
 	width: 100%;
 	height: var(--field);
 	padding: 0 54px 0 46px;
-	border: 0;
-	border-radius: 9999px;
-	background: transparent;
 	color: #18181b;
 	font-size: 1rem;
 	line-height: 1.375rem;
 	letter-spacing: -0.5px;
 	text-overflow: ellipsis;
-	outline: none;
 }
 #site-search::placeholder {
 	color: #6b6b73;
 }
 /* No native clear glyph (a blue UA "x" beside the submit arrow); Escape and select-all still clear. */
-#site-search::-webkit-search-cancel-button {
+#site-search::-webkit-search-cancel-button,
+#site-search::-webkit-search-decoration,
+#site-search::-webkit-search-results-button,
+#site-search::-webkit-search-results-decoration {
 	appearance: none;
+	display: none;
 }
 .omnibox-field button {
 	position: absolute;
@@ -4171,23 +4179,28 @@ body:has(> .store-header, > .task-header) {
 		backdrop-filter: blur(16px);
 	}
 }
-/* Focus per the field contract: an ink edge and a soft 3px ring around the closed pill; once the
-   panel is open the ring moves to the field row (the open surface keeps shop.com's soft shadow). */
-.search-form:focus-within:where(:not([data-open])) .omnibox-panel {
+/* Focus (WCAG 2.4.7): focusing the field opens the surface (it expands under the caret), which is
+   the cue, as on shop.com; the surface also takes shop.com's deeper open shadow. No dark border, and
+   the field inside never draws its own ring. */
+.search-form:focus-within .omnibox-panel {
 	box-shadow:
-		0 0 0 1px #18181b,
-		0 0 0 4px rgba(24, 24, 27, 0.12),
-		0 12px 64px rgba(0, 0, 0, 0.2);
+		0 0 1px rgba(0, 0, 0, 0.12),
+		0 12px 64px rgba(0, 0, 0, 0.24);
 }
 .omnibox-body {
 	min-height: 0;
 	overflow: hidden;
 }
 .omnibox-scroll {
+	/* h-fit: the surface is as tall as its suggestions, up to 45dvh minus the field row. */
 	max-height: calc(45dvh - var(--field) - 20px);
 	overflow-y: auto;
+	overscroll-behavior: contain;
 	scrollbar-width: none;
-	padding-bottom: 8px;
+	padding: 4px 16px 16px;
+	/* Top fade: content scrolled under the field row fades out; at rest it covers padding only. */
+	-webkit-mask-image: linear-gradient(to bottom, transparent 0, #000 4px);
+	mask-image: linear-gradient(to bottom, transparent 0, #000 4px);
 	opacity: 0;
 	translate: 0 -6px;
 	transition:
@@ -4209,46 +4222,31 @@ body:has(> .store-header, > .task-header) {
 		opacity 200ms ease-out 60ms,
 		translate 200ms ease-out 60ms;
 }
-.search-form[data-open] .omnibox-field {
-	border-radius: 32px;
-}
-.search-form[data-open] .omnibox-field:focus-within {
-	box-shadow:
-		inset 0 0 0 1px #18181b,
-		0 0 0 3px rgba(24, 24, 27, 0.12);
-}
 .omnibox-caption {
-	margin: 8px 16px 4px;
+	margin: 4px 0 8px;
 	color: rgba(0, 0, 0, 0.56);
 	font-size: 0.75rem;
 	line-height: 1rem;
 	font-weight: 500;
 }
+/* Suggestions are wrapping chips (owner's shop.com open-state DOM): w-fit, rounded-max, a 4% dark
+   overlay, 14/18 text, 8px apart; 44px tall for the target-size rule (shop.com's are 34px). */
 .omnibox-panel [role="listbox"] {
 	display: flex;
-	flex-direction: column;
-	gap: 4px;
-	list-style: none;
-	margin: 0;
-	padding: 0 8px;
+	flex-wrap: wrap;
+	gap: 8px;
 }
 .omnibox-panel [role="option"] {
-	display: flex;
+	display: inline-flex;
 	align-items: center;
-	gap: 16px;
+	max-width: 100%;
 	min-height: 44px;
-	padding: 6px;
+	padding: 0 16px;
 	border-radius: 9999px;
-	font-size: 1rem;
-	line-height: 1.375rem;
-	letter-spacing: -0.5px;
+	background: rgba(0, 0, 0, 0.04);
+	font-size: 0.875rem;
+	line-height: 1.125rem;
 	cursor: pointer;
-}
-:where(.omnibox-panel [role="option"] svg) {
-	flex: none;
-	width: 32px;
-	height: 20px;
-	opacity: 0.6;
 }
 :where(.omnibox-panel [role="option"] span) {
 	min-width: 0;
@@ -4256,11 +4254,12 @@ body:has(> .store-header, > .task-header) {
 	text-overflow: ellipsis;
 	white-space: nowrap;
 }
-.omnibox-panel [role="option"]:hover {
-	background: rgba(0, 0, 0, 0.04);
+@media (hover: hover) {
+	.omnibox-panel [role="option"]:hover {
+		opacity: 0.6;
+	}
 }
 .omnibox-panel [role="option"][aria-selected="true"] {
-	background: rgba(0, 0, 0, 0.06);
 	box-shadow: inset 0 0 0 2px #18181b;
 }
 /* Desktop: the open surface also widens 32px each side, as shop.com's does (512 to 576). */
@@ -4269,14 +4268,26 @@ body:has(> .store-header, > .task-header) {
 		inset-inline: -32px;
 	}
 }
+@media (min-width: 768px) {
+	.omnibox-scroll {
+		padding-inline: 20px;
+	}
+}
 @media (max-width: 700px) {
 	.search-form {
 		max-width: none;
 	}
-	/* Phones: the list scrolls under a short top fade. */
-	.omnibox-scroll {
-		-webkit-mask-image: linear-gradient(to bottom, transparent 0, #000 12px);
-		mask-image: linear-gradient(to bottom, transparent 0, #000 12px);
+	/* Phones (shop.com mobile open state): the field becomes a filled white pill with shadow-m
+	   inside the open surface. */
+	.omnibox-field {
+		border-radius: 32px;
+		transition:
+			background-color 320ms cubic-bezier(0.2, 0, 0, 1),
+			box-shadow 320ms cubic-bezier(0.2, 0, 0, 1);
+	}
+	.search-form[data-open] .omnibox-field {
+		background: #fff;
+		box-shadow: 0 4px 24px rgba(0, 0, 0, 0.12);
 	}
 	@supports (backdrop-filter: blur(10px)) or (-webkit-backdrop-filter: blur(10px)) {
 		.search-form[data-open] .omnibox-panel {
@@ -4288,6 +4299,7 @@ body:has(> .store-header, > .task-header) {
 }
 @media (prefers-reduced-motion: reduce) {
 	.omnibox-panel,
+	.omnibox-field,
 	.omnibox-scroll,
 	.search-form[data-open] .omnibox-scroll {
 		transition: none;
@@ -4615,6 +4627,11 @@ body:has(> .store-header, > .task-header) {
 	.header-main > .search-region {
 		order: 0;
 		flex: 1 1 12rem;
+	}
+	/* shop.com mobile header: no logo; the search takes the full width inside the 16px gutters.
+	   Home stays one tap away in the dock, and the page h1 keeps the context. */
+	.store-header .header-main > .brand {
+		display: none;
 	}
 }
 
@@ -5168,7 +5185,8 @@ body:has(> .store-header, > .task-header) {
 
 /* ===== Header wordmark reveal (owner, round 37) =====
    On a fine pointer, hover or keyboard focus grows "99rb." into "Serba 99ribu": each hidden
-   part opens from a 0fr grid track while its glyphs fade in from 4px; the "." fades out. CSS
+   part opens from a 0fr grid track while its glyphs fade in from 4px; the yellow "." stays and
+   rides to the end ("Serba 99ribu."), since it follows the last track. CSS
    only, 240ms in and 180ms out on cubic-bezier(.2,0,0,1). The logo sits in the header's left
    1fr column, so the omnibox stays centred; the reveal starts at 1024px, where that column fits
    the full name (111px wider, leaving at least 44px before the omnibox). Touch and screens below
@@ -5189,9 +5207,6 @@ body:has(> .store-header, > .task-header) {
 		opacity 180ms cubic-bezier(0.2, 0, 0, 1),
 		translate 180ms cubic-bezier(0.2, 0, 0, 1);
 }
-.brand-reveal i {
-	transition: opacity 180ms cubic-bezier(0.2, 0, 0, 1);
-}
 @media (hover: hover) and (pointer: fine) and (min-width: 1024px) {
 	.brand-reveal:is(:hover, :focus-visible) .grow {
 		grid-template-columns: 1fr;
@@ -5202,15 +5217,674 @@ body:has(> .store-header, > .task-header) {
 		translate: 0 0;
 		transition-duration: 240ms;
 	}
-	.brand-reveal:is(:hover, :focus-visible) i {
-		opacity: 0;
-		transition-duration: 240ms;
-	}
 }
 @media (prefers-reduced-motion: reduce) {
 	.brand-reveal .grow,
-	.brand-reveal .grow > span,
-	.brand-reveal i {
+	.brand-reveal .grow > span {
 		transition: none;
 	}
+}
+
+/* ===== Listing filters (shop.com observed 2026-10-24, round 43) =====
+   A chip row above the results; each chip opens its choices (popover anchored to the chip on
+   desktop, bottom sheet on phones). Chip: 1px rgba(5,41,77,.1) hairline (the card/chip token),
+   0 2px 8px rgba(0,0,0,.06) shadow, 16/600 text, 15px down chevron; 44px tall for the target
+   rule (shop.com's are 40px). A chip with a non-default value is filled ink, as on shop.com. */
+.filter-chips {
+	display: flex;
+	gap: 8px;
+	min-width: 0;
+	height: 52px;
+	margin: 0 0 16px;
+	padding: 4px 2px;
+	border: 0;
+	overflow-x: auto;
+	scrollbar-width: none;
+}
+@media (scripting: none) {
+	.filter-chips {
+		display: none;
+	}
+}
+.filter-chip-item {
+	flex: none;
+}
+.filter-chip {
+	display: inline-flex;
+	align-items: center;
+	gap: 4px;
+	min-height: 44px;
+	padding: 0 12px 0 16px;
+	border: 1px solid rgba(5, 41, 77, 0.1);
+	border-radius: 9999px;
+	background: #fff;
+	box-shadow: 0 2px 8px rgba(0, 0, 0, 0.06);
+	color: #18181b;
+	font: inherit;
+	font-size: 1rem;
+	font-weight: 600;
+	letter-spacing: -0.5px;
+	white-space: nowrap;
+	cursor: pointer;
+}
+.filter-chips .filter-chip[type="button"] svg {
+	width: 15px;
+	height: 15px;
+	stroke-width: 2.67;
+}
+.filter-chip[data-active] {
+	border-color: #121212;
+	background: #121212;
+	color: #fff;
+}
+.filter-chips .filter-chip[type="button"][aria-expanded="true"] svg {
+	transform: rotate(180deg);
+}
+/* Popover: shadcn Select/Popover content mirrored in storefront CSS (no Tailwind/shadcn import,
+   DEC-004). shadcn new-york-v4 select.tsx: content `rounded-md border shadow-md min-w-[8rem]`,
+   viewport `p-1`, min width = trigger width, popper offset 4px; item `rounded-sm py-1.5 pl-2
+   pr-8 text-sm` (32px), `focus:bg-accent`, check `absolute right-2 size-4`, disabled 50%;
+   separator `-mx-1 my-1 h-px bg-border`; open `fade-in-0 zoom-in-95 slide-in-from-top-2`.
+   Tokens: radius .625rem (md 8px, sm 6px), border = the storefront hairline, accent #f5f5f5,
+   muted #737373, shadow-md 0 4px 6px -1px / 0 2px 4px -2px rgb(0 0 0 / .1). Script places it on
+   whole pixels 4px under the chip's left edge (right edge or above near the viewport end). */
+.filter-pop {
+	box-sizing: border-box;
+	min-width: 8rem;
+	width: max-content;
+	max-width: min(320px, calc(100vw - 32px));
+	max-height: min(384px, calc(100dvh - 32px));
+	margin: 0;
+	padding: 4px;
+	overflow: hidden auto;
+	overscroll-behavior: contain;
+	border: 1px solid rgba(5, 41, 77, 0.1);
+	border-radius: 8px;
+	background: #fff;
+	color: #18181b;
+	box-shadow:
+		0 4px 6px -1px rgb(0 0 0 / 0.1),
+		0 2px 4px -2px rgb(0 0 0 / 0.1);
+	transform-origin: top left;
+	opacity: 1;
+	scale: 1;
+	translate: 0 0;
+	transition:
+		opacity 150ms ease-out,
+		scale 150ms ease-out,
+		translate 150ms ease-out,
+		overlay 150ms allow-discrete,
+		display 150ms allow-discrete;
+}
+.filter-pop[style*="top"] {
+	inset: auto;
+}
+@starting-style {
+	.filter-pop:popover-open {
+		opacity: 0;
+		scale: 0.95;
+		translate: 0 -8px;
+	}
+}
+.filter-pop-title {
+	margin: 0;
+	padding: 6px 8px;
+	color: #737373;
+	font-size: 0.75rem;
+	line-height: 1rem;
+	font-weight: 400;
+}
+.filter-pop ul {
+	list-style: none;
+	margin: 0;
+	padding: 0;
+}
+.filter-pop li + li.filter-separated {
+	margin-top: 9px;
+	position: relative;
+}
+.filter-pop li.filter-separated::before {
+	content: "";
+	position: absolute;
+	inset: -5px -4px auto;
+	height: 1px;
+	background: rgba(5, 41, 77, 0.1);
+}
+.filter-option {
+	position: relative;
+	display: flex;
+	align-items: center;
+	gap: 8px;
+	min-height: 32px;
+	padding: 6px 32px 6px 8px;
+	border-radius: 6px;
+	color: inherit;
+	font-size: 0.875rem;
+	line-height: 1.25rem;
+	white-space: nowrap;
+	outline: none;
+	cursor: default;
+}
+.filter-option:is(:hover, :focus) {
+	background: #f5f5f5;
+	text-decoration: none;
+}
+.filter-option:focus-visible {
+	box-shadow: inset 0 0 0 2px #18181b;
+}
+.filter-option[aria-disabled="true"] {
+	pointer-events: none;
+	opacity: 0.5;
+}
+.filter-pop .filter-option[href][aria-current] svg {
+	position: absolute;
+	right: 8px;
+	width: 16px;
+	height: 16px;
+}
+@media (max-width: 700px) {
+	/* Bottom sheet (shop.com mobile: 16px from the sides and bottom, 28px radius, 40% scrim);
+	   touch rows stay 44px tall. */
+	.filter-pop {
+		inset: auto 16px 16px;
+		width: auto;
+		max-width: none;
+		max-height: 70dvh;
+		padding: 8px 8px 16px;
+		border-radius: 28px;
+		transform-origin: bottom center;
+	}
+	@starting-style {
+		.filter-pop:popover-open {
+			scale: 1;
+			translate: 0 16px;
+		}
+	}
+	.filter-pop::backdrop {
+		background: rgba(0, 0, 0, 0.4);
+	}
+	.filter-pop-title {
+		padding: 12px 12px 8px;
+		color: #18181b;
+		font-size: 1.125rem;
+		line-height: 1.25rem;
+		font-weight: 600;
+	}
+	.filter-option {
+		min-height: 44px;
+		padding-inline: 12px 40px;
+		font-size: 1rem;
+		line-height: 1.375rem;
+		border-radius: 14px;
+	}
+	.filter-pop .filter-option[href][aria-current] svg {
+		right: 12px;
+		width: 20px;
+		height: 20px;
+	}
+}
+@media (prefers-reduced-motion: reduce) {
+	.filter-pop {
+		transition: none;
+	}
+}
+.active-filters .clear-filters {
+	border-color: transparent;
+	background: transparent;
+	text-decoration: underline;
+	text-underline-offset: 3px;
+}
+
+/* ===== Listing infinite scroll (round 43) =====
+   One grid for the first page and every appended page: the page lists are display: contents,
+   so cards from all pages share one set of columns and rows (24 per page fills whole rows at
+   6/4/3/2 columns). */
+.listing-grid {
+	display: grid;
+	grid-template-columns: repeat(6, minmax(0, 1fr));
+	gap: 16px;
+}
+@media (max-width: 1023px) {
+	.listing-grid {
+		grid-template-columns: repeat(4, minmax(0, 1fr));
+	}
+}
+@media (max-width: 767px) {
+	.listing-grid {
+		grid-template-columns: repeat(3, minmax(0, 1fr));
+		gap: 8px;
+	}
+}
+@media (max-width: 700px) {
+	.listing-grid {
+		grid-template-columns: repeat(auto-fill, minmax(min(100%, 8rem), 1fr));
+	}
+}
+.listing-grid .product-grid,
+.listing-more {
+	display: contents;
+}
+.listing-more > :not(ul) {
+	grid-column: 1 / -1;
+}
+.listing-sentinel {
+	height: 1px;
+}
+.listing-end {
+	margin-block: 24px 8px;
+	text-align: center;
+}
+.listing-results .listing-end p {
+	margin-bottom: 12px;
+	color: var(--muted);
+	font-size: 0.875rem;
+}
+.listing-skeleton .product-frame {
+	background: #efedf3;
+	box-shadow: none;
+}
+.skeleton-line {
+	display: block;
+	height: 14px;
+	margin-top: 12px;
+	border-radius: 7px;
+	background: #efedf3;
+}
+.skeleton-line.short {
+	width: 40%;
+	height: 12px;
+	margin-top: 6px;
+}
+/* With the island running, the crawlable next link stays in the DOM but out of view. */
+.listing-results:has(.listing-more[data-mounted]) .pagination {
+	position: absolute;
+	width: 1px;
+	height: 1px;
+	overflow: hidden;
+	clip-path: inset(50%);
+	white-space: nowrap;
+}
+
+/* Round 46 (review 45). An active chip carries its own remove control (joined to the right of the
+   filled chip), and "Hapus semua" ends the row, so no second row repeats the same values. */
+.filter-chip-item {
+	display: flex;
+}
+.filter-chips .filter-chip[data-active]:has(+ .filter-chip-clear) {
+	border-top-right-radius: 0;
+	border-bottom-right-radius: 0;
+	padding-right: 8px;
+}
+.filter-chip-clear {
+	display: grid;
+	place-items: center;
+	width: 40px;
+	min-height: 44px;
+	border: 1px solid #121212;
+	border-left-color: rgba(255, 255, 255, 0.24);
+	border-radius: 0 9999px 9999px 0;
+	background: #121212;
+	color: #fff;
+}
+.filter-chips .filter-chip-clear:hover {
+	background: #000;
+}
+/* biome-ignore lint/style/noDescendingSpecificity: different elements (not the chip chevron); order is irrelevant. */
+.filter-chips .filter-chip-clear > svg {
+	width: 16px;
+	height: 16px;
+}
+.filter-clear-all {
+	flex: none;
+	display: inline-flex;
+	align-items: center;
+	min-height: 44px;
+	padding: 0 8px;
+	color: #18181b;
+	font-weight: 600;
+	text-decoration: underline;
+	text-underline-offset: 3px;
+	white-space: nowrap;
+}
+/* Enlarged text: the pill row's end fade widens with it, and the omnibox search icon scales. */
+@media (max-width: 1023px) {
+	.category-pills ul {
+		-webkit-mask-image: linear-gradient(90deg, #000 calc(100% - clamp(64px, 6rem, 25%)), transparent);
+		mask-image: linear-gradient(90deg, #000 calc(100% - clamp(64px, 6rem, 25%)), transparent);
+	}
+}
+/* biome-ignore lint/style/noDescendingSpecificity: different elements (not the chip chevron); order is irrelevant. */
+.search-form .omnibox-field > svg {
+	width: calc(1.25rem + 20px);
+}
+.search-form #site-search {
+	padding-left: calc(1.25rem + 26px);
+}
+
+/* Round 47 (review 46). Enlarged text: the omnibox submit stays a circle and its arrow scales with
+   the field. "Lihat produk lainnya"/"Coba lagi" use the white hairline pill of the chips (R3). The
+   PDP shows "Spesifikasi" only when the product has spec data. */
+.search-form .omnibox-field button {
+	width: var(--field);
+}
+/* biome-ignore lint/style/noDescendingSpecificity: the submit arrow, not the chip chevron. */
+.search-form .omnibox-field button > svg {
+	width: calc(0.75rem + 8px);
+	height: calc(0.75rem + 8px);
+}
+.search-form #site-search {
+	padding-right: calc(var(--field) + 10px);
+}
+.listing-more-button {
+	display: inline-flex;
+	align-items: center;
+	min-height: 44px;
+	padding: 0 20px;
+	border: 1px solid rgba(5, 41, 77, 0.1);
+	border-radius: 9999px;
+	background: #fff;
+	box-shadow: 0 2px 8px rgba(0, 0, 0, 0.06);
+	color: #18181b;
+	font: inherit;
+	font-size: 1rem;
+	font-weight: 600;
+	letter-spacing: -0.5px;
+	cursor: pointer;
+}
+.listing-more-button:hover {
+	border-color: rgba(5, 41, 77, 0.24);
+}
+
+/* ===== Home promo banners (shop.com editorial rail, observed 2026-10-24; converged round 48) =====
+   shop.com "Discover something you love": 410x520 photo-led cards, 10px apart, 28px radius, caption
+   attached at the bottom. Here the photos fill the card edge to edge (one large photo over two, or
+   one photo filling the media area) and the caption with a visible action pill is attached below on
+   white: no tint slab, no tilt. 80% wide on phones. Rounded with clip-path so enlarged text can grow
+   the card; nothing autoplays (native scroll, snap and the shelf arrows). */
+.banner-row {
+	list-style: none;
+	margin: 0;
+	padding: 0 0 8px;
+	display: grid;
+	grid-auto-flow: column;
+	grid-auto-columns: 410px;
+	gap: 10px;
+	overflow-x: auto;
+	scroll-snap-type: x mandatory;
+	scroll-behavior: smooth;
+	scrollbar-width: none;
+	overscroll-behavior-x: contain;
+}
+.banner-row::-webkit-scrollbar {
+	display: none;
+}
+.banner {
+	scroll-snap-align: start;
+}
+.banner-card {
+	display: grid;
+	grid-template-rows: auto 1fr;
+	min-height: 520px;
+	clip-path: inset(0 round 28px);
+	border-radius: 28px;
+	background: #fff;
+	box-shadow: inset 0 0 0 1px rgba(5, 41, 77, 0.1);
+	color: #18181b;
+}
+.banner-card:hover {
+	text-decoration: none;
+}
+.banner-card:focus-visible {
+	outline: 3px solid var(--purple);
+	outline-offset: 4px;
+}
+.banner-media {
+	display: grid;
+	grid-template-columns: 1fr 1fr;
+	grid-template-rows: 3fr 2fr;
+	height: 330px;
+	gap: 2px;
+	background: rgba(5, 41, 77, 0.08);
+}
+.home-main .home-banners .banner-media img[alt] {
+	width: 100%;
+	height: 100%;
+	min-height: 0;
+	object-fit: cover;
+	background: #fff;
+}
+.home-main .home-banners .banner-media img[alt]:first-child {
+	grid-column: 1 / -1;
+}
+.home-main .home-banners .banner-media[data-count="1"] img[alt]:first-child,
+.home-main .home-banners .banner-media[data-count="2"] img[alt] {
+	grid-row: 1 / -1;
+}
+.home-main .home-banners .banner-media[data-count="2"] img[alt]:first-child {
+	grid-column: auto;
+}
+.banner-caption {
+	display: grid;
+	justify-items: start;
+	gap: 6px;
+	padding: 20px 24px 24px;
+}
+.home-main .home-banners .banner-caption strong {
+	font-size: 1.5rem;
+	line-height: 1.625rem;
+	font-weight: 600;
+	letter-spacing: -0.5px;
+}
+.home-main .home-banners .banner-caption > span:not(.banner-action) {
+	font-size: 1rem;
+	line-height: 1.375rem;
+	color: #3f3d48;
+}
+.home-main .home-banners .banner-action {
+	display: inline-flex;
+	align-items: center;
+	gap: 6px;
+	min-height: 44px;
+	margin-top: 8px;
+	padding: 8px 18px 8px 20px;
+	border-radius: 9999px;
+	background: #18181b;
+	color: #fff;
+	font-size: 1rem;
+	font-weight: 600;
+	letter-spacing: -0.5px;
+}
+.home-main .home-banners .banner-card .banner-action > svg {
+	flex: none;
+	width: 1.125em;
+	height: 1.125em;
+}
+.banner-card:hover .banner-action {
+	background: #000;
+}
+.banner-shelf .shelf-arrow {
+	top: 50%;
+}
+@media (max-width: 700px) {
+	.banner-row {
+		margin-inline: calc(-1 * var(--gutter));
+		padding-inline: var(--gutter);
+		scroll-padding-inline: var(--gutter);
+		/* At least 14em, so enlarged text widens the card (full width at 320/200%), as the shelf does. */
+		grid-auto-columns: max(min(80%, 410px), min(85%, 14em));
+	}
+	.banner-card {
+		min-height: 0;
+	}
+	.banner-media {
+		height: auto;
+		aspect-ratio: 410 / 330;
+	}
+	.banner-caption {
+		padding: 16px 20px 20px;
+	}
+	.home-main .home-banners .banner-caption strong {
+		font-size: 1.25rem;
+		line-height: 1.5rem;
+	}
+}
+@media (prefers-reduced-motion: reduce) {
+	.banner-row {
+		scroll-behavior: auto;
+	}
+}
+
+/* Round 45 rules, restored (review 44/48): the chip row fades at its end while it scrolls, and a
+   focused dropdown option shows only its inset ink ring (no global purple outline). */
+@media (max-width: 1023px) {
+	.filter-chips {
+		-webkit-mask-image: linear-gradient(90deg, #000 calc(100% - 48px), transparent);
+		mask-image: linear-gradient(90deg, #000 calc(100% - 48px), transparent);
+		padding-right: 48px;
+	}
+}
+.filter-pop .filter-option[href]:focus-visible {
+	outline: none;
+}
+
+/* Banner fit and lone-banner layout (review 48): the caption may shrink below its content's width and
+   the action pill wraps, so enlarged text stays inside the card; a lone banner spans the container
+   from 701px with its photos on the left and the caption on the right (phones keep the rail card). */
+.banner-caption {
+	min-width: 0;
+}
+.home-main .home-banners .banner-action {
+	max-width: 100%;
+	white-space: normal;
+}
+@media (min-width: 701px) {
+	.banner-row:has(> .banner:only-child) {
+		grid-auto-columns: 100%;
+	}
+	.banner:only-child .banner-card {
+		grid-template-columns: minmax(0, 7fr) minmax(0, 5fr);
+		grid-template-rows: auto;
+		min-height: 400px;
+	}
+	.banner:only-child .banner-media {
+		height: 400px;
+	}
+	.banner:only-child .banner-caption {
+		align-content: center;
+		padding: 40px;
+	}
+}
+/* The card's single column may shrink below the caption's min-content (pill padding plus the longest
+   word at 200% text), so lines wrap inside the card instead of widening it. */
+.banner-card {
+	grid-template-columns: minmax(0, 1fr);
+}
+.home-main .home-banners .banner-action {
+	overflow-wrap: break-word;
+	border-radius: 22px;
+}
+/* A lone banner has nothing to peek at: on phones it takes the full row width. */
+.banner-row:has(> .banner:only-child) {
+	grid-auto-columns: 100%;
+}
+/* A banner without a photo (a shipping promotion) is its tint with ink text. */
+.banner-card:not(:has(.banner-media)) {
+	background: var(--banner-tint, #efeafd);
+	grid-template-rows: 1fr;
+	align-content: end;
+}
+/* The separator after the "all" choice is a visible hairline (shadcn bg-border). */
+.filter-pop li.filter-separated::before {
+	background: rgba(24, 24, 27, 0.12);
+}
+
+/* The action pill sits at the card bottom, so the pills of one row align whatever the body length. */
+.banner-card > .banner-caption {
+	grid-template-rows: auto auto 1fr;
+}
+.home-main .home-banners .banner-card .banner-action {
+	align-self: end;
+}
+
+/* 320px with enlarged text: the rail keeps a peek of the next card (85% wide), so the arrow in the
+   action pill steps aside to let the caption fit. */
+@media (max-width: 359px) {
+	.home-main .home-banners .banner-card .banner-action > svg {
+		display: none;
+	}
+	.banner-caption {
+		padding-inline: 16px;
+	}
+}
+
+/* Cut-out product photos (white ground) sit contained on a brand tint (the pill/tile tokens), blended
+   with multiply so the white cut-out edges disappear into the tint; edge-to-edge photos stay as they are. */
+.banner-media[data-cutout="amber"] { background: #fdf0d5; }
+.banner-media[data-cutout="slate"] { background: #ececef; }
+.banner-media[data-cutout="rose"] { background: #fde8ec; }
+.banner-media[data-cutout="blue"] { background: #e2ecfb; }
+.banner-media[data-cutout="green"] { background: #e2f3e5; }
+.banner-media[data-cutout="violet"] { background: #ede7fd; }
+.banner-media[data-cutout="teal"] { background: #ddf3ef; }
+.home-main .home-banners .banner-media[data-cutout] img[alt] {
+	box-sizing: border-box;
+	padding: 28px;
+	object-fit: contain;
+	background: transparent;
+	mix-blend-mode: multiply;
+}
+@media (max-width: 700px) {
+	.home-main .home-banners .banner-media[data-cutout] img[alt] {
+		padding: 16px;
+	}
+}
+/* The rail heading (20px) outranks the card titles (18px). */
+.home-main .home-banners .banner-card .banner-caption strong {
+	font-size: 1.125rem;
+	line-height: 1.375rem;
+}
+/* Enlarged text (review 54): a chip never outgrows the row; its label wraps inside the pill instead
+   of pushing the value and chevron off-screen. The row grows with it (no fixed height). */
+.filter-chips {
+	height: auto;
+	min-height: 52px;
+	align-items: center;
+}
+.filter-chip-item {
+	max-width: 100%;
+	min-width: 0;
+}
+.filter-chips .filter-chip {
+	min-width: 0;
+	white-space: normal;
+	text-align: start;
+	padding-block: 6px;
+}
+.filter-chips .filter-chip {
+	border-radius: 22px;
+}
+.filter-chips .filter-chip[data-active]:has(+ .filter-chip-clear) {
+	border-radius: 22px 0 0 22px;
+}
+/* biome-ignore lint/style/noDescendingSpecificity: same chevron, scaled with enlarged text. */
+.filter-chips .filter-chip[type="button"] > svg {
+	flex: none;
+	width: max(15px, 0.9375em);
+	height: max(15px, 0.9375em);
+}
+
+/* Round 57 (review 56). Help topic cards in one row share a height. Storefront secondary buttons are the
+   white hairline pill (R3), the same as the chips and "Lihat produk lainnya"; admin keeps its own. */
+.help-topics > section {
+	align-self: stretch;
+}
+:where(body:has(> .store-header, > .task-header, > .checkout-header, > .receipt-shell)) :is(.button.secondary, .button.button-secondary) {
+	border-color: rgba(5, 41, 77, 0.1);
+	background: #fff;
+	color: #18181b;
+	box-shadow: 0 2px 8px rgba(0, 0, 0, 0.06);
+}
+:where(body:has(> .store-header, > .task-header, > .checkout-header, > .receipt-shell)) :is(.button.secondary, .button.button-secondary):hover {
+	border-color: rgba(5, 41, 77, 0.24);
+	background: #fff;
 }

@@ -76,11 +76,11 @@ test('native category switching drops stale facets and repeated checkbox values 
  try{for(const width of [390,1440]){
   const page=await browser.newPage({viewport:{width,height:900},javaScriptEnabled:false});page.setDefaultTimeout(10000);
   const initial=new URLSearchParams({q:query,category_id:sizeCategory,attributes:JSON.stringify({size:['M']})});
-  await page.goto(`${origin}/cari?${initial}`);await openFilters(page);await page.getByLabel('Kategori',{exact:true}).selectOption(colorCategory);
+  await page.goto(`${origin}/cari?${initial}`);await openFilters(page);await page.getByRole('form',{name:'Ganti kategori'}).getByLabel('Kategori',{exact:true}).selectOption(colorCategory);
   await page.getByRole('button',{name:'Lihat kategori',exact:true}).click();
   let url=new URL(page.url());assert.equal(url.searchParams.get('category_id'),colorCategory);assert.equal(url.searchParams.get('q'),query);assert.equal(url.searchParams.has('attributes'),false);assert.equal([...url.searchParams.keys()].some(k=>k.startsWith('filter.')),false);
   await expect(page.locator('.product')).toHaveCount(1);await expect(page.getByRole('heading',{name:'Filter belum bisa digunakan'})).toHaveCount(0);
-  await page.goto(`${origin}/cari?${initial}`);await openFilters(page);await page.getByLabel('Kategori',{exact:true}).selectOption('');await page.getByRole('button',{name:'Lihat kategori',exact:true}).click();
+  await page.goto(`${origin}/cari?${initial}`);await openFilters(page);await page.getByRole('form',{name:'Ganti kategori'}).getByLabel('Kategori',{exact:true}).selectOption('');await page.getByRole('button',{name:'Lihat kategori',exact:true}).click();
   url=new URL(page.url());assert.equal(url.searchParams.get('category_id'),'');assert.equal(url.searchParams.has('attributes'),false);await expect(page.locator('.product')).toHaveCount(7);
   await page.goto(`${origin}/cari?${new URLSearchParams({q:query,category_id:sizeCategory})}`);await openFilters(page);
   await page.locator('input[name="filter.size"][value="M"]').check();await page.locator('input[name="filter.size"][value="L"]').check();

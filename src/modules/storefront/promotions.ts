@@ -27,3 +27,8 @@ export async function hasPromoContent(identity:LocalAuth){
   where v.active and v.starts_at<=now() and v.ends_at>now() and p.reserved_amount+p.committed_amount<v.budget limit 1`;
  return Boolean(promo)||(await bundleOffers(identity,1)).length>0;
 }
+// One-line buyer terms of a shipping promotion (home banner), from the stored values only.
+export function promotionSummary(p:PublicShippingPromotion,rupiah:(value:number)=>string){
+ const off=p.kind==='percentage'?`Potongan ongkir ${p.value/100}%`:`Potongan ongkir ${rupiah(p.value)}`;
+ return `${off}, maksimal ${rupiah(p.maximum_per_order)} per pesanan${p.minimum_merchandise>0?`, minimal belanja ${rupiah(p.minimum_merchandise)}`:''}.`;
+}

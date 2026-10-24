@@ -20,11 +20,12 @@ export const DEPARTMENT_PHOTOS:Readonly<Record<string,{product:string;photo:stri
  'makanan-minuman':{product:'308',photo:'a67d92c9b4a889b1b252f8f11616e8b6110574bf5507117b6565c3632e50e3fa',reason:'bottle of forest honey, white ground, product label only'},
  otomotif:{product:'156',photo:'773e7dbddfd7d4e7fda80bb5f6f85a20c2fd07e1b0528a3836a029384d853045',reason:'chrome disc lock with key, white ground, no text'},
  perkakas:{product:'83',photo:'d3ac5d40b8a376f40ce80f205822d7dbce0df8cdf67d08e0b6eab47e4127fb15',reason:'three pliers, white ground, no text'},
- 'rumah-tangga':{product:'8',photo:'94af8d225a8f8b23f54343b444a144278865e03bb980e508293ba687df589665',reason:'stainless floor-drain strainer, white ground, one small quality badge'},
+ // Round 51: the floor-drain pick carried a "PREMIUM QUALITY" seal (a claim overlay); replaced.
+ 'rumah-tangga':{product:'payung-lipat-3d-capsule-mini',photo:'7143e0f0b8e5',reason:'four pastel mini umbrellas, white ground, no text'},
 };
 // Catalog photo URLs are `/media/catalog/<title-slug>-<first 12 hex>.webp` (legacy `<sha256>.webp`):
 // a pick matches either form.
-const photoMatch=(url:string,sha:string)=>url.endsWith(`/${sha}.webp`)||url.endsWith(`-${sha.slice(0,12)}.webp`)||url.endsWith(`/${sha.slice(0,12)}.webp`);
+export const photoMatch=(url:string,sha:string)=>url.endsWith(`/${sha}.webp`)||url.endsWith(`-${sha.slice(0,12)}.webp`)||url.endsWith(`/${sha.slice(0,12)}.webp`);
 export type DepartmentPhoto={url:string;width:number;height:number};
 // The picked photo only while a current (not withdrawn) publication in the department (or one of
 // its subcategories) still carries it; otherwise null.
@@ -58,10 +59,12 @@ export const HERO_PHOTOS:readonly {product:string;photo:string;reason:string}[]=
  {product:'31',photo:'f96ea2e86526c4f6476efa80c8c8d1329d2bab316fbe7ba085cfc421c2a14711',reason:'pair of green work gloves, white ground, no text'},
  {product:'335',photo:'f05857716ec3066fa10690e8a71205dd0720081447d00c866911814e87987d68',reason:'black quilted sling bag, grey ground, one small logo'},
 ];
-export async function heroPhotos(identity:LocalAuth):Promise<DepartmentPhoto[]>{
- const shas=HERO_PHOTOS.map(h=>h.photo);
+export const heroPhotos=(identity:LocalAuth)=>photosById(identity,HERO_PHOTOS.map(h=>h.photo));
+// Curated photos by content id (full sha256 or its first 12 hex), in the given order, only while a
+// current (not withdrawn) publication still carries them.
+export async function photosById(identity:LocalAuth,shas:readonly string[]):Promise<DepartmentPhoto[]>{
  const rows=await identity.sql<{sha:string;image:DepartmentPhoto}[]>`select distinct on (p.sha) p.sha,i.image
-  from unnest(${shas}::text[]) as p(sha)
+  from unnest(${[...shas]}::text[]) as p(sha)
   join app.product_revision r on true
   join app.publication_version v on v.product_id=r.product_id and v.product_revision=r.revision
   join app.publication_head h on h.product_id=v.product_id and h.revision=v.revision
@@ -85,9 +88,33 @@ const CLAIM_PHOTOS=new Set([
  '1c7779d3d8ffc89de8df8f079eeacc61c4e7e3aaf760ade99ef8837502ed1772', // "wajah glow up" claims
  '5d195454befc746e37adfb3ab8b039892d9d8494c645f37271d283cebb52553c', // Marlov "whitening" deodorant
  '00f76d0f40bca8137ffcd2b738efcb75ca74ec1e876390919b2968ccae7bb1c9', // Marlov second photo
+ // Round 56: screen of every cover on a curated surface (Terbaru, switcher panels, /promo bundles).
+ '08fd527b540e', // "BUBUK AJAIB · Reaksi Cepat · Langsung Lancar"
+ 'c2d0ce7da75f', // "7X Lebih STRIKE", "Mengandung ATTRACTANT"
+ 'e00a3c8130c5', // percentage badges on the dishwash label panel
+ '6ec23bb4c80d', // "long lasting" seal
+ 'cfdfaee6a0d8', // "Premium quality" seal
+ 'd6c6d47dde06', // "Potong cepat tanpa capek!"
+ '4872e2fdd6e5', // "100% Organic"
+ 'e563aa061365', // sauna sweat vest: body-shaping claim
+ 'a252f7e7d5eb', // tummy wrap: slimming claim
+ '068d5f9961b3', // "Slimming hot belt": slimming claim
+ '5699154a9c63', // "Solusi badan ramping": slimming claim
+ '25a318ae3b78', // "4 Step Shape" waist trainer: slimming claim
+ // Round 58: covers surfaced by the 40-deep switcher read, screened the same way.
+ '26b3ed24ac99', // toilet foam "99%" kill claim
+ 'a2b38cbfa23c', // "80%" badge on the tee photo
+ 'bb08f78074d2', // "Tahan lama, hemat biaya perawatan / long-lasting"
+ 'd2e9d4af8ac0', // "Transformasi Rambut Instan" before/after
+ 'cdb1a68daa0c', // Snap On Smile: "formula pemutih" (whitening)
+ '51643e744aa8', // "1x semprot" before/after cleaning claim
+ '0f26d8e0d6a0', // "1 produk multibersih" before/after cleaning claim
+ 'db5406c7ce22', // ant bait: "Efektif membasmi", "Cepat & efektif", "0,05%"
+ 'dc10c7b9077a', // underwear detergent: anti-bacterial and odour claims
 ]);
 // Gendes and Bright Glow: whitening/glow efficacy text on their photos (round 31); whitening, detox
 // and immunity names (round 34).
-const CLAIM_WORDS=/\b(?:pelangsing|anti botak|ampuh|tirus|glowing|gendes|bright glow|whitening|detox|imun)\b/i;
+const CLAIM_WORDS=/\b(?:pelangsing|anti botak|ampuh|tirus|glowing|gendes|bright glow|whitening|pemutih|detox|imun)\b/i;
 export const hasClaimTerm=(name:string)=>CLAIM_WORDS.test(name);
 export const homeSafe=(product:{name:string;images:{url:string}[]})=>!CLAIM_WORDS.test(product.name)&&!product.images.some(image=>[...CLAIM_PHOTOS].some(sha=>photoMatch(image.url,sha)));
+

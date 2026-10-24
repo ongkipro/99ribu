@@ -54,7 +54,8 @@ export default async function Product({params,searchParams}:Props){
    {denied?<p className="cart-warning">{current.kind==='denied'?'Sesi belanja perlu diperiksa.':'Keranjang belum dapat dimuat.'} <Link href="/keranjang">Periksa keranjang</Link></p>:<CartMutations initial={initialCartMutation(intent)} permalink={productHref(product.id,offer.id,from,product.name)} showCartLink><CartForm intent={intent} label="Tambah ke keranjang" disabled={offer.availability!=='available'}/></CartMutations>}
    <p className="cart-advisory">Stok diperiksa kembali saat ditambahkan. Isi keranjang belum memesan stok.</p></div>
   </section>:<p className="cart-advisory">Belum ada pilihan yang dapat ditambahkan.</p>}
-  <section className="product-facts"><h2>Spesifikasi</h2>{facts.length?<dl>{facts.map(f=><div key={f.key}><dt>{f.label}</dt><dd>{f.values.join(', ')}</dd></div>)}</dl>:<p className="cart-advisory">Spesifikasi tambahan belum tersedia.</p>}</section>
+  {/* Spesifikasi only when the product has spec data; no empty heading or placeholder. */}
+  {facts.length>0&&<section className="product-facts"><h2>Spesifikasi</h2><dl>{facts.map(f=><div key={f.key}><dt>{f.label}</dt><dd>{f.values.join(', ')}</dd></div>)}</dl></section>}
   {/* Description follows the purchase action (shop.com order); a short one stays open, a long catalog text starts collapsed. */}
   {description&&!(sample&&description==='Harga berlaku untuk satu pilihan lengkap sesuai rincian isi.')&&<details className="product-policy" open={description.length<=160}><summary>Deskripsi<Icon name="chevron"/></summary><p className="detail-description">{description}</p></details>}
   <details className="product-policy"><summary>Ongkir dan pengiriman<Icon name="chevron"/></summary><p>Ongkir dihitung dari alamat dan paket, lalu ditampilkan sebelum konfirmasi. Hari libur tidak dihitung sebagai hari proses pengiriman.</p></details>

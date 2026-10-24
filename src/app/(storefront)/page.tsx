@@ -4,6 +4,10 @@ import {ProductGrid,sameOrigin} from '../../components/storefront/products';
 import {CategorySwitcher} from '../../components/storefront/category-switcher';
 import {HomeHero} from '../../components/storefront/home-hero';
 import {CategoryGrid} from '../../components/storefront/departments';
+import {PromoBanners,type Banner} from '../../components/storefront/promo-banners';
+import {homeBanners} from '../../modules/storefront/banners';
+import {activeShippingPromotions,bundleOffers,promotionSummary} from '../../modules/storefront/promotions';
+import {rupiah} from '../../modules/storefront/format';
 import {departmentTint} from '../../components/storefront/category-pills';
 import {storefrontRequest} from '../../modules/storefront/browser';
 import {departmentPhotos,heroPhotos as curatedHero,homeSafe} from '../../modules/storefront/department-photos';
@@ -29,15 +33,21 @@ export default async function Home(){
  // medallion and the hero. featuredDepartments only returns departments with published products.
  const curated=await departmentPhotos(identity,departments);
  const groups=departments.map((department,index)=>{const photo=media(curated.get(department.id));return {department,tint:departmentTint(department.name,index),tile:photo,photo};});
- // Five departments of seven cards (one full desktop row) keep the server HTML and its RSC payload small (every panel is
+ // Five departments of seven cards (one full desktop row; 40 read so seven survive the homeSafe and Terbaru filters) keep the server HTML and its RSC payload small (every panel is
  // server-rendered for progressive enhancement and serialised again for hydration).
  const shelves=await Promise.all(groups.slice(0,5).map(async group=>{
-  const {data:listed}=await listProducts(identity,catalogQuery(new URLSearchParams({category_id:group.department.id,sort:'newest',limit:'16'})));
+  const {data:listed}=await listProducts(identity,catalogQuery(new URLSearchParams({category_id:group.department.id,sort:'newest',limit:'40'})));
   const data=listed.filter(homeSafe),fresh=data.filter(p=>!seen.has(p.id));
   return {...group,products:(fresh.length?fresh:data).slice(0,7)};
  })).then(all=>all.filter(s=>s.products.length));
  // Hero: its own curated photos only, so it does not repeat the tiles and pills below.
  const heroPhotos=(await curatedHero(identity)).map(photo=>media(photo)).filter(x=>x!==null);
+ // Promo banners (HOME_BANNERS, data-backed) plus one per active shipping promotion; no banner, no section.
+ const [bundles,promotions]=await Promise.all([bundleOffers(identity,1),activeShippingPromotions(identity)]);
+ const banners:Banner[]=[
+  ...(await homeBanners(identity,{bundles:bundles.length,departments})).map(b=>({id:b.id,title:b.title,body:b.body,href:b.href,action:b.action,tint:'#efeafd',cutout:b.tint,images:[{src:sameOrigin(b.image.url),width:b.image.width,height:b.image.height,alt:''}]})),
+  ...promotions.map(p=>({id:`shipping-${p.id}`,title:p.name,body:promotionSummary(p,rupiah),href:'/promo',action:'Lihat promo',tint:'#fdf3d6',images:[]})),
+ ];
  let signedIn=false;try{await getPrincipal(await storefrontRequest('GET','/'),identity);signedIn=true;}catch{}
  const shelf=(id:string,title:string,href:string,items:typeof products)=><section key={id} className="home-shelf" aria-labelledby={id}><h2 id={id} className="shelf-heading"><Link href={href}>{title}<Icon name="forward"/></Link></h2><ProductGrid products={items} shelf/></section>;
  return <Shell><JsonLd data={jsonLdGraph(organizationJsonLd(siteConfig()),websiteJsonLd(siteConfig()))}/><main id="main" className="wrap home-main"><HomeHero photos={heroPhotos} signedIn={signedIn}/>
@@ -46,5 +56,6 @@ export default async function Home(){
   {shelves.length>0&&<section className="home-shelf home-switcher" aria-labelledby="switcher-heading"><h2 id="switcher-heading" className="sr-only">Belanja per kategori</h2>
    <CategorySwitcher label="Kategori pilihan" tabs={shelves.map(({department,photo})=>({id:department.id,slug:department.slug,name:department.name,photo}))}
     panels={shelves.map(({products})=><ProductGrid key={products[0]?.id} products={products} shelf/>)}/></section>}
+  <PromoBanners banners={banners}/>
  </main></Shell>;
 }

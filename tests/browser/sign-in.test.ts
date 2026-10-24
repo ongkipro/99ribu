@@ -111,3 +111,37 @@ test("buyer signs in without MFA, ignores an off-site next and lands on /account
 		await page.getByTestId("signin-switch").waitFor();
 	} finally { await browser.close(); }
 });
+
+test("sign-in errors name their real cause: untrusted origin, rate limit, disabled service, no connection", async () => {
+	const browser = await chromium.launch({ executablePath: process.env.PLAYWRIGHT_CHROMIUM_EXECUTABLE });
+	try {
+		// A real untrusted origin: the same server opened as http://localhost:3099 (not a trusted origin).
+		const real = await browser.newPage();
+		await real.goto("http://localhost:3099/masuk");
+		await real.getByLabel("Email").fill("pembeli@example.invalid");
+		await real.getByLabel("Kata sandi").fill("bukan-sandi");
+		await real.getByRole("button", { name: "Masuk", exact: true }).click();
+		await real.getByTestId("signin-error").getByText("Halaman ini dibuka dari alamat yang tidak diizinkan").waitFor();
+		assert.equal(await real.getByLabel("Kata sandi").getAttribute("aria-invalid"), null, "An origin refusal does not blame the password");
+		await real.close();
+		// Rate limit (with and without Retry-After), a disabled service and a lost connection.
+		const page = await browser.newPage();
+		const cases: [(route: import("@playwright/test").Route) => Promise<void>, string][] = [
+			[(route) => route.fulfill({ status: 429, headers: { "retry-after": "120" }, contentType: "application/json", body: "{}" }), "Terlalu banyak percobaan. Coba lagi dalam 2 menit."],
+			[(route) => route.fulfill({ status: 429, contentType: "application/json", body: "{}" }), "Terlalu banyak percobaan. Coba lagi dalam beberapa menit."],
+			[(route) => route.fulfill({ status: 503, contentType: "application/json", body: "{}" }), "Layanan masuk sedang dinonaktifkan sementara. Coba lagi nanti."],
+			[(route) => route.abort("internetdisconnected"), "Tidak bisa terhubung. Coba lagi."],
+		];
+		for (const [respond, message] of cases) {
+			await page.unrouteAll();
+			await page.route("**/api/auth/sign-in/email", respond);
+			await page.goto(`${origin}/masuk`);
+			await page.getByLabel("Email").fill("pembeli@example.invalid");
+			await page.getByLabel("Kata sandi").fill("bukan-sandi");
+			await page.getByRole("button", { name: "Masuk", exact: true }).click();
+			await page.getByTestId("signin-error").getByText(message, { exact: true }).waitFor();
+		}
+	} finally {
+		await browser.close();
+	}
+});

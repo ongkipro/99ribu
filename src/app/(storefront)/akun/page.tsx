@@ -20,13 +20,7 @@ export default async function AccountPage() {
 		<Shell active="account">
 			<main id="main" className="wrap" style={{ paddingTop: "24px" }}>
 				<section className="notice-panel">
-					<h1
-						aria-label={
-							workspace.authenticated
-								? undefined
-								: "Halaman akun sedang disiapkan"
-						}
-					>
+					<h1>
 						{workspace.authenticated
 							? `Akun ${workspace.profile.display_name}`
 							: "Akun opsional"}

@@ -759,6 +759,7 @@ export default async function OrderReceiptPage({
 													<dt>Kode referensi</dt>
 													<dd>
 														<OrderReceiptCopyCode
+															label="kode referensi"
 															code={attempt.id.slice(0, 8).toUpperCase()}
 														/>
 													</dd>
@@ -789,7 +790,7 @@ export default async function OrderReceiptPage({
 												<div>
 													<dt>Nominal transfer (tepat)</dt>
 													<dd>
-														<OrderReceiptCopyCode code={String(attempt.action.amount)} />
+														<OrderReceiptCopyCode code={String(attempt.action.amount)} label="nominal" />
 													</dd>
 												</div>
 												<div>
@@ -802,7 +803,7 @@ export default async function OrderReceiptPage({
 															{account.bank_name} a.n. {account.account_holder}
 														</dt>
 														<dd>
-															<OrderReceiptCopyCode code={account.account_number} />
+															<OrderReceiptCopyCode code={account.account_number} label="nomor rekening" />
 														</dd>
 													</div>
 												))}
@@ -1151,15 +1152,22 @@ export default async function OrderReceiptPage({
 									) : deliveredParcelCount > 0 ||
 										order.items.some((i) => i.received_quantity > 0) ? (
 										<>
-											Barang yang sudah diterima dapat diajukan pemeriksaan
-											retur sesuai{" "}
+											Untuk barang yang sudah diterima, ajukan pemeriksaan
+											retur lewat{" "}
+											<Link
+												className="receipt-inline-link"
+												href="/bantuan#percakapan"
+											>
+												percakapan bantuan
+											</Link>{" "}
+											dengan nomor pesanan ini. Lihat juga{" "}
 											<Link
 												className="receipt-inline-link"
 												href="/bantuan#returns"
 											>
-												kebijakan pengiriman dan pengembalian
-											</Link>{" "}
-											isi pilihan lengkap Rp99.000.
+												ketentuan pengembalian
+											</Link>
+											.
 										</>
 									) : (
 										"Catatan retur dan pengembalian dana mengikuti hasil pemeriksaan fisik dan keuangan."
@@ -1171,9 +1179,9 @@ export default async function OrderReceiptPage({
 							<p className="checkout-hint">
 								<Link
 									className="receipt-inline-link"
-									href={`/bantuan?orderId=${order.id}`}
+									href="/bantuan#percakapan"
 								>
-									Buka percakapan bantuan pesanan (
+									Buka percakapan bantuan pesanan ini (
 									{extras.support_conversation_id.slice(0, 8)})
 								</Link>
 							</p>

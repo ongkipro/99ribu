@@ -51,7 +51,10 @@ export default function Help() {
 						</p>
 					</section>
 				</div>
-				<CustomerChatView />
+				{/* Order pages link here (#percakapan) to open the buyer's support conversations. */}
+				<section id="percakapan" aria-label="Percakapan bantuan">
+					<CustomerChatView />
+				</section>
 				<Link className="button secondary" href="/cari">
 					Kembali ke katalog
 				</Link>

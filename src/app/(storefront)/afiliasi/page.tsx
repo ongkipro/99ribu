@@ -178,7 +178,10 @@ export default async function AffiliateWorkspacePage() {
 							minimal Rp99.000.
 						</p>
 						<div className="notice-actions">
-							<Link className="button" href="/cari">
+							<Link className="button" href="/bantuan#percakapan">
+								Hubungi kami untuk aktivasi
+							</Link>
+							<Link className="button secondary" href="/cari">
 								Jelajahi produk 99ribu
 							</Link>
 						</div>

@@ -47,7 +47,7 @@ export function SearchBox({q,suggestions}:{q:string;suggestions:string[]}){
       <div ref={list} role="listbox" id={`${id}-list`} aria-labelledby={`${id}-caption`} onMouseDown={e=>e.preventDefault()}>
        {options.map((text,i)=>
         // biome-ignore lint/a11y: combobox options are reached by aria-activedescendant from the input (Up/Down/Enter), so they take no DOM focus or key handlers.
-        <div key={i===matches.length?`search:${text}`:text} id={`${id}-${i}`} role="option" aria-selected={i===active} onClick={()=>choose(text)}><Icon name="search"/>{i===matches.length?<span>Cari “{text}”</span>:<Highlight text={text} query={typed}/>}</div>)}
+        <div key={i===matches.length?`search:${text}`:text} id={`${id}-${i}`} role="option" aria-selected={i===active} onClick={()=>choose(text)}>{i===matches.length?<span>Cari “{text}”</span>:<Highlight text={text} query={typed}/>}</div>)}
       </div>
      </div>
     </div>

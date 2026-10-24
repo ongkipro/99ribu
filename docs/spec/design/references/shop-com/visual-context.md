@@ -14,6 +14,29 @@ Indonesian mobile-first buyers who browse a multi-category catalog where every c
 - **Hero primary "Masuk" for signed-out visitors** ("Lihat produk" when signed in) is the coordinator's specified copy, mirroring shop.com's "Sign in"; guest checkout stays available from every product, and "Lihat produk" remains one tap away in the header search, pills and grid. Accepted.
 - **`/promo` "Paket campuran" lists real published mixed bundles; they overlap the newest catalog rows because the newest publications are bundles** (coordinator: bundles are real content). Accepted.
 - **One-line card titles** (owner, 1:1 with shop.com), **desktop shelf arrows** (owner confirmed), **Promo icon shown when only bundles exist** (bundles are real content), and **header order Promo → Cart → Account** (owner) are accepted.
+- **Home promo banners (coordinator decision, round 50; final, do not re-litigate full-bleed vs single card).** The section is shop.com's editorial rail of 410x520 photo-led cards (80% wide on phones), and it renders three or more banners from the data-backed `HOME_BANNERS` list (`src/modules/storefront/banners.ts`):
+  - "Paket campuran" → /promo; "Rawat kendaraan sendiri" → /kategori/otomotif; "Gaya pria sehari-hari" → /kategori/fashion-pria. One more banner shows per active shipping promotion.
+  - The content is dummy but truthful, with no prices beyond the fixed Rp99.000 and no savings or promises.
+  - Photos are item photos that are no product's cover and no hero, tile or department pick. Round 51 screening:
+    - Banner photos are the Kopi Bali fragrance packs, the car dent puller and a men's sunglasses collage. All are high contrast and carry no percentage, price, discount, claim or badge overlay. Product labels on the packaging are allowed.
+    - Every hero and department pick was screened against the same rule. The Rumah Tangga floor-drain pick carried a "PREMIUM QUALITY" seal and was replaced with four pastel mini umbrellas on white. The remaining picks show only product labels, a size chip ("750 ml") or a brand mark.
+  - The action pills sit at the card bottom, so they align across the row.
+  - Round 52 (review 51):
+    - The section heading is "Temukan pilihan", not "Promo", because the cards are a bundle and two categories, not promotions.
+    - Card 1's body now states what its photo shows ("Misalnya pengharum mobil dan pengharum ruangan dalam satu pilihan lengkap Rp99.000."), and its action is "Lihat paket".
+    - At enlarged text, cards are 85% wide, so the next card always peeks (320/200% included). Below 360px the arrow in the action pill is hidden, so the caption fits.
+  - Captions and the action pill fit at 320/200%.
+  - The section is hidden when the list is empty. An admin-managed source (S110) replaces the list later.
+  - **Banner imagery (coordinator, round 53).** Banners use merchant cut-out product photography on brand tints. This is accepted content under the same rule as the hero and pills.
+    - Cut-outs on white sit contained, with padding, on a per-card tint taken from the pill/tile tokens (Kopi Bali: amber; dent puller: slate). They are blended with multiply, so the white cut-out edges disappear into the tint.
+    - The sunglasses collage, which already has its own background, stays edge to edge.
+    - Photo taste beyond overlays and claims (percentages, prices, discounts, claim badges) is not a gate finding.
+    - Round 54 (review 53): the banner images ask for the right candidate (`sizes` "(max-width: 700px) 85vw, 410px", up to 1080w). A 410px card gets about 410w at DPR 1 and the 828w image at DPR 2; the old collage `sizes` delivered about 256w. Card titles are 18px, so the 20px "Temukan pilihan" heading outranks them.
+- **Phone header without the logo (owner, 2026-10-23: "di mobile logo 99rb hapus").** This is an accepted override, not a finding. On phones the omnibox takes the header; home is the dock's first tab, and the page h1 gives context. Tablet and desktop keep the wordmark and its reveal.
+- **Backlog (not findings this cycle):**
+  - Per-item media for bundle PDPs (a thumbnail strip): feature scope.
+  - Omnibox glass opacity over the pill row: cosmetic.
+  - Guest-order recovery by order number (#4): a backend slice is scheduled.
 - **Content compliance backlog (owner, before go-live: BPOM/advertising-claims risk).** Products the reviewers flagged (rounds 26-30):
   - "Antabur Anti Pantat Burik & Selangkangan": before/after photo, "Kinclong dalam 14 hari", "TERBUKTI AMPUH".
   - "Paket Wajah Tirus & Glowing Spa di Rumah": face-slimming name and photo.
@@ -52,7 +75,7 @@ Not inspectable: category pages (`/categories/*` returned "We ran into an issue"
 | R2 Omnibox | White pill with no border and a soft `0 2px 16px` shadow. The submit is a 44px round filled purple button with a white icon. The accessible names "Cari produk" stay. |
 | R3 Chips | Department nav, active filters, facet options and offer options become white pills with a hairline `rgba(24,24,27,.10)` border, at least 44px high. The selected or checked state gets a 1.5px charcoal border, and the visible native control is kept (tests check/select it). |
 | R4 Listing | The 200px sidebar is removed. The filter disclosure sits above the results across the full content width. Closed, it shows as a pill "Filter dan urutan" with a chevron. Open, it is a white 24px-radius panel with pill selects (one row of four at desktop, 2×2 at tablet, stacked on phones), attribute facets as wrapping pill groups when the catalog returns attribute facets, and Apply/Reset at the end. Kategori, Isi pilihan, Ketersediaan and Urutan stay native `<select>`s: they are the tested no-JS controls (`selectOption`/`toHaveValue` in the browser and integration suites), so they are not converted into radio pills. Results use a full-width grid: `auto-fill minmax(12.5rem,1fr)`, which gives 5 columns at the 1200px wrap, 2 columns on phones, and a 12px gap. The native `details` and FilterPanel behaviour are unchanged (open ≥701px, closed on phones). |
-| R5 Product card rhythm | 1:1 media with a 20px radius. Title 1rem/1.375 at 600 with −0.01em tracking. Contents 0.8125rem muted. Price 1.125rem/700 with the "/ pilihan lengkap" basis kept inline beside it at 0.8125rem. The price basis stays visible because it is the fixed-price rule. |
+| R5 Product card rhythm | 1:1 media with a 20px radius. Title 1rem/1.375 at 600 with −0.01em tracking. Contents 0.8125rem muted. Price 1.125rem/700. Superseded by the round-21 card contract (cards show only "Rp99.000"); the fixed-price basis is stated on the PDP and in the hero, not on each card. |
 | R6 PDP | Columns `minmax(0,1fr) minmax(20rem,28rem)` with a 64px gap. The media sits in a white 24px-radius panel. Buy box order: H1 (−0.02em), price, offer pills, contents, stock, then the quantity pill (7rem) and below it a full-width 52px "Tambah ke keranjang". Policy `details` become accordions with a right-hand chevron between hairlines. On phones the media spans the full content width. |
 | R7 Cart | Lines stay unboxed with dividers (spec forbids boxed rows). The summary is a white 20px-radius card with a soft shadow and a full-width 52px "Lanjut ke checkout". The quantity input is a pill. |
 | R8 Empty and recovery states | Content is centred on one column (heading, text, pill actions), as in shop.com's empty cart and error states. |
@@ -83,332 +106,51 @@ Each contract item, checked against its reference:
 
 Round 21 recapture (current build, renamed catalog, Indonesian URLs), taken 2026-10-23 with the scratchpad `shots-r21.mjs` from the round-21 production build: catalog withdraw dry-run 0 and the fixture guard on, light theme, reduced motion unless marked `-motion`, 320 shots with a 32px browser default font size. overflowX=0 on all 57 page captures, and 1280, 1440 and 1920 were also checked (content width 1216/1250/1250px). The script asserts that the omnibox centre equals the viewport centre within 1px at 768, 1024, 1440 and 1920, closed and open; it measured 0.0px every time. The full capture set (every page at 320/200%, 390, 768, 1024, 1440, 1920 where requested) is in the same folder; the shots below are the ones critiqued. Earlier rounds' critiques are in the round sections further down and are superseded where they disagree.
 
-- Home: `docs/spec/design/renders/shop-com-r2-20261022/home-320-text200.png`, `docs/spec/design/renders/shop-com-r2-20261022/home-390.png`, `docs/spec/design/renders/shop-com-r2-20261022/home-768.png`, `docs/spec/design/renders/shop-com-r2-20261022/home-1440.png`. Order: header (brand, centred omnibox, icon-only cart, promo and account) with the 5-pill row and grid link; hero card; "Kategori ›" grid; "Terbaru" shelf; category switcher; footer. 1440 and 1920 sit in the 1250px container with 7 whole cards per shelf; 768 shows 4.6 (a cut card at the edge); phones bleed the shelf to the screen edge with 2.3 cards. The switcher medallion (112px, 56px on phones) sits above the selected name, so every name reads in full.
-- Hero: `docs/spec/design/renders/shop-com-r2-20261022/hero-320-text200.png`, `docs/spec/design/renders/shop-com-r2-20261022/hero-390.png`, `docs/spec/design/renders/shop-com-r2-20261022/hero-1440.png`, `docs/spec/design/renders/shop-com-r2-20261022/hero-1440-motion.png`. Our product photos float on the lavender/yellow tint, to the right on desktop and in a 236px band above the copy on phones. The copy sits on a near-opaque canvas scrim. At 320/200% the card grows instead of clipping, and "Rp99.000" stays on one line (the heading scales to the width). Motion (`hero-drift`) runs only without reduced motion; layout shift is at most 0.014.
-- Category grid: `docs/spec/design/renders/shop-com-r2-20261022/home-categories-390.png`, `docs/spec/design/renders/shop-com-r2-20261022/home-categories-1440.png`. 2 then 5 columns, never narrower than 10em (one per row at 320/200%); department tint, dark label, one tilted department photo clipped at the tile end; long names wrap between words. `/kategori` uses the same tiles and photos.
-- Header and omnibox (closed state: `home-1440`): `docs/spec/design/renders/shop-com-r2-20261022/omnibox-opening-390.png`, `docs/spec/design/renders/shop-com-r2-20261022/omnibox-opening-1440.png` (120ms into the open transition, live motion), `docs/spec/design/renders/shop-com-r2-20261022/omnibox-suggestions-390.png`, `docs/spec/design/renders/shop-com-r2-20261022/omnibox-suggestions-1440.png`, `docs/spec/design/renders/shop-com-r2-20261022/omnibox-typing-1440.png`, `docs/spec/design/renders/shop-com-r2-20261022/header-cart-items-1440.png`, `docs/spec/design/renders/shop-com-r2-20261022/header-signed-in-390.png`. Focus grows the one glass surface down over the page into "Saran pencarian": product-type phrases from the catalog, fading in. Typing filters them, marks the match in bold, and ends with a "Cari “…”" row. There is no native clear glyph. The cart badge sits on the icon's top right; the "Promo" tag icon follows the cart. On phones the header holds brand and search only, and the dock carries cart and account. Signed in, the hero primary reads "Lihat produk" (`docs/spec/design/renders/shop-com-r2-20261022/hero-signed-in-390.png`).
-- Category pills: `docs/spec/design/renders/shop-com-r2-20261022/pills-focus-320-text200.png`, `docs/spec/design/renders/shop-com-r2-20261022/pills-hover-390.png`, `docs/spec/design/renders/shop-com-r2-20261022/pills-focus-1440.png`. Each circle holds the department's own product photo, contained and multiplied into the tint so the white ground disappears. Hover scales the photo slightly; keyboard focus draws the 2px ink ring with 2px offset around the whole pill, unclipped. 1440 fits all six centred; phones scroll with a hidden scrollbar.
-- Search and category listings: `docs/spec/design/renders/shop-com-r2-20261022/search-390.png`, `docs/spec/design/renders/shop-com-r2-20261022/search-1440.png`, `docs/spec/design/renders/shop-com-r2-20261022/category-320-text200.png`, `docs/spec/design/renders/shop-com-r2-20261022/category-1024.png`, `docs/spec/design/renders/shop-com-r2-20261022/categories-1440.png`. 6 columns from 1024px, 4 at 768, 2 on phones. Titles are one line (14/18 600) with an ellipsis (owner decision, see the round-21 review response), prices 12/16 600, photos in 20px frames. On `/kategori/<slug>` the department pill carries the soft lavender current fill (round 35); "Semua kategori" is current only on `/kategori`.
+- Home: `docs/spec/design/renders/shop-com-r2-20261022/home-320-text200.png`, `docs/spec/design/renders/shop-com-r2-20261022/home-390.png`, home-768 (reviewed earlier; not re-cited in round 43), `docs/spec/design/renders/shop-com-r2-20261022/home-1440.png`. Order: header (brand, centred omnibox, icon-only cart, promo and account) with the 5-pill row and grid link; hero card; "Kategori ›" grid; "Terbaru" shelf; category switcher; footer. 1440 and 1920 sit in the 1250px container with 7 whole cards per shelf; 768 shows 4.6 (a cut card at the edge); phones bleed the shelf to the screen edge with 2.3 cards. The switcher medallion (112px, 56px on phones) sits above the selected name, so every name reads in full.
+- Hero: `docs/spec/design/renders/shop-com-r2-20261022/hero-320-text200.png`, hero-390 (reviewed earlier; not re-cited in round 43), `docs/spec/design/renders/shop-com-r2-20261022/hero-1440.png`, hero-1440-motion (reviewed earlier; not re-cited in round 43). Our product photos float on the lavender/yellow tint, to the right on desktop and in a 236px band above the copy on phones. The copy sits on a near-opaque canvas scrim. At 320/200% the card grows instead of clipping, and "Rp99.000" stays on one line (the heading scales to the width). Motion (`hero-drift`) runs only without reduced motion; layout shift is at most 0.014.
+- Category grid: home-categories-390 (same treatment at the other width; not re-cited), `docs/spec/design/renders/shop-com-r2-20261022/home-categories-1440.png`. 2 then 5 columns, never narrower than 10em (one per row at 320/200%); department tint, dark label, one tilted department photo clipped at the tile end; long names wrap between words. `/kategori` uses the same tiles and photos.
+- Header and omnibox (closed state: `home-1440`): omnibox-opening-390 (same treatment at the other width; not re-cited), omnibox-few-390 (reviewed earlier; not re-cited in round 43), `docs/spec/design/renders/shop-com-r2-20261022/omnibox-few-1440.png`, `docs/spec/design/renders/shop-com-r2-20261022/omnibox-opening-1440.png` (120ms into the open transition, live motion), `docs/spec/design/renders/shop-com-r2-20261022/omnibox-suggestions-390.png`, `docs/spec/design/renders/shop-com-r2-20261022/omnibox-suggestions-1440.png`, `docs/spec/design/renders/shop-com-r2-20261022/omnibox-typing-1440.png`, header-cart-items-1440 (reviewed earlier; not re-cited in round 43), header-signed-in-390 (reviewed earlier; not re-cited in round 43). Focus grows the one glass surface down over the page into "Saran pencarian": product-type phrases from the catalog, fading in. Typing filters them, marks the match in bold, and ends with a "Cari “…”" row. There is no native clear glyph. The cart badge sits on the icon's top right; the "Promo" tag icon follows the cart. On phones the header holds brand and search only, and the dock carries cart and account. Signed in, the hero primary reads "Lihat produk" (hero-signed-in-390 (reviewed earlier; not re-cited in round 43)).
+- Category pills: `docs/spec/design/renders/shop-com-r2-20261022/pills-focus-320-text200.png`, pills-hover-390 (reviewed earlier; not re-cited in round 43), pills-focus-1440 (same treatment at the other width; not re-cited). Each circle holds the department's own product photo, contained and multiplied into the tint so the white ground disappears. Hover scales the photo slightly; keyboard focus draws the 2px ink ring with 2px offset around the whole pill, unclipped. 1440 fits all six centred; phones scroll with a hidden scrollbar.
+- Search and category listings: `docs/spec/design/renders/shop-com-r2-20261022/search-390.png`, `docs/spec/design/renders/shop-com-r2-20261022/search-1440.png`, `docs/spec/design/renders/shop-com-r2-20261022/category-320-text200.png`, category-1024 (reviewed earlier; not re-cited in round 43), categories-1440 (reviewed earlier; not re-cited in round 43). 6 columns from 1024px, 4 at 768, 2 on phones. Titles are one line (14/18 600) with an ellipsis (owner decision, see the round-21 review response), prices 12/16 600, photos in 20px frames. On `/kategori/<slug>` the department pill carries the soft lavender current fill (round 35); "Semua kategori" is current only on `/kategori`.
 - PDP: `docs/spec/design/renders/shop-com-r2-20261022/pdp-320-text200.png`, `docs/spec/design/renders/shop-com-r2-20261022/pdp-390.png`, `docs/spec/design/renders/shop-com-r2-20261022/pdp-1440.png`, `docs/spec/design/renders/shop-com-r2-20261022/pdp-bundle-open-1440.png`. URLs read `/produk/<title>-<id>`; the task header keeps Kembali, the brand and the cart glyph.
-- Cart, help, sign-in: `docs/spec/design/renders/shop-com-r2-20261022/cart-390.png` (empty cart), `docs/spec/design/renders/shop-com-r2-20261022/cart-filled-390.png`, `docs/spec/design/renders/shop-com-r2-20261022/cart-filled-1440.png`, `docs/spec/design/renders/shop-com-r2-20261022/help-390.png`, `docs/spec/design/renders/shop-com-r2-20261022/help-1440.png`, `docs/spec/design/renders/shop-com-r2-20261022/masuk-error-390.png`. Layouts are unchanged, now on `/keranjang`, `/bantuan` and `/masuk`.
-- Promo: `docs/spec/design/renders/shop-com-r2-20261022/promo-390.png`, `docs/spec/design/renders/shop-com-r2-20261022/promo-1440.png`. H1 "Promo", then "Promo ongkir". No shipping promotion is active locally, so the plain sentence "Belum ada promo ongkir aktif." shows. "Paket campuran" lists the published mixed bundles in the standard grid.
-- Footer: `docs/spec/design/renders/shop-com-r2-20261022/footer-320-text200.png`, `docs/spec/design/renders/shop-com-r2-20261022/footer-390.png`, `docs/spec/design/renders/shop-com-r2-20261022/footer-1440.png`. A white band with the brand block, three labelled menus (Belanja, Bantuan, 99ribu) and a bottom row with the copyright and the Legal links. Phones stack the menus in two columns with 44px links; at 320/200% they become one column.
-- Brand icons: `docs/spec/design/renders/shop-com-r2-20261022/favicon-sheet.png`. The "99" monogram at 16 and 32px (favicon), at 180px (apple-icon), and at 16/32 on the grey canvas. Two geometric 9s, white on brand purple, with the yellow dot from the wordmark. It reads as "99." even at 16px.
-- Placeholder pages: `docs/spec/design/renders/shop-com-r2-20261022/placeholder-tentang-390.png`. One heading, "Halaman ini sedang disiapkan." and a secondary pill back to Bantuan; noindex.
-
-## Independent review round 1 and response
-
-`docs/spec/design/reviews/shop-com-r2/review.md` (Claude via `visual-review.py`; Codex could not start in this environment) returned REVISE. Responses, all in builder-owned files:
-- Filter panel: values like "Paket barang yang sama" were clipped at 768 and "Urutan" was orphaned on its own row. The field basis is now 14rem, giving a 2×2 layout at tablet and one row at desktop. Converting the four selects to pill radios was declined because they are tested native controls (see R4). Facet pill groups render only when the data has attribute facets; this round's data had none.
-- Price basis indent at 390/320: the 4px margin was replaced by a collapsible space, so a wrapped "/ pilihan lengkap" aligns with the price.
-- Out-of-stock cards: "Stok pilihan belum tersedia" is now a quiet pill (`#5c4f37` on `#f1eee6`) instead of loose grey text.
-- Home 768 orphan card: the shelf minimum is now 15rem, giving 2 columns at tablet and 4 at desktop.
-- Footer links touching at 320/200%: the links are a grid with a 4px gap on top of their 44px targets.
-- Not-found spacing: the action spacing now matches the empty cart (16px gap + 24px).
-- PDP placeholder: it keeps the shared lavender photo-slot surface (consistent with listing); only the 24px panel radius differs.
-- "Spesifikasi": it stays a heading (tested) but now uses the accordion summary size and hairline rhythm.
-- Help: "Kembali ke katalog" is secondary, so the chat start remains the single filled action. The chat badge blob at 320/200% belongs to `CustomerChatView` (another owner) and is reported, not changed.
-- Declined or out of scope: the home H1 scale versus the price card (accepted round-1 hero), the department tile brief alignment (accepted round-1 tiles), cart-with-lines and multi-option PDP (not capturable without DB writes or catalog data, so they stay UNVERIFIED), and the home-versus-search "Contoh Kaos" contents (a data difference between the featured and search offer variants, not design).
-
-## Independent review round 2 and response
-
-The round-2 review is `docs/spec/design/reviews/shop-com-r2/review-round2.md`; `review.md` is the latest copy and round 1 is kept as `review-round1.md`. Verdict: REVISE. It confirmed that the round-1 fixes hold: 2×2 filters at 768, matched filter toggle, removable chip, 2-up shelves, matched empty and recovery states, help return action. Responses in builder-owned CSS:
-- Stock pill: on narrow cards "Stok pilihan belum tersedia" wrapped into a lozenge, so the radius is now 10px and stays readable when wrapped. The label is unchanged because it is shared copy.
-- "Sebelum memesan": a 1fr/2fr split from 1050px up (no empty half-block at 768); below that the text sits under its heading.
-- Fixed-price card: "Rp99.000" is pinned to the card's end edge on phones, as the card's anchor.
-- Department tiles: the brief is now centred like the product photo slots, so both use one placeholder treatment.
-- "Spesifikasi": a plain section above the first accordion hairline instead of a chevron-less row between accordions.
-
-Open, not changed by the builder:
-- The help chat card (`CustomerChatView`, another owner) uses 8px controls, Title Case copy, an `A • B` badge, and a badge that clips "08.00–21.00 WIB" at 320/200%. The reviewer treats this as page-level REVISE regardless of ownership, so it needs the component owner or an explicit ownership change.
-- R7 cart-with-lines and the R3/R6 multi-option PDP have no render because capturing them needs a guest-cart write and a multi-option catalog product.
-- Marking the current department chip, and the PDP shot-brief caption placement (S22 accepted figure caption), were left as is: the first needs routing context in the shell, the second is an accepted accessibility choice.
-
-## Round-3 preparation (coordinator decisions)
-
-- Help chat card: the coordinator transferred styling and copy ownership of `src/components/support/CustomerChatView.tsx` to the builder. Fetch, paging and conflict behaviour are unchanged. The card is now a white raised 20px card like the topic cards. Buttons use the storefront pill (9999px). Inputs and inner panels use 12–16px radii. The hours line is a wrapping sentence ("Pesan diterima kapan saja. CS membalas pukul 08.00–21.00 WIB.") instead of an `A • B` pill badge, so it cannot clip at 320/200%. Visible copy is sentence case, except the accessible names the tests use ("Mulai Chat Bantuan", "Muat Percakapan Saya", "Buka Percakapan", "Muat pesan sebelumnya", "Kirim Pesan", "Riwayat pesan percakapan"), which stay verbatim.
-- R7 cart with lines: captured through the normal UI in one browser context (PDP → "Tambah ke keranjang" → `/cart`) as `cart-filled-*`. There are no other database writes.
-- R3/R6 multi-option PDP: not verifiable with the current local data, because no published product has more than one option. Data is not seeded for design evidence, so option pills remain UNVERIFIED this round.
-
-## Independent review round 3 and response
-
-The round-3 review is `docs/spec/design/reviews/shop-com-r2/review-round3.md` (`review.md` is the latest copy). Verdict: REVISE. The reviewer confirmed the cart summary, empty states, help topic cards, dock, footer and reference transfer. Responses in builder-owned files:
-- Department tiles: the 26.5rem cap is removed, so the tiles fill the row at tablet. Tile briefs now use the 0.75rem size of the product-slot briefs, with a semibold "Foto belum tersedia" line, so both placeholders use one treatment.
-- Open filter toggle: instead of the solid near-black fill, it takes the R3 selected treatment (white with a charcoal edge). "Terapkan filter" stays the only filled action in the panel.
-- Cart line: the separate unit-price line and the `A · B` total label are merged into an emphasised line total, with "N pilihan lengkap × Rp99.000" as its basis. "Hapus" aligns to the quantity column. The summary link gets 12px before the checkout pill.
-- Chat card: the hours line is now muted, non-link text. The attachment disclosure has the same chevron as the PDP accordions. The Title Case labels "Mulai Chat Bantuan" and "Muat Percakapan Saya" are kept verbatim because the coordinator requires exact test names.
-- Not changed: the empty "Spesifikasi" section (a tested heading), the icon-only task-header cart (the accepted S22 task header), the current-department chip state (needs route context), the open-panel height at ≥701px (contract R4 as written), and the option-pill state (UNVERIFIED with current data).
-
-## Round-4 preparation (coordinator decisions)
-
-- Chat labels: changed to sentence case ("Mulai chat bantuan", "Muat percakapan saya", "Buka percakapan", "Kirim pesan"). The only test uses (`support-live`, plus the `support-chat` mock) call `getByRole` without `exact`, which matches case-insensitively. The coordinator reruns S74 after the build.
-- Current department chip (R3): the shell now takes a server-side `department` value from the search/category route (category slug, or `all` on unqueried `/search`). The current chip gets `aria-current="page"` and the charcoal selected edge, with no client JavaScript.
-- "Spesifikasi" stays as is (test-checked).
-- Round 4 also covers the new `/masuk` sign-in page (built by another agent): default state and the wrong-password error state, captured with the fake address `nobody@example.invalid`.
-
-## Independent review round 4 and response
-
-The round-4 review is `docs/spec/design/reviews/shop-com-r2/review-round4.md` (`review.md` is the latest copy). Verdict: REVISE. The material finding is `/masuk`, which is owned by the sign-in agent. Every other storefront section was judged authored and matched to R1–R12. Responses in builder-owned files:
-- "Sebelum memesan": the text now starts on the shelf's second card column (a 4-column grid with a 16px gap) instead of the unaligned 1fr/2fr split.
-- Help: the H1 is now "Cara pesan dan pengembalian", which matches the footer link and the page content. The page has no ordering steps, so the old "Cara pesan" title over-promised.
-- Secondary buttons: the chat secondary uses the storefront `.button.secondary` purple outline pill, so there is one style per role. The white hairline pill is reserved for chips and the filter disclosure toggle (chip role, R3).
-- Chat attachment chevron: sized in `em`, so it scales with enlarged text.
-- 320 enlarged-text evidence: `shots-r2.mjs` now sets the browser default font size to 32px through CDP `Page.setFontSizes`, replacing the injected `html{font-size:200%}`. A probe on the current build showed the root at 32px, the `max-height: 38rem` rule matching and the dock `position: static`, so the next capture shows real-text-zoom behaviour instead of a fixed two-row dock covering content.
-- Not changed: the dock has no active tab on search results (a query result is not a top-level destination; category pages mark Kategori). The ~270px gap at 1440 between the cart line and summary comes from the accepted 1.7fr/1fr cart layout. The multi-option PDP remains UNVERIFIED with the current data.
-
-Outside builder authority, for the coordinator's decision:
-- The `/masuk` composition (sign-in owner):
-  - it is a bordered 8px card left-aligned at 1440 rather than a centred white raised 20px card;
-  - its inputs are 6px dark-border boxes, not storefront pill or 12px controls;
-  - its error alert is a square left-rule panel whose icon does not scale at 200%;
-  - its buyer-facing copy mentions "Konsol Operasional" and "komisi afiliasi";
-  - after a failed submit, focus is not moved to the alert or the first invalid field.
-
-## Round-5 preparation (coordinator decision: `/masuk` styling, copy and error focus transferred to the builder)
-
-- Composition: a centred white raised 20px card (`signin-card`, max 28rem), like the help topic cards. Inputs are 48px controls with a 12px radius and a 3:1 `#85858e` boundary; invalid fields get a 2px error edge. Actions are full-width 52px pills, primary "Masuk" with "Batal" as the secondary outline pill.
-- Error alert: a rounded 16px error-surface panel with an `em`-sized icon that scales with text.
-- Error focus: after every failed submit, in both the password and the code step, focus moves to the alert (`tabIndex=-1`, `role="alert"`, `aria-live="assertive"`). Fields keep `aria-invalid`, and the invalid field stays referenced by `aria-describedby="signin-error"`.
-- Copy, neutral for buyers and staff:
-  - The heading is "Masuk ke akun 99ribu".
-  - The lead is "Lihat pesanan, alamat tersimpan, dan status pengiriman Anda."
-  - The staff line is now "Akun staf meminta kode verifikasi dua langkah setelah kata sandi."; "Konsol Operasional" and "komisi afiliasi" are removed.
-  - The MFA notice says "halaman operasional".
-- Unchanged: request URLs, payloads, the two-factor step logic, `?next=` handling, redirects, 429 handling, the generic error wording, the `method="post"` fallback, every id/name (`#signin-email`, `#signin-password`, `#signin-code`, `signin-heading`, `signin-verify-heading`, `signin-error`, `signin-switch`) and the tested labels and buttons ("Email", "Kata sandi", "Kode autentikator", "Masuk", "Verifikasi").
-
-## Independent review round 5 (final, cap reached) and status
-
-The round-5 review is `docs/spec/design/reviews/shop-com-r2/review-round5.md` (`review.md` is the latest copy). Verdict: REVISE, and the cap of 5 review rounds is now used. It confirmed that every section at 390/768/1440 is authored and matches the recorded transfer, including the restyled `/masuk` and the filled cart; no template signals were found. The remaining findings are narrow-width polish at 320/200%, plus two evidence gaps.
-
-The design gate on the round-5 evidence (before the fixes below): `refs` PASS, `critique` PASS with 39 screenshots, `review` FAIL (verdict REVISE).
-
-Fixed in source after round 5. They were rendered in the round-6 capture and verified there: the `/masuk` error alert at 320/200% now wraps in readable lines, and the help H1 "Bantuan belanja" fits the gutter.
-- Help chat disclosure chevron: it collapsed to about 7×3px at 320/200% because the flex row shrank it. It is now `flex: none` at 1.125em.
-- `/masuk` card and alert inline padding: now `clamp()`, so the error message is no longer squeezed into one-word lines at 320/200%.
-- Help H1: now "Bantuan belanja". It fits the gutter at 320/200% and no longer promises ordering steps; the footer link and page metadata keep "Cara pesan dan pengembalian".
-- "Hapus filter": styled as a white outline pill paired with "Terapkan filter". The class and text are unchanged.
-
-Accepted deviations, recorded:
-- Native `<select>` filters instead of choice pills (tested no-JS controls).
-- 16px card titles.
-- The in-flow, non-modal filter disclosure.
-- The empty "Spesifikasi" section (test-checked heading).
-- The home H1 scale against the fixed-price card (round-1 hero).
-- The ~270px gap in the 1440 cart (accepted 1.7fr/1fr layout).
-- No active dock tab on search results.
-
-Evidence gaps outside builder authority:
-- The multi-option PDP option pills (R3/R6): no published multi-option product exists, and the imported Berlapak products are drafts.
-- Category pages: not capturable on shop.com, and not separately captured here.
-
-## Round 6 (owner-authorised beyond the 5-round cap)
-
-Owner decision, 2026-10-22, relayed by the coordinator: "ya" to one extra independent review round beyond the 5-round cap. The rounds log is not reset; round 6 is appended to `docs/spec/design/reviews/shop-com-r2/review-rounds.log`. Mechanism: `visual-review.py` refuses at 5 rounds when it finds `design/review-rounds.log`, so the history log stays in `docs/spec/design/reviews/shop-com-r2/` during this authorised run, and the run's line is appended there as round 6 afterwards.
-
-The round-6 capture comes from a fresh build that includes the four post-round-5 fixes: `npm run check` PASS, browser suite 61/61, the full `shots-r2.mjs` with the tall-viewport 320 method, nothing in `src/` newer than the captures, and overflowX 0. No source was edited after this capture.
-
-## Real-catalog switch (S81) and follow-up, after the round-6 PASS
-
-S81 replaced the demo merchandising with the published Berlapak catalog: real photos, real top-level departments and the eight newest publications on home. The round-6 PASS covered the fixture catalog only. The following builder changes need a new capture and review round:
-- Category tiles: a real photo per department, the first image of the department's newest current publication, read through the guarded public reader (`departmentPhoto` in `src/modules/storefront/catalog.ts`). The tile shows it full-bleed with alt "Contoh produk kategori <name>". The labelled placeholder remains only when a department has no published photo.
-- Home composition: the departments row now spans the full width below the hero (four per row on desktop, two on phones), instead of a 26.5rem side column that left an empty block beside four long-named departments.
-- Department chips: on phones they form one horizontally scrolling row (the shop.com chip row), with focus-outline room, instead of three wrapped rows of long names.
-- Listing cards: the real bundle contents are clamped to two lines. The full text stays in the DOM, and the PDP shows the full contents.
-- Environment copy: the banner reads "Data contoh: pesanan, pembayaran, dan pengiriman masih simulasi lokal." (it keeps the "Data contoh" phrase asserted by `tests/smoke.test.ts`). The footer reads "Katalog dan foto produk asli. Pesanan, pembayaran, dan pengiriman masih simulasi lokal." The "katalog contoh" returns sentence is now "Ketentuan pengembalian belum diterbitkan."
-- Department tile baselines: each tile spans two shared grid rows (media, label) through `subgrid`. Labels in a row therefore start on one line even when an enlarged placeholder brief grows one slot or names wrap to different line counts, which keeps the 200%-text baseline invariant of `storefront-http`. Before this, the media used `flex: 1 0 auto`, which pushed each label to the bottom of an equal-height cell, so labels with different line counts started at different tops.
-
-## Round 7 (aborted) and round 8 (owner-authorised: "lanjutkan, juga sempurnakan", relayed by the coordinator, 2026-10-22)
-
-Round 7 ran on the first real-catalog capture, but was aborted before counting because pending admin source changes made its evidence stale. Its verdict is not counted; the review is kept as `docs/spec/design/reviews/shop-com-r2/review-round7.md`. Its findings within builder authority are fixed for round 8, the counted round, which is appended to the existing rounds log (the log is not reset):
-- PDP buy box: the raw catalog description no longer sits between the price and the purchase controls. It is now a "Deskripsi" accordion after the purchase region, using the same summary and chevron pattern as "Ongkir dan pengiriman" and "Pengembalian". A long description (over 160 characters) starts collapsed; a short one starts open. The text keeps its line breaks. Title → price → options → contents → stock → quantity → "Tambah ke keranjang" is the first block, as in the shop.com PDP.
-- PDP media: sticky on desktop and tablet, so the left column no longer leaves a ~700px empty band beside the long buy box and accordions.
-- Department chips: every top-level department is listed (the earlier cap of three hid one home tile's department). On phones they scroll horizontally on one line; on desktop they wrap.
-- Home hero: on desktop the title sits beside a 34rem price card, instead of a ~1200px yellow band with an empty centre. Below 1050px they stack.
-- Category tiles: the tile photo skips products already on the "Mulai dari pilihan ini" shelf, so no tile repeats a card photo. Tiles are four per row from tablet up (short tiles before the shelf at 768) and two per row on phones, with a 16px column gap so enlarged labels never run together.
-- Lazy product images: the image box carries the lavender slot surface until it paints, and the capture script walks each page so every image loads before a full-page shot.
-- Help chat header: the hours line sits under the H2 instead of being squeezed beside it.
-
-Not changed (outside builder authority or accepted):
-- The "Pengembalian" content is owner content that has not been published yet.
-- The 7-line filled cart on phones pushes checkout below the first screen; this is acceptable under the spec.
-- R3/R6 option pills remain UNVERIFIED because no published multi-option product exists.
-- Category pages are still not captured.
-- Tiles use one photo per department rather than shop.com's mosaic, because each department has a single representative photo in the data.
-
-## Round 9 (owner-authorised under the standing "lanjutkan, juga sempurnakan", relayed by the coordinator)
-
-Round 8 (counted) is `docs/spec/design/reviews/shop-com-r2/review-round8.md`, verdict REVISE. All five findings are within builder authority and are fixed for round 9, which is appended to the existing rounds log. Where they conflict, these entries supersede the round-8 notes above.
-- Department chips: one horizontally scrolling row at every width, so they no longer wrap at 768 or 1440 and products return to the first screen on search at tablet. The current chip keeps `aria-current` and the charcoal edge. Focus rings are drawn inset (`outline-offset: -4px`) so the scroll clip cannot hide them, and the row scrolls on one line at 320/200%.
-- PDP "Isi yang diterima": bundles of up to three items stay fully listed, so the fixture contents asserted visible in tests stay visible. Longer bundles show "N jenis barang dalam pilihan ini", the first three items, and a "Lihat N barang lainnya" disclosure using the accordion chevron pattern. "Tambah ke keranjang" moves up into the first screen at 1440 and much closer to it on phones.
-- Category tiles now read as categories: a tinted lavender card with the department name first and a shorter 4:3 photo inside it, distinct from the white product cards, on both home and `/categories`. The subgrid keeps every name in a row on one line (name in row 1, media in row 2), so the 200%-text baseline invariant still holds.
-- Product card titles are clamped to two lines, so prices align across each row. The full name stays in the DOM and the link's accessible name.
-- Hyphenated tokens such as "3-in-1" and "Anti-Stres" are wrapped at render time in a `white-space: nowrap` span on card titles and the PDP title. The stored names and the text content (and therefore accessible names and test matching) are unchanged.
-
-## Round 10 (owner-authorised under the standing "lanjutkan, juga sempurnakan"; the coordinator's last round this cycle)
-
-Round 9 is `docs/spec/design/reviews/shop-com-r2/review-round9.md`, verdict REVISE. All five findings are fixed for round 10, which is appended to the existing rounds log. These entries supersede earlier notes where they conflict.
-- Category tiles at 320/200%: the tile minimum width is now in `em` (9em on desktop and tablet, 8em on phones). Enlarged text therefore drops the tiles to one per row instead of squeezing long Indonesian names into two narrow columns, while ordinary text keeps two per row on phones and four from tablet up. Tile, label and media all have `min-width: 0`. Labels use `overflow-wrap: anywhere` and `hyphens: auto`. The photo panel is capped at the card width, so it stays inside the lavender card.
-- Baseline test: the `storefront-http` 200%-text test compared labels pairwise (1–2, 3–4) on the assumption of two tiles per row. That no longer holds once enlarged text gives one tile per row. The builder changed it minimally to compare labels of tiles that share a row (same tile top), keeping the invariant that labels in one row share a baseline.
-- Product card titles reserve two lines (`min-height: 2.75em` at a 1.375 line-height) and keep the two-line clamp, so a one-line title no longer lifts its price above its neighbours.
-- Department chip row: a 40px end-edge fade signals that the row scrolls. End padding and scroll padding let the last chip, and any focused chip, rest clear of the fade, and a thin scrollbar appears on hover or keyboard focus. The nine real department names (roughly 1,800px of chips) cannot fit one 1200px row even with tighter padding, so the row scrolls at every width rather than imitating shop.com's fully visible row.
-- Help topic cards are top-aligned, so the short "Pengembalian" card is not stretched to the height of its neighbour.
-- Omnibox: the search icon is 1.25em inside an em-padded button with a minimum height of `max(44px, 2.25em)`, so at 320/200% the icon keeps clear space inside the purple button.
-
-## Round 11 (owner-authorised: "ya jalankan, audit, juga validasi dan lakukan penyempurnaan", relayed by the coordinator)
-
-Round 10 is `docs/spec/design/reviews/shop-com-r2/review-round10.md`, verdict REVISE. Its main finding was contaminated evidence: integration fixtures were published in the captured catalog, so home, listing and the captured PDP showed fixture products, and no real bundle PDP was rendered. The coordinator now captures only on a verified-clean catalog (withdraw dry-run 0 immediately before capture). The capture script also refuses to continue on contamination.
-
-Design fixes for round 11, which supersede earlier notes where they conflict:
-- Price rows: every product card spans five shared rows (media, title, contents, price, stock note) through `subgrid`. Prices line up across a row whatever the title or contents length, so the round-10 two-line title reservation is removed. In a one-column grid (320/200%), each row fits its own card, with no reserved blank line.
-- Omnibox at 320/200%: the search icon is `max(1.25rem, 1em)` in a compact em-padded button (minimum height `max(44px, 2em)`), and the field keeps at least 6ch. "Cari produk" no longer truncates beside the enlarged button.
-- Help chat hours line: regular weight in the muted colour, so it no longer competes with the H2.
-
-Evidence method for round 11 (`shots-r2.mjs`):
-- 390 and 768 use the document-tall viewport method (previously only 320), so the fixed mobile dock sits over its reserved spacer instead of covering cart summary rows mid-page.
-- `/categories` is captured at all widths.
-- A real B99 bundle PDP is chosen deterministically: the published product with the most contents lines, ties broken by URL, found by scanning every listing page. It is captured with "Deskripsi" and "Lihat N barang lainnya" collapsed (`pdp-bundle-*`) and opened (`pdp-bundle-open-390`, `pdp-bundle-open-1440`). The run aborts if that product has no collapsed contents disclosure.
-- Contamination guard: the run aborts with a clear error if any rendered product name on a captured page matches `/^Contoh |SYNTHETIC|\[s2\d-|S21 filter/`.
-
-## Round 12 (owner standing approval "lanjutkan … sempurnakan", relayed by the coordinator)
-
-Round 11 is `docs/spec/design/reviews/shop-com-r2/review-round11.md`, verdict REVISE. It confirmed the clean catalog, the real 7-item bundle PDP with "Tambah ke keranjang" inside the first 900px at 1440, the subgrid price alignment and the shell and pages. Fixes for round 12 supersede earlier notes where they conflict:
-- `/categories`: every top-level department is a tile (photo, or the labelled placeholder), and the "Kategori lainnya" disclosure is removed. Any subcategories are listed openly as wrapping pill links under "Subkategori". The header chip row lists every department too, so the two always match.
-- Product cards now span four shared rows: media, a title-and-contents text block, price, and stock note. The spare height in a row falls below the text block, above the price, so there is no blank line between a one-line title and its contents, and prices still align.
-- PDP extra-contents disclosure: the label reads "Lihat N barang lainnya" when closed and "Sembunyikan barang lainnya" when open. This is CSS on `details[open]`, so the summary's accessible name follows the visible label.
-- Minor:
-  - the chip row's end padding (56px) is now wider than its 40px fade;
-  - footer links are 8px apart;
-  - the help chat card ends on its own 24px padding (the attachment disclosure spaces only what follows it), and its notification heading is sentence case.
-- Evidence: `search-active-390` and `search-filters-open-390` now use the document-tall viewport method like every other narrow capture, so the fixed dock no longer covers "Terapkan filter".
-- Test alignment: `storefront-http` expected exactly four `/categories` tiles (the old featured cap). It now expects one tile per department link in the header chip row (all chips minus "Semua produk"), because both come from the same department list.
-
-## Round 13 (owner standing approval "lanjutkan … sempurnakan"; the builder ran build, capture and review this round)
-
-Round 12 is `docs/spec/design/reviews/shop-com-r2/review-round12.md`, verdict REVISE. Its gate also failed `critique` because the coordinator's CLS change to `src/components/storefront/filter-panel.tsx` (an inline pre-paint script that opens the filter panel on wide screens, verified by Lighthouse; no CSP is configured) landed after that capture. That change is kept as is.
-
-Fixes for round 13, superseding earlier notes where they conflict:
-- Search card distinguishability: an offer whose contents are a single item (the titled product itself; 366 of the 392 published offers) shows only its quantity, "Isi: N pcs", derived from the data. Mixed bundles keep their item list. On phones (≤700px) titles may use three lines, so same-family names such as "Paket 2 pcs Kaos Kata Lucu Sindiran …" keep their distinguishing words.
-- Grid rhythm: card rows are 12px apart (R4), measured on this build as 930 → 942 at 1440. Inside a card, the subgrid tracks add no gap. An empty stock-note track has no height, so it collapses in rows without a note; this is pure CSS, with no script-driven layout shift.
-- Home shelf: three cards per row at 768 (minimum 12.5rem), four at desktop, two on phones.
-- Chip row: the end fade is now 64px, with 72px of end padding and scroll padding, so the cue is visible at 390 and 320 as well.
-- Cart line: bundle items fold after the third, with the same "Lihat N barang lainnya" / "Sembunyikan barang lainnya" disclosure as the PDP.
-- Footer note: "Pesanan, pembayaran, dan pengiriman masih simulasi lokal." The unsourced "katalog dan foto produk asli" claim is removed.
-- `/categories` chip state: no chip is marked current there, and this is deliberate. Every chip links to `/search` or a category listing, so `aria-current="page"` on any of them would be false on `/categories`. The dock's "Kategori" tab carries the current-page state for this page.
-- Evidence: the ordinary `pdp-*` capture is now a different product from `pdp-bundle-*` (the first listed product that is not the bundle, preferring three items or fewer).
-- R3/R6 option pills: not verifiable with the current data. A full scan of all 392 published products on this build found none announcing more than one option, so no option-pill state can be captured. This remains UNVERIFIED by data, not by omission.
-
-## Round 14 (coordinator accepted round 13 including the `/categories` aria-current reasoning; owner standing approval)
-
-Round 13 is `docs/spec/design/reviews/shop-com-r2/review-round13.md`, verdict REVISE. All seven findings are fixed. These entries supersede earlier notes where they conflict:
-- Product card titles: up to three lines at every width, so the 24 "Paket 2 pcs Kaos Kata Lucu Sindiran …" cards keep their distinguishing words. When the grid is a single column (a very narrow screen or enlarged browser text, where two columns of at least 8rem no longer fit, i.e. `max-width: calc(16rem + 44px)`), titles are unclamped. The four-row card subgrid still aligns prices wherever cards share a row, without layout shift.
-- Home shelf: at tablet (three per row) it shows six of the eight newest products, so no row ends with an empty slot. Desktop shows all eight four-up, phones two-up.
-- PDP bundle: the redundant "N jenis barang dalam pilihan ini" line is removed. The title and "Pilihan lengkap" already state the size, and the "Lihat N barang lainnya" disclosure still follows the first three items.
-- The disclosure chevron flows inline right after its label (block summary with an inline icon), so it stays attached when the label wraps at 320/200%.
-- Cart "Perbarui jumlah" uses the shared secondary button size and sizing; the cart-only 0.8rem and 14rem overrides are removed.
-- `/masuk` "Batal" is a quiet text action (transparent fill and border, lavender hover), clearly secondary to the filled 52px "Masuk".
-- Category tile names use a 1.3 line-height. Desktop footer links use 32px pointer targets with no extra gap; phones keep the 44px targets and 8px gap.
-
-### Round 14 owner scope: "reduce over-design", "make it clean, with effects like shop.com"
-
-Interaction contract (observed 2026-10-23 on shop.com search and home at 1440 and 390; read-only, chrome-devtools MCP; scratchpad evidence `shop-search-focus-1440.png`):
-- Product card hover: no visible change. Media, title link and price showed no underline, shadow change, transform, opacity or filter (computed styles compared hovered and unhovered).
-- Product media at rest: white, 20px radius, no border, one shadow `0 2px 8px rgba(0,0,0,.06)`. Title 14px/600 in black; price 12px/600; struck reference price at 56% ink.
-- Filter chips: full pill, 40px tall, 1px `rgba(5,41,77,.1)` border with the same 2px/8px shadow, label 14px/600. Hover showed no visible change.
-- Buttons: hover is a background fill change only (primary to a darker brand fill, outlined to a light fill); the primary is a 52px pill. No lift or scale.
-- Transitions: 150ms `cubic-bezier(0.4, 0, 0.2, 1)` on colour, background, border and shadow; 200ms on the search field.
-- Search field: a pill (white with a 1px border and the 2px/8px shadow at rest). Focus opens a suggestions panel instead of a ring: white at 75% over a 16px backdrop blur, 32px radius, `0 0 1px rgba(0,0,0,.12), 0 12px 64px rgba(0,0,0,.24)`. Placeholder at 56% ink; round purple submit or clear button. No suggestions endpoint exists here, so 99ribu transfers only the field look and gives focus a ring on the pill.
-- Headings 600, never heavier; no hover underlines anywhere except running text.
-
-Section composition: shop.com heads each shelf with a title and a "›" link and keeps sections in a flat rhythm. 99ribu mirrors that with plain "Semua kategori ›" / "Semua produk ›" text links in place of pills. No sections are invented for data the catalog lacks. The header layout, logo, nav and dock are owner-approved and unchanged; only the search field's look and focus state changed.
-
-Removed or changed patterns (before → after), all in `src/app/globals.css` unless noted:
-- Hover underlines on UI links (the global `a:hover`, `.product-link:hover h3`, `.footer-links a:hover`, breadcrumb and "Lanjut pilih produk" rest underlines) → no underline in the storefront, checkout, receipt and sign-in shells, with colour feedback only. Links in running prose keep the underline (WCAG 1.4.1); the admin keeps its hover underline.
-- Field focus (a 3px purple outline offset 4px, and 1px → 2px invalid borders in four places) → one contract: 1px `#85858e` border (3:1), 12px radius, 44px minimum; focus = ink `#18181b` border plus a `0 0 0 3px rgba(24,24,27,.12)` ring. Invalid = error border plus a 1px inset, so the box never shifts. `CustomerChatView.tsx`'s inline field border is removed so the contract applies.
-- Selects (native double arrows, filter selects as full pills) → `appearance: none`, one inline SVG chevron, 12px radius, 44px tall, padding clear of the chevron.
-- Filter panel open state (24px radius plus a two-layer shadow) → flat white, 20px radius, one hairline.
-- Shadow stacks on the help topic cards, cart summary, sign-in card and chat card → one `rgba(5,41,77,.1)` hairline, no shadow.
-- The price card's yellow glow shadow → removed.
-- Placeholder slot gradients (`.photo-slot`, `.department-photo`) and their borders → flat `#f4f3f8`.
-- Product media: lavender fill plus a 1px border → the observed white 20px media with one 2px/8px shadow.
-- Product cards: the contents/description line ("Isi: …", item lists, "· N pilihan") → removed. A card is image, title (three lines, unclamped in one column), price, and a stock note only when relevant (`products.tsx`).
-- Card price weight 700 → 600 (observed).
-- Shelf "see all" pills → plain text links with a chevron.
-- Motion: none before → the observed 150ms colour/border/shadow transition only (disabled under reduced motion). No lifts, scale or animated underlines.
-- Header search: double shadow, no border and a purple outline on the input → one hairline plus one 2px/8px shadow, a focus ring on the pill, and the placeholder at `#6b6b73` (shop.com 56% ink).
-
-Kept on purpose:
-- Pills where shop.com uses them: chips, buttons, the search field and option pills.
-- The stock note, which has decision value.
-- Owner-authored and state copy.
-- The approved header and dock.
-- The 44px touch targets, visible focus, and prose link underlines.
-
-Round 14 also carries the seven round-13 fixes listed above.
-
-## Round 15 (round 14 REVISE follow-up, plus owner-allowed light motion)
-
-Round 14 is `docs/spec/design/reviews/shop-com-r2/review-round14.md`, verdict REVISE. It confirmed the de-over-design pass and the observed interaction contract. Fixes, superseding earlier notes where they conflict:
-- Phone listing titles: in the two-up grid, titles clamp at five lines. Same-family names ("Paket 2 pcs Kaos Kata Lucu Sindiran …") then show their distinguishing words, and the card subgrid keeps prices aligned per row. Titles are three lines from tablet up and unclamped in a single column.
-- One rule for standalone text links (not inside running prose): purple, weight 600, no underline, with a darker purple on hover. This covers "Lihat keranjang", "Pengiriman dan pengembalian", "Cara pesan dan pengembalian", "Lihat paket campuran", "Lanjut pilih produk", "Semua … ›" and "Lihat N barang lainnya". Links inside prose keep the underline.
-- Header current page: colour and weight only (the underline on "Keranjang" is removed), the same on every page.
-- Help chat disclosure: the chevron stays inline after its label at every width, as on the PDP.
-
-Light motion (owner: "light animation … if possible and light, without sacrificing PageSpeed"). CSS only, transform and opacity, 150–250ms ease-out, as state feedback:
-- Disclosure chevrons rotate in 200ms.
-- After a successful add to cart, the success message settles in (200ms opacity plus a 4px rise) and its check icon draws itself (stroke-dashoffset, 250ms).
-- Colour, border and shadow transitions run at the observed 150ms.
-
-Everything above is disabled under `prefers-reduced-motion`, nothing animates on load or on the LCP image, and nothing moves layout. No GSAP use case exists that CSS cannot cover (no sequenced timelines or scroll-linked reveals are needed), so GSAP is not installed and the initial JavaScript is unchanged.
-
-## Round 16 (owner: card without "pilihan lengkap", regular card titles, homepage sections like shop.com)
-
-Owner feedback, verbatim intent: "product card doesn't need 'Pilihan lengkap'; product card title not bold, like shop.com; homepage sections don't match shop.com yet".
-- Product cards on every listing (home shelves, search, category) show image, title, price ("Rp99.000"), and the stock note only when relevant. The "/ pilihan lengkap" basis is removed from cards; the PDP keeps its "Pilihan lengkap: …" line and price basis.
-- Card titles are regular weight (400), per the owner's call, overriding the earlier 600 observation. The price keeps 600.
-
-shop.com homepage section map (observed 2026-10-23, read-only; `docs/spec/design/references/shop-com/2026-10-23-home-1440-full.png`, `docs/spec/design/references/shop-com/2026-10-23-home-390-full.png`):
-
-| # | shop.com section | Type and composition (1440 / 390) | Heading and "see all" | 99ribu |
-|---|---|---|---|---|
-| 1 | Logo collage, search pill, category chips with thumbnails | Hero search entry | — | Approved 99ribu header (search pill and department chip row); unchanged |
-| 2 | "Shop is all about you" value card with sign-in | Large rounded value/promo card (64px/800 heading) | — | The 99ribu fixed-price value card ("Pilihan lengkap. Harga tetap." plus the Rp99.000 card); kept |
-| 3 | "Trending stores" | Horizontal carousel of store cards (cover, rating, 2 product thumbs) | 20px/600 title, no link | Skipped: single seller, no store or brand data |
-| 4 | "Categories ›" | Grid of short tinted tiles (~112px desktop, 72px phone), name plus one product image; 5 per row desktop, 2 per row phone, 10 tiles | The 20px/600 title is the link, with a chevron | "Kategori ›": up to 10 department tiles; tinted lavender, name top-left, one real product photo; 5 per row tablet/desktop, 2 phone, 1 at 320/200% |
-| 5 | Animated department wordmark marquee | Decorative | — | Skipped: decorative motion |
-| 6 | Department product shelf (Beauty) | One horizontally scrolling row of product cards (about 7 visible desktop, 2.3 phone): 1:1 media, title, price | The department name works as the heading | "Terbaru ›" (newest eight), then two department shelves ("<Department> ›", eight newest each, deduplicated against "Terbaru"); one scrolling row with seven visible on desktop, about 2.4 on phones, prices aligned by subgrid |
-| 7 | "Home ›" store carousel | Store cards with product thumbs | Title link with chevron | Skipped: no store data |
-| 8 | "Discover something you love" editorial collections | 64px/800 heading, large editorial image cards | — | Skipped: no editorial content (no fake promos) |
-| 9 | Footer | Columns | — | Approved 99ribu footer |
-
-The sections between them use about 48px of vertical rhythm, and that is applied. The former "Sebelum memesan" block has no shop.com counterpart and is removed from the home page; its content lives on the help page, linked in the footer. Department tiles without a published photo show only the name, with no placeholder brief. Their photo is decorative (`alt=""`) because the tile name is the link text. The `storefront-http` 200%-text test asserted exactly four home tiles (the old cap); it now requires at least one tile and keeps the same-row baseline check.
-
-### Round 17 (round 16 REVISE follow-up)
-
-Round 16 is `docs/spec/design/reviews/shop-com-r2/review-round16.md`, verdict REVISE. It confirmed the new home composition and the regular-weight cards. Fixes:
-- Category tiles at tablet (five per row, about 131px wide): the name stacks above the photo, so names never break inside words. Desktop and phone keep the name and photo side by side.
-- Product shelves: cards are at least 9em wide (`grid-auto-columns: max(42%, 9em)` on phones), so enlarged text widens a card instead of letting prices collide at 320/200%. Shelf titles clamp at three lines, so the shared title track no longer opens dead space at 390. Full names are on the listing and the PDP.
-- Header: the cart count sits on the cart icon (absolute), so a count never narrows the search pill.
-- Bundle contents use filled disc bullets in the cart, the same as on the PDP.
-
-### Round 18 (round 17 REVISE follow-up)
-
-Round 17 is `docs/spec/design/reviews/shop-com-r2/review-round17.md`, verdict REVISE. Fixes:
-- Category tiles: below 1050px (tablet and phone), the name sits above a full-width 4:3 photo. Names use the whole tile width, so "Kecantikan & Perawatan Diri" no longer breaks into four lines with an orphaned "&", and the photo is large enough to read. Desktop keeps the name beside a 64px photo, matching shop.com's short tiles.
-- Shelf scroll cue: desktop shows 6.5 cards, so a cut card at the edge signals the row scrolls, as on shop.com (where the cut card sits beside a "›" button). At 320/200% a card is at most 85% wide, so the next card always peeks in, and shelf titles stay clamped at three lines there too.
-- The 2026-10-23 full home captures are now cited under Reference evidence, so the reviewer sees the loaded shop.com shelves.
-
-### Round 19 (round 18 REVISE follow-up)
-
-Round 18 is `docs/spec/design/reviews/shop-com-r2/review-round18.md`, verdict REVISE (one material issue). Fixes:
-- Home on phones: the "Kategori ›" block shows six tiles, and below 1050px each tile is a name over a 64px photo strip, not a 4:3 photo. The block stays short, as on shop.com's phone tiles, so "Terbaru" starts in the second screen at 390. Every department remains one tap away in the chip row and on `/categories` (which lists all of them).
-- Desktop tiles: the photo inset is 80px (tile at least 112px), so pale product photos stay legible.
-- PDP: "Lihat keranjang" appears only after a successful add to cart, not before anything has been added.
-
-### Round 20 (round 19 REVISE follow-up)
-
-Round 19 is `docs/spec/design/reviews/shop-com-r2/review-round19.md`, verdict REVISE (category tile imagery at ≤1050px). Fixes:
-- Below 1050px, category tile photos fill their area edge to edge (`object-fit: cover`, no white inset). Home uses a 64px strip to stay short; `/categories` uses a 4:3 photo, so tiles show recognisable products.
-- Help topic cards use `clamp()` inline padding, so the text keeps its width at 320/200%, as on `/masuk`.
+- Cart, help, sign-in: `docs/spec/design/renders/shop-com-r2-20261022/cart-1440.png` (empty cart, 1440), `docs/spec/design/renders/shop-com-r2-20261022/cart-filled-390.png`, `docs/spec/design/renders/shop-com-r2-20261022/cart-filled-1440.png`, `docs/spec/design/renders/shop-com-r2-20261022/help-390.png`, `docs/spec/design/renders/shop-com-r2-20261022/help-1440.png`, masuk-error-390 (reviewed earlier; not re-cited in round 43). Layouts are unchanged, now on `/keranjang`, `/bantuan` and `/masuk`.
+- Promo: promo-390 (reviewed earlier; not re-cited in round 43), `docs/spec/design/renders/shop-com-r2-20261022/promo-1440.png`. H1 "Promo", then "Promo ongkir". No shipping promotion is active locally, so the plain sentence "Belum ada promo ongkir aktif." shows. "Paket campuran" lists the published mixed bundles in the standard grid.
+- Footer: `docs/spec/design/renders/shop-com-r2-20261022/footer-320-text200.png`, footer-390 (reviewed earlier; not re-cited in round 43), footer-1440 (reviewed earlier; not re-cited in round 43). A white band with the brand block, three labelled menus (Belanja, Bantuan, 99ribu) and a bottom row with the copyright and the Legal links. Phones stack the menus in two columns with 44px links; at 320/200% they become one column.
+- Brand icons: favicon-sheet (reviewed earlier; not re-cited in round 43). The "99" monogram at 16 and 32px (favicon), at 180px (apple-icon), and at 16/32 on the grey canvas. Two geometric 9s, white on brand purple, with the yellow dot from the wordmark. It reads as "99." even at 16px.
+- Placeholder pages: placeholder-tentang-390 (reviewed earlier; not re-cited in round 43).
+- PDP media (review 44 note): from 701px the media column is `position: sticky` (top 24px) and stays in view while a long buy box scrolls. This was measured in a live 1440 browser: computed `position: sticky`, and no ancestor sets overflow or containment. Full-page captures are taken unscrolled, so they show the media at its start position with empty canvas below it beside a long buy box. That is a capture artifact, not the scrolled experience.
+- Round 57 (review 56):
+  - The switcher reads 40 products per department, so seven cards survive the homeSafe and Terbaru filters on every panel.
+- Round 58 (review 57): the 40-deep switcher read brought new covers onto curated surfaces. They were screened by contact sheet until no claim cover remained. "pemutih" joins the claim words, and nine more covers join `CLAIM_PHOTOS`: Snap On Smile ("formula pemutih"), toilet foam "99%", a tee with an "80%" badge, a "long-lasting" glue, "Transformasi Rambut Instan", two before/after sprays, an ant bait ("Cepat & efektif", "0,05%") and an anti-bacterial detergent.
+  - Help topic cards in a row share a height.
+  - Storefront secondary buttons (cart "Perbarui jumlah", "Kembali ke katalog" and the others) use the R3 white hairline pill, as the chips do.
+- Claims screen (review 55, round 56): every cover on a curated surface (the Terbaru shelf, the switcher panels and `/promo` bundles) was screened by contact sheet with the homeSafe rule. Twelve claim covers joined `CLAIM_PHOTOS`: "BUBUK AJAIB · Reaksi Cepat", "7X Lebih STRIKE", dishwash percentage badges, a "long lasting" seal, a "Premium quality" seal, "Potong cepat tanpa capek!", "100% Organic", and five slimming or body-shaping covers. The covers that moved up in their place were screened in turn, and none carries a claim. They stay published and findable in listings, which falls under the accepted content backlog.
+- Filters (review 54): at enlarged text a chip is capped at the row width and its label wraps inside the pill, so "Urutkan: Paling sesuai" and its chevron stay on screen at 320/200%. The chip row's height follows its content, with a minimum of 52px.
+- Filters (review 44): chip and active-filter labels now match ("Ketersediaan: Tersedia"); the chip row fades at its end below 1024px; a focused dropdown option shows only the inset ink ring.
+- Filters (review 45): no second row repeats the active values on the JS path. Each active chip carries its own remove control, joined to the right of the filled chip ("Hapus filter Isi pilihan: Paket campuran"), and "Hapus semua" ends the row when more than one filter is active. The removable row stays for no-JS users only (inside `<noscript>`, with the GET form).
+- Banner (review 45): the lone banner is shorter. Its caption is centred beside a straight row of three curated item photos, with no tilt, so it no longer repeats the hero's tilted tiles. The cartoon-art bait photo (Mainan & Hobi pick) is no longer used for banners.
+- Enlarged text (review 45): the pill row's end fade widens with text size (up to a quarter of the row), and the omnibox search icon scales with the field text.
+- Round 47 (review 46):
+  - **Banner (coordinator, round 48, converged):** shop.com's editorial rail card, 410x520 and photo-led (80% wide on phones).
+    - The photos fill the card edge to edge with 2px hairline gaps: one large photo over two, or one photo alone.
+    - The caption and a visible "Lihat paket campuran" action are attached below on white. There is no tint slab and no tilt.
+    - The label "Paket campuran" matches its destination (/promo) and makes no saving claim.
+    - Photos (review 48): items inside the published mixed bundles that are not any product's cover photo, so they repeat neither the shelves nor the grid (`BANNER_PHOTOS`: car dent puller, white "R" tee, mini chopper). They were picked by eye from a contact sheet: white ground, no text or badges.
+    - Superseded by the round-50 decision under "Accepted decisions" (a rail of three or more 410x520 cards). The caption-fit rules remain: the card's column may shrink below the caption's min-content and the action pill wraps between words.
+    - Filters (review 48): the round-45 rules lost in a CSS cleanup are restored (end fade on the chip row, inset ink ring only on a focused option). In the dropdown capture, focus is on "Semua pilihan" because the capture presses ArrowDown once from the selected item; focus starts on the selected item.
+  - **Omnibox submit:** stays a circle at enlarged text, with its arrow scaling with the field.
+  - **"Lihat produk lainnya" / "Coba lagi":** use the white hairline pill (R3).
+  - **Sort sheet:** has no separator (it has no "all" choice).
+  - **PDP "Spesifikasi" (coordinator, round 48):** rendered only when the product has spec data. Otherwise there is no heading and no placeholder. One heading, "Halaman ini sedang disiapkan." and a secondary pill back to Bantuan; noindex.
+- Header wordmark (round 37/42; the dot stays): `docs/spec/design/renders/shop-com-r2-20261022/brand-hover-mid-1440.png`, `docs/spec/design/renders/shop-com-r2-20261022/brand-hover-1440.png`. On hover or keyboard focus (fine pointer, from 1024px) "99rb." grows into "Serba 99ribu." with the yellow dot riding to the end; the omnibox stays centred.
+- Listing infinite scroll (round 43, see "Listing infinite scroll (observed)"): `docs/spec/design/renders/shop-com-r2-20261022/listing-first-390.png`, `docs/spec/design/renders/shop-com-r2-20261022/listing-first-1440.png`, `docs/spec/design/renders/shop-com-r2-20261022/listing-skeleton-1440.png`, `docs/spec/design/renders/shop-com-r2-20261022/listing-appended-390.png`, `docs/spec/design/renders/shop-com-r2-20261022/listing-more-1440.png`. First page only in HTML; a skeleton row while the next page loads; appended pages continue the same grid; after three automatic loads "Lihat produk lainnya" keeps the footer reachable.
+- Listing filters (round 43, see "Listing filters (observed)"): `docs/spec/design/renders/shop-com-r2-20261022/filter-active-1440.png`, filter-pop-1440-dpr1 (captured; identical treatment), `docs/spec/design/renders/shop-com-r2-20261022/filter-pop-1440-dpr2.png`, `docs/spec/design/renders/shop-com-r2-20261022/filter-sheet-390.png`, `docs/spec/design/renders/shop-com-r2-20261022/filter-nojs-390.png`. Chip row with values in the chip names and filled-ink active chips; shadcn-style dropdown on whole pixels at the chip's left edge (DPR 1 and 2); phone bottom sheet; the no-JS native form.
+- Home promo banners (round 43, see "Home promo banners (observed)"): `docs/spec/design/renders/shop-com-r2-20261022/banners-390.png`, banners-768 (captured; identical treatment), `docs/spec/design/renders/shop-com-r2-20261022/banners-1440.png`. Three 410x520 photo-led rail cards (round 50 decision; see Accepted decisions). Each card has one photo filling its upper part, with the caption and a visible action pill attached below on white: "Paket campuran" → /promo, "Rawat kendaraan sendiri" → /kategori/otomotif, "Gaya pria sehari-hari" → /kategori/fashion-pria. Cards are rounded with `clip-path`, so they grow with enlarged text and the caption is never clipped at 320/200%.
+- Phone header and dock (round 43, see "Mobile header and dock (observed)"): `docs/spec/design/renders/shop-com-r2-20261022/dock-home-390.png`, dock-category-390 (captured; identical treatment), dock-cart-390 (same treatment at the other width; not re-cited), dock-account-390 (captured; identical treatment), `docs/spec/design/renders/shop-com-r2-20261022/dock-320-text200.png` (scrolled to the dock: at short heights it is static after the page content), `docs/spec/design/renders/shop-com-r2-20261022/search-focused-390.png`. No header logo; full-width search; icon-only dock with the filled active icon; the dock steps aside while the search field has focus.
+
+## Review history (rounds 1-16)
+
+Archived in `docs/spec/design/references/shop-com/visual-context-history.md` (closed rounds; the contracts that still apply are above and below).
 
 ## Round 21 (owner: card type sizes, hidden shelf scrollbars, 1:1 typography, category switcher, omnibox, category pills)
 
@@ -624,7 +366,7 @@ Decisions recorded here are the coordinator's/owner's and are accepted deviation
 - Round 31 review (`31 claude REVISE 76de65a4eb74a6e0`): `homeSafe` now also leaves out Gendes and Bright Glow (glow/whitening efficacy text on their photos) from the home switcher and shelves. Phone footer lists get a gap that is zero at the default size and half a line at enlarged text, so a wrapped name does not read as two links.
 - Round 32 review (`32 claude REVISE 93199cd702597ed6`): the hero secondary and the footer link now read "Bantuan belanja", the `/bantuan` page title they lead to. The switcher label is 64px between 701 and 1023px, so the next name shows at 768. The hero primary stays as specified (accepted decision above).
 - Round 33 review (`33 claude REVISE b720d8e7dcdd8f70`): on phones the hero actions stack full width, so "Bantuan belanja" stays on one line (shop.com's phone actions sit side by side, but its labels are shorter). Promo overlap is an accepted decision above. The cart "Hapus" row at 390 is unchanged.
-- **Brand icons and share image (owner, round 33):** `src/app/icon.svg` is a hand-drawn "99" monogram: two geometric 9s, white on brand purple #5b35d5 with a yellow #f6c945 dot echoing the wordmark's ".", and no font. From it (one-off sharp script) come `src/app/favicon.ico` (16 + 32px PNGs), `src/app/apple-icon.png` (180px, full bleed) and `public/brand/logo-512.png`, which is the Organization JSON-LD `logo`. `src/app/opengraph-image.png` (1200x630) carries the wordmark, the monogram and "Semua Rp99.000" in Inter on the hero tint, with no product photos; its alt text is in `opengraph-image.alt.txt`. The old 204 `favicon.ico` route is removed. Evidence: `docs/spec/design/renders/shop-com-r2-20261022/favicon-sheet.png` (16, 32 and 180px).
+- **Brand icons and share image (owner, round 33):** `src/app/icon.svg` is a hand-drawn "99" monogram: two geometric 9s, white on brand purple #5b35d5 with a yellow #f6c945 dot echoing the wordmark's ".", and no font. From it (one-off sharp script) come `src/app/favicon.ico` (16 + 32px PNGs), `src/app/apple-icon.png` (180px, full bleed) and `public/brand/logo-512.png`, which is the Organization JSON-LD `logo`. `src/app/opengraph-image.png` (1200x630) carries the wordmark, the monogram and "Semua Rp99.000" in Inter on the hero tint, with no product photos; its alt text is in `opengraph-image.alt.txt`. The old 204 `favicon.ico` route is removed. Evidence: favicon-sheet (reviewed earlier; not re-cited in round 43) (16, 32 and 180px).
 - Performance regression found and fixed (round 33): the pill row's extra 2px start padding was not mirrored in its `scroll-padding`. The mandatory-snap row therefore snapped (scrolled) 2px on load, and that scroll ended Chrome's LCP recording. Both now share the same start offset. Home mobile is back to perf 99 with LCP about 2.0s (median of 3).
 - Round 34 review (`34 claude REVISE 1256337a4d47a612`): `homeSafe` also matches whitening, detox and immunity names, which leaves out "Paket Detox & Imun Alami" and the Marlov whitening deodorant from home merchandising. The hero secondary's arrow sits inline with its label, so a wrapped label keeps the arrow on its first line at 320/200%. The phone/tablet pill row's end fade is 64px. The cart row layout at 390 is unchanged.
 - **Current-state styling (owner, round 35):** the current category pill and the current "Semua kategori" link take the header's soft lavender current fill (`rgba(91,53,213,.08)`). There is no underline and no border change; shop.com's home pills have no selected state to copy, and the 0.5px edge stays on the photo circle only. No storefront current or active state uses an underline any more: the checkout progress step keeps weight and purple only. `aria-current="page"` is unchanged, and the keyboard focus ring stays.
@@ -646,12 +388,12 @@ Decisions recorded here are the coordinator's/owner's and are accepted deviation
 
 - **shop.com observed:** the logo is a static 24px "S" mark in the rail. Hovering does not change its transform or colour, and there is no reveal, so the motion follows the owner's brief.
 - **99ribu:**
-  - On a fine pointer, from 1024px, hover or `:focus-visible` grows "99rb." into "Serba 99ribu". "Serba " opens before "99"; "i" opens between "r" and "b" and "u" after "b", so the word reads "ribu"; the "." fades out.
+  - On a fine pointer, from 1024px, hover or `:focus-visible` grows "99rb." into "Serba 99ribu". "Serba " opens before "99"; "i" opens between "r" and "b" and "u" after "b", so the word reads "ribu"; the yellow "." stays and moves to the end ("Serba 99ribu.").
   - Each part is a 0fr→1fr grid track with its glyphs fading in from 4px: 240ms in and 180ms out, on `cubic-bezier(.2,0,0,1)`, CSS only.
   - The logo stays in the header's left 1fr column, so the omnibox stays centred; the capture script asserts it while the logo is hovered.
   - Measured: the reveal widens the link from 69px to 180px. The gap to the omnibox is 155px at 1024 (44px left after the reveal) and 300px at 1440 (189px left). Below 1024 the gap drops to 115px, which would leave about 4px, so the reveal is skipped there and the static "99rb." stays. This is the brief's "skip where it does not fit". Touch keeps the static wordmark; reduced motion swaps it with no transition.
   - The link is always named "Serba 99ribu, beranda"; the animated parts are `aria-hidden`.
-- **Evidence:** `docs/spec/design/renders/shop-com-r2-20261022/brand-rest-1440.png`, `docs/spec/design/renders/shop-com-r2-20261022/brand-hover-mid-1440.png`, `docs/spec/design/renders/shop-com-r2-20261022/brand-hover-1440.png`, `docs/spec/design/renders/shop-com-r2-20261022/brand-rest-1024.png`, `docs/spec/design/renders/shop-com-r2-20261022/brand-hover-1024.png`.
+- **Evidence:** `docs/spec/design/renders/shop-com-r2-20261022/brand-rest-1440.png`, `docs/spec/design/renders/shop-com-r2-20261022/brand-hover-mid-1440.png`, `docs/spec/design/renders/shop-com-r2-20261022/brand-hover-1440.png`, brand-rest-1024 (reviewed earlier; not re-cited in round 43), `docs/spec/design/renders/shop-com-r2-20261022/brand-hover-1024.png`.
 
 ### Round 38: final marketplace taxonomy
 
@@ -666,3 +408,103 @@ Decisions recorded here are the coordinator's/owner's and are accepted deviation
 - Filled cart at 390 (round-39 review): the quantity pill is 5.5rem on phones, so "Perbarui jumlah" sits beside it in the 264px line column and the summary moves up 58px; "Hapus" keeps its own row. At 320, or with larger text, the controls still wrap. With a long bundle list, "Lanjut ke checkout" can still fall below the first screen, because the contents list ("Isi saat ditambahkan") is required content.
 - `/promo` "Paket campuran" now applies `homeSafe` like every other curated surface, so claim-named bundles ("Paket Detox & Imun Alami") stay out of it. They remain findable in search and listings.
 - Short-viewport dock (round-40 review): the dock `<nav>` now comes after `main` in the DOM. With the short-viewport rule (`max-width: 700px` and `max-height: 38rem`) the dock is static, so at 320px with 200% text the first screen shows the page and the dock follows the content, before the footer. On taller screens it stays fixed at the bottom, so the position is unchanged there; only the tab order moves (content first, then the dock).
+
+
+### Omnibox open state (observed)
+
+Observed live on shop.com on 2026-10-24 (read-only, 1440 and 390 mobile emulation), together with the open-state DOM the owner pasted.
+- **One surface:** the outer container (`rounded-[32px] p-12`, `rgba(255,255,255,.75)` with `blur(16px)`, shadow `0 0 1px rgba(0,0,0,.12), 0 12px 64px rgba(0,0,0,.2)`, about `.24` when open) grows from 512×64 to 576×348 at 1440. It transitions height, max-height and box-shadow over 320ms `cubic-bezier(.2,0,0,1)`. The inner form row has `lg:!bg-transparent lg:shadow-none lg:p-0`: on desktop it has no background, border, radius or shadow, and the textarea is bare (radius 0, no shadow).
+- **Height follows content:** the suggestions area is `lg:h-fit lg:max-h-[calc(45dvh-88px)]` (317px at 900px tall), `overflow-y-auto overscroll-contain scrollbar-hide`, with a top fade mask.
+- **Suggestions:**
+  - My live session showed list rows: a 40px row, `rounded-radius-max`, 4px padding, a 32px icon box and 14/18 text, under a 12/16 weight-500 caption at `rgba(0,0,0,.56)`. Typing showed store rows, then query rows.
+  - The owner's DOM shows wrapping chips: `w-fit`, rounded-max, a 4% dark overlay, 8px 16px padding, bodySmall text, 8px row gap, hover opacity .6.
+  - These are two live variants; the owner asked for the chip variant, so 99ribu follows it.
+- **Mobile (390):** opening turns the page into a full-screen sheet (`rgba(255,255,255,.9)`, `blur(10px)`) with the list at the top. The field moves to the bottom as a filled white 56px pill (`bg-fill`, padding 8px, shadow-m `0 4px 24px rgba(0,0,0,.12)`) above the tab bar.
+- **Skipped:** the history/threads button, the privacy note (no such features), and the image-attach buttons.
+
+99ribu:
+- **Root cause of the "rounded area inside the field":** an open-state rule gave the inner field row (`.omnibox-field`) its own ink edge, 3px ring and 32px radius on focus, which drew a second pill inside the surface. It is removed.
+  - The input is now bare in every state: rest, hover, focus, focus-visible and autofill all get `appearance: none`, no border, radius, background, shadow or outline, and no WebKit search decorations or cancel button. The reset uses the `#site-search` id, so it beats the global field and focus rules (`input:focus-visible` outline, the 12px field look, which already excluded `type=search`).
+- **Focus (WCAG 2.4.7):** focusing the field opens the surface, as on shop.com. The surface expands under the caret and takes the observed open shadow (`0 12px 64px rgba(0,0,0,.24)`), with no dark border or outline. A Tab from the logo opens it; the capture script checks that the combobox becomes expanded and the surface grows.
+- **One surface:** on tablet and desktop the open field row has no pill of its own, so only the outer shape is visible. Its 320ms transition, the 576px desktop width and the glass are unchanged.
+- **Height:** the surface is as tall as its content (the grid row goes from 0fr to 1fr around an `h-fit` body), up to `45dvh` minus the field row, so a short list leaves no empty space. The scroll area is `overscroll-behavior: contain`, hides its scrollbar and has a 4px top fade, with 16px padding (20px from 768px). The capture log records the panel height and the spare space under the last chip in the few-suggestions state.
+- **Chips:** the caption "Saran pencarian" (12/16, weight 500, 56% ink) sits over a wrapping row of chips with an 8px gap.
+  - Each chip is `w-fit` and rounded, with a 4% dark overlay and 14/18 text. Hover sets opacity .6.
+  - Chips are 44px tall instead of 34px, to keep the project's 44px target rule.
+  - The typed match stays bold and the last chip is "Cari “…”".
+  - `role="option"` and `aria-selected` stay: the active chip shows a 2px ink ring, and Up/Down/Enter/Escape work as before.
+- **Mobile:** when open, the field row becomes the filled white pill with shadow-m inside the open surface. This is the observed mobile treatment, and the one place the field has a fill of its own.
+  - Deviation: the field stays in the header instead of moving to a bottom-docked full-screen sheet. Moving it would relocate the focused input on every open, and the 99ribu dock already occupies the bottom.
+- **Evidence:**
+  - `docs/spec/design/renders/shop-com-r2-20261022/omnibox-opening-390.png`, `docs/spec/design/renders/shop-com-r2-20261022/omnibox-opening-1440.png` (mid-frame);
+  - `docs/spec/design/renders/shop-com-r2-20261022/omnibox-suggestions-390.png`, `docs/spec/design/renders/shop-com-r2-20261022/omnibox-suggestions-1440.png` (focused and empty: many suggestions, the state where the inner pill showed);
+  - omnibox-few-390 (reviewed earlier; not re-cited in round 43), `docs/spec/design/renders/shop-com-r2-20261022/omnibox-few-1440.png` ("kac": few);
+  - omnibox-typing-390 (reviewed earlier; not re-cited in round 43), `docs/spec/design/renders/shop-com-r2-20261022/omnibox-typing-1440.png` ("ru");
+  - the closed state in `home-1440`.
+
+### Wordmark dot (owner, round 42)
+
+The revealed name keeps the wordmark's yellow dot: "Serba 99ribu.". The dot is the last child of the link, so it rides out with the opening "i" and "u" tracks on the same 240/180ms timing and needs no transform of its own. Nothing jumps, because the tracks only grow inside the header's left column. With reduced motion the swap is instant. The accessible name stays "Serba 99ribu, beranda". Evidence: `docs/spec/design/renders/shop-com-r2-20261022/brand-rest-1440.png`, `docs/spec/design/renders/shop-com-r2-20261022/brand-hover-mid-1440.png`, `docs/spec/design/renders/shop-com-r2-20261022/brand-hover-1440.png`, brand-rest-1024 (reviewed earlier; not re-cited in round 43), `docs/spec/design/renders/shop-com-r2-20261022/brand-hover-1024.png`.
+
+### Listing infinite scroll (observed)
+
+- **shop.com (2026-10-24, /search/results, 1440):** six columns, about 30 cards per load. The next page starts when the end of the grid is about 500px below the viewport: an 80px loading row appears, then about 1370px of cards. There is no button and no cap: 13+ loads (398 cards) were observed. The URL and history do not change, there is no `rel="next"`, and the results page has no footer.
+- **99ribu:**
+  - The first page (24 cards: whole rows at 6/4/3/2 columns) is the only one in the HTML.
+  - A sentinel under the grid with a one-viewport root margin fetches the server page behind the crawlable `rel="next"` link and appends its cards. All pages share one grid (the page lists are `display: contents`), so rows never break between pages.
+  - While a page loads, a skeleton row with the card's own frame shows (CLS 0.0000 at 390 and 1440).
+  - A polite status reports "24 produk lagi dimuat." or "Semua produk sudah tampil.". Duplicates are skipped. A failed load shows "Coba lagi".
+  - Deviation: after three automatic loads (96 cards), the button "Lihat produk lainnya" continues one page at a time, so the footer stays reachable (shop.com's results page has none).
+  - No-JS users and crawlers get the "Halaman berikutnya" link. With the island mounted, the link stays in the DOM but is visually hidden. Canonical and noindex rules are unchanged (/cari stays noindex).
+  - Back from a PDP restores the loaded pages and the card (sessionStorage per listing URL, used only for Back/forward or a card anchor). Appended cards return to the listing URL rather than a cursor page.
+- **Evidence:** `docs/spec/design/renders/shop-com-r2-20261022/listing-first-390.png`, `docs/spec/design/renders/shop-com-r2-20261022/listing-first-1440.png`, `docs/spec/design/renders/shop-com-r2-20261022/listing-skeleton-1440.png`, `docs/spec/design/renders/shop-com-r2-20261022/listing-appended-390.png`, `docs/spec/design/renders/shop-com-r2-20261022/listing-more-1440.png`.
+
+### Listing filters (observed)
+
+- **shop.com (2026-10-24):**
+  - A chip row sits above "Results": an all-filters icon, an "On sale" toggle, then dropdown chips (Ratings, Gender, Size, Color, Price).
+  - Chip: 40px pill, 1px `rgba(5,41,77,.1)` border, `0 2px 8px rgba(0,0,0,.06)` shadow, 16/600 text, 8px 8px 8px 16px padding, and a 15px down chevron (`M18 9L12 15L6 9`, stroke 2.67). A chip with a value is filled `#121212`.
+  - Each chip opens a modal dialog (`aria-haspopup="dialog"`): centred on desktop at 640px wide, 28px radius, white, shadow `0 8px 40px rgba(0,0,0,.24)`, with a 40% scrim. On phones it is a bottom sheet 16px from the sides and bottom. Rows are radios on a 44px pitch, followed by "Reset" and "Done". The URL changes only on "Done" (`?ratings=4`).
+  - There is no result count, no clear-all link and no sticky row. The dialog sits at fractional coordinates (392.5, 288.5).
+- **99ribu:**
+  - **Chips:** a fixed-height (52px) chip row: "Urutkan: …", "Kategori" (only on /cari), "Isi pilihan", "Ketersediaan" and one chip per facet. Chip tokens follow shop.com, but chips are 44px tall for the target rule. Each chip's accessible name carries its value ("Isi pilihan: Paket campuran"), and a chip with a value is filled ink.
+  - **Choices:** links to the same GET URLs the no-JS form submits, with the cursor reset, so choosing applies at once, as the owner asked (no "Terapkan" with JS). The option lists render after hydration, so no-JS HTML and crawlers keep only the form.
+  - **Desktop dropdown (shadcn new-york-v4 Select, mirrored in CSS):**
+    - 8px radius, the shared 1px hairline, shadow-md (`0 4px 6px -1px`, `0 2px 4px -2px rgb(0 0 0/.1)`) and 4px padding. Minimum width is the chip's width and at least 8rem.
+    - Items are 32px tall with 6px radius, 8px left and 32px right padding, and 14/20 text. Hover or focus shows `#f5f5f5`, and keyboard focus adds an inset ink ring. The selected item has a right-aligned 16px check.
+    - A hairline separator follows the "all" choice. The open animation is a 150ms fade and zoom-in from 95% with an 8px slide (none with reduced motion).
+    - Keyboard: focus starts on the selected item. Up/Down/Home/End move it, typing jumps to the matching item, Tab or Escape closes, and focus returns to the chip.
+  - **Pixel placement:** the dropdown sits 4px under the chip's left edge, rounded to whole pixels and flipped to the right edge or above near the viewport end. Its width is rounded up as well, so every edge is whole. Measured at 1440: chip 434.39, 286.5 → dropdown 434, 335, 243×175, identical at DPR 1 and 2.
+  - **Phones:** the same choices open as a bottom sheet 16px from the sides and bottom, with a 28px radius, 44px rows and a 40% scrim.
+  - **Deviations:** an anchored dropdown instead of shop.com's centred modal, and immediate apply. Both follow the owner's brief.
+  - **Active filters:** removable chips plus "Hapus semua" when more than one is active. No result count is shown, because the API gives none.
+  - **No-JS:** the native GET form (selects with a single chevron, field tokens) sits inside `<noscript>`, and the chip row is hidden with `@media (scripting: none)`.
+- **Evidence:** `docs/spec/design/renders/shop-com-r2-20261022/filter-active-1440.png`, `docs/spec/design/renders/shop-com-r2-20261022/filter-pop-1440-dpr1.png`, `docs/spec/design/renders/shop-com-r2-20261022/filter-pop-1440-dpr2.png`, `docs/spec/design/renders/shop-com-r2-20261022/filter-sheet-390.png`, `docs/spec/design/renders/shop-com-r2-20261022/filter-nojs-390.png`.
+
+### Home promo banners (observed)
+
+- **shop.com (2026-10-24):**
+  - The nearest banner rail is "Discover something you love": a full-bleed Swiper rail in free mode.
+  - Cards are 410×520, 10px apart, with a 28px radius and lazy images. The caption sits bottom-left over the photo: a 24/26 weight-600 white title and a 16px body.
+  - The rail drifts continuously (about 42px in 3s) with no arrows or dots.
+- **99ribu:**
+  - A "Promo" section right after the category switcher takes a `banners` array, so admin-managed banners (S110) can replace today's data. Today's data is real only:
+    - a "Paket hemat" banner to /promo with a curated clean bundle photo (the first homeSafe mixed bundle whose photo is a curated pick);
+    - one banner per active shipping promotion, with its stored terms (none are active locally).
+  - The section is hidden when there is no banner. Cards are 410×520 (80% wide on phones), 28px radius, cover photo, bottom scrim and the caption.
+  - Deviation: no autoplay (WCAG 2.2.2 with one or two banners). The rail uses native scroll with snap and the shelf arrows ("Promo sebelumnya/berikutnya").
+- **Evidence:** `docs/spec/design/renders/shop-com-r2-20261022/banners-390.png`, `docs/spec/design/renders/shop-com-r2-20261022/banners-768.png`, `docs/spec/design/renders/shop-com-r2-20261022/banners-1440.png`.
+
+### Mobile header and dock (observed)
+
+- **shop.com (390, 2026-10-24):**
+  - No logo in the mobile header. On home, the search spans 358×64 inside 16px gutters.
+  - The dock is a fixed white bar, 56px tall plus the safe area, with a 28px top radius and a `0 0 0 1px` 2% ink ring plus a `0 -4px 24px` 12% shadow. It has five equal icon-only tabs with 24px icons, `aria-current="page"` on the active one, and no pill.
+  - Active icon: filled, deep ink. Inactive icons: about `#a8a5b3` (about 2.4:1 on white).
+- **99ribu:**
+  - The phone header has no logo; the omnibox takes the full width. The page h1 and landmarks remain, and home is the dock's first tab.
+  - The dock follows shop.com's bar. Its four tabs are icon-only links named Beranda, Kategori, Keranjang and Akun (the cart name carries its count; the badge is decorative).
+  - The active tab shows a filled variant of the same silhouette in ink. Inactive tabs use the outline icon in `#85858e` (3.6:1, above shop.com's grey for the 3:1 rule).
+  - Targets are 56px tall. The page reserves the dock height plus the safe area, and the dock hides while the search field has focus (keyboard up).
+  - Desktop and tablet headers are unchanged.
+- **Evidence:** `docs/spec/design/renders/shop-com-r2-20261022/dock-home-390.png`, `docs/spec/design/renders/shop-com-r2-20261022/dock-category-390.png`, `docs/spec/design/renders/shop-com-r2-20261022/dock-cart-390.png`, `docs/spec/design/renders/shop-com-r2-20261022/dock-account-390.png`, `docs/spec/design/renders/shop-com-r2-20261022/dock-320-text200.png`, `docs/spec/design/renders/shop-com-r2-20261022/search-focused-390.png`.

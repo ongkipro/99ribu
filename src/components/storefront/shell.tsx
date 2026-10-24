@@ -12,7 +12,7 @@ import {CategoryPills} from './category-pills';
 import {SearchBox} from './search-box';
 import {TaskBack} from './navigation';
 
-import {Icon} from './icon';
+import {FilledIcon,Icon} from './icon';
 export {Icon} from './icon';
 // Header and footer catalog chrome (top departments with their pill photos, search suggestions,
 // whether /promo has content) is the same for every visitor, so it is computed once per 30s per
@@ -56,7 +56,8 @@ export async function Shell({children,q='',active='home',task=false,backTo=null,
   </div><CategoryPills departments={pills} current={department} allCurrent={active==='category'&&department===null}/></header>}
   {children}
   {/* After main: on short phone screens the dock is static, so it follows the page content instead of preceding it. */}
-  {!task&&<nav className="shopping-tabs" aria-label="Navigasi belanja">{destinations.map(d=><Link key={d.key} href={d.href} data-count={d.key==='cart'&&count>0?count:undefined} aria-label={d.key==='cart'?cartLabel:undefined} aria-current={active===d.key?'page':undefined}><Icon name={d.icon}/><span>{d.label}</span></Link>)}</nav>}
+  {/* Icon-only dock (shop.com mobile tab bar): the label is the accessible name; the active tab shows the filled icon. */}
+  {!task&&<nav className="shopping-tabs" aria-label="Navigasi belanja">{destinations.map(d=><Link key={d.key} href={d.href} data-count={d.key==='cart'&&count>0?count:undefined} aria-label={d.key==='cart'?cartLabel:d.label} aria-current={active===d.key?'page':undefined}><span className="tab-outline"><Icon name={d.icon}/></span><span className="tab-filled"><FilledIcon name={d.icon}/></span></Link>)}</nav>}
   <footer className="store-footer"><div className="wrap footer-inner">
    <div className="footer-brand"><p className="brand footer-name">99<span>rb</span><i aria-hidden="true">.</i></p><p>Semua pilihan lengkap Rp99.000.</p><p className="local-footnote">Pesanan, pembayaran, dan pengiriman masih simulasi lokal.</p></div>
    <div className="footer-menus">
@@ -64,9 +65,9 @@ export async function Shell({children,q='',active='home',task=false,backTo=null,
     <nav aria-labelledby="footer-help"><h2 id="footer-help">Bantuan</h2><ul><li><Link href="/bantuan">Bantuan belanja</Link></li><li><Link href="/bantuan#returns">Pengembalian</Link></li><li><Link href="/akun">Status pesanan</Link></li><li><Link href="/kontak">Hubungi kami</Link></li></ul></nav>
     <nav aria-labelledby="footer-about"><h2 id="footer-about">99ribu</h2><ul><li><Link href="/tentang">Tentang kami</Link></li><li><Link href="/afiliasi">Afiliasi</Link></li></ul></nav>
    </div>
-   <div className="footer-bottom"><p>© 2026 99ribu</p><nav className="footer-legal" aria-label="Legal"><ul><li><Link href="/privasi">Kebijakan privasi</Link></li><li><Link href="/syarat">Syarat dan ketentuan</Link></li></ul></nav></div>
+   <div className="footer-bottom"><p>© 2026 99ribu</p><nav className="footer-legal" aria-label="Legal"><ul><li><Link href="/bantuan#privacy">Kebijakan privasi</Link></li><li><Link href="/syarat">Syarat dan ketentuan</Link></li></ul></nav></div>
   </div></footer>
-  {!task&&<div className="shopping-tabs-space" aria-hidden="true">{destinations.map(d=><span className="tab-space" key={d.key} data-count={d.key==='cart'&&count>0?count:undefined}><Icon name={d.icon}/><span>{d.label}</span></span>)}</div>}
+  {!task&&<div className="shopping-tabs-space" aria-hidden="true"/>}
 
  </>;
 }

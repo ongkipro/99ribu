@@ -26,6 +26,7 @@ after(async()=>{
  try{if(seeded)for(const id of Object.values(seeded.reservations)){await identity.sql.begin(tx=>releaseReservation(tx,id,'Owned S21 storefront fixture finished'));await identity.sql`delete from app.outbox_job where kind='inventory.reservation.expire' and payload->>'reservationId'=${id}`;}}
  finally{try{if(owner)await cleanup(identity,[owner]);}finally{await identity.sql.end();}}
 });
+async function ownCategoryId(){const [row]=await identity.sql<{id:string}[]>`select id from app.category where slug=${`shop-${namespace}-busana`}`;assert.ok(row);return row.id;}
 async function ownHome(page:Page){
  for(const [index,name] of newest.entries()) await expect(page.locator('.product').nth(index).getByRole('heading',{level:3})).toHaveText(name);
  // Live catalog photos are served same-origin by content hash; sample fixtures render labelled slots.
@@ -59,11 +60,11 @@ for(const width of [320,390,768,1440]) test(`built storefront home and category 
   await f.page.goto(origin+busana);await expect(f.page.getByRole('heading',{level:1,name:'Busana'})).toBeVisible();await expect(f.page.locator('.product')).toHaveCount(2);
   await expect.poll(()=>f.page.evaluate(()=>document.documentElement.scrollWidth-document.documentElement.clientWidth),{message:'Page horizontal overflow delta'}).toBeLessThanOrEqual(1);
   await capture(f.page,`category-${width}.png`);
-  const ownCategory=await f.page.getByLabel('Kategori',{exact:true}).inputValue();
-  await f.page.goto(`${origin}/cari?q=Contoh&offer_kind=multipack&category_id=${ownCategory}`);await expect(f.page.locator('.product')).toHaveCount(1);await expect(f.page.getByRole('list',{name:'Filter aktif'}).getByRole('link',{name:/Isi pilihan/})).toBeVisible();await capture(f.page,`search-${width}.png`);
+  const ownCategory=await ownCategoryId();
+  await f.page.goto(`${origin}/cari?q=Contoh&offer_kind=multipack&category_id=${ownCategory}`);await expect(f.page.locator('.product')).toHaveCount(1);await expect(f.page.getByRole('group',{name:'Filter dan urutan'}).getByRole('link',{name:/^Hapus filter Isi pilihan: /})).toBeVisible();await capture(f.page,`search-${width}.png`);
   if([390,1440].includes(width)){await f.page.goto(`${origin}/kategori`);await expect(f.page.getByRole('heading',{level:1,name:'Kategori produk'})).toBeVisible();assert.ok(await f.page.locator('.category-grid li').count()>=await f.page.getByRole('navigation',{name:'Kategori produk'}).getByRole('link').count()-1,'/kategori lists every department; the pill row shows the top five plus Semua kategori');await capture(f.page,`departments-${width}.png`);await f.page.goto(`${origin}/bantuan#returns`);await expect(f.page.getByRole('heading',{name:'Pengembalian',exact:true})).toBeVisible();await capture(f.page,`help-${width}.png`);
    await f.page.goto(origin);const productHref=await f.page.locator('.product-link').first().getAttribute('href');assert.ok(productHref?.startsWith('/produk/'));await f.page.goto(`${origin}${productHref}`);await expect(f.page.locator('.offer-detail')).toBeVisible();await capture(f.page,`product-preview-${width}.png`);if(width===390){await f.page.locator('.detail-price').scrollIntoViewIfNeeded();await expect(f.page.locator('.detail-price')).toBeInViewport();await f.page.screenshot({path:`${output}/product-preview-detail-390.png`});}
-   for(const [route,heading,file] of [['/keranjang','Keranjang masih kosong','cart-empty'],['/akun','Halaman akun sedang disiapkan','account-pending']] as const){await f.page.goto(origin+route);await expect(f.page.getByRole('heading',{level:1,name:heading})).toBeVisible();await capture(f.page,`${file}-${width}.png`);}
+   for(const [route,heading,file] of [['/keranjang','Keranjang masih kosong','cart-empty'],['/akun','Akun opsional','account-pending']] as const){await f.page.goto(origin+route);await expect(f.page.getByRole('heading',{level:1,name:heading})).toBeVisible();await capture(f.page,`${file}-${width}.png`);}
    assert.equal((await f.page.goto(`${origin}/kategori/not-a-real-department`))?.status(),404);await expect(f.page.getByRole('heading',{name:'Halaman belum tersedia'})).toBeVisible();await capture(f.page,`not-found-${width}.png`);}
   assert.deepEqual(f.errors,[]);
  }finally{await f.browser.close();}
@@ -71,11 +72,12 @@ for(const width of [320,390,768,1440]) test(`built storefront home and category 
 
 test('built mobile search/filter/back/reload and all three anonymous API wire contracts preserve public state',async()=>{
  const f=await start(),samples:Exchange[]=[];try{
-  await f.page.goto(origin+busana);await expect(f.page.locator('.product')).toHaveCount(2);const ownCategory=await f.page.getByLabel('Kategori',{exact:true}).inputValue();
-  await f.page.locator('.filters summary').click();await f.page.getByLabel('Isi pilihan',{exact:true}).selectOption('multipack');await f.page.getByRole('button',{name:'Terapkan filter'}).click();
+  await f.page.goto(origin+busana);await expect(f.page.locator('.product')).toHaveCount(2);const ownCategory=await ownCategoryId();
+  // Chip row (JS): the chip names its current value; choosing an option navigates at once.
+  await f.page.getByRole('button',{name:'Isi pilihan: Semua pilihan',exact:true}).click();await f.page.getByRole('dialog',{name:'Isi pilihan'}).getByRole('link',{name:'Paket barang yang sama',exact:true}).click();
   await expect(f.page.locator('.product')).toHaveCount(1);assert.equal(new URL(f.page.url()).searchParams.get('offer_kind'),'multipack');
-  await expect(f.page.getByRole('list',{name:'Filter aktif'}).getByRole('link',{name:/Isi pilihan/})).toBeVisible();
-  const filtered=f.page.url();await f.page.reload();await expect(f.page.getByLabel('Isi pilihan',{exact:true})).toHaveValue('multipack');
+  await expect(f.page.getByRole('group',{name:'Filter dan urutan'}).getByRole('link',{name:/^Hapus filter Isi pilihan: /})).toBeVisible();
+  const filtered=f.page.url();await f.page.reload();await expect(f.page.getByRole('button',{name:'Isi pilihan: Paket barang yang sama',exact:true})).toBeVisible();
   await f.page.getByRole('link',{name:'Contoh Paket 2 Kaos'}).click();await expect(f.page.getByRole('heading',{level:1,name:'Contoh Paket 2 Kaos'})).toBeVisible();await expect(f.page.getByText('2 × Kaos contoh',{exact:true})).toBeVisible();
   await f.page.goBack();await expect(f.page.locator('.product')).toHaveCount(1);assert.equal(f.page.url(),filtered);
   const search=f.page.getByRole('combobox',{name:'Cari produk'});await search.focus();
@@ -88,7 +90,7 @@ test('built mobile search/filter/back/reload and all three anonymous API wire co
   await call('/api/v1/categories?limit=1',200);await call('/api/v1/categories?limit=0',400);
   const products=await call('/api/v1/products?q=Contoh&limit=1',200);assert.equal(products.data.length,1);await call('/api/v1/products?sort=cheapest',400);
   await call(`/api/v1/products/${products.data[0].id}`,200);await call(`/api/v1/products/${randomUUID()}`,404);validateExchanges(samples,'storefront');
-  await f.page.goto(`${origin}/cari?q=Contoh&offer_kind=multipack&category_id=${ownCategory}`);await expect(f.page.locator('.product')).toHaveCount(1);await expect(f.page.getByRole('list',{name:'Filter aktif'}).getByRole('link',{name:/Isi pilihan/})).toBeVisible();await capture(f.page,`search-390.png`);
+  await f.page.goto(`${origin}/cari?q=Contoh&offer_kind=multipack&category_id=${ownCategory}`);await expect(f.page.locator('.product')).toHaveCount(1);await expect(f.page.getByRole('group',{name:'Filter dan urutan'}).getByRole('link',{name:/^Hapus filter Isi pilihan: /})).toBeVisible();await capture(f.page,`search-390.png`);
   assert.deepEqual(await f.page.evaluate(()=>({local:localStorage.length,session:sessionStorage.length})),{local:0,session:0});assert.deepEqual(await f.context.cookies(),[]);assert.deepEqual(f.errors,[]);
  }finally{await f.browser.close();}
 });
@@ -97,9 +99,14 @@ test('built storefront remains usable without JavaScript and keyboard focus rema
  const f=await start(320);try{
   await f.page.goto(origin);await f.page.locator('.product').first().waitFor();await f.page.evaluate(()=>document.fonts.ready);await f.page.evaluate(()=>{document.documentElement.style.fontSize='200%';});await ownHome(f.page);
   await expect.poll(()=>f.page.evaluate(()=>document.documentElement.scrollWidth-document.documentElement.clientWidth),{message:'Page horizontal overflow delta'}).toBeLessThanOrEqual(1);
-  await f.page.getByRole('link',{name:'99ribu, beranda'}).focus();await f.page.keyboard.press('Shift+Tab');await expect(f.page.getByRole('link',{name:'Lewati ke konten'})).toBeFocused();
-  for(let i=0;i<20;i++){await f.page.keyboard.press('Tab');const focus=await f.page.locator(':focus').boundingBox();const bar=await f.page.locator('.shopping-tabs').boundingBox();assert.ok(focus&&bar);if(await f.page.locator('.shopping-tabs :focus').count())assert.ok(focus.y>=bar.y&&focus.y+focus.height<=bar.y+bar.height,'Focused shopping tab stays inside its navigation');else assert.ok(focus.y+focus.height>0&&focus.y<bar.y,'Focused content must not be covered by bottom navigation');}
-  assert.ok(await f.page.locator('.shopping-tabs span').evaluateAll(spans=>spans.every(span=>{const range=document.createRange();range.selectNodeContents(span);const text=range.getBoundingClientRect(),target=span.parentElement?.getBoundingClientRect();return target!==undefined&&range.getClientRects().length===1&&text.left>=target.left-1&&text.right<=target.right+1;})),'Every enlarged tab label stays on one line');
+  // Phones have no header logo (shop.com mobile header): the search field is the first control after the skip link.
+  await f.page.getByRole('combobox',{name:'Cari produk'}).focus();await f.page.keyboard.press('Shift+Tab');await expect(f.page.getByRole('link',{name:'Lewati ke konten'})).toBeFocused();
+  for(let i=0;i<20;i++){await f.page.keyboard.press('Tab');const focus=await f.page.locator(':focus').boundingBox();const bar=await f.page.locator('.shopping-tabs').boundingBox();
+   // The dock steps aside while the search field has focus (phone keyboard up), so nothing can cover it.
+   if(!bar){assert.equal(await f.page.evaluate(()=>document.activeElement?.id),'site-search');continue;}assert.ok(focus);if(await f.page.locator('.shopping-tabs :focus').count())assert.ok(focus.y>=bar.y&&focus.y+focus.height<=bar.y+bar.height,'Focused shopping tab stays inside its navigation');else assert.ok(focus.y+focus.height>0&&focus.y<bar.y,'Focused content must not be covered by bottom navigation');}
+  // Icon-only dock: each tab is named by its accessible name and keeps a 44px target at enlarged text.
+  const dock=f.page.getByRole('navigation',{name:'Navigasi belanja'});for(const name of ['Beranda','Kategori','Keranjang','Akun'])await expect(dock.getByRole('link',{name,exact:true})).toHaveCount(1);
+  assert.ok(await f.page.locator('.shopping-tabs a').evaluateAll(links=>links.every(a=>{const r=a.getBoundingClientRect();return r.width>=44&&r.height>=44&&a.textContent?.trim()==='';})),'Dock tabs are icon-only 44px targets');
   assert.ok(await f.page.locator('.department-photo').evaluateAll(elements=>elements.every(e=>e.scrollHeight-e.clientHeight<=1)),'Enlarged photograph briefs remain inside their slots');
   // Tiles drop to one column at 200% text, so compare labels of tiles that actually share a row.
   assert.ok(await f.page.locator('.switcher-row > *').count()>0,'Home shows the category switcher');
@@ -107,8 +114,8 @@ test('built storefront remains usable without JavaScript and keyboard focus rema
   await capture(f.page,`text-200-320.png`);assert.deepEqual(f.errors,[]);
  }finally{await f.browser.close();}
  const nojs=await start(390,false);try{
-  await nojs.page.goto(origin+busana);await expect(nojs.page.getByRole('heading',{level:1,name:'Busana'})).toBeVisible();const ownCategory=await nojs.page.getByLabel('Kategori',{exact:true}).inputValue();await nojs.page.getByRole('combobox',{name:'Cari produk'}).fill('Contoh');await nojs.page.getByRole('button',{name:'Cari produk',exact:true}).click();await expect(nojs.page.getByRole('heading',{level:1,name:'Hasil untuk “Contoh”'})).toBeVisible();
-  await nojs.page.locator('.filters summary').click();await nojs.page.getByLabel('Kategori',{exact:true}).selectOption(ownCategory);await nojs.page.getByLabel('Isi pilihan',{exact:true}).selectOption('multipack');await nojs.page.getByRole('button',{name:'Terapkan filter'}).click();await expect(nojs.page.locator('.product')).toHaveCount(1);assert.deepEqual(nojs.errors,[]);
+  await nojs.page.goto(origin+busana);await expect(nojs.page.getByRole('heading',{level:1,name:'Busana'})).toBeVisible();const ownCategory=await nojs.page.getByRole('combobox',{name:'Kategori',exact:true,includeHidden:true}).inputValue();await nojs.page.getByRole('combobox',{name:'Cari produk'}).fill('Contoh');await nojs.page.getByRole('button',{name:'Cari produk',exact:true}).click();await expect(nojs.page.getByRole('heading',{level:1,name:'Hasil untuk “Contoh”'})).toBeVisible();
+  await nojs.page.locator('.filters summary').click();await nojs.page.getByRole('combobox',{name:'Kategori',exact:true,includeHidden:true}).selectOption(ownCategory);await nojs.page.getByLabel('Isi pilihan',{exact:true}).selectOption('multipack');await nojs.page.getByRole('button',{name:'Terapkan filter'}).click();await expect(nojs.page.locator('.product')).toHaveCount(1);assert.deepEqual(nojs.errors,[]);
  }finally{await nojs.browser.close();}
 });
 

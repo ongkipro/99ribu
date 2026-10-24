@@ -30,9 +30,14 @@ export function OrderReceiptObserver({orderId}:{orderId:string}){
  return null;
 }
 
-export function OrderReceiptCopyCode({code}:{code:string}){
- const [copied,setCopied]=useState(false);
- return <div className="receipt-code-box"><strong className="receipt-code-value">{code}</strong><button type="button" className="receipt-copy-btn" onClick={()=>{void navigator.clipboard?.writeText(code).then(()=>setCopied(true)).catch(()=>setCopied(true));}}>{copied?'Kode disalin':'Salin kode'}</button></div>;
+// Copies one payment value. The label names what is copied ("Salin nominal", "Salin nomor
+// rekening"). Success is reported only when the clipboard accepted it; otherwise (no Clipboard API on
+// an http origin, or a denied permission) the value is selected so the buyer can copy it manually.
+export function OrderReceiptCopyCode({code,label='kode'}:{code:string;label?:string}){
+ const [state,setState]=useState<'idle'|'copied'|'manual'>('idle'),value=useRef<HTMLElement>(null);
+ const selectValue=()=>{const node=value.current;if(!node)return;const range=document.createRange();range.selectNodeContents(node);const selection=window.getSelection();selection?.removeAllRanges();selection?.addRange(range);};
+ const copy=async()=>{try{if(!navigator.clipboard)throw new Error('unavailable');await navigator.clipboard.writeText(code);setState('copied');}catch{selectValue();setState('manual');}};
+ return <div className="receipt-code-box"><strong ref={value} className="receipt-code-value">{code}</strong><button type="button" className="receipt-copy-btn" onClick={()=>{void copy();}}>{state==='copied'?`${label[0].toUpperCase()}${label.slice(1)} disalin`:`Salin ${label}`}</button>{state==='manual'&&<p className="receipt-copy-manual" role="status">Belum bisa menyalin otomatis. Teks sudah dipilih; salin manual dengan tekan lama atau Ctrl+C.</p>}</div>;
 }
 
 export function OrderReceiptSummary({subtitle,total,children}:{subtitle:string;total:string;children:React.ReactNode}){

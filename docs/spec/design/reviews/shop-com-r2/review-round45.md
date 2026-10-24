@@ -1,0 +1,50 @@
+Reviewer: claude via visual-review.py
+Review-Context: separate ai-ask invocation
+Model: unavailable: ai-ask does not report the resolved model/provider
+Screenshots: docs/spec/design/renders/shop-com-r2-20261022/banners-1440.png, docs/spec/design/renders/shop-com-r2-20261022/banners-390.png, docs/spec/design/renders/shop-com-r2-20261022/brand-hover-1440.png, docs/spec/design/renders/shop-com-r2-20261022/brand-hover-mid-1440.png, docs/spec/design/renders/shop-com-r2-20261022/cart-filled-1440.png, docs/spec/design/renders/shop-com-r2-20261022/cart-filled-390.png, docs/spec/design/renders/shop-com-r2-20261022/category-320-text200.png, docs/spec/design/renders/shop-com-r2-20261022/dock-320-text200.png, docs/spec/design/renders/shop-com-r2-20261022/dock-cart-390.png, docs/spec/design/renders/shop-com-r2-20261022/dock-home-390.png, docs/spec/design/renders/shop-com-r2-20261022/filter-active-1440.png, docs/spec/design/renders/shop-com-r2-20261022/filter-nojs-390.png, docs/spec/design/renders/shop-com-r2-20261022/filter-pop-1440-dpr2.png, docs/spec/design/renders/shop-com-r2-20261022/filter-sheet-390.png, docs/spec/design/renders/shop-com-r2-20261022/footer-320-text200.png, docs/spec/design/renders/shop-com-r2-20261022/hero-1440.png, docs/spec/design/renders/shop-com-r2-20261022/hero-320-text200.png, docs/spec/design/renders/shop-com-r2-20261022/home-1440.png, docs/spec/design/renders/shop-com-r2-20261022/home-320-text200.png, docs/spec/design/renders/shop-com-r2-20261022/home-390.png, docs/spec/design/renders/shop-com-r2-20261022/home-categories-1440.png, docs/spec/design/renders/shop-com-r2-20261022/home-categories-390.png, docs/spec/design/renders/shop-com-r2-20261022/listing-appended-390.png, docs/spec/design/renders/shop-com-r2-20261022/listing-first-1440.png, docs/spec/design/renders/shop-com-r2-20261022/listing-first-390.png, docs/spec/design/renders/shop-com-r2-20261022/listing-more-1440.png, docs/spec/design/renders/shop-com-r2-20261022/listing-skeleton-1440.png, docs/spec/design/renders/shop-com-r2-20261022/omnibox-few-1440.png, docs/spec/design/renders/shop-com-r2-20261022/omnibox-opening-1440.png, docs/spec/design/renders/shop-com-r2-20261022/omnibox-opening-390.png, docs/spec/design/renders/shop-com-r2-20261022/omnibox-suggestions-1440.png, docs/spec/design/renders/shop-com-r2-20261022/omnibox-suggestions-390.png, docs/spec/design/renders/shop-com-r2-20261022/omnibox-typing-1440.png, docs/spec/design/renders/shop-com-r2-20261022/pdp-1440.png, docs/spec/design/renders/shop-com-r2-20261022/pdp-320-text200.png, docs/spec/design/renders/shop-com-r2-20261022/pdp-390.png, docs/spec/design/renders/shop-com-r2-20261022/pdp-bundle-open-1440.png, docs/spec/design/renders/shop-com-r2-20261022/pills-focus-1440.png, docs/spec/design/renders/shop-com-r2-20261022/pills-focus-320-text200.png, docs/spec/design/renders/shop-com-r2-20261022/promo-1440.png, docs/spec/design/renders/shop-com-r2-20261022/search-1440.png, docs/spec/design/renders/shop-com-r2-20261022/search-390.png, docs/spec/design/renders/shop-com-r2-20261022/search-focused-390.png
+References: docs/spec/design/references/shop-com/2026-10-22-cart/1440.png, docs/spec/design/references/shop-com/2026-10-22-cart/390.png, docs/spec/design/references/shop-com/2026-10-22-help/1440.png, docs/spec/design/references/shop-com/2026-10-22-help/390.png, docs/spec/design/references/shop-com/2026-10-22-home/1440.png, docs/spec/design/references/shop-com/2026-10-22-home/390.png, docs/spec/design/references/shop-com/2026-10-22-pdp-1440.png, docs/spec/design/references/shop-com/2026-10-22-pdp-390-scrolled.png, docs/spec/design/references/shop-com/2026-10-22-pdp-390.png, docs/spec/design/references/shop-com/2026-10-22-search-1440.png, docs/spec/design/references/shop-com/2026-10-22-search-390.png, docs/spec/design/references/shop-com/2026-10-22-search-filters-390.png, docs/spec/design/references/shop-com/2026-10-23-home-1440-full.png, docs/spec/design/references/shop-com/2026-10-23-home-390-full.png
+Prompt-SHA: 4ae0ce2195b477c4
+Context-SHA: 300c6a0c8c98d784
+Images-SHA: 012264711b1933ae
+Output-SHA: 35fcbc136495a009
+
+Paduka Ongki, saya sudah membuka ke-115 gambar satu per satu, termasuk referensi shop.com. Hasilnya **REVISE**. Arah desainnya sudah didukung riset dan kontrak, tapi masih ada beberapa cacat visual yang belum ditangani. Review lengkap di bawah dalam bahasa Inggris.
+
+## Section-by-section (top to bottom)
+
+**Home**
+- Env banner + header (brand, centred omnibox, Promo/Cart/Account) | authored | shop.com rail utilities moved to a top header; centred pill omnibox matches `2026-10-23-home-1440-full-01` | none needed. The wordmark reveal (`c22573c4…brand-hover-1440`, `5dce9521…brand-hover-mid-1440`) reads "Serba 99ribu." cleanly; the "Serb" cut in the mid frame is the transition itself.
+- Category pill row | authored | shop.com photo pills (Beauty/Women/Men…) | at 320/200% (`f9ad8c3b…-01`) the second pill is cut to a sliver with no clear fade. Keep the end fade visible at enlarged text.
+- Hero | authored | shop.com "Shop is all about you" card: heading bottom-left, Sign in + secondary | no structural fix. The tilted white tiles on the lavender/yellow tint are a reasonable stand-in for shop.com's floating product art, and at 320/200% the price stays whole (`46ba9739…`).
+- Kategori grid | authored | shop.com "Categories ›" tinted tiles, 5/2 columns | none. The tint, dark label and tilted photo card are a justified change from shop.com's full-bleed art, because our photos are white-ground.
+- Terbaru shelf | authored | shop.com product shelf with a cut card at the edge | none (2.3 cards on phones, 7 at 1440).
+- Category switcher | authored | shop.com 96px "Beauty" switcher with medallion | none. The medallion above the name is a recorded legibility change.
+- **Promo banner** | partly generic | shop.com "Discover something you love" 410×520 photo cards | **fix**: at 1440 (`047b8bc5…`, `894181cd…-02`) one ~1250×400 lavender card puts the caption bottom-left under ~200px of empty space. It also repeats the hero's tilted-white-tile collage two sections later. Pull the caption up beside the collage and shorten the card (or use the 410×520 rail size). The first collage tile (a cartoon fishing-bait product with meat and durian art) is the weakest pick; swap it for a clean product photo.
+- Footer | authored | shop.com columned footer without QR or app badges | none. Phones get 2 columns, and 320/200% gets 1 column.
+- Dock | authored | shop.com icon-only bar with a filled active icon | none (`8d4a9a8d…`, `0bc881c0…`).
+
+**Listing / search / filters**
+- Chip row | authored | shop.com filter chips with filled-ink active chips (`c8a1c9a0…search-1440`) | none at rest.
+- **Active-filter row** | generic redundancy | none (shop.com has no second row) | **fix**: in `cc9e42a2…filter-active-1440` "Isi pilihan: Paket campuran" and "Ketersediaan: Tersedia" appear twice, once as filled chips and again as removable chips right below. Two rows show the same state, which costs vertical space and makes it unclear which control to use. On the JS path, drop the duplicate row and keep only "Hapus semua"; or keep the removable row only where the chip row is hidden (no-JS).
+- Dropdown (`c87e94a1…dpr2`) and phone sheet (`fe9e5b79…`) | authored | shadcn Select and the shop.com bottom sheet | none.
+- No-JS form (`7af5e50b…`) | authored | none | none.
+- Grid, skeleton, "Lihat produk lainnya" (`52813708…`, `ef0970d0…`, `1c2f076a…`, `4d913c37…`) | authored | shop.com 6/2-column grid | none. Many titles are cut after the same "Paket …" prefix; that is the accepted one-line-title decision.
+- Category page at 320/200% (`90075c5f…01–15`) | authored | none | the "Urutkan: Paling se…" chip is cut at the edge; check that the end fade still shows at 200%.
+
+**Omnibox open** (`caf493d3…`, `440ce9a4…`, `4c228efb…`, `3e26481a…`, `83cc7fad…`, `64b81812…`, `f834dc97…`) | authored | shop.com glass surface with chip suggestions | minor: "Summerspring" is a product-line name sitting among product-type words. At 320/200% the 16px search icon does not scale next to 32px text (`236d9279…`).
+
+**PDP** (`bc2effc7…`, `5246c805…`, `b6b3ad67…`, `46d89c1d…`)
+- Media + buy box | authored | shop.com narrow buy box, 52px primary, hairline accordions (`c9edea82…`) | none structurally.
+- **"Spesifikasi — Spesifikasi tambahan belum tersedia."** | content | none | **fix**: an empty placeholder section sits between the primary action and the accordions. It adds a heading with no information. Hide it when there is no data.
+- Bundle media | known gap | shop.com thumbnail strip | the 4-item "Paket Hemat Listrik & Pipa" shows only the electricity saver, while 3 of the 4 items are pipe cleaners. The same applies to the cart thumbnail (`4567ff2f…`, `24e17e70…`). This is recorded as deferred feature scope, not counted here.
+
+**Cart, Promo page** (`4567ff2f…`, `24e17e70…01–03`, `b651564a…`) | authored | shop.com centred empty cart; summary card | none.
+
+## Reference comparison
+- What transferred well: the near-white canvas with white raised surfaces, pill controls, the 20px card frames, the centred omnibox and the shelf rhythm all match `95bdbd15…`, `56ae2fb1…` and `c8a1c9a0…`.
+- What did not: shop.com's banner rail is photo-led, with the caption laid over the image. Ours is a flat tint card with a tile collage, and that collage motif now appears in three sections (hero, category tiles, promo). The rhythm therefore flattens in the lower half of the home page.
+- Help (R11) has reference images (`27b2df7e…`, `6c377b87…`) but no 99ribu help render in this set, so R11 is unverified this round.
+
+**Most important change:** Remove the duplicated active-filter chip row on the JS path, and rebalance the Promo banner (caption next to the collage, shorter card, cleaner first photo) so it stops repeating the hero.
+
+**Verdict: REVISE**

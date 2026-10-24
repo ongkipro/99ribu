@@ -24,12 +24,21 @@ async function post(path: string, body: Record<string, string>) {
 	}
 }
 
-function failure(status: number, retry: number | null, step: Step) {
-	if (status === 429) return `Terlalu banyak percobaan. Tunggu ${retry ?? 60} detik, lalu coba lagi.`;
-	if (status === 0 || status >= 500) return "Layanan masuk sedang tidak tersedia. Periksa koneksi lalu coba lagi.";
+type Result = Awaited<ReturnType<typeof post>>;
+// Each response gets its own message: only a credential rejection says the email, password or
+// code did not match. Origin, rate limit, disabled service and connection problems say so.
+function failure({ status, payload, retry }: Result, step: Step) {
+	if (status === 403 && payload?.code === "INVALID_ORIGIN")
+		return "Halaman ini dibuka dari alamat yang tidak diizinkan. Buka toko dari alamat resminya lalu coba lagi.";
+	if (status === 429)
+		return retry ? `Terlalu banyak percobaan. Coba lagi dalam ${Math.ceil(retry / 60)} menit.` : "Terlalu banyak percobaan. Coba lagi dalam beberapa menit.";
+	if (status === 503) return "Layanan masuk sedang dinonaktifkan sementara. Coba lagi nanti.";
+	if (status === 0 || status >= 500) return "Tidak bisa terhubung. Coba lagi.";
 	if (step === "password") return "Email atau kata sandi tidak cocok. Periksa kembali lalu coba lagi.";
 	return "Kode tidak cocok atau verifikasi sudah kedaluwarsa. Coba kode terbaru, atau mulai ulang dari email dan kata sandi.";
 }
+// Only a credential rejection marks a field invalid.
+const credential = ({ status, payload }: Result) => status !== 429 && status !== 0 && status < 500 && !(status === 403 && payload?.code === "INVALID_ORIGIN");
 
 export function SignInForm({ next }: { next: string | null }) {
 	const [step, setStep] = useState<Step>("password");
@@ -71,7 +80,7 @@ export function SignInForm({ next }: { next: string | null }) {
 			setPassword("");
 			setStep("totp");
 		} else if (result.status === 200) finish();
-		else setError({ message: failure(result.status, result.retry, "password"), field: result.status === 429 || result.status === 0 || result.status >= 500 ? null : "password" });
+		else setError({ message: failure(result, "password"), field: credential(result) ? "password" : null });
 	}
 
 	async function submitCode(event: React.FormEvent<HTMLFormElement>) {
@@ -88,7 +97,7 @@ export function SignInForm({ next }: { next: string | null }) {
 		const result = await post(backup ? "/two-factor/verify-backup-code" : "/two-factor/verify-totp", { code: normalized });
 		setPending(false);
 		if (result.status === 200) finish();
-		else setError({ message: failure(result.status, result.retry, step), field: result.status === 429 || result.status === 0 || result.status >= 500 ? null : "code" });
+		else setError({ message: failure(result, step), field: credential(result) ? "code" : null });
 	}
 
 	function restart() {

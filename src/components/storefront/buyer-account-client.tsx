@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useRef, useState } from "react";
 import type {
 	BuyerAddressListResponse,
 	BuyerProfileResponse,
@@ -36,6 +36,26 @@ export function BuyerAccountClient({
 		initialProfile?.display_name ?? "",
 	);
 	const [statusMsg, setStatusMsg] = useState<string | null>(null);
+	// One action at a time: every account action shares one busy state, so a double click or a
+	// second control cannot send a duplicate request (fresh idempotency keys would not dedupe it,
+	// and preference toggles would reuse a stale version). A network failure shows a message.
+	const [busy, setBusy] = useState(false);
+	const busyRef = useRef(false);
+	const guard =
+		<A extends unknown[]>(task: (...args: A) => Promise<void>) =>
+		(...args: A) => {
+			const first = args[0] as { preventDefault?: () => void } | undefined;
+			if (first && typeof first === "object" && typeof first.preventDefault === "function") first.preventDefault();
+			if (busyRef.current) return;
+			busyRef.current = true;
+			setBusy(true);
+			void task(...args)
+				.catch(() => setStatusMsg("Tidak bisa terhubung. Periksa koneksi lalu coba lagi."))
+				.finally(() => {
+					busyRef.current = false;
+					setBusy(false);
+				});
+		};
 
 	// Guest order recovery form state (available even when unauthenticated)
 	const [guestOrderId, setGuestOrderId] = useState("");
@@ -44,7 +64,7 @@ export function BuyerAccountClient({
 	const [guestOtp, setGuestOtp] = useState("");
 	const [recoveredOrderId, setRecoveredOrderId] = useState<string | null>(null);
 
-	async function handleProfileSave(e: React.FormEvent) {
+	async function handleProfileSaveRun(e: React.FormEvent) {
 		e.preventDefault();
 		if (!profile) return;
 		const res = await fetch("/api/v1/me/profile", {
@@ -67,7 +87,7 @@ export function BuyerAccountClient({
 		}
 	}
 
-	async function handleSetDefaultAddress(addressId: string) {
+	async function handleSetDefaultAddressRun(addressId: string) {
 		if (!addresses) return;
 		const res = await fetch("/api/v1/me/address-default", {
 			method: "POST",
@@ -91,7 +111,7 @@ export function BuyerAccountClient({
 		}
 	}
 
-	async function handleTogglePreference(
+	async function handleTogglePreferenceRun(
 		field:
 			| "in_app_order_updates"
 			| "in_app_support_updates"
@@ -131,7 +151,7 @@ export function BuyerAccountClient({
 		}
 	}
 
-	async function handleNotificationState(
+	async function handleNotificationStateRun(
 		notificationId: string,
 		state: "read" | "unread",
 	) {
@@ -156,7 +176,7 @@ export function BuyerAccountClient({
 		}
 	}
 
-	async function handleTerminateSessions(scope: "others" | "all") {
+	async function handleTerminateSessionsRun(scope: "others" | "all") {
 		const res = await fetch("/api/v1/me/session-terminations", {
 			method: "POST",
 			headers: {
@@ -182,7 +202,7 @@ export function BuyerAccountClient({
 		}
 	}
 
-	async function handleRequestGuestRecovery(e: React.FormEvent) {
+	async function handleRequestGuestRecoveryRun(e: React.FormEvent) {
 		e.preventDefault();
 		const res = await fetch("/api/v1/guest-order-access/challenges", {
 			method: "POST",
@@ -204,7 +224,7 @@ export function BuyerAccountClient({
 		}
 	}
 
-	async function handleVerifyGuestRecovery(e: React.FormEvent) {
+	async function handleVerifyGuestRecoveryRun(e: React.FormEvent) {
 		e.preventDefault();
 		if (!guestChallengeId) return;
 		const res = await fetch("/api/v1/guest-order-access/verifications", {
@@ -226,6 +246,14 @@ export function BuyerAccountClient({
 			setStatusMsg("Kode verifikasi tidak sesuai.");
 		}
 	}
+
+	const handleProfileSave = guard(handleProfileSaveRun);
+	const handleSetDefaultAddress = guard(handleSetDefaultAddressRun);
+	const handleTogglePreference = guard(handleTogglePreferenceRun);
+	const handleNotificationState = guard(handleNotificationStateRun);
+	const handleTerminateSessions = guard(handleTerminateSessionsRun);
+	const handleRequestGuestRecovery = guard(handleRequestGuestRecoveryRun);
+	const handleVerifyGuestRecovery = guard(handleVerifyGuestRecoveryRun);
 
 	return (
 		<div className="buyer-account-workspace" data-testid="buyer-account-root">
@@ -270,6 +298,7 @@ export function BuyerAccountClient({
 									<span data-testid="profile-version">v{profile.version}</span>
 								</p>
 								<button
+									disabled={busy}
 									type="submit"
 									className="button"
 									data-testid="profile-save-button"
@@ -319,6 +348,7 @@ export function BuyerAccountClient({
 											</p>
 											{!item.is_default && (
 												<button
+													disabled={busy}
 													type="button"
 													className="button button-secondary"
 													data-testid={`make-default-${item.id}`}
@@ -382,6 +412,7 @@ export function BuyerAccountClient({
 									<label>
 										<input
 											type="checkbox"
+											disabled={busy}
 											data-testid="pref-in-app-order"
 											checked={preferences.in_app_order_updates}
 											onChange={() =>
@@ -393,6 +424,7 @@ export function BuyerAccountClient({
 									<label>
 										<input
 											type="checkbox"
+											disabled={busy}
 											data-testid="pref-in-app-support"
 											checked={preferences.in_app_support_updates}
 											onChange={() =>
@@ -404,6 +436,7 @@ export function BuyerAccountClient({
 									<label>
 										<input
 											type="checkbox"
+											disabled={busy}
 											data-testid="pref-email-order"
 											checked={preferences.email_order_updates}
 											onChange={() =>
@@ -427,6 +460,7 @@ export function BuyerAccountClient({
 										<strong>{n.title}</strong> ({n.state})
 										<p className="checkout-hint">{n.body}</p>
 										<button
+											disabled={busy}
 											type="button"
 											className="button button-secondary"
 											data-testid={`toggle-notification-${n.id}`}
@@ -454,6 +488,7 @@ export function BuyerAccountClient({
 							<h2 id="account-security-heading">Keamanan & Sesi Perangkat</h2>
 							<div className="notice-actions">
 								<button
+									disabled={busy}
 									type="button"
 									className="button button-secondary"
 									data-testid="terminate-other-sessions-button"
@@ -462,6 +497,7 @@ export function BuyerAccountClient({
 									Keluar dari perangkat lain
 								</button>
 								<button
+									disabled={busy}
 									type="button"
 									className="button button-secondary"
 									data-testid="terminate-all-sessions-button"
@@ -503,6 +539,7 @@ export function BuyerAccountClient({
 						placeholder="+62812..."
 					/>
 					<button
+						disabled={busy}
 						type="submit"
 						className="button button-secondary"
 						data-testid="guest-recovery-request-button"
@@ -521,6 +558,7 @@ export function BuyerAccountClient({
 							onChange={(e) => setGuestOtp(e.target.value)}
 						/>
 						<button
+							disabled={busy}
 							type="submit"
 							className="button"
 							data-testid="guest-recovery-verify-button"
