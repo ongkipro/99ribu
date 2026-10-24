@@ -778,7 +778,7 @@ function normalizeWorkspaceParam(
 	return map[raw] ?? null;
 }
 
-type LoadState = "loading" | "ready" | "error" | "preview";
+type LoadState = "loading" | "ready" | "error" | "preview" | "denied";
 type Notice = { kind: "info" | "error"; message: string };
 type ExportResult = {
 	rowCount: number;
@@ -865,7 +865,7 @@ export function AdminWorkspacesClient({
 	const [destinations, setDestinations] = useState<AdDestinationItem[]>(
 		preview ? PREVIEW_DESTINATIONS : [],
 	);
-	const [adState, setAdState] = useState<LoadState>(
+	const [adState, setAdState] = useState<Exclude<LoadState, "denied">>(
 		preview ? "preview" : "loading",
 	);
 	const [adError, setAdError] = useState<string | null>(null);
@@ -961,8 +961,9 @@ export function AdminWorkspacesClient({
 				});
 				if (!res.ok) {
 					setRows([]);
+					// A refused grant is a denied state (who can grant it), not a retryable error.
 					setQueueError(failureText(await readFailure(res)));
-					setQueueState("error");
+					setQueueState(res.status === 403 ? "denied" : "error");
 					return;
 				}
 				const data = (await res.json()) as {
@@ -1649,7 +1650,12 @@ export function AdminWorkspacesClient({
 											message:
 												"Antrean hanya tampil untuk staf yang masuk dengan MFA aktif.",
 										}
-									: { kind: "ready" }
+									: queueState === "denied"
+										? {
+												kind: "denied",
+												message: `Peran Anda tidak membuka antrean ${QUEUE_LABELS[queue].toLowerCase()}. Minta Super Admin menambahkan izinnya.`,
+											}
+										: { kind: "ready" }
 					}
 					loadingLabel="Memuat antrean…"
 					emptyTestId="empty-queue-message"
