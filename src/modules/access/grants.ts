@@ -33,7 +33,7 @@ export async function consumeAccessProof(tx: TransactionSql, principal: Principa
 const financePurposes: Record<string, "reconciliation" | "refunds"> = { "finance.reconcile": "reconciliation", "finance.refund": "refunds", "finance.recovery_refund": "refunds" };
 const payoutPurposes = ["payout.claim", "payout.verify"];
 const selfPurposes = ["affiliate.beneficiary_change", "support.contact_rebind"];
-const ownerPurposes = [action, "company_policy.version", "payment_policy.version", "warehouse_calendar.version", "catalog_publication.exception", "affiliate_rate.version"];
+const ownerPurposes = [action, "company_policy.version", "payment_policy.version", "warehouse_calendar.version", "warehouse_calendar.default_apply", "catalog_publication.exception", "affiliate_rate.version"];
 const uuidSubjectPurposes = ["warehouse_calendar.version", "catalog_publication.exception", "affiliate_rate.version", "affiliate.beneficiary_change", ...Object.keys(financePurposes), ...payoutPurposes];
 const uuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
@@ -52,6 +52,7 @@ export async function issueAccessProof(request: Request, principal: Principal, i
     ![...ownerPurposes, ...Object.keys(financePurposes), ...payoutPurposes, ...selfPurposes].includes(body.action) ||
     !validId(body.subject_id) || typeof body.password !== "string" || body.password.length > 128) throw new AccessError(400, "INVALID_INPUT");
   if ((body.action === "company_policy.version" && body.subject_id !== "company-commercial") || (body.action === "payment_policy.version" && body.subject_id !== "company-payment") ||
+    (body.action === "warehouse_calendar.default_apply" && body.subject_id !== "origin-warehouses") ||
     (uuidSubjectPurposes.includes(body.action) && !uuid.test(body.subject_id))) throw new AccessError(400, "INVALID_INPUT");
   const proofAction = body.action;
   const subjectId = uuidSubjectPurposes.includes(proofAction) ? body.subject_id.toLowerCase() : body.subject_id;

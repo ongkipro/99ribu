@@ -5,7 +5,7 @@ import {invalid} from '../catalog/validation.ts';
 import {commerceActor} from '../checkout/access.ts';
 import {createReturn,decideReturn} from './cases.ts';
 import {inspectReturn} from './inspection.ts';
-import {readAdminRefund,readAdminReturns,readBuyerEligibility,readBuyerRefund,readBuyerReturns} from './reads.ts';
+import {readAdminRefund,readAdminReturnEvidence,readAdminReturns,readBuyerEligibility,readBuyerRefund,readBuyerReturns} from './reads.ts';
 import {recoverRefund} from './refund-recovery.ts';
 import {acceptRefundDestination,queueRefund} from './refunds.ts';
 
@@ -32,8 +32,14 @@ export async function handleReturns(request:Request,identity:LocalAuth){
   }
   const cases=/^\/api\/v1\/admin\/returns(?:\/([^/]+)(?:\/(decisions|inspections))?)?$/.exec(url.pathname);
   const refunds=/^\/api\/v1\/admin\/refunds(?:\/([^/]+)(?:\/(reconciliations))?)?$/.exec(url.pathname);
-  if(!cases&&!refunds)throw new AccessError(404,'NOT_FOUND');
+  const evidence=/^\/api\/v1\/admin\/returns\/([^/]+)\/evidence\/([^/]+)$/.exec(url.pathname);
+  if(!cases&&!refunds&&!evidence)throw new AccessError(404,'NOT_FOUND');
   const principal=await getPrincipal(request,identity);
+  if(evidence){
+   if(request.method!=='GET')throw new AccessError(404,'NOT_FOUND');if(url.search)throw invalid();
+   const file=await readAdminReturnEvidence(identity,principal,evidence[1],evidence[2]);
+   return new Response(new Uint8Array(file.bytes),{status:200,headers:{'Content-Type':file.contentType,'Content-Disposition':'inline','Cache-Control':'no-store','Referrer-Policy':'no-referrer','X-Content-Type-Options':'nosniff','Content-Security-Policy':"default-src 'none'; sandbox"}});
+  }
   if(cases){
    if(request.method==='GET'&&!cases[2])return privateJson(await readAdminReturns(identity,principal,url,cases[1]));
    if(request.method==='POST'&&cases[1]&&cases[2]==='decisions')return privateJson(await decideReturn(request,identity,principal,cases[1],await readBody(request)),201);

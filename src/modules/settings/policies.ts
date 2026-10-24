@@ -26,7 +26,7 @@ function bankAccounts(value: unknown): value is BankAccount[] {
     typeof a.account_number === "string" && /^[0-9]{6,20}$/.test(a.account_number) &&
     typeof a.account_holder === "string" && a.account_holder.trim().length >= 2 && a.account_holder.length <= 100);
 }
-function valuesFor(kind: Kind, value: unknown) {
+export function valuesFor(kind: Kind, value: unknown) {
   if (!value || typeof value !== "object" || Array.isArray(value)) throw invalid();
   const data = value as Record<string, unknown>;
   if (kind === "commercial") {
