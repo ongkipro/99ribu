@@ -21461,6 +21461,13 @@ components:
       properties:
         conversation:
           $ref: '#/components/schemas/SupportConversation'
+        order_number:
+          type:
+          - string
+          - 'null'
+          maxLength: 64
+          description: Printed number of the conversation's verified order (staff inbox shows it instead of the
+            order id); null when the conversation has no order.
         assignee_user_id:
           type:
           - string
@@ -21476,6 +21483,7 @@ components:
           minimum: 0
       required:
       - conversation
+      - order_number
       - assignee_user_id
       - assignment_version
       - current_agent_last_read_sequence

@@ -1,8 +1,14 @@
 "use client";
 
+import { RefreshCw } from "lucide-react";
 import Link from "next/link";
 import type React from "react";
 import { useEffect, useId, useLayoutEffect, useRef, useState } from "react";
+import { DataTable } from "@/components/admin/data-table";
+import { FormField, nativeSelectClass } from "@/components/admin/form";
+import { useKeysetList } from "@/components/admin/use-keyset-list";
+import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
 
 type StaffUser = {
 	id: string;
@@ -26,6 +32,8 @@ type SupportConversation = {
 
 type SupportStaffConversation = {
 	conversation: SupportConversation;
+	/** Printed order number of the conversation's order (S113); null without an order. */
+	order_number: string | null;
 	assignee_user_id: string | null;
 	assignment_version: number;
 	current_agent_last_read_sequence: number;
@@ -98,6 +106,11 @@ const MESSAGE_WINDOW = 40;
 const MESSAGE_HALF = MESSAGE_WINDOW / 2;
 const CONFLICT_MESSAGE = "Percakapan diperbarui. Coba lagi.";
 const NETWORK_MESSAGE = "Koneksi terputus. Periksa jaringan lalu coba lagi.";
+const STATUS_LABELS: Record<string, string> = {
+	open: "Terbuka",
+	waiting_customer: "Menunggu pelanggan",
+	resolved: "Selesai",
+};
 const STATUS_ACTIONS = [
 	["waiting_customer", "Set Menunggu Pelanggan"],
 	["resolved", "Tandai Selesai (Resolve)"],
@@ -270,7 +283,6 @@ export function StaffInboxView({ staffUser }: { staffUser: StaffUser }) {
 	const [priorityFilter, setPriorityFilter] = useState<string>("");
 	const [unreadOnly, setUnreadOnly] = useState<boolean>(false);
 
-	const [inbox, setInbox] = useState<SupportStaffConversation[]>([]);
 	const [selected, setSelected] = useState<SupportStaffConversation | null>(
 		null,
 	);
@@ -330,38 +342,23 @@ export function StaffInboxView({ staffUser }: { staffUser: StaffUser }) {
 		}
 	}, [messages]);
 
-	async function loadInbox(
-		nextAssign = assignmentFilter,
-		nextStatus = statusFilter,
-		nextPriority = priorityFilter,
-		nextUnread = unreadOnly,
-	) {
-		setError(null);
-		const params = new URLSearchParams({ assignment: nextAssign });
-		if (nextStatus) params.set("status", nextStatus);
-		if (nextPriority) params.set("priority", nextPriority);
-		if (nextUnread) params.set("unread", "true");
-		const res = await fetch(
-			`/api/v1/admin/support/conversations?${params.toString()}`,
-			{
-				headers: { Accept: "application/json" },
-			},
-		);
-		if (!res.ok) {
-			setError("Gagal memuat antrean CS.");
-			return;
-		}
-		const body = (await res.json()) as { data: SupportStaffConversation[] };
-		setInbox(body.data);
-	}
+	// S113: the queue is a keyset DataTable (S104 server paging); a filter change starts at page one.
+	const inboxParams = new URLSearchParams({ assignment: assignmentFilter, limit: "20" });
+	if (statusFilter) inboxParams.set("status", statusFilter);
+	if (priorityFilter) inboxParams.set("priority", priorityFilter);
+	if (unreadOnly) inboxParams.set("unread", "true");
+	const inboxList = useKeysetList<SupportStaffConversation>(
+		`/api/v1/admin/support/conversations?${inboxParams.toString()}`,
+		(item) => item.conversation.id,
+	);
+	const setInbox = (
+		update: (prev: SupportStaffConversation[]) => SupportStaffConversation[],
+	) => inboxList.setRows((prev) => (prev ? update(prev) : prev));
 
 	useEffect(() => {
 		let cancelled = false;
 		async function bootstrap() {
-			const [inboxRes, srRes, tagRes] = await Promise.all([
-				fetch("/api/v1/admin/support/conversations?assignment=unassigned", {
-					headers: { Accept: "application/json" },
-				}),
+			const [srRes, tagRes] = await Promise.all([
 				fetch("/api/v1/admin/support/saved-replies", {
 					headers: { Accept: "application/json" },
 				}),
@@ -370,12 +367,6 @@ export function StaffInboxView({ staffUser }: { staffUser: StaffUser }) {
 				}),
 			]);
 			if (cancelled) return;
-			if (inboxRes.ok) {
-				const body = (await inboxRes.json()) as {
-					data: SupportStaffConversation[];
-				};
-				setInbox(body.data);
-			}
 			if (srRes.ok) {
 				const srBody = (await srRes.json()) as { data: SavedReply[] };
 				setSavedReplies(srBody.data);
@@ -900,47 +891,52 @@ export function StaffInboxView({ staffUser }: { staffUser: StaffUser }) {
 	// Status and assignment need the claim (owner may act without it); the API enforces CLAIM_REQUIRED.
 	const canAct = isClaimedByMe || staffUser.roles.includes("owner");
 
-	return (
-		<div
-			style={{
-				maxWidth: "1360px",
-				margin: "0 auto",
-				padding: "20px 16px 40px",
-				boxSizing: "border-box",
-			}}
-		>
-			<header
-				style={{
-					display: "flex",
-					flexWrap: "wrap",
-					justifyContent: "space-between",
-					alignItems: "center",
-					gap: "12px",
-					paddingBottom: "16px",
-					borderBottom: "1px solid #d8d8df",
-					marginBottom: "20px",
-				}}
+	const conversationCell = (item: SupportStaffConversation) => (
+		<div className="flex min-w-0 flex-col">
+			<span className="font-medium">Percakapan #{item.conversation.id.slice(0, 8)}</span>
+			<span className="text-xs text-muted-foreground">
+				{item.order_number ? `Pesanan ${item.order_number}` : "Tanpa pesanan"}
+			</span>
+		</div>
+	);
+	const assigneeText = (item: SupportStaffConversation) =>
+		item.assignee_user_id === null
+			? "Belum diklaim"
+			: item.assignee_user_id === staffUser.id
+				? "Saya"
+				: "Staf lain";
+	const openButton = (item: SupportStaffConversation) => {
+		const open = selected?.conversation.id === item.conversation.id;
+		return (
+			<Button
+				type="button"
+				size="sm"
+				variant={open ? "default" : "outline"}
+				aria-pressed={open}
+				onClick={() => void selectThread(item)}
 			>
-				<div>
-					<h1 style={{ margin: 0 }}>Antrean Layanan Pelanggan (CS Inbox)</h1>
-					<p
-						style={{ margin: "4px 0 0", fontSize: "0.9rem", color: "#5b5b63" }}
-					>
-						Masuk sebagai: <strong>{staffUser.id}</strong> (
-						{staffUser.roles.join(", ")})
+				Buka Detail
+			</Button>
+		);
+	};
+
+	return (
+		<div className="flex flex-col gap-5 px-4 py-5 md:px-8 md:py-6">
+			<header className="flex flex-wrap items-end justify-between gap-3 border-b pb-5">
+				<div className="flex min-w-0 flex-col gap-1">
+					<h1 className="text-2xl font-semibold tracking-tight">Kotak Masuk Pelanggan</h1>
+					<p className="max-w-prose text-sm text-muted-foreground">
+						Klaim percakapan sebelum membalas. Catatan internal tidak pernah terlihat oleh pelanggan.
 					</p>
 				</div>
-				<div style={{ display: "flex", flexWrap: "wrap", gap: "8px" }}>
-					<Link href="/admin" style={secondaryBtn}>
-						Ke Konsol Operasional
-					</Link>
-					<button
-						type="button"
-						onClick={() => loadInbox()}
-						style={secondaryBtn}
-					>
+				<div className="flex flex-wrap gap-2">
+					<Button asChild variant="outline">
+						<Link href="/admin">Ke Konsol Operasional</Link>
+					</Button>
+					<Button type="button" variant="outline" onClick={() => void inboxList.reload()}>
+						<RefreshCw data-icon="inline-start" aria-hidden="true" />
 						Segarkan Antrean
-					</button>
+					</Button>
 				</div>
 			</header>
 
@@ -977,193 +973,114 @@ export function StaffInboxView({ staffUser }: { staffUser: StaffUser }) {
 				</output>
 			)}
 
+			{/* Queue: filters and the keyset DataTable of conversations */}
+			<section aria-labelledby={`${baseId}-queue-heading`} className="flex flex-col gap-3 rounded-lg border bg-card p-4">
+				<h2 id={`${baseId}-queue-heading`} className="text-base font-semibold">
+					Antrean percakapan
+				</h2>
+				<div className="flex flex-wrap items-end gap-3">
+					<FormField id={`${baseId}-assign`} label="Klaim penugasan">
+						<select
+							id={`${baseId}-assign`}
+							value={assignmentFilter}
+							onChange={(e) => setAssignmentFilter(e.target.value as "unassigned" | "assigned_to_me" | "all")}
+							className={nativeSelectClass}
+						>
+							<option value="unassigned">Belum diklaim</option>
+							<option value="assigned_to_me">Klaim saya</option>
+							<option value="all">Semua percakapan</option>
+						</select>
+					</FormField>
+					<FormField id={`${baseId}-status`} label="Status percakapan">
+						<select id={`${baseId}-status`} value={statusFilter} onChange={(e) => setStatusFilter(e.target.value)} className={nativeSelectClass}>
+							<option value="">Semua status</option>
+							<option value="open">Terbuka</option>
+							<option value="waiting_customer">Menunggu pelanggan</option>
+							<option value="resolved">Selesai</option>
+						</select>
+					</FormField>
+					<FormField id={`${baseId}-prio`} label="Prioritas internal">
+						<select id={`${baseId}-prio`} value={priorityFilter} onChange={(e) => setPriorityFilter(e.target.value)} className={nativeSelectClass}>
+							<option value="">Semua prioritas</option>
+							<option value="high">Tinggi</option>
+							<option value="normal">Normal</option>
+							<option value="low">Rendah</option>
+						</select>
+					</FormField>
+					<label className="flex min-h-9 items-center gap-2 text-sm font-medium">
+						<input
+							type="checkbox"
+							className="size-4 accent-primary"
+							checked={unreadOnly}
+							onChange={(e) => setUnreadOnly(e.target.checked)}
+						/>
+						Hanya yang belum saya baca
+					</label>
+				</div>
+				<DataTable
+					rows={inboxList.rows}
+					rowKey={(item) => item.conversation.id}
+					status={inboxList.status}
+					loadingLabel="Memuat antrean…"
+					empty="Tidak ada percakapan untuk filter ini."
+					caption="Antrean percakapan pelanggan"
+					testId="support-inbox"
+					rowTestId={(item) => `support-inbox-row-${item.conversation.id}`}
+					paging={{ ...inboxList.paging, testId: "support-inbox-more" }}
+					columns={[
+						{
+							id: "conversation",
+							header: "Percakapan",
+							cell: (item) => conversationCell(item),
+						},
+						{
+							id: "status",
+							header: "Status",
+							cell: (item) => <Badge variant="outline">{STATUS_LABELS[item.conversation.status] ?? item.conversation.status}</Badge>,
+						},
+						{
+							id: "assignee",
+							header: "Penanggung jawab",
+							className: "hidden lg:table-cell",
+							cell: (item) => assigneeText(item),
+						},
+						{
+							id: "unread",
+							header: "Belum dibaca",
+							className: "text-right tabular-nums",
+							cell: (item) => item.current_agent_unread_messages,
+						},
+						{
+							id: "open",
+							header: <span className="sr-only">Tindakan</span>,
+							className: "text-right",
+							cell: (item) => openButton(item),
+						},
+					]}
+					card={(item) => (
+						<>
+							<div className="flex flex-wrap items-start justify-between gap-2">
+								{conversationCell(item)}
+								<Badge variant="outline">{STATUS_LABELS[item.conversation.status] ?? item.conversation.status}</Badge>
+							</div>
+							<p className="text-xs text-muted-foreground">
+								{assigneeText(item)} · {item.current_agent_unread_messages} belum dibaca
+							</p>
+							<div>{openButton(item)}</div>
+						</>
+					)}
+				/>
+			</section>
+
 			<div
 				style={{
 					display: "grid",
 					gridTemplateColumns:
-						"repeat(auto-fit, minmax(min(100%, 20rem), 1fr))",
+						"repeat(auto-fit, minmax(min(100%, 22rem), 1fr))",
 					gap: "20px",
 					alignItems: "start",
 				}}
 			>
-				{/* Pane 1: Queue & Triage Filters */}
-				<section
-					aria-label="Filter dan daftar antrean percakapan"
-					style={{
-						border: "1px solid #d8d8df",
-						borderRadius: "8px",
-						padding: "16px",
-						background: "#faf9fc",
-						display: "grid",
-						gap: "12px",
-					}}
-				>
-					<h2 style={{ margin: 0 }}>Filter Antrean</h2>
-					<div style={{ display: "grid", gap: "8px" }}>
-						<label
-							htmlFor={`${baseId}-assign`}
-							style={{ fontWeight: 600, fontSize: "0.85rem" }}
-						>
-							Klaim Penugasan
-						</label>
-						<select
-							id={`${baseId}-assign`}
-							value={assignmentFilter}
-							onChange={(e) => {
-								const v = e.target.value as
-									| "unassigned"
-									| "assigned_to_me"
-									| "all";
-								setAssignmentFilter(v);
-								void loadInbox(v, statusFilter, priorityFilter, unreadOnly);
-							}}
-							style={fieldInput}
-						>
-							<option value="unassigned">Belum Diklaim (unassigned)</option>
-							<option value="assigned_to_me">
-								Klaim Saya (assigned_to_me)
-							</option>
-							<option value="all">Semua Percakapan (all)</option>
-						</select>
-
-						<label
-							htmlFor={`${baseId}-status`}
-							style={{ fontWeight: 600, fontSize: "0.85rem" }}
-						>
-							Status Percakapan
-						</label>
-						<select
-							id={`${baseId}-status`}
-							value={statusFilter}
-							onChange={(e) => {
-								const v = e.target.value;
-								setStatusFilter(v);
-								void loadInbox(assignmentFilter, v, priorityFilter, unreadOnly);
-							}}
-							style={fieldInput}
-						>
-							<option value="">Semua Status</option>
-							<option value="open">Terbuka (open)</option>
-							<option value="waiting_customer">Menunggu Pelanggan</option>
-							<option value="resolved">Selesai (resolved)</option>
-						</select>
-
-						<label
-							htmlFor={`${baseId}-prio`}
-							style={{ fontWeight: 600, fontSize: "0.85rem" }}
-						>
-							Prioritas Internal
-						</label>
-						<select
-							id={`${baseId}-prio`}
-							value={priorityFilter}
-							onChange={(e) => {
-								const v = e.target.value;
-								setPriorityFilter(v);
-								void loadInbox(assignmentFilter, statusFilter, v, unreadOnly);
-							}}
-							style={fieldInput}
-						>
-							<option value="">Semua Prioritas</option>
-							<option value="high">Tinggi (high)</option>
-							<option value="normal">Normal</option>
-							<option value="low">Rendah (low)</option>
-						</select>
-
-						<label
-							style={{
-								display: "flex",
-								alignItems: "center",
-								gap: "8px",
-								minHeight: "44px",
-								fontWeight: 600,
-								fontSize: "0.85rem",
-							}}
-						>
-							<input
-								type="checkbox"
-								checked={unreadOnly}
-								onChange={(e) => {
-									const v = e.target.checked;
-									setUnreadOnly(v);
-									void loadInbox(
-										assignmentFilter,
-										statusFilter,
-										priorityFilter,
-										v,
-									);
-								}}
-								style={{ width: "20px", height: "20px" }}
-							/>
-							Hanya yang belum saya baca
-						</label>
-					</div>
-
-					<h3 style={{ margin: "8px 0 0" }}>
-						Daftar Percakapan ({inbox.length})
-					</h3>
-					{inbox.length === 0 ? (
-						<p style={{ margin: 0, color: "#5b5b63", fontSize: "0.9rem" }}>
-							Tidak ada percakapan untuk filter ini.
-						</p>
-					) : (
-						<ul
-							style={{
-								listStyle: "none",
-								padding: 0,
-								margin: 0,
-								display: "grid",
-								gap: "8px",
-							}}
-						>
-							{inbox.map((item) => {
-								const c = item.conversation;
-								const active = selected?.conversation.id === c.id;
-								return (
-									<li
-										key={c.id}
-										style={{
-											border: active
-												? "2px solid #5b35d5"
-												: "1px solid #d8d8df",
-											borderRadius: "6px",
-											padding: "10px",
-											background: "#fff",
-											display: "grid",
-											gap: "6px",
-										}}
-									>
-										<div
-											style={{
-												display: "flex",
-												flexWrap: "wrap",
-												justifyContent: "space-between",
-												gap: "6px",
-												fontSize: "0.85rem",
-											}}
-										>
-											<strong>#{c.id.slice(0, 8)}</strong>
-											<span>Status: {c.status}</span>
-										</div>
-										<div style={{ fontSize: "0.8rem", color: "#5b5b63" }}>
-											Assignee: {item.assignee_user_id ?? "Belum diklaim"} •
-											Belum dibaca agen ini:{" "}
-											<strong>{item.current_agent_unread_messages}</strong>
-										</div>
-										<button
-											type="button"
-											onClick={() => selectThread(item)}
-											style={secondaryBtn}
-										>
-											Buka Detail
-										</button>
-									</li>
-								);
-							})}
-						</ul>
-					)}
-				</section>
-
 				{/* Pane 2: Active Thread, Public Reply Composer & Separate Internal Note Composer */}
 				<section
 					aria-label="Percakapan aktif dan editor balasan"

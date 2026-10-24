@@ -923,15 +923,18 @@ export async function projectStaffConversation(
 	staffUserId: string,
 ) {
 	const conversation = await projectPublicConversation(tx, row);
-	const [agentRead] = await tx<{ last_read_sequence: number }[]>`
-		select last_read_sequence
-		from app.support_read_position
-		where conversation_id = ${row.id} and participant_scope = ${`user:${staffUserId}`}
+	// S113: the printed order number for the inbox (staff never read the raw order id there).
+	const [facts] = await tx<{ last_read_sequence: number | null; order_number: string | null }[]>`
+		select
+			(select last_read_sequence from app.support_read_position
+			 where conversation_id = ${row.id} and participant_scope = ${`user:${staffUserId}`}) as last_read_sequence,
+			(select number from app.commerce_order where id = ${row.primary_order_id ?? null}::uuid) as order_number
 	`;
-	const currentAgentRead = agentRead?.last_read_sequence ?? 0;
+	const currentAgentRead = facts?.last_read_sequence ?? 0;
 	const unread = Math.max(0, row.public_sequence - currentAgentRead);
 	return {
 		conversation,
+		order_number: facts?.order_number ?? null,
 		assignee_user_id: row.assigned_user_id ?? null,
 		assignment_version: row.revision,
 		current_agent_last_read_sequence: currentAgentRead,

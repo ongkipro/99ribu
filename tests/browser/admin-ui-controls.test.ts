@@ -192,6 +192,7 @@ test("staff inbox: console shell, noindex, claim once per double click, visible 
 	};
 	const item = {
 		conversation,
+		order_number: "99-S113CONTOH",
 		assignee_user_id: null,
 		assignment_version: 3,
 		current_agent_last_read_sequence: 0,
@@ -220,6 +221,8 @@ test("staff inbox: console shell, noindex, claim once per double click, visible 
 		await expect(page.getByRole("link", { name: "Ke Konsol Operasional" })).toHaveAttribute("href", "/admin");
 		await expect(page.locator("main")).toHaveCount(1);
 
+		// S113: the inbox lists the printed order number, never the raw order id.
+		await expect(page.getByTestId("support-inbox").getByText("Pesanan 99-S113CONTOH")).toBeVisible();
 		await page.getByRole("button", { name: "Buka Detail" }).click();
 		// Unclaimed: status/assignment are disabled with the reason; the current status has no button.
 		await expect(page.getByText("Klaim percakapan terlebih dahulu untuk mengubah status atau penugasan.")).toBeVisible();
