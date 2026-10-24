@@ -234,6 +234,14 @@ function ConfirmDialog({ transfer, onClose, onDone }: { transfer: Transfer; onCl
 				: `Transfer ${transfer.order_number} dicatat; status pesanan diperbarui setelah diproses.`,
 		);
 	}
+	// Echo what will be saved: the typed digits as Rupiah, the typed time read as WIB.
+	const amount = /^\d+$/.test(form.amount.trim()) ? Number(form.amount.trim()) : null;
+	const amountHint =
+		amount === null
+			? "Isi angka saja, tanpa titik atau koma."
+			: `${rupiah(amount)}${amount === transfer.expected_amount ? " · sesuai tagihan" : ` · berbeda dari tagihan ${rupiah(transfer.expected_amount)}`}`;
+	const typedTime = form.time ? wibInputToIso(form.time) : null;
+	const timeHint = typedTime ? `Tercatat ${wibDateTime(typedTime)}` : "Tanggal dan jam sesuai mutasi bank, dibaca sebagai WIB.";
 	return (
 		<FormDialog
 			title={`Konfirmasi transfer ${transfer.order_number}`}
@@ -244,8 +252,8 @@ function ConfirmDialog({ transfer, onClose, onDone }: { transfer: Transfer; onCl
 			onClose={onClose}
 			onSubmit={() => void submit()}
 		>
-			<FormField id="transfer-amount" label="Nominal diterima">
-				<Input id="transfer-amount" inputMode="numeric" value={form.amount} onChange={set("amount")} />
+			<FormField id="transfer-amount" label="Nominal diterima" hint={amountHint}>
+				<Input id="transfer-amount" inputMode="numeric" aria-describedby="transfer-amount-hint" value={form.amount} onChange={set("amount")} />
 			</FormField>
 			<FormField id="transfer-reference" label="Referensi mutasi bank">
 				<Input id="transfer-reference" value={form.reference} maxLength={80} onChange={set("reference")} />
@@ -259,8 +267,8 @@ function ConfirmDialog({ transfer, onClose, onDone }: { transfer: Transfer; onCl
 					))}
 				</select>
 			</FormField>
-			<FormField id="transfer-time" label={`Waktu transfer (WIB; batas ${wibDateTime(transfer.expires_at)})`}>
-				<Input id="transfer-time" type="datetime-local" value={form.time} onChange={set("time")} />
+			<FormField id="transfer-time" label={`Waktu transfer (WIB; batas ${wibDateTime(transfer.expires_at)})`} hint={timeHint}>
+				<Input id="transfer-time" type="datetime-local" aria-describedby="transfer-time-hint" value={form.time} onChange={set("time")} />
 			</FormField>
 			<label className="flex min-h-9 items-center gap-2 text-sm">
 				<input type="checkbox" className="size-4 accent-primary" checked={form.late} onChange={(e) => setForm({ ...form, late: e.target.checked })} />
