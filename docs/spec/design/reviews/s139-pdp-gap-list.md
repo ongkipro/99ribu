@@ -46,10 +46,6 @@ Constraints kept: guest cart (ADR-0007; shop.com's signed-in cart is not copied)
 
 Renders: `docs/spec/design/renders/s139/` (default, bundle, multi, oos, unavailable, long at 390 touch / 768 / 1440; 320 at 200% text; buy bar; option switch; thumbnail focus). Executable: `tests/browser/storefront-pdp.test.ts` (overflow ≤1px and zero console/page errors per capture).
 
-Independent visual review (`visual-review.py --reviewer claude`, fresh invocation per round, run in a scratch copy so the S27 `design/review.md` baseline stays byte-identical): round 1 REVISE, round 2 REVISE, round 3 PASS; outputs archived in `design/reviews/s139/review-r{1,2,3}.md`. Gate: `python3 design-gate.py . --design docs/spec/design/reviews/s139-pdp-gap-list.md --review design/reviews/s139/review-r3.md --src "src/app/(storefront)/produk"` → `PASS: 0 failing check(s)`.
-
-Open polish from review 3 (not blocking): cart feedback renders above the quantity and primary (shared `CartMutations` layout, also on `/keranjang`; moving it under the primary is a shared-component change); the sample photo-slot label sits at the top of the slot (fixture products only); the clamp ends with the browser ellipsis rather than a fade.
-
 ## Reference evidence
 
 Accepted project captures of shop.com (structural reference only; brand, imagery and copy are not transferred):
