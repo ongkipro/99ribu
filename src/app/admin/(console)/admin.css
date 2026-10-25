@@ -140,7 +140,7 @@ body :is(button, a, input, select, textarea, summary):focus-visible {
 			[data-slot="dialog-close"],
 			[data-slot="sheet-close"],
 			[data-slot="sheet-trigger"],
-			[data-testid="admin-session-bar"] :is(a, button),
+			[data-slot="dropdown-menu-item"],
 			select,
 			summary
 		) {

@@ -3,27 +3,41 @@
 import {
 	ArrowLeftRight,
 	Banknote,
+	ChevronsUpDown,
 	ExternalLink,
 	Headset,
 	Images,
 	Landmark,
 	LayoutDashboard,
+	LogIn,
+	LogOut,
 	type LucideIcon,
 	MessagesSquare,
 	Package,
 	PackageOpen,
 	Printer,
 	ReceiptText,
+	ShieldCheck,
 	Store,
 	TicketPercent,
 	Truck,
 	Undo2,
+	UserRound,
+	UsersRound,
 	Wallet,
 	Warehouse,
 } from "lucide-react";
 import Link from "next/link";
 import { usePathname, useSearchParams } from "next/navigation";
-import { Suspense, useEffect } from "react";
+import { Suspense, useEffect, useState } from "react";
+import {
+	DropdownMenu,
+	DropdownMenuContent,
+	DropdownMenuItem,
+	DropdownMenuLabel,
+	DropdownMenuSeparator,
+	DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 import { Separator } from "@/components/ui/separator";
 import {
 	Sidebar,
@@ -144,68 +158,232 @@ function ActiveWorkspaceLinks({
 type NavItem = { href: string; label: string; icon: LucideIcon; show: boolean };
 type NavGroup = { label: string; items: NavItem[] };
 
-/** Grouped tool links (S113): active on the screen and its detail pages, current only on the exact page. */
+/**
+ * Spec 17 "Navigation per role": a group with no visible item is not rendered, and a one-item group
+ * joins its neighbour (2026-10-24 render-review rule), keeping the label of the larger group.
+ */
+function visibleGroups(groups: NavGroup[]): NavGroup[] {
+	const out: NavGroup[] = [];
+	for (const group of groups) {
+		const items = group.items.filter((item) => item.show);
+		if (items.length === 0) continue;
+		const prev = out.at(-1);
+		if (prev && (items.length === 1 || prev.items.length === 1)) {
+			if (prev.items.length === 1 && items.length > 1) prev.label = group.label;
+			prev.items.push(...items);
+		} else out.push({ label: group.label, items });
+	}
+	return out;
+}
+
+/** Grouped tool links: active on the screen and its detail pages, current only on the exact page. */
 function ToolGroups({ groups }: { groups: NavGroup[] }) {
 	const pathname = usePathname();
 	const close = useCloseOnNavigate();
-	return groups.map((group) => {
-		const items = group.items.filter((item) => item.show);
-		const matches = (href: string) =>
-			pathname === href || pathname.startsWith(`${href}/`);
-		if (items.length === 0) return null;
-		return (
-			<SidebarGroup key={group.label}>
-				<SidebarGroupLabel>{group.label}</SidebarGroupLabel>
-				<SidebarGroupContent>
-					<SidebarMenu>
-						{items.map(({ href, label, icon: Icon }) => (
-							<SidebarMenuItem key={href}>
-								<SidebarMenuButton
-									asChild
-									// Longest matching href wins (Stok Gudang vs Transfer Stok).
-									isActive={
-										matches(href) &&
-										!items.some(
-											(o) => o.href.length > href.length && matches(o.href),
-										)
-									}
-									tooltip={label}
-								>
-									<Link
-										href={href}
-										aria-current={pathname === href ? "page" : undefined}
-										onClick={close}
-									>
-										<Icon aria-hidden="true" />
-										<span>{label}</span>
-									</Link>
-								</SidebarMenuButton>
-							</SidebarMenuItem>
-						))}
-					</SidebarMenu>
-				</SidebarGroupContent>
-			</SidebarGroup>
+	const matches = (href: string) =>
+		pathname === href || pathname.startsWith(`${href}/`);
+	// Longest matching href wins across groups (Stok Gudang vs Transfer Stok).
+	const active = groups
+		.flatMap((group) => group.items)
+		.filter((item) => matches(item.href))
+		.reduce<string | null>(
+			(best, item) =>
+				best && best.length >= item.href.length ? best : item.href,
+			null,
 		);
-	});
+	return groups.map((group) => (
+		<SidebarGroup key={group.label}>
+			<SidebarGroupLabel>{group.label}</SidebarGroupLabel>
+			<SidebarGroupContent>
+				<SidebarMenu>
+					{group.items.map(({ href, label, icon: Icon }) => (
+						<SidebarMenuItem key={href}>
+							<SidebarMenuButton
+								asChild
+								isActive={href === active}
+								tooltip={label}
+							>
+								<Link
+									href={href}
+									aria-current={pathname === href ? "page" : undefined}
+									onClick={close}
+								>
+									<Icon aria-hidden="true" />
+									<span>{label}</span>
+								</Link>
+							</SidebarMenuButton>
+						</SidebarMenuItem>
+					))}
+				</SidebarMenu>
+			</SidebarGroupContent>
+		</SidebarGroup>
+	));
+}
+
+export type ConsoleAccount = { name: string; email: string } | null;
+
+function initials(name: string, email: string) {
+	const words = name.trim().split(/\s+/).filter(Boolean);
+	const letters =
+		words.length > 1
+			? `${words[0][0]}${words[words.length - 1][0]}`
+			: (words[0] ?? email).slice(0, 2);
+	return letters.toUpperCase();
+}
+
+// Profil and Keamanan akun (S129) stay hidden until their pages exist, like every unbuilt screen.
+const ACCOUNT_PAGES: NavItem[] = [
+	{ href: "/admin/account", label: "Profil", icon: UserRound, show: false },
+	{
+		href: "/admin/account/security",
+		label: "Keamanan akun",
+		icon: ShieldCheck,
+		show: false,
+	},
+];
+
+/** Spec 17 account menu (replaces the session bar): sidebar footer, the last block of the Sheet on phones. */
+function AccountMenu({ account }: { account: ConsoleAccount }) {
+	const { isMobile } = useSidebar();
+	const [signOut, setSignOut] = useState<"idle" | "pending" | "failed">("idle");
+	if (!account)
+		return (
+			// Signed-out preview (local/test only; the production profile redirects to /masuk in the layout).
+			<SidebarMenu data-testid="admin-account">
+				<SidebarMenuItem>
+					<p className="px-2 pb-1 text-xs text-muted-foreground group-data-[collapsible=icon]:sr-only">
+						Pratinjau tanpa sesi staf.
+					</p>
+					<SidebarMenuButton asChild tooltip="Masuk sebagai staf">
+						{/* Full document navigation: the storefront must not inherit the console stylesheet. */}
+						<a href="/masuk?next=%2Fadmin">
+							<LogIn aria-hidden="true" />
+							<span>Masuk sebagai staf</span>
+						</a>
+					</SidebarMenuButton>
+				</SidebarMenuItem>
+				<SidebarMenuItem>
+					<SidebarMenuButton asChild tooltip="Lihat Toko">
+						<a href="/">
+							<ExternalLink aria-hidden="true" />
+							<span>Lihat Toko</span>
+						</a>
+					</SidebarMenuButton>
+				</SidebarMenuItem>
+			</SidebarMenu>
+		);
+	const name = account.name || account.email;
+	async function endSession() {
+		setSignOut("pending");
+		const response = await fetch("/api/auth/sign-out", {
+			method: "POST",
+			headers: { "content-type": "application/json" },
+			body: "{}",
+		}).catch(() => null);
+		if (response?.ok) window.location.assign("/masuk?next=%2Fadmin");
+		else setSignOut("failed");
+	}
+	return (
+		<SidebarMenu data-testid="admin-account">
+			<SidebarMenuItem>
+				<DropdownMenu>
+					<DropdownMenuTrigger asChild>
+						<SidebarMenuButton
+							size="lg"
+							tooltip={account.email}
+							aria-label={`Menu akun ${name}`}
+						>
+							<span
+								aria-hidden="true"
+								className="flex size-8 shrink-0 items-center justify-center rounded-md bg-primary text-xs font-semibold text-primary-foreground"
+							>
+								{initials(account.name, account.email)}
+							</span>
+							<span className="grid min-w-0 flex-1 leading-tight group-data-[collapsible=icon]:hidden">
+								<span className="truncate font-medium">{name}</span>
+								<span className="truncate text-xs text-muted-foreground">
+									{account.email}
+								</span>
+							</span>
+							<ChevronsUpDown
+								aria-hidden="true"
+								className="ml-auto group-data-[collapsible=icon]:hidden"
+							/>
+						</SidebarMenuButton>
+					</DropdownMenuTrigger>
+					<DropdownMenuContent
+						side={isMobile ? "top" : "right"}
+						align="end"
+						sideOffset={6}
+						className="min-w-56"
+					>
+						<DropdownMenuLabel className="grid font-normal">
+							<span className="truncate font-medium text-foreground">
+								{name}
+							</span>
+							<span className="truncate text-xs">{account.email}</span>
+						</DropdownMenuLabel>
+						<DropdownMenuSeparator />
+						{ACCOUNT_PAGES.filter((item) => item.show).map(
+							({ href, label, icon: Icon }) => (
+								<DropdownMenuItem key={href} asChild>
+									<Link href={href}>
+										<Icon aria-hidden="true" />
+										{label}
+									</Link>
+								</DropdownMenuItem>
+							),
+						)}
+						<DropdownMenuItem asChild>
+							{/* Full document navigation: the storefront must not inherit the console stylesheet. */}
+							<a href="/">
+								<ExternalLink aria-hidden="true" />
+								Lihat Toko
+							</a>
+						</DropdownMenuItem>
+						<DropdownMenuSeparator />
+						<DropdownMenuItem
+							data-testid="sign-out-button"
+							disabled={signOut === "pending"}
+							onSelect={(event) => {
+								// Keep the menu open so a failure stays next to the action.
+								event.preventDefault();
+								void endSession();
+							}}
+						>
+							<LogOut aria-hidden="true" />
+							{signOut === "pending" ? "Sedang keluar…" : "Keluar"}
+						</DropdownMenuItem>
+						{/* Inside the menu: a modal menu hides everything outside it from assistive tech. */}
+						{signOut === "failed" && (
+							<p role="alert" className="px-2 py-1.5 text-xs text-destructive">
+								Gagal keluar. Coba lagi.
+							</p>
+						)}
+					</DropdownMenuContent>
+				</DropdownMenu>
+			</SidebarMenuItem>
+		</SidebarMenu>
+	);
 }
 
 export function AdminShell({
 	workspaces,
 	roles,
 	permissions,
+	account,
 	children,
 }: {
 	workspaces: CanonicalWorkspace[];
 	roles: CanonicalWorkspace[];
 	permissions: string[];
+	account: ConsoleAccount;
 	children: React.ReactNode;
 }) {
 	// Same grants the destination pages enforce server-side; this only hides dead ends.
+	// Spec 17 groups and order; a screen that is not built yet has no item until its slice merges.
 	const access = consoleAccess(roles, permissions);
-	const canCatalog = catalogAccess(roles, permissions).read;
-	const canOrders = canReadOrders(roles, permissions);
-	const canReturns = returnAccess(roles, permissions).read;
-	const groups: NavGroup[] = [
+	const groups = visibleGroups([
 		{
 			label: "Operasional",
 			items: [
@@ -213,7 +391,7 @@ export function AdminShell({
 					href: "/admin/orders",
 					label: "Pesanan",
 					icon: ReceiptText,
-					show: canOrders,
+					show: canReadOrders(roles, permissions),
 				},
 				{
 					href: "/admin/fulfillment",
@@ -222,16 +400,16 @@ export function AdminShell({
 					show: access.ship,
 				},
 				{
-					href: "/admin/returns",
-					label: "Retur & Penggantian",
-					icon: Undo2,
-					show: canReturns,
-				},
-				{
 					href: "/admin/print-center",
 					label: "Pusat Cetak Label",
 					icon: Printer,
 					show: access.print,
+				},
+				{
+					href: "/admin/returns",
+					label: "Retur & Penggantian",
+					icon: Undo2,
+					show: returnAccess(roles, permissions).read,
 				},
 				{
 					href: "/admin/support",
@@ -239,12 +417,16 @@ export function AdminShell({
 					icon: MessagesSquare,
 					show: access.support,
 				},
-				// One item never gets its own group (render review): the catalog sits with the daily tools.
+			],
+		},
+		{
+			label: "Katalog & Stok",
+			items: [
 				{
 					href: "/admin/catalog",
-					label: "Katalog",
+					label: "Produk",
 					icon: Package,
-					show: canCatalog,
+					show: catalogAccess(roles, permissions).read,
 				},
 				{
 					href: "/admin/inventory",
@@ -275,6 +457,13 @@ export function AdminShell({
 					icon: Images,
 					show: access.banners,
 				},
+				{
+					href: "/admin/buyer-segments",
+					label: "Segmen Pembeli",
+					icon: UsersRound,
+					// Same rule as the buyer-segments page guard (S126).
+					show: roles.some((r) => r === "owner" || r === "ecommerce_admin"),
+				},
 			],
 		},
 		{
@@ -294,7 +483,9 @@ export function AdminShell({
 				},
 			],
 		},
-	];
+		// Shell only: S130/S135/S136/S137 add the settings items; an empty group is not rendered.
+		{ label: "Pengaturan", items: [] },
+	]);
 
 	return (
 		<TooltipProvider>
@@ -329,17 +520,7 @@ export function AdminShell({
 						</nav>
 					</SidebarContent>
 					<SidebarFooter className="border-t border-sidebar-border">
-						<SidebarMenu>
-							<SidebarMenuItem>
-								<SidebarMenuButton asChild tooltip="Lihat Toko">
-									{/* Full document navigation: the storefront must not inherit the console stylesheet. */}
-									<a href="/">
-										<ExternalLink aria-hidden="true" />
-										<span>Lihat Toko</span>
-									</a>
-								</SidebarMenuButton>
-							</SidebarMenuItem>
-						</SidebarMenu>
+						<AccountMenu account={account} />
 					</SidebarFooter>
 				</Sidebar>
 				<SidebarInset id="main" className="min-w-0">
