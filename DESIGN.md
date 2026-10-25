@@ -59,7 +59,7 @@ Body on storefront, checkout and receipt shells is 16/22 at -0.5px (`body:has(> 
 | Page heading (global `h1`: category, search, cart, help, checkout, receipt, account) | `--page-size/-leading` | 36/38 800 -1px (phones 28/30) |
 | Category/search section heading (`.listing-main h2`, `.categories-main h2`) | `--heading-size/-leading` | 24/26 600 -1px (phones 18/20) |
 | PDP title | `--heading-size` | 24/28 **500** -1px (owner 2026-10-25: medium, so the 600 price leads; shop.com uses 600) |
-| PDP spacing | — | 32px under the store header (24 tablet, 16 phone), gallery sticky at 32px; breadcrumb → title 8px; title → price 12px; photo width follows the viewport height (`100svh − 12.5rem` desktop, `65svh` ≤760px tablet) |
+| PDP spacing | — | 32px under the store header (24 tablet, 16 phone), gallery sticky at 32px; breadcrumb → title 8px; title → price 12px; price 20/24 600 -0.5px (owner 2026-10-25; shop.com 16/22); photo width follows the viewport height (`100svh − 12.5rem` desktop, `65svh` ≤760px tablet) |
 | Section heading (global `h2`, `.shelf-heading`, PDP sections and accordions) | `--title-size/-leading` | 20/22 600 -1px (phones 18/20 -0.5px) |
 | Phone title, sheet title, card headline | `--subtitle-size/-leading` | 18/20 600 -0.5px |
 | Body, inputs, PDP price, card headings (global `h3`) | `--body-size/-leading` | 16/22 400 (headings and price 600) -0.5px |

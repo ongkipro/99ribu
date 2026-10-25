@@ -18,6 +18,10 @@ main.product-detail .buy-head h1 {
 /* Title → price 12px (8px group gap + 4px): shop.com's 36px holds a rating row we do not have. */
 main.product-detail .detail-price {
 	margin-top: 4px;
+	/* Owner 2026-10-25: 20px price under the 24px title (shop.com 16px). */
+	font-size: 1.25rem;
+	line-height: 1.5rem;
+	letter-spacing: -0.5px;
 }
 /* Space under the store header (measured 8px before): 32px desktop like shop.com's section rhythm and
    sticky offset, 24px tablet, 16px phone. */
