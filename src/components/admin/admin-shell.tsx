@@ -353,13 +353,14 @@ function AccountMenu({ account }: { account: ConsoleAccount }) {
 							<LogOut aria-hidden="true" />
 							{signOut === "pending" ? "Sedang keluar…" : "Keluar"}
 						</DropdownMenuItem>
+						{/* Inside the menu: a modal menu hides everything outside it from assistive tech. */}
+						{signOut === "failed" && (
+							<p role="alert" className="px-2 py-1.5 text-xs text-destructive">
+								Gagal keluar. Coba lagi.
+							</p>
+						)}
 					</DropdownMenuContent>
 				</DropdownMenu>
-				{signOut === "failed" && (
-					<p role="alert" className="px-2 pt-1 text-xs text-destructive">
-						Gagal keluar. Coba lagi.
-					</p>
-				)}
 			</SidebarMenuItem>
 		</SidebarMenu>
 	);
