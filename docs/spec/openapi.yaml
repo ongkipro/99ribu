@@ -9550,6 +9550,206 @@ paths:
               $ref: '#/components/schemas/BuyerProfileInput'
       x-proof-group: accounts
       x-implementation: src/app/api/v1/me/profile/route.ts
+  /me/profile-details:
+    get:
+      operationId: getBuyerProfileDetails
+      summary: Read own optional profile details
+      description: "S126/DEC-017. Own signed-in principal only (no user id in the path or body). Optional birthday (day + month, year optional), gender (male, female, undisclosed) and favourite top-level categories, with completion state for the /akun \"Lengkapi profil\" card (main address and WhatsApp come from the address book and profile)."
+      tags:
+      - Identity
+      security:
+      - sessionCookie: []
+      x-contract-status: implemented-local
+      x-domain-owner: access
+      x-primary-requirement: PR-13
+      x-proof-group: buyer-profile
+      x-implementation: src/app/api/v1/me/profile-details/route.ts
+      parameters: []
+      responses:
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '503':
+          $ref: '#/components/responses/Unavailable'
+        default:
+          description: Safe application Problem; a gateway may return non-Problem failure.
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+        '200':
+          description: Private response.
+          headers:
+            Cache-Control:
+              description: Private response; never shared cached.
+              schema:
+                type: string
+                const: no-store
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/BuyerProfileDetails'
+    post:
+      operationId: updateBuyerProfileDetails
+      summary: Replace own optional profile details
+      description: "S126/DEC-017. Full replacement: every field is sent; null or an empty list deletes it. Version-checked (409 PROFILE_VERSION_CONFLICT). Invalid day/month/year combinations or a future date answer 422 INVALID_BIRTHDAY; a full date with a year under 18 years old on the current WIB date answers 422 UNDER_MINIMUM_AGE and stores nothing (DEC-019(b); without a year no age check applies); a category that is not a public top-level department answers 422 CATEGORY_UNAVAILABLE. The audit row names which fields are set, never their values."
+      tags:
+      - Identity
+      security:
+      - sessionCookie: []
+      x-contract-status: implemented-local
+      x-domain-owner: access
+      x-primary-requirement: PR-13
+      x-proof-group: buyer-profile
+      x-implementation: src/app/api/v1/me/profile-details/route.ts
+      parameters:
+      - $ref: '#/components/parameters/IdempotencyKey'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/BuyerProfileDetailsInput'
+      responses:
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '409':
+          $ref: '#/components/responses/Conflict'
+        '422':
+          $ref: '#/components/responses/Unprocessable'
+        '429':
+          $ref: '#/components/responses/TooManyRequests'
+        '503':
+          $ref: '#/components/responses/Unavailable'
+        default:
+          description: Safe application Problem; a gateway may return non-Problem failure.
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+        '201':
+          description: Private response.
+          headers:
+            Cache-Control:
+              description: Private response; never shared cached.
+              schema:
+                type: string
+                const: no-store
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/BuyerProfileDetails'
+  /me/marketing-consents:
+    get:
+      operationId: getBuyerMarketingConsents
+      summary: Read own promo consents
+      description: "S126/DEC-017. Own signed-in principal only. Current state per channel (WhatsApp, email), the policy version a new grant is recorded under, and the latest 20 consent records (grant and withdrawal times)."
+      tags:
+      - Identity
+      security:
+      - sessionCookie: []
+      x-contract-status: implemented-local
+      x-domain-owner: access
+      x-primary-requirement: PR-13
+      x-proof-group: buyer-profile
+      x-implementation: src/app/api/v1/me/marketing-consents/route.ts
+      parameters: []
+      responses:
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '503':
+          $ref: '#/components/responses/Unavailable'
+        default:
+          description: Safe application Problem; a gateway may return non-Problem failure.
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+        '200':
+          description: Private response.
+          headers:
+            Cache-Control:
+              description: Private response; never shared cached.
+              schema:
+                type: string
+                const: no-store
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/MarketingConsents'
+    post:
+      operationId: updateBuyerMarketingConsent
+      summary: Grant or withdraw one promo channel
+      description: "S126/DEC-017. Explicit per-channel consent, never bundled or prefilled. A grant names the policy version the buyer was shown (409 CONSENT_POLICY_CHANGED when it is not current) and needs that contact on the profile (422 CONTACT_REQUIRED); it appends a consent record with source `account`. A withdrawal stamps the active record and is never blocked by a policy change. Granting an already current consent or withdrawing a withdrawn one changes nothing. Changing or clearing the profile contact withdraws that channel. Every call writes an audit row (channel, outcome, policy version; no contact value)."
+      tags:
+      - Identity
+      security:
+      - sessionCookie: []
+      x-contract-status: implemented-local
+      x-domain-owner: access
+      x-primary-requirement: PR-13
+      x-proof-group: buyer-profile
+      x-implementation: src/app/api/v1/me/marketing-consents/route.ts
+      parameters:
+      - $ref: '#/components/parameters/IdempotencyKey'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/MarketingConsentInput'
+      responses:
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '409':
+          $ref: '#/components/responses/Conflict'
+        '422':
+          $ref: '#/components/responses/Unprocessable'
+        '429':
+          $ref: '#/components/responses/TooManyRequests'
+        '503':
+          $ref: '#/components/responses/Unavailable'
+        default:
+          description: Safe application Problem; a gateway may return non-Problem failure.
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+        '201':
+          description: Private response.
+          headers:
+            Cache-Control:
+              description: Private response; never shared cached.
+              schema:
+                type: string
+                const: no-store
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/MarketingConsents'
   /me/addresses:
     get:
       operationId: listBuyerAddresses
@@ -13708,6 +13908,53 @@ paths:
           application/json:
             schema:
               $ref: '#/components/schemas/PromotionInput'
+  /admin/buyer-segments:
+    get:
+      operationId: getBuyerSegments
+      summary: Aggregate buyer segment counts
+      description: "S126/DEC-017. Read-only counts for owner or ecommerce_admin with a current MFA session: buyers per birth month, per favourite category and per opted-in promo channel (active consent with the contact still on the profile), plus the program states (birthday voucher and category promo await S127 terms; doorprize is coming soon with no entry mechanics). No buyer id, contact, birthday or row is returned and there is no export."
+      tags:
+      - Identity
+      security:
+      - sessionCookie: []
+      x-contract-status: implemented-local
+      x-domain-owner: access
+      x-primary-requirement: PR-13
+      x-allowed-roles:
+      - owner
+      - ecommerce_admin
+      x-proof-group: buyer-profile
+      x-implementation: src/app/api/v1/admin/buyer-segments/route.ts
+      parameters: []
+      responses:
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '503':
+          $ref: '#/components/responses/Unavailable'
+        default:
+          description: Safe application Problem; a gateway may return non-Problem failure.
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+        '200':
+          description: Private response.
+          headers:
+            Cache-Control:
+              description: Private response; never shared cached.
+              schema:
+                type: string
+                const: no-store
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/BuyerSegments'
   /admin/home-banners:
     get:
       operationId: listHomeBanners
@@ -20764,6 +21011,240 @@ components:
       - reason
       - recorded_at
       additionalProperties: false
+    BuyerProfileDetails:
+      type: object
+      description: S126/DEC-017 optional profile details of the signed-in buyer. Null means not given.
+      additionalProperties: false
+      required: [version, birth_day, birth_month, birth_year, gender, favourite_category_ids, completion]
+      properties:
+        version:
+          type: integer
+          minimum: 1
+        birth_day:
+          type: [integer, 'null']
+          minimum: 1
+          maximum: 31
+        birth_month:
+          type: [integer, 'null']
+          minimum: 1
+          maximum: 12
+        birth_year:
+          type: [integer, 'null']
+          minimum: 1900
+          maximum: 2100
+        gender:
+          type: [string, 'null']
+          enum: [male, female, undisclosed, null]
+        favourite_category_ids:
+          type: array
+          maxItems: 5
+          uniqueItems: true
+          items:
+            $ref: '#/components/schemas/Id'
+        completion:
+          type: object
+          additionalProperties: false
+          required: [completed, total, fields]
+          properties:
+            completed:
+              type: integer
+              minimum: 0
+              maximum: 5
+            total:
+              type: integer
+              const: 5
+            fields:
+              type: object
+              additionalProperties: false
+              required: [main_address, whatsapp, birthday, gender, favourite_categories]
+              properties:
+                main_address:
+                  type: boolean
+                whatsapp:
+                  type: boolean
+                birthday:
+                  type: boolean
+                gender:
+                  type: boolean
+                favourite_categories:
+                  type: boolean
+    BuyerProfileDetailsInput:
+      type: object
+      description: Full replacement of the optional details; send every field, null (or an empty list) deletes it. Day and month come together; a year needs both.
+      additionalProperties: false
+      required: [expected_version, birth_day, birth_month, birth_year, gender, favourite_category_ids]
+      properties:
+        expected_version:
+          type: integer
+          minimum: 1
+        birth_day:
+          type: [integer, 'null']
+          minimum: 1
+          maximum: 31
+        birth_month:
+          type: [integer, 'null']
+          minimum: 1
+          maximum: 12
+        birth_year:
+          type: [integer, 'null']
+          minimum: 1900
+          maximum: 2100
+        gender:
+          type: [string, 'null']
+          enum: [male, female, undisclosed, null]
+        favourite_category_ids:
+          type: array
+          maxItems: 5
+          uniqueItems: true
+          items:
+            $ref: '#/components/schemas/Id'
+    MarketingConsents:
+      type: object
+      description: Promo consent state of the signed-in buyer per channel, and its latest consent records.
+      additionalProperties: false
+      required: [policy_version, channels, history]
+      properties:
+        policy_version:
+          type: string
+          minLength: 1
+          maxLength: 64
+        channels:
+          type: array
+          minItems: 2
+          maxItems: 2
+          items:
+            type: object
+            additionalProperties: false
+            required: [channel, granted, granted_at, policy_version, contact_available]
+            properties:
+              channel:
+                type: string
+                enum: [whatsapp, email]
+              granted:
+                type: boolean
+              granted_at:
+                type: [string, 'null']
+                format: date-time
+              policy_version:
+                type: [string, 'null']
+                maxLength: 64
+              contact_available:
+                type: boolean
+                description: WhatsApp needs a profile number; email needs the profile email to be the verified account email. A grant without it is 422 CONTACT_REQUIRED.
+        history:
+          type: array
+          maxItems: 20
+          items:
+            type: object
+            additionalProperties: false
+            required: [channel, policy_version, source, granted_at, withdrawn_at]
+            properties:
+              channel:
+                type: string
+                enum: [whatsapp, email]
+              policy_version:
+                type: string
+                maxLength: 64
+              source:
+                type: string
+                enum: [account]
+              granted_at:
+                type: string
+                format: date-time
+              withdrawn_at:
+                type: [string, 'null']
+                format: date-time
+    MarketingConsentInput:
+      type: object
+      description: Grant (granted true, with the policy version shown) or withdraw (granted false) one channel.
+      additionalProperties: false
+      required: [channel, granted]
+      properties:
+        channel:
+          type: string
+          enum: [whatsapp, email]
+        granted:
+          type: boolean
+        policy_version:
+          type: string
+          minLength: 1
+          maxLength: 64
+    BuyerSegments:
+      type: object
+      description: Aggregate counts only; never buyer rows or contacts.
+      additionalProperties: false
+      required: [as_of, profiles, birth_months, favourite_categories, consent_channels, programs]
+      properties:
+        as_of:
+          type: string
+          format: date-time
+        profiles:
+          type: integer
+          minimum: 0
+        birth_months:
+          type: array
+          minItems: 12
+          maxItems: 12
+          items:
+            type: object
+            additionalProperties: false
+            required: [month, count]
+            properties:
+              month:
+                type: integer
+                minimum: 1
+                maximum: 12
+              count:
+                type: integer
+                minimum: 0
+        favourite_categories:
+          type: array
+          maxItems: 50
+          items:
+            type: object
+            additionalProperties: false
+            required: [category_id, name, count]
+            properties:
+              category_id:
+                $ref: '#/components/schemas/Id'
+              name:
+                type: string
+              count:
+                type: integer
+                minimum: 0
+        consent_channels:
+          type: array
+          minItems: 2
+          maxItems: 2
+          items:
+            type: object
+            additionalProperties: false
+            required: [channel, count]
+            properties:
+              channel:
+                type: string
+                enum: [whatsapp, email]
+              count:
+                type: integer
+                minimum: 0
+        programs:
+          type: array
+          items:
+            type: object
+            additionalProperties: false
+            required: [key, status, uses]
+            properties:
+              key:
+                type: string
+                enum: [birthday_voucher, category_promo, doorprize]
+              status:
+                type: string
+                enum: [terms_pending, coming_soon]
+              uses:
+                type: array
+                items:
+                  type: string
+                  enum: [birthday, favourite_categories]
     HomeBannerList:
       type: object
       properties:
@@ -29273,6 +29754,9 @@ x-proof-groups:
   promotions:
     integration: tests/integration/promotion-contract.test.ts
     browser: tests/integration/promotion-http.test.ts
+  buyer-profile:
+    integration: tests/integration/buyer-profile.test.ts
+    browser: tests/browser/buyer-profile.test.ts
   home-banners:
     integration: tests/integration/home-banners.test.ts
     browser: tests/browser/admin-banners.test.ts

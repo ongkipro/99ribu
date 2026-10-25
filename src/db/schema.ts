@@ -1,5 +1,5 @@
 import { sql } from "drizzle-orm";
-import { type AnyPgColumn, bigint, boolean, check, date, foreignKey, index, integer, jsonb, pgSchema, primaryKey, text, timestamp, unique, uniqueIndex, uuid } from "drizzle-orm/pg-core";
+import { type AnyPgColumn, bigint, boolean, check, date, foreignKey, index, integer, jsonb, pgSchema, primaryKey, smallint, text, timestamp, unique, uniqueIndex, uuid } from "drizzle-orm/pg-core";
 
 export const appSchema = pgSchema("app");
 
@@ -1058,7 +1058,23 @@ export const supportChallenge = appSchema.table('support_challenge',{
 
 export const buyerProfile = appSchema.table('buyer_profile',{
  userId:text('user_id').primaryKey().references(()=>user.id,{onDelete:'restrict'}),displayName:text('display_name').notNull(),phone:text('phone'),phoneVerifiedAt:instant('phone_verified_at'),email:text('email'),addressBookRevision:integer('address_book_revision').notNull().default(0),defaultAddressId:uuid('default_address_id'),revision:integer('revision').notNull().default(1),updatedAt:instant('updated_at').notNull().default(sql`clock_timestamp()`),
-});
+ // S126/DEC-017 profile completion: every field optional (null = not given); 'undisclosed' is an explicit answer.
+ birthDay:smallint('birth_day'),birthMonth:smallint('birth_month'),birthYear:smallint('birth_year'),gender:text('gender'),
+ // lazy: top-level category ids validated against the public catalog on write (an array has no FK); a join table if categories ever get deleted.
+ favouriteCategoryIds:uuid('favourite_category_ids').array().notNull().default(sql`ARRAY[]::uuid[]`),detailsRevision:integer('details_revision').notNull().default(1),
+},t=>[
+ check('buyer_profile_birth_check',sql`(${t.birthDay} IS NULL)=(${t.birthMonth} IS NULL) AND (${t.birthYear} IS NULL OR ${t.birthDay} IS NOT NULL) AND (${t.birthMonth} IS NULL OR (${t.birthMonth} between 1 and 12 AND ${t.birthDay} between 1 and CASE WHEN ${t.birthMonth}=2 THEN 29 WHEN ${t.birthMonth} IN (4,6,9,11) THEN 30 ELSE 31 END)) AND (${t.birthYear} IS NULL OR (${t.birthYear} between 1900 and 2100 AND (${t.birthMonth}<>2 OR ${t.birthDay}<>29 OR (${t.birthYear}%4=0 AND (${t.birthYear}%100<>0 OR ${t.birthYear}%400=0)))))`),
+ check('buyer_profile_details_check',sql`(${t.gender} IS NULL OR ${t.gender} IN ('male','female','undisclosed')) AND cardinality(${t.favouriteCategoryIds})<=5 AND array_position(${t.favouriteCategoryIds},NULL) IS NULL AND ${t.detailsRevision}>0`),
+]);
+// S126/DEC-017 promo consent per channel: one row per grant; a withdrawal only stamps withdrawn_at (trigger in 0039).
+// Re-granting appends a new row, so the rows are the audit trail. Deletable only with the account (UU PDP erasure).
+export const marketingConsent = appSchema.table('marketing_consent',{
+ id:uuid('id').primaryKey().defaultRandom(),userId:text('user_id').notNull().references(()=>user.id,{onDelete:'restrict'}),channel:text('channel').notNull(),policyVersion:text('policy_version').notNull(),source:text('source').notNull(),grantedAt:instant('granted_at').notNull().default(sql`clock_timestamp()`),withdrawnAt:instant('withdrawn_at'),
+},t=>[
+ uniqueIndex('marketing_consent_active_unique').on(t.userId,t.channel).where(sql`${t.withdrawnAt} IS NULL`),
+ index('marketing_consent_user_idx').on(t.userId,t.grantedAt),
+ check('marketing_consent_value_check',sql`${t.channel} IN ('whatsapp','email') AND ${t.source} IN ('account') AND char_length(${t.policyVersion}) between 1 and 64 AND (${t.withdrawnAt} IS NULL OR ${t.withdrawnAt}>=${t.grantedAt})`),
+]);
 export const buyerAddress = appSchema.table('buyer_address',{
  id:uuid('id').primaryKey().defaultRandom(),userId:text('user_id').notNull().references(()=>user.id,{onDelete:'restrict'}),label:text('label').notNull(),recipientName:text('recipient_name').notNull(),phone:text('phone').notNull(),street:text('street').notNull(),province:text('province').notNull(),city:text('city').notNull(),district:text('district').notNull(),subdistrict:text('subdistrict').notNull(),postcode:text('postcode').notNull(),destinationCode:text('destination_code').notNull(),rtRw:text('rt_rw'),landmark:text('landmark'),isDefault:boolean('is_default').notNull().default(false),deletedAt:instant('deleted_at'),revision:integer('revision').notNull().default(1),createdAt:instant('created_at').notNull().default(sql`clock_timestamp()`),updatedAt:instant('updated_at').notNull().default(sql`clock_timestamp()`),
 });
