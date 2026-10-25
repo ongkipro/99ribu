@@ -25,14 +25,18 @@
 :root {
 	font-family: Inter, system-ui, sans-serif;
 	color: var(--ink);
-	background: #fff;
+	background: var(--surface);
 	font-synthesis: none;
-	/* Colour */
-	--ink: #18181b;
+	/* Colour (shop.com measured 2026-10-25: text #000, page canvas oklch(.988 0 0), surfaces #fff).
+	   Muted and caption pass WCAG AA on both canvas and surface (4.72/4.84:1 and 4.90/4.93:1). */
+	--ink: #000;
 	--purple: #5b35d5;
 	--purple-hover: #4823b6;
 	--yellow: #f6c945;
-	--muted: #5b5b63;
+	--muted: oklch(0.552 0.026 290.5);
+	--caption: rgba(0, 0, 0, 0.56);
+	--canvas: #fcfcfc;
+	--surface: #fff;
 	--line: #d8d8df;
 	/* shop.com's hairline edge on white surfaces (chips, cards, popovers, banners). */
 	--hairline: rgba(5, 41, 77, 0.1);
@@ -50,13 +54,27 @@
 	--tint-violet: #ede7fd;
 	--tint-teal: #ddf3ef;
 	--tint-slate: #ececef;
-	/* Global type scale (storefront components set their own observed shop.com sizes). */
-	--page-size: 1.75rem;
-	--page-leading: 2.25rem;
-	--section-size: 1.25rem;
-	--section-leading: 1.4;
-	--card-size: 1.125rem;
-	--card-leading: 1.625rem;
+	/* Type scale (shop.com roles measured 2026-10-25; Inter variable stands in for the licensed GT
+	   Standard). Size/leading pairs; tracking -1px from 20px up, -0.5px at 16-18px, -0.2px at 12-14px. */
+	--caption-size: 0.75rem; /* 12/16: card price, captions, field labels, breadcrumb */
+	--caption-leading: 1rem;
+	--small-size: 0.875rem; /* 14/18: card title, chips, secondary text (14/20 in running text) */
+	--small-leading: 1.125rem;
+	--body-size: 1rem; /* 16/22: body, inputs, buttons (16/20) */
+	--body-leading: 1.375rem;
+	--subtitle-size: 1.125rem; /* 18/20: phone section heading, sheet title, card headline */
+	--subtitle-leading: 1.25rem;
+	--title-size: 1.25rem; /* 20/22: section heading (h2), PDP section heading */
+	--title-leading: 1.375rem;
+	--heading-size: 1.5rem; /* 24/26: category section heading; PDP title 24/28 */
+	--heading-leading: 1.625rem;
+	--page-size: 2.25rem; /* 36/38 800: page heading (h1); 28/30 on phones */
+	--page-leading: 2.375rem;
+	--hero-size: 4rem; /* 64/58 800: home hero; 36/38 on phones */
+	--hero-leading: 3.625rem;
+	--tracking-tight: -1px;
+	--tracking-body: -0.5px;
+	--tracking-small: -0.2px;
 	/* Layout: the phone dock height (0 without a dock) and the page gutter. shop.com gutters
 	   (observed 2026-10-23): 16px to 1023px, 32px from 1024px, 48px from 1440px, 64px from
 	   1920px, 96px from 2560px. Content caps at 1250px (owner decision, narrower than
@@ -87,8 +105,10 @@
 @media (max-width: 700px) {
 	:root {
 		--bottom: calc(3.5rem + env(safe-area-inset-bottom, 0px));
-		--page-size: 1.5rem;
-		--page-leading: 2rem;
+		--page-size: 1.75rem;
+		--page-leading: 1.875rem;
+		--title-size: var(--subtitle-size);
+		--title-leading: var(--subtitle-leading);
 	}
 }
 :where(.stock-status, .cart-feedback, .cart-form-error) svg {
@@ -116,26 +136,26 @@ h1,
 h2,
 h3 {
 	font-weight: 600;
-	letter-spacing: normal;
+	letter-spacing: var(--tracking-tight);
 	font-variant-ligatures: none;
 }
 h1 {
 	font-size: var(--page-size);
 	line-height: var(--page-leading);
+	font-weight: 800;
 }
 h2 {
-	font-size: var(--section-size);
-	line-height: var(--section-leading);
+	font-size: var(--title-size);
+	line-height: var(--title-leading);
 }
-h3 {
-	font-size: var(--card-size);
-	line-height: var(--card-leading);
+h3,
+:is(.cart-warning, .cart-line, .cart-feedback) h2 {
+	font-size: var(--body-size);
+	line-height: var(--body-leading);
+	letter-spacing: var(--tracking-body);
 }
-.cart-warning h2,
-.cart-warning h3 {
-	font-size: 1rem;
-	line-height: 1.5;
-	margin-bottom: 6px;
+.cart-warning :is(h2, h3) {
+	margin-bottom: 4px;
 }
 a {
 	color: inherit;
@@ -197,7 +217,7 @@ html {
 	z-index: 20;
 	transform: translateY(-200%);
 	background: #fff;
-	padding: 14px;
+	padding: 16px;
 }
 .skip:focus {
 	clip-path: none;
@@ -220,7 +240,7 @@ html {
 .brand > span:not(.grow) {
 	font-size: 0.56em;
 	font-weight: 800;
-	letter-spacing: -0.02em;
+	letter-spacing: var(--tracking-tight);
 	line-height: 1;
 	margin-left: 1px;
 }
@@ -235,14 +255,14 @@ html {
 	flex: 1;
 	min-width: 0;
 }
-/* shop.com parity R1: near-white storefront canvas, white raised surfaces. */
+/* shop.com parity R1: near-white storefront canvas, white raised surfaces (checkout and receipt stay white). */
 :root:has(body > .store-header),
 body:has(> .store-header) {
-	background: #fafafa;
+	background: var(--canvas);
 }
 .utilities {
 	display: flex;
-	font-size: 0.8rem;
+	font-size: var(--small-size);
 }
 .utilities a {
 	position: relative;
@@ -307,14 +327,14 @@ body:has(> .store-header) {
 	color: #55515f;
 }
 .photo-slot > span {
-	font-size: 0.75rem;
+	font-size: var(--caption-size);
 	line-height: 1.25rem;
 	font-weight: 600;
 	letter-spacing: normal;
 	margin-bottom: 0.5rem;
 }
 .photo-slot small {
-	font-size: 0.75rem;
+	font-size: var(--caption-size);
 	line-height: 1.125rem;
 	color: #64606e;
 }
@@ -333,7 +353,7 @@ body:has(> .store-header) {
 .unavailable {
 	justify-self: start;
 	align-self: start;
-	font-size: 0.75rem;
+	font-size: var(--caption-size);
 	line-height: 1.125rem;
 	margin-top: 8px;
 	padding: 2px 10px;
@@ -343,15 +363,11 @@ body:has(> .store-header) {
 }
 /* R9: brand + note left, labelled link column right (shop.com footer rhythm). */
 .listing-main {
-	padding-top: 36px;
+	padding-top: 40px;
 }
 .listing-main h1 {
-	margin-block: 10px 12px;
+	margin-bottom: 16px;
 	overflow-wrap: anywhere;
-}
-/* shop.com display rhythm: slightly tightened storefront titles. */
-:is(.home-main, .listing-main, .cart-page, .categories-main) :is(h1, h2) {
-	letter-spacing: -0.02em;
 }
 /* R4: filters sit above a full-width result grid (shop.com chip row + sheet). */
 .listing-layout {
@@ -371,14 +387,14 @@ body:has(> .store-header) {
 	border: 1px solid var(--hairline);
 }
 .filters summary {
-	font-size: 0.875rem;
+	font-size: var(--small-size);
 	font-weight: 600;
 	cursor: pointer;
 	min-height: 44px;
 	padding: 8px 16px 8px 20px;
 	border-radius: 9999px;
 	background: #fff;
-	border: 1px solid rgba(24, 24, 27, 0.1);
+	border: 1px solid rgba(0, 0, 0, 0.1);
 	list-style: none;
 	display: flex;
 	align-items: center;
@@ -399,7 +415,7 @@ body:has(> .store-header) {
 }
 .filters form + form {
 	margin-top: 16px;
-	border-top: 1px solid rgba(24, 24, 27, 0.08);
+	border-top: 1px solid rgba(0, 0, 0, 0.08);
 }
 .filter-field {
 	display: grid;
@@ -414,13 +430,13 @@ body:has(> .store-header) {
 	}
 }
 .filters label {
-	font-size: 0.8125rem;
+	font-size: var(--small-size);
 	font-weight: 600;
 }
 .filters select {
 	width: 100%;
 	color: inherit;
-	font-size: 0.875rem;
+	font-size: var(--small-size);
 }
 .filter-actions {
 	display: flex;
@@ -433,16 +449,17 @@ body:has(> .store-header) {
 	display: inline-flex;
 	align-items: center;
 	justify-content: center;
-	min-height: 46px;
+	min-height: 48px;
 	border: 1px solid var(--purple);
 	border-radius: 9999px;
 	background: var(--purple);
 	color: #fff;
-	padding: 11px 20px;
+	padding: 12px 20px;
+	font-size: var(--body-size);
+	line-height: 1.25rem;
 	font-weight: 600;
-	font-size: 0.85rem;
+	letter-spacing: var(--tracking-body);
 	text-align: center;
-	line-height: 1.5;
 }
 .button:hover {
 	text-decoration: none;
@@ -464,7 +481,7 @@ body:has(> .store-header) {
 	cursor: not-allowed;
 }
 .reset-link {
-	font-size: 0.875rem;
+	font-size: var(--small-size);
 	text-decoration: underline;
 	min-height: 44px;
 	display: flex;
@@ -475,7 +492,7 @@ body:has(> .store-header) {
 .filter-actions > .reset-link {
 	padding: 8px 20px;
 	border-radius: 9999px;
-	border: 1px solid rgba(24, 24, 27, 0.16);
+	border: 1px solid rgba(0, 0, 0, 0.16);
 	background: #fff;
 	color: var(--ink);
 	font-weight: 600;
@@ -491,7 +508,6 @@ body:has(> .store-header) {
 	justify-content: center;
 	text-align: center;
 	gap: 16px;
-	line-height: 1.7;
 }
 .empty-state p {
 	max-width: 540px;
@@ -501,17 +517,12 @@ body:has(> .store-header) {
 :where(.empty-state) > .button {
 	margin-top: 24px;
 }
-/* Storefront buttons (observed shop.com typography): 16px weight 600 at -0.5px. */
-:is(.home-main, .listing-main, .product-detail, .cart-page, .help-main, .categories-main, .signin-main, .signin-sheet) .button {
-	font-size: 1rem;
-	letter-spacing: -0.5px;
-}
 .pagination {
 	margin-block: 40px;
 	text-align: center;
 }
 .pagination p {
-	font-size: 0.75rem;
+	font-size: var(--caption-size);
 	color: var(--muted);
 	margin-top: 12px;
 }
@@ -520,7 +531,7 @@ body:has(> .store-header) {
 		scroll-padding-bottom: max(4.25rem, calc(14rem - 25vw));
 	}
 	.header-main {
-		padding-block: 14px;
+		padding-block: 12px;
 	}
 	.brand {
 		font-size: 1.8rem;
@@ -533,7 +544,7 @@ body:has(> .store-header) {
 		max-width: 100%;
 	}
 	.photo-slot {
-		padding: 14px 8px;
+		padding: 12px 8px;
 	}
 	.listing-main {
 		padding-top: 24px;
@@ -549,14 +560,14 @@ body:has(> .store-header) {
 		flex-basis: 100%;
 	}
 	.filters select {
-		font-size: 1rem;
+		font-size: var(--body-size);
 	}
 	.empty-state {
 		padding-block: 40px;
 		min-height: 300px;
 	}
 	.empty-state p {
-		font-size: 0.9rem;
+		font-size: var(--small-size);
 	}
 }
 @media (prefers-reduced-motion: reduce) {
@@ -580,7 +591,7 @@ body:has(> .store-header) {
 	float: left;
 	width: 100%;
 	padding: 0;
-	font-size: 0.8125rem;
+	font-size: var(--small-size);
 	font-weight: 600;
 	margin-bottom: 2px;
 }
@@ -591,10 +602,10 @@ body:has(> .store-header) {
 	min-height: 44px;
 	margin: 0;
 	padding: 4px 16px 4px 12px;
-	border: 1px solid rgba(24, 24, 27, 0.12);
+	border: 1px solid rgba(0, 0, 0, 0.12);
 	border-radius: 9999px;
 	background: #fff;
-	font-size: 0.875rem;
+	font-size: var(--small-size);
 	font-weight: 500;
 	overflow-wrap: anywhere;
 	cursor: pointer;
@@ -641,10 +652,9 @@ body:has(> .store-header) {
 	padding: 6px 12px 6px 16px;
 	border-radius: 9999px;
 	background: #fff;
-	border: 1px solid rgba(24, 24, 27, 0.12);
-	line-height: 1.5;
+	border: 1px solid rgba(0, 0, 0, 0.12);
 	overflow-wrap: anywhere;
-	font-size: 0.875rem;
+	font-size: var(--small-size);
 	font-weight: 500;
 	color: var(--ink);
 }
@@ -668,8 +678,7 @@ body:has(> .store-header) {
 	padding-block: 32px;
 }
 .categories-main > p {
-	font-size: 0.9rem;
-	line-height: 1.7;
+	font-size: var(--small-size);
 	color: var(--muted);
 	margin-block: 12px 28px;
 }
@@ -678,16 +687,12 @@ body:has(> .store-header) {
 	max-width: 45rem;
 }
 .help-main p {
-	font-size: 1rem;
-	line-height: 1.8;
+	font-size: var(--body-size);
 	margin-block: 16px 28px;
-}
-.help-main h1 {
-	letter-spacing: -0.02em;
 }
 .help-main .help-lead {
 	margin-block: 12px 32px;
-	color: #3f3d48;
+	color: var(--muted);
 }
 .help-topics {
 	display: grid;
@@ -698,7 +703,7 @@ body:has(> .store-header) {
 .help-topics > section {
 	background: #fff;
 	border-radius: 20px;
-	padding: 20px clamp(14px, 5vw, 24px);
+	padding: 20px clamp(16px, 5vw, 24px);
 	border: 1px solid var(--hairline);
 	scroll-margin-top: 16px;
 	/* Cards in one row share a height (round 57). */
@@ -708,12 +713,12 @@ body:has(> .store-header) {
 	grid-column: 1 / -1;
 }
 .help-topics h2 {
-	font-size: var(--card-size);
-	line-height: var(--card-leading);
+	font-size: var(--subtitle-size);
+	line-height: var(--subtitle-leading);
+	letter-spacing: var(--tracking-body);
 }
 .help-topics p {
-	font-size: 0.9375rem;
-	line-height: 1.6;
+	font-size: var(--body-size);
 	color: var(--muted);
 	margin-block: 8px 0;
 }
@@ -782,7 +787,7 @@ body:has(> .store-header) {
 
 .cart-count {
 	display: inline-block;
-	font-size: 0.75rem;
+	font-size: var(--caption-size);
 	font-weight: 600;
 	line-height: 1.5;
 	min-width: 1.5em;
@@ -795,14 +800,13 @@ body:has(> .store-header) {
 .cart-mutation label {
 	display: grid;
 	gap: 8px;
-	font-size: 0.85rem;
+	font-size: var(--small-size);
 	font-weight: 600;
 	min-width: 0;
 }
 .cart-advisory {
 	color: var(--muted);
-	font-size: 0.85rem;
-	line-height: 1.7;
+	font-size: var(--small-size);
 }
 .cart-mutation {
 	display: flex;
@@ -813,13 +817,13 @@ body:has(> .store-header) {
 }
 .cart-mutation input[type="number"] {
 	font: inherit;
-	font-size: 1rem;
+	font-size: var(--body-size);
 	color: inherit;
 	background: #fff;
-	border: 1px solid rgba(24, 24, 27, 0.16);
+	border: 1px solid rgba(0, 0, 0, 0.16);
 	border-radius: 9999px;
-	min-height: 46px;
-	padding: 10px 16px;
+	min-height: 48px;
+	padding: 12px 16px;
 	text-align: center;
 	max-width: 100%;
 	width: 7rem;
@@ -845,9 +849,8 @@ body:has(> .store-header) {
 	border-left: 3px solid var(--warning);
 	padding: 12px 16px;
 	background: var(--warning-surface);
-	line-height: 1.7;
 	margin-block: 12px;
-	font-size: 0.85rem;
+	font-size: var(--small-size);
 	overflow-wrap: anywhere;
 }
 /* Standalone UI links (one rule for the role): purple, 600, no underline. */
@@ -858,7 +861,7 @@ body:has(> .store-header) {
 	color: var(--purple);
 	font-weight: 600;
 	line-height: 1.25rem;
-	font-size: 0.875rem;
+	font-size: var(--small-size);
 }
 .cart-page {
 	padding-top: 32px;
@@ -873,7 +876,7 @@ body:has(> .store-header) {
 }
 .cart-heading > a {
 	color: var(--purple);
-	font-size: 0.875rem;
+	font-size: var(--small-size);
 	font-weight: 600;
 	min-height: 44px;
 	display: inline-flex;
@@ -905,15 +908,10 @@ body:has(> .store-header) {
 	flex: 1 1 12rem;
 	display: grid;
 	grid-template-columns: minmax(0, 1fr);
-	gap: 10px;
+	gap: 8px;
 	min-width: 0;
-	line-height: 1.6;
-	font-size: 0.9rem;
+	font-size: var(--small-size);
 	overflow-wrap: anywhere;
-}
-.cart-line h2 {
-	font-size: var(--card-size);
-	line-height: var(--card-leading);
 }
 .cart-line-media {
 	flex: 0 0 8rem;
@@ -921,7 +919,7 @@ body:has(> .store-header) {
 	max-width: 100%;
 }
 .cart-line-media .photo-slot {
-	font-size: 0.65rem;
+	font-size: var(--caption-size);
 	padding: 12px 8px;
 	min-height: 0;
 	aspect-ratio: 1;
@@ -934,9 +932,9 @@ body:has(> .store-header) {
 	height: auto;
 }
 .cart-contents {
-	padding-left: 18px;
+	padding-left: 20px;
 	margin: 0;
-	font-size: 0.85rem;
+	font-size: var(--small-size);
 	/* Same filled bullets as the PDP contents list, also inside the disclosure. */
 	list-style: disc;
 }
@@ -959,13 +957,10 @@ body:has(> .store-header) {
 	background: #fff;
 	border: 1px solid var(--hairline);
 	border-radius: 20px;
-	line-height: 1.7;
 	min-width: 0;
 }
 .cart-summary h2 {
-	font-size: var(--section-size);
-	line-height: var(--section-leading);
-	margin-bottom: 20px;
+	margin-bottom: 16px;
 }
 .cart-summary dl {
 	margin: 0 0 20px;
@@ -977,7 +972,7 @@ body:has(> .store-header) {
 	flex-wrap: wrap;
 	justify-content: space-between;
 	gap: 8px 16px;
-	font-size: 0.85rem;
+	font-size: var(--small-size);
 }
 .cart-summary dd {
 	margin: 0;
@@ -1006,7 +1001,7 @@ body:has(> .store-header) {
 		padding: 20px 16px;
 	}
 	.cart-line {
-		gap: 14px;
+		gap: 12px;
 	}
 	.cart-line-media {
 		flex-basis: 5rem;
@@ -1015,7 +1010,7 @@ body:has(> .store-header) {
 		display: none;
 	}
 	.cart-mutation {
-		gap: 10px;
+		gap: 8px;
 	}
 	.cart-line-actions {
 		grid-column: 1 / -1;
@@ -1040,8 +1035,7 @@ body:has(> .store-header) {
 	display: grid;
 	gap: 16px;
 	max-width: 36rem;
-	font-size: 0.85rem;
-	line-height: 1.7;
+	font-size: var(--small-size);
 }
 
 @media (max-width: 700px) {
@@ -1050,7 +1044,7 @@ body:has(> .store-header) {
 		position: absolute;
 		top: 8px;
 		left: calc(50% + 6px);
-		font-size: 0.75rem;
+		font-size: var(--caption-size);
 		line-height: 1.5;
 		min-width: 1.5em;
 		padding: 0 3px;
@@ -1086,8 +1080,7 @@ body:has(> .store-header) {
 	align-items: start;
 	gap: 8px;
 	flex-basis: 100%;
-	font-size: 0.85rem;
-	line-height: 1.7;
+	font-size: var(--small-size);
 	color: var(--error);
 }
 
@@ -1111,7 +1104,6 @@ body:has(> .store-header) {
 	margin-right: 12px;
 }
 .cart-feedback:not(:empty) {
-	line-height: 1.7;
 	border-left: 3px solid var(--purple);
 	background: #f7f5fd;
 	padding: 16px;
@@ -1121,8 +1113,6 @@ body:has(> .store-header) {
 	display: flex;
 	align-items: start;
 	gap: 8px;
-	font-size: var(--card-size);
-	line-height: var(--card-leading);
 	margin-bottom: 8px;
 }
 .cart-feedback > .button {
@@ -1130,19 +1120,18 @@ body:has(> .store-header) {
 }
 .cart-form-pending {
 	flex-basis: 100%;
-	font-size: 0.85rem;
-	line-height: 1.6;
+	font-size: var(--small-size);
 }
 .cart-mutation input[readonly] {
 	background: #f4f3f7;
-	color: var(--muted);
+	color: var(--caption);
 }
 .contents-label {
-	font-size: 0.85rem;
+	font-size: var(--small-size);
 	font-weight: 600;
 }
 .publication-contents {
-	padding-left: 18px;
+	padding-left: 20px;
 }
 .session-actions {
 	display: grid;
@@ -1224,7 +1213,6 @@ body:has(> .store-header) {
 	align-items: center;
 	gap: 8px;
 	min-height: 44px;
-	line-height: 1.5;
 }
 :where(.checkout-back svg) {
 	width: 20px;
@@ -1233,10 +1221,6 @@ body:has(> .store-header) {
 .checkout-help-link {
 	min-width: 44px;
 	justify-content: center;
-}
-.checkout-wrap .button {
-	font-size: 1rem;
-	letter-spacing: normal;
 }
 .checkout-help-link,
 .checkout-text-button {
@@ -1263,7 +1247,7 @@ body:has(> .store-header) {
 	min-width: 0;
 	background: #f7f7f9;
 	border: 1px solid var(--line);
-	border-radius: 8px;
+	border-radius: 20px;
 }
 .checkout-summary summary {
 	display: flex;
@@ -1273,7 +1257,6 @@ body:has(> .store-header) {
 	padding: 16px;
 	cursor: pointer;
 	list-style: none;
-	line-height: 1.5;
 }
 .checkout-summary summary::-webkit-details-marker {
 	display: none;
@@ -1285,11 +1268,11 @@ body:has(> .store-header) {
 :where(.checkout-summary summary small) {
 	display: block;
 	color: var(--muted);
-	font-size: 0.875rem;
+	font-size: var(--small-size);
 }
 .checkout-summary summary > strong {
-	font-size: var(--card-size);
-	line-height: var(--card-leading);
+	font-size: var(--subtitle-size);
+	line-height: var(--subtitle-leading);
 	white-space: nowrap;
 	font-weight: 600;
 }
@@ -1325,7 +1308,6 @@ body:has(> .store-header) {
 	min-width: 0;
 	padding-bottom: 20px;
 	border-bottom: 1px solid var(--line);
-	line-height: 1.6;
 }
 .checkout-summary-parent {
 	display: flex;
@@ -1347,15 +1329,14 @@ body:has(> .store-header) {
 	color: var(--muted);
 }
 .checkout-content-label {
-	font-size: 0.875rem;
+	font-size: var(--small-size);
 	margin-top: 8px;
 	color: var(--muted);
 }
 .checkout-contents {
 	padding-left: 20px;
 	margin: 4px 0 0;
-	font-size: 0.875rem;
-	line-height: 1.6;
+	font-size: var(--small-size);
 	overflow-wrap: anywhere;
 }
 .checkout-progress {
@@ -1366,8 +1347,7 @@ body:has(> .store-header) {
 	margin: 0 0 24px;
 	padding: 0;
 	color: var(--muted);
-	line-height: 1.6;
-	font-size: 0.875rem;
+	font-size: var(--small-size);
 }
 .checkout-progress [aria-current="step"] {
 	font-weight: 600;
@@ -1384,9 +1364,6 @@ body:has(> .store-header) {
 	display: grid;
 	gap: 20px;
 }
-.checkout-controls > p {
-	line-height: 1.6;
-}
 .checkout-step-notice {
 	margin-bottom: 16px;
 }
@@ -1401,7 +1378,6 @@ body:has(> .store-header) {
 }
 .checkout-field label {
 	font-weight: 500;
-	line-height: 1.5;
 }
 .checkout-field :is(input, select, textarea) {
 	width: 100%;
@@ -1445,12 +1421,10 @@ body:has(> .store-header) {
 }
 .checkout-hint {
 	color: var(--muted);
-	font-size: 0.875rem;
-	line-height: 1.6;
+	font-size: var(--small-size);
 }
 .checkout-field-error {
 	color: var(--error);
-	line-height: 1.6;
 	display: flex;
 	gap: 8px;
 	align-items: start;
@@ -1470,12 +1444,11 @@ body:has(> .store-header) {
 .checkout-feedback {
 	display: flex;
 	align-items: start;
-	gap: 10px;
+	gap: 12px;
 	border-left: 3px solid var(--purple);
 	background: #f7f5fd;
 	padding: 16px;
 	margin-bottom: 20px;
-	line-height: 1.6;
 }
 .checkout-feedback ul {
 	padding-left: 20px;
@@ -1493,7 +1466,7 @@ body:has(> .store-header) {
 }
 .checkout-methods {
 	border: 1px solid var(--line);
-	border-radius: 6px;
+	border-radius: 8px;
 	padding: 16px;
 	min-width: 0;
 }
@@ -1515,7 +1488,6 @@ body:has(> .store-header) {
 	gap: 12px;
 	min-height: 48px;
 	padding-block: 8px;
-	line-height: 1.5;
 }
 .checkout-methods input {
 	flex: none;
@@ -1537,12 +1509,10 @@ body:has(> .store-header) {
 	font: inherit;
 	text-align: left;
 	cursor: pointer;
-	line-height: 1.5;
 }
 .checkout-address-review {
 	display: grid;
 	gap: 8px;
-	line-height: 1.6;
 	overflow-wrap: anywhere;
 }
 .checkout-choices {
@@ -1557,7 +1527,6 @@ body:has(> .store-header) {
 	padding: 0;
 	margin: 0 0 8px;
 	font-weight: 500;
-	line-height: 1.5;
 }
 .checkout-choices label {
 	min-height: 44px;
@@ -1566,8 +1535,7 @@ body:has(> .store-header) {
 	gap: 12px;
 	padding: 12px;
 	border: 1px solid var(--line);
-	border-radius: 6px;
-	line-height: 1.6;
+	border-radius: 8px;
 	min-width: 0;
 	cursor: pointer;
 }
@@ -1603,7 +1571,7 @@ body:has(> .store-header) {
 	padding: 16px;
 	margin: 0;
 	min-width: 0;
-	border-radius: 6px;
+	border-radius: 8px;
 	display: grid;
 	gap: 12px;
 }
@@ -1611,7 +1579,6 @@ body:has(> .store-header) {
 	padding-inline: 4px;
 	margin-inline-start: 12px;
 	font-weight: 600;
-	line-height: 1.6;
 	max-width: 100%;
 }
 .checkout-parcel > ul {
@@ -1623,14 +1590,12 @@ body:has(> .store-header) {
 }
 .checkout-parcel > ul > li > span {
 	display: block;
-	line-height: 1.6;
 	color: var(--muted);
 }
 .checkout-charges {
 	display: grid;
 	gap: 12px;
 	margin: 16px 0;
-	line-height: 1.6;
 }
 :where(.checkout-charges > div) {
 	display: flex;
@@ -1660,10 +1625,7 @@ body:has(> .store-header) {
 }
 .checkout-actions .button {
 	width: 100%;
-	min-height: 48px;
 	white-space: normal;
-	text-align: center;
-	line-height: 1.5;
 }
 .checkout-help {
 	border-top: 1px solid var(--line);
@@ -1685,7 +1647,6 @@ body:has(> .store-header) {
 	cursor: pointer;
 	min-height: 48px;
 	padding-block: 12px;
-	line-height: 1.6;
 	font-weight: 500;
 }
 .checkout-help summary::-webkit-details-marker {
@@ -1711,7 +1672,6 @@ body:has(> .store-header) {
 }
 .checkout-help details p {
 	padding-bottom: 16px;
-	line-height: 1.6;
 	color: var(--muted);
 }
 .checkout-recovery > .checkout-help {
@@ -1740,8 +1700,7 @@ body:has(> .store-header) {
 	padding-block: 32px;
 	margin-top: 32px;
 	border-top: 1px solid var(--line);
-	font-size: 0.875rem;
-	line-height: 1.6;
+	font-size: var(--small-size);
 	color: var(--muted);
 }
 .checkout-footer nav {
@@ -1762,7 +1721,6 @@ body:has(> .store-header) {
 	gap: 20px;
 	padding-block: 40px;
 	max-width: 40rem;
-	line-height: 1.6;
 }
 .checkout-payment-wrap {
 	max-width: calc(40rem + 48px);
@@ -1773,7 +1731,6 @@ body:has(> .store-header) {
 	padding-top: 32px;
 	display: grid;
 	gap: 20px;
-	line-height: 1.6;
 	overflow-wrap: anywhere;
 }
 .checkout-layout > .checkout-recovery {
@@ -1814,7 +1771,6 @@ body:has(> .store-header) {
 	align-items: start;
 	gap: 12px;
 	padding: 16px;
-	line-height: 1.6;
 }
 .checkout-payment .checkout-charges {
 	margin: 0;
@@ -1828,13 +1784,12 @@ body:has(> .store-header) {
 .checkout-payment-instructions {
 	padding: 16px;
 	border: 1px solid var(--line);
-	border-radius: 6px;
+	border-radius: 8px;
 }
 .checkout-payment-action > .button,
 .checkout-status-refresh {
 	justify-self: start;
 	white-space: normal;
-	line-height: 1.5;
 }
 .checkout-allocation details > summary {
 	min-height: 44px;
@@ -1843,7 +1798,6 @@ body:has(> .store-header) {
 	color: var(--purple);
 	text-decoration: underline;
 	text-underline-offset: 3px;
-	line-height: 1.6;
 }
 .checkout-allocation details > div {
 	display: grid;
@@ -2050,16 +2004,8 @@ body:has(> .store-header) {
 	min-width: 0;
 	overflow-wrap: anywhere;
 }
-.receipt-header h1 {
-	font-size: clamp(1.625rem, 2.6vw, 2.125rem);
-	line-height: 1.18;
-	font-weight: 700;
-	letter-spacing: -0.01em;
-	color: var(--ink);
-}
 .receipt-lead {
 	color: var(--muted);
-	line-height: 1.6;
 	max-width: 42rem;
 	margin: 0;
 }
@@ -2088,18 +2034,18 @@ body:has(> .store-header) {
 	column-gap: 12px;
 	row-gap: 4px;
 	align-items: baseline;
-	font-size: 0.875rem;
+	font-size: var(--small-size);
 }
 .receipt-header .checkout-order-reference strong {
 	white-space: nowrap;
 	overflow-wrap: normal;
 	word-break: normal;
-	font-size: 1rem;
-	font-weight: 700;
+	font-size: var(--body-size);
+	font-weight: 600;
 	color: var(--ink);
 	font-variant-numeric: normal;
 	font-feature-settings: "tnum" 0;
-	letter-spacing: -0.02em;
+	letter-spacing: var(--tracking-tight);
 }
 .receipt-layout {
 	display: grid;
@@ -2119,7 +2065,6 @@ body:has(> .store-header) {
 	padding-bottom: 24px;
 	border-bottom: 1px solid var(--line);
 	min-width: 0;
-	line-height: 1.6;
 	overflow-wrap: anywhere;
 }
 .receipt-status-card .receipt-desktop-total {
@@ -2170,8 +2115,8 @@ body:has(> .store-header) {
 	order: 2;
 }
 :where(.receipt-summary-card summary > strong) {
-	font-size: 1.125rem;
-	font-weight: 700;
+	font-size: var(--subtitle-size);
+	font-weight: 600;
 	color: var(--ink);
 }
 :where(.receipt-summary-card .summary-chevron svg) {
@@ -2236,13 +2181,13 @@ body:has(> .store-header) {
 	gap: 8px 12px;
 	background: #f7f6fa;
 	border: 1px solid var(--line);
-	border-radius: 6px;
-	padding: 10px 14px;
+	border-radius: 8px;
+	padding: 12px 16px;
 }
 .receipt-code-value {
-	font-size: 1.25rem;
+	font-size: var(--title-size);
 	line-height: 1.3;
-	font-weight: 700;
+	font-weight: 600;
 	letter-spacing: 0.04em;
 	color: var(--ink);
 }
@@ -2252,19 +2197,19 @@ body:has(> .store-header) {
 	justify-content: center;
 	min-height: 36px;
 	padding: 6px 12px;
-	font-size: 0.8125rem;
+	font-size: var(--small-size);
 	line-height: 1.2;
 	font-weight: 600;
 	color: #3f3d48;
 	background: #fff;
 	border: 1px solid #c9c7d3;
-	border-radius: 6px;
+	border-radius: 8px;
 	cursor: pointer;
 }
 .receipt-copy-manual {
 	flex-basis: 100%;
 	margin: 0;
-	font-size: 0.8125rem;
+	font-size: var(--small-size);
 	line-height: 1.4;
 	color: #55515f;
 }
@@ -2276,7 +2221,7 @@ body:has(> .store-header) {
 	padding: 16px 20px;
 	display: grid;
 	grid-template-columns: minmax(0, 1fr);
-	gap: 14px;
+	gap: 16px;
 	min-width: 0;
 }
 .receipt-cod-panel[data-settled="true"] {
@@ -2289,10 +2234,10 @@ body:has(> .store-header) {
 	grid-template-columns: minmax(0, 1fr);
 	gap: 2px;
 	padding-bottom: 12px;
-	border-bottom: 1px solid rgba(24, 24, 27, 0.12);
+	border-bottom: 1px solid rgba(0, 0, 0, 0.12);
 }
 :where(.receipt-cod-hero > span) {
-	font-size: 0.875rem;
+	font-size: var(--small-size);
 	line-height: 1.4;
 	font-weight: 600;
 	color: var(--ink);
@@ -2301,11 +2246,11 @@ body:has(> .store-header) {
 	font-size: clamp(1.875rem, 3.2vw, 2.5rem);
 	line-height: 1.12;
 	font-weight: 800;
-	letter-spacing: -0.025em;
+	letter-spacing: var(--tracking-tight);
 	color: var(--ink);
 }
 :where(.receipt-cod-hero > small) {
-	font-size: 0.875rem;
+	font-size: var(--small-size);
 	line-height: 1.45;
 	color: #3f3d48;
 	font-weight: 500;
@@ -2316,7 +2261,7 @@ body:has(> .store-header) {
 :where(.receipt-cod-summary dt small) {
 	display: block;
 	font-weight: 500;
-	font-size: 0.875rem;
+	font-size: var(--small-size);
 	color: #3f3d48;
 }
 :where(
@@ -2359,7 +2304,7 @@ body:has(> .store-header) {
 		> [data-collected="false"]
 		dd
 ) {
-	font-weight: 650;
+	font-weight: 600;
 	color: var(--ink);
 }
 .receipt-refresh-row {
@@ -2383,7 +2328,7 @@ body:has(> .store-header) {
 	margin: 0;
 	min-height: 44px;
 	padding-block: 6px;
-	font-size: 0.9375rem;
+	font-size: var(--body-size);
 	font-weight: 600;
 }
 :where(.receipt-parcels > .checkout-parcels) {
@@ -2392,8 +2337,7 @@ body:has(> .store-header) {
 }
 .receipt-parcel {
 	grid-template-columns: minmax(0, 1fr);
-	gap: 10px;
-	line-height: 1.6;
+	gap: 12px;
 	overflow-wrap: anywhere;
 }
 .receipt-parcel-head {
@@ -2405,8 +2349,6 @@ body:has(> .store-header) {
 	min-width: 0;
 }
 :where(.receipt-parcel-head h3) {
-	font-size: var(--card-size);
-	line-height: var(--card-leading);
 	margin: 0;
 	min-width: 0;
 }
@@ -2414,8 +2356,8 @@ body:has(> .store-header) {
 	display: inline-flex;
 	align-items: center;
 	padding: 3px 10px;
-	border-radius: 6px;
-	font-size: 0.8125rem;
+	border-radius: 8px;
+	font-size: var(--small-size);
 	line-height: 1.4;
 	font-weight: 600;
 	background: #efedf4;
@@ -2444,7 +2386,7 @@ body:has(> .store-header) {
 	display: grid;
 	grid-template-columns: minmax(0, 1fr);
 	gap: 8px;
-	font-size: 0.9375rem;
+	font-size: var(--body-size);
 	color: var(--ink);
 	font-weight: 600;
 	min-width: 0;
@@ -2459,9 +2401,8 @@ body:has(> .store-header) {
 }
 .receipt-carrier {
 	margin: 0;
-	line-height: 1.6;
 	color: var(--muted);
-	font-size: 0.875rem;
+	font-size: var(--small-size);
 }
 :where(.receipt-carrier strong) {
 	color: var(--ink);
@@ -2469,14 +2410,13 @@ body:has(> .store-header) {
 }
 .receipt-tracking {
 	margin: 0;
-	line-height: 1.5;
 	display: grid;
 	grid-template-columns: minmax(0, 1fr);
 	gap: 2px;
 }
 :where(.receipt-tracking > small) {
 	color: var(--muted);
-	font-size: 0.875rem;
+	font-size: var(--small-size);
 }
 .receipt-timeline {
 	list-style: none;
@@ -2485,7 +2425,7 @@ body:has(> .store-header) {
 	border-left: 2px solid var(--line);
 	display: grid;
 	grid-template-columns: minmax(0, 1fr);
-	gap: 10px;
+	gap: 12px;
 	min-width: 0;
 }
 :where(.receipt-timeline li) {
@@ -2530,7 +2470,6 @@ body:has(> .store-header) {
 }
 :where(.receipt-timeline strong) {
 	font-weight: 600;
-	line-height: 1.5;
 	color: var(--ink);
 }
 :where(.receipt-timeline li[data-state="current"] strong) {
@@ -2545,13 +2484,13 @@ body:has(> .store-header) {
 	color: #3f3d48;
 }
 .receipt-step-tag {
-	font-size: 0.75rem;
+	font-size: var(--caption-size);
 	line-height: 1.4;
 	padding: 1px 8px;
-	border-radius: 6px;
+	border-radius: 8px;
 	font-weight: 500;
 	background: #f1f0f4;
-	color: var(--muted);
+	color: var(--caption);
 	white-space: nowrap;
 }
 :where(.receipt-timeline li[data-state="done"] .receipt-step-tag) {
@@ -2564,15 +2503,14 @@ body:has(> .store-header) {
 }
 :where(.receipt-timeline li[data-state="cancelled"] .receipt-step-tag) {
 	background: #efedf4;
-	color: var(--muted);
+	color: var(--caption);
 }
 :where(.receipt-timeline > li > span) {
 	color: #524f5c;
-	font-size: 0.875rem;
-	line-height: 1.5;
+	font-size: var(--small-size);
 }
 :where(.receipt-parcel .checkout-charges) {
-	font-size: 0.9375rem;
+	font-size: var(--body-size);
 	margin: 4px 0 0;
 	gap: 8px;
 }
@@ -2582,23 +2520,20 @@ body:has(> .store-header) {
 :where(.receipt-cod-parcel-total dt small) {
 	display: block;
 	font-weight: 400;
-	font-size: 0.875rem;
+	font-size: var(--small-size);
 	color: var(--muted);
 }
 .receipt-card {
 	border: 1px solid var(--line);
-	border-radius: 8px;
+	border-radius: 20px;
 	padding: 20px;
 	display: grid;
 	grid-template-columns: minmax(0, 1fr);
-	gap: 14px;
+	gap: 16px;
 	min-width: 0;
-	line-height: 1.6;
 	overflow-wrap: anywhere;
 }
 :where(.receipt-card h2) {
-	font-size: var(--section-size);
-	line-height: var(--section-leading);
 	margin: 0;
 }
 .receipt-summary-card .checkout-summary-body {
@@ -2684,7 +2619,7 @@ body:has(> .store-header) {
 	margin: 0;
 	display: grid;
 	grid-template-columns: minmax(0, 1fr);
-	gap: 10px;
+	gap: 12px;
 	min-width: 0;
 }
 :where(.receipt-returns-list > div) {
@@ -2695,7 +2630,7 @@ body:has(> .store-header) {
 }
 :where(.receipt-returns-list dt) {
 	color: var(--muted);
-	font-size: 0.875rem;
+	font-size: var(--small-size);
 }
 :where(.receipt-returns-list dd) {
 	margin: 0;
@@ -2721,7 +2656,7 @@ body:has(> .store-header) {
 }
 :where(.receipt-address-list dt) {
 	color: var(--muted);
-	font-size: 0.875rem;
+	font-size: var(--small-size);
 }
 :where(.receipt-address-list dd) {
 	margin: 0;
@@ -2912,13 +2847,12 @@ body:has(> .store-header) {
 .notice-panel {
 	max-width: 44rem;
 	border: 1px solid var(--line);
-	border-radius: 8px;
+	border-radius: 20px;
 	background: #fff;
 	padding: 28px;
 	display: grid;
 	grid-template-columns: minmax(0, 1fr);
-	gap: 14px;
-	line-height: 1.7;
+	gap: 16px;
 }
 :where(.notice-panel p) {
 	color: var(--muted);
@@ -2931,71 +2865,52 @@ body:has(> .store-header) {
 	gap: 12px;
 	margin-top: 8px;
 }
-.buyer-account-workspace,
-.print-center-workspace {
+.buyer-account-workspace {
 	display: grid;
 	grid-template-columns: minmax(0, 1fr);
 	gap: 24px;
 	padding-block: 24px 48px;
 	min-width: 0;
 }
-:where(.buyer-account-workspace form, .print-center-workspace form) {
+:where(.buyer-account-workspace form) {
 	display: grid;
 	grid-template-columns: minmax(0, 1fr);
-	gap: 14px;
+	gap: 16px;
 	margin-top: 8px;
 	min-width: 0;
 }
-:where(.buyer-account-workspace label, .print-center-workspace label) {
+:where(.buyer-account-workspace label) {
 	display: grid;
 	grid-template-columns: minmax(0, 1fr);
 	gap: 6px;
-	font-size: 0.875rem;
+	font-size: var(--small-size);
 	font-weight: 600;
-	color: inherit;
+	letter-spacing: var(--tracking-small);
 	min-width: 0;
 }
-:where(
-		.buyer-account-workspace label:has(> input[type="checkbox"]),
-		.print-center-workspace label:has(> input[type="checkbox"])
-	) {
+:where(.buyer-account-workspace label:has(> input[type="checkbox"])) {
 	display: flex;
 	align-items: center;
-	gap: 10px;
+	gap: 8px;
 	min-height: 44px;
 	font-weight: 500;
 }
-:where(
-		.buyer-account-workspace input[type="checkbox"],
-		.print-center-workspace input[type="checkbox"]
-	) {
+:where(.buyer-account-workspace input[type="checkbox"]) {
 	width: 20px;
 	height: 20px;
 	accent-color: var(--purple);
 	flex-shrink: 0;
 }
-:where(
-		.buyer-account-workspace
-			:is(input:not([type="checkbox"]):not([type="radio"]), select, textarea),
-		.print-center-workspace
-			:is(input:not([type="checkbox"]):not([type="radio"]), select, textarea)
-	) {
+/* Size and fill only: the shared field look (edge, 12px radius, 44px) comes from the interaction contract. */
+:where(.buyer-account-workspace :is(input:not([type="checkbox"]):not([type="radio"]), select, textarea)) {
 	width: 100%;
 	min-width: 0;
-	min-height: 46px;
-	border: 1px solid var(--field-border);
-	border-radius: 6px;
 	padding: 10px 12px;
-	background: #fff;
 	color: inherit;
 	font: inherit;
 	font-weight: 400;
-	line-height: 1.5;
 }
-:where(
-		.buyer-account-workspace form > .button,
-		.print-center-workspace form > .button
-	) {
+:where(.buyer-account-workspace form > .button) {
 	justify-self: start;
 }
 .affiliate-workspace {
@@ -3013,7 +2928,7 @@ body:has(> .store-header) {
 }
 .affiliate-eligible-card {
 	border: 1px solid #d9d0fb;
-	border-radius: 8px;
+	border-radius: 20px;
 	background: #f4f0ff;
 	padding: 24px;
 	display: grid;
@@ -3023,14 +2938,14 @@ body:has(> .store-header) {
 .affiliate-eligible-amount {
 	font-size: clamp(1.75rem, 3vw, 2.25rem);
 	line-height: 1.15;
-	font-weight: 700;
-	letter-spacing: -0.02em;
+	font-weight: 600;
+	letter-spacing: var(--tracking-tight);
 	color: inherit;
 	font-variant-numeric: tabular-nums;
 }
 .affiliate-card {
 	border: 1px solid var(--line);
-	border-radius: 8px;
+	border-radius: 20px;
 	background: #fff;
 	padding: 24px;
 	display: grid;
@@ -3056,12 +2971,12 @@ body:has(> .store-header) {
 	background: #f4f0ff;
 }
 :where(.affiliate-balance-item span) {
-	font-size: 0.8125rem;
-	color: var(--muted);
+	font-size: var(--small-size);
+	color: var(--caption);
 }
 :where(.affiliate-balance-item strong) {
-	font-size: 1.125rem;
-	font-weight: 700;
+	font-size: var(--subtitle-size);
+	font-weight: 600;
 	font-variant-numeric: tabular-nums;
 }
 .affiliate-copy-box {
@@ -3069,13 +2984,13 @@ body:has(> .store-header) {
 	flex-wrap: wrap;
 	align-items: center;
 	justify-content: space-between;
-	gap: 10px 12px;
-	padding: 10px 12px;
+	gap: 8px 12px;
+	padding: 12px;
 	border: 1px solid var(--line);
-	border-radius: 6px;
+	border-radius: 8px;
 	background: #f7f6fa;
 	font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
-	font-size: 0.8125rem;
+	font-size: var(--small-size);
 	word-break: break-all;
 }
 @media (max-width: 900px) {
@@ -3087,7 +3002,7 @@ body:has(> .store-header) {
 	.notice-panel,
 	.affiliate-card,
 	.affiliate-eligible-card {
-		padding: 18px;
+		padding: 20px;
 	}
 }
 /* shop.com parity R6/R7: full-width 52px primary pill (Add to cart, checkout).
@@ -3096,20 +3011,19 @@ body:has(> .store-header) {
 	width: 100%;
 	min-height: 52px;
 	margin-top: 12px;
-	font-size: 1rem;
 }
 
 /* Cart line: one emphasised line total with its basis; the remove action
    aligns to the quantity column; the summary link gets breathing room. */
 :where(.line-total > strong) {
 	display: block;
-	font-size: 1.125rem;
+	font-size: var(--subtitle-size);
 	line-height: 1.5rem;
-	font-weight: 700;
+	font-weight: 600;
 }
 :where(.line-total > span) {
 	color: var(--muted);
-	font-size: 0.875rem;
+	font-size: var(--small-size);
 }
 .cart-line-actions .button.quiet {
 	padding-inline: 4px 12px;
@@ -3154,15 +3068,15 @@ body:has(> .store-header) {
 	font-size: 2rem;
 	line-height: 2.2rem;
 	font-weight: 800;
-	letter-spacing: -0.5px;
+	letter-spacing: var(--tracking-body);
 	overflow-wrap: anywhere;
 }
 .signin-lead {
 	margin: 8px 0 0;
 	color: var(--muted);
-	font-size: 1rem;
-	line-height: 1.375rem;
-	letter-spacing: -0.5px;
+	font-size: var(--body-size);
+	line-height: var(--body-leading);
+	letter-spacing: var(--tracking-body);
 }
 .signin-field {
 	display: grid;
@@ -3174,10 +3088,10 @@ body:has(> .store-header) {
 	margin-top: 24px;
 }
 :where(.signin-field label) {
-	font-size: 0.75rem;
-	line-height: 1rem;
+	font-size: var(--caption-size);
+	line-height: var(--caption-leading);
 	font-weight: 600;
-	letter-spacing: -0.2px;
+	letter-spacing: var(--tracking-small);
 }
 .signin-card .signin-field input {
 	box-sizing: border-box;
@@ -3191,9 +3105,9 @@ body:has(> .store-header) {
 		0 2px 4px rgba(0, 0, 0, 0.02),
 		0 6px 16px rgba(0, 0, 0, 0.04);
 	color: inherit;
-	font-size: 1rem;
-	line-height: 1.375rem;
-	letter-spacing: -0.5px;
+	font-size: var(--body-size);
+	line-height: var(--body-leading);
+	letter-spacing: var(--tracking-body);
 }
 .signin-card .signin-field input[aria-invalid="true"] {
 	border-color: var(--error);
@@ -3202,9 +3116,9 @@ body:has(> .store-header) {
 	margin: 0;
 	padding-inline: 16px;
 	color: var(--muted);
-	font-size: 0.75rem;
-	line-height: 1rem;
-	letter-spacing: -0.2px;
+	font-size: var(--caption-size);
+	line-height: var(--caption-leading);
+	letter-spacing: var(--tracking-small);
 }
 .signin-alert {
 	display: flex;
@@ -3214,7 +3128,7 @@ body:has(> .store-header) {
 	padding-inline: 16px;
 	border-radius: 8px;
 	color: var(--error);
-	font-size: 0.875rem;
+	font-size: var(--small-size);
 	line-height: 1.25rem;
 	text-align: left;
 }
@@ -3237,9 +3151,9 @@ body:has(> .store-header) {
 .signin-hint {
 	margin: 16px 0 0;
 	color: var(--muted);
-	font-size: 0.75rem;
-	line-height: 1rem;
-	letter-spacing: -0.2px;
+	font-size: var(--caption-size);
+	line-height: var(--caption-leading);
+	letter-spacing: var(--tracking-small);
 }
 /* A link inside the footnote is prose: it keeps its underline (WCAG 1.4.1). */
 .signin-hint a {
@@ -3257,10 +3171,10 @@ body:has(> .store-header) {
 	align-items: center;
 	min-height: 44px;
 	color: var(--purple);
-	font-size: 0.875rem;
+	font-size: var(--small-size);
 	line-height: 1.25rem;
 	font-weight: 600;
-	letter-spacing: -0.2px;
+	letter-spacing: var(--tracking-small);
 }
 .signin-links a:hover {
 	color: var(--purple-hover);
@@ -3288,10 +3202,10 @@ body:has(> .store-header) {
 	padding-inline: 12px;
 	border-radius: 9999px;
 	color: var(--muted);
-	font-size: 1rem;
+	font-size: var(--body-size);
 	line-height: 1.25rem;
 	font-weight: 600;
-	letter-spacing: -0.5px;
+	letter-spacing: var(--tracking-body);
 	transition:
 		color 150ms cubic-bezier(0.4, 0, 0.2, 1),
 		background-color 150ms cubic-bezier(0.4, 0, 0.2, 1),
@@ -3382,7 +3296,7 @@ body:has(> .store-header) {
 	gap: 6px;
 	margin: 16px 0 0;
 	padding-inline: 16px;
-	font-size: 0.875rem;
+	font-size: var(--small-size);
 	line-height: 1.25rem;
 	text-align: left;
 }
@@ -3477,7 +3391,7 @@ html:has(.signin-sheet[open]) {
 :where(.contents-more > summary) {
 	/* Block flow keeps the chevron right after the label even when it wraps. */
 	display: block;
-	padding-block: 10px;
+	padding-block: 12px;
 	min-height: 44px;
 	cursor: pointer;
 	list-style: none;
@@ -3529,8 +3443,8 @@ html:has(.signin-sheet[open]) {
 	padding: 6px 16px;
 	border-radius: 9999px;
 	background: #fff;
-	border: 1px solid rgba(24, 24, 27, 0.1);
-	font-size: 0.875rem;
+	border: 1px solid rgba(0, 0, 0, 0.1);
+	font-size: var(--small-size);
 	font-weight: 600;
 	overflow-wrap: anywhere;
 }
@@ -3608,7 +3522,7 @@ html:has(.signin-sheet[open]) {
 :where(body:has(> .store-header, > .checkout-header, > .receipt-shell) select) {
 	appearance: none;
 	padding: 10px 40px 10px 14px;
-	background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='16' height='16' viewBox='0 0 24 24' fill='none' stroke='%2318181b' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='m6 9 6 6 6-6'/%3E%3C/svg%3E");
+	background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='16' height='16' viewBox='0 0 24 24' fill='none' stroke='%23000' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='m6 9 6 6 6-6'/%3E%3C/svg%3E");
 	background-repeat: no-repeat;
 	background-position: right 14px center;
 	background-size: 16px;
@@ -3621,7 +3535,7 @@ html:has(.signin-sheet[open]) {
 :where(body:has(> .store-header, > .checkout-header, > .receipt-shell)) :is(select, textarea, input:not([type="checkbox"], [type="radio"], [type="hidden"], [type="search"])):focus {
 	outline: none;
 	border-color: var(--ink);
-	box-shadow: 0 0 0 3px rgba(24, 24, 27, 0.12);
+	box-shadow: 0 0 0 3px rgba(0, 0, 0, 0.12);
 }
 :where(body:has(> .store-header, > .checkout-header, > .receipt-shell)) :is(select, textarea, input):is([aria-invalid="true"]):focus {
 	border-color: var(--error);
@@ -3706,23 +3620,29 @@ html:has(.signin-sheet[open]) {
    shop.com sets GT Standard (Grilli Type, a commercial licence), so it is not
    copied or hotlinked. The closest open-licence grotesque already self-hosted
    here is Inter (SIL OFL, public/fonts/inter-4.1), and the observed metrics are
-   matched 1:1: size, weight, line-height and tracking. Storefront shells only. */
-body:has(> .store-header) {
+   matched 1:1: size, weight, line-height and tracking. Storefront, checkout and receipt shells
+   (S143): body 16/22 at -0.5px; text inherits the 22/16 ratio unless a role sets its own leading. */
+body:has(> .store-header, > .checkout-header, > .receipt-shell) {
 	line-height: 1.375;
-	letter-spacing: -0.5px;
+	letter-spacing: var(--tracking-body);
 }
-/* Section headings: 20/22 weight 600 at -1px; 18/20 at -0.5px on phones. */
-.home-main .shelf-heading {
-	font-size: 1.25rem;
-	line-height: 1.375rem;
-	font-weight: 600;
-	letter-spacing: -1px;
+/* Section headings (the global h2: 20/22 600 -1px) take 18/20 at -0.5px on phones. */
+@media (max-width: 700px) {
+	h2,
+	.product-detail .product-policy summary {
+		letter-spacing: var(--tracking-body);
+	}
+}
+/* Category and search section headings: 24/26 600 -1px (the 18/20 phone title on phones). */
+/* biome-ignore lint/style/noDescendingSpecificity: listing headings, not the cart feedback heading. */
+:is(.listing-main, .categories-main) h2 {
+	font-size: var(--heading-size);
+	line-height: var(--heading-leading);
 }
 @media (max-width: 700px) {
-	.home-main .shelf-heading {
-		font-size: 1.125rem;
-		line-height: 1.25rem;
-		letter-spacing: -0.5px;
+	:is(.listing-main, .categories-main) h2 {
+		font-size: var(--title-size);
+		line-height: var(--title-leading);
 	}
 }
 
@@ -3764,10 +3684,10 @@ body:has(> .store-header) {
 	padding-inline-end: 12px;
 	border-radius: 9999px;
 	color: var(--ink);
-	font-size: 1rem;
+	font-size: var(--body-size);
 	line-height: 1.25rem;
 	font-weight: 600;
-	letter-spacing: -0.5px;
+	letter-spacing: var(--tracking-body);
 	white-space: nowrap;
 }
 .store-header .category-pills a:hover {
@@ -3887,7 +3807,7 @@ body:has(> .store-header) {
 	left: 10px;
 	height: var(--field);
 	padding-inline: 10px;
-	color: #6b6b73;
+	color: var(--muted);
 	stroke-width: 2.67;
 	pointer-events: none;
 }
@@ -3912,13 +3832,13 @@ body:has(> .store-header) {
 	height: var(--field);
 	padding: 0 54px 0 46px;
 	color: var(--ink);
-	font-size: 1rem;
-	line-height: 1.375rem;
-	letter-spacing: -0.5px;
+	font-size: var(--body-size);
+	line-height: var(--body-leading);
+	letter-spacing: var(--tracking-body);
 	text-overflow: ellipsis;
 }
 #site-search::placeholder {
-	color: #6b6b73;
+	color: var(--muted);
 }
 /* No native clear glyph (a blue UA "x" beside the submit arrow); Escape and select-all still clear. */
 #site-search::-webkit-search-cancel-button,
@@ -4015,8 +3935,8 @@ body:has(> .store-header) {
 .omnibox-caption {
 	margin: 4px 0 8px;
 	color: rgba(0, 0, 0, 0.56);
-	font-size: 0.75rem;
-	line-height: 1rem;
+	font-size: var(--caption-size);
+	line-height: var(--caption-leading);
 	font-weight: 500;
 }
 /* Suggestions are wrapping chips (owner's shop.com open-state DOM): w-fit, rounded-max, a 4% dark
@@ -4034,8 +3954,8 @@ body:has(> .store-header) {
 	padding: 0 16px;
 	border-radius: 9999px;
 	background: rgba(0, 0, 0, 0.04);
-	font-size: 0.875rem;
-	line-height: 1.125rem;
+	font-size: var(--small-size);
+	line-height: var(--small-leading);
 	cursor: pointer;
 }
 :where(.omnibox-panel [role="option"] span) {
@@ -4132,13 +4052,13 @@ body:has(> .store-header) {
 	font-size: 6rem;
 	line-height: 6rem;
 	font-weight: 800;
-	letter-spacing: -1px;
+	letter-spacing: var(--tracking-tight);
 	white-space: nowrap;
 	cursor: pointer;
 	transition: color 300ms cubic-bezier(0.16, 1, 0.3, 1);
 }
 .switcher-row > :is(a, button):hover {
-	color: #5b5b63;
+	color: var(--muted);
 	text-decoration: none;
 }
 .switcher-row > :is([aria-selected="true"], [aria-current]) {
@@ -4249,14 +4169,14 @@ body:has(> .store-header) {
 .product-link:hover .product-frame .product-image {
 	scale: 1.05;
 }
-/* Title (shop.com bodyTitleSmall): 14/18 weight 600 at -0.2px on one line. Price: 12/16 at
-   regular weight in full ink (owner call 2026-10-24: price not bold), 2px below. */
+/* Title (shop.com bodyTitleSmall): 14/18 weight 600 at -0.2px on one line. Price (captionBold):
+   12/16 600 in full ink, 2px below (S143 2026-10-25 restores shop.com's weight). */
 .product-grid .product h3,
 .shelf-row .product h3 {
-	font-size: 0.875rem;
-	line-height: 1.125rem;
+	font-size: var(--small-size);
+	line-height: var(--small-leading);
 	font-weight: 600;
-	letter-spacing: -0.2px;
+	letter-spacing: var(--tracking-small);
 	margin: 8px 0 0;
 	padding-left: 4px;
 	white-space: nowrap;
@@ -4266,10 +4186,10 @@ body:has(> .store-header) {
 }
 .product-grid .product-price,
 .shelf-row .product-price {
-	font-size: 0.75rem;
-	line-height: 1rem;
-	font-weight: 400;
-	letter-spacing: -0.2px;
+	font-size: var(--caption-size);
+	line-height: var(--caption-leading);
+	font-weight: 600;
+	letter-spacing: var(--tracking-small);
 	color: var(--ink);
 	margin-top: 2px;
 }
@@ -4295,14 +4215,15 @@ body:has(> .store-header) {
 	}
 }
 
-/* Search and category grid (shop.com: 1/2, sm 1/3, md 1/4, lg 1/6; 8px gaps, 16px from md). */
+/* Search and category grid (shop.com: 1/2, sm 1/3, md 1/4, lg 1/6; 8px gaps, 16px from md, 32px from lg). */
 .product-grid {
 	grid-template-columns: repeat(6, minmax(0, 1fr));
-	gap: 16px;
+	gap: 32px;
 }
 @media (max-width: 1023px) {
 	.product-grid {
 		grid-template-columns: repeat(4, minmax(0, 1fr));
+		gap: 16px;
 	}
 }
 @media (max-width: 767px) {
@@ -4499,7 +4420,7 @@ body:has(> .store-header) {
 	overflow: hidden;
 	border-radius: 20px;
 	background: #fff;
-	box-shadow: 0 12px 32px rgba(24, 24, 27, 0.16);
+	box-shadow: 0 12px 32px rgba(0, 0, 0, 0.16);
 	rotate: var(--tilt);
 	animation: hero-drift var(--time) ease-in-out var(--delay) infinite alternate;
 }
@@ -4549,8 +4470,8 @@ body:has(> .store-header) {
 	/* The top padding keeps the photo band clear above the copy on phones. */
 	padding: 236px 16px 16px;
 	/* Scrim: the copy area is near-opaque canvas, so ink text keeps >= 4.5:1 over any photo. */
-	background: linear-gradient(to top, rgba(250, 250, 250, 0.96) 0, rgba(250, 250, 250, 0.92) 50%, rgba(250, 250, 250, 0) 58%);
-	color: #000;
+	background: linear-gradient(to top, rgba(252, 252, 252, 0.96) 0, rgba(252, 252, 252, 0.92) 50%, rgba(252, 252, 252, 0) 58%);
+	color: var(--ink);
 }
 .hero-copy h1 {
 	margin: 0;
@@ -4558,16 +4479,14 @@ body:has(> .store-header) {
 	   and the leading follows the size (36/38 at the default). */
 	font-size: min(2.25rem, 12.5vw);
 	line-height: 1.055;
-	font-weight: 800;
-	letter-spacing: -1px;
 }
 .hero-price {
 	white-space: nowrap;
 }
 .home-hero .hero-copy p {
 	margin: 0;
-	font-size: 1rem;
-	line-height: 1.375rem;
+	font-size: var(--body-size);
+	line-height: var(--body-leading);
 	text-wrap: balance;
 }
 .hero-actions {
@@ -4584,10 +4503,10 @@ body:has(> .store-header) {
 	min-height: 44px;
 	padding: 12px;
 	border-radius: 9999px;
-	font-size: 1rem;
+	font-size: var(--body-size);
 	line-height: 1.25rem;
 	font-weight: 600;
-	letter-spacing: -0.5px;
+	letter-spacing: var(--tracking-body);
 	text-align: center;
 	transition: scale 150ms ease-out;
 }
@@ -4630,11 +4549,11 @@ body:has(> .store-header) {
 		justify-content: flex-end;
 		gap: 24px;
 		padding: 32px;
-		background: linear-gradient(to right, rgba(250, 250, 250, 0.94) 0, rgba(250, 250, 250, 0.86) 60%, rgba(250, 250, 250, 0) 100%);
+		background: linear-gradient(to right, rgba(252, 252, 252, 0.94) 0, rgba(252, 252, 252, 0.86) 60%, rgba(252, 252, 252, 0) 100%);
 	}
 	.hero-copy h1 {
-		font-size: 4rem;
-		line-height: 3.625rem;
+		font-size: var(--hero-size);
+		line-height: var(--hero-leading);
 	}
 	.hero-actions {
 		display: flex;
@@ -4740,10 +4659,10 @@ body:has(> .store-header) {
 	/* The label owns everything left of the photo card (plus a 12px gap) at every size. */
 	max-width: calc(100% - var(--art) - 12px);
 	text-wrap: balance;
-	font-size: 0.875rem;
-	line-height: 1.125rem;
+	font-size: var(--small-size);
+	line-height: var(--small-leading);
 	font-weight: 600;
-	letter-spacing: -0.2px;
+	letter-spacing: var(--tracking-small);
 }
 .category-tile-art {
 	position: absolute;
@@ -4755,7 +4674,7 @@ body:has(> .store-header) {
 	overflow: hidden;
 	border-radius: 12px;
 	background: #fff;
-	box-shadow: 0 4px 12px rgba(24, 24, 27, 0.12);
+	box-shadow: 0 4px 12px rgba(0, 0, 0, 0.12);
 	translate: 0 -50%;
 	rotate: -6deg;
 }
@@ -4784,9 +4703,9 @@ body:has(> .store-header) {
 		padding-inline: 16px;
 	}
 	.category-tile-label {
-		font-size: 1rem;
-		line-height: 1.375rem;
-		letter-spacing: -0.5px;
+		font-size: var(--body-size);
+		line-height: var(--body-leading);
+		letter-spacing: var(--tracking-body);
 	}
 }
 @media (min-width: 1024px) {
@@ -4836,10 +4755,10 @@ body:has(> .store-header) {
 	margin: 12px 0 0;
 	max-width: 30rem;
 	text-wrap: pretty;
-	font-size: 0.875rem;
-	line-height: 1.125rem;
-	letter-spacing: -0.2px;
-	color: #6b6b73;
+	font-size: var(--small-size);
+	line-height: var(--small-leading);
+	letter-spacing: var(--tracking-small);
+	color: var(--muted);
 }
 .footer-menus {
 	display: grid;
@@ -4848,10 +4767,10 @@ body:has(> .store-header) {
 }
 .store-footer .footer-menus h2 {
 	margin: 0 0 4px;
-	font-size: 0.875rem;
-	line-height: 1.125rem;
+	font-size: var(--small-size);
+	line-height: var(--small-leading);
 	font-weight: 500;
-	letter-spacing: -0.2px;
+	letter-spacing: var(--tracking-small);
 	color: var(--ink);
 }
 .store-footer ul {
@@ -4864,9 +4783,9 @@ body:has(> .store-header) {
 	display: inline-flex;
 	align-items: center;
 	min-height: 30px;
-	font-size: 1rem;
+	font-size: var(--body-size);
 	line-height: 1.125rem;
-	letter-spacing: -0.5px;
+	letter-spacing: var(--tracking-body);
 	color: var(--ink);
 }
 .store-footer .footer-menus a:hover,
@@ -4884,9 +4803,9 @@ body:has(> .store-header) {
 }
 .store-footer .footer-bottom > p {
 	margin: 0;
-	font-size: 0.875rem;
-	line-height: 1.125rem;
-	color: #6b6b73;
+	font-size: var(--small-size);
+	line-height: var(--small-leading);
+	color: var(--muted);
 }
 .footer-legal ul {
 	display: flex;
@@ -4924,7 +4843,7 @@ body:has(> .store-header) {
 
 /* ===== /promo (round 21): page heading, two sections, promotion terms as quiet cards. ===== */
 .promo-main {
-	padding-top: 36px;
+	padding-top: 40px;
 }
 .promo-main h1 {
 	margin: 0;
@@ -4934,14 +4853,14 @@ body:has(> .store-header) {
 }
 .promo-main .promo-section > h2 {
 	margin: 0 0 12px;
-	font-size: 1.25rem;
-	line-height: 1.375rem;
+	font-size: var(--title-size);
+	line-height: var(--title-leading);
 	font-weight: 600;
-	letter-spacing: -1px;
+	letter-spacing: var(--tracking-tight);
 }
 .promo-main .promo-section > p {
 	margin: 0 0 16px;
-	color: #5b5b63;
+	color: var(--muted);
 }
 .promo-list {
 	list-style: none;
@@ -4959,24 +4878,24 @@ body:has(> .store-header) {
 }
 .promo-main .promo-list h3 {
 	margin: 0 0 8px;
-	font-size: 1rem;
-	line-height: 1.375rem;
+	font-size: var(--body-size);
+	line-height: var(--body-leading);
 	font-weight: 600;
 }
 .promo-main .promo-list p {
 	margin: 4px 0 0;
-	font-size: 0.875rem;
+	font-size: var(--small-size);
 	line-height: 1.25rem;
-	color: #3f3d48;
+	color: var(--muted);
 }
 @media (max-width: 700px) {
 	.promo-main {
 		padding-top: 24px;
 	}
 	.promo-main .promo-section > h2 {
-		font-size: 1.125rem;
-		line-height: 1.25rem;
-		letter-spacing: -0.5px;
+		font-size: var(--subtitle-size);
+		line-height: var(--subtitle-leading);
+		letter-spacing: var(--tracking-body);
 	}
 }
 
@@ -5107,10 +5026,10 @@ body:has(> .store-header) {
 	box-shadow: 0 2px 8px rgba(0, 0, 0, 0.06);
 	color: var(--ink);
 	font: inherit;
-	font-size: 0.875rem;
+	font-size: var(--small-size);
 	line-height: 1rem;
 	font-weight: 600;
-	letter-spacing: -0.2px;
+	letter-spacing: var(--tracking-small);
 	text-align: start;
 	white-space: normal;
 	cursor: pointer;
@@ -5161,9 +5080,9 @@ body:has(> .store-header) {
 	min-height: 44px;
 	padding: 0 8px;
 	color: var(--ink);
-	font-size: 0.875rem;
+	font-size: var(--small-size);
 	font-weight: 600;
-	letter-spacing: -0.2px;
+	letter-spacing: var(--tracking-small);
 	text-decoration: underline;
 	text-underline-offset: 3px;
 	white-space: nowrap;
@@ -5222,9 +5141,9 @@ body:has(> .store-header) {
 	padding: 6px 6px 6px 8px;
 	border-radius: 16px;
 	color: inherit;
-	font-size: 1rem;
-	line-height: 1.375rem;
-	letter-spacing: -0.5px;
+	font-size: var(--body-size);
+	line-height: var(--body-leading);
+	letter-spacing: var(--tracking-body);
 	outline: none;
 	cursor: pointer;
 }
@@ -5259,7 +5178,7 @@ body:has(> .store-header) {
 .filter-pop[data-multi] .filter-radio {
 	display: grid;
 	place-items: center;
-	border-radius: 6px;
+	border-radius: 8px;
 	color: #fff;
 }
 .filter-pop[data-multi] .filter-option[aria-current] .filter-radio {
@@ -5286,10 +5205,10 @@ body:has(> .store-header) {
 	border: 0;
 	border-radius: 9999px;
 	font: inherit;
-	font-size: 1rem;
+	font-size: var(--body-size);
 	line-height: 1.25rem;
 	font-weight: 600;
-	letter-spacing: -0.5px;
+	letter-spacing: var(--tracking-body);
 	text-decoration: none;
 	cursor: pointer;
 }
@@ -5346,10 +5265,10 @@ body:has(> .store-header) {
 }
 .filter-pop-title {
 	margin: 0;
-	font-size: 1.125rem;
-	line-height: 1.25rem;
+	font-size: var(--subtitle-size);
+	line-height: var(--subtitle-leading);
 	font-weight: 600;
-	letter-spacing: -0.5px;
+	letter-spacing: var(--tracking-body);
 }
 .filter-pop-close {
 	display: grid;
@@ -5391,11 +5310,12 @@ body:has(> .store-header) {
 .listing-grid {
 	display: grid;
 	grid-template-columns: repeat(6, minmax(0, 1fr));
-	gap: 16px;
+	gap: 32px;
 }
 @media (max-width: 1023px) {
 	.listing-grid {
 		grid-template-columns: repeat(4, minmax(0, 1fr));
+		gap: 16px;
 	}
 }
 @media (max-width: 767px) {
@@ -5426,7 +5346,7 @@ body:has(> .store-header) {
 .listing-results .listing-end p {
 	margin-bottom: 12px;
 	color: var(--muted);
-	font-size: 0.875rem;
+	font-size: var(--small-size);
 }
 .listing-skeleton .product-frame {
 	background: #efedf3;
@@ -5492,9 +5412,9 @@ body:has(> .store-header) {
 	box-shadow: 0 2px 8px rgba(0, 0, 0, 0.06);
 	color: var(--ink);
 	font: inherit;
-	font-size: 1rem;
+	font-size: var(--body-size);
 	font-weight: 600;
-	letter-spacing: -0.5px;
+	letter-spacing: var(--tracking-body);
 	cursor: pointer;
 }
 .listing-more-button:hover {
@@ -5581,12 +5501,12 @@ body:has(> .store-header) {
 }
 .home-main .home-banners .banner-caption strong {
 	font-weight: 600;
-	letter-spacing: -0.5px;
+	letter-spacing: var(--tracking-body);
 }
 .home-main .home-banners .banner-caption > span:not(.banner-action) {
-	font-size: 1rem;
-	line-height: 1.375rem;
-	color: #3f3d48;
+	font-size: var(--body-size);
+	line-height: var(--body-leading);
+	color: var(--muted);
 }
 .home-main .home-banners .banner-action {
 	align-self: end;
@@ -5595,12 +5515,12 @@ body:has(> .store-header) {
 	gap: 6px;
 	min-height: 44px;
 	margin-top: 8px;
-	padding: 8px 18px 8px 20px;
+	padding: 8px 16px 8px 20px;
 	background: var(--ink);
 	color: #fff;
-	font-size: 1rem;
+	font-size: var(--body-size);
 	font-weight: 600;
-	letter-spacing: -0.5px;
+	letter-spacing: var(--tracking-body);
 	max-width: 100%;
 	white-space: normal;
 	overflow-wrap: break-word;
@@ -5717,7 +5637,7 @@ body:has(> .store-header) {
 }
 /* The rail heading (20px) outranks the card titles (18px). */
 .home-main .home-banners .banner-card .banner-caption strong {
-	font-size: 1.125rem;
+	font-size: var(--subtitle-size);
 	line-height: 1.375rem;
 }
 /* Round 57 (review 56). Storefront secondary buttons are the
@@ -5734,10 +5654,10 @@ body:has(> .store-header) {
 }
 
 /* ===== Product page (shop.com PDP observed 2026-10-24, S111 phase 2b; DESIGN.md "Product page") =====
-   Desktop: a wide media column (48px thumbnail strip + one scrolling row of 28px-radius white photo
+   Desktop: a wide media column (48px thumbnail strip + one scrolling row of 20px-radius white photo
    cards with round 44px previous/next buttons, sticky while the buy box scrolls) beside a ~464px buy
-   box: category line, title 24/28 600 -1px, price 16/22 600, field labels 12/16 600, option pills,
-   a 40px quantity pill, the 52px primary pill, then 52px accordions (18/20 600) between hairlines.
+   box: breadcrumb, title 24/28 600 -1px, price 16/22 600, field labels 12/16 600, option pills,
+   a 40px quantity pill, the 52px primary pill, then 52px accordions (20/22 600 -1px) between hairlines.
    Phones: the photo row bleeds to the screen edge with the next photo peeking; the buy box follows. */
 .product-detail {
 	padding-top: 8px;
@@ -5768,20 +5688,6 @@ body:has(> .store-header) {
 	margin: 0;
 	padding: 0;
 	list-style: none;
-}
-.product-detail .gallery-thumbs button {
-	display: block;
-	width: 48px;
-	height: 48px;
-	padding: 0;
-	overflow: hidden;
-	border: 0;
-	border-radius: 8px;
-	background: #fff;
-	box-shadow: inset 0 0 0 1px var(--hairline);
-}
-.product-detail .gallery-thumbs button[aria-current] {
-	box-shadow: inset 0 0 0 2px #121212;
 }
 /* biome-ignore lint/style/noDescendingSpecificity: PDP-only elements; the earlier selector styles other elements. */
 .product-detail .gallery-thumbs img {
@@ -5823,7 +5729,7 @@ body:has(> .store-header) {
 	height: auto;
 	aspect-ratio: 1;
 	object-fit: contain;
-	border-radius: 28px;
+	border-radius: 20px;
 	background: #fff;
 	box-shadow: 0 2px 8px rgba(0, 0, 0, 0.06);
 }
@@ -5849,131 +5755,84 @@ body:has(> .store-header) {
 .product-detail .product-media figcaption {
 	padding-block: 12px;
 	color: var(--muted);
-	font-size: 0.875rem;
-	line-height: 1.125rem;
-	letter-spacing: -0.2px;
+	font-size: var(--small-size);
+	line-height: var(--small-leading);
+	letter-spacing: var(--tracking-small);
 }
 
 .product-detail .buy-box {
 	display: grid;
-	gap: 16px;
+	gap: 24px;
 	min-width: 0;
 	padding-top: 8px;
 }
 .product-detail .buy-box > * {
 	min-width: 0;
 }
-.product-detail .product-category {
+/* Breadcrumb (S143): "Beranda › <Kategori>", 12/16 500 in the caption ink, the last crumb in ink, a
+   14px chevron (aria-hidden) kept with the crumb after it so a wrapped line never ends on it. Each link
+   keeps a 44px target while the row takes one 16px line (the negative block margin). */
+.breadcrumb ol {
 	display: flex;
 	flex-wrap: wrap;
 	align-items: center;
-	gap: 0 8px;
-	margin-bottom: -12px;
-	color: var(--muted);
-	font-size: 0.875rem;
-	line-height: 1.125rem;
-	letter-spacing: -0.2px;
+	gap: 0 4px;
+	margin: 0;
+	padding: 0;
+	list-style: none;
+	color: var(--caption);
+	font-size: var(--caption-size);
+	line-height: var(--caption-leading);
+	font-weight: 500;
+	letter-spacing: var(--tracking-small);
 }
-.product-detail .product-category a {
+/* biome-ignore lint/style/noDescendingSpecificity: breadcrumb-only elements; the earlier selectors style other elements. */
+.breadcrumb li {
+	display: inline-flex;
+	align-items: center;
+	gap: 4px;
+	min-width: 0;
+}
+/* biome-ignore lint/style/noDescendingSpecificity: breadcrumb-only elements; the earlier selectors style other elements. */
+.breadcrumb a {
 	display: inline-flex;
 	align-items: center;
 	min-height: 44px;
+	margin-block: -14px;
+	overflow-wrap: anywhere;
 }
-.product-detail .product-category a:last-child {
+.breadcrumb li:last-child a {
 	color: var(--ink);
-	font-weight: 600;
 }
-.product-detail .product-category a:hover {
+/* biome-ignore lint/style/noDescendingSpecificity: breadcrumb-only elements; the earlier selectors style other elements. */
+.breadcrumb a:hover {
 	color: var(--purple);
+}
+:where(.breadcrumb svg) {
+	flex: none;
+	width: 14px;
+	height: 14px;
 }
 .product-detail .buy-box h1 {
 	margin: 0;
-	font-size: 1.5rem;
+	font-size: var(--heading-size);
 	line-height: 1.75rem;
-	letter-spacing: -1px;
+	font-weight: 600;
 	overflow-wrap: anywhere;
 }
 .product-detail .detail-price {
-	font-size: 1rem;
-	line-height: 1.375rem;
+	font-size: var(--body-size);
+	line-height: var(--body-leading);
 	font-weight: 600;
-	letter-spacing: -0.5px;
-}
-.product-detail .detail-price small {
-	display: inline-block;
-	color: var(--muted);
-	font-size: 0.75rem;
-	line-height: 1rem;
-	font-weight: 400;
-	letter-spacing: -0.2px;
-	white-space: nowrap;
+	letter-spacing: var(--tracking-body);
 }
 /* Field labels (shop.com "Color", "Quantity"): 12/16 600 -0.2px. */
-.product-detail :is(.offer-picker legend, .offer-detail h2, .cart-quantity > label, .offer-single) {
-	font-size: 0.75rem;
-	line-height: 1rem;
-	font-weight: 600;
-	letter-spacing: -0.2px;
-}
 /* biome-ignore lint/style/noDescendingSpecificity: PDP-only elements; the earlier selector styles other elements. */
-.product-detail .offer-single strong {
-	font-weight: 400;
-}
-.product-detail .offer-picker {
-	display: grid;
-	gap: 12px;
-	margin-top: 8px;
-}
-.product-detail .offer-picker fieldset {
-	display: flex;
-	flex-wrap: wrap;
-	gap: 8px;
-	min-width: 0;
-	margin: 0;
-	padding: 0;
-	border: 0;
-}
-.product-detail .offer-picker legend {
-	margin-bottom: 8px;
-}
-/* Option pills (40px, hairline; the selected one takes a 1px ink edge, as shop.com's swatches). */
-/* biome-ignore lint/style/noDescendingSpecificity: PDP-only elements; the earlier selector styles other elements. */
-.product-detail .offer-picker label {
-	display: flex;
-	align-items: center;
-	gap: 8px;
-	min-width: 0;
-	min-height: 44px;
-	padding: 8px 16px 8px 12px;
-	border: 1px solid var(--hairline);
-	border-radius: 22px;
-	background: #fff;
-	box-shadow: 0 2px 8px rgba(0, 0, 0, 0.06);
-	font-size: 0.875rem;
-	line-height: 1.125rem;
+.product-detail .cart-quantity > label {
+	font-size: var(--caption-size);
+	line-height: var(--caption-leading);
 	font-weight: 600;
-	letter-spacing: -0.2px;
-	overflow-wrap: anywhere;
-	cursor: pointer;
-}
-.product-detail .offer-picker label:has(:checked) {
-	border-color: var(--ink);
-	box-shadow: inset 0 0 0 1px var(--ink);
-}
-.product-detail .offer-picker input {
-	flex: none;
-	width: 1.1em;
-	height: 1.1em;
-	accent-color: var(--ink);
-}
-.product-detail .offer-picker small {
-	display: block;
-	margin-top: 2px;
-	color: var(--muted);
-	font-weight: 400;
-}
-.product-detail .offer-picker .button {
-	justify-self: start;
+	letter-spacing: var(--tracking-small);
 }
 .product-detail .offer-detail {
 	display: grid;
@@ -5981,30 +5840,30 @@ body:has(> .store-header) {
 }
 .product-detail .offer-detail ul {
 	margin: 0;
-	padding-left: 18px;
-	font-size: 0.875rem;
-	line-height: 1.375rem;
-	letter-spacing: -0.2px;
+	padding-left: 20px;
+	font-size: var(--small-size);
+	line-height: 1.25rem;
+	letter-spacing: var(--tracking-small);
 	overflow-wrap: anywhere;
 }
 .product-detail .purchase-region {
 	display: grid;
 	gap: 16px;
-	margin-top: 8px;
+	margin-top: 16px;
 }
 .product-detail .stock-status {
 	display: flex;
 	align-items: center;
 	gap: 8px;
-	font-size: 0.875rem;
-	line-height: 1.125rem;
+	font-size: var(--small-size);
+	line-height: var(--small-leading);
 	font-weight: 600;
-	letter-spacing: -0.2px;
+	letter-spacing: var(--tracking-small);
 }
 .product-detail .purchase-region .cart-advisory {
-	font-size: 0.75rem;
-	line-height: 1rem;
-	letter-spacing: -0.2px;
+	font-size: var(--caption-size);
+	line-height: var(--caption-leading);
+	letter-spacing: var(--tracking-small);
 }
 .product-detail .purchase-region .cart-mutation {
 	display: grid;
@@ -6038,11 +5897,6 @@ body:has(> .store-header) {
 .product-detail .quantity-stepper button:hover {
 	background: rgba(0, 0, 0, 0.04);
 }
-/* biome-ignore lint/style/noDescendingSpecificity: PDP-only elements; the earlier selector styles other elements. */
-.product-detail .quantity-stepper button > svg {
-	width: 20px;
-	height: 20px;
-}
 .product-detail .purchase-region .quantity-stepper input[type="number"] {
 	width: 3rem;
 	min-height: 42px;
@@ -6051,7 +5905,7 @@ body:has(> .store-header) {
 	border-radius: 0;
 	background: transparent;
 	box-shadow: none;
-	font-size: 0.875rem;
+	font-size: var(--small-size);
 	font-weight: 600;
 	text-align: center;
 	appearance: textfield;
@@ -6063,7 +5917,7 @@ body:has(> .store-header) {
 }
 .product-detail .quantity-stepper:focus-within {
 	border-color: var(--ink);
-	box-shadow: 0 0 0 3px rgba(24, 24, 27, 0.12);
+	box-shadow: 0 0 0 3px rgba(0, 0, 0, 0.12);
 }
 /* Primary: shop.com's 52px pill with an inner highlight and a soft brand glow (PDP and sign-in). */
 .product-detail .purchase-region .cart-mutation .button,
@@ -6071,9 +5925,9 @@ body:has(> .store-header) {
 	width: 100%;
 	min-height: 52px;
 	padding: 16px;
-	font-size: 1rem;
+	font-size: var(--body-size);
 	line-height: 1.25rem;
-	letter-spacing: -0.5px;
+	letter-spacing: var(--tracking-body);
 	box-shadow:
 		inset -0.5px -0.5px 1px rgba(255, 255, 255, 0.32),
 		inset 1px 1px 0.5px rgba(255, 255, 255, 0.32),
@@ -6098,7 +5952,7 @@ body:has(> .store-header) {
 .contact-suggest {
 	margin: 0;
 	color: var(--muted);
-	font-size: 0.875rem;
+	font-size: var(--small-size);
 	line-height: 1.25rem;
 	text-align: left;
 }
@@ -6125,7 +5979,7 @@ body:has(> .store-header) {
 /* S123 receipt account cards ("Simpan pesanan ini ke akun", "Hubungkan pesanan ini ke akun"). */
 .receipt-account-form {
 	display: grid;
-	gap: 14px;
+	gap: 16px;
 	min-width: 0;
 }
 .receipt-account-actions {
@@ -6148,18 +6002,13 @@ body:has(> .store-header) {
 .product-detail .purchase-region .detail-help {
 	margin-top: 8px;
 }
-.product-detail .product-facts h2 {
-	font-size: 1.125rem;
-	line-height: 1.25rem;
-	letter-spacing: -0.5px;
-}
 .product-detail .product-facts dl {
 	display: grid;
 	gap: 8px;
 	margin: 12px 0 0;
-	font-size: 0.875rem;
+	font-size: var(--small-size);
 	line-height: 1.375rem;
-	letter-spacing: -0.2px;
+	letter-spacing: var(--tracking-small);
 }
 .product-detail .product-facts dl > div {
 	display: grid;
@@ -6175,9 +6024,6 @@ body:has(> .store-header) {
 .product-detail .product-policy {
 	border-bottom: 1px solid rgba(24, 59, 78, 0.12);
 }
-.product-detail .product-policy:first-of-type {
-	margin-top: 8px;
-}
 .product-detail .product-policy summary {
 	display: flex;
 	align-items: center;
@@ -6186,10 +6032,10 @@ body:has(> .store-header) {
 	min-height: 52px;
 	padding-block: 16px;
 	list-style: none;
-	font-size: 1.125rem;
-	line-height: 1.25rem;
+	font-size: var(--title-size);
+	line-height: var(--title-leading);
 	font-weight: 600;
-	letter-spacing: -0.5px;
+	letter-spacing: var(--tracking-tight);
 	cursor: pointer;
 }
 .product-detail .product-policy summary::-webkit-details-marker {
@@ -6206,9 +6052,9 @@ body:has(> .store-header) {
 }
 .product-detail .product-policy p {
 	padding-bottom: 16px;
-	font-size: 0.875rem;
-	line-height: 1.125rem;
-	letter-spacing: -0.2px;
+	font-size: var(--small-size);
+	line-height: var(--small-leading);
+	letter-spacing: var(--tracking-small);
 }
 .product-detail .detail-description {
 	white-space: pre-line;
