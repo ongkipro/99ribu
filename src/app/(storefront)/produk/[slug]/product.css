@@ -32,10 +32,6 @@ main.product-detail .offer-picker {
 main.product-detail .purchase-region {
 	margin-top: 16px;
 }
-/* After "Lihat N barang lainnya" the 44px summary target already carries the space. */
-main.product-detail .contents-more + .purchase-region {
-	margin-top: 0;
-}
 main.product-detail .purchase-region .stock-exit {
 	justify-self: start;
 }
@@ -140,11 +136,32 @@ main.product-detail .gallery-thumbs a[aria-current] {
 main.product-detail .gallery-thumbs a:hover:not([aria-current]) {
 	box-shadow: inset 0 0 0 1px var(--field-border);
 }
-/* "N / M" on the photo where the thumbnail strip is hidden (phones and tablets). */
+/* shop.com media (2026-10-25 reference): the 48px rail sits centred beside the photo on desktop; the photo
+   card has a 20px radius. Tablets get the same thumbnails as a horizontal row under the photo. */
+main.product-detail .gallery-thumbs {
+	align-self: center;
+}
+main.product-detail .gallery-row .product-image {
+	border-radius: 20px;
+}
+@media (min-width: 701px) and (max-width: 1050px) {
+	main.product-detail .product-gallery:has(.gallery-thumbs) {
+		gap: 12px;
+	}
+	main.product-detail .gallery-thumbs {
+		display: flex;
+		order: 2;
+		gap: 6px;
+		overflow-x: auto;
+		scrollbar-width: none;
+		padding: 2px;
+	}
+}
+/* "N / M" on the photo where no thumbnails show (phones). */
 main.product-detail .gallery-count {
 	display: none;
 }
-@media (max-width: 1050px) {
+@media (max-width: 700px) {
 	main.product-detail .gallery-count {
 		position: absolute;
 		left: 12px;
@@ -371,4 +388,9 @@ main.product-detail .buy-bar {
 	main.product-detail .buy-bar:not([hidden]) {
 		display: none;
 	}
+}
+main.product-detail .offer-detail-label {
+	margin: 0;
+	color: var(--muted);
+	font-size: 0.875rem;
 }

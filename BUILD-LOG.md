@@ -1,5 +1,11 @@
 # Build log — Serba 99ribu
 
+## 2026-10-25 — PDP refinements per owner review (DEC-020, DEC-021)
+
+- "Beli sekarang" (same add mutation, then `/checkout`; JS and no-JS verified), two-column action row with one-line labels at 320–1440 (54 px pills), related 5/3/2-column grid, gallery rail/tablet thumbnails/20 px radius, contents accordion under Deskripsi, price without suffix, no "Stok pilihan tersedia", PDP back link (`TaskBack`) removed with its history helper and CSS, local-simulation notice and footer line removed.
+- Tests adapted to the new UI: the PDP back-scroll test now uses browser Back; the two back-link tests ("PDP Back retains…", "PDP Back rejects…") were removed with the feature; contents assertions open the accordion first.
+- Evidence on `main` build: lint, typecheck, unit 139/139; `test:browser --case=T-33` 25/25; `test:integration --case=T-33` 24/24; `storefront-http` 7/7; `--case=localhost-readiness` 1/1; Chromium checks at 390/768/1440 (no overflow, no console errors).
+
 ## 2026-10-25 — `main` verification after the S101/S102/S110/S123/S126/S128/S139 merges
 
 - `npm run build` PASS (strict route matching); `npm start` on `127.0.0.1:3099` (tailnet origin): `/` 1.0–2.0 s, `/kategori` 0.04 s, `/admin` 0.07 s, `/admin/orders` 0.02 s, `/masuk` 0.02 s, PDP 0.09 s; tailnet 200.

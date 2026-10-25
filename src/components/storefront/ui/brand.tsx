@@ -3,7 +3,8 @@ export function Wordmark(){
  return <>99<span>rb</span><i aria-hidden="true">.</i></>;
 }
 
-// Skip link plus the local-simulation notice that opens every storefront and checkout page.
+// Skip link that opens every storefront and checkout page (the local-simulation notice was removed 2026-10-25,
+// owner: local and deployed pages render the same).
 export function SiteNotice(){
- return <><a className="skip" href="#main">Lewati ke konten</a><div className="local-notice"><span className="notice-long">Data contoh: pesanan, pembayaran, dan pengiriman masih simulasi lokal.</span><span className="notice-short">Data contoh: simulasi lokal.</span></div></>;
+ return <><a className="skip" href="#main">Lewati ke konten</a></>;
 }

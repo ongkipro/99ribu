@@ -6,7 +6,6 @@ import {Shell} from '../../../../components/storefront/shell';
 import {Media,ProductGrid,rupiah,contentName,isSampleProduct,keepHyphens,sameOrigin} from '../../../../components/storefront/ui/product-card';
 import {ProductGallery} from '../../../../components/storefront/sections/product-gallery';
 import {Icon} from '../../../../components/storefront/ui/icon';
-import {TaskBack} from '../../../../components/storefront/navigation';
 import {OfferPicker} from '../../../../components/storefront/offer-picker';
 import {CartForm,CartMutations} from '../../../../components/storefront/cart-forms';
 import {getLocalAuth} from '../../../../modules/access/auth';
@@ -60,26 +59,27 @@ export default async function Product({params,searchParams}:Props){
  // Every complete offer has the same fixed price, so the price line stays in place while an offer is chosen.
  const price=(offer??product.variants[0])?.price;
  const showDescription=description&&!(sample&&description==='Harga berlaku untuk satu pilihan lengkap sesuai rincian isi.'),longDescription=description.length>360||description.split('\n').length>8;
- return <Shell active="none"><main id="main" className="wrap product-detail"><TaskBack from={from}/><JsonLd data={jsonLdGraph(productJsonLd(siteConfig(),product,category),breadcrumbJsonLd(siteConfig(),[{name:'Beranda',path:'/'},...(category?[{name:category.name,path:categoryPath(category.slug)}]:[]),{name:product.name,path:productPath(product.id,product.name)}]))}/><div className="detail-layout">{sample||!photos.length?<Media product={product} offer={offer??undefined} caption/>:<ProductGallery images={photos}/>}<section className="buy-box" aria-labelledby="product-title">
+ return <Shell active="none"><main id="main" className="wrap product-detail"><JsonLd data={jsonLdGraph(productJsonLd(siteConfig(),product,category),breadcrumbJsonLd(siteConfig(),[{name:'Beranda',path:'/'},...(category?[{name:category.name,path:categoryPath(category.slug)}]:[]),{name:product.name,path:productPath(product.id,product.name)}]))}/><div className="detail-layout">{sample||!photos.length?<Media product={product} offer={offer??undefined} caption/>:<ProductGallery images={photos}/>}<section className="buy-box" aria-labelledby="product-title">
   <div className="buy-head"><nav className="product-category" aria-label="Kategori produk"><Link href="/cari">Semua produk</Link>{category&&<span><span aria-hidden="true">/</span><Link href={`/kategori/${category.slug}`}>{category.name}</Link></span>}</nav><h1 id="product-title">{keepHyphens(product.name)}</h1>
-   {price!==undefined&&<p className="detail-price">{rupiah(price)} <small>/ pilihan lengkap</small></p>}</div>
+   {price!==undefined&&<p className="detail-price">{rupiah(price)}</p>}</div>
   {invalid&&<section className="cart-warning" role="alert"><h2>Pilihan belum ditemukan</h2><p>Pilih kembali opsi produk ini sebelum menambahkannya.</p></section>}
-  <OfferPicker product={product.id} name={product.name} from={from} selected={offer?.id??''} choices={product.variants.map(v=>({id:v.id,label:v.label,available:v.availability==='available'}))}/>
-  {offer?<section className="offer-detail" aria-label="Rincian pilihan"><h2 className="field-label">Isi yang diterima</h2>{(()=>{const item=(c:typeof offer.contents[number])=><li key={c.name}>{c.quantity} × {contentName(product,c.name)}</li>;
-   // Up to three items stay fully listed; longer bundles show the first three so the purchase action stays near the top.
-   return offer.contents.length<=3?<ul>{offer.contents.map(item)}</ul>:<><ul>{offer.contents.slice(0,3).map(item)}</ul><details className="contents-more"><summary><span className="more-show">Lihat {offer.contents.length-3} barang lainnya</span><span className="more-hide">Sembunyikan barang lainnya</span><Icon name="chevron"/></summary><ul>{offer.contents.slice(3).map(item)}</ul></details></>;})()}
-   <div className="purchase-region"><p className="stock-status" data-available={offer.availability==='available'||undefined}><Icon name={offer.availability==='available'?'check':'alert'}/>{offer.availability==='available'?'Stok pilihan tersedia':'Stok pilihan belum tersedia'}</p>
+  {/* One choice: its name moves into the "Isi yang diterima" section below; several: the pills stay in view. */}
+  {(product.variants.length>1||!offer)&&<OfferPicker product={product.id} name={product.name} from={from} selected={offer?.id??''} choices={product.variants.map(v=>({id:v.id,label:v.label,available:v.availability==='available'}))}/>}
+  {offer?<>
+   <div className="purchase-region">{offer.availability!=='available'&&<p className="stock-status"><Icon name="alert"/>Stok pilihan belum tersedia</p>}
    {/* The stock line already says it; the way out is one secondary pill. */}
    {offer.availability!=='available'&&<Link className="button secondary stock-exit" href={alternative?productHref(product.id,alternative.id,from,product.name):category?`/kategori/${category.slug}?availability=available`:'/cari?availability=available'}>{alternative?'Lihat pilihan tersedia':'Cari produk tersedia'}</Link>}
    {current.kind==='ready'&&!open&&<p className="cart-warning">Keranjang sebelumnya {current.cart.state==='submitted'?'sudah menjadi pesanan':'kedaluwarsa'}. Penambahan berikutnya memulai keranjang baru.</p>}
    {denied?<p className="cart-warning">{current.kind==='denied'?'Sesi belanja perlu diperiksa.':'Keranjang belum dapat dimuat.'} <Link href="/keranjang">Periksa keranjang</Link></p>:<CartMutations initial={initialCartMutation(intent)} permalink={productHref(product.id,offer.id,from,product.name)} showCartLink><CartForm intent={intent} label="Tambah ke keranjang" disabled={offer.availability!=='available'} stepper bar={rupiah(offer.price)} buyNow/></CartMutations>}
    <p className="cart-advisory">Stok diperiksa kembali saat ditambahkan. Isi keranjang belum memesan stok.</p></div>
-  </section>:!invalid&&<p className="cart-advisory">Belum ada pilihan yang dapat ditambahkan.</p>}
+  </>:!invalid&&<p className="cart-advisory">Belum ada pilihan yang dapat ditambahkan.</p>}
   {/* Spesifikasi only when the product has spec data; no empty heading or placeholder. */}
   {facts.length>0&&<section className="product-facts"><h2>Spesifikasi</h2><dl>{facts.map(f=><div key={f.key}><dt>{f.label}</dt><dd>{f.values.join(', ')}</dd></div>)}</dl></section>}
   {/* shop.com opens its sections; a long catalog text shows its first lines with "Baca selengkapnya" (the full text stays in the HTML). */}
   <div className="product-sections">
    {showDescription&&<details className="product-policy" open><summary>Deskripsi<Icon name="chevron"/></summary><div className="description-body"><p className="detail-description">{description}</p>{longDescription&&<details className="read-more"><summary><span className="more-show">Baca selengkapnya</span><span className="more-hide">Tampilkan lebih sedikit</span></summary></details>}</div></details>}
+   {/* Owner 2026-10-25: the package contents fold under Deskripsi (closed), keeping the buy box clean. */}
+   {offer&&<details className="product-policy"><summary>Isi yang diterima<Icon name="chevron"/></summary><div className="offer-detail">{product.variants.length===1&&<p className="offer-detail-label">{offer.label}</p>}<ul>{offer.contents.map(c=><li key={c.name}>{c.quantity} × {contentName(product,c.name)}</li>)}</ul></div></details>}
    <details className="product-policy" open><summary>Pengiriman dan pembayaran<Icon name="chevron"/></summary><ul className="policy-rows">
     <li><Icon name="truck"/><span>Ongkir dihitung dari alamat dan paket, lalu ditampilkan sebelum konfirmasi.</span></li>
     <li><Icon name="clock"/><span>Hari libur tidak dihitung sebagai hari proses pengiriman.</span></li>

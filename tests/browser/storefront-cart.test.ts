@@ -55,11 +55,11 @@ for(const width of [390,768,1024,1440])test(`selected bundle and authoritative c
  const f=await start(width),observedBodies:string[]=[],observedUrls:string[]=[];try{
   if(width===1024)await f.page.setViewportSize({width,height:768});
   if(width===390){f.page.on('request',request=>observedUrls.push(request.url()));await f.page.route('**/*',async(route,request)=>{if(request.resourceType()==='script'||request.method()==='POST'){const response=await route.fetch();assert.ok(response.ok());observedBodies.push(await response.text());await route.fulfill({response});}else await route.continue();});}
-  const p=await product(),campaign=new URLSearchParams({utm_source:'synthetic',utm_campaign:'s22-local',fbclid:'SYNTHETIC_META_CLICK',gclid:'SYNTHETIC_GOOGLE_CLICK',ttclid:'SYNTHETIC_TIKTOK_CLICK',quantity:'50',cart_id:'00000000-0000-4000-8000-000000000099'});await f.page.goto(`${origin}${p.path}&${campaign}`);await expect(f.page.locator('.offer-detail')).toHaveCount(1);await expect(f.page.getByRole('spinbutton',{name:'Jumlah pilihan',exact:true})).toHaveValue('1');await expect(f.page.locator('.offer-picker .field-label')).toContainText(p.offer.label);await expect(f.page.locator('.offer-picker a')).toHaveCount(0);await expect(f.page.getByRole('button',{name:'Lihat pilihan',exact:true})).toHaveCount(0);
+  const p=await product(),campaign=new URLSearchParams({utm_source:'synthetic',utm_campaign:'s22-local',fbclid:'SYNTHETIC_META_CLICK',gclid:'SYNTHETIC_GOOGLE_CLICK',ttclid:'SYNTHETIC_TIKTOK_CLICK',quantity:'50',cart_id:'00000000-0000-4000-8000-000000000099'});await f.page.goto(`${origin}${p.path}&${campaign}`);await expect(f.page.locator('.offer-detail')).toHaveCount(1);await expect(f.page.getByRole('spinbutton',{name:'Jumlah pilihan',exact:true})).toHaveValue('1');await expect(f.page.locator('.offer-picker .field-label, .offer-detail-label').first()).toContainText(p.offer.label);await expect(f.page.locator('.offer-picker a')).toHaveCount(0);await expect(f.page.getByRole('button',{name:'Lihat pilihan',exact:true})).toHaveCount(0);
   // Owner call 2026-10-24: the PDP keeps the full store header (search) and the phone dock, as on shop.com.
-  await expect(f.page.locator('.store-header')).toBeVisible();await expect(f.page.locator('.shopping-tabs')).toHaveCount(1);await expect(f.page.getByText('1 × Kaos contoh',{exact:true})).toBeVisible();await expect(f.page.getByText('2 × Krim contoh',{exact:true})).toBeVisible();await expect(f.page.getByRole('heading',{name:'Isi yang diterima',exact:true})).toBeVisible();// The fixture has no spec data: no empty Spesifikasi heading or placeholder (owner/coordinator round 48).
+  await expect(f.page.locator('.store-header')).toBeVisible();await expect(f.page.locator('.shopping-tabs')).toHaveCount(1);await f.page.locator('summary',{hasText:'Isi yang diterima'}).click();await expect(f.page.getByText('1 × Kaos contoh',{exact:true})).toBeVisible();await expect(f.page.getByText('2 × Krim contoh',{exact:true})).toBeVisible();await expect(f.page.locator('summary',{hasText:'Isi yang diterima'})).toBeVisible();// The fixture has no spec data: no empty Spesifikasi heading or placeholder (owner/coordinator round 48).
   await expect(f.page.getByRole('heading',{name:'Spesifikasi',exact:true})).toHaveCount(0);await expect(f.page.getByText('Spesifikasi tambahan belum tersedia.')).toHaveCount(0);// S111 phase 2b: the PDP price is shop.com's 16/22 600 at every width (DESIGN.md typography table).
-  await expect(f.page.locator('.detail-price')).toHaveCSS('font-size','16px');await capture(f.page,`pdp-${width}`);if(width===390){const heading=f.page.getByRole('heading',{name:'Isi yang diterima',exact:true});assert.equal(await heading.textContent(),'Isi yang diterima');await heading.screenshot({path:`${output}/font-heading-390.png`});}
+  await expect(f.page.locator('.detail-price')).toHaveCSS('font-size','16px');await capture(f.page,`pdp-${width}`);if(width===390){const heading=f.page.locator('summary',{hasText:'Isi yang diterima'});assert.equal(await heading.textContent(),'Isi yang diterima');await heading.screenshot({path:`${output}/font-heading-390.png`});}
   await f.page.getByRole('spinbutton',{name:'Jumlah pilihan',exact:true}).fill('2');await f.page.getByRole('button',{name:'Tambah ke keranjang',exact:true}).click();
   await expect(f.page.locator('.cart-feedback')).toContainText('ditambahkan');let cart=await current(f.page);assert.equal(cart.lines[0].quantity,2);assert.equal(cart.merchandise_total,198000);
   await f.page.getByRole('link',{name:'Keranjang, 2 pilihan',exact:true}).click();await expect(f.page.getByRole('heading',{name:'Keranjang',exact:true})).toBeVisible();if([768,1024].includes(width))await expect(f.page.locator('.utilities .utility-count')).toBeVisible();await capture(f.page,`cart-${width}`);
@@ -134,7 +134,7 @@ test('actual publication acknowledgement and stock loss preserve frozen cart fac
   if(!(await identity.sql`select id from app.offer_cost_assumption_version where offer_id=${alternate.id} limit 1`).length)await appendCostVersion(command(),identity,principal,'assumption',alternate.id,{expected_version:0,effective_from:null,packaging_idr:1000,provider_fee_idr:1000,subsidy_idr:5000,returns_reserve_idr:1000,source:'TEST-ONLY owned multi-option assumptions',reason:'Initialize only empty owned choice assumptions, preserve existing HPP/cost history'});
   const published=await publishProduct(command(),identity,principal,product.id,{expected_version:draft.version+1,expected_publication_version:publication.current.version,reason:'Owned S22 current publication recovery proof'});
   for(const [width,js] of [[390,true],[1440,true],[390,false]] as const){const choices=await start(width,js);try{
-   const from=`/cari?q=Contoh#product-${product.id}`,query=new URLSearchParams({offer:product.offer_id,from});await choices.page.goto(`${origin}/produk/${product.id}?${query}`);await expect(choices.page.locator('.offer-picker a')).toHaveCount(2);await expect(choices.page.locator('.offer-picker a[aria-current]')).toHaveAttribute('href',new RegExp(`offer=${product.offer_id}`));await expect(choices.page.getByText('Dua opsi kaos dengan jumlah isi berbeda.',{exact:true})).toBeVisible();const option=choices.page.locator(`.offer-picker a[href*="offer=${alternate.id}"]`);await option.focus();await expect(option).toBeFocused();await option.press('Enter');await expect(choices.page.locator(`.offer-picker a[href*="offer=${alternate.id}"]`)).toHaveAttribute('aria-current','true');assert.equal(new URL(choices.page.url()).searchParams.get('offer'),alternate.id);assert.equal(new URL(choices.page.url()).searchParams.get('from'),from);await expect(choices.page.getByText(`${otherQuantity} × Kaos contoh`,{exact:true})).toBeVisible();await expect(choices.page.locator('.task-back')).toHaveAttribute('href',from);await capture(choices.page,js?`pdp-options-${width}`:'pdp-options-nojs-390');assert.deepEqual(choices.errors,[]);
+   const from=`/cari?q=Contoh#product-${product.id}`,query=new URLSearchParams({offer:product.offer_id,from});await choices.page.goto(`${origin}/produk/${product.id}?${query}`);await expect(choices.page.locator('.offer-picker a')).toHaveCount(2);await expect(choices.page.locator('.offer-picker a[aria-current]')).toHaveAttribute('href',new RegExp(`offer=${product.offer_id}`));await expect(choices.page.getByText('Dua opsi kaos dengan jumlah isi berbeda.',{exact:true})).toBeVisible();const option=choices.page.locator(`.offer-picker a[href*="offer=${alternate.id}"]`);await option.focus();await expect(option).toBeFocused();await option.press('Enter');await expect(choices.page.locator(`.offer-picker a[href*="offer=${alternate.id}"]`)).toHaveAttribute('aria-current','true');assert.equal(new URL(choices.page.url()).searchParams.get('offer'),alternate.id);assert.equal(new URL(choices.page.url()).searchParams.get('from'),from);await choices.page.locator('summary',{hasText:'Isi yang diterima'}).click();await expect(choices.page.getByText(`${otherQuantity} × Kaos contoh`,{exact:true})).toBeVisible();await capture(choices.page,js?`pdp-options-${width}`:'pdp-options-nojs-390');assert.deepEqual(choices.errors,[]);
   }finally{await close(choices);}}
   await staleUpdate.getByRole('button').click();await expect(f.page.getByRole('heading',{name:'Rincian pilihan berubah',exact:true})).toBeVisible();await expect(f.page.locator('.cart-contents')).toContainText(`${originalQuantity} × Kaos contoh`);await expect(f.page.locator(`#review-${saved.lines[0].id}`)).toContainText(`${nextQuantity} × Kaos contoh`);await expect(f.page.getByRole('link',{name:'Lanjut ke checkout',exact:true})).toHaveCount(0);await capture(f.page,'cart-publication-review-390');const approve=f.page.getByRole('button',{name:/^Setujui isi terbaru Contoh Kaos,/});await approve.focus();await approve.evaluate(e=>e.scrollIntoView({block:'center'}));await capture(f.page,'cart-publication-detail-390',approve);await expect(approve).toHaveAttribute('aria-describedby',`review-${saved.lines[0].id}`);await expect(f.page.locator('.cart-form-error')).toHaveCount(0);
   let cart=await current(f.page);assert.equal(cart.version,saved.version);assert.equal(cart.lines[0].publication_id,product.publication_id);
@@ -229,7 +229,7 @@ test('pending updates stay on their own forms and another line keeps its unsaved
  }finally{for(const release of releases)release();await Promise.allSettled(completed);await close(f);}
 });
 
-for(const width of [390,1440])test(`PDP Back restores the filtered source and native scroll at ${width}px`,async()=>{
+for(const width of [390,1440])test(`Browser Back from a PDP restores the filtered source and native scroll at ${width}px`,async()=>{
  const f=await start(width);try{
   await f.page.setViewportSize({width,height:600});
   if(width===390)await f.context.addInitScript(()=>{Reflect.deleteProperty(URLSearchParams.prototype,'size');});
@@ -240,35 +240,13 @@ for(const width of [390,1440])test(`PDP Back restores the filtered source and na
   assert.equal(target.searchParams.get('from'),`${source}#product-${id}`);
   await card.scrollIntoViewIfNeeded();await card.focus();const y=await f.page.evaluate(()=>scrollY);await card.click();
   await expect(f.page.locator('.cart-mutation input[name=variant]')).toHaveValue(offer);assert.equal(new URL(f.page.url()).searchParams.get('offer'),offer);await expect(f.page.locator('.shopping-tabs')).toHaveCount(1);
-  await expect(f.page.locator('.task-back')).toHaveAttribute('href',`${source}#product-${id}`);await capture(f.page,`pdp-back-${width}`);
+  await capture(f.page,`pdp-back-${width}`);
   await f.page.getByRole('button',{name:'Tambah ke keranjang',exact:true}).click();await expect(f.page.locator('.cart-feedback')).toContainText('ditambahkan');assert.equal((await current(f.page)).lines[0].variant_id,offer);
   if(width===1440)await f.page.reload();
-  if(width===390){await f.page.locator('.task-back').focus();await f.page.locator('.task-back').press('Enter');}else await f.page.locator('.task-back').click();await expect(f.page).toHaveURL(origin+source);
+  // The PDP has no back link (owner 2026-10-25); browser Back restores the filtered list and its scroll.
+  await f.page.goBack();await expect(f.page).toHaveURL(origin+source);
   await expect.poll(()=>f.page.evaluate(()=>scrollY)).toBeCloseTo(y,0);await expect(f.page.locator('.product-link').first()).toBeVisible();await capture(f.page,`pdp-back-list-${width}`);
   assert.equal(await f.page.evaluate(()=>localStorage.length+sessionStorage.length),0);assert.deepEqual(f.errors,[]);
  }finally{await close(f);}
 });
 
-test('PDP Back retains category and anchor through native option and no-JS cart forms',async()=>{
- const f=await start(390,false);try{
-  const source=`/kategori/shop-${fixtureNamespace}-busana?offer_kind=multipack&availability=available&sort=newest&limit=40`;
-  await f.page.goto(origin+source);const card=f.page.locator('.product-link').first();await expect(card).toBeVisible();
-  const href=await card.getAttribute('href');assert.ok(href);const target=new URL(href,origin),id=productIdFromSlug(target.pathname.split('/').at(-1)??''),parent=`${source}#product-${id}`;assert.equal(target.searchParams.get('from'),parent);
-  await card.click();assert.equal(new URL(f.page.url()).searchParams.get('from'),parent);
-  await f.page.getByRole('button',{name:'Tambah ke keranjang',exact:true}).click();await expect(f.page.locator('.cart-feedback')).toContainText('Sesi belanja siap');
-  await f.page.getByRole('button',{name:'Lanjutkan pilihan',exact:true}).click();await expect(f.page.locator('.cart-feedback')).toContainText('ditambahkan');assert.equal((await current(f.page)).merchandise_total,99000);
-  await expect(f.page.locator('.task-back')).toHaveAttribute('href',parent);await capture(f.page,'pdp-back-nojs-390');await f.page.locator('.task-back').click();await expect(f.page).toHaveURL(origin+parent);await expect(f.page.locator(`#product-${id}`)).toBeInViewport();assert.deepEqual(f.errors,[]);
- }finally{await close(f);}
-});
-
-test('PDP Back rejects foreign targets and uses the public parent in a fresh tab',async()=>{
- const f=await start();try{
-  const p=await product();for(const from of ['//outside.invalid/','https://outside.invalid/','javascript:alert(1)','/api/v1/orders/00000000-0000-4000-8000-000000000099']){
-   await f.page.goto(`${origin}${p.path}&${new URLSearchParams({from})}`);await expect(f.page.locator('.task-back')).toHaveAttribute('href','/cari');await expect(f.page.getByRole('button',{name:'Tambah ke keranjang',exact:true})).toBeVisible();
-  }
-  const parent=`/cari?q=Contoh&offer_kind=bundle#product-${p.bundle.id}`,other=await f.context.newPage();try{
-   await other.goto(`${origin}${p.path}&${new URLSearchParams({from:parent})}`);await expect(other.locator('.task-back')).toHaveAttribute('href',parent);await other.locator('.task-back').click();await expect(other).toHaveURL(origin+parent);await expect(other.locator(`#product-${p.bundle.id}`)).toBeInViewport();
-  }finally{await other.close();}
-  assert.deepEqual(f.errors,[]);
- }finally{await close(f);}
-});

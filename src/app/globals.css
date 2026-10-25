@@ -203,25 +203,6 @@ html {
 	clip-path: none;
 	transform: none;
 }
-.local-notice .notice-short {
-	display: none;
-}
-/* Below 360px the environment note shortens to one line. */
-@media (max-width: 359px) {
-	.local-notice .notice-long {
-		display: none;
-	}
-	.local-notice .notice-short {
-		display: inline;
-	}
-}
-.local-notice {
-	font-size: 0.75rem;
-	text-align: center;
-	background: #f5f4f8;
-	padding: 7px 16px;
-	color: #55515f;
-}
 .header-main {
 	display: flex;
 	align-items: center;
@@ -538,10 +519,6 @@ body:has(> .store-header) {
 	html {
 		scroll-padding-bottom: max(4.25rem, calc(14rem - 25vw));
 	}
-	.local-notice {
-		font-size: 0.65rem;
-		padding-block: 6px;
-	}
 	.header-main {
 		padding-block: 14px;
 	}
@@ -803,25 +780,6 @@ body:has(> .store-header) {
 	}
 }
 
-/* PDP return link (owner call 2026-10-24: the PDP keeps the full store header, as on shop.com):
-   one small row above the product that goes back to the list position it came from. */
-.task-back {
-	display: inline-flex;
-	align-items: center;
-	gap: 4px;
-	min-height: 44px;
-	font-size: 0.875rem;
-	line-height: 1.125rem;
-	color: var(--muted);
-}
-.task-back:hover {
-	color: var(--ink);
-}
-.task-back svg {
-	width: 1.25rem;
-	height: 1.25rem;
-	flex: none;
-}
 .cart-count {
 	display: inline-block;
 	font-size: 0.75rem;
@@ -2825,11 +2783,6 @@ body:has(> .store-header) {
 	}
 }
 @media (max-width: 22rem) {
-	:where(body:has(.receipt-shell)) .local-notice {
-		padding-block: 3px;
-		font-size: 0.625rem;
-		line-height: 1.15;
-	}
 	:where(body:has(.receipt-shell)) .checkout-header {
 		padding-block: 3px;
 		gap: 6px;
@@ -5788,9 +5741,6 @@ body:has(> .store-header) {
    Phones: the photo row bleeds to the screen edge with the next photo peeking; the buy box follows. */
 .product-detail {
 	padding-top: 8px;
-}
-.product-detail > .task-back {
-	margin-bottom: 8px;
 }
 .product-detail .detail-layout {
 	display: grid;

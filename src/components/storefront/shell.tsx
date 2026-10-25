@@ -56,7 +56,7 @@ export async function Shell({children,q='',active='home',department=null}:{child
   {/* Icon-only dock (shop.com mobile tab bar): the label is the accessible name; the active tab shows the filled icon. */}
   <nav className="shopping-tabs" aria-label="Navigasi belanja">{destinations.map(d=><Link key={d.key} href={d.href} data-count={d.key==='cart'&&count>0?count:undefined} aria-label={d.key==='cart'?cartLabel:d.label} aria-current={active===d.key?'page':undefined}><span className="tab-outline"><Icon name={d.icon}/></span><span className="tab-filled"><FilledIcon name={d.icon}/></span></Link>)}</nav>
   <footer className="store-footer"><div className="wrap footer-inner">
-   <div className="footer-brand"><p className="brand footer-name"><Wordmark/></p><p>Semua pilihan lengkap Rp99.000.</p><p className="local-footnote">Pesanan, pembayaran, dan pengiriman masih simulasi lokal.</p></div>
+   <div className="footer-brand"><p className="brand footer-name"><Wordmark/></p><p>Semua pilihan lengkap Rp99.000.</p></div>
    <div className="footer-menus">
     <nav aria-labelledby="footer-shop"><h2 id="footer-shop">Belanja</h2><ul><li><Link href="/kategori">Semua kategori</Link></li>{departments.slice(0,4).map(d=><li key={d.id}><Link href={`/kategori/${d.slug}`}>{d.name}</Link></li>)}<li><Link href="/cari">Cari produk</Link></li></ul></nav>
     <nav aria-labelledby="footer-help"><h2 id="footer-help">Bantuan</h2><ul><li><Link href="/bantuan">Bantuan belanja</Link></li><li><Link href="/bantuan#returns">Pengembalian</Link></li><li><Link href="/akun">Status pesanan</Link></li><li><Link href="/kontak">Hubungi kami</Link></li></ul></nav>

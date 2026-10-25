@@ -126,7 +126,7 @@ test('option links switch the offer at once, keep the return path and work witho
  for(const js of [true,false]){const f=await start(390,js);try{
   const from='/cari?q=Contoh',path=`${paths.multi}&${new URLSearchParams({from})}`;await open(f.page,path);
   const option=f.page.locator(`.offer-picker a[href*="offer=${multiAlternate}"]`);await option.focus();await option.press('Enter');
-  await expect(f.page.locator(`.offer-picker a[href*="offer=${multiAlternate}"]`)).toHaveAttribute('aria-current','true');await expect(f.page.getByText('2 × Kaos contoh',{exact:true})).toBeVisible();
+  await expect(f.page.locator(`.offer-picker a[href*="offer=${multiAlternate}"]`)).toHaveAttribute('aria-current','true');await f.page.locator('summary',{hasText:'Isi yang diterima'}).click();await expect(f.page.getByText('2 × Kaos contoh',{exact:true})).toBeVisible();
   assert.equal(new URL(f.page.url()).searchParams.get('offer'),multiAlternate);assert.equal(new URL(f.page.url()).searchParams.get('from'),from);await expect(f.page.locator('.offer-picker .field-label')).toContainText('Isi 2 kaos');
   if(js){await capture(f.page,'multi-switched-390');assert.deepEqual(f.errors,[]);}
  }finally{await f.browser.close();}}
