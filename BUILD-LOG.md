@@ -1,5 +1,11 @@
 # Build log — Serba 99ribu
 
+## 2026-10-25 — `main` verification after the S101/S102/S110/S123/S126/S128/S139 merges
+
+- `npm run build` PASS (strict route matching); `npm start` on `127.0.0.1:3099` (tailnet origin): `/` 1.0–2.0 s, `/kategori` 0.04 s, `/admin` 0.07 s, `/admin/orders` 0.02 s, `/masuk` 0.02 s, PDP 0.09 s; tailnet 200.
+- Browser on the `main` build: `test:auth:http` 1/1, `--case=admin-nav` 4/4, `--case=T-33` 27/27 (incl. `storefront-pdp` 7/7). DEC-019(a) checked in Chromium: category rail hidden on the 390 px PDP (title and price on the first screen), visible on `/kategori` at 390 and on the 1440 PDP.
+- `next dev` (16.4.1) served 404 for every `/admin` page (strict route matching applied the `(storefront)/@modal` slot to the admin tree); fixed with dev-only loose matching in `next.config.ts` (`55cb4e9`). In dev the home page renders CPU-bound for 30–60 s (React development mode; one request hit the 10 s statement timeout because the blocked event loop stopped draining a result); the production build serves it in 1–2 s — use `npm run build && npm start` to review the storefront.
+
 ## 2026-10-25 — S128 merged: admin navigation IA (spec 17), account menu, production sign-in redirect
 
 - Branch `s128-admin-nav-ia`: sidebar groups Ruang Kerja / Operasional / Katalog & Stok / Pemasaran / Keuangan / Pengaturan from the same access helpers the pages enforce; empty groups hidden, single-item groups folded per spec 17; "Katalog" → "Produk"; longest-match active state across groups; "Segmen Pembeli" in Pemasaran (owner, ecommerce_admin). Account dropdown in the sidebar footer replaces `session-bar.tsx` (Lihat Toko, Keluar; Profil/Keamanan akun hidden until S129). `src/proxy.ts` (first proxy in the repo, `/admin/**` only) overwrites `x-99ribu-console-path`; the console layout redirects signed-out production requests to `/masuk?next=<validated path>`; local/test unchanged. shadcn `dropdown-menu` on the installed `radix-ui` (no new dependency).
