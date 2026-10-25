@@ -205,11 +205,13 @@ main.product-detail .gallery-count {
 }
 
 /* ---- Sections: Deskripsi (open, clamped with "Baca selengkapnya"), shipping/payment rows. ---- */
+/* shop.com pdp-sections (2026-10-25): 8px under the actions (24px buy-box gap − 16px), 24px below; hairlines
+   only between sections (none above the first, none under the last); 16px chevrons. */
 main.product-detail .product-sections {
-	margin-top: -8px;
+	margin: -16px 0 24px;
 }
-main.product-detail .product-policy:first-of-type {
-	border-top: 1px solid rgba(24, 59, 78, 0.12);
+main.product-detail .product-policy:last-child {
+	border-bottom: 0;
 }
 main.product-detail .description-body {
 	padding-bottom: 16px;
@@ -404,4 +406,9 @@ main.product-detail .offer-detail-label {
 	color: var(--muted);
 	font-size: var(--small-size);
 	letter-spacing: var(--tracking-small);
+}
+/* 16px accordion chevrons (shop.com pdp-sections). */
+main.product-detail .product-policy > summary > svg {
+	width: 1rem;
+	height: 1rem;
 }
