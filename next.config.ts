@@ -11,8 +11,14 @@ if (process.argv[1] && realpathSync(process.argv[1]) === realpathSync("node_modu
   else assertLocalNextCommand(args);
 }
 
+// lazy: next dev 16.4.1 strict route matching reports every /admin page as unmatched (it applies the
+// (storefront)/@modal slot to the sibling admin tree) and serves 404; `next build`/`next start` validate the
+// same tree strictly and pass. Loose matching for the dev server only; drop this when Next fixes dev matching.
+const devServer = process.env.NODE_ENV === "development";
+
 const nextConfig: NextConfig = {
   poweredByHeader: false,
+  ...(devServer ? { deprecated: { looseRouteMatching: true } } : {}),
   // Built-in image optimization for the content-addressed catalog photos only (resized webp; see
   // src/components/storefront/ui/media.tsx). Widths are the candidates the storefront's srcset uses.
   images: {
