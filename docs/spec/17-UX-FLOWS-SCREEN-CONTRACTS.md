@@ -921,7 +921,7 @@ Legend: **Y** = visible; **S** = visible, rows limited to assigned warehouses; *
 | Pemasaran | Promo Ongkir → `/admin/promotions/shipping` (new) | Y | Y | — | — | — |
 | | Banner Beranda → `/admin/banners` (new, S110) | Y | Y | — | — | — |
 | | Afiliasi → `/admin/affiliates` (new) | Y | — | — | — | R (owner question Q5) |
-| | Segmen Pembeli → `/admin/segments` (new, S126) | Y | R | — | — | — |
+| | Segmen Pembeli → `/admin/buyer-segments` (new, S126) | Y | R | — | — | — |
 | Keuangan | Pembayaran → `/admin/payments` | Y | — | — | — | G `finance.reconciliation.read` |
 | | Setoran COD → `/admin/cod-settlements` | Y | — | — | — | G `finance.reconciliation.read` |
 | | Rekonsiliasi → `/admin/finance/reconciliation` (new) | Y | — | — | — | G `finance.reconciliation.read` |
@@ -993,7 +993,7 @@ Columns: **Data** = operationIds (paths relative to `/api/v1`); **States** use L
 | B12 | `/admin/promotions/shipping` (+ `[promotionId]`) | Shipping subsidies | `listShippingPromotions`, `createShippingPromotion`, `readShippingPromotion`, `listShippingPromotionVersions`, `createShippingPromotionVersion` | Buat promo / Versi baru, akhiri | L E X D C | audit | DataTable `stack`, `FormDialog` | missing |
 | B13 | `/admin/banners` | Home promo banners (S110) | **API missing** (S110 adds it) | Unggah, urutkan, jadwalkan, pensiunkan | L E X D C | audit | DataTable `card`, `FormDialog` | missing |
 | B14 | `/admin/affiliates` (+ `[affiliateId]`) | Affiliate list and rate versions | `setAffiliateRate`; affiliate list/detail: **API missing** | Atur tarif | L E X D C | `affiliate_rate.version` | DataTable `stack` | missing |
-| B15 | `/admin/segments` | Buyer segment counts (S126), no raw contacts | **API missing** (S126) | — / filter | L E X D | read audit | KPI cards | missing |
+| B15 | `/admin/buyer-segments` | Buyer segment counts (S126), no raw contacts | **API missing** (S126) | — / filter | L E X D | read audit | KPI cards | missing |
 | B16 | `/admin/finance/reconciliation` (+ `[itemId]`) | Match / unmatch / escalate settlements | `listReconciliationItems`, `getReconciliationItem`, `reconcileFinanceItem`, `getReconciliationMatch`, `getSettlementSource` | Cocokkan / Lepas, Eskalasi | L E X D C S | `finance.reconcile` | DataTable `stack` + `DetailSection` | missing (dashboard queue rows link to A10/A11 only) |
 | B17 | `/admin/finance/payouts` (+ `[payoutId]`) | Manual affiliate payouts | `listFinancePayoutQueue`, `claimManualPayoutTransfer`, `createPayoutEvidenceUpload`, `putPayoutEvidenceBytes`, `verifyManualPayoutTransfer`, `reconcilePayoutStatus` | Klaim transfer → unggah bukti → verifikasi / rekonsiliasi | L E X D C S | `payout.claim`, `payout.verify` | DataTable `stack`, `FormDialog` | missing |
 | B18 | `/admin/finance/refunds` (+ `[refundId]`) | Refund outcomes | `getAdminRefund`, `reconcileRefundStatus`; refund list: **API missing** (B3 filter as interim) | Rekonsiliasi / coba lagi refund yang terbukti belum terkirim | L E X D C S | `finance.refund` | DataTable `stack` | missing |
