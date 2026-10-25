@@ -15,6 +15,7 @@ import {
 } from "../../src/modules/local/fixtures.ts";
 import { prepareStorefront } from "../../src/modules/local/storefront.ts";
 import { actor, cleanup, enroll } from "../contract/access-fixture.ts";
+import { closeFulfillmentActor } from "../integration/fulfillment-fixture.ts";
 import { resetBrowserAuthLimits } from "../integration/storefront-http-fixture.ts";
 import { RENDERS } from "../render-root.ts";
 
@@ -27,6 +28,8 @@ const identity = createLocalAuth("local");
 const renders = join(RENDERS, "s126");
 type User = Awaited<ReturnType<typeof actor>>;
 const users: User[] = [];
+// A buyer who owns a cart keeps its (synthetic) user row; its sessions and grants are ended instead.
+const retained: User[] = [];
 let browser: Browser;
 let owner: User;
 let seeded: Awaited<ReturnType<typeof seedCommerce>>;
@@ -110,7 +113,11 @@ after(async () => {
 			await identity.sql`delete from app.buyer_notification_preference where user_id=${user.id}`;
 			await identity.sql`delete from app.buyer_profile where user_id=${user.id}`;
 		}
-		await cleanup(identity, users);
+		await cleanup(
+			identity,
+			users.filter((user) => !retained.includes(user)),
+		);
+		for (const user of retained) await closeFulfillmentActor(identity, user);
 	} finally {
 		await identity.sql.end();
 	}
@@ -245,7 +252,8 @@ test("/akun Lengkapi profil: progress, reasons, edit and delete each field, unti
 		);
 
 		// Email promo: tick grants (with policy version), untick withdraws; both leave records.
-		await consents.getByTestId("consent-email").check();
+		await consents.getByTestId("consent-email").click();
+		await expect(consents.getByTestId("consent-email")).toBeChecked();
 		await expect(consents.getByTestId("consent-email-state")).toContainText(
 			"Disetujui",
 		);
@@ -254,7 +262,8 @@ test("/akun Lengkapi profil: progress, reasons, edit and delete each field, unti
 		);
 		assert.ok(await noOverflow(page), "390 touch: no horizontal page scroll");
 		await capture(page, "akun-profile-390-touch");
-		await consents.getByTestId("consent-email").uncheck();
+		await consents.getByTestId("consent-email").click();
+		await expect(consents.getByTestId("consent-email")).not.toBeChecked();
 		await expect(consents.getByTestId("consent-email-state")).toHaveText(
 			"Belum disetujui.",
 		);
@@ -300,6 +309,7 @@ test("checkout starts from the profile's main address", {
 }, async () => {
 	const buyer = await actor(identity, "buyer", []);
 	users.push(buyer);
+	retained.push(buyer);
 	const address = {
 		label: "Rumah",
 		recipient_name: "Penerima Profil",
@@ -332,6 +342,7 @@ test("checkout starts from the profile's main address", {
 		],
 	};
 	const cartRequest = buyer.browser.request("/api/v1/carts", body);
+	cartRequest.headers.set("idempotency-key", randomUUID());
 	const user = await commerceActor(cartRequest, identity);
 	assert.equal(user?.kind, "user");
 	if (user)
@@ -417,7 +428,9 @@ test("/akun and admin Segmen Pembeli render at 390 touch, 768 and 1440 without o
 			await expect(admin.page.getByTestId("segment-programs")).toContainText(
 				"Doorprize",
 			);
-			const text = (await admin.page.locator("main").textContent()) ?? "";
+			const text =
+				(await admin.page.getByTestId("buyer-segments-page").textContent()) ??
+				"";
 			assert.doesNotMatch(
 				text,
 				/@example|\+62|08\d{8}/,
