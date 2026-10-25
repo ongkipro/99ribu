@@ -4190,7 +4190,8 @@ body:has(> .store-header, > .checkout-header, > .receipt-shell) {
 .shelf-row .product-price {
 	font-size: var(--caption-size);
 	line-height: var(--caption-leading);
-	font-weight: 600;
+	/* Owner 2026-10-25: card prices regular (400), not bold. */
+	font-weight: 400;
 	letter-spacing: var(--tracking-small);
 	color: var(--ink);
 	margin-top: 2px;
