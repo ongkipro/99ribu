@@ -16,6 +16,11 @@ import {
 	WHATSAPP_PATTERN,
 } from "@/modules/storefront/contact";
 import { rupiah } from "@/modules/storefront/format";
+import {
+	type CompletionData,
+	ProfileCompletion,
+	PromoConsents,
+} from "./profile-completion";
 import { EmailSuggestion, filterContact } from "./ui/contact-fields";
 
 type Props = {
@@ -25,6 +30,8 @@ type Props = {
 	initialPreferences: NotificationPreferenceResponse | null;
 	initialNotifications: PrivateNotificationResponse[];
 	initialOrders: ProjectedOrder[];
+	// S126: null when signed out or when the completion read failed (the rest of the account still works).
+	initialCompletion?: CompletionData | null;
 };
 
 export function BuyerAccountClient({
@@ -34,6 +41,7 @@ export function BuyerAccountClient({
 	initialPreferences,
 	initialNotifications,
 	initialOrders,
+	initialCompletion = null,
 }: Props) {
 	const [profile, setProfile] = useState(initialProfile);
 	const [addresses, setAddresses] = useState(initialAddresses);
@@ -302,6 +310,15 @@ export function BuyerAccountClient({
 			{initialAuthenticated && profile ? (
 				<div className="receipt-layout">
 					<div className="receipt-primary">
+						{initialCompletion && (
+							<ProfileCompletion
+								{...initialCompletion}
+								profile={profile}
+								addresses={addresses}
+								onAddresses={setAddresses}
+								onStatus={setStatusMsg}
+							/>
+						)}
 						<section
 							className="receipt-card"
 							aria-labelledby="account-profile-heading"
@@ -346,7 +363,9 @@ export function BuyerAccountClient({
 								) : (
 									<p className="checkout-hint">
 										<strong data-testid="profile-phone">
-											{profile.phone ? maskedPhone(profile.phone) : "Belum diatur"}
+											{profile.phone
+												? maskedPhone(profile.phone)
+												: "Belum diatur"}
 										</strong>{" "}
 										{/* A verified number changes only through a contact-change challenge (server: VERIFIED_PHONE_LOCKED). */}
 										{profile.phone_verified ? (
@@ -476,6 +495,13 @@ export function BuyerAccountClient({
 					</div>
 
 					<div className="receipt-secondary">
+						{initialCompletion && (
+							<PromoConsents
+								initial={initialCompletion.consents}
+								profile={profile}
+								onStatus={setStatusMsg}
+							/>
+						)}
 						<section
 							className="receipt-card"
 							aria-labelledby="account-notifications-heading"
