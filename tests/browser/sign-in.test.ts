@@ -82,12 +82,14 @@ test("staff signs in through /masuk with the TOTP step and lands on /admin", asy
 		await page.getByLabel("Kode autentikator").fill(totp(owner.totp_uri));
 		await page.getByRole("button", { name: "Verifikasi" }).click();
 		await page.waitForURL(`${origin}/admin`);
-		await page.getByTestId("admin-session-bar").getByText(owner.email).waitFor();
+		await page.getByTestId("admin-account").getByText(owner.email).waitFor();
 		const cookie = (await page.context().cookies()).find((item) => item.name === "99ribu-local.session_token");
 		assert.ok(cookie?.httpOnly && cookie.sameSite === "Lax");
 		// Already signed in: /masuk routes straight to the role home instead of showing the form.
 		await page.goto(`${origin}/masuk`);
 		await page.waitForURL(`${origin}/admin`);
+		// S128: sign-out lives in the sidebar account menu.
+		await page.getByRole("button", { name: /^Menu akun/ }).click();
 		await page.getByTestId("sign-out-button").click();
 		await page.waitForURL(/\/masuk\?next=%2Fadmin$/);
 		await page.getByLabel("Email").waitFor();

@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import { bpsToPercent, percentToBps } from "../src/components/admin/format.ts";
 import { historyStatus, searchQuery } from "../src/components/admin/order-model.ts";
+import { consoleSignInRedirect } from "../src/modules/access/return-to.ts";
 import { wibInputToIso } from "../src/modules/storefront/format.ts";
 
 test("datetime-local values are read as WIB regardless of the device timezone", () => {
@@ -41,4 +42,16 @@ test("S113: order history labels a status by its event kind (order pending is no
 	assert.equal(historyStatus("fulfillment", "handed_over"), "Diserahkan ke kurir");
 	assert.equal(historyStatus("refund", "succeeded"), "Berhasil");
 	assert.equal(historyStatus("order", "new_state"), "new_state");
+});
+
+test("S128: a signed-out production console request redirects to /masuk with the same console path", () => {
+	assert.equal(consoleSignInRedirect("production", false, "/admin/orders?jenis=resi"), "/masuk?next=%2Fadmin%2Forders%3Fjenis%3Dresi");
+	assert.equal(consoleSignInRedirect("production", false, "/admin"), "/masuk?next=%2Fadmin");
+	// Missing, foreign or unsafe paths return to the console home.
+	for (const path of [null, "", "/akun", "//evil.invalid/admin", "/admin\\x", "/adminx"]) {
+		assert.equal(consoleSignInRedirect("production", false, path), "/masuk?next=%2Fadmin", String(path));
+	}
+	// Signed in, or the local/test preview: no redirect.
+	assert.equal(consoleSignInRedirect("production", true, "/admin/orders"), null);
+	assert.equal(consoleSignInRedirect("local", false, "/admin/orders"), null);
 });

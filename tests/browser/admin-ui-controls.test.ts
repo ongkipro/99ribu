@@ -243,12 +243,12 @@ test("staff inbox: console shell, noindex, claim once per double click, visible 
 		await close();
 	}
 
-	// Signed out: the console shell stays (sidebar, session bar) with an access notice.
+	// Signed out (local preview): the console shell stays (sidebar, account block) with an access notice.
 	const anon = await open(null);
 	try {
 		await anon.page.goto(`${origin}/admin/support`);
 		await expect(anon.page.locator("#access-denied-heading")).toBeVisible();
-		await expect(anon.page.getByTestId("admin-session-bar")).toBeVisible();
+		await expect(anon.page.getByTestId("admin-account").getByRole("link", { name: "Masuk sebagai staf" })).toBeVisible();
 	} finally {
 		await anon.close();
 	}
