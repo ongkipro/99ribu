@@ -4914,7 +4914,7 @@ body:has(> .store-header, > .checkout-header, > .receipt-shell) {
    On a fine pointer, hover or keyboard focus grows "99rb." into "Serba 99ribu": each hidden
    part opens from a 0fr grid track while its glyphs fade in from 4px; the yellow "." stays and
    rides to the end ("Serba 99ribu."), since it follows the last track. CSS
-   only, 240ms in and 180ms out on cubic-bezier(.2,0,0,1). The logo sits in the header's left
+   only; timing in the rule below (100ms intent, 520ms staggered open, 200ms close). The logo sits in the header's left
    1fr column, so the omnibox stays centred; the reveal starts at 1024px, where that column fits
    the full name (111px wider, leaving at least 44px before the omnibox). Touch and screens below
    1024px keep the static "99rb."; reduced motion swaps it without the transition. */
@@ -4922,7 +4922,7 @@ body:has(> .store-header, > .checkout-header, > .receipt-shell) {
 	display: inline-grid;
 	grid-template-columns: 0fr;
 	vertical-align: baseline;
-	transition: grid-template-columns 180ms cubic-bezier(0.2, 0, 0, 1);
+	transition: grid-template-columns 200ms cubic-bezier(0.4, 0, 0.2, 1);
 }
 .store-header .brand-reveal .grow > span {
 	min-width: 0;
@@ -4930,25 +4930,58 @@ body:has(> .store-header, > .checkout-header, > .receipt-shell) {
 	white-space: pre;
 	opacity: 0;
 	translate: -4px 0;
+	filter: blur(2px);
 	transition:
-		opacity 180ms cubic-bezier(0.2, 0, 0, 1),
-		translate 180ms cubic-bezier(0.2, 0, 0, 1);
+		opacity 160ms cubic-bezier(0.4, 0, 0.2, 1),
+		translate 160ms cubic-bezier(0.4, 0, 0.2, 1),
+		filter 160ms cubic-bezier(0.4, 0, 0.2, 1);
 }
+/* Elegant open (owner 2026-10-25): a 100ms hover-intent pause (a passing pointer does not flash it), the
+   tracks ease open over 520ms, the glyphs settle from a 2px blur in a stagger ("Serba", then "i", then
+   "u"), and the yellow dot gives one small hop when the name is complete. Closing stays quick (200ms). */
 @media (hover: hover) and (pointer: fine) and (min-width: 1024px) {
 	.brand-reveal:is(:hover, :focus-visible) .grow {
 		grid-template-columns: 1fr;
-		transition-duration: 240ms;
+		transition: grid-template-columns 520ms cubic-bezier(0.22, 1, 0.36, 1) 100ms;
 	}
 	.store-header .brand-reveal:is(:hover, :focus-visible) .grow > span {
 		opacity: 1;
 		translate: 0 0;
-		transition-duration: 240ms;
+		filter: blur(0);
+		transition:
+			opacity 420ms cubic-bezier(0.22, 1, 0.36, 1) 160ms,
+			translate 420ms cubic-bezier(0.22, 1, 0.36, 1) 160ms,
+			filter 420ms cubic-bezier(0.22, 1, 0.36, 1) 160ms;
+	}
+	.store-header .brand-reveal:is(:hover, :focus-visible) > span > .grow:first-of-type > span {
+		transition-delay: 240ms;
+	}
+	.store-header .brand-reveal:is(:hover, :focus-visible) > span > .grow:last-of-type > span {
+		transition-delay: 300ms;
+	}
+	.store-header .brand-reveal:is(:hover, :focus-visible) > i {
+		animation: brand-dot-hop 520ms cubic-bezier(0.34, 1.56, 0.64, 1) 560ms both;
+	}
+}
+@keyframes brand-dot-hop {
+	0%,
+	100% {
+		translate: 0 0;
+	}
+	45% {
+		translate: 0 -0.18em;
 	}
 }
 @media (prefers-reduced-motion: reduce) {
 	.brand-reveal .grow,
-	.brand-reveal .grow > span {
+	.brand-reveal:is(:hover, :focus-visible) .grow,
+	.store-header .brand-reveal .grow > span,
+	.store-header .brand-reveal:is(:hover, :focus-visible) .grow > span {
 		transition: none;
+		filter: none;
+	}
+	.store-header .brand-reveal:is(:hover, :focus-visible) > i {
+		animation: none;
 	}
 }
 
