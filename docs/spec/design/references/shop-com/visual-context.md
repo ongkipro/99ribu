@@ -552,6 +552,15 @@ Observed live on a shop.com product (Portland Gear "Cascade Tote - Standard") at
 - Buy box in shop.com's order: the category line ("Semua produk / <kategori>") in the merchant row's place, title 24/28 600 -1px, price 16/22 600 with its "/ pilihan lengkap" basis, field labels 12/16 600 ("Pilihan lengkap", "Isi yang diterima", "Jumlah pilihan"), option pills, the contents list, stock status, the quantity pill (the same native number field "Jumlah pilihan" between "Kurangi jumlah" and "Tambah jumlah"), the 52px "Tambah ke keranjang" pill with shop.com's highlight and glow in 99ribu purple, then Spesifikasi when the product has spec data and the 52px accordions (Deskripsi, Ongkir dan pengiriman, Pengembalian).
 - **Deviations:** square photo cards instead of 4:5 (merchant photos are square and carry text that a crop would cut, round 30); no merchant avatar, rating, Buy now, Save or Share (no data or feature behind them); the brand purple `#5b35d5` instead of shop.com's `rgb(84,51,235)`; option pills stay text pills (no colour swatches in the catalog); the phone row shows 88% cards.
 
+99ribu (S139 precision pass, owner request 2026-10-25; gap list `docs/spec/design/reviews/s139-pdp-gap-list.md`):
+- Options switch at once like shop.com's swatches: each option is a link to its `?offer=` URL (no "Lihat pilihan" step; works without JS; URL replaced so Back still returns to the list), one label row "Pilihan lengkap <value>" (12/16 600 + 400) for every product.
+- Thumbnails are server-rendered `#foto-N` links (no column shift on hydration); a "N / M" counter sits on the photo where the strip is hidden (≤1050px).
+- Buy box groups 24px apart (head: category, title, price at 8px); the price stays when the requested offer is unknown.
+- Deskripsi open, long text clamped to 8 lines with a grey "Baca selengkapnya" pill (shop.com "Read more"); "Pengiriman dan pembayaran" open with icon rows (shop.com "Delivery & Returns"), copy from existing verified help and checkout labels only.
+- "Lainnya di <kategori> ›" shelf after the product (shop.com "More from" / "You might also like"), streamed separately.
+- **Owner-facing addition beyond shop.com:** a phone buy bar (price + "Tambah ke keranjang") above the dock while the main button is out of view; a pointer shortcut for the same form (aria-hidden, out of the tab order), hidden on short screens.
+- Renders: `docs/spec/design/renders/s139/`.
+
 ### Sign-in (observed 2026-10-24, owner request S112)
 
 Observed live at 1440 and 390 (read-only Playwright, reference `2026-10-24-signin`, nothing submitted but an empty form).
