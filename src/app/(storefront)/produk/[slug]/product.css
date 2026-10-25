@@ -158,10 +158,10 @@ main.product-detail .gallery-thumbs {
    tablets): short laptop screens get a smaller photo, tall screens a larger one, so the photo and its rail
    stay on one screen. Square photos kept (supplier photos carry text, S139). */
 @media (min-width: 1051px) {
-	/* The photo hugs the thumbnail rail; spare width goes to the gap before the buy box. */
+	/* The photo stays centred in its column (owner 2026-10-25). */
 	main.product-detail .gallery-row > li {
 		display: flex;
-		justify-content: flex-start;
+		justify-content: center;
 	}
 	main.product-detail .gallery-row .product-image {
 		/* First screen: the store header (~10rem) plus breathing room stays above the photo. */
