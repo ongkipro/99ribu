@@ -181,7 +181,7 @@ shop.com serves **GT Standard Web** (Grilli Type, commercial licence; one variab
 | Card title (bodyTitleSmall) | 14/18, 600, -0.2px, one line | same (owner reversed the earlier 400 call) |
 | Card price (captionBold) | 12/16, 600, -0.2px, black | same (S143 2026-10-25; the 2026-10-24 regular-weight override is withdrawn) |
 | Merchant line | 12/16, 400, -0.2px | n/a (single merchant) |
-| Footer link / heading | 16/22, 400 / 14/18, 500, -0.2px | same |
+| Footer link / heading | link text 14/18, 400, -0.2px (a paragraph inside a 16/22 anchor), 30px pitch / 14/18, 500, -0.2px (re-measured 2026-10-25) | same (S143; the earlier row read the 16/22 anchor) |
 | Category switcher label | 96/96, 800, -1px; 42/42 | same |
 | Omnibox caption (captionMedium) | 12/16, 500, rgba(0,0,0,.56) | same |
 
@@ -603,13 +603,13 @@ Owner (2026-10-25): make the public storefront simpler and cleaner, matching sho
 - Font: GT Standard Web variable 300–900 (commercial licence). Not copied; Inter 4.1 variable stays (see "Typography contract").
 - Text `rgb(0,0,0)`; page canvas `#fcfcfc` (oklch .988 0 0); surfaces `#fff`; secondary UI text `oklch(0.552 0.026 290.5)`; muted captions `rgba(0,0,0,.56)` 12/16 500.
 - Body 16/22 400 -0.5px. Category H1 36/38 800 -1px; category section H2 24/26 600 -1px; PDP H2 20/22 600 -1px; home hero H2 64/58 800 -1px. PDP title 24/28 600 -1px; PDP price 16/22 600 -0.5px; buttons 16/20 600 -0.5px. Card title 14/18 600 -0.2px; card caption 12/16 400–500 -0.2px; card price 12/16 600 (captionBold).
-- Spacing on a 4px scale (2, 4, 6, 8, 12, 16, 20, 24, 28, 32); radii 8 (thumbnails), 20 (cards, photos), 28 (hero cards), 9999 (pills); card grids 32px apart on desktop.
+- Spacing on a 4px scale (2, 4, 6, 8, 12, 16, 20, 24, 28, 32); radii 8 (thumbnails), 20 (cards, photos), 28 (hero cards), 9999 (pills); card grids 32px apart on desktop (coordinator reading). A re-check the same day (computed styles on shop.app home) measured the home product rows at 16px (8px on phones) and the footer link text at 14/18 400 -0.2px on a 30px pitch.
 
 99ribu (S143): tokens and the type scale in `src/app/globals.css` (DESIGN.md "Storefront typography, color and spacing"):
 - Ink `#000`, canvas `#fcfcfc`, muted `oklch(0.552 0.026 290.5)` (4.72:1 on canvas, 4.84:1 on white), caption `rgba(0,0,0,.56)` (4.90/4.93:1). Text on tints darker than `#f7f6fa` uses the caption or ink instead of muted (muted is 4.38:1 on `#f4f3f8`).
 - Every page heading (global `h1`) is 36/38 800 -1px (28/30 on phones); category/search section headings 24/26; section headings and PDP accordions 20/22 600 -1px (18/20 -0.5px on phones); checkout and receipt shells take the storefront body 16/22 -0.5px. Off-scale sizes (13, 13.6, 14.4, 15, 17px) and tracking (-0.01/-0.02em) are folded onto the scale; weights 650/700 become 600.
 - **Card price weight 600** as shop.com: the owner's 2026-10-24 regular-weight override is withdrawn.
-- Product and listing grids 32px apart from 1024px (16px at 768–1023, 8px on phones). Checkout and receipt boxes use the 8/20px radii; paddings and gaps snapped to the 4px scale.
+- Listing, search and home product grids keep 16px gaps (8px on phones), as shop.com's home rows and the 2026-10-24 search capture (about 17px); the 5-column PDP related grid keeps its 32px desktop column gap (S139); row gaps stay small because each card spans four subgrid rows. Footer links 14/18 400 -0.2px on a 30px pitch (44px on phones for the target rule). Checkout and receipt boxes use the 8/20px radii; paddings and gaps snapped to the 4px scale.
 - **PDP breadcrumb:** "Beranda › <Kategori>" (Beranda → `/`, category → `/kategori/<slug>`), 12/16 500 caption ink, the last crumb in ink, a 14px chevron, the title directly below; replaces "Semua produk / <Kategori>". It matches the `BreadcrumbList` JSON-LD (Beranda → category → product). shop.com has no breadcrumb (the merchant row sits there); 99ribu keeps the trail in that slot.
 - Deviations that remain: Inter instead of GT Standard; brand purple `#5b35d5` for primary actions and accents; shop.com's 10px banner-rail gap kept as observed; the receipt's ≤22rem first-screen compression (S27) keeps its own small sizes.
 - Renders: `docs/spec/design/renders/s143/` (home, kategori, kategori detail, PDP, keranjang, checkout at 390 touch / 768 / 1440; `checks.json`: no horizontal overflow, no console errors).

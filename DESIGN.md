@@ -73,7 +73,8 @@ Weights in use: 400, 500, 600, 800 (the wordmark keeps its own 850–900).
 ### Spacing and radii
 
 - Spacing is a 4px scale: 2, 4, 6, 8, 12, 16, 20, 24, 28, 32, then 40/48/56/64 for section rhythm. Groups: 8px inside a group, 16px between related groups, 24px between buy-box groups, 48px between home sections (40 on phones), 64px before the footer (40 on phones). Off-scale values left on purpose: shop.com's 10px banner-rail gap, omnibox field geometry, badge insets, and the receipt's ≤22rem first-screen compression (S27).
-- Card grids: 16px gaps (8px on phones); the PDP related grid uses shop.com's 32px desktop gap.
+- Card grids: 16px gaps from 768px and 8px on phones on listings, search and home rows (shop.com's home product rows measure 16/8px; the 2026-10-24 search capture shows about 17px); the 5-column PDP related grid keeps 32px column gaps on desktop (S139). Row gaps stay small because each card spans four subgrid rows, so the row gap repeats inside the card.
+- Footer: 14/18 headings at 500 and 14/18 400 -0.2px links on a 30px pitch (44px targets on phones), re-measured on shop.app 2026-10-25.
 - Radii: 8px thumbnails and small boxes (checkout choices, receipt code box, status panels); 12px fields; 20px cards and photos (product frames, PDP photos, help cards, cart and checkout summaries, receipt and account cards); 28px hero cards, banners, popovers and sheets; 32px omnibox; 36px home hero; 9999px pills and buttons.
 
 ### Breadcrumb
@@ -90,7 +91,7 @@ PDP (and any page that needs one): `<nav class="breadcrumb" aria-label="Lokasi h
 
 - Container `.wrap`: `min(1250px, 100% - 2 × gutter)`.
 - Breakpoints in use: ≤700px phone composition (dock, no header actions, bleeding shelves) / ≥701px header grid; 1023/1024 (gutter, grid columns); 1050 (PDP columns); 1279/1280 (shelf 7 cards, category grid 5 columns); 1440 (gutter).
-- Product grid: 6 columns from 1024px, 4 from 768, 3 from 701, 2 on phones; 16px gaps (8px on phones). Shelves: 7 cards from 1280, 4.6 from 701, 2.3 on phones bleeding to the screen edge.
+- Product grid: 6 columns from 1024px, 4 from 768, 3 from 701, 2 on phones; gaps as in "Spacing and radii". Shelves: 7 cards from 1280, 4.6 from 701, 2.3 on phones bleeding to the screen edge.
 
 ## Components
 
