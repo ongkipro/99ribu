@@ -5,32 +5,13 @@
    coordinator may fold this file into globals.css later (the superseded globals rules are listed
    in the gap list). */
 
-/* ---- Buy box rhythm: shop.com groups sit 24px apart, 8-16px inside a group. ---- */
-main.product-detail .buy-box {
-	gap: 24px;
-}
+/* ---- Buy box rhythm: shop.com groups sit 24px apart (globals), 8-16px inside a group. ---- */
 main.product-detail .buy-head {
 	display: grid;
 	gap: 8px;
 }
 main.product-detail .buy-head h1 {
 	text-wrap: pretty;
-}
-main.product-detail .product-category {
-	margin-bottom: -4px;
-}
-/* A separator stays with the crumb after it, so a wrapped line never ends in a bare "/". */
-main.product-detail .product-category > span {
-	display: inline-flex;
-	align-items: center;
-	gap: 8px;
-}
-main.product-detail .offer-picker {
-	margin-top: 0;
-}
-/* The stock line starts the purchase group: 24px under the contents (8px list gap + 16px). */
-main.product-detail .purchase-region {
-	margin-top: 16px;
 }
 main.product-detail .purchase-region .stock-exit {
 	justify-self: start;
@@ -49,10 +30,10 @@ main.product-detail .quantity-stepper:has(input[readonly]) input {
 
 /* ---- Field labels: shop.com "Color Black" = 12/16 600 name + 400 value. ---- */
 main.product-detail .field-label {
-	font-size: 0.75rem;
-	line-height: 1rem;
+	font-size: var(--caption-size);
+	line-height: var(--caption-leading);
 	font-weight: 600;
-	letter-spacing: -0.2px;
+	letter-spacing: var(--tracking-small);
 }
 main.product-detail .field-label > span {
 	font-weight: 400;
@@ -83,10 +64,10 @@ main.product-detail .offer-picker a {
 	background: #fff;
 	box-shadow: 0 2px 8px rgba(0, 0, 0, 0.06);
 	color: var(--ink);
-	font-size: 0.875rem;
-	line-height: 1.125rem;
+	font-size: var(--small-size);
+	line-height: var(--small-leading);
 	font-weight: 600;
-	letter-spacing: -0.2px;
+	letter-spacing: var(--tracking-small);
 	overflow-wrap: anywhere;
 	transition:
 		border-color 150ms cubic-bezier(0.4, 0, 0.2, 1),
@@ -102,7 +83,7 @@ main.product-detail .offer-picker a[aria-current] {
 }
 /* Unavailable: still a link (its page explains and offers a way out), marked in text, not colour alone. */
 main.product-detail .offer-picker a:not([data-available]) {
-	background: #fafafa;
+	background: var(--canvas);
 	color: var(--muted);
 }
 main.product-detail .offer-picker a:not([data-available])[aria-current] {
@@ -110,8 +91,8 @@ main.product-detail .offer-picker a:not([data-available])[aria-current] {
 }
 main.product-detail .offer-picker small {
 	color: var(--muted);
-	font-size: 0.75rem;
-	line-height: 1rem;
+	font-size: var(--caption-size);
+	line-height: var(--caption-leading);
 	font-weight: 400;
 }
 
@@ -141,9 +122,6 @@ main.product-detail .gallery-thumbs a:hover:not([aria-current]) {
 main.product-detail .gallery-thumbs {
 	align-self: center;
 }
-main.product-detail .gallery-row .product-image {
-	border-radius: 20px;
-}
 @media (min-width: 701px) and (max-width: 1050px) {
 	main.product-detail .product-gallery:has(.gallery-thumbs) {
 		gap: 12px;
@@ -169,12 +147,12 @@ main.product-detail .gallery-count {
 		display: block;
 		padding: 2px 10px;
 		border-radius: 9999px;
-		background: rgba(24, 24, 27, 0.72);
+		background: rgba(0, 0, 0, 0.72);
 		color: #fff;
-		font-size: 0.75rem;
+		font-size: var(--caption-size);
 		line-height: 1.25rem;
 		font-weight: 600;
-		letter-spacing: -0.2px;
+		letter-spacing: var(--tracking-small);
 		font-variant-numeric: tabular-nums;
 		pointer-events: none;
 	}
@@ -185,7 +163,6 @@ main.product-detail .product-sections {
 	margin-top: -8px;
 }
 main.product-detail .product-policy:first-of-type {
-	margin-top: 0;
 	border-top: 1px solid rgba(24, 59, 78, 0.12);
 }
 main.product-detail .description-body {
@@ -208,15 +185,15 @@ main.product-detail .read-more summary {
 	margin-top: 12px;
 	padding: 8px 16px;
 	border-radius: 9999px;
-	background: rgba(24, 24, 27, 0.05);
-	font-size: 0.875rem;
-	line-height: 1.125rem;
+	background: rgba(0, 0, 0, 0.05);
+	font-size: var(--small-size);
+	line-height: var(--small-leading);
 	font-weight: 600;
-	letter-spacing: -0.2px;
+	letter-spacing: var(--tracking-small);
 	transition: background-color 150ms cubic-bezier(0.4, 0, 0.2, 1);
 }
 main.product-detail .read-more summary:hover {
-	background: rgba(24, 24, 27, 0.09);
+	background: rgba(0, 0, 0, 0.09);
 }
 main.product-detail .read-more[open] .more-show,
 main.product-detail .read-more:not([open]) .more-hide {
@@ -228,9 +205,9 @@ main.product-detail .policy-rows {
 	margin: 0;
 	padding: 0 0 16px;
 	list-style: none;
-	font-size: 0.875rem;
+	font-size: var(--small-size);
 	line-height: 1.25rem;
-	letter-spacing: -0.2px;
+	letter-spacing: var(--tracking-small);
 }
 main.product-detail .policy-rows li {
 	display: grid;
@@ -251,33 +228,26 @@ main.product-detail .quantity-stepper button > svg {
 	height: 1.25rem;
 }
 
-/* ---- Related shelf: the home shelf heading (20/22 600 -1px; phones 18/20). ---- */
-/* Related grid (shop.com "You might also like"): 5 equal columns with 32px gaps on desktop, 3 on tablets,
+/* Related grid (shop.com "You might also like"): 5 equal columns, 32px column gaps on desktop (S139), 3 on tablets,
    2 on phones. No discount badge or rating: 99ribu has no compare-at price or reviews behind them. */
 main.product-detail .related-shelf .product-grid {
 	grid-template-columns: repeat(5, minmax(0, 1fr));
-	gap: 32px;
+	gap: 16px 32px;
 }
 @media (max-width: 1050px) {
 	main.product-detail .related-shelf .product-grid {
 		grid-template-columns: repeat(3, minmax(0, 1fr));
-		gap: 24px 16px;
+		gap: 16px;
 	}
 }
 @media (max-width: 700px) {
 	main.product-detail .related-shelf .product-grid {
 		grid-template-columns: repeat(2, minmax(0, 1fr));
-		gap: 20px 12px;
+		gap: 8px;
 	}
 }
 main.product-detail .related-shelf {
 	margin-top: 64px;
-}
-main.product-detail .related-shelf .shelf-heading {
-	font-size: 1.25rem;
-	line-height: 1.375rem;
-	font-weight: 600;
-	letter-spacing: -1px;
 }
 
 /* Action row (shop.com pdp-actions): two equal 50% pills, 8px apart; add to cart (first in the DOM) sits on the
@@ -297,8 +267,8 @@ main.product-detail .purchase-region .purchase-actions > .button {
 @media (max-width: 1050px) {
 	main.product-detail .purchase-region .purchase-actions > .button {
 		padding-inline: 8px;
-		font-size: 0.875rem;
-		letter-spacing: -0.3px;
+		font-size: var(--small-size);
+		letter-spacing: var(--tracking-small);
 	}
 }
 
@@ -335,11 +305,6 @@ main.product-detail .buy-bar {
 	main.product-detail .related-shelf {
 		margin-top: 48px;
 	}
-	main.product-detail .related-shelf .shelf-heading {
-		font-size: 1.125rem;
-		line-height: 1.25rem;
-		letter-spacing: -0.5px;
-	}
 	/* The bar runs 28px under the dock so the dock's rounded corners show the bar, not the page. */
 	main.product-detail .buy-bar:not([hidden]) {
 		position: fixed;
@@ -362,10 +327,10 @@ main.product-detail .buy-bar {
 	main.product-detail .buy-bar p {
 		flex: 0 1 auto;
 		min-width: 0;
-		font-size: 1rem;
-		line-height: 1.375rem;
+		font-size: var(--body-size);
+		line-height: var(--body-leading);
 		font-weight: 600;
-		letter-spacing: -0.5px;
+		letter-spacing: var(--tracking-body);
 		overflow-wrap: anywhere;
 	}
 	main.product-detail .purchase-region .cart-mutation .buy-bar .button {
@@ -390,7 +355,7 @@ main.product-detail .buy-bar {
 	}
 }
 main.product-detail .offer-detail-label {
-	margin: 0;
 	color: var(--muted);
-	font-size: 0.875rem;
+	font-size: var(--small-size);
+	letter-spacing: var(--tracking-small);
 }

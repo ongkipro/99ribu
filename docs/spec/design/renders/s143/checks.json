@@ -1,0 +1,125 @@
+[
+ {
+  "page": "home",
+  "width": 390,
+  "overflow": 0,
+  "errors": []
+ },
+ {
+  "page": "kategori",
+  "width": 390,
+  "overflow": 0,
+  "errors": []
+ },
+ {
+  "page": "kategori-detail",
+  "width": 390,
+  "overflow": 0,
+  "errors": []
+ },
+ {
+  "page": "breadcrumb",
+  "width": 390,
+  "text": "Beranda Kecantikan"
+ },
+ {
+  "page": "pdp",
+  "width": 390,
+  "overflow": 0,
+  "errors": []
+ },
+ {
+  "page": "keranjang",
+  "width": 390,
+  "overflow": 0,
+  "errors": []
+ },
+ {
+  "page": "checkout",
+  "width": 390,
+  "overflow": 0,
+  "errors": []
+ },
+ {
+  "page": "home",
+  "width": 768,
+  "overflow": 0,
+  "errors": []
+ },
+ {
+  "page": "kategori",
+  "width": 768,
+  "overflow": 0,
+  "errors": []
+ },
+ {
+  "page": "kategori-detail",
+  "width": 768,
+  "overflow": 0,
+  "errors": []
+ },
+ {
+  "page": "breadcrumb",
+  "width": 768,
+  "text": "Beranda Kecantikan"
+ },
+ {
+  "page": "pdp",
+  "width": 768,
+  "overflow": 0,
+  "errors": []
+ },
+ {
+  "page": "keranjang",
+  "width": 768,
+  "overflow": 0,
+  "errors": []
+ },
+ {
+  "page": "checkout",
+  "width": 768,
+  "overflow": 0,
+  "errors": []
+ },
+ {
+  "page": "home",
+  "width": 1440,
+  "overflow": 0,
+  "errors": []
+ },
+ {
+  "page": "kategori",
+  "width": 1440,
+  "overflow": 0,
+  "errors": []
+ },
+ {
+  "page": "kategori-detail",
+  "width": 1440,
+  "overflow": 0,
+  "errors": []
+ },
+ {
+  "page": "breadcrumb",
+  "width": 1440,
+  "text": "Beranda Kecantikan"
+ },
+ {
+  "page": "pdp",
+  "width": 1440,
+  "overflow": 0,
+  "errors": []
+ },
+ {
+  "page": "keranjang",
+  "width": 1440,
+  "overflow": 0,
+  "errors": []
+ },
+ {
+  "page": "checkout",
+  "width": 1440,
+  "overflow": 0,
+  "errors": []
+ }
+]
