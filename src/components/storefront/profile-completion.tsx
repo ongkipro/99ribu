@@ -159,11 +159,13 @@ export function ProfileCompletion({
 			onStatus(
 				code === "INVALID_BIRTHDAY"
 					? "Tanggal lahir tidak valid. Periksa tanggal dan bulan."
-					: code === "PROFILE_VERSION_CONFLICT"
-						? "Profil berubah di tab lain. Muat ulang halaman lalu coba lagi."
-						: code === "CATEGORY_UNAVAILABLE"
-							? "Salah satu kategori sudah tidak tersedia. Muat ulang halaman."
-							: "Gagal menyimpan profil.",
+					: code === "UNDER_MINIMUM_AGE"
+						? "Maaf, akun 99ribu hanya untuk usia 18 tahun ke atas. Tanggal lahir tidak disimpan."
+						: code === "PROFILE_VERSION_CONFLICT"
+							? "Profil berubah di tab lain. Muat ulang halaman lalu coba lagi."
+							: code === "CATEGORY_UNAVAILABLE"
+								? "Salah satu kategori sudah tidak tersedia. Muat ulang halaman."
+								: "Gagal menyimpan profil.",
 			);
 		});
 	}

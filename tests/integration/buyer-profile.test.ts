@@ -5,6 +5,7 @@ import {
 	favouriteCategoryChoices,
 	handleProfileCompletion,
 	MARKETING_POLICY_VERSION,
+	parseProfileDetails,
 } from "../../src/modules/accounts/profile-completion.ts";
 import { handleAccounts } from "../../src/modules/accounts/service.ts";
 import { profileDraft } from "../../src/modules/storefront/checkout.ts";
@@ -257,6 +258,93 @@ test("S126 buyer profile completion, promo consent, segments and checkout prefil
 		);
 		assert.doesNotMatch(JSON.stringify(audit.details), /1990|female|12/);
 
+		// DEC-019(b): buyers are at least 18 on today's WIB date. A refused save stores nothing; no year, no check.
+		const wib = new Date(Date.now() + 7 * 3600_000);
+		const eighteenYearsBefore = (days: number) => {
+			const d = new Date(
+				Date.UTC(
+					wib.getUTCFullYear() - 18,
+					wib.getUTCMonth(),
+					wib.getUTCDate() + days,
+				),
+			);
+			return {
+				birth_year: d.getUTCFullYear(),
+				birth_month: d.getUTCMonth() + 1,
+				birth_day: d.getUTCDate(),
+			};
+		};
+		const ageBase = (await details(buyer)).body;
+		const tooYoung = await save(buyer, {
+			expected_version: ageBase.version,
+			...full,
+			...eighteenYearsBefore(1),
+		});
+		assert.deepEqual(
+			[tooYoung.status, tooYoung.body.code],
+			[422, "UNDER_MINIMUM_AGE"],
+			"18 tomorrow is refused",
+		);
+		assert.deepEqual(
+			(await details(buyer)).body,
+			ageBase,
+			"A refused save stores nothing",
+		);
+		const noYear = await save(buyer, {
+			expected_version: ageBase.version,
+			...full,
+			...eighteenYearsBefore(1),
+			birth_year: null,
+		});
+		assert.equal(
+			noYear.status,
+			201,
+			"Day and month without a year: no age check",
+		);
+		const exactly18 = await save(buyer, {
+			expected_version: ageBase.version + 1,
+			...full,
+			...eighteenYearsBefore(0),
+		});
+		assert.equal(exactly18.status, 201, "Exactly 18 today is accepted");
+		const restored = await save(buyer, {
+			expected_version: ageBase.version + 2,
+			birth_day: ageBase.birth_day,
+			birth_month: ageBase.birth_month,
+			birth_year: ageBase.birth_year,
+			gender: ageBase.gender,
+			favourite_category_ids: ageBase.favourite_category_ids,
+		});
+		assert.equal(restored.body.birth_month, 8);
+		// The same boundary on fixed clocks: WIB midnight, not UTC, and 29 February birthdays.
+		const age = (birth: [number, number, number], at: string) => {
+			try {
+				parseProfileDetails(
+					{
+						expected_version: 1,
+						...empty,
+						birth_year: birth[0],
+						birth_month: birth[1],
+						birth_day: birth[2],
+					},
+					new Date(at),
+				);
+				return "ok";
+			} catch (error) {
+				return (error as { code: string }).code;
+			}
+		};
+		assert.equal(age([2008, 10, 25], "2026-10-24T17:00:00Z"), "ok"); // 25 Oct 00:00 WIB
+		assert.equal(
+			age([2008, 10, 25], "2026-10-24T16:59:59Z"), // 24 Oct 23:59 WIB
+			"UNDER_MINIMUM_AGE",
+		);
+		assert.equal(
+			age([2008, 2, 29], "2026-02-28T12:00:00Z"),
+			"UNDER_MINIMUM_AGE",
+		);
+		assert.equal(age([2008, 2, 29], "2026-03-01T00:00:00Z"), "ok");
+
 		// 4. Own principal only: another buyer sees and changes only its own row.
 		const otherView = await details(other);
 		assert.deepEqual(
@@ -412,7 +500,9 @@ test("S126 buyer profile completion, promo consent, segments and checkout prefil
 					withdrawn: boolean;
 				}[]
 			>`
-				select channel, policy_version, source, withdrawn_at is not null as withdrawn from app.marketing_consent where user_id=${buyer.id} order by granted_at, id`.then((r) => r.map((x) => ({ ...x })));
+				select channel, policy_version, source, withdrawn_at is not null as withdrawn from app.marketing_consent where user_id=${buyer.id} order by granted_at, id`.then(
+				(r) => r.map((x) => ({ ...x })),
+			);
 		assert.deepEqual(await rows(), [
 			{
 				channel: "whatsapp",
@@ -596,13 +686,16 @@ test("S126 buyer profile completion, promo consent, segments and checkout prefil
 			{ code: "23514" },
 		);
 		// Account erasure (UU PDP) can still delete consent records: the guard covers INSERT and UPDATE only.
-		await sql.begin(async (tx) => {
-			const erased = await tx`delete from app.marketing_consent where user_id=${buyer.id}`;
-			assert.ok(erased.count >= 4);
-			throw Object.assign(new Error("rollback"), { rollback: true });
-		}).catch((error) => {
-			if (!error.rollback) throw error;
-		});
+		await sql
+			.begin(async (tx) => {
+				const erased =
+					await tx`delete from app.marketing_consent where user_id=${buyer.id}`;
+				assert.ok(erased.count >= 4);
+				throw Object.assign(new Error("rollback"), { rollback: true });
+			})
+			.catch((error) => {
+				if (!error.rollback) throw error;
+			});
 		await assert.rejects(
 			sql`update app.buyer_profile set birth_day=31, birth_month=4 where user_id=${buyer.id}`,
 			{ code: "23514" },

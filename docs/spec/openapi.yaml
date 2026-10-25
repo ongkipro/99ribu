@@ -9597,7 +9597,7 @@ paths:
     post:
       operationId: updateBuyerProfileDetails
       summary: Replace own optional profile details
-      description: "S126/DEC-017. Full replacement: every field is sent; null or an empty list deletes it. Version-checked (409 PROFILE_VERSION_CONFLICT). Invalid day/month/year combinations or a future date answer 422 INVALID_BIRTHDAY; a category that is not a public top-level department answers 422 CATEGORY_UNAVAILABLE. The audit row names which fields are set, never their values."
+      description: "S126/DEC-017. Full replacement: every field is sent; null or an empty list deletes it. Version-checked (409 PROFILE_VERSION_CONFLICT). Invalid day/month/year combinations or a future date answer 422 INVALID_BIRTHDAY; a full date with a year under 18 years old on the current WIB date answers 422 UNDER_MINIMUM_AGE and stores nothing (DEC-019(b); without a year no age check applies); a category that is not a public top-level department answers 422 CATEGORY_UNAVAILABLE. The audit row names which fields are set, never their values."
       tags:
       - Identity
       security:

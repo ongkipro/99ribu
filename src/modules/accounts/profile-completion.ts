@@ -30,6 +30,8 @@ export type ConsentChannel = (typeof CONSENT_CHANNELS)[number];
 export const GENDERS = ["male", "female", "undisclosed"] as const;
 export type Gender = (typeof GENDERS)[number];
 export const MAX_FAVOURITE_CATEGORIES = 5;
+export const MINIMUM_AGE = 18;
+const WIB_OFFSET_MS = 7 * 3600_000; // Asia/Jakarta, UTC+07:00, no daylight saving
 
 // DEC-017 programs the profile fields feed. Terms (value, validity, cadence) are owner work in S127; until they are
 // recorded nothing is issued. The doorprize has no entry mechanics until a Kemensos permit exists (S127).
@@ -146,6 +148,18 @@ export function parseProfileDetails(value: unknown, now = new Date()) {
 		const date = new Date(Date.UTC(year ?? 2000, month - 1, day));
 		if (date.getUTCMonth() !== month - 1 || date > now)
 			throw new AccessError(422, "INVALID_BIRTHDAY");
+	}
+	// DEC-019(b): buyers are at least 18. Only a full date with a year can show an age; birth year stays optional.
+	if (year !== null && day !== null && month !== null) {
+		const today = new Date(now.getTime() + WIB_OFFSET_MS); // the WIB calendar date, read with UTC getters
+		const age =
+			today.getUTCFullYear() -
+			year -
+			(today.getUTCMonth() + 1 < month ||
+			(today.getUTCMonth() + 1 === month && today.getUTCDate() < day)
+				? 1
+				: 0);
+		if (age < MINIMUM_AGE) throw new AccessError(422, "UNDER_MINIMUM_AGE");
 	}
 	if (raw.gender !== null && !GENDERS.includes(raw.gender as Gender))
 		throw invalid();
