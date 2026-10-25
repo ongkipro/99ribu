@@ -93,7 +93,7 @@ export type PrivateNotificationResponse = {
 	created_at: string;
 };
 
-type BuyerProfileRow = {
+export type BuyerProfileRow = {
 	user_id: string;
 	display_name: string;
 	phone: string | null;
@@ -104,6 +104,12 @@ type BuyerProfileRow = {
 	revision: number;
 	updated_at: string;
 	user_email_verified: boolean;
+	birth_day: number | null;
+	birth_month: number | null;
+	birth_year: number | null;
+	gender: "male" | "female" | "undisclosed" | null;
+	favourite_category_ids: string[];
+	details_revision: number;
 };
 
 type BuyerAddressRow = {
@@ -206,7 +212,7 @@ async function reserveChallengeAttempt(
 	return row ? Number(row.attempts) : null;
 }
 
-async function ensureBuyerProfile(
+export async function ensureBuyerProfile(
 	tx: TransactionSql,
 	principal: Principal,
 	lock = false,
@@ -326,7 +332,7 @@ function parseShippingAddressInput(value: unknown) {
 	};
 }
 
-async function checkIdempotency<T>(
+export async function checkIdempotency<T>(
 	tx: TransactionSql,
 	actorId: string,
 	action: string,
@@ -345,7 +351,7 @@ async function checkIdempotency<T>(
 	return existing.response;
 }
 
-async function saveIdempotency<T>(
+export async function saveIdempotency<T>(
 	tx: TransactionSql,
 	actorId: string,
 	action: string,
@@ -372,6 +378,24 @@ async function saveIdempotency<T>(
 		)
 	`;
 	return response;
+}
+
+// S126/DEC-017: a promo consent covers the contact the buyer saw when granting it. Call before the profile
+// write; when the stored contact changes or is cleared, the active consent for that channel is withdrawn.
+export async function withdrawConsentOnContactChange(
+	tx: TransactionSql,
+	userId: string,
+	channel: "whatsapp" | "email",
+	next: string | null,
+) {
+	await tx`
+		update app.marketing_consent m
+		set withdrawn_at = clock_timestamp()
+		from app.buyer_profile p
+		where m.user_id = ${userId} and m.channel = ${channel} and m.withdrawn_at is null
+			and p.user_id = m.user_id
+			and ${channel === "whatsapp" ? tx`p.phone` : tx`p.email`} is distinct from ${next}
+	`;
 }
 
 async function listActiveAddresses(
@@ -1351,6 +1375,8 @@ export async function handleAccounts(request: Request, identity: LocalAuth) {
 					if (current.phone_verified_at && nextPhone !== current.phone) {
 						throw new AccessError(409, "VERIFIED_PHONE_LOCKED");
 					}
+					await withdrawConsentOnContactChange(tx, principal.id, "whatsapp", nextPhone);
+					await withdrawConsentOnContactChange(tx, principal.id, "email", nextEmail);
 					await tx`
 						update app.buyer_profile
 						set
@@ -1764,6 +1790,19 @@ export async function handleAccounts(request: Request, identity: LocalAuth) {
 					>`
 						update app.buyer_address
 						set
+							-- S126 data minimization: a deleted address keeps no personal data (nothing reads deleted rows).
+							label = '',
+							recipient_name = '',
+							phone = '',
+							street = '',
+							province = '',
+							city = '',
+							district = '',
+							subdistrict = '',
+							postcode = '',
+							destination_code = '',
+							rt_rw = null,
+							landmark = null,
 							is_default = false,
 							deleted_at = clock_timestamp(),
 							revision = revision + 1,
@@ -1974,6 +2013,7 @@ export async function handleAccounts(request: Request, identity: LocalAuth) {
 					where id = ${challengeId}
 				`;
 				if (lockedChallenge.channel === "phone") {
+					await withdrawConsentOnContactChange(tx, principal.id, "whatsapp", lockedChallenge.target_value);
 					await tx`
 						update app.buyer_profile
 						set
@@ -1990,6 +2030,7 @@ export async function handleAccounts(request: Request, identity: LocalAuth) {
 							and id <> ${principal.id}
 					`;
 					if (dup) throw new AccessError(409, "EMAIL_ALREADY_IN_USE");
+					await withdrawConsentOnContactChange(tx, principal.id, "email", lockedChallenge.target_value);
 					await tx`
 						update app.auth_user
 						set email = ${lockedChallenge.target_value}, email_verified = true, updated_at = clock_timestamp()

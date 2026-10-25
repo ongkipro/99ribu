@@ -32,7 +32,7 @@ From a clean checkout on this host (Node 24.21.0, PostgreSQL 18.6; details in th
 ```bash
 npm ci --ignore-scripts
 npm run db:up                                   # private Unix-socket cluster, 99ribu_local + 99ribu_test
-npm run db:migrate -- local                     # 0000–0038
+npm run db:migrate -- local                     # 0000–0039
 npm run db:migrate -- test
 npm run fixture -- commercial-terms local demo  # commercial policy baseline required for publication (idempotent)
 npm run fixture -- payment-terms local demo     # DEC-008/009 payment terms: manual bank transfer, COD fee
@@ -290,6 +290,7 @@ Run from this worktree with migrations applied to local and test. Use the exact 
 | `npm run test:integration -- --case=ops-screens` / `npm run test:browser -- --case=ops-screens` | Isolated test DB migrated; seeded local catalog with initial stock (`catalog:import`, `catalog:initial-stock`, `catalog:import`); browser: built web on `127.0.0.1:3099` | S102: inventory receive/adjust/transfer, shipping promotions, product content edits preserved by `catalog:import`, DEC-013 claim filter |
 | `npm run test:integration -- --case=home-banners` / `npm run test:browser -- --case=home-banners` | Isolated test DB migrated (`0038`); browser: built web on `127.0.0.1:3099` | S110: home banner versions with the `home_banner.write` proof and audit, internal-link and WebP validation, reorder (keyboard), storefront rail fallback |
 | `npm run test:integration -- --case=admin-returns` / `npm run test:browser -- --case=admin-returns` | Isolated test DB migrated (`0038`); browser: built web on `127.0.0.1:3099`. The calendar list caps at 500 warehouses, so run on a test DB without thousands of leftover fixture warehouses | S101: return/refund/replacement decisions, owner-only TEST-ONLY warehouse calendars and the audited bulk default (DEC-018 Q2) |
+| `npm run test:integration -- --case=buyer-profile` / `npm run test:browser -- --case=buyer-profile` | Isolated test DB migrated (`0039`); browser: built web on `127.0.0.1:3099`, local DB migrated (`0039`), Chromium | S126 (DEC-017): optional birthday/gender/favourite categories with edit and delete, per-channel promo consent (grant, withdraw, policy version, audit, withdrawn on contact change), own-principal scope, counts-only admin segments, checkout prefill from the main address, deleted addresses scrubbed; browser renders `/akun`, checkout and `/admin/buyer-segments` at 390 touch/768/1440 |
 | `npm run test:browser -- --case=sign-up` | Built web on `127.0.0.1:3099`; local DB with `npm run fixture -- commercial-terms local <ns>`; Chromium | S123: sign-up in the modal, on `/masuk` and without JS (name, email, WhatsApp), uniform reply for existing emails, password set via the emailed link; 5 checks |
 | `npm run test:integration -- --case=admin-kpi-parity` | Isolated test DB migrated; same fixture prerequisites as `--case=T-34` | S113: every count KPI of every workspace lens (owner, ecommerce admin, warehouse, CS, finance), for an explicit period, the 30-day window, an owner warehouse filter and warehouse-scoped/company-wide principals, equals its drilldown row count across pages; no duplicate rows; per-warehouse splits add up |
 | `npm run test:integration -- --case=cod-remittance` | Isolated test DB migrated (`0031`) | S91: COD collectible parcels, remittance matching and settlement |

@@ -15,7 +15,6 @@ One slice per branch or worktree. A session works only inside its slice's owned 
 |---|---|---|---|---|
 | Admin mobile pass (S113 follow-up, S122c) | `admin-mobile` | merged `0ac607d` | — | design re-review running |
 | Admin IA + screen contracts (spec 17 section) | `admin-ia-spec` | `docs/spec/17-UX-FLOWS-SCREEN-CONTRACTS.md` | code, TASKS, STATUS | in progress (docs only) |
-| S139 PDP precision (shop.com structure) | `s139-pdp-precision` | `src/app/(storefront)/produk/**`, PDP components under `src/components/storefront/`, PDP browser tests, `docs/spec/design/{reviews,renders/s139}/` | sign-in/up, `/akun`, `/pesanan`, checkout forms, promo banners, admin | in progress (worker) |
 | S125 guest orders in the buyer account (DEC-016) | not started | S123 merged 2026-10-25; waits for S120 | — | planned |
 | S126 buyer profile completion (DEC-017) | not started | unblocked (S123 merged 2026-10-25) | — | planned |
 | S124 production email delivery | — | owner picks the provider first | — | owner decision |

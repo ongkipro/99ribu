@@ -47,16 +47,25 @@ export function CartMutations({initial,permalink,children,activeLines,showCartLi
  return <MutationBoundary>{(capture,settle,retry)=><Controller initial={initial} permalink={permalink} capture={capture} settle={settle} retry={retry} activeLines={activeLines} showCartLink={showCartLink}>{children}</Controller>}</MutationBoundary>;
 }
 
-type CartFormProps={intent:CartIntent;label:string;subject?:string;disabled?:boolean;quantity?:boolean;notice?:string;reviewId?:string;stepper?:boolean};
+type CartFormProps={intent:CartIntent;label:string;subject?:string;disabled?:boolean;quantity?:boolean;notice?:string;reviewId?:string;stepper?:boolean;bar?:string};
 export function CartForm(props:CartFormProps){
  const context=useContext(Context);if(!context)throw new Error('CartForm requires CartMutations');
  return <form action={context.action} className="cart-mutation" onSubmit={event=>{
   const data=new FormData(event.currentTarget);context.capture(Object.fromEntries(Object.keys(props.intent).map(key=>[key,String(data.get(key)??'')])) as CartIntent);
  }}><CartControls {...props}/></form>;
 }
-function CartControls({intent:base,label,subject,disabled=false,quantity=true,notice,reviewId,stepper=false}:CartFormProps){
+function CartControls({intent:base,label,subject,disabled=false,quantity=true,notice,reviewId,stepper=false,bar}:CartFormProps){
  const messageId=useId(),quantityId=useId(),field=useRef<HTMLInputElement>(null),status=useFormStatus(),context=useContext(Context);if(!context)throw new Error('CartControls requires CartMutations');
  const {state,pending,recovering}=context;
+ // PDP phone buy bar (`bar` = the price line): a second submit button of this same form, shown only
+ // while the main button is out of view, so it shares the quantity, pending lock and labels. It is a
+ // pointer shortcut only (aria-hidden, out of the tab order); keyboard and screen-reader users keep
+ // the one main button. After a result it was pressed for, the purchase region scrolls back into
+ // view so the feedback is seen.
+ const submit=useRef<HTMLButtonElement>(null),fromBar=useRef(false),[barShown,setBarShown]=useState(false);
+ // Enlarged text (root above 20px) keeps the bar off: wrapped, it would cover a third of the screen.
+ useEffect(()=>{const el=submit.current;if(!bar||!el)return;const observer=new IntersectionObserver(([entry])=>setBarShown(!entry.isIntersecting&&Number.parseFloat(getComputedStyle(document.documentElement).fontSize)<=20));observer.observe(el);return ()=>observer.disconnect();},[bar]);
+ useEffect(()=>{if(!fromBar.current||state.phase==='idle')return;fromBar.current=false;submit.current?.closest('.purchase-region')?.scrollIntoView({block:'center',behavior:matchMedia('(prefers-reduced-motion: reduce)').matches?'auto':'smooth'});},[state]);
  const same=target(base)===target(state.intent);
  const [previous,setPrevious]=useState<Pick<CartMutationState,'phase'|'intent'|'message'|'blocked'|'code'>|null>(null);
  useEffect(()=>{if(same&&state.phase!=='idle')setPrevious(state.phase==='success'?null:{phase:state.phase,intent:state.intent,message:state.message,blocked:state.blocked,code:state.code});},[same,state]);
@@ -68,6 +77,7 @@ function CartControls({intent:base,label,subject,disabled=false,quantity=true,no
  const invalid=error&&!disabled&&['OFFER_UNAVAILABLE','INVALID_INPUT','CART_QUANTITY_LIMIT'].includes(own?.code??'');
  const describedBy=reviewError?reviewId:error||unknown&&!same?messageId:unknown?context.feedbackId:notice?messageId:undefined;
  const busy=status.pending||pending&&(recovering||state.phase==='bootstrap'&&same),blocked=Boolean(own?.blocked)||state.phase==='unknown'&&!same;
+ const buttonText=busy?'Menyimpan…':unknown?'Ulangi tindakan yang sama':retained?'Lanjutkan pilihan':label;
  return <fieldset className="cart-fields" aria-busy={busy} disabled={busy||blocked}><legend className="sr-only">{subject??label}</legend>
   {Object.entries(intent).filter(([name])=>name!=='quantity').map(([name,value])=><input key={name} type="hidden" name={name} value={value}/>)}
   {!error&&!unknown&&notice&&<p id={messageId} className="cart-advisory">{notice}</p>}
@@ -75,11 +85,12 @@ function CartControls({intent:base,label,subject,disabled=false,quantity=true,no
   {quantity?(()=>{const input=<input ref={field} id={quantityId} aria-label={subject?`Jumlah ${subject}`:'Jumlah pilihan'} aria-describedby={describedBy} aria-invalid={invalid||undefined} type="number" name="quantity" min="1" max="50" step="1" required defaultValue={intent.quantity} key={`${target(base)}:${intent.quantity}`} readOnly={unknown||disabled}/>;
    // PDP (shop.com quantity pill): the same native number field between minus and plus steps.
    const step=(up:boolean)=>{const el=field.current;if(!el||el.readOnly)return;if(up)el.stepUp();else el.stepDown();};
-   return stepper?<div className="cart-quantity"><label htmlFor={quantityId}>Jumlah pilihan</label><span className="quantity-stepper"><button type="button" aria-label="Kurangi jumlah" onClick={()=>step(false)}><Icon name="subtract"/></button>{input}<button type="button" aria-label="Tambah jumlah" onClick={()=>step(true)}><Icon name="add"/></button></span></div>:
+   return stepper?<div className="cart-quantity"><label htmlFor={quantityId}>Jumlah pilihan</label><span className="quantity-stepper"><button type="button" aria-label="Kurangi jumlah" disabled={unknown||disabled} onClick={()=>step(false)}><Icon name="subtract"/></button>{input}<button type="button" aria-label="Tambah jumlah" disabled={unknown||disabled} onClick={()=>step(true)}><Icon name="add"/></button></span></div>:
     // biome-ignore lint/a11y/noLabelWithoutControl: the label wraps the number input held in `input`.
     <label>Jumlah pilihan{input}</label>;})():<input type="hidden" name="quantity" value={intent.quantity}/>}
   {busy&&<p className="cart-form-pending" role="status">Menyimpan perubahan pilihan ini…</p>}
-  <button type="submit" aria-describedby={!quantity?describedBy:undefined} aria-label={subject?`${label} ${subject}`:undefined} className={`button${intent.kind==='remove'?' quiet':intent.kind==='add'||reviewId?'':' secondary'}`} disabled={!unknown&&disabled}>{intent.kind==='remove'&&<Icon name="close"/>}{busy?'Menyimpan…':unknown?'Ulangi tindakan yang sama':retained?'Lanjutkan pilihan':label}</button>
+  <button ref={submit} type="submit" aria-describedby={!quantity?describedBy:undefined} aria-label={subject?`${label} ${subject}`:undefined} className={`button${intent.kind==='remove'?' quiet':intent.kind==='add'||reviewId?'':' secondary'}`} disabled={!unknown&&disabled}>{intent.kind==='remove'&&<Icon name="close"/>}{buttonText}</button>
+  {bar&&!disabled&&<div className="buy-bar" hidden={!barShown} aria-hidden="true"><p>{bar}</p><button type="submit" className="button" tabIndex={-1} onClick={()=>{fromBar.current=true;}}>{buttonText}</button></div>}
  </fieldset>;
 }
 

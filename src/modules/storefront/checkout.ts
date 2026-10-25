@@ -119,6 +119,18 @@ export async function assertCheckoutTransport(request:Request,identity:LocalAuth
  if(['authorization','x-cart-token','x-order-token'].some(name=>request.headers.has(name)))throw new AccessError(401,'UNSUPPORTED_AUTH_TRANSPORT');
  const p=await prefix(identity);for(const name of ['session_token','commerce_guest','cart_access','order_access','checkout_access','receipt_access'])cookie(request,`${p}.${name}`);return p;
 }
+// S126/DEC-017: a signed-in buyer starts checkout from the profile's main address and contact; a quote or a
+// saved draft always wins, and any failure leaves the empty form (prefill is a convenience, never a gate).
+export async function profileDraft(request:Request,identity:LocalAuth):Promise<CheckoutDraft|null>{
+ try{
+  const actor=await commerceActor(request,identity);if(actor?.kind!=='user')return null;
+  const [row]=await identity.sql<{email:string|null;phone:string|null;recipient_name:string|null;address_phone:string|null;street:string|null;destination_code:string|null}[]>`select p.email,p.phone,a.recipient_name,a.phone as address_phone,a.street,a.destination_code
+   from app.buyer_profile p left join app.buyer_address a on a.id=p.default_address_id and a.user_id=p.user_id and a.deleted_at is null where p.user_id=${actor.id}`;
+  if(!row)return null;
+  const destination=shippingFixture().destinations.find(d=>d.id===row.destination_code);
+  return {...emptyCheckoutDraft(),recipient_name:row.recipient_name??'',phone:displayPhone(row.address_phone??row.phone),email:row.email??'',destination_id:destination?.id??'',address_line:row.street??''};
+ }catch{return null;}
+}
 export async function readCheckout(request:Request,identity:LocalAuth,dispatch:typeof handleCheckout=handleCheckout):Promise<CheckoutView>{
  try{await assertCheckoutTransport(request,identity);}
  catch(error){return {...checkoutUnavailableView(),kind:error instanceof AccessError&&error.status<500?'denied':'unavailable',code:error instanceof AccessError?error.code:'SERVICE_UNAVAILABLE'};}
@@ -135,6 +147,7 @@ export async function readCheckout(request:Request,identity:LocalAuth,dispatch:t
  let progress:CheckoutProgress|null=null,draftExpired=false;
  if(current.cart.state==='open'&&!expired)try{const saved=await readCheckoutDraft(request,identity,current.cart.id);progress=saved.progress;draftExpired=saved.kind==='expired';if(progress)draft=progress.draft;}
  catch(error){return {...checkoutUnavailableView(),kind:error instanceof AccessError&&error.status<500?'denied':'unavailable',code:error instanceof AccessError?error.code:'SERVICE_UNAVAILABLE'};}
+ if(!quote&&!progress)draft=await profileDraft(request,identity)??draft;
  const allocations=document?checkoutAllocationChoices(document,current.cart,progress?.allocation_id??quote?.selected_allocation_id??''):[];
  return {kind:'ready',cart:current.cart,quote,allocations,quoteCurrent:Boolean(quote&&quote.id===current.cart.active_quote_id&&quote.cart_version===current.cart.version&&Date.parse(quote.expires_at)>Date.parse(current.now)&&!issue),draft,progress,draftExpired,destinations:shippingFixture().destinations,now:current.now,issue,code:null};
 }

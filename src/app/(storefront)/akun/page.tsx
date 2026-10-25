@@ -3,7 +3,9 @@ import { BuyerAccountClient } from "../../../components/storefront/buyer-account
 import { Shell } from "../../../components/storefront/shell";
 import { SignOutButton } from "../../../components/storefront/sign-out-button";
 import { getLocalAuth } from "../../../modules/access/auth";
+import { readProfileCompletion } from "../../../modules/accounts/profile-completion";
 import { readBuyerAccountWorkspace } from "../../../modules/accounts/service";
+import { shippingFixture } from "../../../modules/shipping/address";
 import { storefrontRequest } from "../../../modules/storefront/browser";
 
 export const dynamic = "force-dynamic";
@@ -16,6 +18,22 @@ export default async function AccountPage() {
 	const req = await storefrontRequest("GET", "/akun");
 	const identity = getLocalAuth();
 	const workspace = await readBuyerAccountWorkspace(req, identity);
+	const completion = workspace.authenticated
+		? await readProfileCompletion(req, identity)
+				.then((data) => ({
+					...data,
+					destinations: shippingFixture().destinations.map(
+						({ id, province, city, district, postal_code }) => ({
+							id,
+							province,
+							city,
+							district,
+							postal_code,
+						}),
+					),
+				}))
+				.catch(() => null)
+		: null;
 	return (
 		<Shell active="account">
 			<main id="main" className="wrap" style={{ paddingTop: "24px" }}>
@@ -77,6 +95,7 @@ export default async function AccountPage() {
 					initialPreferences={workspace.preferences}
 					initialNotifications={workspace.notifications}
 					initialOrders={workspace.orders}
+					initialCompletion={completion}
 				/>
 			</main>
 		</Shell>
