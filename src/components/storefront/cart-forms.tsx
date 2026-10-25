@@ -91,9 +91,8 @@ function CartControls({intent:base,label,subject,disabled=false,quantity=true,no
     // biome-ignore lint/a11y/noLabelWithoutControl: the label wraps the number input held in `input`.
     <label>Jumlah pilihan{input}</label>;})():<input type="hidden" name="quantity" value={intent.quantity}/>}
   {busy&&<p className="cart-form-pending" role="status">Menyimpan perubahan pilihan ini…</p>}
-  <button ref={submit} type="submit" aria-describedby={!quantity?describedBy:undefined} aria-label={subject?`${label} ${subject}`:undefined} className={`button${intent.kind==='remove'?' quiet':intent.kind==='add'||reviewId?'':' secondary'}`} disabled={!unknown&&disabled}>{intent.kind==='remove'&&<Icon name="close"/>}{buttonText}</button>
-  {/* PDP (DEC-020, shop.com action stack): a second submit of the same add, then checkout. Hidden while an unknown result offers the retry. */}
-  {buyNow&&!disabled&&!unknown&&<button type="submit" name="then" value="checkout" className="button buy-now">{busy?'Menyimpan…':'Beli sekarang'}</button>}
+  {/* PDP (DEC-020, shop.com action row): add to cart first in the DOM and tab order, shown on the right; "Beli sekarang" submits the same add, then checkout. Hidden while an unknown result offers the retry. */}
+  {buyNow&&!disabled&&!unknown?<div className="purchase-actions"><button ref={submit} type="submit" aria-describedby={!quantity?describedBy:undefined} aria-label={subject?`${label} ${subject}`:undefined} className={`button${intent.kind==='remove'?' quiet':intent.kind==='add'||reviewId?'':' secondary'}`} disabled={!unknown&&disabled}>{intent.kind==='remove'&&<Icon name="close"/>}{buttonText}</button><button type="submit" name="then" value="checkout" className="button buy-now">{busy?'Menyimpan…':'Beli sekarang'}</button></div>:<button ref={submit} type="submit" aria-describedby={!quantity?describedBy:undefined} aria-label={subject?`${label} ${subject}`:undefined} className={`button${intent.kind==='remove'?' quiet':intent.kind==='add'||reviewId?'':' secondary'}`} disabled={!unknown&&disabled}>{intent.kind==='remove'&&<Icon name="close"/>}{buttonText}</button>}
   {bar&&!disabled&&<div className="buy-bar" hidden={!barShown} aria-hidden="true"><p>{bar}</p><button type="submit" className="button" tabIndex={-1} onClick={()=>{fromBar.current=true;}}>{buttonText}</button></div>}
  </fieldset>;
 }

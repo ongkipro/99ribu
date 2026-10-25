@@ -235,6 +235,24 @@ main.product-detail .quantity-stepper button > svg {
 }
 
 /* ---- Related shelf: the home shelf heading (20/22 600 -1px; phones 18/20). ---- */
+/* Related grid (shop.com "You might also like"): 5 equal columns with 32px gaps on desktop, 3 on tablets,
+   2 on phones. No discount badge or rating: 99ribu has no compare-at price or reviews behind them. */
+main.product-detail .related-shelf .product-grid {
+	grid-template-columns: repeat(5, minmax(0, 1fr));
+	gap: 32px;
+}
+@media (max-width: 1050px) {
+	main.product-detail .related-shelf .product-grid {
+		grid-template-columns: repeat(3, minmax(0, 1fr));
+		gap: 24px 16px;
+	}
+}
+@media (max-width: 700px) {
+	main.product-detail .related-shelf .product-grid {
+		grid-template-columns: repeat(2, minmax(0, 1fr));
+		gap: 20px 12px;
+	}
+}
 main.product-detail .related-shelf {
 	margin-top: 64px;
 }
@@ -243,6 +261,28 @@ main.product-detail .related-shelf .shelf-heading {
 	line-height: 1.375rem;
 	font-weight: 600;
 	letter-spacing: -1px;
+}
+
+/* Action row (shop.com pdp-actions): two equal 50% pills, 8px apart; add to cart (first in the DOM) sits on the
+   right, "Beli sekarang" on the left. Stacks when a pill would be narrower than its label. */
+main.product-detail .purchase-region .purchase-actions {
+	display: flex;
+	flex-flow: row-reverse wrap;
+	gap: 8px;
+	width: 100%;
+}
+main.product-detail .purchase-region .purchase-actions > .button {
+	flex: 1 1 calc(50% - 4px);
+	min-width: 9.5rem;
+	padding-inline: 12px;
+}
+/* Narrow buy boxes (pills ~172px): one-line labels at 14px. */
+@media (max-width: 1050px) {
+	main.product-detail .purchase-region .purchase-actions > .button {
+		padding-inline: 8px;
+		font-size: 0.875rem;
+		letter-spacing: -0.3px;
+	}
 }
 
 /* ---- "Beli sekarang" (DEC-020): shop.com's secondary action under the purple add pill — the same 52px
