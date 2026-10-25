@@ -136,8 +136,9 @@ test('the phone buy bar submits the same form, then brings the feedback into vie
  const f=await start(390);try{
   await open(f.page,paths.multi);await f.page.evaluate(()=>window.scrollTo(0,0));const bar=f.page.locator('.buy-bar');
   const main=f.page.getByRole('button',{name:'Tambah ke keranjang',exact:true});await expect(main).toHaveCount(1);
-  await main.scrollIntoViewIfNeeded();await expect(bar).toBeHidden();await f.page.evaluate(()=>window.scrollTo(0,0));
-  // The main button starts below the first phone screen, so the bar is shown there.
+  await main.scrollIntoViewIfNeeded();await expect(bar).toBeHidden();
+  // S143: the denser type puts the main button on the first phone screen, so scroll it out of view (above) to show the bar.
+  await main.evaluate(el=>window.scrollTo(0,el.getBoundingClientRect().bottom+window.scrollY+8));
   await expect(bar).toBeVisible();await capture(f.page,'buy-bar-390',false);
   await bar.locator('button').tap();
   await expect(f.page.locator('.cart-feedback')).toContainText('ditambahkan');await expect(f.page.locator('.cart-feedback')).toBeInViewport();await expect(bar).toBeHidden();
