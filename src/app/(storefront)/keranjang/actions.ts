@@ -2,6 +2,7 @@
 
 import {parseSetCookieHeader} from 'better-auth/cookies';
 import {cookies} from 'next/headers';
+import {redirect} from 'next/navigation';
 import {revalidatePath} from 'next/cache';
 import {getLocalAuth} from '../../../modules/access/auth';
 import {handleAuth} from '../../../modules/access/handler';
@@ -16,12 +17,15 @@ async function writeCookies(issued:string[]){
  }
 }
 export async function changeCart(_previous:CartMutationState,data:FormData):Promise<CartMutationState>{
+ // PDP "Beli sekarang" (DEC-020): the same add mutation, then checkout once it is committed (works without JS).
+ const checkout=data.get('then')==='checkout';data.delete('then');
  let input:unknown;
  try{input=cartFormInput(data);}catch{return failedCartMutation(Object.fromEntries(data));}
  const reply=await mutateBrowserCart(await storefrontRequest('POST'),getLocalAuth(),input);
  await writeCookies(reply.cookies);
  // The authoritative cart badge appears in every storefront shell.
  if(reply.state.phase==='success'||reply.state.phase==='error')revalidatePath('/','layout');
+ if(checkout&&reply.state.phase==='success')redirect('/checkout');
  return reply.state;
 }
 

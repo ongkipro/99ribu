@@ -245,6 +245,22 @@ main.product-detail .related-shelf .shelf-heading {
 	letter-spacing: -1px;
 }
 
+/* ---- "Beli sekarang" (DEC-020): shop.com's secondary action under the purple add pill — the same 52px
+   pill in charcoal ink, no brand glow. */
+main.product-detail .purchase-region .cart-mutation .button.buy-now {
+	border-color: var(--ink);
+	background: var(--ink);
+	color: #fff;
+	box-shadow: 0 2px 8px rgba(0, 0, 0, 0.12);
+}
+main.product-detail .purchase-region .cart-mutation .button.buy-now:hover {
+	background: #000;
+}
+main.product-detail .purchase-region .cart-mutation .button.buy-now:focus-visible {
+	outline: 2px solid var(--ink);
+	outline-offset: 3px;
+}
+
 /* ---- Phone buy bar: price + the same submit, above the dock, only while the main button is
    out of view (hidden attribute toggled after hydration; nothing without JavaScript). ---- */
 main.product-detail .buy-bar {

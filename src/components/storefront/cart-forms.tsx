@@ -10,7 +10,7 @@ import {rupiah} from '../../modules/storefront/format';
 
 const formData=(intent:CartIntent)=>{const data=new FormData();for(const [key,value] of Object.entries(intent))data.set(key,value);return data;};
 const target=(intent:CartIntent)=>`${intent.kind}:${intent.line||intent.variant}`;
-type Mutations={state:CartMutationState;action:(data:FormData)=>void;pending:boolean;recovering:boolean;capture:(intent:CartIntent)=>void;feedbackId:string};
+type Mutations={state:CartMutationState;action:(data:FormData)=>void;pending:boolean;recovering:boolean;capture:(intent:CartIntent)=>void;feedbackId:string;buyNow:{current:string|null}};
 const Context=createContext<Mutations|null>(null);
 
 // A rejected Server Action cancels React's queue. Retain its exact submitted
@@ -29,11 +29,12 @@ class MutationBoundary extends Component<{children:(capture:(intent:CartIntent)=
 function Controller({initial,permalink,children,capture,settle,retry,activeLines,showCartLink}:{initial:CartMutationState;permalink:string;children:React.ReactNode;capture:(intent:CartIntent)=>void;settle:(key:string)=>void;retry:CartIntent[];activeLines?:string[];showCartLink:boolean}){
  const feedbackId=useId();
  const [state,action,pending]=useActionState(changeCart,initial,permalink);
- const [recovering,setRecovering]=useState(retry.length>0);const continued=useRef(new Set<string>());const replayed=useRef(false);
+ const [recovering,setRecovering]=useState(retry.length>0);const continued=useRef(new Set<string>());const replayed=useRef(false);const buyNow=useRef<string|null>(null);
  useEffect(()=>{if(state.acknowledgedKey)settle(state.acknowledgedKey);},[state.acknowledgedKey,settle]);
  useEffect(()=>{
   if(state.phase!=='bootstrap'||continued.current.has(state.intent.key))return;
-  continued.current.add(state.intent.key);startTransition(()=>action(formData(state.intent)));
+  // A guest bootstrap replays the same intent; keep "Beli sekarang" on it.
+  continued.current.add(state.intent.key);const data=formData(state.intent);if(buyNow.current===state.intent.key)data.set('then','checkout');startTransition(()=>action(data));
  },[state,action]);
  useEffect(()=>{
   if(replayed.current||!retry.length)return;replayed.current=true;
@@ -41,20 +42,21 @@ function Controller({initial,permalink,children,capture,settle,retry,activeLines
  },[retry,action]);
  useEffect(()=>{if(recovering&&replayed.current&&!pending&&['success','error'].includes(state.phase))setRecovering(false);},[recovering,pending,state.phase]);
  const lostTarget=state.phase==='error'&&state.intent.line&&activeLines&&!activeLines.includes(state.intent.line);
- return <Context value={{state,action,pending,recovering,capture,feedbackId}}><div id={feedbackId} className="cart-feedback" data-phase={state.phase} role={state.phase==='unknown'||lostTarget?'alert':'status'} aria-live="polite" aria-atomic="true">{state.message&&(state.phase!=='error'||lostTarget)&&<><h2><Icon name={state.phase==='success'||state.phase==='bootstrap'?'check':'alert'}/>{state.phase==='success'?'Keranjang diperbarui':state.phase==='bootstrap'?'Sesi siap':state.phase==='unknown'?'Hasil tindakan belum diketahui':'Perubahan belum tersimpan'}</h2><p>{state.message}</p>{state.phase==='success'&&state.total!==null&&(state.count??0)>0&&<p>{state.count} pilihan · {rupiah(state.total)}</p>}{state.phase==='unknown'&&<Link className="detail-help" href="/keranjang">Periksa keranjang</Link>}</>}</div>{children}{showCartLink&&state.phase==='success'&&<Link className="detail-help" href="/keranjang">Lihat keranjang</Link>}</Context>;
+ return <Context value={{state,action,pending,recovering,capture,feedbackId,buyNow}}><div id={feedbackId} className="cart-feedback" data-phase={state.phase} role={state.phase==='unknown'||lostTarget?'alert':'status'} aria-live="polite" aria-atomic="true">{state.message&&(state.phase!=='error'||lostTarget)&&<><h2><Icon name={state.phase==='success'||state.phase==='bootstrap'?'check':'alert'}/>{state.phase==='success'?'Keranjang diperbarui':state.phase==='bootstrap'?'Sesi siap':state.phase==='unknown'?'Hasil tindakan belum diketahui':'Perubahan belum tersimpan'}</h2><p>{state.message}</p>{state.phase==='success'&&state.total!==null&&(state.count??0)>0&&<p>{state.count} pilihan · {rupiah(state.total)}</p>}{state.phase==='unknown'&&<Link className="detail-help" href="/keranjang">Periksa keranjang</Link>}</>}</div>{children}{showCartLink&&state.phase==='success'&&<Link className="detail-help" href="/keranjang">Lihat keranjang</Link>}</Context>;
 }
 export function CartMutations({initial,permalink,children,activeLines,showCartLink=false}:{initial:CartMutationState;permalink:string;children:React.ReactNode;activeLines?:string[];showCartLink?:boolean}){
  return <MutationBoundary>{(capture,settle,retry)=><Controller initial={initial} permalink={permalink} capture={capture} settle={settle} retry={retry} activeLines={activeLines} showCartLink={showCartLink}>{children}</Controller>}</MutationBoundary>;
 }
 
-type CartFormProps={intent:CartIntent;label:string;subject?:string;disabled?:boolean;quantity?:boolean;notice?:string;reviewId?:string;stepper?:boolean;bar?:string};
+type CartFormProps={intent:CartIntent;label:string;subject?:string;disabled?:boolean;quantity?:boolean;notice?:string;reviewId?:string;stepper?:boolean;bar?:string;buyNow?:boolean};
 export function CartForm(props:CartFormProps){
  const context=useContext(Context);if(!context)throw new Error('CartForm requires CartMutations');
  return <form action={context.action} className="cart-mutation" onSubmit={event=>{
   const data=new FormData(event.currentTarget);context.capture(Object.fromEntries(Object.keys(props.intent).map(key=>[key,String(data.get(key)??'')])) as CartIntent);
+  context.buyNow.current=(event.nativeEvent as SubmitEvent).submitter?.getAttribute('value')==='checkout'?String(data.get('key')??''):null;
  }}><CartControls {...props}/></form>;
 }
-function CartControls({intent:base,label,subject,disabled=false,quantity=true,notice,reviewId,stepper=false,bar}:CartFormProps){
+function CartControls({intent:base,label,subject,disabled=false,quantity=true,notice,reviewId,stepper=false,bar,buyNow=false}:CartFormProps){
  const messageId=useId(),quantityId=useId(),field=useRef<HTMLInputElement>(null),status=useFormStatus(),context=useContext(Context);if(!context)throw new Error('CartControls requires CartMutations');
  const {state,pending,recovering}=context;
  // PDP phone buy bar (`bar` = the price line): a second submit button of this same form, shown only
@@ -90,6 +92,8 @@ function CartControls({intent:base,label,subject,disabled=false,quantity=true,no
     <label>Jumlah pilihan{input}</label>;})():<input type="hidden" name="quantity" value={intent.quantity}/>}
   {busy&&<p className="cart-form-pending" role="status">Menyimpan perubahan pilihan ini…</p>}
   <button ref={submit} type="submit" aria-describedby={!quantity?describedBy:undefined} aria-label={subject?`${label} ${subject}`:undefined} className={`button${intent.kind==='remove'?' quiet':intent.kind==='add'||reviewId?'':' secondary'}`} disabled={!unknown&&disabled}>{intent.kind==='remove'&&<Icon name="close"/>}{buttonText}</button>
+  {/* PDP (DEC-020, shop.com action stack): a second submit of the same add, then checkout. Hidden while an unknown result offers the retry. */}
+  {buyNow&&!disabled&&!unknown&&<button type="submit" name="then" value="checkout" className="button buy-now">{busy?'Menyimpan…':'Beli sekarang'}</button>}
   {bar&&!disabled&&<div className="buy-bar" hidden={!barShown} aria-hidden="true"><p>{bar}</p><button type="submit" className="button" tabIndex={-1} onClick={()=>{fromBar.current=true;}}>{buttonText}</button></div>}
  </fieldset>;
 }
