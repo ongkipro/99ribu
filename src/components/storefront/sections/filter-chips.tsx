@@ -24,13 +24,16 @@ export function FilterChips({groups,clearAll}:{groups:FilterGroup[];clearAll?:st
  useEffect(()=>{
   const root=row.current;if(!root||!mounted) return;
   const chipOf=(pop:HTMLElement)=>root.querySelector<HTMLElement>(`[popovertarget="${pop.id}"].filter-chip`);
-  // Desktop: centre the popover 5px under its chip on whole pixels, 16px inside the viewport, above
-  // the chip when it would run off the bottom. Phones: the CSS bottom sheet (no inline position).
+  // Desktop: the popover starts at its chip's left edge 5px under it (whole pixels), kept inside the page's
+  // content column (`.wrap` minus its gutters, owner 2026-10-25) and the viewport; above the chip when it
+  // would run off the bottom. Phones: the CSS bottom sheet (no inline position).
   const before=(event:Event)=>{
    const pop=event.target as HTMLElement,chip=chipOf(pop);if((event as ToggleEvent).newState!=='open'||!chip) return;
    if(matchMedia('(max-width: 700px)').matches){pop.style.removeProperty('left');pop.style.removeProperty('top');return;}
    const r=chip.getBoundingClientRect(),width=Math.min(300,innerWidth-32);
-   pop.style.left=`${Math.round(Math.min(Math.max(16,r.left+r.width/2-width/2),innerWidth-16-width))}px`;pop.style.top=`${Math.round(r.bottom+5)}px`;
+   const wrap=chip.closest('.wrap'),box=wrap?.getBoundingClientRect(),cs=wrap?getComputedStyle(wrap):null;
+   const minLeft=Math.max(16,box&&cs?box.left+Number.parseFloat(cs.paddingLeft):16),maxRight=Math.min(innerWidth-16,box&&cs?box.right-Number.parseFloat(cs.paddingRight):innerWidth-16);
+   pop.style.left=`${Math.round(Math.max(minLeft,Math.min(r.left,maxRight-width)))}px`;pop.style.top=`${Math.round(r.bottom+5)}px`;
   };
   const place=(event:Event)=>{
    const pop=event.target as HTMLElement,chip=chipOf(pop),opened=(event as ToggleEvent).newState==='open';
