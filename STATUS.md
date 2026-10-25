@@ -7,14 +7,27 @@ Local-Acceptance: PASS on 2026-10-24 at `0176403`+`cce3c76` on the production bu
 Review-Risk: R4 (money-path changes in S91–S93 and the S68 fixes; three independent reviews — S68 final, R4 fix diff, route/storefront security — each REVISE then fixed and re-verified)
 Previous-Claim: `READY_FOR_LOCAL_ACCEPTANCE` / "100% local production readiness" (gemini-4-argon, commits `e34c041` + `bfecdce`). Archived: [`docs/history/STATUS-20261021-pre-audit.md`](docs/history/STATUS-20261021-pre-audit.md)
 
+## Session handoff — 2026-10-25 (read first when resuming)
+
+**Done today (all merged and pushed to `main`; evidence in BUILD-LOG):** DEC-018 (spec 17 owner answers Q1–Q5), S102 inventory/transfers/shipping promos/product content, S110 home banners (migration 0038), S101 returns + owner-only warehouse calendar, S123 buyer registration (R4), S139 PDP precision pass, S126 buyer profile + marketing consent (migration 0039, R4), S128 admin navigation IA + account menu + production sign-in redirect, DEC-019 (phone PDP hides the category rail; buyers 18+), DEC-020 PDP "Beli sekarang" (same add mutation, then `/checkout`; JS and no-JS verified in Chromium, T-33 browser 27/27), dev-only loose route matching (`next dev` 16.4.1 served 404 on every `/admin` page).
+
+**Last task:** DEC-020 "Beli sekarang" (`c197392`). Review the storefront with `npm run build && LOCAL_TAILNET_ORIGIN=http://100.127.67.86:3099 npm start` — `next dev` renders the home page CPU-bound for 30–60 s.
+
+**Next tasks, in order:**
+1. **S141 checkout floating labels (owner request 2026-10-25)** — see TASKS S141.
+2. **S142 post-order email capture (owner request 2026-10-25)** — recommendation recorded in TASKS S142; confirm with the owner before building.
+3. **Wave S129–S138** after S128 (parallel worktrees; one browser run at a time on `127.0.0.1:3099`): S129 staff account security (R4), S130 settings hub (DEC-018 Q3 finance read-only), S131 finance workbench (R4), S133 commerce exceptions (R4), S134 catalog master data, S135 audit log (DEC-018 Q4 owner + finance money actions), S136 system health, S137 staff & roles (R4), S138 CS buyer lookup (R4 privacy); S132 after S131.
+4. **Open checks:** S128 independent admin design review; S126 `/akun` design gate; S110 design gate on the latest renders; `return-http`/`replacement-http` browser rerun on a seeded runtime; production redirect of S128 on a production-profile server.
+5. **Owner decisions pending:** S140 production warehouse calendar source (DEC-018 Q2); S124 email provider; S127 doorprize/voucher terms; `/privasi` content; segment counts below 5 suppressed?; WhatsApp promo opt-in confirmation.
+
+**Environment notes:** Claude worktree paths are too long for the Postgres Unix socket (EINVAL) — run DB/browser checks from a short detached worktree under `/tmp/claude-1000/`. The shared test DB holds thousands of leftover fixture rows (5,943 warehouses); calendar-list tests need a fresh test DB. Leftover scratch worktrees to remove with owner approval: `/tmp/claude-1000/{s101v,s102r,s123v,s126v,s128v}`, `/home/ongki/Projects/.s139run`.
+
 ## Active workstreams (read before starting any work)
 
 One slice per branch or worktree. A session works only inside its slice's owned paths and does not edit paths owned by another active row. Shared files (`globals.css`, `TASKS.md`, `STATUS.md`, `BUILD-LOG.md`, `ARCHITECTURE.md`, `openapi.yaml`, `scripts/check-tests.ts`) are edited by the coordinator at merge time; workers report the changes needed. A row is removed when its branch is merged into `main` and verified. The System map in `ARCHITECTURE.md` changes only after code lands; plans live in `TASKS.md` and `DECISIONS.md`.
 
 | Slice | Branch | Owned paths | Do not touch | State |
 |---|---|---|---|---|
-| Admin mobile pass (S113 follow-up, S122c) | `admin-mobile` | merged `0ac607d` | — | design re-review running |
-| Admin IA + screen contracts (spec 17 section) | `admin-ia-spec` | `docs/spec/17-UX-FLOWS-SCREEN-CONTRACTS.md` | code, TASKS, STATUS | in progress (docs only) |
 | S125 guest orders in the buyer account (DEC-016) | not started | S123 merged 2026-10-25; waits for S120 | — | planned |
 | S124 production email delivery | — | owner picks the provider first | — | owner decision |
 
