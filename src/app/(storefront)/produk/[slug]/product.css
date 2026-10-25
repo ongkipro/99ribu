@@ -228,22 +228,22 @@ main.product-detail .quantity-stepper button > svg {
 	height: 1.25rem;
 }
 
-/* Related grid (shop.com "You might also like"): 5 equal columns with 32px gaps on desktop, 3 on tablets,
+/* Related grid (shop.com "You might also like"): 5 equal columns, 32px column gaps on desktop (S139), 3 on tablets,
    2 on phones. No discount badge or rating: 99ribu has no compare-at price or reviews behind them. */
 main.product-detail .related-shelf .product-grid {
 	grid-template-columns: repeat(5, minmax(0, 1fr));
-	gap: 32px;
+	gap: 16px 32px;
 }
 @media (max-width: 1050px) {
 	main.product-detail .related-shelf .product-grid {
 		grid-template-columns: repeat(3, minmax(0, 1fr));
-		gap: 24px 16px;
+		gap: 16px;
 	}
 }
 @media (max-width: 700px) {
 	main.product-detail .related-shelf .product-grid {
 		grid-template-columns: repeat(2, minmax(0, 1fr));
-		gap: 20px 12px;
+		gap: 8px;
 	}
 }
 main.product-detail .related-shelf {

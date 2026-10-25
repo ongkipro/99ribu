@@ -749,9 +749,11 @@ body:has(> .store-header) {
 			0 0 0 1px rgba(16, 10, 31, 0.02),
 			0 -4px 24px rgba(16, 10, 31, 0.12);
 	}
+	/* The dock clearance continues the white footer band. */
 	.shopping-tabs-space {
 		display: block;
 		height: calc(3.5rem + env(safe-area-inset-bottom, 0px));
+		background: var(--surface);
 	}
 	.shopping-tabs a {
 		position: relative;
@@ -4215,15 +4217,15 @@ body:has(> .store-header, > .checkout-header, > .receipt-shell) {
 	}
 }
 
-/* Search and category grid (shop.com: 1/2, sm 1/3, md 1/4, lg 1/6; 8px gaps, 16px from md, 32px from lg). */
+/* Search and category grid (shop.com: 1/2, sm 1/3, md 1/4, lg 1/6; 8px gaps, 16px from md; the home rows
+   use the same 16px). Keep rows small: the card spans four subgrid rows, so the row gap repeats inside it. */
 .product-grid {
 	grid-template-columns: repeat(6, minmax(0, 1fr));
-	gap: 32px;
+	gap: 16px;
 }
 @media (max-width: 1023px) {
 	.product-grid {
 		grid-template-columns: repeat(4, minmax(0, 1fr));
-		gap: 16px;
 	}
 }
 @media (max-width: 767px) {
@@ -4731,7 +4733,7 @@ body:has(> .store-header, > .checkout-header, > .receipt-shell) {
 
 /* ===== Footer (shop.com footer, observed 2026-10-23, round 21) =====
    White band below the canvas. Brand block left (mark, 14/18 tagline in tertiary ink); menus
-   right as columns with a 14/18 weight-500 heading 16px above a 12px-gap list of 16/18 links;
+   right as columns with a 14/18 weight-500 heading 16px above a 30px-pitch list of 14/18 links (each link text is a 14/18 400 -0.2px paragraph on shop.com, re-measured 2026-10-25);
    bottom row with the copyright (14/18 tertiary) and the legal links. Phones: brand, then the
    menus in two columns (40px / 24px gaps), no accordion, then the bottom row; the dock spacer
    keeps it clear of the bottom navigation. */
@@ -4783,9 +4785,9 @@ body:has(> .store-header, > .checkout-header, > .receipt-shell) {
 	display: inline-flex;
 	align-items: center;
 	min-height: 30px;
-	font-size: var(--body-size);
-	line-height: 1.125rem;
-	letter-spacing: var(--tracking-body);
+	font-size: var(--small-size);
+	line-height: var(--small-leading);
+	letter-spacing: var(--tracking-small);
 	color: var(--ink);
 }
 .store-footer .footer-menus a:hover,
@@ -5310,12 +5312,11 @@ body:has(> .store-header, > .checkout-header, > .receipt-shell) {
 .listing-grid {
 	display: grid;
 	grid-template-columns: repeat(6, minmax(0, 1fr));
-	gap: 32px;
+	gap: 16px;
 }
 @media (max-width: 1023px) {
 	.listing-grid {
 		grid-template-columns: repeat(4, minmax(0, 1fr));
-		gap: 16px;
 	}
 }
 @media (max-width: 767px) {
