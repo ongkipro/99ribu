@@ -254,6 +254,11 @@ main.product-detail .buy-bar {
 	main.product-detail {
 		padding-top: 8px;
 	}
+	/* DEC-019: the phone PDP drops the shared category rail so the title is on the first screen;
+	   the breadcrumb carries the category. :has() keeps it off other pages after client navigation. */
+	body:has(main.product-detail) .category-pills {
+		display: none;
+	}
 	main.product-detail .related-shelf {
 		margin-top: 48px;
 	}
