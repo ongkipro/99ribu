@@ -23,6 +23,7 @@ import {
 	Truck,
 	Undo2,
 	UserRound,
+	UsersRound,
 	Wallet,
 	Warehouse,
 } from "lucide-react";
@@ -455,6 +456,13 @@ export function AdminShell({
 					label: "Banner Beranda",
 					icon: Images,
 					show: access.banners,
+				},
+				{
+					href: "/admin/buyer-segments",
+					label: "Segmen Pembeli",
+					icon: UsersRound,
+					// Same rule as the buyer-segments page guard (S126).
+					show: roles.some((r) => r === "owner" || r === "ecommerce_admin"),
 				},
 			],
 		},

@@ -58,14 +58,14 @@ const EXPECTED: [string, Role[], string[], (string | string[])[][]][] = [
 		["Ruang Kerja", LENSES],
 		["Operasional", ["Pesanan", "Pengiriman Manual", "Pusat Cetak Label", "Retur & Penggantian", "Kotak Masuk Pelanggan"]],
 		["Katalog & Stok", ["Produk", "Stok Gudang", "Transfer Stok"]],
-		["Pemasaran", ["Promo Ongkir", "Banner Beranda"]],
+		["Pemasaran", ["Promo Ongkir", "Banner Beranda", "Segmen Pembeli"]],
 		["Keuangan", ["Pembayaran", "Setoran COD"]],
 	]],
 	["ecommerce_admin", ["ecommerce_admin"], ["orders.history.read"], [
 		["Ruang Kerja", ["Admin E-Commerce"]],
 		["Operasional", ["Pesanan", "Pengiriman Manual", "Pusat Cetak Label"]],
 		["Katalog & Stok", ["Produk", "Stok Gudang", "Transfer Stok"]],
-		["Pemasaran", ["Promo Ongkir", "Banner Beranda"]],
+		["Pemasaran", ["Promo Ongkir", "Banner Beranda", "Segmen Pembeli"]],
 	]],
 	["warehouse", ["warehouse"], [], [
 		["Ruang Kerja", ["Gudang"]],
