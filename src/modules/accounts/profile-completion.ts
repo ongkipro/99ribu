@@ -165,10 +165,22 @@ export function parseProfileDetails(value: unknown, now = new Date()) {
 export const favouriteCategoryChoices = (identity: LocalAuth) =>
 	featuredDepartments(identity, 30);
 
+// The contact a promo consent may cover: the profile WhatsApp number (unverified by design, DEC-015), and for email
+// only the account email its owner verified. The profile email is a free-text contact a buyer can set to anyone's
+// address, so it never receives promo email on its own (R4 review).
+async function consentContacts(tx: TransactionSql, row: BuyerProfileRow) {
+	const [verified] =
+		row.email && row.user_email_verified
+			? await tx`select 1 from app.auth_user where id = ${row.user_id} and email_verified and lower(email) = lower(${row.email})`
+			: [];
+	return { whatsapp: Boolean(row.phone), email: Boolean(verified) };
+}
+
 async function readConsents(
 	tx: TransactionSql,
 	row: BuyerProfileRow,
 ): Promise<MarketingConsentResponse> {
+	const contacts = await consentContacts(tx, row);
 	const active = await tx<
 		{ channel: ConsentChannel; policy_version: string; granted_at: string }[]
 	>`
@@ -198,9 +210,7 @@ async function readConsents(
 				granted: Boolean(current),
 				granted_at: iso(current?.granted_at ?? null),
 				policy_version: current?.policy_version ?? null,
-				contact_available: Boolean(
-					channel === "whatsapp" ? row.phone : row.email,
-				),
+				contact_available: contacts[channel],
 			};
 		}),
 		history: history.map((item) => ({
@@ -348,7 +358,7 @@ async function updateConsent(
 		`;
 		let changed = false;
 		if (granted) {
-			if (!(channel === "whatsapp" ? row.phone : row.email))
+			if (!(await consentContacts(tx, row))[channel])
 				throw new AccessError(422, "CONTACT_REQUIRED");
 			if (active?.policy_version !== MARKETING_POLICY_VERSION) {
 				if (active)
@@ -410,12 +420,14 @@ export async function readBuyerSegments(
 			join app.category c on c.id = f.category_id
 			group by c.id, c.name order by count(*) desc, c.name limit 50
 		`;
-		// Opted in = an active consent and a contact on the profile for that channel.
+		// Opted in = an active consent and a contact it may cover (see consentContacts).
 		const channels = await tx<{ channel: ConsentChannel; count: number }[]>`
 			select m.channel, count(*)::int as count
 			from app.marketing_consent m join app.buyer_profile p on p.user_id = m.user_id
+			join app.auth_user u on u.id = m.user_id
 			where m.withdrawn_at is null
-				and ((m.channel = 'whatsapp' and p.phone is not null) or (m.channel = 'email' and p.email is not null))
+				and ((m.channel = 'whatsapp' and p.phone is not null)
+					or (m.channel = 'email' and u.email_verified and lower(u.email) = lower(p.email)))
 			group by m.channel
 		`;
 		return {

@@ -491,6 +491,63 @@ test("S126 buyer profile completion, promo consent, segments and checkout prefil
 			).status,
 			201,
 		);
+		// R4: the profile email is a free-text contact. Pointing it at another address withdraws the email consent,
+		// and promo email can be granted only for the verified account email, never for an address anyone typed.
+		const p3 = (await call(buyer, "/api/v1/me/profile")).body;
+		assert.equal(
+			(
+				await call(buyer, "/api/v1/me/profile", {
+					expected_version: p3.version,
+					display_name: p3.display_name,
+					email: "stranger@example.invalid",
+				})
+			).status,
+			201,
+		);
+		const strangerEmail = (await consents(buyer)).body;
+		assert.deepEqual(
+			strangerEmail.channels.map(
+				(c: { granted: boolean; contact_available: boolean }) => [
+					c.granted,
+					c.contact_available,
+				],
+			),
+			[
+				[true, true],
+				[false, false],
+			],
+		);
+		assert.equal(
+			(
+				await consent(buyer, {
+					channel: "email",
+					granted: true,
+					policy_version: MARKETING_POLICY_VERSION,
+				})
+			).body.code,
+			"CONTACT_REQUIRED",
+		);
+		const p4 = (await call(buyer, "/api/v1/me/profile")).body;
+		assert.equal(
+			(
+				await call(buyer, "/api/v1/me/profile", {
+					expected_version: p4.version,
+					display_name: p4.display_name,
+					email: buyer.email,
+				})
+			).status,
+			201,
+		);
+		assert.equal(
+			(
+				await consent(buyer, {
+					channel: "email",
+					granted: true,
+					policy_version: MARKETING_POLICY_VERSION,
+				})
+			).status,
+			201,
+		);
 		const consentAudit = await sql<
 			{ reason: string; details: Record<string, unknown> }[]
 		>`
@@ -538,6 +595,14 @@ test("S126 buyer profile completion, promo consent, segments and checkout prefil
 			sql`update app.marketing_consent set withdrawn_at=clock_timestamp() where id=${closed.id}`,
 			{ code: "23514" },
 		);
+		// Account erasure (UU PDP) can still delete consent records: the guard covers INSERT and UPDATE only.
+		await sql.begin(async (tx) => {
+			const erased = await tx`delete from app.marketing_consent where user_id=${buyer.id}`;
+			assert.ok(erased.count >= 4);
+			throw Object.assign(new Error("rollback"), { rollback: true });
+		}).catch((error) => {
+			if (!error.rollback) throw error;
+		});
 		await assert.rejects(
 			sql`update app.buyer_profile set birth_day=31, birth_month=4 where user_id=${buyer.id}`,
 			{ code: "23514" },
@@ -669,7 +734,7 @@ test("S126 buyer profile completion, promo consent, segments and checkout prefil
 		);
 		assert.equal(deleted.status, 201);
 		const [scrubbed] =
-			await sql`select recipient_name, phone, street, label, landmark, deleted_at is not null as gone from app.buyer_address where id=${created.body.id}`;
+			await sql`select recipient_name, phone, street, label, landmark, concat(province, city, district, subdistrict, postcode, destination_code) as area, deleted_at is not null as gone from app.buyer_address where id=${created.body.id}`;
 		assert.deepEqual(
 			{ ...scrubbed },
 			{
@@ -678,6 +743,7 @@ test("S126 buyer profile completion, promo consent, segments and checkout prefil
 				street: "",
 				label: "",
 				landmark: null,
+				area: "",
 				gone: true,
 			},
 		);

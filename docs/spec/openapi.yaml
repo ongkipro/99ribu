@@ -21130,6 +21130,7 @@ components:
                 maxLength: 64
               contact_available:
                 type: boolean
+                description: WhatsApp needs a profile number; email needs the profile email to be the verified account email. A grant without it is 422 CONTACT_REQUIRED.
         history:
           type: array
           maxItems: 20

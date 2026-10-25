@@ -828,7 +828,7 @@ export function PromoConsents({
 								? "Belum disetujui."
 								: item.channel === "whatsapp"
 									? "Tambahkan nomor WhatsApp di bagian Profil untuk memilih ini."
-									: "Tambahkan email di bagian Profil untuk memilih ini."}
+									: "Promo email hanya dikirim ke email akun yang sudah terverifikasi."}
 					</p>
 				</div>
 			))}
