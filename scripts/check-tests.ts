@@ -114,7 +114,7 @@ if (import.meta.main) {
       : selector === "--case=T-30"
       ? mode === "integration" ? ["tests/integration/advertising-diagnostics.test.ts"] : ["tests/browser/admin-workspaces.test.ts"]
       : selector === "--case=T-33"
-      ? mode === "integration" ? ["tests/integration/storefront.test.ts","tests/integration/storefront-contract.test.ts","tests/integration/storefront-offer-selection.test.ts","tests/integration/storefront-purchase.test.ts","tests/integration/storefront-cart-stock.test.ts","tests/integration/storefront-cart-runtime.test.ts"] : ["tests/browser/storefront.test.ts","tests/browser/storefront-filter-recovery.test.ts","tests/browser/storefront-cart.test.ts","tests/browser/storefront-continuity.test.ts"]
+      ? mode === "integration" ? ["tests/integration/storefront.test.ts","tests/integration/storefront-contract.test.ts","tests/integration/storefront-offer-selection.test.ts","tests/integration/storefront-purchase.test.ts","tests/integration/storefront-cart-stock.test.ts","tests/integration/storefront-cart-runtime.test.ts"] : ["tests/browser/storefront.test.ts","tests/browser/storefront-filter-recovery.test.ts","tests/browser/storefront-cart.test.ts","tests/browser/storefront-continuity.test.ts","tests/browser/storefront-pdp.test.ts"]
       : selector === "--case=T-34"
       ? mode === "integration" ? ["tests/integration/admin-reporting.test.ts","tests/integration/admin-kpis.test.ts","tests/integration/audit-trail.test.ts"] : ["tests/browser/admin-workspaces.test.ts"]
       : selector === "--case=T-35"

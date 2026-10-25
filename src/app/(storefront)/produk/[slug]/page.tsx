@@ -1,22 +1,23 @@
 import type {Metadata} from 'next';
 import Link from 'next/link';
 import {permanentRedirect,redirect} from 'next/navigation';
-import {cache} from 'react';
+import {cache,Suspense} from 'react';
 import {Shell} from '../../../../components/storefront/shell';
-import {Media,rupiah,contentName,isSampleProduct,keepHyphens,sameOrigin} from '../../../../components/storefront/ui/product-card';
+import {Media,ProductGrid,rupiah,contentName,isSampleProduct,keepHyphens,sameOrigin} from '../../../../components/storefront/ui/product-card';
 import {ProductGallery} from '../../../../components/storefront/sections/product-gallery';
 import {Icon} from '../../../../components/storefront/ui/icon';
 import {TaskBack} from '../../../../components/storefront/navigation';
 import {OfferPicker} from '../../../../components/storefront/offer-picker';
 import {CartForm,CartMutations} from '../../../../components/storefront/cart-forms';
 import {getLocalAuth} from '../../../../modules/access/auth';
-import {matchingVariant,publicProduct,publicCategory} from '../../../../modules/storefront/catalog';
+import {catalogQuery,listProducts,matchingVariant,publicProduct,publicCategory,type PublicCategory} from '../../../../modules/storefront/catalog';
 import {initialCartIntent,initialCartMutation} from '../../../../modules/storefront/cart';
 import {currentBrowserCart} from '../../../../modules/storefront/browser';
 import {productHref,productIdFromSlug,productSlug,publicReturnPath} from '../../../../modules/storefront/navigation';
 import {JsonLd} from '../../../../components/storefront/json-ld';
 import {siteConfig} from '../../../../config/site';
 import {breadcrumbJsonLd,categoryPath,jsonLdGraph,productDescription,productJsonLd,productPath,productTitle,publicMetadata} from '../../../../modules/storefront/seo';
+import './product.css';
 
 type Props={params:Promise<{slug:string}>;searchParams:Promise<Record<string,string|string[]|undefined>>};
 const load=cache((id:string)=>getLocalAuth().sql.begin(async tx=>{const product=await publicProduct(tx,id);return {product,category:product?await publicCategory(tx,product.category_id):null};}));
@@ -28,6 +29,17 @@ export async function generateMetadata({params}:Props):Promise<Metadata>{
  const image=matchingVariant(product)?.image??product.images[0];
  return publicMetadata(siteConfig(),{path:productPath(product.id,product.name),title:productTitle(product,category?.name),description:productDescription(product,category?.name),...(image?{image}:{})});
 }
+
+// shop.com "More from this store / You might also like" row, from what 99ribu has: other current
+// products of the same category, newest first, through the guarded public reader. Streamed after the
+// buy box (its own Suspense boundary), so it never delays the product, price or purchase action.
+async function RelatedShelf({product,category}:{product:string;category:PublicCategory}){
+ let items:Awaited<ReturnType<typeof listProducts>>['data']=[];
+ try{items=(await listProducts(getLocalAuth(),catalogQuery(new URLSearchParams({category_id:category.id,sort:'newest',limit:'13'})))).data.filter(p=>p.id!==product).slice(0,12);}catch{return null;}
+ if(items.length<2)return null;
+ return <section className="home-shelf related-shelf" aria-labelledby="related-heading"><h2 id="related-heading" className="shelf-heading"><Link href={`/kategori/${category.slug}`}>Lainnya di {category.name}<Icon name="forward"/></Link></h2><ProductGrid products={items} shelf/></section>;
+}
+
 export default async function Product({params,searchParams}:Props){
  const {slug}=await params,id=productIdFromSlug(slug);
  // Next 16.4 renders an in-page notFound() as an empty error shell that only JavaScript fills, so missing resources redirect to the server-rendered /404 page (status 404).
@@ -45,24 +57,37 @@ export default async function Product({params,searchParams}:Props){
  // The selected offer's photo leads, then the product's other photos (bundles: one per item).
  const photos=[...new Map([offer?.image,...product.images].filter(i=>i!==undefined&&i!==null).map(i=>[i.url,{src:sameOrigin(i.url),alt:i.alt,width:i.width,height:i.height}])).values()];
  const facts=[...(offer?.attributes??[]),...product.facts.filter(f=>!offer?.attributes.some(a=>a.key===f.key))],alternative=product.variants.find(v=>v.availability==='available'&&v.id!==offer?.id);
- return <Shell active="none"><main id="main" className="wrap product-detail"><TaskBack from={from}/><JsonLd data={jsonLdGraph(productJsonLd(siteConfig(),product,category),breadcrumbJsonLd(siteConfig(),[{name:'Beranda',path:'/'},...(category?[{name:category.name,path:categoryPath(category.slug)}]:[]),{name:product.name,path:productPath(product.id,product.name)}]))}/><div className="detail-layout">{sample||!photos.length?<Media product={product} offer={offer??undefined} caption/>:<ProductGallery images={photos}/>}<section className="buy-box"><nav className="product-category" aria-label="Kategori produk"><Link href="/cari">Semua produk</Link>{category&&<><span aria-hidden="true">/</span><Link href={`/kategori/${category.slug}`}>{category.name}</Link></>}</nav><h1>{keepHyphens(product.name)}</h1>
-  {offer&&<p className="detail-price">{rupiah(offer.price)} <small>/ pilihan lengkap</small></p>}
+ // Every complete offer has the same fixed price, so the price line stays in place while an offer is chosen.
+ const price=(offer??product.variants[0])?.price;
+ const showDescription=description&&!(sample&&description==='Harga berlaku untuk satu pilihan lengkap sesuai rincian isi.'),longDescription=description.length>360||description.split('\n').length>8;
+ return <Shell active="none"><main id="main" className="wrap product-detail"><TaskBack from={from}/><JsonLd data={jsonLdGraph(productJsonLd(siteConfig(),product,category),breadcrumbJsonLd(siteConfig(),[{name:'Beranda',path:'/'},...(category?[{name:category.name,path:categoryPath(category.slug)}]:[]),{name:product.name,path:productPath(product.id,product.name)}]))}/><div className="detail-layout">{sample||!photos.length?<Media product={product} offer={offer??undefined} caption/>:<ProductGallery images={photos}/>}<section className="buy-box" aria-labelledby="product-title">
+  <div className="buy-head"><nav className="product-category" aria-label="Kategori produk"><Link href="/cari">Semua produk</Link>{category&&<span><span aria-hidden="true">/</span><Link href={`/kategori/${category.slug}`}>{category.name}</Link></span>}</nav><h1 id="product-title">{keepHyphens(product.name)}</h1>
+   {price!==undefined&&<p className="detail-price">{rupiah(price)} <small>/ pilihan lengkap</small></p>}</div>
   {invalid&&<section className="cart-warning" role="alert"><h2>Pilihan belum ditemukan</h2><p>Pilih kembali opsi produk ini sebelum menambahkannya.</p></section>}
-  <OfferPicker from={from} selected={offer?.id??''} choices={product.variants.map(v=>({id:v.id,label:v.label,available:v.availability==='available'}))}/>
-  {offer?<section className="offer-detail" aria-label="Rincian pilihan"><h2>Isi yang diterima</h2>{(()=>{const item=(c:typeof offer.contents[number])=><li key={c.name}>{c.quantity} × {contentName(product,c.name)}</li>;
+  <OfferPicker product={product.id} name={product.name} from={from} selected={offer?.id??''} choices={product.variants.map(v=>({id:v.id,label:v.label,available:v.availability==='available'}))}/>
+  {offer?<section className="offer-detail" aria-label="Rincian pilihan"><h2 className="field-label">Isi yang diterima</h2>{(()=>{const item=(c:typeof offer.contents[number])=><li key={c.name}>{c.quantity} × {contentName(product,c.name)}</li>;
    // Up to three items stay fully listed; longer bundles show the first three so the purchase action stays near the top.
    return offer.contents.length<=3?<ul>{offer.contents.map(item)}</ul>:<><ul>{offer.contents.slice(0,3).map(item)}</ul><details className="contents-more"><summary><span className="more-show">Lihat {offer.contents.length-3} barang lainnya</span><span className="more-hide">Sembunyikan barang lainnya</span><Icon name="chevron"/></summary><ul>{offer.contents.slice(3).map(item)}</ul></details></>;})()}
-   <div className="purchase-region"><p className="stock-status"><Icon name={offer.availability==='available'?'check':'alert'}/>{offer.availability==='available'?'Stok pilihan tersedia':'Stok pilihan belum tersedia'}</p>
-   {offer.availability!=='available'&&<p className="cart-advisory">Pilihan ini belum dapat ditambahkan. {alternative?<Link href={productHref(product.id,alternative.id,from,product.name)}>Lihat pilihan tersedia</Link>:<Link href={category?`/kategori/${category.slug}?availability=available`:'/cari?availability=available'}>Cari produk tersedia</Link>}</p>}
+   <div className="purchase-region"><p className="stock-status" data-available={offer.availability==='available'||undefined}><Icon name={offer.availability==='available'?'check':'alert'}/>{offer.availability==='available'?'Stok pilihan tersedia':'Stok pilihan belum tersedia'}</p>
+   {/* The stock line already says it; the way out is one secondary pill. */}
+   {offer.availability!=='available'&&<Link className="button secondary stock-exit" href={alternative?productHref(product.id,alternative.id,from,product.name):category?`/kategori/${category.slug}?availability=available`:'/cari?availability=available'}>{alternative?'Lihat pilihan tersedia':'Cari produk tersedia'}</Link>}
    {current.kind==='ready'&&!open&&<p className="cart-warning">Keranjang sebelumnya {current.cart.state==='submitted'?'sudah menjadi pesanan':'kedaluwarsa'}. Penambahan berikutnya memulai keranjang baru.</p>}
-   {denied?<p className="cart-warning">{current.kind==='denied'?'Sesi belanja perlu diperiksa.':'Keranjang belum dapat dimuat.'} <Link href="/keranjang">Periksa keranjang</Link></p>:<CartMutations initial={initialCartMutation(intent)} permalink={productHref(product.id,offer.id,from,product.name)} showCartLink><CartForm intent={intent} label="Tambah ke keranjang" disabled={offer.availability!=='available'} stepper/></CartMutations>}
+   {denied?<p className="cart-warning">{current.kind==='denied'?'Sesi belanja perlu diperiksa.':'Keranjang belum dapat dimuat.'} <Link href="/keranjang">Periksa keranjang</Link></p>:<CartMutations initial={initialCartMutation(intent)} permalink={productHref(product.id,offer.id,from,product.name)} showCartLink><CartForm intent={intent} label="Tambah ke keranjang" disabled={offer.availability!=='available'} stepper bar={rupiah(offer.price)}/></CartMutations>}
    <p className="cart-advisory">Stok diperiksa kembali saat ditambahkan. Isi keranjang belum memesan stok.</p></div>
-  </section>:<p className="cart-advisory">Belum ada pilihan yang dapat ditambahkan.</p>}
+  </section>:!invalid&&<p className="cart-advisory">Belum ada pilihan yang dapat ditambahkan.</p>}
   {/* Spesifikasi only when the product has spec data; no empty heading or placeholder. */}
   {facts.length>0&&<section className="product-facts"><h2>Spesifikasi</h2><dl>{facts.map(f=><div key={f.key}><dt>{f.label}</dt><dd>{f.values.join(', ')}</dd></div>)}</dl></section>}
-  {/* Description follows the purchase action (shop.com order); a short one stays open, a long catalog text starts collapsed. */}
-  {description&&!(sample&&description==='Harga berlaku untuk satu pilihan lengkap sesuai rincian isi.')&&<details className="product-policy" open={description.length<=160}><summary>Deskripsi<Icon name="chevron"/></summary><p className="detail-description">{description}</p></details>}
-  <details className="product-policy"><summary>Ongkir dan pengiriman<Icon name="chevron"/></summary><p>Ongkir dihitung dari alamat dan paket, lalu ditampilkan sebelum konfirmasi. Hari libur tidak dihitung sebagai hari proses pengiriman.</p></details>
-  <details className="product-policy"><summary>Pengembalian<Icon name="chevron"/></summary><p>Ketentuan pengembalian belum diterbitkan.</p><Link className="detail-help" href="/bantuan#returns">Ketentuan pengembalian</Link></details>
- </section></div></main></Shell>;
+  {/* shop.com opens its sections; a long catalog text shows its first lines with "Baca selengkapnya" (the full text stays in the HTML). */}
+  <div className="product-sections">
+   {showDescription&&<details className="product-policy" open><summary>Deskripsi<Icon name="chevron"/></summary><div className="description-body"><p className="detail-description">{description}</p>{longDescription&&<details className="read-more"><summary><span className="more-show">Baca selengkapnya</span><span className="more-hide">Tampilkan lebih sedikit</span></summary></details>}</div></details>}
+   <details className="product-policy" open><summary>Pengiriman dan pembayaran<Icon name="chevron"/></summary><ul className="policy-rows">
+    <li><Icon name="truck"/><span>Ongkir dihitung dari alamat dan paket, lalu ditampilkan sebelum konfirmasi.</span></li>
+    <li><Icon name="clock"/><span>Hari libur tidak dihitung sebagai hari proses pengiriman.</span></li>
+    <li><Icon name="wallet"/><span>Bayar transfer bank, VA/QRIS, atau COD. Ketersediaan COD dicek saat checkout dan ada biaya COD.</span></li>
+   </ul></details>
+   <details className="product-policy"><summary>Pengembalian<Icon name="chevron"/></summary><p>Ketentuan pengembalian belum diterbitkan.</p><Link className="detail-help" href="/bantuan#returns">Ketentuan pengembalian</Link></details>
+  </div>
+ </section></div>
+ {category&&<Suspense fallback={null}><RelatedShelf product={product.id} category={category}/></Suspense>}
+ </main></Shell>;
 }
