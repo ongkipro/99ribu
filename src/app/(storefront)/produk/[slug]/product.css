@@ -1,0 +1,313 @@
+/* S139 PDP precision pass (owner request 2026-10-25, shop.com product page as the structural
+   reference, docs/spec/design/reviews/s139-pdp-gap-list.md). Route stylesheet loaded only by
+   /produk/<slug>; it refines the "Product page" block in globals.css, which stays the base. Rules
+   are prefixed `main.product-detail` so they win over that block regardless of chunk order. The
+   coordinator may fold this file into globals.css later (the superseded globals rules are listed
+   in the gap list). */
+
+/* ---- Buy box rhythm: shop.com groups sit 24px apart, 8-16px inside a group. ---- */
+main.product-detail .buy-box {
+	gap: 24px;
+}
+main.product-detail .buy-head {
+	display: grid;
+	gap: 8px;
+}
+main.product-detail .buy-head h1 {
+	text-wrap: pretty;
+}
+main.product-detail .product-category {
+	margin-bottom: -4px;
+}
+/* A separator stays with the crumb after it, so a wrapped line never ends in a bare "/". */
+main.product-detail .product-category > span {
+	display: inline-flex;
+	align-items: center;
+	gap: 8px;
+}
+main.product-detail .offer-picker {
+	margin-top: 0;
+}
+/* The stock line starts the purchase group: 24px under the contents (8px list gap + 16px). */
+main.product-detail .purchase-region {
+	margin-top: 16px;
+}
+/* After "Lihat N barang lainnya" the 44px summary target already carries the space. */
+main.product-detail .contents-more + .purchase-region {
+	margin-top: 0;
+}
+main.product-detail .purchase-region .stock-exit {
+	justify-self: start;
+}
+/* Quantity locked with the action (out of stock, unknown result): the steps read as disabled too. */
+main.product-detail .quantity-stepper button:disabled {
+	color: var(--field-border);
+	cursor: not-allowed;
+}
+main.product-detail .quantity-stepper button:disabled:hover {
+	background: transparent;
+}
+main.product-detail .quantity-stepper:has(input[readonly]) input {
+	color: var(--muted);
+}
+
+/* ---- Field labels: shop.com "Color Black" = 12/16 600 name + 400 value. ---- */
+main.product-detail .field-label {
+	font-size: 0.75rem;
+	line-height: 1rem;
+	font-weight: 600;
+	letter-spacing: -0.2px;
+}
+main.product-detail .field-label > span {
+	font-weight: 400;
+}
+
+/* ---- Offer pills: links (switch at once, like shop.com's swatches). ---- */
+main.product-detail .offer-picker {
+	display: grid;
+	gap: 8px;
+}
+main.product-detail .offer-picker ul {
+	display: flex;
+	flex-wrap: wrap;
+	gap: 8px;
+	margin: 0;
+	padding: 0;
+	list-style: none;
+}
+main.product-detail .offer-picker a {
+	display: inline-flex;
+	flex-direction: column;
+	justify-content: center;
+	min-width: 0;
+	min-height: 44px;
+	padding: 8px 16px;
+	border: 1px solid var(--hairline);
+	border-radius: 22px;
+	background: #fff;
+	box-shadow: 0 2px 8px rgba(0, 0, 0, 0.06);
+	color: var(--ink);
+	font-size: 0.875rem;
+	line-height: 1.125rem;
+	font-weight: 600;
+	letter-spacing: -0.2px;
+	overflow-wrap: anywhere;
+	transition:
+		border-color 150ms cubic-bezier(0.4, 0, 0.2, 1),
+		box-shadow 150ms cubic-bezier(0.4, 0, 0.2, 1);
+}
+main.product-detail .offer-picker a:hover {
+	border-color: var(--field-border);
+	color: var(--ink);
+}
+main.product-detail .offer-picker a[aria-current] {
+	border-color: var(--ink);
+	box-shadow: inset 0 0 0 1px var(--ink);
+}
+/* Unavailable: still a link (its page explains and offers a way out), marked in text, not colour alone. */
+main.product-detail .offer-picker a:not([data-available]) {
+	background: #fafafa;
+	color: var(--muted);
+}
+main.product-detail .offer-picker a:not([data-available])[aria-current] {
+	color: var(--ink);
+}
+main.product-detail .offer-picker small {
+	color: var(--muted);
+	font-size: 0.75rem;
+	line-height: 1rem;
+	font-weight: 400;
+}
+
+/* ---- Stock line: the unavailable state carries the warning colour beside its icon and text. ---- */
+main.product-detail .stock-status:not([data-available]) {
+	color: var(--warning);
+}
+
+/* ---- Gallery: server-rendered thumbnail links (no column shift on hydration). ---- */
+main.product-detail .gallery-thumbs a {
+	display: block;
+	width: 48px;
+	height: 48px;
+	overflow: hidden;
+	border-radius: 8px;
+	background: #fff;
+	box-shadow: inset 0 0 0 1px var(--hairline);
+}
+main.product-detail .gallery-thumbs a[aria-current] {
+	box-shadow: inset 0 0 0 2px #121212;
+}
+main.product-detail .gallery-thumbs a:hover:not([aria-current]) {
+	box-shadow: inset 0 0 0 1px var(--field-border);
+}
+/* "N / M" on the photo where the thumbnail strip is hidden (phones and tablets). */
+main.product-detail .gallery-count {
+	display: none;
+}
+@media (max-width: 1050px) {
+	main.product-detail .gallery-count {
+		position: absolute;
+		left: 12px;
+		bottom: 20px;
+		display: block;
+		padding: 2px 10px;
+		border-radius: 9999px;
+		background: rgba(24, 24, 27, 0.72);
+		color: #fff;
+		font-size: 0.75rem;
+		line-height: 1.25rem;
+		font-weight: 600;
+		letter-spacing: -0.2px;
+		font-variant-numeric: tabular-nums;
+		pointer-events: none;
+	}
+}
+
+/* ---- Sections: Deskripsi (open, clamped with "Baca selengkapnya"), shipping/payment rows. ---- */
+main.product-detail .product-sections {
+	margin-top: -8px;
+}
+main.product-detail .product-policy:first-of-type {
+	margin-top: 0;
+	border-top: 1px solid rgba(24, 59, 78, 0.12);
+}
+main.product-detail .description-body {
+	padding-bottom: 16px;
+}
+main.product-detail .description-body .detail-description {
+	padding-bottom: 0;
+}
+main.product-detail .description-body:has(> .read-more:not([open])) .detail-description {
+	display: -webkit-box;
+	-webkit-box-orient: vertical;
+	-webkit-line-clamp: 8;
+	overflow: hidden;
+}
+main.product-detail .read-more summary {
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	min-height: 44px;
+	margin-top: 12px;
+	padding: 8px 16px;
+	border-radius: 9999px;
+	background: rgba(24, 24, 27, 0.05);
+	font-size: 0.875rem;
+	line-height: 1.125rem;
+	font-weight: 600;
+	letter-spacing: -0.2px;
+	transition: background-color 150ms cubic-bezier(0.4, 0, 0.2, 1);
+}
+main.product-detail .read-more summary:hover {
+	background: rgba(24, 24, 27, 0.09);
+}
+main.product-detail .read-more[open] .more-show,
+main.product-detail .read-more:not([open]) .more-hide {
+	display: none;
+}
+main.product-detail .policy-rows {
+	display: grid;
+	gap: 12px;
+	margin: 0;
+	padding: 0 0 16px;
+	list-style: none;
+	font-size: 0.875rem;
+	line-height: 1.25rem;
+	letter-spacing: -0.2px;
+}
+main.product-detail .policy-rows li {
+	display: grid;
+	grid-template-columns: 1.25rem minmax(0, 1fr);
+	gap: 12px;
+	align-items: start;
+}
+main.product-detail .policy-rows svg {
+	width: 1.25rem;
+	height: 1.25rem;
+	color: var(--muted);
+	transform: none;
+}
+
+/* Step glyphs follow the text size (rem), as the stock icon does. */
+main.product-detail .quantity-stepper button > svg {
+	width: 1.25rem;
+	height: 1.25rem;
+}
+
+/* ---- Related shelf: the home shelf heading (20/22 600 -1px; phones 18/20). ---- */
+main.product-detail .related-shelf {
+	margin-top: 64px;
+}
+main.product-detail .related-shelf .shelf-heading {
+	font-size: 1.25rem;
+	line-height: 1.375rem;
+	font-weight: 600;
+	letter-spacing: -1px;
+}
+
+/* ---- Phone buy bar: price + the same submit, above the dock, only while the main button is
+   out of view (hidden attribute toggled after hydration; nothing without JavaScript). ---- */
+main.product-detail .buy-bar {
+	display: none;
+}
+@media (max-width: 700px) {
+	main.product-detail {
+		padding-top: 8px;
+	}
+	main.product-detail .related-shelf {
+		margin-top: 48px;
+	}
+	main.product-detail .related-shelf .shelf-heading {
+		font-size: 1.125rem;
+		line-height: 1.25rem;
+		letter-spacing: -0.5px;
+	}
+	/* The bar runs 28px under the dock so the dock's rounded corners show the bar, not the page. */
+	main.product-detail .buy-bar:not([hidden]) {
+		position: fixed;
+		right: 0;
+		bottom: calc(var(--bottom) - 28px);
+		left: 0;
+		z-index: 9;
+		display: flex;
+		flex-wrap: wrap;
+		align-items: center;
+		gap: 8px 16px;
+		padding: 8px var(--gutter) 36px;
+		background: rgba(255, 255, 255, 0.92);
+		box-shadow:
+			0 -0.5px 0 var(--hairline),
+			0 -4px 16px rgba(0, 0, 0, 0.06);
+		-webkit-backdrop-filter: blur(10px);
+		backdrop-filter: blur(10px);
+	}
+	main.product-detail .buy-bar p {
+		flex: 0 1 auto;
+		min-width: 0;
+		font-size: 1rem;
+		line-height: 1.375rem;
+		font-weight: 600;
+		letter-spacing: -0.5px;
+		overflow-wrap: anywhere;
+	}
+	main.product-detail .purchase-region .cart-mutation .buy-bar .button {
+		/* 12em scales with the text size, so enlarged text moves the button onto its own full row. */
+		flex: 1 1 12em;
+		width: auto;
+		min-width: 0;
+		min-height: 48px;
+		padding: 12px 16px;
+	}
+	html:has(main.product-detail .buy-bar:not([hidden])) {
+		scroll-padding-bottom: calc(var(--bottom) + 84px);
+	}
+	body:has(main.product-detail .buy-bar:not([hidden])) {
+		padding-bottom: 64px;
+	}
+}
+/* Short phone screens: the dock turns static there, and a fixed bar would cover the content. */
+@media (max-width: 700px) and (max-height: 38rem) {
+	main.product-detail .buy-bar:not([hidden]) {
+		display: none;
+	}
+}
