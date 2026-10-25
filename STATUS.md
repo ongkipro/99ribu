@@ -11,16 +11,17 @@ Previous-Claim: `READY_FOR_LOCAL_ACCEPTANCE` / "100% local production readiness"
 
 **Done today (all merged and pushed to `main`; evidence in BUILD-LOG):** DEC-018 (spec 17 owner answers Q1–Q5), S102 inventory/transfers/shipping promos/product content, S110 home banners (migration 0038), S101 returns + owner-only warehouse calendar, S123 buyer registration (R4), S139 PDP precision pass, S126 buyer profile + marketing consent (migration 0039, R4), S128 admin navigation IA + account menu + production sign-in redirect, DEC-019 (phone PDP hides the category rail; buyers 18+), DEC-020 PDP "Beli sekarang" (same add mutation, then `/checkout`; JS and no-JS verified in Chromium, T-33 browser 27/27), dev-only loose route matching (`next dev` 16.4.1 served 404 on every `/admin` page).
 
-**Last task:** DEC-020 "Beli sekarang" (`c197392`). Review the storefront with `npm run build && LOCAL_TAILNET_ORIGIN=http://100.127.67.86:3099 npm start` — `next dev` renders the home page CPU-bound for 30–60 s.
+**Last task:** S143 storefront typography/colour/spacing merged (shop.com-aligned, DESIGN.md section) after DEC-020/DEC-021 PDP refinements. Review the storefront with `npm run build && LOCAL_TAILNET_ORIGIN=http://100.127.67.86:3099 npm start` — `next dev` renders the home page CPU-bound for 30–60 s.
 
 **Next tasks, in order:**
+0. **S143 polish (non-blocking review notes):** checkout summary bullets vs cart, checkout summary title 16/400, PDP description hanging indent and "lengkap...." clamp marker, seed puts a barber product under Kecantikan.
 1. **S141 checkout floating labels (owner request 2026-10-25)** — see TASKS S141.
 2. **S142 post-order email capture (owner request 2026-10-25)** — recommendation recorded in TASKS S142; confirm with the owner before building.
 3. **Wave S129–S138** after S128 (parallel worktrees; one browser run at a time on `127.0.0.1:3099`): S129 staff account security (R4), S130 settings hub (DEC-018 Q3 finance read-only), S131 finance workbench (R4), S133 commerce exceptions (R4), S134 catalog master data, S135 audit log (DEC-018 Q4 owner + finance money actions), S136 system health, S137 staff & roles (R4), S138 CS buyer lookup (R4 privacy); S132 after S131.
 4. **Open checks:** S128 independent admin design review; S126 `/akun` design gate; S110 design gate on the latest renders; `return-http`/`replacement-http` browser rerun on a seeded runtime; production redirect of S128 on a production-profile server.
 5. **Owner decisions pending:** S140 production warehouse calendar source (DEC-018 Q2); S124 email provider; S127 doorprize/voucher terms; `/privasi` content; segment counts below 5 suppressed?; WhatsApp promo opt-in confirmation.
 
-**Environment notes:** Claude worktree paths are too long for the Postgres Unix socket (EINVAL) — run DB/browser checks from a short detached worktree under `/tmp/claude-1000/`. The shared test DB holds thousands of leftover fixture rows (5,943 warehouses); calendar-list tests need a fresh test DB. Leftover scratch worktrees to remove with owner approval: `/tmp/claude-1000/{s101v,s102r,s123v,s126v,s128v}`, `/home/ongki/Projects/.s139run`.
+**Environment notes:** Claude worktree paths are too long for the Postgres Unix socket (EINVAL) — run DB/browser checks from a short detached worktree under `/tmp/claude-1000/`. The shared test DB holds thousands of leftover fixture rows (5,943 warehouses); calendar-list tests need a fresh test DB. Disk filled up on 2026-10-25 (merged agent worktrees ~2 GB each); merged clean worktrees were removed with owner approval. Remove each merged worktree after merge. Left on purpose: `s110-home-banners` worktree (stale STATUS edit) and `/tmp/claude-1000/s123v` (uncommitted copies).
 
 ## Active workstreams (read before starting any work)
 

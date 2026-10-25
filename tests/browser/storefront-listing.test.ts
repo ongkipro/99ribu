@@ -42,8 +42,9 @@ test('scrolling appends the next pages once each, announces them, stops at the e
   // Open the second card (the appended page), then Back: the appended page and the card return.
   const third=cards.nth(1),id=await third.getAttribute('id');assert.ok(id);
   const href=new URL(await third.locator('a').getAttribute('href') as string,origin);assert.equal(href.searchParams.get('from'),`${listing}#${id}`,'Appended cards return to the listing URL, not a cursor page');
-  await third.locator('a').click();await expect(page).toHaveURL(/\/produk\//);await page.locator('.task-back').click();
-  await expect(page).toHaveURL(`${origin}${listing}#${id}`);await expect(cards).toHaveCount(2);await expect(page.locator(`#${id}`)).toBeInViewport();
+  await third.locator('a').click();await expect(page).toHaveURL(/\/produk\//);await page.goBack();
+  // No PDP back link (DEC-021): browser Back returns to the list URL itself; the loaded pages and the card stay.
+  await expect(page).toHaveURL(`${origin}${listing}`);await expect(cards).toHaveCount(2);await expect(page.locator(`#${id}`)).toBeInViewport();
   assert.deepEqual(errors,[]);await page.close();
  }}finally{await browser.close();}
 });

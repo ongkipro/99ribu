@@ -24,7 +24,8 @@ test('guest order recovery sends one request per submit and reports a lost conne
   await expect(page.getByTestId('account-status-banner')).toHaveText('Tidak bisa terhubung. Periksa koneksi lalu coba lagi.');
   await expect(submit).toBeEnabled();
   // S118: the printed number goes out as order_number (the server uppercases it).
-  assert.deepEqual(sent,{order_number:'99-ab12cd34ef56gh78',contact:'+6281200000000'});
+  // S123: phone fields are digit-only in the local 08 form; the server normalises to +62.
+  assert.deepEqual(sent,{order_number:'99-ab12cd34ef56gh78',contact:'081200000000'});
   assert.equal(calls,1,'A second submit while the first is pending sends nothing');
   assert.equal(page.url(),`${origin}/akun`,'The form never falls back to a native submit');
  }finally{await browser.close();}

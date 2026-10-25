@@ -1,5 +1,11 @@
 # Build log — Serba 99ribu
 
+## 2026-10-25 — S143 merged: storefront typography, colour and spacing (shop.com-aligned)
+
+- Measured shop.app live (GT Standard Web, licensed → Inter variable kept). Tokens: ink #000, canvas #fcfcfc, muted oklch(0.552 0.026 290.5), caption rgba(0,0,0,.56) (AA: muted 4.72/4.84:1, caption 4.90/4.93:1 on canvas/white; text on darker tints uses caption). Scale: page H1 36/38 800 (28/30 phones), H2 20/22 600 -1px (18/20 phones), listing H2 24/26, H3 16/22, card price 12/16 600, PDP accordions 20/22, buttons 16/20 48 px; off-scale sizes, em tracking, weights 650/700 and loose line-heights folded; 24 off-grid paddings/gaps onto the 4px scale; radii 8/20. PDP breadcrumb `nav.breadcrumb` "Beranda › <Kategori>" (12/16 500 caption, chevron aria-hidden, 44 px targets) matching the JSON-LD. Dead/duplicate CSS removed. Admin untouched. DESIGN.md "Storefront typography, color and spacing" section.
+- Branch evidence: check 139/139, build OK, browser T-33 25/25, localhost-readiness 1/1, sign-in 12/12, sign-up 5/5; renders `docs/spec/design/renders/s143/` (0 overflow, 0 console errors); visual review r1/r2 REVISE → r3 PASS; design-gate PASS.
+- On `main` after merge: lint, typecheck, unit 139/139, build; browser T-33 25/25, PR-17 29/29; integration T-33 24/24. Coordinator fixed two stale expectations: `storefront-listing` used the removed `.task-back` (DEC-021, now browser Back to the list URL) and `storefront-controls` expected `+62…` where S123 sends the digit-only 08 form.
+
 ## 2026-10-25 — PDP refinements per owner review (DEC-020, DEC-021)
 
 - "Beli sekarang" (same add mutation, then `/checkout`; JS and no-JS verified), two-column action row with one-line labels at 320–1440 (54 px pills), related 5/3/2-column grid, gallery rail/tablet thumbnails/20 px radius, contents accordion under Deskripsi, price without suffix, no "Stok pilihan tersedia", PDP back link (`TaskBack`) removed with its history helper and CSS, local-simulation notice and footer line removed.
