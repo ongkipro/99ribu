@@ -20,9 +20,14 @@ export function ProductGallery({images}:{images:GalleryImage[]}){
  },[images.length]);
  const show=(index:number)=>{const el=row.current,slide=el?.children[index] as HTMLElement|undefined;if(!el||!slide) return;
   el.scrollTo({left:slide.offsetLeft-el.offsetLeft-Number.parseFloat(getComputedStyle(el).paddingLeft||'0'),behavior:matchMedia('(prefers-reduced-motion: reduce)').matches?'auto':'smooth'});};
+ // A scrolling rail (many photos) keeps the current thumbnail in view without moving the page.
+ const rail=useRef<HTMLOListElement>(null);
+ useEffect(()=>{const el=rail.current,thumb=el?.children[current] as HTMLElement|undefined;if(!el||!thumb||el.scrollHeight<=el.clientHeight) return;
+  const top=thumb.offsetTop-el.offsetTop,bottom=top+thumb.offsetHeight;
+  if(top<el.scrollTop)el.scrollTop=top;else if(bottom>el.scrollTop+el.clientHeight)el.scrollTop=bottom-el.clientHeight;},[current]);
  const many=images.length>1;
  return <div className="product-gallery" data-count={images.length}>
-  {many&&<ol className="gallery-thumbs" aria-label="Foto produk">{images.map((image,index)=><li key={image.src}>
+  {many&&<ol ref={rail} className="gallery-thumbs" aria-label="Foto produk">{images.map((image,index)=><li key={image.src}>
    <a href={`#foto-${index+1}`} aria-label={`Foto ${index+1} dari ${images.length}`} aria-current={index===current||undefined} onClick={event=>{event.preventDefault();show(index);}}>
     <CatalogImage src={image.src} sizes="48px" max={128} min={64} alt="" width={image.width} height={image.height} loading="lazy" decoding="async"/>
    </a></li>)}</ol>}

@@ -172,6 +172,26 @@ main.product-detail .gallery-thumbs {
 		width: min(100%, calc(100svh - 12.5rem));
 	}
 }
+/* Desktop rail (owner 2026-10-25): centred on the photo when the thumbnails fit; with many photos it is
+   capped at the photo's height (same formula as the photo width, via container units on the gallery)
+   and scrolls. The 8px bottom margin offsets the photo row's shadow padding so the centre is the photo's. */
+@media (min-width: 1051px) {
+	main.product-detail .product-gallery {
+		container-type: inline-size;
+	}
+	main.product-detail .gallery-thumbs {
+		align-self: center;
+		max-height: min(100cqw - 64px, 100svh - 12.5rem);
+		margin-bottom: 8px;
+		padding: 2px;
+		overflow-y: auto;
+		overscroll-behavior: contain;
+		scrollbar-width: none;
+	}
+	main.product-detail .gallery-thumbs::-webkit-scrollbar {
+		display: none;
+	}
+}
 @media (min-width: 701px) and (max-width: 1050px) {
 	main.product-detail .gallery-row > li {
 		display: flex;
