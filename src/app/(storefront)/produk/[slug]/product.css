@@ -135,6 +135,29 @@ main.product-detail .gallery-thumbs {
 		padding: 2px;
 	}
 }
+/* Photo size follows the viewport height like shop.com's carousel (84vh desktop, 65vh capped at 760px on
+   tablets): short laptop screens get a smaller photo, tall screens a larger one, so the photo and its rail
+   stay on one screen. Square photos kept (supplier photos carry text, S139). */
+@media (min-width: 1051px) {
+	/* The photo hugs the thumbnail rail; spare width goes to the gap before the buy box. */
+	main.product-detail .gallery-row > li {
+		display: flex;
+		justify-content: flex-start;
+	}
+	main.product-detail .gallery-row .product-image {
+		/* First screen: the store header (~10rem) plus breathing room stays above the photo. */
+		width: min(100%, calc(100svh - 12.5rem));
+	}
+}
+@media (min-width: 701px) and (max-width: 1050px) {
+	main.product-detail .gallery-row > li {
+		display: flex;
+		justify-content: center;
+	}
+	main.product-detail .gallery-row .product-image {
+		width: min(100%, 65svh, 760px);
+	}
+}
 /* "N / M" on the photo where no thumbnails show (phones). */
 main.product-detail .gallery-count {
 	display: none;
