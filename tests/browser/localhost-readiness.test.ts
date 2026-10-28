@@ -62,7 +62,7 @@ import {
 import { handleReporting } from "../../src/modules/reporting/service.ts";
 import { rupiah } from "../../src/modules/storefront/format.ts";
 import { handleSupport } from "../../src/modules/support/routes.ts";
-import { actor, cleanup, enroll } from "../contract/access-fixture.ts";
+import { actor, cleanup, enroll, labelTemplateProof } from "../contract/access-fixture.ts";
 import { grantedChoices } from "../integration/advertising-fixture.ts";
 import { CommerceClient } from "../integration/checkout-fixture.ts";
 import {
@@ -635,6 +635,7 @@ test("S65, S66 & S67 browser: assembled localhost multi-role journey, responsive
 				brand_mode: "neutral_partner",
 				partner_brand_name: "99ribu Local Test",
 				disclosure_text: "TEST-NOT-FOR-SHIPPING — SYNTHETIC LOCAL LABEL",
+				reauthentication_proof: await labelTemplateProof(identity, f.owner),
 			},
 		);
 		tplReq.headers.set("idempotency-key", randomUUID());

@@ -1,6 +1,7 @@
 import { mac, prefix, revokeGuestContext } from "../checkout/access.ts";
 import { ACTIVATION_HEADER, isSyntheticEmail, type LocalAuth } from "./auth.ts";
-import { getPrincipal, isStaff, projectMe, AccessError } from "./policy.ts";
+import { getPrincipal, isStaff, projectMe, AccessError, type Principal } from "./policy.ts";
+import { readAccountSecurity, recordAuthAudit, recordPasswordChange } from "./account-security.ts";
 import { clientIp, privateJson, problem, requestOrigin } from "./http.ts";
 import { readRuntimeConfig } from "../../config/runtime.ts";
 import { rateLimit } from "./rate-limit.ts";
@@ -39,6 +40,23 @@ const ACCOUNT_LIMITS: Record<string, readonly [number, number]> = {
   "/api/auth/two-factor/verify-backup-code": [5, 60_000],
 };
 
+// S129 own-account actions that re-ask for the current password: Better Auth's change-password and backup-code
+// regeneration. One budget per account: 5 attempts per 15 minutes, counted whether or not the password was right.
+const SENSITIVE_PATHS = ["/api/auth/change-password", "/api/auth/two-factor/generate-backup-codes"];
+const SENSITIVE_LIMIT = [5, 900_000] as const;
+
+async function auditSensitive(identity: LocalAuth, principal: Principal, path: string, response: Response) {
+  const payload = await response.clone().json().catch(() => null) as { code?: unknown; token?: unknown } | null;
+  const password = path === "/api/auth/change-password";
+  if (response.ok) {
+    if (password) await recordPasswordChange(identity, principal, payload?.token);
+    else await recordAuthAudit(identity.sql, { actorId: principal.id, action: "auth.backup_codes.regenerate", outcome: "allowed", reason: "own_backup_codes_regenerated" });
+    return;
+  }
+  const code = typeof payload?.code === "string" && /^[A-Z_]{1,64}$/.test(payload.code) ? payload.code : `HTTP_${response.status}`;
+  await recordAuthAudit(identity.sql, { actorId: principal.id, action: password ? "auth.password.change" : "auth.backup_codes.regenerate", outcome: "denied", reason: code });
+}
+
 const MAIL_PATHS = ["/api/auth/sign-up/email", "/api/auth/send-verification-email", "/api/auth/request-password-reset"];
 const MAIL_PER_DAY = [10, 86_400_000] as const;
 
@@ -48,9 +66,10 @@ const MAIL_PER_DAY = [10, 86_400_000] as const;
 export async function handleAuth(request: Request, identity: LocalAuth, options: { public?: boolean } = {}) {
   const incoming = new URL(request.url);
   const path = incoming.pathname;
-  const getPaths = ["/api/auth/get-session", "/api/auth/verify-email"];
-  const postPaths = ["/api/auth/sign-up/email", "/api/auth/sign-in/email", "/api/auth/sign-out", "/api/auth/request-password-reset", "/api/auth/reset-password", "/api/auth/send-verification-email", "/api/auth/two-factor/enable", "/api/auth/two-factor/verify-totp", "/api/auth/two-factor/verify-backup-code"];
-  // Enable reviewed browser flows only. Better Auth's remaining routes are not public contracts yet.
+  const getPaths = ["/api/auth/get-session", "/api/auth/verify-email", "/api/auth/account-security"];
+  const postPaths = ["/api/auth/sign-up/email", "/api/auth/sign-in/email", "/api/auth/sign-out", "/api/auth/request-password-reset", "/api/auth/reset-password", "/api/auth/send-verification-email", "/api/auth/two-factor/enable", "/api/auth/two-factor/verify-totp", "/api/auth/two-factor/verify-backup-code", ...SENSITIVE_PATHS];
+  // Enable reviewed browser flows only. Better Auth's remaining routes are not public contracts yet: other-session
+  // revocation, session lists (they carry tokens) and two-factor disable stay closed, so staff cannot switch MFA off.
   if (!(request.method === "GET" && (getPaths.includes(path) || /^\/api\/auth\/reset-password\/[A-Za-z0-9_-]+$/.test(path))) && !(request.method === "POST" && postPaths.includes(path))) {
     return Response.json({ code: "NOT_FOUND" }, { status: 404, headers: { "Cache-Control": "no-store" } });
   }
@@ -60,6 +79,15 @@ export async function handleAuth(request: Request, identity: LocalAuth, options:
   if (!["GET", "POST"].includes(request.method)) return new Response(null, { status: 405 });
   if (request.method === "POST" && request.headers.get("origin") !== origin) {
     return Response.json({ code: "INVALID_ORIGIN" }, { status: 403 });
+  }
+  if (request.method === "GET" && path === "/api/auth/account-security") {
+    // The caller's own two-step state and sessions (no tokens, seeds or codes), one read budget per account.
+    try {
+      if (incoming.search) throw new AccessError(400, "INVALID_INPUT");
+      const principal = await getPrincipal(request, identity);
+      await rateLimit(identity.sql, `auth-security-read:${await mac(identity, "auth-account", [principal.id])}`, [60, 60_000]);
+      return privateJson(await readAccountSecurity(identity, principal));
+    } catch (error) { return problem(error); }
   }
   const { profile } = readRuntimeConfig(process.env);
   // Production has no notification adapter (S86/OD-8): flows that must send a message stay closed.
@@ -131,14 +159,25 @@ export async function handleAuth(request: Request, identity: LocalAuth, options:
         }
       }
     }
-    if (path.includes("/two-factor/")) {
-      const enable = path.endsWith("/enable");
-      const allowed = enable ? ["password"] : ["code"];
-      if (Object.keys(body).some((key) => !allowed.includes(key)) ||
-          (enable ? typeof body.password !== "string" || body.password.length > 128 : typeof body.code !== "string" || body.code.length > 64)) {
+    if (path === "/api/auth/change-password") {
+      const { currentPassword, newPassword } = body;
+      if (Object.keys(body).some((key) => key !== "currentPassword" && key !== "newPassword") ||
+          typeof currentPassword !== "string" || !currentPassword || currentPassword.length > 128 ||
+          typeof newPassword !== "string" || newPassword.length > 128) {
         return Response.json({ code: "INVALID_INPUT" }, { status: 400, headers: { "Cache-Control": "no-store" } });
       }
-      if (enable) {
+      if (newPassword === currentPassword) return Response.json({ code: "PASSWORD_UNCHANGED" }, { status: 400, headers: { "Cache-Control": "no-store" } });
+      // A password change always ends every other session (S129); the client cannot opt out.
+      bodyText = JSON.stringify({ currentPassword, newPassword, revokeOtherSessions: true });
+    }
+    if (path.includes("/two-factor/")) {
+      const passwordBody = path.endsWith("/enable") || path.endsWith("/generate-backup-codes");
+      const allowed = passwordBody ? ["password"] : ["code"];
+      if (Object.keys(body).some((key) => !allowed.includes(key)) ||
+          (passwordBody ? typeof body.password !== "string" || body.password.length > 128 : typeof body.code !== "string" || body.code.length > 64)) {
+        return Response.json({ code: "INVALID_INPUT" }, { status: 400, headers: { "Cache-Control": "no-store" } });
+      }
+      if (path.endsWith("/enable")) {
         const current = await identity.auth.api.getSession({ headers: request.headers });
         if (!current?.user.emailVerified) return Response.json({ code: "UNAUTHENTICATED" }, { status: 401 });
         if (current.user.twoFactorEnabled) return Response.json({ code: "MFA_ALREADY_ENABLED" }, { status: 409 });
@@ -170,6 +209,21 @@ export async function handleAuth(request: Request, identity: LocalAuth, options:
       return limited;
     }
   }
+  let sensitive: Principal | null = null;
+  if (request.method === "POST" && SENSITIVE_PATHS.includes(path)) {
+    // Own-account reauthentication by password: the caller must hold a verified session (staff: MFA-verified),
+    // and wrong guesses burn one budget per account (not per session or address), so extra sessions add nothing.
+    try {
+      sensitive = await getPrincipal(request, identity);
+      // A session opened before two-step enrollment must not mint backup codes for the now-protected account.
+      // An account without two-step falls through to Better Auth's own TWO_FACTOR_NOT_ENABLED refusal.
+      if (path === "/api/auth/two-factor/generate-backup-codes" && !sensitive.mfaAt) {
+        const [flag] = await identity.sql`select two_factor_enabled from app.auth_user where id=${sensitive.id}`;
+        if (flag?.two_factor_enabled) throw new AccessError(403, "MFA_REQUIRED");
+      }
+      await rateLimit(identity.sql, `auth-account:${path}:${await mac(identity, "auth-account", [sensitive.id])}`, SENSITIVE_LIMIT);
+    } catch (error) { return problem(error); }
+  }
   if (mailDomain !== null && !(await emailDomainReceives(mailDomain))) {
     return Response.json({ code: "EMAIL_DOMAIN_UNREACHABLE" }, { status: 400, headers: { "Cache-Control": "no-store" } });
   }
@@ -185,6 +239,9 @@ export async function handleAuth(request: Request, identity: LocalAuth, options:
   }
   if (response.ok && ["/api/auth/sign-in/email", "/api/auth/sign-out"].includes(path)) {
     try { await revokeGuestContext(request,identity,response); } catch (error) { return problem(error); }
+  }
+  if (sensitive && (path === "/api/auth/change-password" || path === "/api/auth/two-factor/generate-backup-codes")) {
+    try { await auditSensitive(identity, sensitive, path, response); } catch (error) { return problem(error); }
   }
   response.headers.set("Cache-Control", "no-store");
   response.headers.set("Referrer-Policy", "no-referrer");

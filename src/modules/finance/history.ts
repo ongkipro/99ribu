@@ -83,7 +83,7 @@ export async function listOrderHistory(identity:LocalAuth,principal:Principal,ur
    and (${position===null} or (o.created_at,o.id)<(${position?.t??'1970-01-01T00:00:00.000000Z'}::timestamptz,${position?.id??'00000000-0000-0000-0000-000000000000'}::uuid)) order by o.created_at desc,o.id desc limit ${take+1}`;
   const selected=rows.slice(0,take),data=[];
   for(const row of selected){const shipments=await tx`select distinct warehouse_id from app.order_shipment where order_id=${row.id}`;
-   data.push(projectOrderSummary(access,shipments.map(s=>s.warehouse_id),{id:row.id,number:row.number,status:row.status,payment_status:row.payment_status,payment_method:row.payment_method,buyer_total:Number(row.buyer_total),currency:'IDR',created_at:new Date(row.created_at).toISOString(),version:row.revision}));}
+   data.push(projectOrderSummary(access,shipments.map(s=>s.warehouse_id),{id:row.id,admin_no:row.admin_no,number:row.number,status:row.status,payment_status:row.payment_status,payment_method:row.payment_method,buyer_total:Number(row.buyer_total),currency:'IDR',created_at:new Date(row.created_at).toISOString(),version:row.revision}));}
   await audit(tx,access,null,true);const [clock]=await tx`select clock_timestamp() as now`;
   return {data,pagination:{next_cursor:rows.length>take?encode(selected[selected.length-1] as {stamp:string;id:string},hash):null},as_of:new Date(clock.now).toISOString()};
  });

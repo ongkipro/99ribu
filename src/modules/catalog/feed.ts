@@ -2,7 +2,7 @@ import type {Sql} from 'postgres';
 import {appOrigin} from '../../config/runtime.ts';
 import {defaultCatalogDatasetDir,readCatalogDocument} from './dataset.ts';
 import {publicProduct,type PublicProduct} from '../storefront/catalog.ts';
-import {productHref,productSlug} from '../storefront/navigation.ts';
+import {productPath} from '../storefront/navigation.ts';
 
 // Local Google Merchant Center product data in RSS 2.0 (g: namespace). This is a
 // file artifact only: nothing here uploads, submits, pings or claims indexing.
@@ -20,8 +20,8 @@ const xmlText=/^[\t\n\r\x20-퟿-�\u{10000}-\u{10FFFF}]*$/u;
 export function feedItem(origin:string,product:PublicProduct,offer:Offer,productType:string|null=null,googleCategory:string|null=null){
  const brand=(offer.attributes.find(a=>a.key==='brand')??product.facts.find(a=>a.key==='brand'))?.values;
  const item={id:offer.catalog_id,item_group_id:product.catalog_id,title:`${product.name} - ${offer.label}`,description:product.description.trim(),
-  // Single-offer products link to the canonical page; several offers keep a link that preselects this offer (Merchant variant landing page).
-  link:new URL(product.variants.length===1?`/produk/${productSlug(product.id,product.name)}`:productHref(product.id,offer.id,null,product.name),origin).href,image_link:offer.image?.url??null,availability:offer.availability==='available'?'in_stock' as const:'out_of_stock' as const,
+  // Every offer links to the clean canonical product page (/produk/<public_slug>): no id, not even ?offer=<uuid>, enters a feed link.
+  link:new URL(productPath(product.public_slug),origin).href,image_link:offer.image?.url??null,availability:offer.availability==='available'?'in_stock' as const:'out_of_stock' as const,
   price:`${offer.price}.00 ${offer.currency}`,brand:brand?.length===1?brand[0]:null,product_type:productType,
   ...(googleCategory?{google_product_category:googleCategory}:{})};
  const issues:FeedIssue[]=[],report=(code:FeedIssue['code'],field:string)=>issues.push({code,catalog_id:item.id,field});

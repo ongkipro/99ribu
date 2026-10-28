@@ -18,10 +18,6 @@ import {
 import { Textarea } from "@/components/ui/textarea";
 import { useIsMobile } from "@/components/ui/use-mobile";
 import { rupiah, wibDateTime } from "@/modules/storefront/format";
-import {
-	type AdDestinationItem,
-	AdDestinationsPanel,
-} from "./ad-destinations-panel";
 import { describeFailure, failureText, readFailure } from "./admin-errors";
 import type { ConsoleAccess } from "./console-access";
 import { CardActions, CardMeta, CardStatus, CardTitle, DataTable } from "./data-table";
@@ -30,6 +26,7 @@ import { KpiCard, KpiGrid } from "./kpi-card";
 import { AdminPage, Disclosure, PageHeader } from "./page-blocks";
 import { ErrorState, LoadingState } from "./states";
 import { Deadline, StatusBadge } from "./status";
+import { adminPath } from "@/modules/access/admin-paths";
 
 export type CanonicalWorkspace =
 	| "owner"
@@ -91,6 +88,8 @@ interface WorkQueueItem {
 	version: number;
 	reference: string | null;
 	order_id: string | null;
+	/** `admin_no` of `order_id`: the console opens the order at `/admin/orders/{admin_no}`. */
+	order_admin_no: number | null;
 	/** Reconciliation rows: net settlement amount and feed. */
 	amount_idr?: number | null;
 	settlement_source?: "payment" | "cod" | null;
@@ -110,8 +109,7 @@ const WORKSPACE_LABELS: Record<
 > = {
 	owner: {
 		title: "Ruang Kerja Super Admin",
-		subtitle:
-			"Antrean lintas fungsi, posisi keuangan, dan diagnostik sinyal iklan.",
+		subtitle: "Antrean lintas fungsi dan posisi keuangan.",
 	},
 	ecommerce_admin: {
 		title: "Ruang Kerja Admin E-Commerce",
@@ -620,131 +618,6 @@ const PREVIEW_METRICS: Record<CanonicalWorkspace, DashboardMetric[]> = {
 		},
 	],
 };
-
-const PREVIEW_DESTINATIONS: AdDestinationItem[] = [
-	{
-		id: "dest-preview-meta",
-		version: 1,
-		revision: 1,
-		platform: "meta",
-		destination_version: "v20.0",
-		public_identifier: "META-PIXEL-99RIBU-LOCAL",
-		external_destination_id: "pixel-99ribu-meta",
-		conversion_action_id: "Purchase",
-		paused: false,
-		enabled: true,
-		server_purchase_enabled: true,
-		browser_purchase_enabled: true,
-		credentials_configured: true,
-		secret_redacted: true,
-		updated_at: "2026-10-21T12:00:00.000Z",
-		eligible: 14,
-		suppressed: 3,
-		queued: 0,
-		accepted: 14,
-		processed: 14,
-		attributed: null,
-		purchase_collection_instances: 15,
-		unique_orders: 14,
-		reconciliation: {
-			gross_merchandise_amount_idr: 1683000,
-			refunded_merchandise_amount_idr: 99000,
-			net_merchandise_amount_idr: 1584000,
-			dispatched_purchase_signal_amount_idr: 1386000,
-			eligible_purchase_signal_amount_idr: 1386000,
-			suppressed_purchase_signal_amount_idr: 297000,
-			net_signal_merchandise_amount_idr: 1287000,
-		},
-		missing_identity: {
-			orders_without_visitor_session: 1,
-			orders_without_consent: 2,
-			expired_outbox_events: 0,
-			total_suppressed_or_missing: 3,
-		},
-	},
-	{
-		id: "dest-preview-google",
-		version: 1,
-		revision: 1,
-		platform: "google",
-		destination_version: "v17",
-		public_identifier: "AW-99RIBU-LOCAL",
-		external_destination_id: "aw-99ribu-google",
-		conversion_action_id: "purchase_action",
-		google_conversion_source: "GOOGLE_HOSTED",
-		paused: false,
-		enabled: true,
-		server_purchase_enabled: true,
-		browser_purchase_enabled: true,
-		credentials_configured: true,
-		secret_redacted: true,
-		updated_at: "2026-10-21T12:00:00.000Z",
-		eligible: 14,
-		suppressed: 3,
-		queued: 0,
-		accepted: 14,
-		processed: 14,
-		attributed: null,
-		purchase_collection_instances: 15,
-		unique_orders: 14,
-		reconciliation: {
-			gross_merchandise_amount_idr: 1683000,
-			refunded_merchandise_amount_idr: 99000,
-			net_merchandise_amount_idr: 1584000,
-			dispatched_purchase_signal_amount_idr: 1386000,
-			eligible_purchase_signal_amount_idr: 1386000,
-			suppressed_purchase_signal_amount_idr: 297000,
-			net_signal_merchandise_amount_idr: 1287000,
-		},
-		missing_identity: {
-			orders_without_visitor_session: 1,
-			orders_without_consent: 2,
-			expired_outbox_events: 0,
-			total_suppressed_or_missing: 3,
-		},
-	},
-	{
-		id: "dest-preview-tiktok",
-		version: 1,
-		revision: 1,
-		platform: "tiktok",
-		destination_version: "v1.3",
-		public_identifier: "TT-PIXEL-99RIBU-LOCAL",
-		external_destination_id: "tt-99ribu-tiktok",
-		conversion_action_id: "CompletePayment",
-		paused: false,
-		enabled: true,
-		server_purchase_enabled: true,
-		browser_purchase_enabled: true,
-		credentials_configured: true,
-		secret_redacted: true,
-		updated_at: "2026-10-21T12:00:00.000Z",
-		eligible: 14,
-		suppressed: 3,
-		queued: 0,
-		accepted: 14,
-		processed: 14,
-		attributed: null,
-		purchase_collection_instances: 15,
-		unique_orders: 14,
-		reconciliation: {
-			gross_merchandise_amount_idr: 1683000,
-			refunded_merchandise_amount_idr: 99000,
-			net_merchandise_amount_idr: 1584000,
-			dispatched_purchase_signal_amount_idr: 1386000,
-			eligible_purchase_signal_amount_idr: 1386000,
-			suppressed_purchase_signal_amount_idr: 297000,
-			net_signal_merchandise_amount_idr: 1287000,
-		},
-		missing_identity: {
-			orders_without_visitor_session: 1,
-			orders_without_consent: 2,
-			expired_outbox_events: 0,
-			total_suppressed_or_missing: 3,
-		},
-	},
-];
-
 /** Full metric definitions; cards show at most two lines (none below md). */
 function Definitions({ metrics }: { metrics: DashboardMetric[] }) {
 	if (metrics.length === 0) return null;
@@ -879,13 +752,6 @@ export function AdminWorkspacesClient({
 	const exportReasonRef = useRef<HTMLTextAreaElement>(null);
 	const [exportResult, setExportResult] = useState<ExportResult | null>(null);
 
-	const [destinations, setDestinations] = useState<AdDestinationItem[]>(
-		preview ? PREVIEW_DESTINATIONS : [],
-	);
-	const [adState, setAdState] = useState<Exclude<LoadState, "denied">>(
-		preview ? "preview" : "loading",
-	);
-	const [adError, setAdError] = useState<string | null>(null);
 	const [notice, setNotice] = useState<Notice | null>(null);
 	const queueHeadingRef = useRef<HTMLHeadingElement>(null);
 	// Controlled dialogs have no DialogTrigger, so return focus to the opener ourselves.
@@ -925,37 +791,6 @@ export function AdminWorkspacesClient({
 		},
 		[preview],
 	);
-
-	const loadAds = useCallback(
-		async (ws: CanonicalWorkspace) => {
-			if (preview || ws !== "owner") {
-				setDestinations(preview && ws === "owner" ? PREVIEW_DESTINATIONS : []);
-				setAdState(preview ? "preview" : "ready");
-				return;
-			}
-			setAdState("loading");
-			setAdError(null);
-			try {
-				const res = await fetch("/api/v1/admin/advertising/destinations", {
-					credentials: "include",
-					cache: "no-store",
-				});
-				if (!res.ok) {
-					setAdError(failureText(await readFailure(res)));
-					setAdState("error");
-					return;
-				}
-				const data = (await res.json()) as { data?: AdDestinationItem[] };
-				setDestinations(data.data ?? []);
-				setAdState("ready");
-			} catch {
-				setAdError(failureText(describeFailure(0)));
-				setAdState("error");
-			}
-		},
-		[preview],
-	);
-
 	const loadQueue = useCallback(
 		async (
 			ws: CanonicalWorkspace,
@@ -1091,7 +926,6 @@ export function AdminWorkspacesClient({
 			}
 			await Promise.all([
 				loadDashboard(resolvedWs, requestedWarehouseId, initialWindow),
-				view === "dashboard" ? loadAds(resolvedWs) : null,
 				loadQueue(resolvedWs, requestedWarehouseId, initialWindow, defaultQueue, null),
 			]);
 		})();
@@ -1104,7 +938,6 @@ export function AdminWorkspacesClient({
 		requestedWorkspace,
 		requestedWarehouseId,
 		loadDashboard,
-		loadAds,
 		loadQueue,
 		view,
 		requestedQueue,
@@ -1330,7 +1163,9 @@ export function AdminWorkspacesClient({
 				: "/admin/payments"
 			: null;
 	const rowHref = (item: WorkQueueItem) =>
-		canOrders && item.order_id ? `/admin/orders/${item.order_id}` : settlementHref(item);
+		canOrders && item.order_admin_no != null
+			? adminPath("order", item.order_admin_no)
+			: settlementHref(item);
 	const kindText = (item: WorkQueueItem) => (
 		<>
 			{item.resource_kind === "reconciliation" && item.settlement_source
@@ -1889,18 +1724,6 @@ export function AdminWorkspacesClient({
 					</KpiGrid>
 					<Definitions metrics={moneyMetrics} />
 				</Disclosure>
-			)}
-
-			{view === "dashboard" && workspace === "owner" && (
-				<AdDestinationsPanel
-					state={adState}
-					error={adError}
-					onRetry={() => void loadAds(workspace)}
-					destinations={destinations}
-					setDestinations={setDestinations}
-					authenticated={!preview}
-					onNotice={setNotice}
-				/>
 			)}
 
 			<Dialog

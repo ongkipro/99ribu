@@ -43,7 +43,7 @@ test("seven real roles and guest: public handler scopes, MFA gate and safe field
         assert.equal(new Set(data.map((row: {id: string})=>row.id)).size,data.length);
         assert.ok(data.some((row: {id: string}) => row.id === malang));
         assert.equal(data.some((row: {id: string}) => row.id === pontianak), role === "owner");
-        assert.deepEqual(Object.keys(data[0]).sort(), ["active", "city", "id", "name", "timezone"]);
+        assert.deepEqual(Object.keys(data[0]).sort(), ["active", "admin_no", "city", "id", "name", "timezone"]);
         assert.equal((await user.browser.access("/admin/warehouses?limit=1&limit=2")).status, 400);
       } else assert.equal(response.status, 403, role);
       const principal = await getPrincipal(user.browser.request("/api/v1/me"), identity);
@@ -61,7 +61,7 @@ test("seven real roles and guest: public handler scopes, MFA gate and safe field
         assert.ok(rows.every((row: {id: string}) => row.id === malang));
         assert.equal(canReadOrderHistory({ ...principal, permissions: ["orders.history.read"] }, [malang]), false);
       }
-      const row = { id: "order-example", number: "EXAMPLE", status: "pending", payment_status: "pending", payment_method: "cod", buyer_total: 99000, currency: "IDR" as const,
+      const row = { id: "order-example", admin_no: 1042, number: "EXAMPLE", status: "pending", payment_status: "pending", payment_method: "cod", buyer_total: 99000, currency: "IDR" as const,
         created_at: new Date().toISOString(), version: 1, buyer_phone: "SYNTHETIC_PRIVATE", cost: 30000, bank_proof: "SYNTHETIC_PRIVATE" };
       if (role === "owner") {
         const visible = projectOrderSummary(principal, [malang, pontianak], row);

@@ -68,7 +68,7 @@ test('an actual empty bounded scan continues with the same filters instead of de
   const href=new URL(await next.getAttribute('href') as string,origin);assert.equal(href.searchParams.get('attributes'),params.get('attributes'));assert.equal(href.searchParams.get('category_id'),sizeCategory);assert.ok(href.searchParams.get('cursor'));
   await page.evaluate(()=>document.fonts.ready);await checkReflow(page);await page.screenshot({path:`${RENDERS}/s21/continuation-${width}.png`,fullPage:true});
   if(width===390){await page.setViewportSize({width:320,height:900});await page.evaluate(()=>{document.documentElement.style.fontSize='200%';});await checkReflow(page);await page.screenshot({path:`${RENDERS}/s21/continuation-text-200-320.png`,fullPage:true});}
-  await next.click();const matchingCard=page.locator(`.product-link[href^="/produk/"][href*="${matchingProduct}?offer="]`);await expect(matchingCard).toBeVisible();assert.ok(new URL(await matchingCard.getAttribute('href') as string,origin).searchParams.get('offer'));await page.close();
+  await next.click();const [{public_slug:matchingSlug}]=await identity.sql<{public_slug:string}[]>`select public_slug from app.product where id=${matchingProduct}`,matchingCard=page.locator(`.product-link[href^="/produk/${matchingSlug}?"]`);await expect(matchingCard).toBeVisible();assert.equal(new URL(await matchingCard.getAttribute('href') as string,origin).pathname,`/produk/${matchingSlug}`,'the card links to the clean slug');await page.close();
  }}finally{await browser.close();}
 });
 test('native category switching drops stale facets and repeated checkbox values remain valid',async()=>{

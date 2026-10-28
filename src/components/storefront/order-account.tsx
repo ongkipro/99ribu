@@ -106,7 +106,7 @@ export function OrderLinkCard({ orderId, email }: { orderId: string; email: stri
 				<form className="receipt-account-form" onSubmit={verify} noValidate>
 					<div className="checkout-field">
 						<label htmlFor="order-link-code">Kode verifikasi</label>
-						<input ref={field} id="order-link-code" type="text" inputMode="numeric" autoComplete="one-time-code" maxLength={6} value={code}
+						<input ref={field} id="order-link-code" type="text" placeholder=" " inputMode="numeric" autoComplete="one-time-code" maxLength={6} value={code}
 							onChange={(event) => setCode(event.currentTarget.value)} aria-invalid={message?.error || undefined} aria-describedby={message ? "order-link-message" : undefined} />
 					</div>
 					<div className="receipt-account-actions">
@@ -119,7 +119,7 @@ export function OrderLinkCard({ orderId, email }: { orderId: string; email: stri
 					{other ? (
 						<div className="checkout-field">
 							<label htmlFor="order-link-contact">Email atau nomor HP pesanan</label>
-							<input ref={field} id="order-link-contact" type="text" autoComplete="off" autoCapitalize="none" spellCheck={false} maxLength={254} value={contact}
+							<input ref={field} id="order-link-contact" type="text" placeholder=" " autoComplete="off" autoCapitalize="none" spellCheck={false} maxLength={254} value={contact}
 								onChange={(event) => setContact(filterContact(event, true))} aria-invalid={message?.error || undefined} aria-describedby={message ? "order-link-message" : undefined} />
 							<EmailSuggestion value={contact} onPick={setContact} />
 						</div>

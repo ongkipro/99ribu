@@ -57,6 +57,7 @@ export type AffiliatePayoutRow = {
 	id: string;
 	affiliate_id: string;
 	amount_idr: number;
+	admin_no?: string | number;
 	status: PayoutStatus;
 	execution_mode: "manual";
 	beneficiary_snapshot: BeneficiarySnapshot;
@@ -90,10 +91,11 @@ function payoutExplanation(status: PayoutStatus) {
 
 function projectPayout(
 	row: AffiliatePayoutRow,
-	options?: { includeClaimId?: boolean; claimId?: string | null },
+	options?: { includeClaimId?: boolean; claimId?: string | null; adminNo?: boolean },
 ) {
 	return {
 		id: row.id,
+		...(options?.adminNo ? { admin_no: Number(row.admin_no) } : {}),
 		amount: Number(row.amount_idr),
 		currency: "IDR" as const,
 		status: row.status,
@@ -418,6 +420,7 @@ export async function listAdminPayouts(
 		return {
 			data: slice.map((row) =>
 				projectPayout(row, {
+					adminNo: true,
 					includeClaimId: row.status === "processing",
 					claimId: row.active_claim_id,
 				}),
@@ -544,7 +547,7 @@ export async function claimManualPayoutTransfer(
 
 		const snapshot = updated.beneficiary_snapshot;
 		const response = {
-			payout: projectPayout(updated, { includeClaimId: true, claimId }),
+			payout: projectPayout(updated, { includeClaimId: true, claimId, adminNo: true }),
 			beneficiary_snapshot: {
 				bank_code: snapshot.bank_code,
 				account_number: snapshot.account_number,
@@ -1056,6 +1059,7 @@ export async function verifyManualPayoutTransfer(
     `;
 
 		const response = projectPayout(updated, {
+			adminNo: true,
 			includeClaimId: true,
 			claimId: input.transfer_claim_id,
 		});
@@ -1168,7 +1172,7 @@ export async function reconcileManualPayout(
       )
     `;
 
-		const response = projectPayout(updated, { includeClaimId: false });
+		const response = projectPayout(updated, { includeClaimId: false, adminNo: true });
 
 		await tx`
       insert into app.access_operation (id, actor_id, action, key, request_hash, response)

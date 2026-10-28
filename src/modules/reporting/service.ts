@@ -1577,6 +1577,16 @@ export async function listWorkQueue(request: Request, identity: LocalAuth) {
 		startIndex = idx + 1;
 	}
 	const pageRows = allRows.slice(startIndex, startIndex + limit);
+	// Console links address an order by its admin number; the page's orders are numbered in one read.
+	const pageOrderIds = [
+		...new Set(pageRows.flatMap((row) => (row.order_id ? [row.order_id] : []))),
+	];
+	const orderAdminNo = new Map<string, number>();
+	if (pageOrderIds.length) {
+		for (const row of await identity.sql<{ id: string; admin_no: string }[]>`
+			select id::text as id, admin_no::text as admin_no from app.commerce_order where id = any(${pageOrderIds}::uuid[])`)
+			orderAdminNo.set(row.id, Number(row.admin_no));
+	}
 	const nextCursor =
 		startIndex + limit < allRows.length
 			? (pageRows[pageRows.length - 1]?.id ?? null)
@@ -1593,6 +1603,7 @@ export async function listWorkQueue(request: Request, identity: LocalAuth) {
 			version: row.version,
 			reference: row.reference,
 			order_id: row.order_id,
+			order_admin_no: row.order_id ? (orderAdminNo.get(row.order_id) ?? null) : null,
 			// Settlement amount and feed for reconciliation rows only (no order totals in this contract).
 			amount_idr: row.resource_kind === "reconciliation" ? row.amount_idr : null,
 			settlement_source: row.settlement_source ?? null,

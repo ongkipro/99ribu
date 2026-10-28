@@ -55,7 +55,7 @@ if (import.meta.main) {
     "--case=T-26", "--case=T-27", "--case=T-28", "--case=T-29", "--case=T-30", "--case=T-31", "--case=T-32", "--case=T-33",
     "--case=T-34", "--case=T-35", "--case=T-36", "--case=T-37", "--case=T-38", "--case=localhost-readiness",
     "--case=S29-candidate", "--case=S30-candidate", "--case=S31-candidate", "--case=seed-foundation", "--case=seed-commerce",
-    "--case=seed-berlapak", "--case=demo-orders", "--case=manual-fulfillment", "--case=cod-remittance", "--case=payment-methods", "--case=autolaris-payments", "--case=consignment-payments", "--case=admin-ui-controls", "--case=production-profile", "--case=backup-restore", "--case=admin-orders", "--case=db-hygiene", "--case=admin-kpi-parity", "--case=guest-order-lookup", "--case=sign-in", "--case=ops-screens", "--case=home-banners", "--case=admin-returns", "--case=sign-up", "--case=buyer-profile", "--case=admin-nav", "--case=all-current",
+    "--case=seed-berlapak", "--case=demo-orders", "--case=manual-fulfillment", "--case=cod-remittance", "--case=payment-methods", "--case=autolaris-payments", "--case=consignment-payments", "--case=admin-ui-controls", "--case=production-profile", "--case=backup-restore", "--case=admin-orders", "--case=db-hygiene", "--case=admin-kpi-parity", "--case=guest-order-lookup", "--case=sign-in", "--case=ops-screens", "--case=home-banners", "--case=admin-returns", "--case=sign-up", "--case=buyer-profile", "--case=customer-lookup", "--case=audit-log", "--case=system-health", "--case=admin-account", "--case=staff-roles", "--case=catalog-master", "--case=admin-exceptions", "--case=admin-affiliates", "--case=finance-workbench", "--case=settings-hub", "--case=admin-nav", "--case=all-current",
   ];
   const integrationOnlySelectors = ["--case=backup-restore", "--case=seed-foundation", "--case=seed-berlapak", "--case=demo-orders", "--case=manual-fulfillment", "--case=admin-orders", "--case=db-hygiene", "--case=admin-kpi-parity", "--case=guest-order-lookup", "--case=cod-remittance", "--case=payment-methods", "--case=autolaris-payments", "--case=production-profile", "--case=PR-3", "--case=S29-candidate", "--case=S30-candidate", "--case=S31-candidate", "--case=T-38"];
   if (!["integration", "browser"].includes(mode) || !validSelectors.includes(selector) || extra.length || (mode === "browser" && integrationOnlySelectors.includes(selector)) || (mode === "integration" && ["--case=consignment-payments", "--case=admin-ui-controls", "--case=sign-in", "--case=sign-up", "--case=admin-nav"].includes(selector))) {
@@ -67,7 +67,7 @@ if (import.meta.main) {
       : selector === "--case=T-32"
       ? mode === "integration" ? ["tests/integration/storefront-order-receipt.test.ts"] : ["tests/browser/storefront-order-receipt.test.ts"]
       : selector === "--case=T-31"
-      ? mode === "integration" ? ["tests/integration/storefront-checkout-contract.test.ts","tests/integration/storefront-checkout-runtime.test.ts","tests/integration/storefront-checkout-payment.test.ts","tests/integration/storefront-checkout-signals.test.ts","tests/integration/storefront-checkout-draft.test.ts"] : ["tests/browser/storefront-checkout.test.ts"]
+      ? mode === "integration" ? ["tests/integration/storefront-checkout-contract.test.ts","tests/integration/storefront-checkout-runtime.test.ts","tests/integration/storefront-checkout-payment.test.ts","tests/integration/storefront-checkout-signals.test.ts","tests/integration/storefront-checkout-draft.test.ts"] : ["tests/browser/storefront-checkout.test.ts","tests/browser/storefront-floating-labels.test.ts"]
       : selector === "--case=PR-21"
       ? mode === "integration"
         ? [
@@ -102,7 +102,7 @@ if (import.meta.main) {
       : selector === "--case=PR-10"
       ? mode === "integration" ? ["tests/integration/affiliate-payouts.test.ts"] : ["tests/browser/affiliate-workspace.test.ts"]
       : selector === "--case=PR-15"
-      ? ["tests/integration/catalog-feed.test.ts", "tests/integration/catalog-feed-policy.test.ts", "tests/integration/storefront-seo.test.ts"]
+      ? ["tests/integration/catalog-feed.test.ts", "tests/integration/catalog-feed-policy.test.ts", "tests/integration/storefront-seo.test.ts", "tests/integration/product-public-slug.test.ts"]
       : selector === "--case=PR-22"
       ? mode === "integration" ? ["tests/integration/support-chat.test.ts"] : ["tests/browser/support-chat.test.ts", "tests/browser/support-live.test.ts"]
       : selector === "--case=T-27"
@@ -114,7 +114,7 @@ if (import.meta.main) {
       : selector === "--case=T-30"
       ? mode === "integration" ? ["tests/integration/advertising-diagnostics.test.ts"] : ["tests/browser/admin-workspaces.test.ts"]
       : selector === "--case=T-33"
-      ? mode === "integration" ? ["tests/integration/storefront.test.ts","tests/integration/storefront-contract.test.ts","tests/integration/storefront-offer-selection.test.ts","tests/integration/storefront-purchase.test.ts","tests/integration/storefront-cart-stock.test.ts","tests/integration/storefront-cart-runtime.test.ts"] : ["tests/browser/storefront.test.ts","tests/browser/storefront-filter-recovery.test.ts","tests/browser/storefront-cart.test.ts","tests/browser/storefront-continuity.test.ts","tests/browser/storefront-pdp.test.ts"]
+      ? mode === "integration" ? ["tests/integration/storefront.test.ts","tests/integration/storefront-contract.test.ts","tests/integration/storefront-offer-selection.test.ts","tests/integration/storefront-purchase.test.ts","tests/integration/storefront-cart-stock.test.ts","tests/integration/storefront-cart-runtime.test.ts"] : ["tests/browser/storefront.test.ts","tests/browser/storefront-filter-recovery.test.ts","tests/browser/storefront-cart.test.ts","tests/browser/storefront-continuity.test.ts","tests/browser/storefront-pdp.test.ts","tests/browser/storefront-dock.test.ts"]
       : selector === "--case=T-34"
       ? mode === "integration" ? ["tests/integration/admin-reporting.test.ts","tests/integration/admin-kpis.test.ts","tests/integration/audit-trail.test.ts"] : ["tests/browser/admin-workspaces.test.ts"]
       : selector === "--case=T-35"
@@ -156,7 +156,7 @@ if (import.meta.main) {
       : selector === "--case=manual-fulfillment"
       ? ["tests/integration/manual-fulfillment.test.ts"]
       : selector === "--case=admin-orders"
-      ? ["tests/integration/admin-orders.test.ts"]
+      ? ["tests/integration/admin-orders.test.ts", "tests/integration/admin-numbers.test.ts"]
       : selector === "--case=admin-kpi-parity"
       ? ["tests/integration/admin-kpi-parity.test.ts"]
       : selector === "--case=guest-order-lookup"
@@ -191,6 +191,26 @@ if (import.meta.main) {
       ? ["tests/browser/admin-nav.test.ts"]
       : selector === "--case=buyer-profile"
       ? [mode === "integration" ? "tests/integration/buyer-profile.test.ts" : "tests/browser/buyer-profile.test.ts"]
+      : selector === "--case=audit-log"
+      ? [mode === "integration" ? "tests/integration/audit-log.test.ts" : "tests/browser/audit-log.test.ts"]
+      : selector === "--case=customer-lookup"
+      ? [mode === "integration" ? "tests/integration/customer-lookup.test.ts" : "tests/browser/customer-lookup.test.ts"]
+      : selector === "--case=system-health"
+      ? [mode === "integration" ? "tests/integration/system-health.test.ts" : "tests/browser/admin-system-health.test.ts"]
+      : selector === "--case=admin-account"
+      ? [mode === "integration" ? "tests/integration/account-security.test.ts" : "tests/browser/admin-account.test.ts"]
+      : selector === "--case=staff-roles"
+      ? [mode === "integration" ? "tests/integration/staff-roles.test.ts" : "tests/browser/admin-staff-roles.test.ts"]
+      : selector === "--case=catalog-master"
+      ? [mode === "integration" ? "tests/integration/catalog-master.test.ts" : "tests/browser/catalog-master.test.ts"]
+      : selector === "--case=admin-exceptions"
+      ? [mode === "integration" ? "tests/integration/exception-workbench.test.ts" : "tests/browser/admin-exceptions.test.ts"]
+      : selector === "--case=admin-affiliates"
+      ? [mode === "integration" ? "tests/integration/admin-affiliates.test.ts" : "tests/browser/admin-affiliates.test.ts"]
+      : selector === "--case=finance-workbench"
+      ? [mode === "integration" ? "tests/integration/finance-workbench.test.ts" : "tests/browser/admin-finance.test.ts"]
+      : selector === "--case=settings-hub"
+      ? [mode === "integration" ? "tests/integration/settings-hub.test.ts" : "tests/browser/settings-hub.test.ts"]
       : selector === "--case=seed-commerce"
       ? [mode === "integration" ? "tests/integration/commerce-fixture.test.ts" : "tests/integration/commerce-fixture-http.test.ts"]
       : selector === "--case=PR-11"

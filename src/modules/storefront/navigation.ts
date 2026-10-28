@@ -16,15 +16,16 @@ export function publicReturnPath(value:unknown):string|null{
  }catch{return null;}
 }
 
-// Product URLs read /produk/<title-in-kebab-case>-<uuid>. Only the trailing id resolves the page;
-// a stale or missing title part is answered with a 308 to the canonical slug.
+// Product URLs read /produk/<public_slug>: a short, clean, stored and immutable slug (app.product.public_slug,
+// migration 0040), unique by construction (the first product of a name keeps it, later ones get -2, -3). The slug
+// carries no id. Links that were published as /produk/<title>-<uuid> keep resolving: only their trailing uuid is read
+// (legacyProductId) and the page answers one 308 to the current slug.
 const uuidTail=/([0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})$/i;
-export function productSlug(id:string,name?:string|null){
- const title=(name??'').normalize('NFKD').replace(/\p{M}/gu,'').toLowerCase().replace(/[^a-z0-9]+/g,'-').slice(0,80).replace(/^-+|-+$/g,'');
- return title?`${title}-${id}`:id;
-}
-export const productIdFromSlug=(slug:string)=>uuidTail.exec(slug)?.[1].toLowerCase()??null;
-export function productHref(product:string,offer:string,from?:string|null,name?:string|null){
- const params=new URLSearchParams({offer}),parent=publicReturnPath(from);if(parent)params.set('from',parent);
- return `/produk/${productSlug(product,name)}?${params}`;
+export const publicSlugShape=/^[a-z0-9]+(?:-[a-z0-9]+)*$/;
+export const productPath=(slug:string)=>`/produk/${slug}`;
+export const legacyProductId=(segment:string)=>uuidTail.exec(segment)?.[1].toLowerCase()??null;
+// `?offer=` only names a choice the page would not select anyway: the link to the default offer is the bare slug.
+export function productHref(slug:string,offer:string,from?:string|null,defaultOffer?:string|null){
+ const params=new URLSearchParams(),parent=publicReturnPath(from);if(offer!==defaultOffer)params.set('offer',offer);if(parent)params.set('from',parent);
+ const query=params.toString();return `${productPath(slug)}${query?`?${query}`:''}`;
 }

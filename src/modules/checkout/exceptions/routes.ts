@@ -53,6 +53,7 @@ import {
 	queueRecoveryRefund,
 	retryRecoveryRefund,
 } from "./refunds.ts";
+import { labelExceptions, numberException } from "./read-labels.ts";
 import { reportStockDiscrepancy } from "./stock.ts";
 
 const adminRoot = "/api/v1/admin/commerce-exceptions";
@@ -280,7 +281,7 @@ async function listCommerceExceptions(
 		await tx`insert into app.audit_event (actor_id,action,subject_id,outcome,reason)
       values (${principal.id},'commerce_exception.list',null,'allowed','Listed scoped commerce exceptions')`;
 		return {
-			data,
+			data: await labelExceptions(tx, data),
 			pagination: {
 				next_cursor:
 					rows.length > query.limit ? (slice.at(-1)?.id ?? null) : null,
@@ -312,11 +313,54 @@ async function getCommerceException(
        where id=${selected} and status<>'preparing' for share`;
 		if (!head) throw new AccessError(404, "NOT_FOUND");
 		await authorizeExceptionRead(tx, principal, head);
-		const body = await projectException(tx, head.id, false);
+		const [body] = await labelExceptions(tx, [
+			await projectException(tx, head.id, false),
+		]);
 		await authorizeExceptionRead(tx, principal, head);
 		await tx`insert into app.audit_event (actor_id,action,subject_id,outcome,reason)
       values (${principal.id},'commerce_exception.read',${head.id},'allowed','Read scoped commerce exception')`;
 		return body;
+	});
+}
+
+// Finance read of every original-source compensation of one case. The case head holds no
+// refund ids, so this is the only way a screen can find them again after a reload.
+async function listRecoveryRefunds(
+	identity: LocalAuth,
+	principal: Principal,
+	exceptionId: string,
+) {
+	const selected = id(exceptionId);
+	return identity.sql.begin(async (tx) => {
+		await returnAuthority(tx, principal);
+		await financeAuthority(tx, principal, "finance.refunds.read");
+		const [head] = await tx<
+			{
+				id: string;
+				order_id: string;
+				kind: ExceptionKind;
+				status: ExceptionStatus;
+				source_kind: string;
+				source_id: string;
+				revision: number;
+			}[]
+		>`
+      select id,order_id,kind,status,source_kind,source_id,revision from app.commerce_exception
+       where id=${selected} and status<>'preparing' for share`;
+		if (!head) throw new AccessError(404, "NOT_FOUND");
+		await authorizeExceptionRead(tx, principal, head);
+		const rows = await tx<{ value: Record<string, unknown> }[]>`
+      select app.recovery_refund_projection(r.id) value from app.recovery_refund r
+       where r.exception_id=${head.id} order by r.created_at,r.id`;
+		await returnAuthority(tx, principal);
+		await financeAuthority(tx, principal, "finance.refunds.read");
+		await tx`insert into app.audit_event (actor_id,action,subject_id,outcome,reason)
+      values (${principal.id},'commerce_exception.refunds_read',${head.id},'allowed','Listed recovery refunds of one commerce exception')`;
+		return {
+			exception_id: head.id,
+			version: head.revision,
+			refunds: rows.map((row) => row.value),
+		};
 	});
 }
 
@@ -888,11 +932,14 @@ export async function handleCommerceExceptions(
 		}
 		if (url.pathname === adminRoot && request.method === "POST") {
 			return privateJson(
-				await reportStockDiscrepancy(
-					request,
-					identity,
-					principal,
-					await readExceptionBody(request, 131072),
+				await numberException(
+					identity.sql,
+					await reportStockDiscrepancy(
+						request,
+						identity,
+						principal,
+						await readExceptionBody(request, 131072),
+					),
 				),
 				201,
 			);
@@ -952,6 +999,12 @@ export async function handleCommerceExceptions(
 		const refunds = new RegExp(`^${adminRoot}/([^/]+)/refunds$`).exec(
 			url.pathname,
 		);
+		if (refunds && request.method === "GET") {
+			if (url.search) throw invalid();
+			return privateJson(
+				await listRecoveryRefunds(identity, principal, refunds[1]),
+			);
+		}
 		if (refunds && request.method === "POST") {
 			return privateJson(
 				await queueRecoveryRefund(

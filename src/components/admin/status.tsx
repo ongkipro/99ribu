@@ -5,6 +5,7 @@ import Link from "next/link";
 import { type ReactNode, useEffect, useState } from "react";
 import { cn } from "cn";
 import { Badge } from "@/components/ui/badge";
+import { adminPath } from "@/modules/access/admin-paths";
 import { wibDateTime } from "@/modules/storefront/format";
 
 // S113: one status badge (icon + text, never wraps), one order-number link and one overdue flag
@@ -122,25 +123,27 @@ export function deadlineGroup(
 }
 
 /**
- * The printed order number, linked to the staff order detail (by id) or to the order search by
+ * The printed order number, linked to the staff order detail (by admin number) or to the order search by
  * number when only the number is known. Plain text without the orders grant; the page re-checks.
  */
 export function OrderNumberLink({
 	number,
-	orderId,
+	adminNo,
 	enabled,
 	label,
 }: {
 	number: string;
-	orderId?: string | null;
+	/** The order's `admin_no` from the read model; absent when the row carries none. */
+	adminNo?: number | null;
 	enabled: boolean;
 	/** Accessible name when the visible number needs context. */
 	label?: string;
 }) {
 	if (!enabled) return <span className="font-mono font-medium break-all">{number}</span>;
-	const href = orderId
-		? `/admin/orders/${orderId}`
-		: `/admin/orders?${new URLSearchParams({ jenis: "nomor", cari: number })}`;
+	const href =
+		adminNo != null
+			? adminPath("order", adminNo)
+			: `/admin/orders?${new URLSearchParams({ jenis: "nomor", cari: number })}`;
 	return (
 		<Link
 			href={href}

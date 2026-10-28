@@ -30,6 +30,7 @@ import {
 	STAFF_REASON_KINDS,
 } from "./return-model";
 import { Deadline, StatusBadge } from "./status";
+import { adminPath } from "@/modules/access/admin-paths";
 
 // S101: one return case end to end. The API owns the state machine; this screen offers only the
 // next actions the current status and the viewer's roles allow, sends the case version it read,
@@ -244,7 +245,7 @@ export function ReturnDetailClient({ caseId, access, canOrders }: { caseId: stri
 							<>
 								<span aria-hidden="true">·</span>
 								<Link
-									href={`/admin/orders/${d.order_id}`}
+									href={adminPath("order", d.order_admin_no)}
 									className="text-primary underline-offset-4 hover:underline pointer-coarse:inline-flex pointer-coarse:min-h-11 pointer-coarse:items-center"
 								>
 									Buka pesanan

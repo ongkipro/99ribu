@@ -6,6 +6,7 @@ import {salePublication} from '../catalog/publication.ts';
 import {id,invalid,object,text} from '../catalog/validation.ts';
 import {offerAvailability} from '../inventory/reservations.ts';
 import {hasClaimTerm} from './department-photos.ts';
+import {legacyProductId,publicSlugShape} from './navigation.ts';
 
 type Filters=Record<string,string[]>;
 export type PublicCategory={id:string;name:string;slug:string;parent_id:string|null};
@@ -74,10 +75,22 @@ export async function publicProduct(tx:TransactionSql,productId:string){
  }
  const [finished]=await tx`select clock_timestamp()::text as now`;
  if(!variants.length||!await salePublication(tx,draft.id,finished.now)) return null;
- return {id:draft.id,catalog_id:draft.catalog_id,slug:draft.slug,version:draft.version,publication_id:published.publication_id,
+ // The storefront URL segment is the stored app.product.public_slug (immutable, unique), not part of the frozen publication.
+ const [{public_slug}]=await tx<{public_slug:string}[]>`select public_slug from app.product where id=${draft.id}`;
+ return {id:draft.id,catalog_id:draft.catalog_id,slug:draft.slug,public_slug,version:draft.version,publication_id:published.publication_id,
   name:draft.name,description:draft.description,category_id:draft.category_id,images:draft.images,facts:draft.facts,variants};
 }
 export type PublicProduct=NonNullable<Awaited<ReturnType<typeof publicProduct>>>;
+// /produk/<segment>: a stored public slug answers directly; otherwise a legacy /produk/<title>-<uuid> (or bare uuid)
+// names the product by its trailing id and the caller answers a 308 to the current slug. Anything else is missing.
+export async function resolveProductSegment(sql:Sql|TransactionSql,segment:string):Promise<{kind:'current';id:string}|{kind:'legacy';public_slug:string}|{kind:'missing'}>{
+ if(segment.length<=160&&publicSlugShape.test(segment)){
+  const [row]=await sql<{id:string}[]>`select id from app.product where public_slug=${segment}`;if(row)return {kind:'current',id:row.id};
+ }
+ const legacy=legacyProductId(segment);if(!legacy)return {kind:'missing'};
+ const [row]=await sql<{public_slug:string}[]>`select public_slug from app.product where id=${legacy}`;
+ return row?{kind:'legacy',public_slug:row.public_slug}:{kind:'missing'};
+}
 export function matchingVariant(product:PublicProduct,input?:CatalogQuery){
  const matches=product.variants.filter(offer=>(!input?.offer_kind||offer.offer_kind===input.offer_kind)&&(!input?.availability||offer.availability===input.availability)&&
   Object.entries(input?.attributes??{}).every(([key,values])=>{const attribute=offer.attributes.find(a=>a.key===key)??product.facts.find(a=>a.key===key);return attribute&&values.some(value=>attribute.values.includes(value));}));

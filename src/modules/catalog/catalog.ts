@@ -156,7 +156,8 @@ export async function createProduct(request: Request, identity: LocalAuth, princ
   return mutate(request, identity, principal, "catalog.product.create", input, async (tx, access) => {
     const productId = randomUUID(); const state: Revision = { ...input, id: productId, catalog_id: `p_${randomUUID()}`,
       slug: `p-${productId}`, version: 1, facts: [], variants: input.variants.map(newOffer) };
-    await tx`insert into app.product (id,catalog_id,slug) values (${state.id},${state.catalog_id},${state.slug})`;
+    // public_slug is the clean, unique, immutable storefront URL segment taken from the name once (migration 0040; first holder keeps it, later ones get -2, -3).
+    await tx`insert into app.product (id,catalog_id,slug,public_slug) values (${state.id},${state.catalog_id},${state.slug},app.next_public_slug(${state.name}))`;
     await saveRevision(tx, state, access, principal.id, "Create inactive product draft");
     return { id: state.id, response: project(state), reason: "Create inactive product draft" };
   });

@@ -12,9 +12,12 @@ export async function handleAccess(request: Request, identity: LocalAuth) {
     if (request.method === "POST" && url.search) throw new AccessError(400, "INVALID_INPUT");
     const principal = await getPrincipal(request, identity);
     if (url.pathname === "/api/v1/admin/policy-versions") {
-      if (!principal.roles.includes("owner")) throw new AccessError(403, "FORBIDDEN");
-      if (request.method === "GET") return privateJson(await listPolicyVersions(url, principal, identity));
+      if (request.method === "GET") {
+        if (!principal.roles.some((role) => role === "owner" || role === "finance")) throw new AccessError(403, "FORBIDDEN");
+        return privateJson(await listPolicyVersions(url, principal, identity));
+      }
       if (request.method === "POST") {
+        if (!principal.roles.includes("owner")) throw new AccessError(403, "FORBIDDEN");
         const body = await readBody(request);
         try { return privateJson(await appendPolicyVersion(request, principal, identity, body), 201); }
         catch (error) {
@@ -50,11 +53,22 @@ export async function handleAccess(request: Request, identity: LocalAuth) {
       if (!/^\d{1,3}$/.test(rawLimit) || Number(rawLimit) < 1 || Number(rawLimit) > 100 ||
         (cursor !== null && !/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(cursor))) throw new AccessError(400, "INVALID_INPUT");
       const limit = Number(rawLimit);
-      const rows = await identity.sql<{ id: string; name: string; city: string; timezone: string; active: boolean }[]>`
-        select w.id,w.name,w.city,w.timezone,w.active from app.warehouse w where w.active
+      const rows = await identity.sql<{ id: string; admin_no: string; name: string; city: string; timezone: string; active: boolean }[]>`
+        select w.id,w.admin_no,w.name,w.city,w.timezone,w.active from app.warehouse w where w.active
         and (${principal.roles.includes("owner")} or exists (select 1 from app.warehouse_membership m where m.user_id=${principal.id} and m.warehouse_id=w.id))
         and (${cursor}::uuid is null or w.id>${cursor}::uuid) order by w.id limit ${limit + 1}`;
       return privateJson({ data: rows.slice(0, limit).map(projectWarehouse), pagination: { next_cursor: rows.length > limit ? rows[limit - 1].id : null } });
+    }
+    const warehouse = /^\/api\/v1\/admin\/warehouses\/([^/]+)$/.exec(url.pathname);
+    if (request.method === "GET" && warehouse) {
+      // S134: one warehouse with the list's roles and scope; outside the scope (or inactive) it is a 404, never a 403, so ids do not probe.
+      if (!principal.roles.some((role) => ["owner", "ecommerce_admin", "warehouse"].includes(role))) throw new AccessError(403, "FORBIDDEN");
+      if (url.search || !/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(warehouse[1])) throw new AccessError(400, "INVALID_INPUT");
+      const [row] = await identity.sql<{ id: string; admin_no: string; name: string; city: string; timezone: string; active: boolean }[]>`
+        select w.id,w.admin_no,w.name,w.city,w.timezone,w.active from app.warehouse w where w.active and w.id=${warehouse[1].toLowerCase()}::uuid
+        and (${principal.roles.includes("owner")} or exists (select 1 from app.warehouse_membership m where m.user_id=${principal.id} and m.warehouse_id=w.id))`;
+      if (!row) throw new AccessError(404, "NOT_FOUND");
+      return privateJson(projectWarehouse(row));
     }
     throw new AccessError(404, "NOT_FOUND");
   } catch (error) { return problem(error); }

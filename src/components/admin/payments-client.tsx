@@ -1,14 +1,13 @@
 "use client";
 
 import { CircleCheck, RefreshCw } from "lucide-react";
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { rupiah, wibDateTime, wibInputToIso } from "@/modules/storefront/format";
-import { describeFailure, failureText, getJson, readFailure } from "./admin-errors";
-import { bpsToPercent, percentToBps } from "./format";
+import { describeFailure, failureText, readFailure } from "./admin-errors";
 import { DataTable } from "./data-table";
 import { FormDialog, FormField, nativeSelectClass, SegmentedControl } from "./form";
 import { Deadline, OrderNumberLink, StatusBadge } from "./status";
@@ -18,6 +17,7 @@ import { useKeysetList } from "./use-keyset-list";
 type Transfer = {
 	id: string;
 	order_id: string;
+	order_admin_no: number;
 	order_number: string;
 	transfer_code: number;
 	expected_amount: number;
@@ -31,7 +31,6 @@ type Transfer = {
 	} | null;
 };
 type Account = { bank_name: string; account_number: string; account_holder: string };
-type Terms = { cod_fee_bps: number; manual_bank_accounts: Account[] } | null;
 const CODE_MESSAGES: Record<string, string> = {
 	TRANSFER_ALREADY_CONFIRMED: "Transfer ini sudah dikonfirmasi.",
 	TRANSFER_NOT_AWAITING: "Pesanan ini tidak lagi menunggu transfer.",
@@ -74,11 +73,9 @@ const READ_ONLY_ID = "payments-read-only-reason";
 const channelLabel = (code: string) => (code.startsWith("VA") ? `VA ${code.slice(2)}` : code);
 
 export function PaymentsClient({
-	canManageTerms,
 	canWrite,
 	canOrders,
 }: {
-	canManageTerms: boolean;
 	canWrite: boolean;
 	/** orders.history.read: order numbers link to the order detail. */
 	canOrders: boolean;
@@ -138,7 +135,7 @@ export function PaymentsClient({
 							id: "order",
 							header: "Pesanan",
 							stack: "title",
-							cell: (row) => <OrderNumberLink number={row.order_number} orderId={row.order_id} enabled={canOrders} />,
+							cell: (row) => <OrderNumberLink number={row.order_number} adminNo={row.order_admin_no} enabled={canOrders} />,
 						},
 						// md–xl: the unique code moves under the amount so the pinned action never covers the deadline.
 						{
@@ -198,7 +195,6 @@ export function PaymentsClient({
 				/>
 			)}
 			<AutolarisPayments onNotice={setNotice} canWrite={canWrite} canOrders={canOrders} />
-			{canManageTerms && <PaymentTerms />}
 		</div>
 	);
 }
@@ -299,6 +295,7 @@ function ConfirmDialog({ transfer, onClose, onDone }: { transfer: Transfer; onCl
 type Autolaris = {
 	id: string;
 	order_id: string;
+	order_admin_no: number;
 	order_number: string;
 	channel_code: string;
 	trx_id: string | null;
@@ -375,7 +372,7 @@ function AutolarisPayments({
 						// md–xl: the status and channel sit under the order number so the pinned action never covers them.
 						cell: (row) => (
 							<div className="flex flex-col items-start gap-1">
-								<OrderNumberLink number={row.order_number} orderId={row.order_id} enabled={canOrders} />
+								<OrderNumberLink number={row.order_number} adminNo={row.order_admin_no} enabled={canOrders} />
 								<span className="hidden flex-wrap items-center gap-1.5 md:max-xl:flex">
 									{autolarisStatus(row)}
 									<span className="text-xs text-muted-foreground">{channelLabel(row.channel_code)}</span>
@@ -470,107 +467,5 @@ function AutolarisConfirmDialog({ payment, onClose, onDone }: { payment: Autolar
 				<Input id="autolaris-password" type="password" autoComplete="current-password" value={form.password} onChange={set("password")} />
 			</FormField>
 		</FormDialog>
-	);
-}
-
-function PaymentTerms() {
-	const [current, setCurrent] = useState<{ version: number; terms: Terms } | null>(null);
-	// The API keeps basis points; staff edit a percent (333 bps = 3,33%), converted at this boundary.
-	const [form, setForm] = useState({ percent: "3,33", accounts: "", reason: "", password: "" });
-	const [message, setMessage] = useState<{ kind: "ok" | "error"; text: string } | null>(null);
-	const [pending, setPending] = useState(false);
-	const load = useCallback(async () => {
-		const result = await getJson<{ latest_version: number; current: { values: Terms } | null }>("/api/v1/admin/policy-versions?kind=payment");
-		if (!result.ok) return setMessage({ kind: "error", text: failureText(result.failure) });
-		const terms = result.data.current?.values ?? null;
-		setCurrent({ version: result.data.latest_version, terms });
-		if (terms)
-			setForm((f) => ({
-				...f,
-				percent: bpsToPercent(terms.cod_fee_bps),
-				accounts: terms.manual_bank_accounts.map((a) => `${a.bank_name} | ${a.account_number} | ${a.account_holder}`).join("\n"),
-			}));
-	}, []);
-	useEffect(() => {
-		void load();
-	}, [load]);
-	async function save() {
-		const accounts = form.accounts
-			.split("\n")
-			.map((line) => line.trim())
-			.filter(Boolean)
-			.map((line) => {
-				const [bank_name, account_number, account_holder] = line.split("|").map((part) => part.trim());
-				return { bank_name, account_number, account_holder };
-			});
-		const bps = percentToBps(form.percent);
-		if (bps === null) return setMessage({ kind: "error", text: "Biaya COD diisi persen 0–100 dengan paling banyak dua angka desimal, contoh 3,33." });
-		if (!form.reason.trim() || !form.password) return setMessage({ kind: "error", text: "Alasan dan kata sandi wajib diisi." });
-		if (pending) return;
-		setPending(true);
-		setMessage(null);
-		// post() never throws: network failures come back as { ok: false } with a visible message.
-		const result = await (async () => {
-			const issued = await proof(form.password, "payment_policy.version", "company-payment");
-			if (!issued.ok) return issued;
-			return post("/api/v1/admin/policy-versions", {
-				kind: "payment",
-				warehouse_id: null,
-				expected_version: current?.version ?? 0,
-				effective_at: null,
-				values: { cod_fee_bps: bps, manual_bank_accounts: accounts },
-				reason: form.reason.trim(),
-				reauthentication_proof: issued.data.proof,
-			});
-		})().finally(() => setPending(false));
-		if (!result.ok) return setMessage({ kind: "error", text: result.text });
-		setForm((f) => ({ ...f, reason: "", password: "" }));
-		setMessage({ kind: "ok", text: `Ketentuan pembayaran versi ${result.data.version} berlaku untuk penawaran baru.` });
-		void load();
-	}
-	return (
-		<section aria-labelledby="terms-heading" className="flex max-w-2xl flex-col gap-4 border-t pt-6">
-			<div className="flex flex-col gap-1">
-				<h2 id="terms-heading" className="text-lg font-semibold">
-					Ketentuan pembayaran
-				</h2>
-				<p className="text-sm text-muted-foreground">
-					Biaya COD dibayar pembeli dan dibekukan di setiap penawaran; perubahan hanya berlaku untuk penawaran baru. Rekening dipakai untuk transfer bank manual.
-					{current?.terms ? ` Berlaku sekarang: ${bpsToPercent(current.terms.cod_fee_bps)}% dan ${current.terms.manual_bank_accounts.length} rekening.` : " Belum diatur: tanpa biaya COD dan transfer manual tidak tersedia."}
-				</p>
-			</div>
-			<form noValidate className="flex flex-col gap-3" onSubmit={(e) => { e.preventDefault(); void save(); }}>
-				<FormField id="terms-cod-fee" label="Biaya COD (%)" hint="Persen dari tagihan COD, contoh 3,33.">
-					<div className="flex items-center gap-2">
-						<Input
-							id="terms-cod-fee"
-							inputMode="decimal"
-							className="max-w-32"
-							value={form.percent}
-							aria-describedby="terms-cod-fee-hint"
-							onChange={(e) => setForm({ ...form, percent: e.target.value })}
-						/>
-						<span aria-hidden="true" className="text-sm text-muted-foreground">%</span>
-					</div>
-				</FormField>
-				<FormField id="terms-accounts" label="Rekening transfer (satu per baris: Bank | Nomor | Nama pemilik)">
-					<Textarea id="terms-accounts" value={form.accounts} onChange={(e) => setForm({ ...form, accounts: e.target.value })} />
-				</FormField>
-				<FormField id="terms-reason" label="Alasan perubahan">
-					<Input id="terms-reason" value={form.reason} maxLength={200} onChange={(e) => setForm({ ...form, reason: e.target.value })} />
-				</FormField>
-				<FormField id="terms-password" label="Konfirmasi kata sandi">
-					<Input id="terms-password" type="password" autoComplete="current-password" value={form.password} onChange={(e) => setForm({ ...form, password: e.target.value })} />
-				</FormField>
-				{message && (
-					<p role={message.kind === "error" ? "alert" : "status"} className={message.kind === "error" ? "text-sm text-destructive" : "text-sm text-success"}>
-						{message.text}
-					</p>
-				)}
-				<Button type="submit" className="self-start" disabled={pending}>
-					{pending ? "Menyimpan…" : "Simpan ketentuan"}
-				</Button>
-			</form>
-		</section>
 	);
 }

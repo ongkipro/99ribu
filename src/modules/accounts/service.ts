@@ -16,7 +16,9 @@ import {
 	readBody,
 	requestOrigin,
 } from "../access/http.ts";
-import { AccessError, getPrincipal, type Principal } from "../access/policy.ts";
+import { AccessError, getPrincipal, isStaff, type Principal } from "../access/policy.ts";
+import { recordAuthAudit } from "../access/account-security.ts";
+import { consumeAccessProof } from "../access/grants.ts";
 import { LIMITS, rateLimit } from "../access/rate-limit.ts";
 import { id, integer, invalid, object, text } from "../catalog/validation.ts";
 
@@ -2494,57 +2496,113 @@ export async function handleAccounts(request: Request, identity: LocalAuth) {
 			return privateJson(updated, 201);
 		}
 
-		// 11. Session terminations: POST /api/v1/me/session-terminations
+		// 11. Session terminations: POST /api/v1/me/session-terminations (OpenAPI SessionTerminationInput, S129).
+		// `current` ends this session; `all_other` ends every other session of the same account and needs a
+		// single-use `session.terminate_others` proof (password reauthentication) bound to this session and user.
 		if (url.pathname === "/api/v1/me/session-terminations") {
 			if (request.method !== "POST") throw new AccessError(404, "NOT_FOUND");
 			const key = mutationKey(request);
-			const body = object(await readBody(request), ["scope"]);
-			if (body.scope !== "others" && body.scope !== "all") {
+			const body = object(await readBody(request), ["scope", "reauthentication_proof"]);
+			if (body.scope !== "current" && body.scope !== "all_other") {
 				throw invalid();
 			}
 			const scope = body.scope;
-			const hash = await intentHash(identity, "buyer.session.terminate", {
+			let proof: string | null = null;
+			if (scope === "all_other") {
+				// A missing proof is a refusal of authority (403), not a malformed request.
+				if (body.reauthentication_proof === undefined) {
+					throw new AccessError(403, "REAUTHENTICATION_REQUIRED");
+				}
+				proof = text(body.reauthentication_proof, 2000);
+				if (proof.length < 16) throw invalid();
+			}
+			await rateLimit(
+				identity.sql,
+				`session-terminate:${principal.id}`,
+				LIMITS.sessionTerminationPerUser,
+			);
+			// The proof is an authentication factor, not part of the retry intent.
+			const hash = await intentHash(identity, "auth.sessions.terminate", {
 				scope,
 			});
-			const ack = await identity.sql.begin(async (tx) => {
-				const prior = await checkIdempotency<{
-					id: string;
-					version: number;
-					status: string;
-					as_of: string;
-				}>(tx, principal.id, "buyer.session.terminate", key, hash);
-				if (prior) return prior;
-				if (scope === "others") {
-					await tx`
-						delete from app.auth_session
-						where user_id = ${principal.id} and id <> ${principal.sessionId}
+			let ack: {
+				id: string;
+				version: number;
+				status: string;
+				as_of: string;
+			};
+			try {
+				ack = await identity.sql.begin(async (tx) => {
+					const prior = await checkIdempotency<{
+						id: string;
+						version: number;
+						status: string;
+						as_of: string;
+					}>(tx, principal.id, "auth.sessions.terminate", key, hash);
+					if (prior) return prior;
+					let revoked: number;
+					if (scope === "all_other") {
+						await consumeAccessProof(
+							tx,
+							principal,
+							"session.terminate_others",
+							principal.id,
+							proof as string,
+						);
+						revoked = (
+							await tx`
+								delete from app.auth_session
+								where user_id = ${principal.id} and id <> ${principal.sessionId}
+								returning id
+							`
+						).length;
+					} else {
+						revoked = (
+							await tx`
+								delete from app.auth_session
+								where user_id = ${principal.id} and id = ${principal.sessionId}
+								returning id
+							`
+						).length;
+					}
+					const [clock] = await tx<{ now: string }[]>`
+						select clock_timestamp()::text as now
 					`;
-				} else {
-					await tx`
-						delete from app.auth_session
-						where user_id = ${principal.id}
-					`;
+					const response = {
+						id: principal.id,
+						version: 1,
+						status: "confirmed",
+						as_of: new Date(clock.now).toISOString(),
+					};
+					return saveIdempotency(
+						tx,
+						principal.id,
+						"auth.sessions.terminate",
+						key,
+						hash,
+						principal.id,
+						`own_sessions_terminated:${scope}`,
+						response,
+						{ scope, revoked_sessions: revoked },
+					);
+				});
+			} catch (error) {
+				// A refused step-up on a staff account is evidence worth keeping; buyers' refusals are not stored.
+				if (
+					error instanceof AccessError &&
+					error.code === "REAUTHENTICATION_REQUIRED" &&
+					isStaff(principal)
+				) {
+					await recordAuthAudit(identity.sql, {
+						actorId: principal.id,
+						action: "auth.sessions.terminate",
+						outcome: "denied",
+						reason: error.code,
+						details: { scope },
+					});
 				}
-				const [clock] = await tx<{ now: string }[]>`
-					select clock_timestamp()::text as now
-				`;
-				const response = {
-					id: principal.sessionId,
-					version: 1,
-					status: scope === "all" ? "terminated_all" : "terminated_others",
-					as_of: new Date(clock.now).toISOString(),
-				};
-				return saveIdempotency(
-					tx,
-					principal.id,
-					"buyer.session.terminate",
-					key,
-					hash,
-					principal.id,
-					`Terminated buyer sessions (${scope})`,
-					response,
-				);
-			});
+				throw error;
+			}
 			return privateJson(ack, 201);
 		}
 

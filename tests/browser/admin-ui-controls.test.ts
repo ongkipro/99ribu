@@ -160,7 +160,8 @@ test("payment terms: a double click sends one proof request and a network failur
 			(url, method) => method === "POST" && url.pathname === "/api/v1/admin/policy-versions",
 			(route) => problem(route, 409, "VERSION_CONFLICT"),
 		);
-		await page.goto(`${origin}/admin/payments`);
+		await page.goto(`${origin}/admin/settings/payment`);
+		await page.getByTestId("payment-policy-new").click();
 		await page.getByLabel("Alasan perubahan").fill("Uji kontrol UI");
 		await page.getByLabel("Konfirmasi kata sandi").fill("bukan-kata-sandi");
 		const save = page.getByRole("button", { name: "Simpan ketentuan" });

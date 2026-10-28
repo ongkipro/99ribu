@@ -3,6 +3,7 @@ import { randomBytes, randomUUID } from "node:crypto";
 import type { LocalAuth } from "../../src/modules/access/auth.ts";
 import type { Role } from "../../src/modules/access/policy.ts";
 import { handleAuth } from "../../src/modules/access/handler.ts";
+import { handleAccess } from "../../src/modules/access/routes.ts";
 import { BrowserSession } from "../../src/modules/local/synthetic-session.ts";
 
 export { BrowserSession, enroll } from "../../src/modules/local/synthetic-session.ts";
@@ -39,3 +40,26 @@ export async function cleanup(identity: LocalAuth, users: { id: string; email: s
   await clearTestBuckets(identity);
 }
 
+
+/** Single-use `session.terminate_others` proof for the actor's own user id (password reauthentication). */
+export async function terminationProof(identity: LocalAuth, who: { id: string; password: string; browser: BrowserSession }, password = who.password) {
+  const request = who.browser.request("/api/v1/me/reauthentication-proofs", { password, action: "session.terminate_others", subject_id: who.id });
+  request.headers.set("idempotency-key", randomUUID());
+  const response = await handleAccess(request, identity);
+  assert.equal(response.status, 201);
+  return (await response.json()).proof as string;
+}
+
+/** Owner proof for both label-template creation and successor versions, never a commercial-policy proof. */
+export async function labelTemplateProof(identity: LocalAuth, who: { id: string; password: string; browser: BrowserSession }) {
+  await identity.sql`delete from app.auth_rate_limit where key=${`access-proof:${who.id}`}`;
+  const request = who.browser.request("/api/v1/me/reauthentication-proofs", {
+    password: who.password,
+    action: "shipping_label_template.version",
+    subject_id: "shipping-label-templates",
+  });
+  request.headers.set("idempotency-key", randomUUID());
+  const response = await handleAccess(request, identity);
+  assert.equal(response.status, 201, await response.clone().text());
+  return (await response.json()).proof as string;
+}

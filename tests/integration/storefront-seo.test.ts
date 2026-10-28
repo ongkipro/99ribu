@@ -73,7 +73,10 @@ test('titles and descriptions of every committed catalog page fit 55-70 / 120-15
  assert.equal(seo.fitDescription(['x '.repeat(200)]).length<=155,true,'an over-long sentence is cut at a word');
 });
 
-const product=(variants:Partial<PublicProduct['variants'][number]>[]):PublicProduct=>({id:'00000000-0000-4000-8000-0000000000aa',catalog_id:'p_aa',slug:'p-aa',version:1,publication_id:'00000000-0000-4000-8000-0000000000bb',
+const uuidShape=/[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}/i;
+// Every string under a url, @id, item or offers.url key, however deeply nested.
+const jsonLdUrls=(node:unknown):string[]=>Array.isArray(node)?node.flatMap(jsonLdUrls):node&&typeof node==='object'?Object.entries(node).flatMap(([key,value])=>typeof value==='string'?(['url','@id','item'].includes(key)?[value]:[]):jsonLdUrls(value)):[];
+const product=(variants:Partial<PublicProduct['variants'][number]>[]):PublicProduct=>({id:'00000000-0000-4000-8000-0000000000aa',catalog_id:'p_aa',slug:'p-aa',public_slug:'paket-lem-kuat',version:1,publication_id:'00000000-0000-4000-8000-0000000000bb',
  name:'Paket Lem <b>Kuat</b>',description:'Isi paket: 10 pcs lem.\nHarga Rp99.000 untuk satu paket lengkap.',category_id:'00000000-0000-4000-8000-0000000000dd',
  images:[{url:'http://127.0.0.1:3099/media/catalog/a.webp',alt:'Lem',width:800,height:800}],facts:[],
  variants:variants.map((v,i)=>({id:`00000000-0000-4000-8000-00000000000${i}`,catalog_id:`v_${i}`,label:`Pilihan ${i}`,attributes:[],price:99000,currency:'IDR',availability:'available',
@@ -88,8 +91,8 @@ function assertOffer(node:Record<string,unknown>,url:string){
 }
 
 test('JSON-LD parses back and carries the required Product, Offer, ProductGroup and BreadcrumbList fields',()=>{
- const url=`${origin}${seo.productPath('00000000-0000-4000-8000-0000000000aa',product([{},]).name)}`;
- const html=seo.serializeJsonLd(seo.jsonLdGraph(seo.productJsonLd(config,product([{},]),category),seo.breadcrumbJsonLd(config,[{name:'Beranda',path:'/'},{name:category.name,path:'/kategori/perkakas'},{name:'Paket Lem',path:'/produk/00000000-0000-4000-8000-0000000000aa'}])));
+ const url=`${origin}/produk/paket-lem-kuat`;
+ const html=seo.serializeJsonLd(seo.jsonLdGraph(seo.productJsonLd(config,product([{},]),category),seo.breadcrumbJsonLd(config,[{name:'Beranda',path:'/'},{name:category.name,path:'/kategori/perkakas'},{name:'Paket Lem',path:'/produk/paket-lem-kuat'}])));
  assert.ok(!html.includes('<'),'"<" is escaped inside the script element');
  const graph=JSON.parse(html) as {'@context':string;'@graph':Record<string,unknown>[]};
  assert.equal(graph['@context'],'https://schema.org');
@@ -102,7 +105,8 @@ test('JSON-LD parses back and carries the required Product, Offer, ProductGroup 
  const group=JSON.parse(seo.serializeJsonLd(seo.productJsonLd(config,product([{},{availability:'unavailable'}]),null))) as Record<string,unknown>;
  assert.deepEqual([group['@type'],group.url,group.productGroupID],['ProductGroup',url,'p_aa']);
  const variants=group.hasVariant as Record<string,unknown>[];assert.equal(variants.length,2);
- for(const [i,variant] of variants.entries()) assertOffer(variant,`${url}?offer=00000000-0000-4000-8000-00000000000${i}`);
+ for(const variant of variants) assertOffer(variant,url);
+ const urls=jsonLdUrls([single,crumbs,group]);assert.ok(urls.length>=6);assert.ok(urls.every(u=>!uuidShape.test(u)),`no JSON-LD url carries an id: ${urls}`);
  assert.equal((variants[1].offers as {availability:string}).availability,'https://schema.org/OutOfStock');
 
  const site=JSON.parse(seo.serializeJsonLd(seo.jsonLdGraph(seo.organizationJsonLd(config),seo.websiteJsonLd(config))))['@graph'] as Record<string,unknown>[];
@@ -119,8 +123,10 @@ test('sitemap lists sellable publications at their canonical URL with publicatio
   let entries=await urls();
   for(const path of ['/','/kategori','/bantuan','/promo']) assert.ok(entries.has(`${origin}${path}`),path);
   assert.ok(![...entries.keys()].some(u=>/[?#]|\/cari|\/keranjang|\/checkout|\/akun|\/pesanan|\/masuk|\/afiliasi|\/admin|\/api\//.test(u)),'only canonical public URLs');
-  const productUrl=(id:string)=>[...entries.keys()].find(u=>u.startsWith(`${origin}/produk/`)&&u.endsWith(`-${id}`));
-  const target=published[0],url=productUrl(target)??'';assert.ok(url,'the product is listed at /produk/<title>-<id>');
+  const productUrl=async(id:string)=>{const [{public_slug}]=await f.identity.sql`select public_slug from app.product where id=${id}`;const url=`${origin}/produk/${public_slug}`;return entries.has(url)?url:undefined;};
+  const productUrls=[...entries.keys()].filter(u=>u.startsWith(`${origin}/produk/`));
+  assert.ok(productUrls.length>=2&&productUrls.every(u=>/^\/produk\/[a-z0-9]+(-[a-z0-9]+)*$/.test(new URL(u).pathname)&&!uuidShape.test(u)),'every product sitemap URL is /produk/<clean-slug> without an id');
+  const target=published[0],url=await productUrl(target)??'';assert.ok(url,'the product is listed at /produk/<public_slug>');
   const [created]=await f.identity.sql`select v.created_at from app.publication_head h join app.publication_version v on v.product_id=h.product_id and v.revision=h.revision where h.product_id=${target}`;
   assert.equal(new Date(entries.get(url)?.lastModified??0).toISOString(),new Date(created.created_at).toISOString(),'lastmod is the publication time');
   const [{slug}]=await f.identity.sql`select c.slug from app.product_revision r join app.publication_version v on v.product_id=r.product_id and v.product_revision=r.revision
@@ -130,7 +136,7 @@ test('sitemap lists sellable publications at their canonical URL with publicatio
   const head=await readPublicationState(f.identity,f.principal,target);assert.ok(head.current);
   const request=f.request();request.headers.set('idempotency-key',randomUUID());
   await withdrawPublication(request,f.identity,f.principal,target,{expected_publication_version:head.latest_version,reason:'Synthetic sitemap withdrawal'});
-  entries=await urls();assert.ok(!entries.has(url),'a withdrawn publication leaves the sitemap');assert.ok(productUrl(published[1]));
+  entries=await urls();assert.ok(!entries.has(url),'a withdrawn publication leaves the sitemap');assert.ok(await productUrl(published[1]));
   assert.deepEqual(await seo.sitemapEntries(f.identity.sql,closed),[],'the closed site publishes no sitemap URLs');
  }finally{await f.close();}
 });

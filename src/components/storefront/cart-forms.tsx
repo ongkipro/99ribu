@@ -59,14 +59,15 @@ export function CartForm(props:CartFormProps){
 function CartControls({intent:base,label,subject,disabled=false,quantity=true,notice,reviewId,stepper=false,bar,buyNow=false}:CartFormProps){
  const messageId=useId(),quantityId=useId(),field=useRef<HTMLInputElement>(null),status=useFormStatus(),context=useContext(Context);if(!context)throw new Error('CartControls requires CartMutations');
  const {state,pending,recovering}=context;
- // PDP phone buy bar (`bar` = the price line): a second submit button of this same form, shown only
+ // PDP phone buy bar (`bar` is just the on/off flag; the bar carries chat, add-to-cart and "Beli sekarang"): a second submit button of this same form, shown only
  // while the main button is out of view, so it shares the quantity, pending lock and labels. It is a
  // pointer shortcut only (aria-hidden, out of the tab order); keyboard and screen-reader users keep
  // the one main button. After a result it was pressed for, the purchase region scrolls back into
  // view so the feedback is seen.
  const submit=useRef<HTMLButtonElement>(null),fromBar=useRef(false),[barShown,setBarShown]=useState(false);
- // Enlarged text (root above 20px) keeps the bar off: wrapped, it would cover a third of the screen.
- useEffect(()=>{const el=submit.current;if(!bar||!el)return;const observer=new IntersectionObserver(([entry])=>setBarShown(!entry.isIntersecting&&Number.parseFloat(getComputedStyle(document.documentElement).fontSize)<=20));observer.observe(el);return ()=>observer.disconnect();},[bar]);
+ // Enlarged text (root above 20px) keeps the bar off: wrapped, it would cover a third of the screen. The top 64px
+ // belong to the fixed phone top bar, so a main button scrolled under it already counts as out of view.
+ useEffect(()=>{const el=submit.current;if(!bar||!el)return;const observer=new IntersectionObserver(([entry])=>setBarShown(!entry.isIntersecting&&Number.parseFloat(getComputedStyle(document.documentElement).fontSize)<=20),{rootMargin:'-64px 0px 0px 0px'});observer.observe(el);return ()=>observer.disconnect();},[bar]);
  useEffect(()=>{if(!fromBar.current||state.phase==='idle')return;fromBar.current=false;submit.current?.closest('.purchase-region')?.scrollIntoView({block:'center',behavior:matchMedia('(prefers-reduced-motion: reduce)').matches?'auto':'smooth'});},[state]);
  const same=target(base)===target(state.intent);
  const [previous,setPrevious]=useState<Pick<CartMutationState,'phase'|'intent'|'message'|'blocked'|'code'>|null>(null);
@@ -93,7 +94,12 @@ function CartControls({intent:base,label,subject,disabled=false,quantity=true,no
   {busy&&<p className="cart-form-pending" role="status">Menyimpan perubahan pilihan ini…</p>}
   {/* PDP (DEC-020, shop.com action row): add to cart first in the DOM and tab order, shown on the right; "Beli sekarang" submits the same add, then checkout. Hidden while an unknown result offers the retry. */}
   {buyNow&&!disabled&&!unknown?<div className="purchase-actions"><button ref={submit} type="submit" aria-describedby={!quantity?describedBy:undefined} aria-label={subject?`${label} ${subject}`:undefined} className={`button${intent.kind==='remove'?' quiet':intent.kind==='add'||reviewId?'':' secondary'}`} disabled={!unknown&&disabled}>{intent.kind==='remove'&&<Icon name="close"/>}{buttonText}</button><button type="submit" name="then" value="checkout" className="button buy-now">{busy?'Menyimpan…':'Beli sekarang'}</button></div>:<button ref={submit} type="submit" aria-describedby={!quantity?describedBy:undefined} aria-label={subject?`${label} ${subject}`:undefined} className={`button${intent.kind==='remove'?' quiet':intent.kind==='add'||reviewId?'':' secondary'}`} disabled={!unknown&&disabled}>{intent.kind==='remove'&&<Icon name="close"/>}{buttonText}</button>}
-  {bar&&!disabled&&<div className="buy-bar" hidden={!barShown} aria-hidden="true"><p>{bar}</p><button type="submit" className="button" tabIndex={-1} onClick={()=>{fromBar.current=true;}}>{buttonText}</button></div>}
+  {/* Phone buy bar (marketplace pattern): chat icon, add-to-cart icon, then the "Beli sekarang" text button (the same add, then checkout). Pointer shortcuts only (aria-hidden, out of the tab order); the page's own controls keep the names and the keyboard path. */}
+  {bar&&!disabled&&<div className="buy-bar" hidden={!barShown} aria-hidden="true">
+   <Link href="/bantuan#percakapan" className="bar-chat" tabIndex={-1} prefetch={false}><svg aria-hidden="true" focusable="false" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M7.9 20A9 9 0 1 0 4 16.1L2 22Z"/></svg><span className="sr-only">Chat bantuan</span></Link>
+   <button type="submit" className="button bar-add" tabIndex={-1} onClick={()=>{fromBar.current=true;}}><Icon name="cart"/><span className="sr-only">{buttonText}</span></button>
+   {buyNow&&!unknown&&<button type="submit" name="then" value="checkout" className="button buy-now" tabIndex={-1} onClick={()=>{fromBar.current=true;}}>{busy?'Menyimpan…':'Beli sekarang'}</button>}
+  </div>}
  </fieldset>;
 }
 

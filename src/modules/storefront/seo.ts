@@ -3,7 +3,7 @@ import type {Sql} from 'postgres';
 import type {SiteConfig} from '../../config/site.ts';
 import {salePublication} from '../catalog/publication.ts';
 import type {PublicCategory,PublicProduct} from './catalog.ts';
-import {productHref,productSlug} from './navigation.ts';
+import {productPath} from './navigation.ts';
 import {rupiah} from './format.ts';
 
 // Search indexing policy for every page route (README "Search indexing"). A route is
@@ -13,7 +13,7 @@ export const routePolicy:readonly {route:string;index:boolean;rule:string}[]=[
  {route:'/',index:true,rule:'canonical self; Organization + WebSite JSON-LD'},
  {route:'/kategori',index:true,rule:'canonical self; ?cursor: noindex, follow; other params ignored'},
  {route:'/kategori/[slug]',index:true,rule:'canonical clean URL; listing state (filter, sort, cursor): noindex, follow; tracking params ignored; BreadcrumbList'},
- {route:'/produk/[slug]',index:true,rule:'canonical /produk/<title>-<id> (drops ?offer= and ?from=; a stale title part 308s to it); Product/ProductGroup + BreadcrumbList'},
+ {route:'/produk/[slug]',index:true,rule:'canonical /produk/<public_slug> (drops ?offer= and ?from=; a legacy /produk/<title>-<uuid> 308s to it, query kept); Product/ProductGroup + BreadcrumbList'},
  {route:'/bantuan',index:true,rule:'canonical self'},
  {route:'/promo',index:true,rule:'canonical self; active shipping promotions and published bundles only'},
  {route:'/tentang',index:false,rule:'placeholder until the owner supplies content: noindex, follow; not in the sitemap'},
@@ -65,7 +65,6 @@ export function fitDescription(sentences:readonly string[],[,max]:readonly [numb
 // onto the configured public origin so crawlers never see the loopback host.
 export const absoluteMedia=(url:string,origin:string)=>new URL(url.replace(/^http:\/\/127\.0\.0\.1:3099(?=\/)/,''),origin).href;
 export const pageUrl=(path:string,config:SiteConfig)=>new URL(path,config.origin).href;
-export const productPath=(id:string,name?:string|null)=>`/produk/${productSlug(id,name)}`;
 export const categoryPath=(slug:string)=>`/kategori/${slug}`;
 
 export function rootMetadata(config:SiteConfig):Metadata{
@@ -129,16 +128,17 @@ export function breadcrumbJsonLd(config:SiteConfig,trail:readonly {name:string;p
  return {'@type':'BreadcrumbList',itemListElement:trail.map((step,index)=>({'@type':'ListItem',position:index+1,name:step.name,item:pageUrl(step.path,config)}))};
 }
 export function productJsonLd(config:SiteConfig,product:PublicProduct,category:PublicCategory|null){
- const url=pageUrl(productPath(product.id,product.name),config),description=clean(product.description)||undefined;
+ const url=pageUrl(productPath(product.public_slug),config),description=clean(product.description)||undefined;
  const images=(offer:PublicProduct['variants'][number])=>[...new Set([offer.image,...product.images].filter(Boolean).map(i=>absoluteMedia((i as {url:string}).url,config.origin)))];
- const item=(offer:PublicProduct['variants'][number],name:string,offerUrl:string)=>({'@type':'Product',name,sku:offer.catalog_id,image:images(offer),...(description?{description}:{}),
-  ...(category?{category:category.name}:{}),offers:{'@type':'Offer',url:offerUrl,price:offer.price,priceCurrency:offer.currency,
+ const item=(offer:PublicProduct['variants'][number],name:string)=>({'@type':'Product',name,sku:offer.catalog_id,image:images(offer),...(description?{description}:{}),
+  ...(category?{category:category.name}:{}),offers:{'@type':'Offer',url,price:offer.price,priceCurrency:offer.currency,
    availability:`https://schema.org/${offer.availability==='available'?'InStock':'OutOfStock'}`,itemCondition:'https://schema.org/NewCondition',seller:{'@id':organizationId(config)}}});
  const [only]=product.variants;
- if(product.variants.length===1) return {...item(only,clean(product.name),url),'@id':`${url}#product`,url};
- // Several complete offers on one canonical page: Google's single-page ProductGroup variant model.
+ if(product.variants.length===1) return {...item(only,clean(product.name)),'@id':`${url}#product`,url};
+ // Several complete offers on one canonical page: Google's single-page ProductGroup variant model. Every offer's url is
+ // that page: a per-offer ?offer=<uuid> would put an id back into the URL.
  return {'@type':'ProductGroup','@id':`${url}#product`,name:clean(product.name),url,productGroupID:product.catalog_id,...(description?{description}:{}),
-  hasVariant:product.variants.map(offer=>item(offer,`${clean(product.name)} - ${offer.label}`,pageUrl(productHref(product.id,offer.id,null,product.name),config)))};
+  hasVariant:product.variants.map(offer=>item(offer,`${clean(product.name)} - ${offer.label}`))};
 }
 export const jsonLdGraph=(...nodes:object[])=>({'@context':'https://schema.org','@graph':nodes});
 // Escapes "<" so catalog text can never close the script element.
@@ -157,7 +157,7 @@ export async function sitemapEntries(sql:Sql,config:SiteConfig):Promise<Metadata
  if(!config.indexing) return [];
  return sql.begin(async tx=>{
   const [clock]=await tx`select clock_timestamp()::text as now`;
-  const heads=await tx`select h.product_id,v.created_at from app.publication_head h join app.publication_version v on v.product_id=h.product_id and v.revision=h.revision
+  const heads=await tx`select h.product_id,p.public_slug,v.created_at from app.publication_head h join app.product p on p.id=h.product_id join app.publication_version v on v.product_id=h.product_id and v.revision=h.revision
    where h.revision>0 and not exists (select 1 from app.publication_withdrawal w where w.publication_id=v.id) order by v.created_at desc,h.product_id`;
   const categories=new Map((await tx`select id,slug,parent_id from app.category`).map(c=>[c.id as string,c]));
   const products:MetadataRoute.Sitemap=[],categoryDates=new Map<string,Date>();
@@ -165,7 +165,7 @@ export async function sitemapEntries(sql:Sql,config:SiteConfig):Promise<Metadata
    const sale=await salePublication(tx,head.product_id,clock.now);if(!sale?.draft.variants.some(v=>!v.retired)) continue;
    const lastModified=new Date(head.created_at);
    const images=[...new Set([...sale.draft.variants.filter(v=>!v.retired).map(v=>v.image?.url),...sale.draft.images.map(i=>i.url)].filter((u):u is string=>Boolean(u)).map(u=>absoluteMedia(u,config.origin)))];
-   products.push({url:pageUrl(productPath(head.product_id,sale.draft.name),config),lastModified,...(images.length?{images}:{})});
+   products.push({url:pageUrl(productPath(head.public_slug),config),lastModified,...(images.length?{images}:{})});
    for(let c=categories.get(sale.draft.category_id);c;c=categories.get(c.parent_id)){const seen=categoryDates.get(c.id);if(!seen||seen<lastModified) categoryDates.set(c.id,lastModified);}
   }
   const newest=products.length?products[0].lastModified as Date:undefined,at=(date?:Date)=>date?{lastModified:date}:{};

@@ -14,7 +14,7 @@ import {assertReturnWindow,returnEntitlement,returnRequest,returnText} from './p
 import {readReturnOccurrences,verifyOccurrenceReceipt} from './occurrences.ts';
 import {enqueueCommissionClaim} from '../commissions/jobs.ts';
 
-export type ReturnHead={id:string;order_id:string;operation_id:string;revision:number;status:string;requested_resolution:'refund'|'replacement';resolution:'refund'|'replacement'|null;requires_goods:boolean|null;created_at:string};
+export type ReturnHead={id:string;admin_no:string;order_id:string;operation_id:string;revision:number;status:string;requested_resolution:'refund'|'replacement';resolution:'refund'|'replacement'|null;requires_goods:boolean|null;created_at:string};
 export type ReturnUnit={id:string;case_id:string;fulfillment_item_id:string;replacement_link_id:string|null;order_item_id:string;shipment_id:string;warehouse_id:string;reason:string;details:string;claim_state:string;inspection_status:string;merchandise_amount:string;buyer_shipping:string;payment_charge:string;deadline_at:string};
 export type ReturnUnitState={id:string;claim_state:string;inspection_status:string};
 export type ReturnCause={source_kind:'operation'|'refund'|'replacement'|'recovery';source_id:string;actor_id:string|null;reason:string;occurred_at:string};

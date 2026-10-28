@@ -3,7 +3,7 @@ import {assertOrigin,privateJson,problem,readBody} from '../access/http.ts';
 import {AccessError,getPrincipal} from '../access/policy.ts';
 import {invalid} from '../catalog/validation.ts';
 import {appendAffiliateRate} from './rates.ts';
-
+export {handleAdminAffiliates} from './admin.ts';
 export async function handleAffiliateRates(request:Request,identity:LocalAuth){
  try{
   assertOrigin(request);

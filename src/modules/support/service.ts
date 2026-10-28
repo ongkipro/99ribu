@@ -935,17 +935,29 @@ export async function projectStaffConversation(
 ) {
 	const conversation = await projectPublicConversation(tx, row);
 	// S113: the printed order number for the inbox (staff never read the raw order id there).
-	const [facts] = await tx<{ last_read_sequence: number | null; order_number: string | null }[]>`
+	// The admin numbers address the order and product pages (`/admin/orders/{n}`, `/admin/catalog/{n}`); staff-only.
+	const [facts] = await tx<
+		{
+			last_read_sequence: number | null;
+			order_number: string | null;
+			order_admin_no: string | null;
+			product_admin_no: string | null;
+		}[]
+	>`
 		select
 			(select last_read_sequence from app.support_read_position
 			 where conversation_id = ${row.id} and participant_scope = ${`user:${staffUserId}`}) as last_read_sequence,
-			(select number from app.commerce_order where id = ${row.primary_order_id ?? null}::uuid) as order_number
+			(select number from app.commerce_order where id = ${row.primary_order_id ?? null}::uuid) as order_number,
+			(select admin_no::text from app.commerce_order where id = ${row.primary_order_id ?? null}::uuid) as order_admin_no,
+			(select admin_no::text from app.product where id = ${row.primary_product_id ?? null}::uuid) as product_admin_no
 	`;
 	const currentAgentRead = facts?.last_read_sequence ?? 0;
 	const unread = Math.max(0, row.public_sequence - currentAgentRead);
 	return {
 		conversation,
 		order_number: facts?.order_number ?? null,
+		order_admin_no: facts?.order_admin_no == null ? null : Number(facts.order_admin_no),
+		product_admin_no: facts?.product_admin_no == null ? null : Number(facts.product_admin_no),
 		assignee_user_id: row.assigned_user_id ?? null,
 		assignment_version: row.revision,
 		current_agent_last_read_sequence: currentAgentRead,
@@ -3445,9 +3457,11 @@ export async function listSupportSavedReplies(tx: TransactionSql, url: URL) {
 			placeholders: string[];
 			enabled: boolean;
 			revision: number;
+			actor_id: string;
+			updated_at: string;
 		}[]
 	>`
-		select id, title, body_template, placeholders, enabled, revision
+		select id, title, body_template, placeholders, enabled, revision, actor_id, updated_at
 		from app.support_saved_reply
 		order by title asc, id asc
 	`;
@@ -3459,15 +3473,74 @@ export async function listSupportSavedReplies(tx: TransactionSql, url: URL) {
 	}
 	const page = allRows.slice(startIndex, startIndex + limit);
 	const hasMore = startIndex + limit < allRows.length;
+	const auditRows =
+		page.length > 0
+			? await tx<
+					{
+						subject_id: string;
+						actor_id: string | null;
+						reason: string | null;
+						details: {
+							version?: number;
+							after?: {
+								title?: string;
+								text?: string;
+								placeholders?: string[];
+								enabled?: boolean;
+							};
+						};
+						created_at: string;
+					}[]
+				>`
+					select subject_id, actor_id, reason, details, created_at
+					from app.audit_event
+					where subject_id in ${tx(page.map((r) => r.id))}
+						and action in ('support.saved_reply.create', 'support.saved_reply.version')
+						and outcome = 'allowed'
+					order by created_at desc, id desc
+				`
+			: [];
 	return {
-		data: page.map((r) => ({
-			id: r.id,
-			version: r.revision,
-			title: r.title,
-			text: r.body_template,
-			placeholders: r.placeholders,
-			enabled: r.enabled,
-		})),
+		data: page.map((r) => {
+			const history = auditRows
+				.filter((a) => a.subject_id === r.id)
+				.map((a) => ({
+					version: Number(a.details?.version ?? r.revision),
+					title: String(a.details?.after?.title ?? r.title),
+					text: String(a.details?.after?.text ?? r.body_template),
+					placeholders: Array.isArray(a.details?.after?.placeholders)
+						? a.details.after.placeholders
+						: r.placeholders,
+					enabled: Boolean(a.details?.after?.enabled ?? r.enabled),
+					actor_id: a.actor_id ?? r.actor_id,
+					reason: a.reason ?? "",
+					created_at: new Date(a.created_at).toISOString(),
+				}))
+				.sort((a, b) => b.version - a.version);
+			return {
+				id: r.id,
+				version: r.revision,
+				title: r.title,
+				text: r.body_template,
+				placeholders: r.placeholders,
+				enabled: r.enabled,
+				history:
+					history.length > 0
+						? history
+						: [
+								{
+									version: r.revision,
+									title: r.title,
+									text: r.body_template,
+									placeholders: r.placeholders,
+									enabled: r.enabled,
+									actor_id: r.actor_id,
+									reason: "",
+									created_at: new Date(r.updated_at).toISOString(),
+								},
+							],
+			};
+		}),
 		pagination: {
 			next_cursor: hasMore && page.length > 0 ? page[page.length - 1].id : null,
 			has_more: hasMore,
@@ -3840,9 +3913,16 @@ export async function listSupportTags(tx: TransactionSql, url: URL) {
 		: null;
 
 	const allRows = await tx<
-		{ id: string; label: string; enabled: boolean; revision: number }[]
+		{
+			id: string;
+			label: string;
+			enabled: boolean;
+			revision: number;
+			actor_id: string;
+			updated_at: string;
+		}[]
 	>`
-		select id, label, enabled, revision
+		select id, label, enabled, revision, actor_id, updated_at
 		from app.support_tag
 		order by label asc, id asc
 	`;
@@ -3854,13 +3934,64 @@ export async function listSupportTags(tx: TransactionSql, url: URL) {
 	}
 	const page = allRows.slice(startIndex, startIndex + limit);
 	const hasMore = startIndex + limit < allRows.length;
+	const auditRows =
+		page.length > 0
+			? await tx<
+					{
+						subject_id: string;
+						actor_id: string | null;
+						reason: string | null;
+						details: {
+							version?: number;
+							after?: {
+								label?: string;
+								enabled?: boolean;
+							};
+						};
+						created_at: string;
+					}[]
+				>`
+					select subject_id, actor_id, reason, details, created_at
+					from app.audit_event
+					where subject_id in ${tx(page.map((r) => r.id))}
+						and action in ('support.tag.create', 'support.tag.version')
+						and outcome = 'allowed'
+					order by created_at desc, id desc
+				`
+			: [];
 	return {
-		data: page.map((r) => ({
-			id: r.id,
-			version: r.revision,
-			label: r.label,
-			enabled: r.enabled,
-		})),
+		data: page.map((r) => {
+			const history = auditRows
+				.filter((a) => a.subject_id === r.id)
+				.map((a) => ({
+					version: Number(a.details?.version ?? r.revision),
+					label: String(a.details?.after?.label ?? r.label),
+					enabled: Boolean(a.details?.after?.enabled ?? r.enabled),
+					actor_id: a.actor_id ?? r.actor_id,
+					reason: a.reason ?? "",
+					created_at: new Date(a.created_at).toISOString(),
+				}))
+				.sort((a, b) => b.version - a.version);
+			return {
+				id: r.id,
+				version: r.revision,
+				label: r.label,
+				enabled: r.enabled,
+				history:
+					history.length > 0
+						? history
+						: [
+								{
+									version: r.revision,
+									label: r.label,
+									enabled: r.enabled,
+									actor_id: r.actor_id,
+									reason: "",
+									created_at: new Date(r.updated_at).toISOString(),
+								},
+							],
+			};
+		}),
 		pagination: {
 			next_cursor: hasMore && page.length > 0 ? page[page.length - 1].id : null,
 			has_more: hasMore,
@@ -3890,7 +4021,6 @@ export async function createOrUpdateSupportTag(
 	if (typeof body.enabled !== "boolean") throw invalid();
 	const enabled = body.enabled;
 	const reason = text(body.reason, 500);
-
 	const requestHash = digest(
 		JSON.stringify({
 			definitionIdParam,

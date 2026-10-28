@@ -54,7 +54,7 @@ for(const width of [320,390,768,1440]) test(`built storefront home and category 
   await f.page.evaluate(()=>document.fonts.ready);// The Latin subset face renders the page; the full face (other scripts) stays unloaded by design, so fonts.check() over both faces would be false.
   assert.equal(await f.page.evaluate(()=>[...document.fonts].some(face=>face.family.replaceAll('"','')==='Inter'&&face.status==='loaded'&&face.unicodeRange.startsWith('U+0-FF,'))),true);
   await expect.poll(()=>f.page.evaluate(()=>document.documentElement.scrollWidth-document.documentElement.clientWidth),{message:'Page horizontal overflow delta'}).toBeLessThanOrEqual(1);
-  const tabs=f.page.getByRole('navigation',{name:'Navigasi belanja'});if(width<=700){await expect(tabs).toBeVisible();await expect(tabs.getByRole('link')).toHaveCount(4);}else await expect(tabs).toBeHidden();
+  const tabs=f.page.getByRole('navigation',{name:'Navigasi belanja'});if(width<=700){await expect(tabs).toBeVisible();await expect(tabs.getByRole('link')).toHaveCount(5);}else await expect(tabs).toBeHidden();
   for(const [index,name] of newest.entries()) await expect(f.page.locator('.product').nth(index).getByRole('img',{name:`Slot foto ${name}; foto produk asli belum tersedia`})).toHaveCount(1);
   await mkdir(output,{recursive:true});await capture(f.page,`home-${width}.png`);
   await f.page.goto(origin+busana);await expect(f.page.getByRole('heading',{level:1,name:'Busana'})).toBeVisible();await expect(f.page.locator('.product')).toHaveCount(2);
@@ -104,9 +104,10 @@ test('built storefront remains usable without JavaScript and keyboard focus rema
   for(let i=0;i<20;i++){await f.page.keyboard.press('Tab');const focus=await f.page.locator(':focus').boundingBox();const bar=await f.page.locator('.shopping-tabs').boundingBox();
    // The dock steps aside while the search field has focus (phone keyboard up), so nothing can cover it.
    if(!bar){assert.equal(await f.page.evaluate(()=>document.activeElement?.id),'site-search');continue;}assert.ok(focus);if(await f.page.locator('.shopping-tabs :focus').count())assert.ok(focus.y>=bar.y&&focus.y+focus.height<=bar.y+bar.height,'Focused shopping tab stays inside its navigation');else assert.ok(focus.y+focus.height>0&&focus.y<bar.y,'Focused content must not be covered by bottom navigation');}
-  // Icon-only dock: each tab is named by its accessible name and keeps a 44px target at enlarged text.
-  const dock=f.page.getByRole('navigation',{name:'Navigasi belanja'});for(const name of ['Beranda','Kategori','Keranjang','Akun'])await expect(dock.getByRole('link',{name,exact:true})).toHaveCount(1);
-  assert.ok(await f.page.locator('.shopping-tabs a').evaluateAll(links=>links.every(a=>{const r=a.getBoundingClientRect();return r.width>=44&&r.height>=44&&a.textContent?.trim()==='';})),'Dock tabs are icon-only 44px targets');
+  // Icon-only dock (owner 2026-10-28): five tabs in order, each a named link (visually hidden text) with a 44px target at enlarged text.
+  const dock=f.page.getByRole('navigation',{name:'Navigasi belanja'});for(const name of ['Beranda','Kategori','Cari','Keranjang','Akun'])await expect(dock.getByRole('link',{name,exact:true})).toHaveCount(1);
+  assert.deepEqual(await f.page.locator('.shopping-tabs a').evaluateAll(links=>links.map(a=>a.textContent?.trim())),['Beranda','Kategori','Cari','Keranjang','Akun'],'Dock order and accessible names');
+  assert.ok(await f.page.locator('.shopping-tabs a').evaluateAll(links=>links.every(a=>{const r=a.getBoundingClientRect();return r.width>=44&&r.height>=44;})),'Dock tabs keep 44px targets');
   assert.ok(await f.page.locator('.department-photo').evaluateAll(elements=>elements.every(e=>e.scrollHeight-e.clientHeight<=1)),'Enlarged photograph briefs remain inside their slots');
   // Tiles drop to one column at 200% text, so compare labels of tiles that actually share a row.
   assert.ok(await f.page.locator('.switcher-row > *').count()>0,'Home shows the category switcher');

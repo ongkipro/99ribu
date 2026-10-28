@@ -5,7 +5,7 @@ import {invalid} from '../catalog/validation.ts';
 import {commerceActor} from '../checkout/access.ts';
 import {createReturn,decideReturn} from './cases.ts';
 import {inspectReturn} from './inspection.ts';
-import {readAdminRefund,readAdminReturnEvidence,readAdminReturns,readBuyerEligibility,readBuyerRefund,readBuyerReturns} from './reads.ts';
+import {readAdminRefund,readAdminRefunds,readAdminReturnEvidence,readAdminReturns,readBuyerEligibility,readBuyerRefund,readBuyerReturns} from './reads.ts';
 import {recoverRefund} from './refund-recovery.ts';
 import {acceptRefundDestination,queueRefund} from './refunds.ts';
 
@@ -46,6 +46,7 @@ export async function handleReturns(request:Request,identity:LocalAuth){
    if(request.method==='POST'&&cases[1]&&cases[2]==='inspections')return privateJson(await inspectReturn(request,identity,principal,cases[1],await readBody(request,32768)),201);
   }
   if(refunds){
+   if(request.method==='GET'&&!refunds[1])return privateJson(await readAdminRefunds(identity,principal,url));
    if(request.method==='GET'&&refunds[1]&&!refunds[2]){if(url.search)throw invalid();return privateJson(await readAdminRefund(identity,principal,refunds[1]));}
    if(request.method==='POST'&&!refunds[1])return privateJson(await queueRefund(request,identity,principal,await readBody(request)),202);
    if(request.method==='POST'&&refunds[1]&&refunds[2]==='reconciliations')return privateJson(await recoverRefund(request,identity,principal,refunds[1],await readBody(request)),202);

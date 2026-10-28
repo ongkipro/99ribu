@@ -236,14 +236,34 @@ main.product-detail .product-policy:last-child {
 main.product-detail .description-body {
 	padding-bottom: 16px;
 }
+/* The description is paragraphs and real lists (modules/storefront/description.ts): list lines hang under their text.
+   Long text is cut at 8 lines with a fade instead of a line-clamp ellipsis (which printed "lengkap...." after a full stop). */
 main.product-detail .description-body .detail-description {
+	font-size: var(--small-size);
+	line-height: var(--small-leading);
+	letter-spacing: var(--tracking-small);
+	overflow-wrap: anywhere;
+}
+main.product-detail .description-body .detail-description :is(p, ul, ol) {
+	margin: 0;
 	padding-bottom: 0;
 }
+main.product-detail .description-body .detail-description :is(ul, ol) {
+	padding-left: 20px;
+	list-style: disc;
+}
+main.product-detail .description-body .detail-description ol {
+	padding-left: 24px;
+	list-style: decimal;
+}
+main.product-detail .description-body .detail-description .desc-gap {
+	margin-top: var(--small-leading);
+}
 main.product-detail .description-body:has(> .read-more:not([open])) .detail-description {
-	display: -webkit-box;
-	-webkit-box-orient: vertical;
-	-webkit-line-clamp: 8;
+	max-height: calc(8 * var(--small-leading));
 	overflow: hidden;
+	-webkit-mask-image: linear-gradient(to bottom, #000 calc(100% - 1.5 * var(--small-leading)), transparent);
+	mask-image: linear-gradient(to bottom, #000 calc(100% - 1.5 * var(--small-leading)), transparent);
 }
 main.product-detail .read-more summary {
 	display: flex;
@@ -356,8 +376,8 @@ main.product-detail .purchase-region .cart-mutation .button.buy-now:focus-visibl
 	outline-offset: 3px;
 }
 
-/* ---- Phone buy bar: price + the same submit, above the dock, only while the main button is
-   out of view (hidden attribute toggled after hydration; nothing without JavaScript). ---- */
+/* ---- Phone buy bar (marketplace pattern): chat icon | add to cart | "Beli sekarang", on the bottom edge while the
+   main button is out of view (the dock yields). `hidden` is toggled after hydration; nothing without JavaScript. ---- */
 main.product-detail .buy-bar {
 	display: none;
 }
@@ -373,18 +393,19 @@ main.product-detail .buy-bar {
 	main.product-detail .related-shelf {
 		margin-top: 48px;
 	}
-	/* The bar runs 28px under the dock so the dock's rounded corners show the bar, not the page. */
+	/* While the buy bar is up the dock yields: the bar takes the bottom edge (the dock's own clearance below the page
+	   is the bar's height, so nothing is covered). Scrolling back up hides the bar and the dock returns. */
 	main.product-detail .buy-bar:not([hidden]) {
 		position: fixed;
 		right: 0;
-		bottom: calc(var(--bottom) - 28px);
+		bottom: 0;
 		left: 0;
-		z-index: 9;
+		z-index: 11;
 		display: flex;
-		flex-wrap: wrap;
+		flex-wrap: nowrap;
 		align-items: center;
-		gap: 8px 16px;
-		padding: 8px var(--gutter) 36px;
+		gap: 8px;
+		padding: 8px var(--gutter) calc(8px + env(safe-area-inset-bottom, 0px));
 		background: rgba(255, 255, 255, 0.92);
 		box-shadow:
 			0 -0.5px 0 var(--hairline),
@@ -392,34 +413,238 @@ main.product-detail .buy-bar {
 		-webkit-backdrop-filter: blur(10px);
 		backdrop-filter: blur(10px);
 	}
-	main.product-detail .buy-bar p {
-		flex: 0 1 auto;
-		min-width: 0;
-		font-size: var(--body-size);
-		line-height: var(--body-leading);
-		font-weight: 600;
-		letter-spacing: var(--tracking-body);
-		overflow-wrap: anywhere;
+	/* Chat: a 48px round icon button with the hairline edge, as the page's quiet pills. */
+	main.product-detail .buy-bar .bar-chat {
+		display: grid;
+		flex: none;
+		place-items: center;
+		width: 48px;
+		height: 48px;
+		border-radius: 50%;
+		background: #fff;
+		box-shadow: 0 0 0 1px var(--hairline);
+		color: var(--ink);
+		-webkit-tap-highlight-color: transparent;
 	}
+	main.product-detail .buy-bar .bar-chat:active {
+		background: rgba(0, 0, 0, 0.04);
+	}
+	/* Add to cart: the same 48px round icon button as chat, in the brand outline; "Beli sekarang" takes the rest of
+	   the row as the one text action, in the brand purple. */
 	main.product-detail .purchase-region .cart-mutation .buy-bar .button {
-		/* 12em scales with the text size, so enlarged text moves the button onto its own full row. */
-		flex: 1 1 12em;
+		flex: 1 1 0;
 		width: auto;
 		min-width: 0;
 		min-height: 48px;
 		padding: 12px 16px;
+		font-size: var(--body-size);
+		line-height: var(--body-leading);
+		letter-spacing: var(--tracking-body);
+		white-space: nowrap;
+	}
+	main.product-detail .purchase-region .cart-mutation .buy-bar .button.bar-add {
+		display: grid;
+		flex: none;
+		place-items: center;
+		width: 48px;
+		padding: 0;
+		border-radius: 50%;
+		border: 1.5px solid var(--purple);
+		background: #fff;
+		color: var(--purple);
+		box-shadow: none;
+	}
+	main.product-detail .purchase-region .cart-mutation .buy-bar .button.buy-now {
+		border-color: var(--purple);
+		background: var(--purple);
+		box-shadow: none;
 	}
 	html:has(main.product-detail .buy-bar:not([hidden])) {
-		scroll-padding-bottom: calc(var(--bottom) + 84px);
+		scroll-padding-bottom: calc(var(--bottom) + 20px);
 	}
-	body:has(main.product-detail .buy-bar:not([hidden])) {
-		padding-bottom: 64px;
+	body:has(main.product-detail .buy-bar:not([hidden])) .shopping-tabs {
+		display: none;
 	}
 }
-/* Short phone screens: the dock turns static there, and a fixed bar would cover the content. */
+/* Short phone screens: the dock turns static there, and a fixed bar would cover the content. The bar is not
+   shown, so the static dock stays. */
 @media (max-width: 700px) and (max-height: 38rem) {
 	main.product-detail .buy-bar:not([hidden]) {
 		display: none;
+	}
+	body:has(main.product-detail .buy-bar:not([hidden])) .shopping-tabs {
+		display: grid;
+	}
+}
+
+/* ---- Phone top bar (owner 2026-10-28, marketplace pattern): the store header with its search steps aside and the
+   photo starts at the top edge. Back on the left; share, cart (unit count) and a "more" popover on the right. Round
+   buttons float over the photo; after a short scroll the bar turns white and shows the product name. ---- */
+.pdp-bar {
+	display: none;
+}
+@media (max-width: 700px) {
+	body:has(.pdp-bar) .store-header {
+		display: none;
+	}
+	/* The fixed bar must never hide a focused element: browsers scroll it clear of the bar. */
+	html:has(.pdp-bar) {
+		scroll-padding-top: calc(68px + env(safe-area-inset-top, 0px));
+	}
+	main.product-detail {
+		padding-top: 0;
+	}
+	/* A product without photos shows a photo slot instead: it starts below the bar, not under it. */
+	main.product-detail:not(:has(.product-gallery)) {
+		padding-top: calc(64px + env(safe-area-inset-top, 0px));
+	}
+	/* The photo runs edge to edge, square, as the first thing on the page. */
+	main.product-detail .product-gallery {
+		margin-inline: calc(var(--gutter) * -1);
+	}
+	main.product-detail .gallery-row {
+		grid-auto-columns: 100%;
+		gap: 0;
+		margin-inline: 0;
+		padding: 0;
+		scroll-padding-inline: 0;
+	}
+	main.product-detail .gallery-row .product-image {
+		border-radius: 0;
+		box-shadow: none;
+	}
+	.pdp-bar {
+		position: fixed;
+		top: 0;
+		right: 0;
+		left: 0;
+		z-index: 12;
+		display: flex;
+		align-items: center;
+		gap: 8px;
+		padding: calc(8px + env(safe-area-inset-top, 0px)) 12px 8px;
+		transition:
+			background-color 160ms ease,
+			box-shadow 160ms ease;
+	}
+	.pdp-bar[data-solid] {
+		background: #fff;
+		box-shadow:
+			0 1px 0 var(--hairline),
+			0 2px 12px rgba(0, 0, 0, 0.06);
+	}
+	.pdp-bar-button {
+		position: relative;
+		display: grid;
+		flex: none;
+		place-items: center;
+		width: 44px;
+		height: 44px;
+		padding: 0;
+		border: 0;
+		border-radius: 50%;
+		background: rgba(255, 255, 255, 0.92);
+		box-shadow:
+			0 0 0 1px var(--hairline),
+			0 2px 8px rgba(0, 0, 0, 0.14);
+		color: var(--ink);
+		cursor: pointer;
+		-webkit-tap-highlight-color: transparent;
+	}
+	.pdp-bar[data-solid] .pdp-bar-button {
+		background: transparent;
+		box-shadow: none;
+	}
+	.pdp-bar-button:active {
+		background: rgba(0, 0, 0, 0.06);
+	}
+	.pdp-bar-count {
+		position: absolute;
+		top: 2px;
+		right: 0;
+		display: grid;
+		place-items: center;
+		min-width: 18px;
+		height: 18px;
+		padding: 0 5px;
+		border-radius: 9999px;
+		background: var(--purple);
+		color: #fff;
+		font-size: var(--caption-size);
+		line-height: 1;
+		font-weight: 600;
+		box-shadow: 0 0 0 2px #fff;
+	}
+	/* The title is a spacer over the photo and fades in once the bar is solid (the h1 stays the page's heading). */
+	.pdp-bar-title {
+		flex: 1 1 0;
+		min-width: 0;
+		overflow: hidden;
+		text-overflow: ellipsis;
+		white-space: nowrap;
+		font-size: var(--body-size);
+		line-height: var(--body-leading);
+		font-weight: 600;
+		opacity: 0;
+		transition: opacity 160ms ease;
+	}
+	.pdp-bar[data-solid] .pdp-bar-title {
+		opacity: 1;
+	}
+	/* Closed unless the browser opens it as a popover (browsers without popover support never show it over the photo). */
+	.pdp-more {
+		display: none;
+		position: fixed;
+		inset: auto;
+		top: calc(60px + env(safe-area-inset-top, 0px));
+		right: 12px;
+		min-width: 208px;
+		margin: 0;
+		padding: 8px;
+		border: 0;
+		border-radius: 16px;
+		background: #fff;
+		box-shadow:
+			0 0 0 1px var(--hairline),
+			0 8px 32px rgba(0, 0, 0, 0.18);
+	}
+	.pdp-more:popover-open {
+		display: grid;
+	}
+	.pdp-more a {
+		display: flex;
+		align-items: center;
+		min-height: 44px;
+		padding: 0 12px;
+		border-radius: 10px;
+		font-size: var(--body-size);
+		font-weight: 500;
+	}
+	.pdp-more a:active {
+		background: var(--tint-violet);
+	}
+	.pdp-bar-status {
+		position: absolute;
+		top: 100%;
+		left: 50%;
+		translate: -50% 8px;
+		width: max-content;
+		max-width: calc(100% - 24px);
+		margin: 0;
+		padding: 8px 14px;
+		border-radius: 9999px;
+		background: var(--ink);
+		color: #fff;
+		font-size: var(--small-size);
+		line-height: var(--small-leading);
+	}
+	.pdp-bar-status:empty {
+		display: none;
+	}
+	/* Keyboard focus rings stay visible on the white bar and over the photo. */
+	.pdp-bar-button:focus-visible {
+		outline: 3px solid var(--ink);
+		outline-offset: 2px;
 	}
 }
 main.product-detail .offer-detail-label {

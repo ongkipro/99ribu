@@ -235,6 +235,7 @@ test("T-34: role-scoped dashboards, unknown vs zero cost metrics, drilldown cons
 					"due_at",
 					"due_at_kind",
 					"id",
+					"order_admin_no",
 					"order_id",
 					"reference",
 					"resource_kind",

@@ -65,7 +65,8 @@ test("policy API owner/MFA, request/response contract, strict transport and fiel
     for (const role of roles.filter((r) => r !== "owner")) {
       const user = await actor(identity, role, []); users.push(user);
       if (!["buyer", "affiliate"].includes(role)) await enroll(user.browser, user.password);
-      await observe(user.browser.request(`${path}?kind=commercial`), 403);
+      await observe(user.browser.request(`${path}?kind=commercial`), role === "finance" ? 200 : 403);
+      if (role === "finance") await observe(user.browser.request(`${path}?kind=warehouse_calendar&warehouse_id=${randomUUID()}`), 403);
       await observe(user.browser.request(path, {}), 403);
     }
     let state = await observe(owner.browser.request(`${path}?kind=commercial`), 200, true);

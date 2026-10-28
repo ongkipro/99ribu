@@ -11,7 +11,7 @@ import {
 	ingestWaybillEvent,
 	simulateWaybillIssue,
 } from "../../src/modules/fulfillment/local.ts";
-import { actor, enroll } from "../contract/access-fixture.ts";
+import { actor, enroll, labelTemplateProof } from "../contract/access-fixture.ts";
 import {
 	closeFulfillmentActor,
 	fulfillmentFixture,
@@ -383,7 +383,7 @@ test("S55 browser: admin shipping print center renders thermal/A4 label generati
 			await ownerPage.goto(`${baseUrl}/admin/print-center`);
 			await expect(ownerPage.getByTestId("print-center-heading")).toBeVisible();
 			const tplName = `mitra-thermal-${randomUUID().slice(0, 6)}`;
-			const createTemplate = (extra: Record<string, string>) =>
+			const createTemplate = async (extra: Record<string, string>) =>
 				ownerPage.evaluate(
 					async (body) => {
 						const res = await fetch("/api/v1/admin/shipping-label-templates", {
@@ -394,7 +394,14 @@ test("S55 browser: admin shipping print center renders thermal/A4 label generati
 						const data = await res.json();
 						return { status: res.status, code: data.code as string | undefined, id: data.id as string | undefined };
 					},
-					{ name: tplName, format: "thermal_100x150", brand_mode: "neutral_partner", privacy_mode: "masked_phone", ...extra },
+					{
+						name: tplName,
+						format: "thermal_100x150",
+						brand_mode: "neutral_partner",
+						privacy_mode: "masked_phone",
+						...extra,
+						reauthentication_proof: await labelTemplateProof(identity, f.owner),
+					},
 				);
 			const rejected = await createTemplate({});
 			assert.equal(rejected.code, "PARTNER_BRAND_GOVERNANCE_REQUIRED", JSON.stringify(rejected));

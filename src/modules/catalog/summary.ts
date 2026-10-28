@@ -79,7 +79,7 @@ export async function listProductSummaries(identity: LocalAuth, principal: Princ
     // maintained readiness projection if the catalog grows to many thousands.
     const rows = await tx`
       with scoped as (
-        select p.id, p.catalog_id, p.slug, p.revision as version, r.name, r.description, r.category_id, r.images
+        select p.id, p.admin_no, p.catalog_id, p.slug, p.revision as version, r.name, r.description, r.category_id, r.images
         from app.product p join app.product_revision r on r.product_id=p.id and r.revision=p.revision
         where (${page.cursor}::uuid is null or p.id>${page.cursor}::uuid)
           and (${page.pattern}::text is null or r.name ilike ${page.pattern} or p.catalog_id ilike ${page.pattern})
@@ -133,7 +133,7 @@ export async function listProductSummaries(identity: LocalAuth, principal: Princ
               < ${policy.floor}::bigint then 'BELOW_MARGIN_FLOOR' end
         ]::text[], null)) as code
       ), summary as (
-        select s.id, s.catalog_id, s.slug, s.version, s.name, s.category_id, s.category_path,
+        select s.id, s.admin_no, s.catalog_id, s.slug, s.version, s.name, s.category_id, s.category_path,
           s.images->0->>'url' as image_url, s.images,
           coalesce((select array_agg(distinct o.kind order by o.kind) from offers o where o.product_id=s.id), '{}') as offer_kinds,
           (select count(*)::int from offers o where o.product_id=s.id) as offer_count,
@@ -160,7 +160,7 @@ export async function listProductSummaries(identity: LocalAuth, principal: Princ
           when cardinality(blocker_codes)=0 then 'ready' else 'blocked' end
       order by id limit ${page.limit + 1}`;
     const data = rows.slice(0, page.limit).map((r) => ({
-      id: r.id as string, catalog_id: r.catalog_id as string, slug: r.slug as string, version: Number(r.version), name: r.name as string,
+      id: r.id as string, admin_no: Number(r.admin_no), catalog_id: r.catalog_id as string, slug: r.slug as string, version: Number(r.version), name: r.name as string,
       category_id: (r.category_id as string | null) ?? null, category_path: (r.category_path as string | null) ?? null,
       image_url: (r.image_url as string | null) ?? null, offer_kinds: r.offer_kinds as string[], offer_count: Number(r.offer_count),
       stock_ready_offers: Number(r.stock_ready_offers), price_idr: 99000, state: r.state as State,

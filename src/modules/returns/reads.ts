@@ -52,6 +52,14 @@ export async function readBuyerRefund(request:Request,identity:LocalAuth,actor:C
   const result=await projectBuyerRefund(tx,selected);await authorizeOrder(tx,request,identity,actor,order.id);return result;
  });
 }
+// Staff refund projection: the buyer projection plus the admin numbers the console builds its links from
+// (this refund, its return case and its order). Admin-only; buyer and operation responses stay unchanged.
+async function projectAdminRefund(tx:TransactionSql,refundId:string){
+ const [numbers]=await tx`select r.admin_no,c.admin_no return_admin_no,o.admin_no order_admin_no from app.refund r join app.return_case c on c.id=r.case_id join app.commerce_order o on o.id=r.order_id where r.id=${refundId}`;
+ if(!numbers)throw new AccessError(404,'NOT_FOUND');
+ return {...await projectBuyerRefund(tx,refundId),admin_no:Number(numbers.admin_no),return_admin_no:Number(numbers.return_admin_no),order_admin_no:Number(numbers.order_admin_no)};
+}
+
 
 function staffScope(tx:TransactionSql,access:ReturnAuthority,replacementsInstalled:boolean){
  if(replacementsInstalled)return tx`(${access.owner||access.finance} or exists(select 1 from app.return_item scoped
@@ -71,7 +79,7 @@ async function staffCase(tx:TransactionSql,head:ReturnHead,access:ReturnAuthorit
  const reviewScope=access.owner||access.principal.roles.includes('customer_service')&&all.every(item=>access.warehouseIds.includes(item.warehouse_id));
  const refunds=await tx`select id from app.refund where case_id=${head.id}`;
  // S101: display names so staff never read row ids (order number, offer and warehouse names).
- const [order]=await tx`select number,owner_user_id from app.commerce_order where id=${head.order_id}`;
+ const [order]=await tx`select number,owner_user_id,admin_no from app.commerce_order where id=${head.order_id}`;
  const names=await tx`select i.id,i.snapshot->>'name' product_name,i.snapshot->'offer'->>'label' variant_label from app.order_item i where i.id in ${tx([...new Set(visible.map(item=>item.order_item_id))])}`;
  const places=await tx`select id,name from app.warehouse where id in ${tx([...new Set(visible.map(item=>item.warehouse_id))])}`;
  const name=(orderItemId:string)=>names.find(row=>row.id===orderItemId),place=(warehouseId:string)=>String(places.find(row=>row.id===warehouseId)?.name??'');
@@ -100,7 +108,7 @@ async function staffCase(tx:TransactionSql,head:ReturnHead,access:ReturnAuthorit
  const items=[];
  for(const item of visible)items.push({id:item.id,fulfillment_item_id:item.fulfillment_item_id,order_item_id:item.order_item_id,shipment_id:item.shipment_id,warehouse_id:item.warehouse_id,reason:item.reason,details:item.details,claim_state:item.claim_state,inspection_status:item.inspection_status,can_inspect:canInspect(item.warehouse_id),
   product_name:String(name(item.order_item_id)?.product_name??''),variant_label:name(item.order_item_id)?.variant_label??null,warehouse_name:place(item.warehouse_id),...await components(item)});
- return {id:head.id,order_id:head.order_id,order_number:String(order.number),version:head.revision,status:head.status,requested_resolution:head.requested_resolution,resolution:head.resolution,requires_goods:head.requires_goods,created_at:new Date(head.created_at).toISOString(),
+ return {id:head.id,admin_no:Number(head.admin_no),order_id:head.order_id,order_admin_no:Number(order.admin_no),order_number:String(order.number),version:head.revision,status:head.status,requested_resolution:head.requested_resolution,resolution:head.resolution,requires_goods:head.requires_goods,created_at:new Date(head.created_at).toISOString(),
   items_complete:complete,can_decide:reviewScope&&!refunds.length&&['requested','reviewing','approved','awaiting_goods','inspecting'].includes(head.status),
   ...(access.owner||access.finance?{refund_ids:refunds.map(row=>String(row.id))}:{}),
   items,...extra};
@@ -133,12 +141,32 @@ export async function readAdminReturns(identity:LocalAuth,principal:Principal,ur
  });
 }
 
+export const adminRefundStatuses=['awaiting_destination','queued','processing','unknown','succeeded','failed'] as const;
+
+export async function readAdminRefunds(identity:LocalAuth,principal:Principal,url:URL){
+ const paging=page(url,['status']),status=url.searchParams.get('status');
+ if(status!==null&&!adminRefundStatuses.includes(status as (typeof adminRefundStatuses)[number]))throw invalid();
+ return identity.sql.begin(async tx=>{
+  await returnAuthority(tx,principal);await financeAuthority(tx,principal,'finance.refunds.read');
+  const [position]=paging.cursor?await tx`select r.recorded_at::text stamp from app.refund r where r.id=${paging.cursor}`:[];
+  if(paging.cursor&&!position)throw invalid();
+  const rows=await tx<{id:string}[]>`
+   select r.id from app.refund r left join app.outbox_job j on j.id=r.current_job_id
+   where (${status}::text is null or (case when r.status in ('queued','processing') and j.status='unknown' then 'unknown' when r.status='queued' and j.status='failed' then 'failed' else r.status end)=${status})
+   and (${paging.cursor}::uuid is null or (r.recorded_at,r.id)<(${position?.stamp??null}::timestamptz,${paging.cursor}::uuid))
+   order by r.recorded_at desc,r.id desc limit ${paging.limit+1} for share of r`,chosen=rows.slice(0,paging.limit),data=[];
+  for(const row of chosen)data.push(await projectAdminRefund(tx,row.id));
+  await financeAuthority(tx,principal,'finance.refunds.read');await readAudit(tx,principal,'refund.list',null);
+  return {data,pagination:{next_cursor:rows.length>paging.limit?String(chosen.at(-1)?.id):null}};
+ });
+}
+
 export async function readAdminRefund(identity:LocalAuth,principal:Principal,refundId:string){
  const selected=id(refundId);
  return identity.sql.begin(async tx=>{
   await returnAuthority(tx,principal);await financeAuthority(tx,principal,'finance.refunds.read');
   if(!(await tx`select id from app.refund where id=${selected} for share`).length)throw new AccessError(404,'NOT_FOUND');
-  const result=await projectBuyerRefund(tx,selected);await financeAuthority(tx,principal,'finance.refunds.read');await readAudit(tx,principal,'refund.read',selected);return result;
+  const result=await projectAdminRefund(tx,selected);await financeAuthority(tx,principal,'finance.refunds.read');await readAudit(tx,principal,'refund.read',selected);return result;
  });
 }
 

@@ -68,7 +68,7 @@ import { paymentAdapter } from "../../src/modules/payments/worker.ts";
 import { queueEligibleAffiliatePayouts } from "../../src/modules/payouts/service.ts";
 import { resolvePolicy } from "../../src/modules/settings/policies.ts";
 import { handleSupport } from "../../src/modules/support/routes.ts";
-import { actor, cleanup, enroll } from "../contract/access-fixture.ts";
+import { actor, cleanup, enroll, labelTemplateProof, terminationProof } from "../contract/access-fixture.ts";
 import { advertisingFixture, deniedChoices } from "./advertising-fixture.ts";
 import { CommerceClient } from "./checkout-fixture.ts";
 import { codFixture } from "./cod-fixture.ts";
@@ -818,6 +818,7 @@ test("S62.3b: canonical last-component race, publication gate, and waybill repri
 					partner_brand_name: "Mitra Logistik 99ribu",
 					disclosure_text:
 						"TEST-NOT-FOR-SHIPPING - Hanya untuk pengujian lokal",
+					reauthentication_proof: await labelTemplateProof(f.identity, f.owner),
 				},
 			);
 			assert.equal(tplRes.status, 201);
@@ -1163,13 +1164,22 @@ test("S62.3c: canonical ads consent/timeout, support escalation, and shared-devi
 			});
 			assert.equal(addrA.status, 201);
 
-			// Buyer A logs out / terminates all sessions
+			// Buyer A logs out everywhere: other sessions with a step-up proof, then this session.
 			const termA = await callAccount(
 				buyerA,
 				"/api/v1/me/session-terminations",
-				{ scope: "all" },
+				{
+					scope: "all_other",
+					reauthentication_proof: await terminationProof(f.identity, buyerA),
+				},
 			);
 			assert.equal(termA.status, 201);
+			const termACurrent = await callAccount(
+				buyerA,
+				"/api/v1/me/session-terminations",
+				{ scope: "current" },
+			);
+			assert.equal(termACurrent.status, 201);
 
 			const revokedRead = await callAccount(buyerA, "/api/v1/me/addresses");
 			assert.equal(revokedRead.status, 401);

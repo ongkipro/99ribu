@@ -105,8 +105,11 @@ for path, methods in spec['paths'].items():
         check('security' in operation, 'security is explicit per operation')
         params = [resolve(x['$ref']) if '$ref' in x else x for x in operation.get('parameters', [])]
         check({x['name'] for x in params if x['in'] == 'path'} == set(re.findall(r'\{([^}]+)\}', path)), 'path parameters match template')
-        if method == 'post' and path != '/payments/autolaris/callbacks':
+        # S138: the buyer lookup is a read-only POST (the searched contact must not sit in a URL); a replayed lookup is a
+        # new audited lookup, so it takes no retry key and saves no response (the response would hold masked contacts).
+        if method == 'post' and path not in ('/payments/autolaris/callbacks', '/admin/customers/lookup'):
             check(any(x['name'] == 'Idempotency-Key' and x.get('required') for x in params), 'POST requires stable retry key')
+        if method == 'post' and path != '/payments/autolaris/callbacks':
             check('requestBody' in operation, 'POST request body specified')
         if path.startswith('/admin/'):
             check(operation.get('x-allowed-roles'), 'admin role intent stated')
@@ -418,23 +421,31 @@ for forbidden_name in ['Purchase', 'purchase', 'payment_confirmed', 'cash_collec
 valid('FunnelEventInput', dict(funnel, value=99000), False)
 valid('FunnelEventInput', dict(funnel, paid=True), False)
 valid('FunnelEventInput', dict(funnel, email='synthetic@example.com'), False)
-ad_config = {'expected_version': 0, 'platform': 'google', 'external_destination_id': 'synthetic-public-account', 'conversion_action_id': 'synthetic-action', 'google_conversion_source': 'UPLOAD_CLICKS', 'enabled': False, 'server_purchase_enabled': True, 'browser_purchase_enabled': False, 'reason': 'Initial disabled configuration', 'reauthentication_proof': 'synthetic-owner-proof'}
+ad_config = {'expected_version': 0, 'platform': 'google', 'external_destination_id': 'synthetic-public-account', 'conversion_action_id': 'synthetic-action', 'google_conversion_source': 'UPLOAD_CLICKS', 'enabled': False, 'server_purchase_enabled': True, 'browser_purchase_enabled': False, 'reason': 'Initial disabled configuration'}
 valid('AdDestinationInput', ad_config)
 valid('AdDestinationInput', dict(ad_config, browser_purchase_enabled=True), False)
 valid('AdDestinationInput', dict(ad_config, google_conversion_source='WEBSITE'), False)
 valid('AdDestinationInput', dict(ad_config, conversion_action_id=''), False)
 valid('AdDestinationInput', dict(ad_config, access_token='never-http-config'), False)
-valid('AdReplayInput', {'expected_version': 1, 'event_id': 'immutable-event-1', 'reason': 'Retry known-safe outbox event', 'reauthentication_proof': 'synthetic-owner-proof'})
-valid('AdReplayInput', {'expected_version': 1, 'event_id': 'immutable-event-1', 'reason': 'Retry', 'reauthentication_proof': 'synthetic-owner-proof', 'new_value': 99000}, False)
+valid('AdReplayInput', {'expected_version': 1, 'event_id': 'immutable-event-1', 'reason': 'Retry known-safe outbox event'})
+valid('AdReplayInput', {'expected_version': 1, 'event_id': 'immutable-event-1', 'reason': 'Retry', 'new_value': 99000}, False)
+valid('AdPauseInput', {'expected_version': 1, 'paused': True, 'reason': 'Pause with an audited owner reason'})
+label_proof = {'password': 'SYNTHETIC', 'action': 'shipping_label_template.version', 'subject_id': 'shipping-label-templates'}
+valid('StaffReauthenticationInput', label_proof)
+valid('StaffReauthenticationInput', dict(label_proof, subject_id='company-commercial'), False)
+valid('StaffReauthenticationInput', dict(label_proof, subject_id='company-payment'), False)
 dashboard_count = {'key': 'fulfillments_due', 'count': None, 'basis': 'snapshot', 'complete': False, 'queue_key': 'fulfillments', 'kind': 'count', 'amount': None, 'currency': None, 'financial_basis': 'not_applicable', 'definition': 'Authorized due fulfillment snapshot', 'as_of': '2030-01-01T00:00:00Z', 'queue_filter_token': 'synthetic-filter-0001', 'filter_version': 1, 'filter_expires_at': '2030-01-01T01:00:00Z'}
 valid('DashboardMetric', dashboard_count)
 valid('DashboardMetric', {'key': 'company_profit', 'count': 1000, 'basis': 'snapshot', 'complete': True, 'queue_key': 'fulfillments'}, False)
-queue_row = {'id': 'fulfillment-1', 'resource_kind': 'fulfillment', 'state': 'picking', 'due_at': '2030-01-01T00:00:00.000Z', 'due_at_kind': 'packing_deadline', 'warehouse_id': 'warehouse-1', 'version': 1, 'reference': 'ORD-SYNTHETIC-1', 'order_id': 'order-1', 'amount_idr': None, 'settlement_source': None}
+queue_row = {'id': 'fulfillment-1', 'resource_kind': 'fulfillment', 'state': 'picking', 'due_at': '2030-01-01T00:00:00.000Z', 'due_at_kind': 'packing_deadline', 'warehouse_id': 'warehouse-1', 'version': 1, 'reference': 'ORD-SYNTHETIC-1', 'order_id': 'order-1', 'order_admin_no': 1042, 'amount_idr': None, 'settlement_source': None}
 valid('WorkQueueItem', queue_row)
 valid('WorkQueueItem', dict(queue_row, resource_kind='reconciliation', state='pending', amount_idr=198000, settlement_source='cod'))
 valid('WorkQueueItem', dict(queue_row, settlement_source='bank'), False)
-valid('WorkQueueItem', dict(queue_row, due_at=None, due_at_kind=None, reference=None, order_id=None))
+valid('WorkQueueItem', dict(queue_row, due_at=None, due_at_kind=None, reference=None, order_id=None, order_admin_no=None))
 valid('WorkQueueItem', {k: v for k, v in queue_row.items() if k != 'order_id'}, False)
+valid('WorkQueueItem', {k: v for k, v in queue_row.items() if k != 'order_admin_no'}, False)
+valid('WorkQueueItem', dict(queue_row, order_admin_no=0), False)
+valid('WorkQueueItem', dict(queue_row, order_admin_no='1042'), False)
 valid('WorkQueueItem', dict(queue_row, due_at_kind='deadline'), False)
 valid('WorkQueueItem', {k: v for k, v in queue_row.items() if k != 'reference'}, False)
 valid('WorkQueueItem', dict(queue_row, whole_order_total=198000), False)
@@ -680,7 +691,7 @@ for name in ['CommerceException', 'CommerceExceptionUnit', 'BuyerRecoveryCase', 
     check(spec['components']['schemas'][name]['additionalProperties'] is False, 'recovery projections are closed')
     check(not {'buyer_total', 'bank_account', 'signature', 'reauthentication_proof', 'source_transaction_id'} & set(spec['components']['schemas'][name]['properties']), 'operational/buyer recovery excludes whole-order/internal financial data')
 recovery_operations = [(path, op) for path, methods in spec['paths'].items() for op in methods.values() if path.startswith('/admin/commerce-exceptions') or path == '/orders/{orderId}/recovery-actions']
-check(len(recovery_operations) == 11, 'S33 owns its complete eleven-operation contract (S71 adds finance retry)')
+check(len(recovery_operations) == 12, 'S33 owns its complete twelve-operation contract (S71 adds finance retry, S133 the refund list read)')
 for path, op in recovery_operations:
     check(op['x-primary-requirement'] == 'PR-21', 'exception operations trace to accepted PR21')
     expected_security = [{'sessionCookie': []}] if path.startswith('/admin/') else [{'sessionCookie': []}, {'commerceGuest': [], 'orderCookie': []}]
@@ -703,6 +714,9 @@ valid('StockDiscrepancyInput', {**recovery_report, 'reinspection': {'exception_i
 valid('StockDiscrepancyInput', {**recovery_report, 'reinspection': {'exception_id': recovery_uuid, 'expected_version': 4, 'resolved': True}}, False)
 valid('StockDiscrepancyInput', {k: v for k, v in recovery_report.items() if k != 'observed_components'}, False)
 valid('RecoveryRefundBatch', {'exception_id': recovery_uuid, 'version': 1, 'refunds': []}, False)
+valid('RecoveryRefundList', {'exception_id': recovery_uuid, 'version': 1, 'refunds': []})
+valid('RecoveryRefundList', {'exception_id': recovery_uuid, 'version': 1, 'refunds': [], 'bank_account': 'SYNTHETIC'}, False)
+check(spec['paths']['/admin/commerce-exceptions/{exceptionId}/refunds']['get']['x-required-permission'] == 'finance.refunds.read', 'the refund list is finance-only like the single refund read')
 check('refunds' in spec['components']['schemas']['BuyerRecoveryCase']['required'] and 'refund' not in spec['components']['schemas']['BuyerRecoveryCase']['properties'], 'buyer recovery can represent multiple original-source refunds truthfully')
 check(spec['paths']['/admin/commerce-exceptions/{exceptionId}/refunds']['post']['responses']['201']['content']['application/json']['schema'] == {'$ref': '#/components/schemas/RecoveryRefundBatch'}, 'finance queue returns an atomic group of original-source obligations')
 
@@ -725,5 +739,9 @@ for retired in [True, False]:
     valid('ReplacementItem', {**replacement_occurrence, 'cancelled': retired})
 valid('ReplacementItem', {**replacement_occurrence, 'cancelled': 'true'}, False)
 check(spec['components']['schemas']['ReplacementItem']['properties']['cancelled'].get('readOnly') is True, 'replacement cancellation is a server-owned physical occurrence fact')
+
+valid('RefundList', {'data': [refund_result], 'pagination': {'next_cursor': None}})
+valid('RefundList', {'data': [{**refund_result, 'bank_account': 'SYNTHETIC'}], 'pagination': {'next_cursor': None}}, False)
+check(spec['paths']['/admin/refunds']['get']['x-required-permission'] == 'finance.refunds.read', 'admin refund list requires finance.refunds.read')
 
 print(f'PASS contract structure: {len(spec["paths"])} paths, {len(operations)} operations, {len(spec["components"]["schemas"])} schemas; {checks} structural/schema assertions. No endpoint or provider executed.')

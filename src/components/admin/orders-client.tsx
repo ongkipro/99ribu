@@ -26,10 +26,13 @@ import {
 } from "./order-model";
 import { StatusBadge } from "./status";
 import { AdminPage, DetailSection, PageHeader } from "./page-blocks";
+import { adminPath } from "@/modules/access/admin-paths";
 
 export type SearchKind = "nomor" | "resi" | "hp";
 type Summary = {
 	id: string;
+	/** Short admin handle: the order opens at `/admin/orders/{admin_no}`. */
+	admin_no: number;
 	number: string;
 	status: string;
 	payment_status: string;
@@ -283,7 +286,7 @@ export function OrderSearchClient({
 							cell: (row) => (
 								<div className="flex flex-col items-start">
 									<Link
-										href={`/admin/orders/${row.id}${back ? `?dari=${encodeURIComponent(back)}` : ""}`}
+										href={`${adminPath("order", row.admin_no)}${back ? `?dari=${encodeURIComponent(back)}` : ""}`}
 										className="font-mono font-medium text-primary underline-offset-4 hover:underline pointer-coarse:inline-flex pointer-coarse:min-h-11 pointer-coarse:items-center"
 									>
 										{row.number}

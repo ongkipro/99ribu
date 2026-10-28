@@ -80,13 +80,20 @@ export async function resolvePolicy(sql: Sql | TransactionSql, kind: Kind, wareh
 }
 
 export async function listPolicyVersions(url: URL, principal: Principal, identity: LocalAuth) {
-  if (!principal.roles.includes("owner") || !principal.mfaAt) throw new AccessError(403, "FORBIDDEN");
+  if (!principal.mfaAt || !principal.roles.some((role) => role === "owner" || role === "finance")) throw new AccessError(403, "FORBIDDEN");
+  if (!principal.roles.includes("owner") && url.searchParams.get("kind") === "warehouse_calendar") throw new AccessError(403, "FORBIDDEN");
   if ([...url.searchParams.keys()].some((key) => !["kind", "warehouse_id", "cursor", "limit"].includes(key) || url.searchParams.getAll(key).length !== 1)) throw invalid();
   const selected = scope(url.searchParams.get("kind"), url.searchParams.get("warehouse_id"));
+  if (selected.kind === "warehouse_calendar" && !principal.roles.includes("owner")) throw new AccessError(403, "FORBIDDEN");
   const rawLimit = url.searchParams.get("limit") ?? "20"; const rawCursor = url.searchParams.get("cursor");
   if (!/^\d{1,3}$/.test(rawLimit) || Number(rawLimit) < 1 || Number(rawLimit) > 100 ||
     (rawCursor !== null && (!/^\d{1,10}$/.test(rawCursor) || Number(rawCursor) < 1 || Number(rawCursor) > 2147483647))) throw invalid();
   return identity.sql.begin("isolation level repeatable read read only", async (tx) => {
+    const [live] = await tx`select g.roles from app.role_grant g join app.auth_user u on u.id=g.user_id
+      join app.auth_session s on s.user_id=u.id join app.mfa_session m on m.session_id=s.id
+      where u.id=${principal.id} and s.id=${principal.sessionId} and s.expires_at>clock_timestamp() and u.two_factor_enabled`;
+    const allowedRoles = selected.kind === "warehouse_calendar" ? ["owner"] : ["owner", "finance"];
+    if (!live?.roles.some((role: string) => allowedRoles.includes(role))) throw new AccessError(403, "FORBIDDEN");
     if (selected.warehouseId && !(await tx`select id from app.warehouse where id=${selected.warehouseId}`).length) throw new AccessError(404, "NOT_FOUND");
     const [head] = await tx`select id,revision from app.policy_head where kind=${selected.kind} and warehouse_id is not distinct from ${selected.warehouseId}::uuid`;
     if (!head) return { data: [], pagination: { next_cursor: null }, latest_version: 0, current: null };

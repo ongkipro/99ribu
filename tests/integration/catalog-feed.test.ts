@@ -3,7 +3,6 @@ import {randomUUID} from 'node:crypto';
 import test from 'node:test';
 import {readLocalConfig} from '../../src/config/local.ts';
 import {catalogFeed,feedXml} from '../../src/modules/catalog/feed.ts';
-import {productSlug} from '../../src/modules/storefront/navigation.ts';
 import {patchProduct,readCatalogRevision} from '../../src/modules/catalog/catalog.ts';
 import {appendCostVersion} from '../../src/modules/finance/costs.ts';
 import {prepareStorefront} from '../../src/modules/local/storefront.ts';
@@ -19,6 +18,8 @@ test('PR-15 local feed exports published offers only, with permanent IDs, exact 
    width_mm:base.width_mm,height_mm:base.height_mm,default_warehouse_id:base.default_warehouse_id,contents:[{...base.contents[0],quantity}]});
   const images=[{url:'https://media.invalid/feed/kaos.png',alt:'Synthetic feed media',width:1500,height:1500}];
   const created=await f.catalog('/products',{name:'Synthetic feed shirt',description:'Synthetic complete feed offer',category_id:leaf.id,images,variants:[definition('Satuan',1),definition('Paket 2',2)]});
+  const [{public_slug:slug}]=await f.identity.sql`select public_slug from app.product where id=${created.id}`;
+  assert.match(slug,/^synthetic-feed-shirt(-[0-9]+)?$/,'the clean slug comes from the name; a repeated test name only gets a counter');
   const draftOnly=await f.catalog('/products',{name:'Synthetic draft-only shirt',description:'Never published',category_id:leaf.id,images,variants:[definition('Satuan',1)]});
   const patch=async(version:number,body:Record<string,unknown>)=>{const request=f.request();request.headers.set('idempotency-key',randomUUID());await patchProduct(request,f.identity,f.principal,created.id,{expected_version:version,reason:'Synthetic feed revision',...body});};
   const publish=(version:number,publication:number)=>f.catalog(`/products/${created.id}/publications`,{expected_version:version,expected_publication_version:publication,reason:'Guarded feed fixture publication'});
@@ -34,7 +35,7 @@ test('PR-15 local feed exports published offers only, with permanent IDs, exact 
   for(const item of items){
    const offer=item.id===unit.catalog_id?unit:pair;
    assert.deepEqual(item,{id:offer.catalog_id,item_group_id:created.catalog_id,title:`Synthetic feed shirt - ${offer.label}`,description:'Synthetic complete feed offer',
-    link:`${origin}/produk/${productSlug(created.id,'Synthetic feed shirt')}?offer=${offer.id}`,image_link:images[0].url,availability:'in_stock',price:'99000.00 IDR',brand:'Merek Uji',product_type:'Synthetic feed department > Synthetic feed leaf'});
+    link:`${origin}/produk/${slug}`,image_link:images[0].url,availability:'in_stock',price:'99000.00 IDR',brand:'Merek Uji',product_type:'Synthetic feed department > Synthetic feed leaf'});
   }
   const ids=new Set(feed.items.map(i=>i.id));
   assert.ok(!draftOnly.variants.some((v:{catalog_id:string})=>ids.has(v.catalog_id)),'draft-only product is excluded');
@@ -42,6 +43,7 @@ test('PR-15 local feed exports published offers only, with permanent IDs, exact 
   // Published sample media are SVG placeholders without a brand: reported, never exported.
   const sample=(await readCatalogRevision(f.identity.sql,curated.products.shirt.id)).variants[0].catalog_id;assert.ok(!ids.has(sample));
   assert.deepEqual(feed.issues.filter(i=>i.catalog_id===sample).map(i=>`${i.code}:${i.field}`).sort(),['MEDIA_REQUIRED:image_link','REQUIRED_FACT_MISSING:brand']);
+  assert.ok(items.every(i=>!/[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}/i.test(i.link)),'a feed link carries no id, not even ?offer=');
   assert.ok(feed.issues.every(i=>!ids.has(i.catalog_id)),'an item with any issue is never serialized');
   const first=feedXml(origin,items);assert.equal(feedXml(origin,(await mine()).items),first,'re-export is byte-identical');
   assert.ok(first.includes(`<g:id>${unit.catalog_id}</g:id>`)&&first.includes('<g:price>99000.00 IDR</g:price>'));
@@ -60,6 +62,6 @@ test('PR-15 local feed exports published offers only, with permanent IDs, exact 
 
   await patch(4,{variant_changes:[{operation:'retire',variant_id:pair.id}]});await publish(5,2);
   ({items}=await mine());assert.deepEqual(items.map(i=>i.id),[unit.catalog_id],'a retired offer leaves the feed; the surviving ID is unchanged');
-  assert.equal(items[0].link,`${origin}/produk/${productSlug(created.id,'Synthetic renamed shirt')}`,'the single remaining offer links to the canonical product page');
+  assert.equal(items[0].link,`${origin}/produk/${slug}`,'a renamed product keeps its clean slug, so the feed link stays stable');
  }finally{await f.close();}
 });

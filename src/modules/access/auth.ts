@@ -113,6 +113,7 @@ export function createLocalAuth(target: DatabaseTarget) {
         "/request-password-reset": { window: 60, max: 100 }, "/reset-password": { window: 60, max: 100 },
         "/send-verification-email": { window: 60, max: 100 },
         "/two-factor/enable": { window: 60, max: 60 },
+        "/change-password": { window: 60, max: 300 }, "/two-factor/generate-backup-codes": { window: 60, max: 300 },
         "/two-factor/verify-totp": { window: 60, max: 300 },
         "/two-factor/verify-backup-code": { window: 60, max: 300 },
       },

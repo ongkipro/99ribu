@@ -13,7 +13,8 @@ export const BANNER_IMAGE_MAX=4096;
 export const BANNER_LIMIT=24;
 
 const origin='https://storefront.invalid';
-// Destinations a banner may open: storefront listing pages, a category, search and a product page. Nothing else
+// Destinations a banner may open: storefront listing pages, a category, search and a product page (/produk/<public_slug>;
+// the longer legacy /produk/<title>-<uuid> shape still passes and the page 308s it to the clean slug). Nothing else
 // (no external origin, no account, checkout, admin or API path); only listing parameters survive on /cari and
 // /kategori/<slug>, never tracking parameters or fragments. Returns the normalized path, or null.
 const PATHS=/^\/(?:promo|kategori|kategori\/[a-z0-9-]{1,80}|cari|produk\/[a-z0-9-]{1,160})$/;

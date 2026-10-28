@@ -1,6 +1,8 @@
 import type { LocalAuth } from "./auth.ts";
 
 export const roles = ["owner", "ecommerce_admin", "warehouse", "customer_service", "finance", "buyer", "affiliate"] as const;
+/** Roles the staff-grant endpoint may assign. `owner` is bootstrap-only: it is never granted here, only removed. */
+export const staffRoles = ["ecommerce_admin", "warehouse", "customer_service", "finance"] as const;
 export type Role = typeof roles[number];
 export const permissions = ["orders.history.read", "finance.summary.read", "finance.costs.read", "finance.costs.write", "finance.reconciliation.read", "finance.reconciliation.write", "finance.refunds.read", "finance.refunds.write", "exports.read", "exports.download", "shipping.labels.read", "shipping.labels.generate", "shipping.labels.print"] as const;
 export type Permission = typeof permissions[number];
@@ -57,17 +59,17 @@ export function canExport(principal: Principal, domain: "orders" | "warehouse" |
 export function projectMe(principal: Principal) {
   return { id: principal.id, roles: principal.roles, warehouse_ids: principal.warehouseIds };
 }
-export function projectWarehouse(row: { id: string; name: string; city: string; timezone: string; active: boolean }) {
-  return { id: row.id, name: row.name, city: row.city, timezone: row.timezone, active: row.active };
+export function projectWarehouse(row: { id: string; admin_no: number | string; name: string; city: string; timezone: string; active: boolean }) {
+  return { id: row.id, admin_no: Number(row.admin_no), name: row.name, city: row.city, timezone: row.timezone, active: row.active };
 }
 // The downstream history handler supplies its actual authorized order. Copy an
 // explicit public schema, never an ORM row with contact/cost/proof fields.
 export function projectOrderSummary(principal: Principal, warehouseIds: readonly string[], row: {
-  id: string; number: string; status: string; payment_status: string; payment_method: string;
+  id: string; admin_no: number | string; number: string; status: string; payment_status: string; payment_method: string;
   buyer_total: number; currency: "IDR"; created_at: string; version: number;
 }) {
   if (!canReadOrderHistory(principal, warehouseIds)) throw new AccessError(403, "FORBIDDEN");
-  return { id: row.id, number: row.number, status: row.status, payment_status: row.payment_status,
+  return { id: row.id, admin_no: Number(row.admin_no), number: row.number, status: row.status, payment_status: row.payment_status,
     payment_method: row.payment_method, buyer_total: row.buyer_total, currency: row.currency,
     created_at: row.created_at, version: row.version };
 }

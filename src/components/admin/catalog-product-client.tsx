@@ -4,7 +4,6 @@ import {
 	ArrowDown,
 	ArrowLeft,
 	ArrowUp,
-	ChevronRight,
 	CircleAlert,
 	CircleCheck,
 	ImageOff,
@@ -32,6 +31,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { rupiah, wibDateTime } from "@/modules/storefront/format";
 import { failureText, getJson, readFailure } from "./admin-errors";
 import { DataTable } from "./data-table";
+import { ASSUMPTION_LABELS, type AssumptionField, CostDisclosure } from "./cost-versions";
 import { AdminPage, DetailSection, PageHeader, StickyActions } from "./page-blocks";
 import { ErrorState } from "./states";
 import { StatusBadge } from "./status";
@@ -90,17 +90,6 @@ type Contribution = {
 		}[];
 	}[];
 };
-type AssumptionField =
-	| "packaging_idr"
-	| "provider_fee_idr"
-	| "subsidy_idr"
-	| "returns_reserve_idr";
-const ASSUMPTION_LABELS: Record<AssumptionField, string> = {
-	packaging_idr: "Kemasan",
-	provider_fee_idr: "Biaya penyedia pembayaran",
-	subsidy_idr: "Subsidi ongkir",
-	returns_reserve_idr: "Cadangan retur",
-};
 
 const when = wibDateTime;
 const money = (v: number | null) =>
@@ -125,10 +114,10 @@ export function CatalogProductClient({
 }: {
 	productId: string;
 	/** From catalogAccess(); each section's API still enforces its own grant. */
-	access: { edit: boolean; stock: boolean; costs: boolean };
+	access: { edit: boolean; stock: boolean; costs: boolean; costsWrite: boolean };
 	backHref: string;
 }) {
-	const { edit: canEdit, stock: canReadStock, costs: canReadCosts } = access;
+	const { edit: canEdit, stock: canReadStock, costs: canReadCosts, costsWrite: canWriteCosts } = access;
 	const [product, setProduct] = useState<Load<CatalogProduct>>({
 		state: "loading",
 	});
@@ -178,16 +167,17 @@ export function CatalogProductClient({
 		if (notice) noticeRef.current?.focus();
 	}, [notice]);
 
-	const loadCosts = useCallback(async () => {
-		if (!canReadCosts) return;
-		setCosts({ state: "loading" });
-		const res = await getJson<Contribution>(`${base}/contribution-reviews`);
-		setCosts(
-			res.ok
-				? { state: "ready", data: res.data }
-				: { state: "error", error: failureText(res.failure) },
-		);
-	}, [base, canReadCosts]);
+	// `quiet` re-reads in place after a cost version was saved: the open history sections must stay mounted.
+	const loadCosts = useCallback(
+		async (quiet = false) => {
+			if (!canReadCosts) return;
+			if (!quiet) setCosts({ state: "loading" });
+			const res = await getJson<Contribution>(`${base}/contribution-reviews`);
+			if (res.ok) setCosts({ state: "ready", data: res.data });
+			else if (!quiet) setCosts({ state: "error", error: failureText(res.failure) });
+		},
+		[base, canReadCosts],
+	);
 
 	const loadStock = useCallback(
 		async (p: CatalogProduct) => {
@@ -590,17 +580,25 @@ export function CatalogProductClient({
 																: rupiah(o.estimated_contribution)}
 														</dd>
 													</dl>
-													<VersionHistory
-														title="Riwayat asumsi biaya varian"
-														url={`/api/v1/admin/offers/${o.offer_id}/cost-assumption-versions?limit=10`}
+													<CostDisclosure
+														title={canWriteCosts ? "Asumsi biaya varian: riwayat dan versi baru" : "Asumsi biaya varian: riwayat"}
 														kind="assumption"
+														scopeId={o.offer_id}
+														subject={variantName(o.offer_id) ?? "Varian"}
+														canWrite={canWriteCosts}
+														onWritten={() => void loadCosts(true)}
+														testId={`assumption-${o.offer_id}`}
 													/>
 													{o.components.map((c) => (
-														<VersionHistory
+														<CostDisclosure
 															key={c.stock_item_id}
-															title={`Riwayat HPP: ${componentName(c.stock_item_id)} (×${c.quantity}, sekarang ${money(c.unit_cost)})`}
-															url={`/api/v1/admin/stock-items/${c.stock_item_id}/cost-versions?limit=10`}
+															title={`HPP ${componentName(c.stock_item_id)} (×${c.quantity}, sekarang ${money(c.unit_cost)}): ${canWriteCosts ? "riwayat dan versi baru" : "riwayat"}`}
 															kind="component"
+															scopeId={c.stock_item_id}
+															subject={componentName(c.stock_item_id)}
+															canWrite={canWriteCosts}
+															onWritten={() => void loadCosts(true)}
+															testId={`hpp-${c.stock_item_id}`}
 														/>
 													))}
 												</li>
@@ -776,89 +774,6 @@ function VariantItem({
 				</div>
 			</div>
 		</li>
-	);
-}
-
-type VersionRow = {
-	id: string;
-	version: number;
-	effective_from: string;
-	source: string;
-	reason: string;
-	unit_cost?: number | null;
-} & Partial<Record<AssumptionField, number | null>>;
-
-/** Loads a cost version history only when opened (each read is audited). */
-function VersionHistory({
-	title,
-	url,
-	kind,
-}: {
-	title: string;
-	url: string;
-	kind: "component" | "assumption";
-}) {
-	const [data, setData] = useState<Load<VersionRow[]> | null>(null);
-	const load = async () => {
-		setData({ state: "loading" });
-		const res = await getJson<{ data: VersionRow[] }>(url);
-		setData(
-			res.ok
-				? { state: "ready", data: res.data.data }
-				: { state: "error", error: failureText(res.failure) },
-		);
-	};
-	return (
-		<details
-			className="group text-xs"
-			onToggle={(e) => {
-				if (e.currentTarget.open && data === null) void load();
-			}}
-		>
-			<summary className="inline-flex min-h-8 cursor-pointer list-none items-center gap-1 text-muted-foreground [&::-webkit-details-marker]:hidden">
-				<ChevronRight
-					aria-hidden="true"
-					className="size-3.5 shrink-0 transition-transform group-open:rotate-90 motion-reduce:transition-none"
-				/>
-				{title}
-			</summary>
-			{data?.state === "loading" && <Skeleton className="mt-2 h-16 w-full" />}
-			{data?.state === "error" && (
-				<div className="mt-2">
-					<SectionError
-						label="Riwayat"
-						error={data.error}
-						onRetry={() => void load()}
-					/>
-				</div>
-			)}
-			{data?.state === "ready" && (
-				<div className="mt-2">
-					<DataTable
-						rows={data.data}
-						rowKey={(r) => r.id}
-						status={{ kind: "ready" }}
-						loadingLabel="Memuat riwayat…"
-						empty="Belum ada versi biaya."
-						caption={title}
-						columns={[
-							{ id: "version", header: "Versi", className: "tabular-nums", cell: (r) => r.version },
-							{ id: "from", header: "Berlaku sejak", className: "tabular-nums", cell: (r) => when(r.effective_from) },
-							...(kind === "component"
-								? [{ id: "unit_cost", header: "HPP satuan", className: "text-right tabular-nums", cell: (r: (typeof data.data)[number]) => money(r.unit_cost ?? null) }]
-								: (Object.keys(ASSUMPTION_LABELS) as AssumptionField[]).map((f) => ({
-										id: f,
-										header: ASSUMPTION_LABELS[f],
-										className: "text-right tabular-nums",
-										cell: (r: (typeof data.data)[number]) => money(r[f] ?? null),
-									}))),
-							{ id: "source", header: "Sumber", cellClassName: "max-w-48 whitespace-normal", cell: (r) => r.source },
-							{ id: "reason", header: "Alasan", cellClassName: "max-w-48 whitespace-normal", cell: (r) => r.reason },
-						]}
-					/>
-				</div>
-			)}
-		</details>
 	);
 }
 

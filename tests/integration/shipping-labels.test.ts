@@ -7,7 +7,7 @@ import {
 	ingestWaybillEvent,
 	simulateWaybillIssue,
 } from "../../src/modules/fulfillment/local.ts";
-import { actor, enroll } from "../contract/access-fixture.ts";
+import { actor, enroll, labelTemplateProof } from "../contract/access-fixture.ts";
 import {
 	closeFulfillmentActor,
 	fulfillmentFixture,
@@ -105,6 +105,7 @@ test("S54 integration: shipping label templates, thermal & A4 PDF generation, pr
 				format: "thermal_100x150",
 				privacy_mode: "masked_phone",
 				brand_mode: "neutral_partner",
+				reauthentication_proof: await labelTemplateProof(f.identity, f.owner),
 			},
 		);
 		assert.equal(invalidPartnerTpl.status, 422);
@@ -124,6 +125,7 @@ test("S54 integration: shipping label templates, thermal & A4 PDF generation, pr
 				brand_mode: "neutral_partner",
 				partner_brand_name: "Mitra Logistik Nusantara",
 				disclosure_text: "Dikirim melalui jaringan mitra resmi 99ribu",
+				reauthentication_proof: await labelTemplateProof(f.identity, f.owner),
 			},
 		);
 		assert.equal(createdPartnerTpl.status, 201);
@@ -145,6 +147,7 @@ test("S54 integration: shipping label templates, thermal & A4 PDF generation, pr
 				disclosure_text: "Dikirim melalui jaringan mitra resmi 99ribu v2",
 				expected_version: 1,
 				reason: "Enable full phone for carrier handoff",
+				reauthentication_proof: await labelTemplateProof(f.identity, f.owner),
 			},
 		);
 		assert.equal(updatedPartnerTpl.status, 201);

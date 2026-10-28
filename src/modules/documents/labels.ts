@@ -5,6 +5,7 @@ import {
 	savePrivateArtifact,
 } from "../../storage/private.ts";
 import type { LocalAuth } from "../access/auth.ts";
+import { consumeAccessProof } from "../access/grants.ts";
 import {
 	assertOrigin,
 	privateJson,
@@ -34,6 +35,16 @@ export type ShippingLabelPrivacyMode =
 	| "carrier_required_full_phone";
 export type ShippingLabelBrandMode = "99ribu" | "neutral_partner";
 
+export type ShippingLabelTemplateVersionItem = {
+	version: number;
+	renderer_version: string;
+	partner_brand_name: string | null;
+	disclosure_text: string | null;
+	actor_id: string;
+	reason: string;
+	created_at: string;
+};
+
 export type ShippingLabelTemplateResponse = {
 	id: string;
 	name: string;
@@ -44,6 +55,7 @@ export type ShippingLabelTemplateResponse = {
 	disclosure_text: string | null;
 	active_version: number;
 	updated_at: string;
+	history?: ShippingLabelTemplateVersionItem[];
 };
 
 export type ShippingLabelJobResponse = {
@@ -160,6 +172,20 @@ function assertLabelReadPermission(principal: Principal) {
 		principal.roles.includes("owner") ||
 		principal.roles.includes("warehouse") ||
 		principal.roles.includes("ecommerce_admin") ||
+		principal.permissions.includes("shipping.labels.read");
+	if (!allowed) {
+		throw new AccessError(403, "FORBIDDEN");
+	}
+}
+
+// DEC-018 Q3: finance reads label template versions and history alongside owner/warehouse/ecommerce_admin.
+function assertTemplateReadPermission(principal: Principal) {
+	requireStaffMfa(principal);
+	const allowed =
+		principal.roles.includes("owner") ||
+		principal.roles.includes("warehouse") ||
+		principal.roles.includes("ecommerce_admin") ||
+		principal.roles.includes("finance") ||
 		principal.permissions.includes("shipping.labels.read");
 	if (!allowed) {
 		throw new AccessError(403, "FORBIDDEN");
@@ -347,6 +373,22 @@ async function formatTemplate(
 		where t.id = ${templateId}
 	`;
 	if (!row) throw new AccessError(404, "NOT_FOUND");
+	const versions = await tx<
+		{
+			revision: number;
+			renderer_version: string;
+			permission_evidence: string | null;
+			disclosure_text: string | null;
+			actor_id: string;
+			reason: string;
+			created_at: string;
+		}[]
+	>`
+		select revision, renderer_version, permission_evidence, disclosure_text, actor_id, reason, created_at
+		from app.shipping_label_template_version
+		where template_id = ${templateId}
+		order by revision desc
+	`;
 	return {
 		id: String(row.id),
 		name: row.code,
@@ -357,6 +399,15 @@ async function formatTemplate(
 		disclosure_text: row.disclosure_text || null,
 		active_version: Number(row.active_revision),
 		updated_at: new Date(row.updated_at).toISOString(),
+		history: versions.map((v) => ({
+			version: Number(v.revision),
+			renderer_version: v.renderer_version,
+			partner_brand_name: v.permission_evidence || null,
+			disclosure_text: v.disclosure_text || null,
+			actor_id: v.actor_id,
+			reason: v.reason,
+			created_at: new Date(v.created_at).toISOString(),
+		})),
 	};
 }
 
@@ -1263,7 +1314,7 @@ export async function handleShippingLabels(
 		// 1. Templates: GET / POST /api/v1/admin/shipping-label-templates & POST /api/v1/admin/shipping-label-templates/[templateId]/versions
 		if (url.pathname === "/api/v1/admin/shipping-label-templates") {
 			if (request.method === "GET") {
-				assertLabelReadPermission(principal);
+				assertTemplateReadPermission(principal);
 				const paging = parsePagination(url);
 				const list = await identity.sql.begin(async (tx) => {
 					await ensureDefaultTemplates(tx, principal.id);
@@ -1324,7 +1375,23 @@ export async function handleShippingLabels(
 					"renderer_version",
 					"reason",
 					"expected_version",
+					"reauthentication_proof",
 				]);
+				const expectedVersion =
+					body.expected_version === undefined
+						? undefined
+						: integer(body.expected_version, 0, 2147483647);
+				if (
+					typeof body.reauthentication_proof !== "string" ||
+					!body.reauthentication_proof.length ||
+					body.reauthentication_proof.length > 100
+				) {
+					throw new AccessError(403, "REAUTHENTICATION_REQUIRED");
+				}
+				const reauthenticationProof = body.reauthentication_proof;
+				if (expectedVersion !== undefined && expectedVersion !== 0) {
+					throw new AccessError(409, "TEMPLATE_VERSION_CONFLICT");
+				}
 				const name = text(body.name ?? body.code, 120).trim();
 				if (!name) throw invalid();
 				if (body.format !== "thermal_100x150" && body.format !== "a4") {
@@ -1405,6 +1472,13 @@ export async function handleShippingLabels(
 					if (dup) {
 						throw new AccessError(409, "TEMPLATE_NAME_CONFLICT");
 					}
+					await consumeAccessProof(
+						tx,
+						principal,
+						"shipping_label_template.version",
+						"shipping-label-templates",
+						reauthenticationProof,
+					);
 					const templateId = randomUUID();
 					await tx`
 						insert into app.shipping_label_template (
@@ -1488,7 +1562,16 @@ export async function handleShippingLabels(
 				"renderer_version",
 				"reason",
 				"expected_version",
+				"reauthentication_proof",
 			]);
+			if (
+				typeof body.reauthentication_proof !== "string" ||
+				!body.reauthentication_proof.length ||
+				body.reauthentication_proof.length > 100
+			) {
+				throw new AccessError(403, "REAUTHENTICATION_REQUIRED");
+			}
+			const reauthenticationProof = body.reauthentication_proof;
 			if (body.format !== "thermal_100x150" && body.format !== "a4") {
 				throw invalid();
 			}
@@ -1577,6 +1660,13 @@ export async function handleShippingLabels(
 				) {
 					throw new AccessError(409, "TEMPLATE_VERSION_CONFLICT");
 				}
+				await consumeAccessProof(
+					tx,
+					principal,
+					"shipping_label_template.version",
+					"shipping-label-templates",
+					reauthenticationProof,
+				);
 				const nextRevision = Number(current.active_revision) + 1;
 				const nextCode = nameOverride
 					? nameOverride.slice(0, 80)

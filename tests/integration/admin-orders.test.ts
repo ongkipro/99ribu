@@ -40,7 +40,7 @@ test('S100 order search by number, resi and phone suffix; detail shows payment, 
   const bySuffix=await history(cs,identity,`?phone_suffix=${suffix}`);assert.equal(bySuffix.status,200);
   assert.deepEqual((bySuffix.payload.data as {id:string}[]).map(r=>r.id),[f.order.id]);
   const listed=JSON.stringify(bySuffix.payload);assert.ok(!listed.includes(suffix)&&!listed.includes(phone),'the phone never comes back in a list');
-  assert.deepEqual(Object.keys(bySuffix.payload.data[0]).sort(),['buyer_total','created_at','currency','id','number','payment_method','payment_status','status','version']);
+  assert.deepEqual(Object.keys(bySuffix.payload.data[0]).sort(),['admin_no','buyer_total','created_at','currency','id','number','payment_method','payment_status','status','version']);
   for(const bad of ['12345','123456789','abcdef','1234567890123','12 3456'])assert.equal((await history(cs,identity,`?phone_suffix=${encodeURIComponent(bad)}`)).status,400,bad);
   assert.equal((await history(cs,identity,`?phone_suffix=${suffix}&phone_suffix=${suffix}`)).status,400,'one value per key');
 

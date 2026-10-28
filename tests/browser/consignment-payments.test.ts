@@ -409,7 +409,7 @@ test("S99/S100 built browser: the manual queue shows the booking facts and the b
 
 		// Queue → order detail (same console, client navigation).
 		await row.getByRole("link", { name: order.number }).click();
-		await page.waitForURL(`${origin}/admin/orders/${order.id}`);
+		await page.waitForURL(`${origin}/admin/orders/${(await sql`select admin_no::int as n from app.commerce_order where id = ${order.id}`)[0].n}`);
 		await expect(page.getByRole("heading", { name: order.number, level: 1 })).toBeVisible();
 		await expect(page.getByTestId("order-payment")).toContainText("Biaya COD (3,33%)");
 		await expect(page.getByTestId("order-shipments")).toContainText("Belum terbit");
@@ -453,7 +453,7 @@ test("S99/S100 built browser: the manual queue shows the booking facts and the b
 		await expect(hit).toContainText(s91.number);
 		await captureAll(page, "s100-order-search");
 		await hit.getByRole("link", { name: s91.number }).click();
-		await page.waitForURL(new RegExp(`/admin/orders/${s91.order}`));
+		await page.waitForURL(new RegExp(`/admin/orders/${(await sql`select admin_no::int as n from app.commerce_order where id = ${s91.order}`)[0].n}(\\?|$)`));
 		await expect(page.getByTestId("order-shipments")).toContainText(s91.resi);
 		await expect(page.getByTestId("order-shipments")).toContainText("Dalam perjalanan");
 		await expect(page.getByTestId("order-shipments")).toContainText("JNE");
@@ -481,7 +481,7 @@ test("S99/S100 built browser: the manual queue shows the booking facts and the b
 				await expect(more).not.toHaveText("Memuat…");
 			}
 		}
-		await expect(link).toHaveAttribute("href", `/admin/orders/${order.id}`);
+		await expect(link).toHaveAttribute("href", `/admin/orders/${(await sql`select admin_no::int as n from app.commerce_order where id = ${order.id}`)[0].n}`);
 		assert.deepEqual(desk2.problems, []);
 	} finally {
 		await desk2.context.close();

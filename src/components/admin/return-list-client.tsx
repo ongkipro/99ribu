@@ -10,6 +10,7 @@ import { SegmentedControl } from "./form";
 import { REASON, RESOLUTION, RETURN_STATUS, RETURN_TABS, type ReturnCase, type ReturnTab } from "./return-model";
 import { StatusBadge } from "./status";
 import { useKeysetList } from "./use-keyset-list";
+import { adminPath } from "@/modules/access/admin-paths";
 
 const PAGE_SIZE = 20;
 const EMPTY: Record<ReturnTab, string> = {
@@ -66,7 +67,7 @@ export function ReturnListClient({ initialTab }: { initialTab: ReturnTab }) {
 						cell: (row) => (
 							<span className="flex flex-col">
 								<Link
-									href={`/admin/returns/${row.id}`}
+									href={adminPath("return", row.admin_no)}
 									className="font-mono font-medium break-all text-primary underline-offset-4 hover:underline focus-visible:rounded-sm focus-visible:outline-2 focus-visible:outline-ring pointer-coarse:inline-flex pointer-coarse:min-h-11 pointer-coarse:items-center"
 									aria-label={`Buka retur pesanan ${row.order_number}`}
 								>
@@ -102,7 +103,7 @@ export function ReturnListClient({ initialTab }: { initialTab: ReturnTab }) {
 						className: "text-right",
 						cell: (row) => (
 							<Button asChild size="sm" variant="outline">
-								<Link href={`/admin/returns/${row.id}`}>Buka retur</Link>
+								<Link href={adminPath("return", row.admin_no)}>Buka retur</Link>
 							</Button>
 						),
 					},

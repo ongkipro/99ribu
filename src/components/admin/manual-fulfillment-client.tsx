@@ -25,6 +25,7 @@ import { Disclosure } from "./page-blocks";
 import { WarehouseCalendarPanel } from "./warehouse-calendar-panel";
 import { DEADLINE_GROUPS, Deadline, deadlineGroup, useNow } from "./status";
 import { useIsMobile } from "@/components/ui/use-mobile";
+import { adminPath } from "@/modules/access/admin-paths";
 
 // DEC-007: every resi comes from 99ribu's own Mengantar account. Operators book
 // in the Mengantar dashboard, then record courier + resi here.
@@ -114,6 +115,7 @@ type Booking = {
 type Row = {
 	id: string;
 	order_id: string;
+	order_admin_no: number;
 	version: number;
 	status: string;
 	order_number: string;
@@ -312,7 +314,7 @@ function OrderLink({ row, enabled }: { row: Row; enabled: boolean }) {
 	if (!enabled) return <span className="font-medium">{row.order_number}</span>;
 	return (
 		<Link
-			href={`/admin/orders/${row.order_id}`}
+			href={adminPath("order", row.order_admin_no)}
 			className="font-medium text-primary underline-offset-4 hover:underline pointer-coarse:inline-flex pointer-coarse:min-h-11 pointer-coarse:items-center"
 		>
 			{row.order_number}

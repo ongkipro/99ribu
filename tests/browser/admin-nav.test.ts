@@ -56,37 +56,41 @@ const LENSES = ["Super Admin", "Admin E-Commerce", "Gudang", "Layanan Pelanggan"
 const EXPECTED: [string, Role[], string[], (string | string[])[][]][] = [
 	["owner", ["owner"], [], [
 		["Ruang Kerja", LENSES],
-		["Operasional", ["Pesanan", "Pengiriman Manual", "Pusat Cetak Label", "Retur & Penggantian", "Kotak Masuk Pelanggan"]],
-		["Katalog & Stok", ["Produk", "Stok Gudang", "Transfer Stok"]],
-		["Pemasaran", ["Promo Ongkir", "Banner Beranda", "Segmen Pembeli"]],
-		["Keuangan", ["Pembayaran", "Setoran COD"]],
+		["Operasional", ["Pesanan", "Pengiriman Manual", "Pusat Cetak Label", "Masalah Pengiriman", "Retur & Penggantian", "Kotak Masuk Pelanggan", "Akun Pembeli"]],
+		["Katalog & Stok", ["Produk", "SKU Fisik", "Kategori", "Stok Gudang", "Transfer Stok", "Gudang"]],
+		["Pemasaran", ["Promo Ongkir", "Banner Beranda", "Segmen Pembeli", "Afiliasi"]],
+		["Keuangan", ["Pembayaran", "Setoran COD", "Rekonsiliasi", "Pembayaran Komisi", "Refund", "Laporan Keuangan"]],
+		["Pengaturan", ["Log Audit", "Kesehatan Sistem", "Staf & Peran", "Pembayaran & Biaya COD", "Kebijakan Komersial", "Template Label", "Integrasi Iklan", "Balasan & Tag CS"]],
 	]],
+	// One-item groups join their neighbour (visibleGroups): Template Label (read for ecommerce_admin, warehouse) has no group of its own.
 	["ecommerce_admin", ["ecommerce_admin"], ["orders.history.read"], [
 		["Ruang Kerja", ["Admin E-Commerce"]],
 		["Operasional", ["Pesanan", "Pengiriman Manual", "Pusat Cetak Label"]],
-		["Katalog & Stok", ["Produk", "Stok Gudang", "Transfer Stok"]],
-		["Pemasaran", ["Promo Ongkir", "Banner Beranda", "Segmen Pembeli"]],
+		["Katalog & Stok", ["Produk", "SKU Fisik", "Kategori", "Stok Gudang", "Transfer Stok", "Gudang"]],
+		["Pemasaran", ["Promo Ongkir", "Banner Beranda", "Segmen Pembeli", "Template Label"]],
 	]],
 	["warehouse", ["warehouse"], [], [
 		["Ruang Kerja", ["Gudang"]],
-		["Operasional", ["Pengiriman Manual", "Pusat Cetak Label", "Retur & Penggantian"]],
-		["Katalog & Stok", ["Produk", "Stok Gudang", "Transfer Stok"]],
+		["Operasional", ["Pengiriman Manual", "Pusat Cetak Label", "Masalah Pengiriman", "Retur & Penggantian"]],
+		["Katalog & Stok", ["Produk", "Stok Gudang", "Transfer Stok", "Gudang", "Template Label"]],
 	]],
 	["customer_service", ["customer_service"], ["orders.history.read"], [
 		["Ruang Kerja", ["Layanan Pelanggan"]],
-		["Operasional", ["Pesanan", "Retur & Penggantian", "Kotak Masuk Pelanggan"]],
+		["Operasional", ["Pesanan", "Masalah Pengiriman", "Retur & Penggantian", "Kotak Masuk Pelanggan", "Akun Pembeli", "Balasan & Tag CS"]],
 	]],
-	// The one-item Katalog & Stok group (Produk via finance.costs.read) joins its neighbour.
+	// Finance without finance.summary.read has no Laporan Keuangan; Produk, Afiliasi and Log Audit join their neighbours.
 	["finance", ["finance"], ["orders.history.read", "finance.reconciliation.read", "finance.refunds.read", "finance.costs.read"], [
 		["Ruang Kerja", ["Keuangan"]],
-		["Operasional", ["Pesanan", "Retur & Penggantian", "Produk"]],
-		["Keuangan", ["Pembayaran", "Setoran COD"]],
+		["Operasional", ["Pesanan", "Masalah Pengiriman", "Retur & Penggantian", "Produk", "Afiliasi"]],
+		["Keuangan", ["Pembayaran", "Setoran COD", "Rekonsiliasi", "Pembayaran Komisi", "Refund"]],
+		["Pengaturan", ["Log Audit", "Pembayaran & Biaya COD", "Kebijakan Komersial", "Template Label"]],
 	]],
 	// A multi-role user sees the union; the order grant comes in through customer_service.
 	["warehouse+customer_service", ["warehouse", "customer_service"], ["orders.history.read"], [
 		["Ruang Kerja", ["Gudang", "Layanan Pelanggan"]],
-		["Operasional", ["Pesanan", "Pengiriman Manual", "Pusat Cetak Label", "Retur & Penggantian", "Kotak Masuk Pelanggan"]],
-		["Katalog & Stok", ["Produk", "Stok Gudang", "Transfer Stok"]],
+		["Operasional", ["Pesanan", "Pengiriman Manual", "Pusat Cetak Label", "Masalah Pengiriman", "Retur & Penggantian", "Kotak Masuk Pelanggan", "Akun Pembeli"]],
+		["Katalog & Stok", ["Produk", "Stok Gudang", "Transfer Stok", "Gudang"]],
+		["Pengaturan", ["Template Label", "Balasan & Tag CS"]],
 	]],
 ];
 
@@ -110,10 +114,11 @@ test("S128 sidebar shows exactly the items each role's grants open, grouped per 
 		try {
 			await page.goto(`${origin}/admin/queue`);
 			assert.deepEqual(await navGroups(page), expected, name);
-			// Unbuilt screens and the empty Pengaturan shell are not offered.
+			// A settings link appears only with its built page (S135/S136/S137).
 			const nav = page.getByRole("navigation", { name: "Navigasi Operator" });
-			await expect(nav.getByText("Pengaturan", { exact: true })).toHaveCount(0);
-			await expect(nav.locator('a[href^="/admin/settings"], a[href^="/admin/exceptions"], a[href^="/admin/warehouses"]')).toHaveCount(0);
+			const settingsLabels = ["Log Audit", "Kesehatan Sistem", "Staf & Peran", "Pembayaran & Biaya COD", "Kebijakan Komersial", "Template Label", "Integrasi Iklan", "Balasan & Tag CS"];
+			const settings = expected.flatMap(([, items]) => items).filter((label) => settingsLabels.includes(label)).length;
+			await expect(nav.locator('a[href^="/admin/settings"]')).toHaveCount(settings);
 		} finally {
 			await close();
 		}
@@ -134,7 +139,7 @@ test("S128 longest-match active item and the account menu (Lihat Toko, Keluar; a
 		await expect(account.getByText(owner.email)).toBeVisible();
 		await account.getByRole("button", { name: /^Menu akun/ }).click();
 		const menu = page.getByRole("menu");
-		await expect(menu.getByRole("menuitem")).toHaveText(["Lihat Toko", "Keluar"]);
+		await expect(menu.getByRole("menuitem")).toHaveText(["Profil", "Keamanan akun", "Lihat Toko", "Keluar"]);
 		await expect(menu.getByRole("menuitem", { name: "Lihat Toko" })).toHaveAttribute("href", "/");
 		await page.screenshot({ path: join(renders, "account-menu-owner-1440.png") });
 		assert.equal(await overflow(page), 0);

@@ -82,6 +82,8 @@ export function BuyerAccountClient({
 				});
 		};
 
+	const [sessionPassword, setSessionPassword] = useState("");
+
 	// Guest order recovery form state (available even when unauthenticated)
 	const [guestOrderId, setGuestOrderId] = useState("");
 	const [guestContact, setGuestContact] = useState("");
@@ -216,16 +218,47 @@ export function BuyerAccountClient({
 	}
 
 	async function handleTerminateSessionsRun(scope: "others" | "all") {
+		if (!profile) return;
+		if (!sessionPassword) {
+			setStatusMsg("Masukkan kata sandi akun untuk mengakhiri sesi.");
+			return;
+		}
+		// OpenAPI contract: all_other needs a single-use proof from the password (session.terminate_others, own user id).
+		const proofResponse = await fetch("/api/v1/me/reauthentication-proofs", {
+			method: "POST",
+			headers: {
+				"content-type": "application/json",
+				"idempotency-key": crypto.randomUUID(),
+			},
+			body: JSON.stringify({
+				password: sessionPassword,
+				action: "session.terminate_others",
+				subject_id: profile.id,
+			}),
+		});
+		setSessionPassword("");
+		if (!proofResponse.ok) {
+			setStatusMsg(
+				proofResponse.status === 429
+					? "Terlalu banyak percobaan. Tunggu sebentar lalu coba lagi."
+					: "Kata sandi tidak sesuai.",
+			);
+			return;
+		}
+		const { proof } = (await proofResponse.json()) as { proof: string };
 		const res = await fetch("/api/v1/me/session-terminations", {
 			method: "POST",
 			headers: {
 				"content-type": "application/json",
 				"idempotency-key": crypto.randomUUID(),
 			},
-			body: JSON.stringify({ scope }),
+			body: JSON.stringify({
+				scope: "all_other",
+				reauthentication_proof: proof,
+			}),
 		});
 		if (res.ok && scope === "all") {
-			// The current session row is gone; sign-out clears its Better Auth cookies and guest context.
+			// Every other session is gone; sign-out ends this one, clears its Better Auth cookies and guest context.
 			await fetch("/api/auth/sign-out", {
 				method: "POST",
 				headers: { "content-type": "application/json" },
@@ -589,6 +622,19 @@ export function BuyerAccountClient({
 							data-testid="account-security-section"
 						>
 							<h2 id="account-security-heading">Keamanan & Sesi Perangkat</h2>
+							<label htmlFor="session-password">Kata sandi akun</label>
+							<input
+								id="session-password"
+								data-testid="session-password"
+								type="password"
+								autoComplete="current-password"
+								maxLength={128}
+								value={sessionPassword}
+								onChange={(e) => setSessionPassword(e.target.value)}
+							/>
+							<p className="checkout-hint">
+								Kata sandi diminta setiap kali Anda mengakhiri sesi di perangkat lain.
+							</p>
 							<div className="notice-actions">
 								<button
 									disabled={busy}

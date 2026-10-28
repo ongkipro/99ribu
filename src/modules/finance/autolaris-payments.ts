@@ -15,14 +15,14 @@ import {nextPageCursor,readPageCursor,STAMP_FORMAT} from './page-cursor.ts';
 // dashboard. The confirmation is a settled observation that settles the attempt's own
 // payment operation, so exact amounts post the S23 receipt and others become recovery.
 async function project(tx:TransactionSql,attemptId:string){
- const [row]=await tx`select l.*,a.status attempt_status,a.expected_amount,a.expires_at,o.id order_id,o.number,o.status order_status,o.payment_status,
+ const [row]=await tx`select l.*,a.status attempt_status,a.expected_amount,a.expires_at,o.id order_id,o.admin_no order_admin_no,o.number,o.status order_status,o.payment_status,
   (select json_build_object('source',x.source,'classification',x.classification,'rc',x.rc,'ket',x.ket,'amount',x.amount,'occurred_at',x.occurred_at,'recorded_at',x.created_at,'reason',x.reason)
    from app.autolaris_observation x where x.attempt_id=l.attempt_id order by x.created_at desc,x.id desc limit 1) latest,
   (select count(*)::int from app.autolaris_observation x where x.attempt_id=l.attempt_id) observations
   from app.autolaris_payment l join app.payment_attempt a on a.id=l.attempt_id join app.commerce_order o on o.id=a.order_id where l.attempt_id=${attemptId}`;
  if(!row)throw new AccessError(404,'NOT_FOUND');
  const latest=row.latest as Record<string,unknown>|null;
- return {id:String(row.attempt_id),order_id:String(row.order_id),order_number:String(row.number),status:String(row.attempt_status),currency:'IDR' as const,channel_code:String(row.channel_code),reff_id:String(row.reff_id),
+ return {id:String(row.attempt_id),order_id:String(row.order_id),order_admin_no:Number(row.order_admin_no),order_number:String(row.number),status:String(row.attempt_status),currency:'IDR' as const,channel_code:String(row.channel_code),reff_id:String(row.reff_id),
   trx_id:row.trx_id===null?null:String(row.trx_id),expected_amount:Number(row.expected_amount),provider_total:row.provider_total===null?null:Number(row.provider_total),
   // Store-borne: deducted by AutoLaris at settlement and posted as payment cost, never charged to the buyer.
   admin_fee:row.admin_fee===null?null:Number(row.admin_fee),refusal_code:row.refusal_code===null?null:String(row.refusal_code),expires_at:new Date(row.expires_at).toISOString(),

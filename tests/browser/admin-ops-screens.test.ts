@@ -182,7 +182,7 @@ test("Katalog: DEC-013 claim filter, read-only Google category and content edit 
 		else await expect(badges.first()).toBeVisible();
 
 		const patches = await mockMutations(page, () => ({ status: 200, body: { version: Number(product.revision) + 1 } }));
-		await page.goto(`${origin}/admin/catalog/${product.id}`);
+		await page.goto(`${origin}/admin/catalog/${(await sql`select admin_no::int as n from app.product where id = ${product.id}`)[0].n}`);
 		await expect(page.getByTestId("google-category")).toBeVisible();
 		await page.getByTestId("content-edit").click();
 		const dialog = page.getByRole("dialog");

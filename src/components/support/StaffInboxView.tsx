@@ -15,6 +15,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { wibDateTime } from "@/modules/storefront/format";
+import { adminPath } from "@/modules/access/admin-paths";
 
 type StaffUser = {
 	id: string;
@@ -40,6 +41,9 @@ type SupportStaffConversation = {
 	conversation: SupportConversation;
 	/** Printed order number of the conversation's order (S113); null without an order. */
 	order_number: string | null;
+	/** Admin numbers of the conversation's order and product (the console links by them); null without one. */
+	order_admin_no: number | null;
+	product_admin_no: number | null;
 	assignee_user_id: string | null;
 	assignment_version: number;
 	current_agent_last_read_sequence: number;
@@ -1145,8 +1149,8 @@ export function StaffInboxView({ staffUser }: { staffUser: StaffUser }) {
 											{m.context && (
 												<p className="mt-1 rounded-sm bg-warning-surface px-2 py-1 text-xs">
 													Konteks {m.context.kind === "order" ? "pesanan" : "produk"}:{" "}
-													{m.context.kind === "order" && m.context.order_id && m.context.availability === "available" && staffUser.canOpenOrders ? (
-														<Link href={`/admin/orders/${m.context.order_id}`} className="font-medium text-primary underline-offset-4 hover:underline pointer-coarse:inline-flex pointer-coarse:min-h-11 pointer-coarse:items-center">
+													{m.context.kind === "order" && m.context.order_id && m.context.availability === "available" && staffUser.canOpenOrders && selected?.order_admin_no != null ? (
+														<Link href={adminPath("order", selected.order_admin_no)} className="font-medium text-primary underline-offset-4 hover:underline pointer-coarse:inline-flex pointer-coarse:min-h-11 pointer-coarse:items-center">
 															{m.context.title}
 														</Link>
 													) : (
@@ -1233,7 +1237,7 @@ export function StaffInboxView({ staffUser }: { staffUser: StaffUser }) {
 										<ContextLink
 											id={selected.conversation.product_id}
 											label={contextTitle(messages, "product", selected.conversation.product_id) ?? "Lihat produk"}
-											href={canOpenCatalog ? `/admin/catalog/${selected.conversation.product_id}` : null}
+											href={canOpenCatalog && selected.product_admin_no != null ? adminPath("product", selected.product_admin_no) : null}
 										/>
 									</dd>
 								</div>
@@ -1243,7 +1247,7 @@ export function StaffInboxView({ staffUser }: { staffUser: StaffUser }) {
 										<ContextLink
 											id={selected.conversation.order_id}
 											label={selected.order_number ?? contextTitle(messages, "order", selected.conversation.order_id) ?? "Lihat detail pesanan"}
-											href={staffUser.canOpenOrders ? `/admin/orders/${selected.conversation.order_id}` : null}
+											href={staffUser.canOpenOrders && selected.order_admin_no != null ? adminPath("order", selected.order_admin_no) : null}
 										/>
 									</dd>
 								</div>

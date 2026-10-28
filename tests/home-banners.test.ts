@@ -14,6 +14,9 @@ test("S110 banner links accept only internal storefront listing, category, searc
 		["/kategori/otomotif?sort=newest", "/kategori/otomotif?sort=newest"],
 		["/cari?q=kaos polos", "/cari?q=kaos+polos"],
 		["/cari?q=kaos&filter.warna=hitam", "/cari?q=kaos&filter.warna=hitam"],
+		["/produk/paket-barber-grooming-pria", "/produk/paket-barber-grooming-pria"],
+		["/produk/paket-barber-grooming-pria-2", "/produk/paket-barber-grooming-pria-2"],
+		// Legacy /produk/<title>-<uuid> links stay valid: the product page answers one 308 to the clean slug.
 		["/produk/kaos-polos-2b0c9d6e-6c1f-4a43-9b51-7f5c3d1a2e40", "/produk/kaos-polos-2b0c9d6e-6c1f-4a43-9b51-7f5c3d1a2e40"],
 	] as const)
 		assert.equal(bannerHref(input), expected, input);

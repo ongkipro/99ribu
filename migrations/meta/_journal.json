@@ -281,6 +281,20 @@
       "when": 1792886794183,
       "tag": "0039_buyer_profile_completion",
       "breakpoints": true
+    },
+    {
+      "idx": 40,
+      "version": "7",
+      "when": 1792929994183,
+      "tag": "0040_product_public_slug",
+      "breakpoints": true
+    },
+    {
+      "idx": 41,
+      "version": "7",
+      "when": 1792973194183,
+      "tag": "0041_admin_numbers",
+      "breakpoints": true
     }
   ]
 }

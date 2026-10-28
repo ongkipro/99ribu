@@ -9,7 +9,7 @@ const query=(value:Record<string,string>={})=>catalogQuery(new URLSearchParams(v
 const offer=(id:string,availability:'available'|'unavailable',offer_kind='unit',color='Red'):PublicProduct['variants'][number]=>({
  id,catalog_id:id,label:id,attributes:[{key:'color',label:'Warna',values:[color]}],price:99000,currency:'IDR',availability,image:{url:'http://127.0.0.1:3099/fixtures/shirt.svg',alt:'Synthetic selection fixture',width:800,height:800},offer_kind,contents:[{name:'Synthetic whole offer',quantity:1}],
 });
-const product:PublicProduct={id:category,catalog_id:'SYNTHETIC-S22',slug:'synthetic-s22',version:1,publication_id:category,name:'Synthetic selection',description:'Pure selection fixture',category_id:category,images:[],facts:[],variants:[
+const product:PublicProduct={id:category,catalog_id:'SYNTHETIC-S22',slug:'synthetic-s22',public_slug:'synthetic-selection',version:1,publication_id:category,name:'Synthetic selection',description:'Pure selection fixture',category_id:category,images:[],facts:[],variants:[
  offer('first-unavailable','unavailable'),offer('available-pack','available','multipack','Blue'),offer('available-unit','available'),
 ]};
 
@@ -42,7 +42,11 @@ test('public product return paths keep catalog context and remove private or unr
  const source=`/kategori/shop-commerce-demo-busana?q=Kaos&availability=available&filter.size=M&filter.size=L#product-${category}`;
  assert.equal(publicReturnPath(source),source);assert.equal(publicReturnPath('/'),'/');assert.equal(publicReturnPath('/keranjang?cart_access=secret'),'/keranjang');
  assert.equal(publicReturnPath('/cari?q=Kaos&x-order-token=secret&utm_campaign=sample#private-draft'),'/cari?q=Kaos');
- const href=new URL(productHref(category,category,source),'http://localhost');assert.equal(href.pathname,`/produk/${category}`);assert.equal(href.searchParams.get('offer'),category);assert.equal(href.searchParams.get('from'),source);
+ const href=new URL(productHref('kaos-polos',category,source),'http://localhost');assert.equal(href.pathname,'/produk/kaos-polos');assert.equal(href.searchParams.get('offer'),category);assert.equal(href.searchParams.get('from'),source);
+ // The offer the page selects on its own needs no ?offer=: the link is the bare clean slug (plus where the buyer came from).
+ assert.equal(productHref('kaos-polos',category,null,category),'/produk/kaos-polos');
+ assert.equal(productHref('kaos-polos',category,source,category),`/produk/kaos-polos?${new URLSearchParams({from:source})}`);
+ assert.equal(productHref('kaos-polos','other-offer',null,category),'/produk/kaos-polos?offer=other-offer');
  for(const value of [undefined,null,[],['/cari'],'https://outside.invalid/search','//outside.invalid/search','/\\outside.invalid/search','javascript:alert(1)','/api/v1/orders/'+category,'/cari?q=a%0Ab','/cari?q=\u202e','/cari?q='+'x'.repeat(16384)])assert.equal(publicReturnPath(value),null);
- assert.equal(new URL(productHref(category,category,'//outside.invalid/'),'http://localhost').searchParams.has('from'),false);
+ assert.equal(new URL(productHref('kaos-polos',category,'//outside.invalid/'),'http://localhost').searchParams.has('from'),false);
 });

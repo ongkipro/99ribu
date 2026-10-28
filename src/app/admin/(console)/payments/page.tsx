@@ -34,7 +34,6 @@ export default async function PaymentsPage() {
 				}
 			/>
 			<PaymentsClient
-				canManageTerms={roles.includes("owner")}
 				canWrite={access.reconcileWrite}
 				canOrders={canReadOrders(roles, permissions)}
 			/>

@@ -59,6 +59,9 @@ const DEPARTMENT_RULES:readonly Rule[]=[
   {slug:'ibu-anak',pattern:/\b(?:anak|kids|bayi|nubiko|plush|boneka|tempat pensil|milk powder|tas les)\b/},
   {slug:'fashion-pria',gendered:true,pattern:/\bkaos\b(?! (?:kaki|anak|jersey))|\bbeanie\b|\bdompet\b|\bwallet\b|celana dalam|kacamata/},
   {slug:'fashion-wanita',gendered:true,pattern:/\bkorset\b|\bshapers?\b|\bstagen\b|\bsauna\b|\bbra\b/},
+  // Men's grooming tools (clipper, beard trimmer, shaver) are Fashion Pria, not Kecantikan (owner note 2026-10-25). Listed before
+  // the Kecantikan rule, which also contains cukur/shaver/trimmer, so an equal match position goes to this rule.
+  {slug:'fashion-pria',pattern:/\bbarber\b|\balat cukur\b|\bpencukur\b|\bshaver\b|\btrimmer\b/},
   {slug:'kecantikan',pattern:/\b(?:jawline|hidung|nose|bulu ?mata|eyelash|sabun|soap|cream|serum|moisturizer|setrika wajah|wajah|cukur|shaver|trimmer|gigi|catok(?:an)?|pelurus rambut|hair|rambut|shampoo|shampo|deodorant|deodoran|parfum|perfume|body mist|body cream|body wash|body booster|brush wood|kuas|make ?up|pouch|travel bottle|tumit|feminine|mouth ?spray|mouthwash|toothpaste|bekas luka|medinail|ketiak|pantat|kecantikan|kulit|cermin|booster|pemutih|alat pijat|balm|soothing gel)\b/},
   {slug:'elektronik',pattern:/\b(?:phone holder|laptop|antena|antenna|tv|senter|lampu led sensor|kipas angin|pembesar layar|penghemat listrik|mouse|pipa asbak|earphone|headset|tws|cctv|gps|korek api)\b/},
   {slug:'dapur',pattern:/\b(?:pisau|watermelon|pemotong sayuran|saringan|chopper|blender|tatakan kompor|oil pot|lunch ?box|bekal|coaster|tumbler|rak galon|mincer|shaker|timbangan dapur|teko|teapot|mug)\b/},
@@ -104,7 +107,7 @@ export function classifyName(name:string,prior:Department|null=null):{slug:Depar
 const FASHION_GOOGLE:readonly [number,RegExp][]=[[212,/\bkaos\b/],[173,/beanie/],[2668,/dompet|wallet/],[213,/celana dalam/],[178,/kacamata/],
   [1578,/korset|shapers?\b|stagen|sauna/],[214,/\bbra\b/],[5181,/ocean bag/],[104,/waist bag/],[3032,/\btas\b|\bbag\b|slingbag/]];
 const GOOGLE_RULES:Readonly<Record<Department,readonly [number,RegExp][]>>={
-  'fashion-pria':FASHION_GOOGLE,'fashion-wanita':FASHION_GOOGLE,
+  'fashion-pria':[[533,/cukur|shaver|trimmer/],...FASHION_GOOGLE],'fashion-wanita':FASHION_GOOGLE,
   ibadah:[[543543,/\bbuku\b/]],
   kecantikan:[[6189,/mouth ?spray/],[3040,/mouthwash|obat kumur/],[1360,/pasta gigi|toothpaste/],[2527,/gigi palsu/],[484,/deodorant|deodoran/],
     [479,/parfum|perfume|body ?mist/],[5821,/feminine/],[2814,/hair color/],[6919,/travel bottle/],[2441,/shampo/],[3407,/catok|pelurus rambut|straightener/],[533,/cukur|shaver|trimmer/],

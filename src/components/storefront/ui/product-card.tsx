@@ -34,7 +34,7 @@ export function Media({product,offer,caption=false,eager=false,sizes}:{product:P
 export function ProductGrid({products,input,shelf=false,eager=0}:{products:PublicProduct[];input?:CatalogQuery;shelf?:boolean;eager?:number}){
  const list=<ul className={shelf?'shelf-row':'product-grid'}>{products.map((product,index)=>{
   const offer=matchingVariant(product,input);if(!offer) return null;const available=offer.availability==='available';
-  return <li key={product.id} id={`product-${product.id}`} tabIndex={-1} className="product" data-contents={offer.contents.length} data-options={product.variants.length}><ProductLink className="product-link" product={product.id} name={product.name} offer={offer.id}><span className="product-frame"><Media product={product} offer={offer} eager={index<eager} sizes={shelf?'(max-width: 700px) 44vw, (max-width: 1279px) 22vw, 180px':'(max-width: 359px) 90vw, (max-width: 700px) 50vw, (max-width: 1023px) 25vw, 210px'}/></span><h3>{keepHyphens(product.name)}</h3>
+  return <li key={product.id} id={`product-${product.id}`} tabIndex={-1} className="product" data-contents={offer.contents.length} data-options={product.variants.length}><ProductLink className="product-link" product={product.id} slug={product.public_slug} offer={offer.id} defaultOffer={matchingVariant(product)?.id}><span className="product-frame"><Media product={product} offer={offer} eager={index<eager} sizes={shelf?'(max-width: 700px) 44vw, (max-width: 1279px) 22vw, 180px':'(max-width: 359px) 90vw, (max-width: 700px) 50vw, (max-width: 1023px) 25vw, 210px'}/></span><h3>{keepHyphens(product.name)}</h3>
    <p className="product-price">{rupiah(offer.price)}</p>{!available&&<p className="unavailable">Stok pilihan belum tersedia</p>}
   </ProductLink></li>;
  })}</ul>;

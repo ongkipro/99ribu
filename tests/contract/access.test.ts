@@ -54,6 +54,13 @@ test("implemented API exchanges conform to OAS for success, request boundaries, 
     }
     await observe(owner.browser.request("/api/v1/me?unused=1"), 400, false);
     await observe(buyer.browser.request("/api/v1/admin/warehouses"), 403);
+    const one = `/api/v1/admin/warehouses/${warehouses[0]}`;
+    assert.equal((await observe(owner.browser.request(one), 200, true)).id, warehouses[0]);
+    await observe(guest.request(one), 401);
+    await observe(buyer.browser.request(one), 403);
+    await observe(owner.browser.request(`${one}?unused=1`), 400, false);
+    await observe(owner.browser.request("/api/v1/admin/warehouses/not-a-uuid"), 400);
+    await observe(owner.browser.request(`/api/v1/admin/warehouses/${randomUUID()}`), 404);
     for (const key of ["k".repeat(15), "k".repeat(201), "invalid.period.key"]) {
       await observe(post("/me/reauthentication-proofs", proofBody, key), 400, false);
     }
@@ -90,6 +97,8 @@ test("implemented API exchanges conform to OAS for success, request boundaries, 
     await identity.sql`insert into app.role_grant (user_id,roles) values (${owner.id},ARRAY['warehouse']::text[]) on conflict (user_id) do update set roles=excluded.roles`;
     const scoped = await observe(owner.browser.request(`/api/v1/admin/warehouses?cursor=${first.pagination.next_cursor}`), 200, true);
     assert.deepEqual(scoped.data, []);
+    // The by-id read applies the same live scope: a warehouse role without membership gets a 404, not the row.
+    await observe(owner.browser.request(`/api/v1/admin/warehouses/${warehouses[0]}`), 404);
     await identity.sql.end();
     const unavailable = await observe(owner.browser.request("/api/v1/me"), 503);
     assert.equal(unavailable.code, "SERVICE_UNAVAILABLE");

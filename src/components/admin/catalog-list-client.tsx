@@ -27,6 +27,7 @@ import {
 } from "./catalog-model";
 import { StatusBadge } from "./status";
 import { AdminPage, PageHeader } from "./page-blocks";
+import { adminPath } from "@/modules/access/admin-paths";
 
 const PAGE_SIZE = 25;
 const STATUSES: CatalogStatus[] = [
@@ -141,8 +142,8 @@ export function CatalogListClient({
 	const filtered = Boolean(query || filters.category || filters.status || filters.review);
 	const activeFilters =
 		Number(Boolean(filters.category)) + Number(Boolean(filters.status)) + Number(filters.review);
-	const detailHref = (id: string) =>
-		`/admin/catalog/${id}${urlQuery ? `?dari=${encodeURIComponent(urlQuery)}` : ""}`;
+	const detailHref = (adminNo: number) =>
+		`${adminPath("product", adminNo)}${urlQuery ? `?dari=${encodeURIComponent(urlQuery)}` : ""}`;
 	// Readers without stock access get readiness flags, never quantities.
 	const ready = access.stock ? "lengkap" : "siap";
 
@@ -372,7 +373,7 @@ export function CatalogListClient({
 							cell: (r) => (
 								<>
 									<Link
-										href={detailHref(r.id)}
+										href={detailHref(r.admin_no)}
 										className="font-medium text-primary underline-offset-4 hover:underline"
 									>
 										{r.name}
@@ -417,7 +418,7 @@ export function CatalogListClient({
 								<CardTitle
 									title={
 										<Link
-											href={detailHref(r.id)}
+											href={detailHref(r.admin_no)}
 											className="inline-flex min-h-11 items-center text-primary underline-offset-4 hover:underline"
 										>
 											{r.name}

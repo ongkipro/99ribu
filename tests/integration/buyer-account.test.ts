@@ -17,7 +17,7 @@ import {
 	simulateParcelReceipt,
 } from "../../src/modules/returns/receipt-source.ts";
 import { readPrivateArtifact } from "../../src/storage/private.ts";
-import { actor } from "../contract/access-fixture.ts";
+import { actor, terminationProof } from "../contract/access-fixture.ts";
 import {
 	closeFulfillmentActor,
 	fulfillmentFixture,
@@ -533,12 +533,18 @@ test("S46-S48 integration: buyer profile mononym & no-email support, address boo
 		assert.equal(markedRead.status, 201);
 		assert.equal(markedRead.payload.state, "read");
 
-		// 7. Session terminations (others)
+		// 7. Session terminations (all_other needs a step-up proof: OpenAPI SessionTerminationInput)
+		const unproven = await callBuyer("/api/v1/me/session-terminations", {
+			scope: "all_other",
+		});
+		assert.equal(unproven.status, 403);
+		assert.equal(unproven.payload.code, "REAUTHENTICATION_REQUIRED");
 		const terminated = await callBuyer("/api/v1/me/session-terminations", {
-			scope: "others",
+			scope: "all_other",
+			reauthentication_proof: await terminationProof(identity, buyerUser),
 		});
 		assert.equal(terminated.status, 201);
-		assert.equal(terminated.payload.status, "terminated_others");
+		assert.equal(terminated.payload.status, "confirmed");
 
 		// 8. Return case creation & private return evidence upload + attachment
 		for (const booking of f.bookings) {

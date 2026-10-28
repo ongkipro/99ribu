@@ -899,7 +899,8 @@ paths:
         grants. payout.claim and payout.verify (payout UUID subject) permit owner or finance with fresh MFA.
         Self purposes reauthenticate by current password only (no MFA enrollment required);
         affiliate.beneficiary_change binds the caller's own affiliate account UUID; support.contact_rebind binds
-        the caller's own user id. home_banner.write (subject home-banners) permits owner or ecommerce_admin with fresh
+        the caller's own user id; session.terminate_others (S129) binds the caller's own user id and lets scope all_other
+        of /me/session-terminations end the other sessions. home_banner.write (subject home-banners) permits owner or ecommerce_admin with fresh
         MFA. Current database authority is checked before proof replay. Proof binds the current
         session, action and target, expires after five minutes, and is consumed atomically by the mutation. Same
         retry key recovers the same unconsumed proof without extending expiry; consumed or expired proof requires
@@ -2112,6 +2113,65 @@ paths:
           type: string
           format: uuid
       - $ref: '#/components/parameters/Limit'
+  /admin/warehouses/{warehouseId}:
+    get:
+      operationId: readWarehouse
+      summary: Read one permitted company warehouse
+      description: Same roles and scope as listAccessibleWarehouses (S134). An inactive warehouse, or one outside
+        a non-owner's memberships, returns 404 so identifiers cannot be probed. Staff requires session-bound MFA.
+        Query parameters are rejected. Authorization, X-Cart-Token and X-Order-Token headers are rejected even
+        with a valid cookie. All responses are private no-store.
+      tags:
+      - Administration
+      security:
+      - sessionCookie: []
+      x-contract-status: implemented-local
+      x-implementation: src/app/api/v1/admin/warehouses/[warehouseId]/route.ts
+      x-proof-group: access
+      x-domain-owner: access
+      x-primary-requirement: PR-13
+      parameters:
+      - name: warehouseId
+        in: path
+        required: true
+        schema:
+          $ref: '#/components/schemas/Id'
+      responses:
+        '200':
+          description: Successful private response.
+          headers:
+            Cache-Control:
+              schema:
+                const: no-store
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Warehouse'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '503':
+          description: Safe dependency failure without internal exception content.
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+        default:
+          description: Unexpected server/proxy failure; clients tolerate a non-Problem gateway body. Financial result
+            may be unknown; recover the operation before retry.
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+      x-allowed-roles:
+      - owner
+      - ecommerce_admin
+      - warehouse
   /admin/inventory:
     get:
       operationId: listInventory
@@ -4269,6 +4329,74 @@ paths:
       x-proof-group: returns
       x-implementation: src/app/api/v1/admin/returns/[returnId]/inspections/route.ts
   /admin/refunds:
+    get:
+      operationId: listAdminRefunds
+      summary: List return refunds and current reconciliation status
+      description: Keyset-paged finance read (owner or finance with finance.refunds.read and session MFA) over return
+        refund obligations. Each row uses the same contact-free and bank-account-free Refund projection as getAdminRefund;
+        unknown outcomes remain unknown and never appear as succeeded. Audited on every read; no-store.
+      tags:
+      - Finance
+      security:
+      - sessionCookie: []
+      x-contract-status: implemented-local
+      x-domain-owner: returns
+      x-primary-requirement: PR-7
+      x-allowed-roles:
+      - owner
+      - finance
+      x-required-permission: finance.refunds.read
+      x-proof-group: finance-workbench
+      x-implementation: src/app/api/v1/admin/refunds/route.ts
+      parameters:
+      - name: limit
+        in: query
+        schema:
+          type: integer
+          minimum: 1
+          maximum: 100
+          default: 20
+      - name: cursor
+        in: query
+        schema:
+          type: string
+          format: uuid
+      - name: status
+        in: query
+        schema:
+          type: string
+          enum:
+          - awaiting_destination
+          - queued
+          - processing
+          - unknown
+          - succeeded
+          - failed
+      responses:
+        '200':
+          description: Successful private response.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RefundList'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '429':
+          $ref: '#/components/responses/TooManyRequests'
+        '503':
+          $ref: '#/components/responses/Unavailable'
+        default:
+          description: Unexpected server/proxy failure; clients tolerate a non-Problem gateway body.
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/Problem'
     post:
       operationId: queueApprovedRefund
       summary: Queue a server-calculated approved refund
@@ -4680,6 +4808,141 @@ paths:
       x-request-body-limit-bytes: 16384
       x-implementation: src/app/api/v1/admin/replacements/[replacementId]/handover/route.ts
       x-proof-group: replacements
+  /admin/affiliates:
+    get:
+      operationId: listAdminAffiliates
+      summary: List affiliate accounts with effective rate and commission summaries
+      description: "S132/DEC-018 Q5. Owner and finance with a current MFA-verified session (role, session, email
+        verification and two-step state are re-read in the read transaction). Keyset paged by enrolled time then
+        affiliate UUID descending (`next_cursor` is opaque and carries no authority). Returns affiliate id, referral
+        code, display name, status, beneficiary status, enrolled time, current effective rate bps/IDR, rate revision
+        (`rate_version`), attributed order count and per-status commission counts and amounts. Never exposes buyer PII
+        (name, email, phone, address), affiliate credentials or raw/masked bank account numbers. Unknown or repeated
+        query parameters return 400. Non-permitted roles return 403; anonymous returns 401."
+      tags:
+      - Affiliate
+      security:
+      - sessionCookie: []
+      x-contract-status: implemented-local
+      x-domain-owner: affiliates
+      x-primary-requirement: PR-9
+      x-allowed-roles:
+      - owner
+      - finance
+      x-proof-group: admin-affiliates
+      x-implementation: src/app/api/v1/admin/affiliates/route.ts
+      parameters:
+      - name: status
+        in: query
+        schema:
+          type: string
+          enum:
+          - active
+          - suspended
+      - name: code
+        in: query
+        schema:
+          type: string
+          minLength: 1
+          maxLength: 64
+          pattern: ^[A-Za-z0-9_-]{1,64}$
+      - name: cursor
+        in: query
+        schema:
+          type: string
+          minLength: 1
+          maxLength: 400
+          pattern: ^[A-Za-z0-9_-]{1,400}$
+      - name: limit
+        in: query
+        schema:
+          type: integer
+          minimum: 1
+          maximum: 100
+          default: 25
+      responses:
+        '200':
+          description: Private response.
+          headers:
+            Cache-Control:
+              description: Private response; never shared cached.
+              schema:
+                type: string
+                const: no-store
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AdminAffiliatePage'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '503':
+          $ref: '#/components/responses/Unavailable'
+        default:
+          description: Safe application Problem; a gateway may return non-Problem failure.
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+  /admin/affiliates/{affiliateId}:
+    get:
+      operationId: getAdminAffiliate
+      summary: Read one affiliate account with commission summary and rate version history
+      description: "S132/DEC-018 Q5. Owner and finance with a current MFA-verified session. Returns the affiliate's
+        summary, current effective rate vs company default policy rate, minimum payout threshold, and the full
+        `affiliate_rate_version` history (`rate_versions`) ordered newest version first. Rate writes remain owner-only
+        via setAffiliateRate (`POST /admin/affiliates/{affiliateId}/rates`). Same strict privacy boundary as
+        listAdminAffiliates: no buyer PII, no bank account numbers, no secret material."
+      tags:
+      - Affiliate
+      security:
+      - sessionCookie: []
+      x-contract-status: implemented-local
+      x-domain-owner: affiliates
+      x-primary-requirement: PR-9
+      x-allowed-roles:
+      - owner
+      - finance
+      x-proof-group: admin-affiliates
+      x-implementation: src/app/api/v1/admin/affiliates/[affiliateId]/route.ts
+      parameters:
+      - name: affiliateId
+        in: path
+        required: true
+        schema:
+          $ref: '#/components/schemas/CatalogUuid'
+      responses:
+        '200':
+          description: Private response.
+          headers:
+            Cache-Control:
+              description: Private response; never shared cached.
+              schema:
+                type: string
+                const: no-store
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AdminAffiliateDetail'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '503':
+          $ref: '#/components/responses/Unavailable'
+        default:
+          description: Safe application Problem; a gateway may return non-Problem failure.
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/Problem'
   /admin/affiliates/{affiliateId}/rates:
     post:
       operationId: setAffiliateRate
@@ -5340,6 +5603,186 @@ paths:
           application/json:
             schema:
               $ref: '#/components/schemas/RoleGrantInput'
+  /admin/staff:
+    get:
+      operationId: listStaff
+      summary: List staff accounts with roles, permissions, warehouse scope and two-step state
+      description: "S137/DEC-018. Owner only (current cookie, MFA session and grant are re-read in the read transaction).
+        Every account holding an owner, ecommerce_admin, warehouse, customer_service or finance role, ordered by
+        lower-cased name then user id; keyset paged (`next_cursor` is opaque, carries no authority and is null on the
+        last page). Each item carries the staff roles, the delegated permissions, the warehouse scope (including
+        deactivated warehouses, flagged), whether two-step verification is on (yes/no only), the start of the newest
+        stored session and the grant `version` to send as `expected_version` to grantStaffRoles. Never returns a TOTP
+        seed, backup code, password hash, session token or proof. Unknown or repeated parameters are 400. Authorization,
+        X-Cart-Token and X-Order-Token headers are rejected. Non-owner roles are 403 without an audit row."
+      tags:
+      - Administration
+      security:
+      - sessionCookie: []
+      x-contract-status: implemented-local
+      x-domain-owner: access
+      x-primary-requirement: PR-13
+      x-allowed-roles:
+      - owner
+      x-proof-group: staff-roles
+      x-implementation: src/app/api/v1/admin/staff/route.ts
+      parameters:
+      - $ref: '#/components/parameters/Cursor'
+      - name: limit
+        in: query
+        schema:
+          type: integer
+          minimum: 1
+          maximum: 100
+          default: 25
+      responses:
+        '200':
+          description: Private response.
+          headers:
+            Cache-Control:
+              description: Private response; never shared cached.
+              schema:
+                type: string
+                const: no-store
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/StaffPage'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '503':
+          $ref: '#/components/responses/Unavailable'
+        default:
+          description: Safe application Problem; a gateway may return non-Problem failure.
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+  /admin/staff/lookup:
+    get:
+      operationId: lookupStaffUser
+      summary: Look up one account by exact email
+      description: "S137. Owner only. Exact, case-insensitive email match of any account, so a registered buyer can be given
+        a staff role; no fragment search and no listing of non-staff accounts. An account without staff roles returns
+        empty `roles`, `permissions` and `warehouses` and its current grant `version` (0 when it has no grant row).
+        Unknown address: 404. Every lookup is audited as `staff.lookup` with the found account id and a found flag; the
+        typed address is never stored. Same privacy rules as listStaff."
+      tags:
+      - Administration
+      security:
+      - sessionCookie: []
+      x-contract-status: implemented-local
+      x-domain-owner: access
+      x-primary-requirement: PR-13
+      x-allowed-roles:
+      - owner
+      x-proof-group: staff-roles
+      x-implementation: src/app/api/v1/admin/staff/lookup/route.ts
+      parameters:
+      - name: email
+        in: query
+        required: true
+        schema:
+          type: string
+          maxLength: 254
+      responses:
+        '200':
+          description: Private response.
+          headers:
+            Cache-Control:
+              description: Private response; never shared cached.
+              schema:
+                type: string
+                const: no-store
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/StaffMember'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '503':
+          $ref: '#/components/responses/Unavailable'
+        default:
+          description: Safe application Problem; a gateway may return non-Problem failure.
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+  /admin/staff-mfa-resets:
+    post:
+      operationId: resetStaffMfa
+      summary: Reset a staff member's lost authenticator
+      description: "S137/DEC-018 Q2. Owner only, with a single-use `staff_mfa.reset` reauthentication proof (password plus
+        MFA within five minutes) bound to the target user and the caller's session, a reason and a stable
+        Idempotency-Key. Deletes the target's TOTP seed and backup codes, clears the two-step flag and ends every
+        target session in one transaction with an audit row (`staff_mfa.reset`, actor, target, reason). The target keeps
+        its grant, signs in with the password and is held at MFA_REQUIRED until it enrolls a new authenticator. The
+        caller cannot reset itself (403); a target without a staff role is 404; another owner may be reset. A reset owner
+        is not counted as an owner by the last-owner guard of grantStaffRoles until it enrolls again. Committed
+        replays with the same key and body return the saved response."
+      tags:
+      - Administration
+      security:
+      - sessionCookie: []
+      x-request-body-limit-bytes: 16384
+      x-contract-status: implemented-local
+      x-domain-owner: access
+      x-primary-requirement: PR-13
+      x-allowed-roles:
+      - owner
+      x-proof-group: staff-roles
+      x-implementation: src/app/api/v1/admin/staff-mfa-resets/route.ts
+      parameters:
+      - $ref: '#/components/parameters/IdempotencyKey'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/StaffMfaResetInput'
+      responses:
+        '201':
+          description: Successful private response.
+          headers:
+            Cache-Control:
+              schema:
+                const: no-store
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/StaffMfaReset'
+        '413':
+          $ref: '#/components/responses/BodyTooLarge'
+        '415':
+          $ref: '#/components/responses/UnsupportedMediaType'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '409':
+          $ref: '#/components/responses/Conflict'
+        '503':
+          $ref: '#/components/responses/Unavailable'
+        default:
+          description: Safe application Problem; a gateway may return non-Problem failure.
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/Problem'
   /admin/products:
     post:
       operationId: createProductDraft
@@ -8996,7 +9439,7 @@ paths:
       summary: Create support saved reply definition
       description: Implemented-local first-party endpoint; external provider effects are simulated at local adapters and no live provider call is claimed. Owner or
         explicit CS supervisor manage permission only; ordinary CS can use definitions but cannot manage. Creation
-        expected_version=0, audit author/reason. Not a public message. Enforce actor/object scope on every read,
+        expected_version=0, audit author/reason; no reauthentication proof required (spec 17 B25). Not a public message. Enforce actor/object scope on every read,
         mutation, job and download. Browser writes require CSRF/origin protection; sensitive responses are no-store.
         Bound rate/body/cursor limits; unknown/out-of-scope IDs reveal no private data.
       tags:
@@ -9059,8 +9502,8 @@ paths:
     post:
       operationId: appendSupportSavedReplyVersion
       summary: Append support saved reply version
-      description: Implemented-local first-party endpoint; external provider effects are simulated at local adapters and no live provider call is claimed. Explicit
-        CS management grant; append immutable definition version. Stale current version conflicts; no public activity
+      description: Implemented-local first-party endpoint; external provider effects are simulated at local adapters and no live provider call is claimed. Owner or explicit
+        CS management grant; append immutable definition version with an audited reason, without reauthentication proof (spec 17 B25). Stale current version conflicts; no public activity
         or automatic send. Enforce actor/object scope on every read, mutation, job and download. Browser writes
         require CSRF/origin protection; sensitive responses are no-store. Bound rate/body/cursor limits; unknown/out-of-scope
         IDs reveal no private data.
@@ -9238,7 +9681,7 @@ paths:
       summary: Create support tag definition
       description: Implemented-local first-party endpoint; external provider effects are simulated at local adapters and no live provider call is claimed. Owner or
         explicit CS supervisor manage permission only; ordinary CS can use definitions but cannot manage. Creation
-        expected_version=0, audit author/reason. Not a public message. Enforce actor/object scope on every read,
+        expected_version=0, audit author/reason; no reauthentication proof required (spec 17 B25). Not a public message. Enforce actor/object scope on every read,
         mutation, job and download. Browser writes require CSRF/origin protection; sensitive responses are no-store.
         Bound rate/body/cursor limits; unknown/out-of-scope IDs reveal no private data.
       tags:
@@ -9301,8 +9744,8 @@ paths:
     post:
       operationId: appendSupportTagVersion
       summary: Append support tag version
-      description: Implemented-local first-party endpoint; external provider effects are simulated at local adapters and no live provider call is claimed. Explicit
-        CS management grant; append immutable definition version. Stale current version conflicts; no public activity
+      description: Implemented-local first-party endpoint; external provider effects are simulated at local adapters and no live provider call is claimed. Owner or explicit
+        CS management grant; append immutable definition version with an audited reason, without reauthentication proof (spec 17 B25). Stale current version conflicts; no public activity
         or automatic send. Enforce actor/object scope on every read, mutation, job and download. Browser writes
         require CSRF/origin protection; sensitive responses are no-store. Bound rate/body/cursor limits; unknown/out-of-scope
         IDs reveal no private data.
@@ -10617,8 +11060,12 @@ paths:
       operationId: terminateOwnSessions
       summary: Terminate own sessions
       description: Implemented-local first-party endpoint; external provider effects are simulated at local adapters and no live provider call is claimed. Supported
-        auth adapter owns revocation lifecycle. Current logout and optional all-other revocation do not delete order/accounting
-        history; reauthentication required for all_other. Enforce actor/object scope on every read, mutation, job
+        auth adapter owns revocation lifecycle. scope current ends only the calling session; scope all_other ends every
+        other session of the same account and requires a single-use reauthentication_proof issued by
+        /me/reauthentication-proofs for action session.terminate_others with the caller's own user id as subject
+        (a missing, consumed, expired or foreign proof is 403 REAUTHENTICATION_REQUIRED; the calling session survives).
+        Staff and buyers use the same contract; both write an auth.sessions.terminate audit row in the same transaction.
+        Neither deletes order/accounting history. Enforce actor/object scope on every read, mutation, job
         and download. Browser writes require CSRF/origin protection; sensitive responses are no-store. Bound rate/body/cursor
         limits; unknown/out-of-scope IDs reveal no private data.
       tags:
@@ -11244,7 +11691,7 @@ paths:
     post:
       operationId: createAdvertisingDestination
       summary: Create advertising destination
-      description: Implemented-local first-party endpoint; external provider effects are simulated at local adapters and no live provider call is claimed. Owner reauthentication/version/audit;
+      description: Implemented-local first-party endpoint; external provider effects are simulated at local adapters and no live provider call is claimed. Owner-only with reason/version/audit; no reauthentication proof required (spec 17 B24);
         expected_version=0 for create. Validate IDs/source/account/terms; configure does not issue live test event
         or permit browser Purchase. Enforce actor/object scope on every read, mutation, job and download. Browser
         writes require CSRF/origin protection; sensitive responses are no-store. Bound rate/body/cursor limits;
@@ -11308,7 +11755,7 @@ paths:
       operationId: appendAdvertisingDestinationVersion
       summary: Append advertising destination version
       description: Implemented-local first-party endpoint; external provider effects are simulated at local adapters and no live provider call is claimed. Owner-only
-        compare-and-append version; cannot rewrite dispatched destination/event mapping. Secrets not read/write
+        compare-and-append version with an audited reason, without reauthentication proof (spec 17 B24); cannot rewrite dispatched destination/event mapping. Secrets not read/write
         through HTTP. Enforce actor/object scope on every read, mutation, job and download. Browser writes require
         CSRF/origin protection; sensitive responses are no-store. Bound rate/body/cursor limits; unknown/out-of-scope
         IDs reveal no private data.
@@ -11448,7 +11895,7 @@ paths:
       operationId: setAdvertisingPause
       summary: Set advertising pause
       description: Implemented-local first-party endpoint; external provider effects are simulated at local adapters and no live provider call is claimed. Owner-only
-        audited pause/resume; resume respects current consent/retention and original economic identity. No checkout
+        audited pause/resume with a reason, without reauthentication proof (spec 17 B24); resume respects current consent/retention and original economic identity. No checkout
         dependency or blind backlog resend. Enforce actor/object scope on every read, mutation, job and download.
         Browser writes require CSRF/origin protection; sensitive responses are no-store. Bound rate/body/cursor
         limits; unknown/out-of-scope IDs reveal no private data.
@@ -11515,8 +11962,8 @@ paths:
     post:
       operationId: replayAdvertisingEvent
       summary: Replay advertising event
-      description: Implemented-local first-party endpoint; external provider effects are simulated at local adapters and no live provider call is claimed. Permissioned
-        replay of original event only; no browser Purchase endpoint. Unique verified collection event, not each
+      description: Implemented-local first-party endpoint; external provider effects are simulated at local adapters and no live provider call is claimed. Owner-only with an audited reason, without reauthentication proof (spec 17 B24).
+        Replay of original event only; no browser Purchase endpoint. Unique verified collection event, not each
         ledger/item/settlement row. Guard dispatch outcome unknown and original adjustments. Jobs reauthorize; diagnostics
         never claim API acceptance proves attribution. Enforce actor/object scope on every read, mutation, job and
         download. Browser writes require CSRF/origin protection; sensitive responses are no-store. Bound rate/body/cursor
@@ -11976,6 +12423,7 @@ paths:
       - owner
       - ecommerce_admin
       - warehouse
+      - finance
       parameters:
       - $ref: '#/components/parameters/Cursor'
       - $ref: '#/components/parameters/Limit'
@@ -11985,8 +12433,8 @@ paths:
     post:
       operationId: createShippingLabelTemplate
       summary: Create shipping label template
-      description: Implemented-local first-party endpoint; external provider effects are simulated at local adapters and no live provider call is claimed. Owner reauthentication
-        and prospective versioned approval. Existing permission evidence must belong to reviewed carrier/account/renderer.
+      description: Implemented-local first-party endpoint; external provider effects are simulated at local adapters and no live provider call is claimed. Owner-only prospective versioned approval requires a single-use shipping_label_template.version
+        reauthentication_proof bound to subject shipping-label-templates and the current session. Missing, wrong-purpose, wrong-subject, expired or reused proof returns 403 REAUTHENTICATION_REQUIRED without a write. Existing permission evidence must belong to reviewed carrier/account/renderer.
         Expected_version=0 initial; cannot self-assert provider support. Enforce actor/object scope on every read,
         mutation, job and download. Browser writes require CSRF/origin protection; sensitive responses are no-store.
         Bound rate/body/cursor limits; unknown/out-of-scope IDs reveal no private data.
@@ -12048,8 +12496,8 @@ paths:
     post:
       operationId: appendShippingLabelTemplateVersion
       summary: Append shipping label template version
-      description: Implemented-local first-party endpoint; external provider effects are simulated at local adapters and no live provider call is claimed. Immutable
-        successor version/permission evidence; stale version conflicts. Deactivating version never changes old artifact
+      description: Implemented-local first-party endpoint; external provider effects are simulated at local adapters and no live provider call is claimed. Owner-only immutable
+        successor version/permission evidence requires a single-use shipping_label_template.version reauthentication_proof bound to subject shipping-label-templates and the current session. Missing, wrong-purpose, wrong-subject, expired or reused proof returns 403 REAUTHENTICATION_REQUIRED without a write; stale version conflicts. Deactivating version never changes old artifact
         provenance; invalidate superseded output explicitly. Enforce actor/object scope on every read, mutation,
         job and download. Browser writes require CSRF/origin protection; sensitive responses are no-store. Bound
         rate/body/cursor limits; unknown/out-of-scope IDs reveal no private data.
@@ -12902,7 +13350,8 @@ paths:
     get:
       operationId: listPolicyVersions
       summary: Read scoped immutable policy history
-      description: Cookie-only owner with session-bound MFA; private no-store. Native and guest capability headers
+      description: Cookie-only owner (all kinds) or finance (commercial and payment only; warehouse_calendar
+        remains owner-only) with session-bound MFA; private no-store. Native and guest capability headers
         are rejected. Company price/manual payout invariants remain fixed; calendars are TEST-ONLY. POST consumes
         a fresh purpose/subject-bound proof and atomically appends audit and retry result.
       tags:
@@ -12914,6 +13363,7 @@ paths:
       x-primary-requirement: PR-20
       x-allowed-roles:
       - owner
+      - finance
       x-proof-group: settings
       responses:
         '200':
@@ -13955,6 +14405,150 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/BuyerSegments'
+  /admin/audit-events:
+    get:
+      operationId: listAuditEvents
+      summary: Read the audit trail
+      description: "S135/DEC-018 Q4. Read-only keyset-paged window over the append-only audit trail, newest first by (created_at, id); `next_cursor` is opaque, carries no authority and is null on the last page. Owner (current cookie/MFA) reads every action. Finance reads only the money actions its current grant opens, re-read from the database inside the read transaction and filtered in SQL whatever the filters: payout.claim, payout.evidence_upload, payout.evidence_uploaded, payout.verify and payout.reconcile with the finance role alone; finance.reconcile, finance.cod_remittance, finance.manual_transfer, finance.autolaris_confirm, local.payment.reconcile, local.cod.reconcile and local.settlement.reconcile with finance.reconciliation.read; refund.queue, refund.destination, refund.reconcile, refund.retry, commerce_exception.refund_queue, commerce_exception.refund_retry, commerce_exception.refund_reconcile, commerce_exception.destination, local.refund.reconcile and local.recovery_refund.reconcile with finance.refunds.read; finance.costs.append with finance.costs.read. Money reads (finance.*.read, refund.read) and every other action are owner-only. Every other role is refused 403 and the refusal writes no audit row. Role, session and MFA are re-checked inside the read transaction. Filters are an exact `actor` id, `action` (exact, or a family prefix ending in a dot such as `payout.`), `object` (subject id) and a `from` (inclusive) / `to` (exclusive) period; unknown or repeated parameters are 400. Details are redacted by a per-action allowlist: only named plain scalars or short id lists leave, an action without a policy returns none, and `redacted` reports that something stored was withheld. OTP codes, tokens, proof and file digests, HMAC material, password hashes, session ids, bank account numbers, buyer contact values and saved-reply text are never returned. The read itself is audited as `audit.read` in the same transaction (filter names, action filter, scope, page and row count; never actor, object or period values)."
+      tags:
+      - Identity
+      security:
+      - sessionCookie: []
+      x-contract-status: implemented-local
+      x-domain-owner: access
+      x-primary-requirement: PR-13
+      x-allowed-roles:
+      - owner
+      - finance
+      x-proof-group: audit-log
+      x-implementation: src/app/api/v1/admin/audit-events/route.ts
+      parameters:
+      - name: actor
+        in: query
+        schema:
+          type: string
+          pattern: ^[A-Za-z0-9:_.-]{1,120}$
+      - name: action
+        in: query
+        schema:
+          type: string
+          maxLength: 100
+          pattern: ^[a-z][a-z0-9_]*(\.[a-z0-9_]+)*\.?$
+      - name: object
+        in: query
+        schema:
+          type: string
+          pattern: ^[A-Za-z0-9:_.-]{1,120}$
+      - name: from
+        in: query
+        description: Inclusive lower bound (RFC 3339, a Z or +-hh:mm offset up to 14:59, a real calendar date).
+        schema:
+          type: string
+          format: date-time
+      - name: to
+        in: query
+        description: Exclusive upper bound (RFC 3339, same rules as `from`); must be after `from`.
+        schema:
+          type: string
+          format: date-time
+      - $ref: '#/components/parameters/Cursor'
+      - name: limit
+        in: query
+        schema:
+          type: integer
+          minimum: 1
+          maximum: 100
+          default: 25
+      responses:
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '503':
+          $ref: '#/components/responses/Unavailable'
+        default:
+          description: Safe application Problem; a gateway may return non-Problem failure.
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+        '200':
+          description: Private response.
+          headers:
+            Cache-Control:
+              description: Private response; never shared cached.
+              schema:
+                type: string
+                const: no-store
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AuditEventPage'
+  /admin/customers/lookup:
+    post:
+      operationId: lookupBuyerAccount
+      summary: Look up a buyer account by exact phone or email
+      description: "S138/DEC-018 Q5 (spec 17 B29). Read-only despite POST: the searched phone or email travels in the JSON body so it never enters a URL, access log or Referer, and no `Idempotency-Key` applies (a retry is a new audited lookup; nothing is saved or replayed). Owner and customer_service with a verified MFA session; role, session and grant are re-read inside the transaction. `kind` is `phone` (any Indonesian format, normalised to +62..., exact match on the buyer profile phone) or `email` (lower-case NFC, exact match on the account or profile email). There is no partial, prefix, suffix or wildcard mode: a partial phone is a 422 and a partial email matches nothing. Staff accounts are never returned. An unknown value and an account without history both answer 200 with the same shape (`accounts` empty, or one account with empty `orders` and `tickets`); there is no 404 for \"no such account\". Each account carries the display name, a masked phone (`08\u2022\u2022\u2022\u2022\u2022\u20227890`, last four digits) and a masked email (`a\u2022\u2022\u2022@domain`), whether each is verified, and its newest 20 orders (id, number, status, payment status, time) and 20 support tickets (id, status, priority, times). It never carries an address, recipient, bank, payment proof, password, token, session or message text. Orders follow the order-history scope: the owner sees all; customer_service needs the `orders.history.read` grant and only sees orders whose every parcel and replacement parcel is in an assigned warehouse (`order_access` = all, scoped or none says which applies); tickets are not warehouse-scoped. At most 5 accounts are returned (`accounts_truncated`). Budget: 20 lookups per staff user per 10 minutes through the persistent limiter, then 429 with Retry-After; a refused lookup is not audited. Every completed lookup writes one `support.customer_lookup` audit row in the same transaction: actor, lookup kind, match count and matched account ids; the searched value is stored neither raw nor hashed."
+      tags:
+      - Support
+      security:
+      - sessionCookie: []
+      x-contract-status: implemented-local
+      x-domain-owner: support
+      x-primary-requirement: PR-13
+      x-allowed-roles:
+      - owner
+      - customer_service
+      x-proof-group: customer-lookup
+      x-implementation: src/app/api/v1/admin/customers/lookup/route.ts
+      x-request-body-limit-bytes: 16384
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CustomerLookupInput'
+      responses:
+        '200':
+          description: Private lookup result; empty `accounts` when nothing matched.
+          headers:
+            Cache-Control:
+              description: Private response; never shared cached.
+              schema:
+                type: string
+                const: no-store
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CustomerLookupResult'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '413':
+          $ref: '#/components/responses/BodyTooLarge'
+        '415':
+          $ref: '#/components/responses/UnsupportedMediaType'
+        '422':
+          $ref: '#/components/responses/Unprocessable'
+        '429':
+          $ref: '#/components/responses/TooManyRequests'
+        '503':
+          $ref: '#/components/responses/Unavailable'
+        default:
+          description: Safe application Problem; a gateway may return non-Problem failure.
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/Problem'
   /admin/home-banners:
     get:
       operationId: listHomeBanners
@@ -14887,9 +15481,11 @@ paths:
     get:
       operationId: listCommerceExceptions
       summary: Read scoped operational exception queue
-      description: S33 proposal only, with no mounted adapter or runtime acceptance. Reauthorize current session/MFA
-        and every affected physical scope after waits. Original-source capacity, explicit buyer consent and immutable
-        operation recovery govern effects. Unknown outcomes retain the same original identity.
+      description: Staff read of the scoped exception queue, newest first, with keyset paging and kind and status
+        filters. Owner and finance read every case; customer service and warehouse read only cases whose every
+        affected physical origin is in their warehouse scope. Session, MFA and scope are rechecked after waits.
+        Whole-order money, contact, bank and proof data are never returned. Items also carry the read-only display
+        labels order_number, product_name, variant_label and warehouse_name.
       tags:
       - Orders
       security:
@@ -14960,9 +15556,10 @@ paths:
     post:
       operationId: reportStockDiscrepancy
       summary: Report affected unhanded complete offer units
-      description: S33 proposal only, with no mounted adapter or runtime acceptance. Reauthorize current session/MFA
-        and every affected physical scope after waits. Original-source capacity, explicit buyer consent and immutable
-        operation recovery govern effects. Unknown outcomes retain the same original identity.
+      description: Warehouse staff or owner in the parcel's scope records a physical count of complete unhanded offer
+        units. Creates a stock_discrepancy case or, with reinspection, a new count of an existing one. The count
+        records facts only; no stock, cash or buyer promise changes until a buyer-consented remedy is applied.
+        expected_version fences the original fulfillment and Idempotency-Key replays the saved outcome.
       tags:
       - Orders
       security:
@@ -15015,9 +15612,9 @@ paths:
     get:
       operationId: getCommerceException
       summary: Read scoped exception without whole-order money
-      description: S33 proposal only, with no mounted adapter or runtime acceptance. Reauthorize current session/MFA
-        and every affected physical scope after waits. Original-source capacity, explicit buyer consent and immutable
-        operation recovery govern effects. Unknown outcomes retain the same original identity.
+      description: Staff read of one scoped exception with its affected complete units, retained proposal and
+        physical state. A case outside the caller's warehouse scope answers 404. Carries the same read-only display
+        labels as the list and no whole-order money.
       tags:
       - Orders
       security:
@@ -15065,9 +15662,12 @@ paths:
     post:
       operationId: decideCommerceException
       summary: Record an exact buyer proposal or escalation
-      description: S33 proposal only, with no mounted adapter or runtime acceptance. Reauthorize current session/MFA
-        and every affected physical scope after waits. Original-source capacity, explicit buyer consent and immutable
-        operation recovery govern effects. Unknown outcomes retain the same original identity.
+      description: Owner or customer service in scope either records a proposal (propose_cancellation, propose_refund,
+        keep_waiting) for the buyer to answer, or escalates; or, with proposal_id and no decision, applies a proposal
+        the buyer already accepted. Recording moves no stock or money. Applying retires the exact accepted units
+        (waybill cancellation, stock release, commission void) and may leave the case ready_for_refund. Later steps
+        are refused while an application or a recovery refund is in progress. expected_version and Idempotency-Key
+        apply.
       tags:
       - Orders
       security:
@@ -15125,9 +15725,10 @@ paths:
     post:
       operationId: recordExceptionIntake
       summary: Record actual returned components in quarantine
-      description: S33 proposal only, with no mounted adapter or runtime acceptance. Reauthorize current session/MFA
-        and every affected physical scope after waits. Original-source capacity, explicit buyer consent and immutable
-        operation recovery govern effects. Unknown outcomes retain the same original identity.
+      description: Warehouse staff or owner in scope records returned-to-sender components against the signed parcel
+        outcome (physical_outcome_id) that names this case. Identity-confirmed lines post a quarantine stock receipt;
+        unidentified lines record quantity only. Quantity is bounded by the original allocation and earlier intakes.
+        Refused for unallocated_collection cases. expected_version and Idempotency-Key apply.
       tags:
       - Orders
       security:
@@ -15182,12 +15783,63 @@ paths:
       x-proof-group: exceptions
       x-implementation: src/app/api/v1/admin/commerce-exceptions/[exceptionId]/intakes/route.ts
   /admin/commerce-exceptions/{exceptionId}/refunds:
+    get:
+      operationId: listRecoveryRefunds
+      summary: Read every recovery refund of one exception
+      description: Finance read (refunds.read) of the case's original-source recovery refunds with their retained
+        outcomes, oldest first; an empty list before finance queued any. The staff exception projection holds no
+        refund ids, so this is how a screen finds them after a reload. Scope of the case is enforced as for the
+        case read.
+      tags:
+      - Orders
+      security:
+      - sessionCookie: []
+      x-contract-status: implemented-local
+      x-domain-owner: checkout
+      x-primary-requirement: PR-21
+      responses:
+        '200':
+          description: Scoped current record, not inferred external cash.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RecoveryRefundList'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '409':
+          $ref: '#/components/responses/Conflict'
+        '422':
+          $ref: '#/components/responses/Unprocessable'
+        '429':
+          $ref: '#/components/responses/TooManyRequests'
+        '503':
+          $ref: '#/components/responses/Unavailable'
+      parameters:
+      - name: exceptionId
+        in: path
+        required: true
+        schema:
+          $ref: '#/components/schemas/Id'
+      x-allowed-roles:
+      - owner
+      - finance
+      x-required-permission: finance.refunds.read
+      x-proof-group: exception-workbench
+      x-implementation: src/app/api/v1/admin/commerce-exceptions/[exceptionId]/refunds/route.ts
     post:
       operationId: queueRecoveryRefund
       summary: Authorize one original-source compensation obligation
-      description: S33 proposal only, with no mounted adapter or runtime acceptance. Reauthorize current session/MFA
-        and every affected physical scope after waits. Original-source capacity, explicit buyer consent and immutable
-        operation recovery govern effects. Unknown outcomes retain the same original identity.
+      description: Finance (refunds.read and refunds.write) or owner, with fresh MFA and a subject-bound recovery
+        proof, queues the server-computed original-source compensation of a case in ready_for_refund. Writes one
+        immutable recovery obligation posting and one recovery refund per original source; prepaid refunds go to
+        the worker, COD waits for a verified destination. Idempotency-Key replays the saved result without a second
+        obligation.
       tags:
       - Orders
       security:
@@ -15246,9 +15898,8 @@ paths:
     get:
       operationId: getRecoveryRefund
       summary: Read original-source compensation and retained outcome
-      description: S33 proposal only, with no mounted adapter or runtime acceptance. Reauthorize current session/MFA
-        and every affected physical scope after waits. Original-source capacity, explicit buyer consent and immutable
-        operation recovery govern effects. Unknown outcomes retain the same original identity.
+      description: Finance read (refunds.read) of one recovery refund, its remaining original capacity and its
+        retained outcome. A status of unknown means the bank outcome is unconfirmed; reconcile it, never resend.
       tags:
       - Orders
       security:
@@ -15300,9 +15951,10 @@ paths:
     post:
       operationId: reconcileRecoveryRefund
       summary: Reconcile the same original compensation identity
-      description: S33 proposal only, with no mounted adapter or runtime acceptance. Reauthorize current session/MFA
-        and every affected physical scope after waits. Original-source capacity, explicit buyer consent and immutable
-        operation recovery govern effects. Unknown outcomes retain the same original identity.
+      description: Finance (refunds.read and refunds.write) or owner, with fresh MFA and a subject-bound recovery
+        proof, re-registers committed bank events of the same refund and re-arms its failed callback or pending
+        job. Creates no obligation and no cash posting itself; the worker posts cash at most once per refund.
+        Idempotency-Key replays the saved result.
       tags:
       - Orders
       security:
@@ -15433,9 +16085,8 @@ paths:
     get:
       operationId: listBuyerRecoveryActions
       summary: Read owned choices and safe refund progress
-      description: S33 proposal only, with no mounted adapter or runtime acceptance. Reauthorize current session/MFA
-        and every affected physical scope after waits. Original-source capacity, explicit buyer consent and immutable
-        operation recovery govern effects. Unknown outcomes retain the same original identity.
+      description: Owned buyer or guest order capability reads the order's recovery cases with the choices open to
+        them and safe refund progress. Staff-only fields, bank data and proof material are never returned.
       tags:
       - Orders
       security:
@@ -15481,9 +16132,9 @@ paths:
     post:
       operationId: chooseBuyerRecoveryAction
       summary: Accept an exact proposal or verified destination
-      description: S33 proposal only, with no mounted adapter or runtime acceptance. Reauthorize current session/MFA
-        and every affected physical scope after waits. Original-source capacity, explicit buyer consent and immutable
-        operation recovery govern effects. Unknown outcomes retain the same original identity.
+      description: Owned buyer or guest order capability accepts or declines the exact current proposal (accept_proposal,
+        decline_proposal) or accepts an independently verified refund destination (accept_destination, COD only).
+        Saves consent only; execution stays a separate guarded staff action. expected_version and Idempotency-Key apply.
       tags:
       - Orders
       security:
@@ -15718,6 +16369,53 @@ paths:
               schema:
                 $ref: '#/components/schemas/Problem'
       x-implementation: src/app/api/v1/admin/warehouse-calendars/default-applications/route.ts
+  /admin/system-health:
+    get:
+      operationId: getSystemHealth
+      summary: Get outbox and job health
+      description: S136. Current cookie/MFA owner only. Read-only counts of app.outbox_job rows per job kind and state (due,
+        scheduled, leased, lease_expired, unknown, failed, dead, completed; disjoint, summing to the kind total) at one database
+        instant, the oldest due time per kind, and the retention registry the worker sweeps. Retention runs are not persisted,
+        so no last run time is returned (retention.last_run_recorded is false). Never returns payloads, results, dedup keys,
+        error text or row identities. Takes no query parameters.
+      tags:
+      - Administration
+      security:
+      - sessionCookie: []
+      x-contract-status: implemented-local
+      x-domain-owner: administration
+      x-primary-requirement: PR-14
+      x-allowed-roles:
+      - owner
+      x-proof-group: system-health
+      x-implementation: src/app/api/v1/admin/system-health/route.ts
+      responses:
+        '200':
+          description: Private health snapshot.
+          headers:
+            Cache-Control:
+              schema:
+                const: no-store
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SystemHealth'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '503':
+          $ref: '#/components/responses/Unavailable'
+        default:
+          description: Safe application Problem; a gateway may return non-Problem failure.
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/Problem'
 components:
   schemas:
     PaymentPolicyValues:
@@ -15757,6 +16455,8 @@ components:
     ManualTransfer:
       type: object
       properties:
+        order_admin_no:
+          $ref: '#/components/schemas/AdminNumber'
         id:
           $ref: '#/components/schemas/Id'
         order_id:
@@ -15842,6 +16542,7 @@ components:
             additionalProperties: false
           - type: 'null'
       required:
+      - order_admin_no
       - id
       - order_id
       - order_number
@@ -15917,6 +16618,8 @@ components:
     AutolarisPayment:
       type: object
       properties:
+        order_admin_no:
+          $ref: '#/components/schemas/AdminNumber'
         id:
           $ref: '#/components/schemas/Id'
         order_id:
@@ -16007,6 +16710,7 @@ components:
           - recorded_at
           additionalProperties: false
       required:
+      - order_admin_no
       - id
       - order_id
       - order_number
@@ -16328,6 +17032,8 @@ components:
     ManualShipmentQueueItem:
       type: object
       properties:
+        order_admin_no:
+          $ref: '#/components/schemas/AdminNumber'
         id:
           $ref: '#/components/schemas/Id'
         order_id:
@@ -16447,6 +17153,7 @@ components:
         booking:
           $ref: '#/components/schemas/ManualShipmentBooking'
       required:
+      - order_admin_no
       - id
       - order_id
       - warehouse_id
@@ -18647,6 +19354,8 @@ components:
       type: object
       additionalProperties: false
       required:
+      - admin_no
+      - order_admin_no
       - id
       - order_id
       - order_number
@@ -18660,6 +19369,10 @@ components:
       - can_decide
       - items
       properties:
+        admin_no:
+          $ref: '#/components/schemas/AdminNumber'
+        order_admin_no:
+          $ref: '#/components/schemas/AdminNumber'
         id:
           $ref: '#/components/schemas/Id'
         order_id:
@@ -19304,6 +20017,8 @@ components:
     Payout:
       type: object
       properties:
+        admin_no:
+          $ref: '#/components/schemas/AdminNumber'
         id:
           $ref: '#/components/schemas/Id'
         amount:
@@ -19410,9 +20125,17 @@ components:
       - masked_account
       - status
       additionalProperties: false
+    AdminNumber:
+      type: integer
+      minimum: 1
+      maximum: 999999999999999
+      description: Short, stable, immutable number of an admin console entity (`admin_no`). It addresses the entity in console
+        URLs only (`/admin/orders/1042`); API paths keep taking the UUID `id`. Assigned once, never reused, never changes.
     Warehouse:
       type: object
       properties:
+        admin_no:
+          $ref: '#/components/schemas/AdminNumber'
         id:
           $ref: '#/components/schemas/Id'
         name:
@@ -19424,6 +20147,7 @@ components:
         active:
           type: boolean
       required:
+      - admin_no
       - id
       - name
       - city
@@ -20182,6 +20906,12 @@ components:
     Refund:
       type: object
       properties:
+        admin_no:
+          $ref: '#/components/schemas/AdminNumber'
+        return_admin_no:
+          $ref: '#/components/schemas/AdminNumber'
+        order_admin_no:
+          $ref: '#/components/schemas/AdminNumber'
         id:
           $ref: '#/components/schemas/Id'
         order_id:
@@ -20219,6 +20949,21 @@ components:
       description: Buyer-visible outcome with no bank data. Prepaid refund follows original rail where supported.
         COD refund requires separately verified buyer recipient; until that protocol is approved and fulfilled status
         is awaiting_destination, not an inferred beneficiary or paid result.
+    RefundList:
+      type: object
+      additionalProperties: false
+      required:
+      - data
+      - pagination
+      properties:
+        data:
+          type: array
+          maxItems: 100
+          items:
+            $ref: '#/components/schemas/Refund'
+        pagination:
+          $ref: '#/components/schemas/Pagination'
+      description: Keyset-paged finance return refund list with no buyer contact or bank account numbers.
     ReplacementCreate:
       type: object
       properties:
@@ -20463,6 +21208,285 @@ components:
       - effective_at
       - version
       additionalProperties: false
+    AdminAffiliateCommissionSummary:
+      type: object
+      additionalProperties: false
+      required:
+      - pending_count
+      - pending_idr
+      - eligible_count
+      - eligible_idr
+      - allocated_count
+      - allocated_idr
+      - matured_count
+      - matured_idr
+      - paid_count
+      - paid_idr
+      - held_count
+      - held_idr
+      - void_count
+      - void_idr
+      properties:
+        pending_count:
+          type: integer
+          minimum: 0
+        pending_idr:
+          $ref: '#/components/schemas/Money'
+        eligible_count:
+          type: integer
+          minimum: 0
+        eligible_idr:
+          $ref: '#/components/schemas/Money'
+        allocated_count:
+          type: integer
+          minimum: 0
+        allocated_idr:
+          $ref: '#/components/schemas/Money'
+        matured_count:
+          type: integer
+          minimum: 0
+        matured_idr:
+          $ref: '#/components/schemas/Money'
+        paid_count:
+          type: integer
+          minimum: 0
+        paid_idr:
+          $ref: '#/components/schemas/Money'
+        held_count:
+          type: integer
+          minimum: 0
+        held_idr:
+          $ref: '#/components/schemas/Money'
+        void_count:
+          type: integer
+          minimum: 0
+        void_idr:
+          $ref: '#/components/schemas/Money'
+    AdminAffiliateSummary:
+      type: object
+      additionalProperties: false
+      required:
+      - admin_no
+      - id
+      - referral_code
+      - display_name
+      - status
+      - beneficiary_status
+      - enrolled_at
+      - rate_eligible
+      - rate_version
+      - effective_rate_bps
+      - effective_commission_idr
+      - rate_source
+      - attributed_orders_count
+      - commissions
+      properties:
+        admin_no:
+          $ref: '#/components/schemas/AdminNumber'
+        id:
+          $ref: '#/components/schemas/CatalogUuid'
+        referral_code:
+          type:
+          - string
+          - 'null'
+          maxLength: 64
+        display_name:
+          type: string
+          minLength: 1
+          maxLength: 200
+        status:
+          type: string
+          enum:
+          - active
+          - suspended
+        beneficiary_status:
+          type: string
+          enum:
+          - missing
+          - pending_verification
+          - verified
+          - rejected
+          - change_hold
+        enrolled_at:
+          $ref: '#/components/schemas/DateTime'
+        rate_eligible:
+          type: boolean
+        rate_version:
+          type: integer
+          minimum: 0
+          maximum: 2147483647
+        effective_rate_bps:
+          type: integer
+          minimum: 0
+          maximum: 10000
+        effective_commission_idr:
+          type: integer
+          minimum: 0
+          maximum: 99000
+        rate_source:
+          type: string
+          enum:
+          - override
+          - default_policy
+        attributed_orders_count:
+          type: integer
+          minimum: 0
+        commissions:
+          $ref: '#/components/schemas/AdminAffiliateCommissionSummary'
+    AdminAffiliatePage:
+      type: object
+      additionalProperties: false
+      required:
+      - data
+      - pagination
+      properties:
+        data:
+          type: array
+          maxItems: 100
+          items:
+            $ref: '#/components/schemas/AdminAffiliateSummary'
+        pagination:
+          $ref: '#/components/schemas/Pagination'
+    AdminAffiliateRateVersion:
+      type: object
+      additionalProperties: false
+      required:
+      - id
+      - affiliate_id
+      - version
+      - basis_points
+      - commission_idr
+      - effective_at
+      - created_at
+      - actor_id
+      - actor_name
+      - reason
+      - state
+      properties:
+        id:
+          $ref: '#/components/schemas/CatalogUuid'
+        affiliate_id:
+          $ref: '#/components/schemas/CatalogUuid'
+        version:
+          type: integer
+          minimum: 1
+          maximum: 2147483647
+        basis_points:
+          type: integer
+          minimum: 0
+          maximum: 10000
+        commission_idr:
+          type: integer
+          minimum: 0
+          maximum: 99000
+        effective_at:
+          $ref: '#/components/schemas/DateTime'
+        created_at:
+          $ref: '#/components/schemas/DateTime'
+        actor_id:
+          type: string
+          minLength: 1
+          maxLength: 120
+        actor_name:
+          type:
+          - string
+          - 'null'
+        reason:
+          type: string
+          minLength: 1
+          maxLength: 500
+        state:
+          type: string
+          enum:
+          - effective
+          - scheduled
+          - superseded
+    AdminAffiliateDetail:
+      type: object
+      additionalProperties: false
+      required:
+      - admin_no
+      - id
+      - referral_code
+      - display_name
+      - status
+      - beneficiary_status
+      - enrolled_at
+      - rate_eligible
+      - rate_version
+      - effective_rate_bps
+      - effective_commission_idr
+      - rate_source
+      - attributed_orders_count
+      - commissions
+      - default_policy_rate_bps
+      - minimum_payout_idr
+      - rate_versions
+      properties:
+        admin_no:
+          $ref: '#/components/schemas/AdminNumber'
+        id:
+          $ref: '#/components/schemas/CatalogUuid'
+        referral_code:
+          type:
+          - string
+          - 'null'
+          maxLength: 64
+        display_name:
+          type: string
+          minLength: 1
+          maxLength: 200
+        status:
+          type: string
+          enum:
+          - active
+          - suspended
+        beneficiary_status:
+          type: string
+          enum:
+          - missing
+          - pending_verification
+          - verified
+          - rejected
+          - change_hold
+        enrolled_at:
+          $ref: '#/components/schemas/DateTime'
+        rate_eligible:
+          type: boolean
+        rate_version:
+          type: integer
+          minimum: 0
+          maximum: 2147483647
+        effective_rate_bps:
+          type: integer
+          minimum: 0
+          maximum: 10000
+        effective_commission_idr:
+          type: integer
+          minimum: 0
+          maximum: 99000
+        rate_source:
+          type: string
+          enum:
+          - override
+          - default_policy
+        attributed_orders_count:
+          type: integer
+          minimum: 0
+        commissions:
+          $ref: '#/components/schemas/AdminAffiliateCommissionSummary'
+        default_policy_rate_bps:
+          type: integer
+          minimum: 0
+          maximum: 10000
+        minimum_payout_idr:
+          type: integer
+          minimum: 1
+          maximum: 9007199254740991
+        rate_versions:
+          type: array
+          items:
+            $ref: '#/components/schemas/AdminAffiliateRateVersion'
     PromotionInput:
       type: object
       properties:
@@ -21245,6 +22269,269 @@ components:
                 items:
                   type: string
                   enum: [birthday, favourite_categories]
+    JobStateCounts:
+      type: object
+      description: Disjoint outbox job states of one kind; their sum is the number of rows of that kind.
+      properties:
+        due:
+          type: integer
+          minimum: 0
+        scheduled:
+          type: integer
+          minimum: 0
+        leased:
+          type: integer
+          minimum: 0
+        lease_expired:
+          type: integer
+          minimum: 0
+        unknown:
+          type: integer
+          minimum: 0
+        failed:
+          type: integer
+          minimum: 0
+        dead:
+          type: integer
+          minimum: 0
+        completed:
+          type: integer
+          minimum: 0
+      required:
+      - due
+      - scheduled
+      - leased
+      - lease_expired
+      - unknown
+      - failed
+      - dead
+      - completed
+      additionalProperties: false
+    SystemHealth:
+      type: object
+      properties:
+        as_of:
+          $ref: '#/components/schemas/DateTime'
+        totals:
+          $ref: '#/components/schemas/JobStateCounts'
+        kinds:
+          type: array
+          maxItems: 200
+          items:
+            type: object
+            properties:
+              kind:
+                type: string
+                pattern: ^[a-z][a-z0-9_.-]{1,63}$
+              registered:
+                type: boolean
+                description: True for kinds named in the worker registry (src/jobs/worker.ts); false for leased-adapter or unknown kinds.
+              counts:
+                $ref: '#/components/schemas/JobStateCounts'
+              oldest_due_at:
+                oneOf:
+                - $ref: '#/components/schemas/DateTime'
+                - type: 'null'
+                description: run_at of the oldest due job of this kind; null when none is due.
+            required:
+            - kind
+            - registered
+            - counts
+            - oldest_due_at
+            additionalProperties: false
+        retention:
+          type: object
+          properties:
+            last_run_recorded:
+              type: boolean
+              const: false
+              description: Retention runs are not persisted, so no last run time exists; the worker only logs a redacted failure line.
+            jobs:
+              type: array
+              maxItems: 50
+              items:
+                type: object
+                properties:
+                  name:
+                    type: string
+                    maxLength: 100
+                  table:
+                    type: string
+                    maxLength: 100
+                required:
+                - name
+                - table
+                additionalProperties: false
+          required:
+          - last_run_recorded
+          - jobs
+          additionalProperties: false
+      required:
+      - as_of
+      - totals
+      - kinds
+      - retention
+      additionalProperties: false
+    AuditEventPage:
+      type: object
+      additionalProperties: false
+      required: [scope, data, pagination]
+      properties:
+        scope:
+          type: string
+          enum: [all, money]
+          description: all = owner; money = finance (money actions only).
+        data:
+          type: array
+          maxItems: 100
+          items:
+            type: object
+            additionalProperties: false
+            required: [id, occurred_at, actor_id, actor_name, action, subject_id, outcome, reason, details, redacted]
+            properties:
+              id:
+                $ref: '#/components/schemas/Id'
+              occurred_at:
+                type: string
+                format: date-time
+              actor_id:
+                type: [string, 'null']
+                description: Null for system events.
+              actor_name:
+                type: [string, 'null']
+                description: Display name of a staff actor only; null for buyers, guests and system events.
+              action:
+                type: string
+              subject_id:
+                type: [string, 'null']
+                description: Opaque object id; null when none was stored or it was withheld.
+              outcome:
+                type: string
+                enum: [allowed, denied]
+              reason:
+                type: string
+                maxLength: 301
+              details:
+                type: object
+                description: Allowlisted plain scalars, short scalar id lists and (for before/after) one nested level; never secrets or personal data.
+                additionalProperties: true
+              redacted:
+                type: boolean
+        pagination:
+          type: object
+          additionalProperties: false
+          required: [next_cursor]
+          properties:
+            next_cursor:
+              type: [string, 'null']
+    CustomerLookupInput:
+      type: object
+      additionalProperties: false
+      required: [kind, value]
+      properties:
+        kind:
+          type: string
+          enum: [phone, email]
+        value:
+          type: string
+          minLength: 1
+          maxLength: 254
+          description: The complete phone or email to match exactly; never a fragment.
+    CustomerLookupResult:
+      type: object
+      additionalProperties: false
+      required: [lookup, order_access, accounts, accounts_truncated]
+      properties:
+        lookup:
+          type: object
+          additionalProperties: false
+          required: [kind]
+          properties:
+            kind:
+              type: string
+              enum: [phone, email]
+        order_access:
+          type: string
+          enum: [all, scoped, none]
+          description: all = owner; scoped = customer_service with orders.history.read (own warehouses only); none = no order-history grant.
+        accounts_truncated:
+          type: boolean
+          description: More than 5 accounts matched; only the first 5 (oldest first) are returned.
+        accounts:
+          type: array
+          maxItems: 5
+          items:
+            type: object
+            additionalProperties: false
+            required: [id, display_name, phone_masked, phone_verified, email_masked, email_verified, created_at, orders, orders_truncated, tickets, tickets_truncated]
+            properties:
+              id:
+                type: string
+                description: Opaque account id.
+              display_name:
+                type: string
+              phone_masked:
+                type: [string, 'null']
+                description: Local form with the middle digits masked, last four shown; null when none is stored. Never the full number.
+              phone_verified:
+                type: boolean
+              email_masked:
+                type: [string, 'null']
+                description: First letter (local part of 3 or more characters) and the domain; never the full address.
+              email_verified:
+                type: boolean
+              created_at:
+                type: string
+                format: date-time
+              orders_truncated:
+                type: boolean
+                description: More than 20 visible orders; the newest 20 are returned.
+              orders:
+                type: array
+                maxItems: 20
+                items:
+                  type: object
+                  additionalProperties: false
+                  required: [id, admin_no, number, status, payment_status, created_at]
+                  properties:
+                    id:
+                      $ref: '#/components/schemas/Id'
+                    admin_no:
+                      $ref: '#/components/schemas/AdminNumber'
+                    number:
+                      type: string
+                    status:
+                      type: string
+                    payment_status:
+                      type: string
+                    created_at:
+                      type: string
+                      format: date-time
+              tickets_truncated:
+                type: boolean
+                description: More than 20 tickets; the newest 20 are returned.
+              tickets:
+                type: array
+                maxItems: 20
+                items:
+                  type: object
+                  additionalProperties: false
+                  required: [id, status, priority, created_at, last_message_at]
+                  properties:
+                    id:
+                      $ref: '#/components/schemas/Id'
+                    status:
+                      type: string
+                      enum: [open, waiting_customer, resolved]
+                    priority:
+                      type: string
+                      enum: [low, normal, high]
+                    created_at:
+                      type: string
+                      format: date-time
+                    last_message_at:
+                      type: [string, 'null']
+                      format: date-time
     HomeBannerList:
       type: object
       properties:
@@ -21364,6 +22651,7 @@ components:
       type: object
       additionalProperties: false
       required:
+      - admin_no
       - id
       - provider
       - environment
@@ -21390,6 +22678,8 @@ components:
       - occurred_at
       - recorded_at
       properties:
+        admin_no:
+          $ref: '#/components/schemas/AdminNumber'
         id:
           type: string
           format: uuid
@@ -21692,6 +22982,7 @@ components:
       type: object
       additionalProperties: false
       required:
+      - order_admin_no
       - id
       - receivable_transaction_id
       - order_id
@@ -21703,6 +22994,8 @@ components:
       - provider_fee
       - reopens_allocation_id
       properties:
+        order_admin_no:
+          $ref: '#/components/schemas/AdminNumber'
         id:
           type: string
           format: uuid
@@ -22111,8 +23404,10 @@ components:
           type: string
           enum:
           - staff_roles.replace
+          - staff_mfa.reset
           - company_policy.version
           - payment_policy.version
+          - shipping_label_template.version
           - warehouse_calendar.version
           - warehouse_calendar.default_apply
           - catalog_publication.exception
@@ -22124,6 +23419,7 @@ components:
           - payout.verify
           - affiliate.beneficiary_change
           - support.contact_rebind
+          - session.terminate_others
           - home_banner.write
         subject_id:
           type: string
@@ -22145,6 +23441,14 @@ components:
           properties:
             subject_id:
               const: company-payment
+      - if:
+          properties:
+            action:
+              const: shipping_label_template.version
+        then:
+          properties:
+            subject_id:
+              const: shipping-label-templates
       - if:
           properties:
             action:
@@ -22258,10 +23562,13 @@ components:
       - reason
       - reauthentication_proof
       additionalProperties: false
-      description: Owner-only replacement of ordinary staff roles; owner and self-target grants are refused. Empty
-        roles revokes staff rights while preserving buyer/affiliate entitlements. Warehouse role requires explicit
-        active warehouse scope. Finance permissions require finance role. Version conflict fails; success revokes
-        all subject sessions and appends audit atomically.
+      description: Owner-only replacement of ordinary staff roles. The target may be another owner or the caller
+        itself (an owner stepping down); owner is never granted here, so a removed owner keeps an ordinary account.
+        An owner removal is refused with 409 LAST_OWNER when no other owner with two-step verification would remain;
+        all owner grants are locked in id order before the count, so concurrent removals queue and the last owner
+        cannot be removed. Empty roles revokes staff rights while preserving buyer/affiliate entitlements. Warehouse
+        role requires explicit active warehouse scope. Finance permissions require finance role. Version conflict
+        fails; success revokes all subject sessions and appends audit atomically.
     RoleGrant:
       type: object
       properties:
@@ -22292,6 +23599,101 @@ components:
       - permissions
       - version
       additionalProperties: false
+    StaffMember:
+      type: object
+      additionalProperties: false
+      required: [user_id, name, email, roles, permissions, warehouses, mfa_enabled, last_sign_in_at, version]
+      properties:
+        user_id:
+          type: string
+          pattern: ^[A-Za-z0-9_-]{1,100}$
+        name:
+          type: string
+        email:
+          type: string
+        roles:
+          type: array
+          description: Staff roles only (owner and the four grantable roles); buyer and affiliate entitlements are not listed.
+          items:
+            type: string
+            enum: [owner, ecommerce_admin, warehouse, customer_service, finance]
+        permissions:
+          type: array
+          items:
+            type: string
+        warehouses:
+          type: array
+          items:
+            type: object
+            additionalProperties: false
+            required: [id, name, city, active]
+            properties:
+              id:
+                type: string
+                format: uuid
+              name:
+                type: string
+              city:
+                type: string
+              active:
+                type: boolean
+                description: A deactivated warehouse stays listed but no longer grants access and cannot be sent back in a grant.
+        mfa_enabled:
+          type: boolean
+          description: Whether two-step verification is on. Never the seed, a backup code or a count of codes.
+        last_sign_in_at:
+          type: [string, 'null']
+          format: date-time
+          description: Start of the newest stored session; null when the account has no stored session (signed out, replaced by a role change or an MFA reset).
+        version:
+          type: integer
+          minimum: 0
+          description: Current grant revision, the `expected_version` of the next grantStaffRoles call; 0 for an account without a grant row.
+    StaffPage:
+      type: object
+      additionalProperties: false
+      required: [data, pagination]
+      properties:
+        data:
+          type: array
+          maxItems: 100
+          items:
+            $ref: '#/components/schemas/StaffMember'
+        pagination:
+          type: object
+          additionalProperties: false
+          required: [next_cursor]
+          properties:
+            next_cursor:
+              type: [string, 'null']
+    StaffMfaResetInput:
+      type: object
+      additionalProperties: false
+      required: [user_id, reason, reauthentication_proof]
+      properties:
+        user_id:
+          type: string
+          pattern: ^[A-Za-z0-9_-]{1,100}$
+        reason:
+          type: string
+          minLength: 1
+          maxLength: 500
+          pattern: \S
+        reauthentication_proof:
+          type: string
+          minLength: 1
+          maxLength: 100
+          description: Single-use `staff_mfa.reset` proof for this user id, issued by issueStaffReauthenticationProof.
+    StaffMfaReset:
+      type: object
+      additionalProperties: false
+      required: [user_id, mfa_enabled]
+      properties:
+        user_id:
+          type: string
+        mfa_enabled:
+          type: boolean
+          const: false
     AcceptedOperation:
       type: object
       properties:
@@ -22571,6 +23973,8 @@ components:
     AdminOrderSummary:
       type: object
       properties:
+        admin_no:
+          $ref: '#/components/schemas/AdminNumber'
         id:
           $ref: '#/components/schemas/Id'
         number:
@@ -22609,6 +24013,7 @@ components:
           type: integer
           minimum: 1
       required:
+      - admin_no
       - id
       - number
       - status
@@ -23219,6 +24624,14 @@ components:
     SupportStaffConversation:
       type: object
       properties:
+        order_admin_no:
+          anyOf:
+          - $ref: '#/components/schemas/AdminNumber'
+          - type: 'null'
+        product_admin_no:
+          anyOf:
+          - $ref: '#/components/schemas/AdminNumber'
+          - type: 'null'
         conversation:
           $ref: '#/components/schemas/SupportConversation'
         order_number:
@@ -23242,6 +24655,8 @@ components:
           type: integer
           minimum: 0
       required:
+      - order_admin_no
+      - product_admin_no
       - conversation
       - order_number
       - assignee_user_id
@@ -23676,6 +25091,32 @@ components:
           maxLength: 80
         enabled:
           type: boolean
+        history:
+          type: array
+          items:
+            type: object
+            additionalProperties: false
+            required:
+            - version
+            - label
+            - enabled
+            - actor_id
+            - reason
+            - created_at
+            properties:
+              version:
+                type: integer
+                minimum: 1
+              label:
+                type: string
+              enabled:
+                type: boolean
+              actor_id:
+                type: string
+              reason:
+                type: string
+              created_at:
+                $ref: '#/components/schemas/DateTime'
       required:
       - id
       - version
@@ -23854,6 +25295,40 @@ components:
           uniqueItems: true
         enabled:
           type: boolean
+        history:
+          type: array
+          items:
+            type: object
+            additionalProperties: false
+            required:
+            - version
+            - title
+            - text
+            - placeholders
+            - enabled
+            - actor_id
+            - reason
+            - created_at
+            properties:
+              version:
+                type: integer
+                minimum: 1
+              title:
+                type: string
+              text:
+                type: string
+              placeholders:
+                type: array
+                items:
+                  type: string
+              enabled:
+                type: boolean
+              actor_id:
+                type: string
+              reason:
+                type: string
+              created_at:
+                $ref: '#/components/schemas/DateTime'
       required:
       - id
       - version
@@ -24788,10 +26263,6 @@ components:
           type: string
           minLength: 1
           maxLength: 1000
-        reauthentication_proof:
-          type: string
-          minLength: 16
-          maxLength: 2000
         google_conversion_source:
           type: string
           const: UPLOAD_CLICKS
@@ -24804,7 +26275,6 @@ components:
       - server_purchase_enabled
       - browser_purchase_enabled
       - reason
-      - reauthentication_proof
       additionalProperties: false
       description: Public destination IDs/config only, never API tokens/secret values or arbitrary upstream URLs.
         Deployment secret store supplies credentials separately. Initial money Purchase server-only; Google requires
@@ -24977,15 +26447,10 @@ components:
           type: string
           minLength: 1
           maxLength: 1000
-        reauthentication_proof:
-          type: string
-          minLength: 16
-          maxLength: 2000
       required:
       - expected_version
       - event_id
       - reason
-      - reauthentication_proof
       additionalProperties: false
       description: Replay original immutable outbox identity only after checking original outcome, consent at capture/current
         dispatch, destination version, nonoverlapping verified allocation and adjustment lineage. Unknown original
@@ -25003,15 +26468,10 @@ components:
           type: string
           minLength: 1
           maxLength: 1000
-        reauthentication_proof:
-          type: string
-          minLength: 16
-          maxLength: 2000
       required:
       - expected_version
       - paused
       - reason
-      - reauthentication_proof
       additionalProperties: false
     DashboardMetric:
       type: object
@@ -25379,6 +26839,10 @@ components:
     WorkQueueItem:
       type: object
       properties:
+        order_admin_no:
+          anyOf:
+          - $ref: '#/components/schemas/AdminNumber'
+          - type: 'null'
         id:
           $ref: '#/components/schemas/Id'
         resource_kind:
@@ -25457,6 +26921,7 @@ components:
           - null
           description: Reconciliation rows only - the settlement feed (prepaid payment or COD remittance).
       required:
+      - order_admin_no
       - id
       - resource_kind
       - state
@@ -25841,8 +27306,9 @@ components:
           maxLength: 1000
         reauthentication_proof:
           type: string
-          minLength: 16
-          maxLength: 2000
+          minLength: 1
+          maxLength: 100
+          description: Required single-use shipping_label_template.version proof for subject shipping-label-templates; never a payment or commercial-policy proof.
       required:
       - expected_version
       - courier_name
@@ -27555,6 +29021,8 @@ components:
     CatalogDraftSummary:
       type: object
       properties:
+        admin_no:
+          $ref: '#/components/schemas/AdminNumber'
         id:
           $ref: '#/components/schemas/CatalogUuid'
         catalog_id:
@@ -27647,6 +29115,7 @@ components:
             of its photos is a screened claim photo (the rule that keeps it off curated home surfaces). Read-only;
             replacing the name or photos clears it.
       required:
+      - admin_no
       - id
       - catalog_id
       - slug
@@ -28566,6 +30035,15 @@ components:
           $ref: '#/components/schemas/Id'
         slug:
           type: string
+        public_slug:
+          type: string
+          minLength: 1
+          maxLength: 64
+          pattern: ^[a-z0-9]+(-[a-z0-9]+)*$
+          readOnly: true
+          description: Clean, unique, immutable storefront URL segment; the product page is /produk/{public_slug}
+            (a legacy /produk/<title>-<uuid> answers one 308 to it). Distinct from the internal immutable slug, which
+            is never a URL. A rename never changes it.
         name:
           type: string
         category_id:
@@ -28597,6 +30075,7 @@ components:
       - id
       - catalog_id
       - slug
+      - public_slug
       - name
       - category_id
       - description
@@ -28852,6 +30331,23 @@ components:
           - return_expected
           - quarantined
           - cancelled
+        product_name:
+          type:
+          - string
+          - 'null'
+          description: Purchased offer name from the order snapshot. Display label of the staff list and detail
+            reads only.
+        variant_label:
+          type:
+          - string
+          - 'null'
+          description: Purchased offer option label from the order snapshot. Display label of the staff list and
+            detail reads only.
+        warehouse_name:
+          type:
+          - string
+          - 'null'
+          description: Name of the physical origin warehouse. Display label of the staff list and detail reads only.
       required:
       - id
       - order_item_id
@@ -28895,6 +30391,12 @@ components:
     CommerceException:
       type: object
       properties:
+        admin_no:
+          $ref: '#/components/schemas/AdminNumber'
+        order_admin_no:
+          anyOf:
+          - $ref: '#/components/schemas/AdminNumber'
+          - type: 'null'
         id:
           $ref: '#/components/schemas/Id'
         order_id:
@@ -28941,6 +30443,10 @@ components:
           $ref: '#/components/schemas/DateTime'
         created_at:
           $ref: '#/components/schemas/DateTime'
+        order_number:
+          type: string
+          description: Printed order number. Display label attached by the staff list and detail reads only; never
+            part of a mutation response.
         units:
           type: array
           items:
@@ -29493,6 +30999,29 @@ components:
       description: One subject-bound finance authorization atomically queues all exact original-source groups; every
         refund retains its own capacity, obligation and job. This covers a replacement related to multiple original
         COD parcels without merging money sources.
+    RecoveryRefundList:
+      type: object
+      properties:
+        exception_id:
+          $ref: '#/components/schemas/Id'
+        version:
+          type: integer
+          minimum: 1
+          maximum: 2147483647
+        refunds:
+          type: array
+          items:
+            $ref: '#/components/schemas/RecoveryRefund'
+          minItems: 0
+          maxItems: 100
+      required:
+      - exception_id
+      - version
+      - refunds
+      additionalProperties: false
+      description: Every original-source recovery refund of one case, oldest first; empty before finance queued any.
+        version is the case revision, not a refund revision. Finance-only read; the case head carries no refund
+        ids, so a screen uses this list to find them again.
   securitySchemes:
     sessionCookie:
       type: apiKey
@@ -29754,12 +31283,27 @@ x-proof-groups:
   promotions:
     integration: tests/integration/promotion-contract.test.ts
     browser: tests/integration/promotion-http.test.ts
+  audit-log:
+    integration: tests/integration/audit-log.test.ts
+    browser: tests/browser/audit-log.test.ts
   buyer-profile:
     integration: tests/integration/buyer-profile.test.ts
     browser: tests/browser/buyer-profile.test.ts
   home-banners:
     integration: tests/integration/home-banners.test.ts
     browser: tests/browser/admin-banners.test.ts
+  customer-lookup:
+    integration: tests/integration/customer-lookup.test.ts
+    browser: tests/browser/customer-lookup.test.ts
+  system-health:
+    integration: tests/integration/system-health.test.ts
+    browser: tests/browser/admin-system-health.test.ts
+  staff-roles:
+    integration: tests/integration/staff-roles.test.ts
+    browser: tests/browser/admin-staff-roles.test.ts
+  admin-affiliates:
+    integration: tests/integration/admin-affiliates.test.ts
+    browser: tests/browser/admin-affiliates.test.ts
   checkout:
     integration: tests/integration/checkout-contract.test.ts
     browser: tests/integration/checkout-http.test.ts
@@ -29802,6 +31346,9 @@ x-proof-groups:
   exceptions:
     integration: tests/integration/exception-routes.test.ts
     browser: tests/browser/localhost-readiness.test.ts
+  exception-workbench:
+    integration: tests/integration/exception-workbench.test.ts
+    browser: tests/browser/admin-exceptions.test.ts
   support:
     integration: tests/integration/support-chat.test.ts
     browser: tests/browser/support-chat.test.ts
@@ -29829,3 +31376,6 @@ x-proof-groups:
   finance-summary:
     integration: tests/integration/finance-realized-contribution.test.ts
     browser: tests/integration/finance-http.test.ts
+  finance-workbench:
+    integration: tests/integration/finance-workbench.test.ts
+    browser: tests/browser/admin-finance.test.ts

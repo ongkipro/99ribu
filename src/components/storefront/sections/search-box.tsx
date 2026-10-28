@@ -7,7 +7,7 @@ import {Icon} from '../ui/icon';
 // positioned, so opening never moves the page. The input stays a native GET field (works without
 // JS); this island adds the WAI-ARIA combobox list. Suggestions are product phrases computed from
 // the published catalog on the server; typing filters them and adds a "Cari …" row.
-const normal=(value:string)=>value.toLocaleLowerCase('id').normalize('NFKD').replace(/\p{M}/gu,'');
+export const normal=(value:string)=>value.toLocaleLowerCase('id').normalize('NFKD').replace(/\p{M}/gu,'');
 function Highlight({text,query}:{text:string;query:string}){
  const at=query?normal(text).indexOf(query):-1;
  if(at<0) return <span>{text}</span>;

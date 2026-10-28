@@ -74,7 +74,7 @@ import {
 	readPrivateArtifact,
 	savePrivateArtifact,
 } from "../../src/storage/private.ts";
-import { actor, cleanup, enroll } from "../contract/access-fixture.ts";
+import { actor, cleanup, enroll, labelTemplateProof } from "../contract/access-fixture.ts";
 import { grantedChoices } from "./advertising-fixture.ts";
 import { CommerceClient } from "./checkout-fixture.ts";
 import {
@@ -1177,6 +1177,7 @@ test("S67 integration: independent web/worker restart converges pending and unkn
 				brand_mode: "neutral_partner",
 				partner_brand_name: "99ribu Local Test",
 				disclosure_text: "TEST-NOT-FOR-SHIPPING — LOCAL REHEARSAL ONLY",
+				reauthentication_proof: await labelTemplateProof(identity, f.owner),
 			},
 		);
 		tplReq.headers.set("idempotency-key", randomUUID());

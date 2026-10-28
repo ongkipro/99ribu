@@ -6,16 +6,13 @@ import {
 	hasPermission,
 	permissions,
 	type Principal,
+	staffRoles,
 } from "./policy.ts";
 import { financeAuthority } from "../finance/costs.ts";
 
 const action = "staff_roles.replace";
-const staffRoles = [
-	"ecommerce_admin",
-	"warehouse",
-	"customer_service",
-	"finance",
-];
+// S137: `staff_mfa.reset` is the owner's lost-authenticator reset (DEC-018 Q2); its proof subject is the target user.
+export const mfaResetAction = "staff_mfa.reset";
 const digest = (value: string) =>
 	createHash("sha256").update(value).digest("hex");
 const validId = (value: unknown): value is string =>
@@ -66,15 +63,19 @@ const financePurposes: Record<string, "reconciliation" | "refunds"> = {
 	"finance.recovery_refund": "refunds",
 };
 const payoutPurposes = ["payout.claim", "payout.verify"];
-const selfPurposes = ["affiliate.beneficiary_change", "support.contact_rebind"];
+// session.terminate_others (S129) binds the caller's own user id like support.contact_rebind; staff keep their
+// MFA-verified session (getPrincipal) and add the password.
+const selfPurposes = ["affiliate.beneficiary_change", "support.contact_rebind", "session.terminate_others"];
 // S110: storefront content purposes are owner or ecommerce_admin with fresh MFA; one fixed company subject.
 const contentPurposes: Record<string, string> = {
 	"home_banner.write": "home-banners",
 };
 const ownerPurposes = [
 	action,
+	mfaResetAction,
 	"company_policy.version",
 	"payment_policy.version",
+	"shipping_label_template.version",
 	"warehouse_calendar.version",
 	"warehouse_calendar.default_apply",
 	"catalog_publication.exception",
@@ -146,6 +147,8 @@ export async function issueAccessProof(
 			body.subject_id !== "company-commercial") ||
 		(body.action === "payment_policy.version" &&
 			body.subject_id !== "company-payment") ||
+		(body.action === "shipping_label_template.version" &&
+			body.subject_id !== "shipping-label-templates") ||
 		(Object.hasOwn(contentPurposes, body.action) &&
 			body.subject_id !== contentPurposes[body.action]) ||
 		(body.action === "warehouse_calendar.default_apply" &&
@@ -225,7 +228,10 @@ export async function issueAccessProof(
 				await tx`select a.id from app.affiliate_account a join app.role_grant g on g.user_id=a.user_id
         where a.id=${subjectId} and a.user_id=${principal.id} and 'affiliate'=any(g.roles) for share of a,g`;
 			if (!own) throw new AccessError(403, "FORBIDDEN");
-		} else if (proofAction !== "support.contact_rebind")
+		} else if (
+			proofAction !== "support.contact_rebind" &&
+			proofAction !== "session.terminate_others"
+		)
 			await assertCurrentOwner(tx, principal, true);
 		// Preserve the established per-session issuance identity across reviewed purposes.
 		const operationAction = `staff_roles.proof:${principal.sessionId}`;
@@ -279,7 +285,7 @@ export async function replaceStaffGrant(
 		) ||
 		!validId(body.user_id) ||
 		!list(body.roles) ||
-		body.roles.some((role) => !staffRoles.includes(role)) ||
+		body.roles.some((role) => !(staffRoles as readonly string[]).includes(role)) ||
 		!list(body.warehouse_ids) ||
 		body.warehouse_ids.some(
 			(id) =>
@@ -303,7 +309,6 @@ export async function replaceStaffGrant(
 	)
 		throw new AccessError(400, "INVALID_INPUT");
 	if (
-		body.user_id === principal.id ||
 		(body.roles.includes("warehouse") && !body.warehouse_ids.length) ||
 		(body.permissions.some((permission) => permission.startsWith("finance.")) &&
 			!body.roles.includes("finance"))
@@ -321,10 +326,16 @@ export async function replaceStaffGrant(
 	const reauthenticationProof = body.reauthentication_proof;
 	return identity.sql.begin(async (tx) => {
 		// Lock actor/subject in stable order. Every grant writer uses this boundary;
-		// concurrent replacement/revocation cannot authorize from a stale grant.
+		// concurrent replacement/revocation cannot authorize from a stale grant. The target may be the actor
+		// (an owner stepping down), so the lock set is de-duplicated.
+		const lockIds = [...new Set([principal.id, change.user_id])].sort();
 		const users =
-			await tx`select id from app.auth_user where id in (${principal.id},${change.user_id}) order by id for update`;
-		if (users.length !== 2) throw new AccessError(404, "NOT_FOUND");
+			await tx`select id from app.auth_user where id in ${tx(lockIds)} order by id for update`;
+		if (users.length !== lockIds.length) throw new AccessError(404, "NOT_FOUND");
+		// S137: every owner grant row is locked, in id order, before any owner is read or demoted. Two owners
+		// stepping down (or removing each other) at the same time queue here, so the second one counts the owners
+		// that remain AFTER the first commit; the last owner can never be removed.
+		await tx`select user_id from app.role_grant where 'owner'=any(roles) order by user_id for update`;
 		await assertCurrentOwner(tx, principal);
 		const [previous] =
 			await tx`select request_hash,response from app.access_operation where actor_id=${principal.id} and action=${action} and key=${key}`;
@@ -335,8 +346,12 @@ export async function replaceStaffGrant(
 		}
 		const [current] =
 			await tx`select id,roles,revision from app.role_grant where user_id=${change.user_id}`;
-		if (current?.roles.includes("owner"))
-			throw new AccessError(403, "FORBIDDEN");
+		if (current?.roles.includes("owner")) {
+			const [{ remaining }] =
+				await tx`select count(*)::int as remaining from app.role_grant g join app.auth_user u on u.id=g.user_id
+        where 'owner'=any(g.roles) and g.user_id<>${change.user_id} and u.two_factor_enabled`;
+			if (remaining < 1) throw new AccessError(409, "LAST_OWNER");
+		}
 		if ((current?.revision ?? 0) !== change.expected_version)
 			throw new AccessError(409, "VERSION_CONFLICT");
 		if (change.warehouse_ids.length) {
@@ -355,6 +370,8 @@ export async function replaceStaffGrant(
 		const retained = (current?.roles ?? ["buyer"]).filter((role: string) =>
 			["buyer", "affiliate"].includes(role),
 		);
+		// An owner who is removed or steps down keeps an ordinary account, like any other staff member.
+		if (current?.roles.includes("owner")) retained.push("buyer");
 		const nextRoles = [...new Set([...retained, ...change.roles])].sort();
 		const [saved] =
 			await tx`insert into app.role_grant (user_id,roles,permissions) values (${change.user_id},${nextRoles},${change.permissions})
@@ -372,8 +389,9 @@ export async function replaceStaffGrant(
 			permissions: change.permissions,
 			version: saved.revision,
 		};
+		// previous_roles makes an owner demotion visible in the trail; the replay response stays the public shape.
 		await tx`insert into app.audit_event (actor_id,action,subject_id,outcome,reason,details)
-      values (${principal.id},${action},${change.user_id},'allowed',${change.reason},${JSON.stringify(response)}::jsonb)`;
+      values (${principal.id},${action},${change.user_id},'allowed',${change.reason},${JSON.stringify({ ...response, previous_roles: current?.roles ?? [] })}::jsonb)`;
 		await tx`insert into app.access_operation (actor_id,action,key,request_hash,response)
       values (${principal.id},${action},${key},${requestHash},${JSON.stringify(response)}::jsonb)`;
 		return response;

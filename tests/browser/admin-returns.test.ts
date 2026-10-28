@@ -1,3 +1,4 @@
+import { UNKNOWN_ADMIN_ID } from "../../src/modules/access/admin-paths.ts";
 import assert from "node:assert/strict";
 import { randomUUID } from "node:crypto";
 import test from "node:test";
@@ -39,7 +40,9 @@ async function open(user: User, viewport = { width: 1280, height: 900 }, touch =
 const json = (route: Route, body: unknown, status = 200) =>
 	route.fulfill({ status, contentType: "application/json", body: JSON.stringify(body) });
 
-const caseId = randomUUID();
+// Addressed by admin number in the console; no row has this number, so the page passes the client UNKNOWN_ADMIN_ID.
+const caseId = UNKNOWN_ADMIN_ID;
+const caseNo = 987654322;
 const W = randomUUID();
 const item = (over: Record<string, unknown> = {}) => ({
 	id: randomUUID(), fulfillment_item_id: randomUUID(), order_item_id: randomUUID(), shipment_id: randomUUID(), warehouse_id: W,
@@ -48,7 +51,7 @@ const item = (over: Record<string, unknown> = {}) => ({
 	components: [{ balance_id: randomUUID(), name: "Botol 1 L", quantity: 1 }], ...over,
 });
 const caseOf = (status: string, over: Record<string, unknown> = {}) => ({
-	id: caseId, order_id: randomUUID(), order_number: "99-TEST0001", version: 3, status, requested_resolution: "refund", resolution: null,
+	id: caseId, admin_no: caseNo, order_admin_no: 1042, order_id: randomUUID(), order_number: "99-TEST0001", version: 3, status, requested_resolution: "refund", resolution: null,
 	requires_goods: null, created_at: "2026-10-20T03:00:00.000Z", items_complete: true, can_decide: true, refund_ids: [], items: [item()],
 	replacement_ids: [], evidence: [], events: [{ version: 1, kind: "create", status: "requested", actor: "buyer", actor_name: null, reason: "x", occurred_at: "2026-10-20T03:00:00.000Z" }],
 	...over,
@@ -113,7 +116,7 @@ test("decision: approve sends the read version and the goods choice once; reject
 	try {
 		const state = { detail: caseOf("requested"), posts: [] as { path: string; body: Record<string, unknown> }[] };
 		await routes(page, state);
-		await page.goto(`${origin}/admin/returns/${caseId}`);
+		await page.goto(`${origin}/admin/returns/${caseNo}`);
 		await expect(page.getByTestId("return-status")).toHaveText("Menunggu keputusan");
 		await page.getByTestId("return-reject").click();
 		await expect(page.getByRole("dialog")).toContainText("ditampilkan ke pembeli");
@@ -141,7 +144,7 @@ test("inspection and refund: components are sent by allocation, the refund issue
 	try {
 		const state = { detail: caseOf("awaiting_goods", { requires_goods: true, resolution: "refund", can_decide: true }), posts: [] as { path: string; body: Record<string, unknown> }[] };
 		await routes(page, state);
-		await page.goto(`${origin}/admin/returns/${caseId}`);
+		await page.goto(`${origin}/admin/returns/${caseNo}`);
 		await page.getByTestId("return-inspect").click();
 		const dialog = page.getByRole("dialog");
 		await dialog.getByLabel("Catatan inspeksi (wajib)").fill("Botol diterima, retak di tutup");
@@ -173,7 +176,7 @@ test("phone: the case screen has no horizontal overflow and its actions sit in t
 	const { page, errors, close } = await open(owner, { width: 390, height: 844 }, true);
 	try {
 		await routes(page, { detail: caseOf("requested"), posts: [] });
-		await page.goto(`${origin}/admin/returns/${caseId}`);
+		await page.goto(`${origin}/admin/returns/${caseNo}`);
 		await expect(page.getByTestId("return-approve")).toBeVisible();
 		assert.equal(await page.evaluate(() => document.documentElement.scrollWidth - document.documentElement.clientWidth), 0);
 		assert.equal(await page.getByTestId("return-approve").evaluate((el) => getComputedStyle(el.closest("[data-sticky-bar]") as Element).position), "fixed");

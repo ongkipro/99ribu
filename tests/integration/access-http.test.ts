@@ -45,6 +45,7 @@ test("built access routes require actual browser MFA cookie and project assigned
     assert.deepEqual(me.payload.warehouse_ids, [warehouseId]);
     const list = await call("/api/v1/admin/warehouses"); assert.equal(list.status, 200);
     assert.deepEqual(list.payload.data.map((row: {id: string}) => row.id), [warehouseId]);
+    const detail = await call(`/api/v1/admin/warehouses/${warehouseId}`); assert.equal(detail.status, 200); assert.equal(detail.payload.id, warehouseId);
     assert.ok(!(await page.evaluate(() => document.cookie)).includes("session_token"));
     for (const header of ["authorization", "x-cart-token", "x-order-token"]) {
       assert.equal((await call("/api/v1/me", undefined, { [header]: "synthetic-unsupported" })).status, 401);
@@ -70,6 +71,7 @@ test("built access routes require actual browser MFA cookie and project assigned
     assert.equal(forged.status(), 403);
     assert.equal((await call("/api/auth/sign-out", {})).status, 200);
     assert.equal((await call("/api/v1/admin/warehouses")).status, 401);
+    assert.equal((await call(`/api/v1/admin/warehouses/${warehouseId}`)).status, 401);
     validateExchanges(samples);
   } finally {
     await browser.close();

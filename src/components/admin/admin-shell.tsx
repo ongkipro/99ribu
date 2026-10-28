@@ -1,6 +1,9 @@
 "use client";
 
 import {
+	BadgePercent,
+	Boxes,
+	Activity,
 	ArrowLeftRight,
 	Banknote,
 	ChevronsUpDown,
@@ -17,12 +20,17 @@ import {
 	PackageOpen,
 	Printer,
 	ReceiptText,
+	ScrollText,
 	ShieldCheck,
 	Store,
+	Tags,
 	TicketPercent,
 	Truck,
 	Undo2,
+	TriangleAlert,
 	UserRound,
+	UserCog,
+	UserSearch,
 	UsersRound,
 	Wallet,
 	Warehouse,
@@ -61,6 +69,7 @@ import { catalogAccess } from "./catalog-model";
 import { consoleAccess } from "./console-access";
 import { canReadOrders } from "./order-model";
 import { returnAccess } from "./return-model";
+import { financeAccess } from "./finance-model";
 
 export const WORKSPACE_NAV: Record<
 	CanonicalWorkspace,
@@ -233,12 +242,12 @@ function initials(name: string, email: string) {
 
 // Profil and Keamanan akun (S129) stay hidden until their pages exist, like every unbuilt screen.
 const ACCOUNT_PAGES: NavItem[] = [
-	{ href: "/admin/account", label: "Profil", icon: UserRound, show: false },
+	{ href: "/admin/account", label: "Profil", icon: UserRound, show: true },
 	{
 		href: "/admin/account/security",
 		label: "Keamanan akun",
 		icon: ShieldCheck,
-		show: false,
+		show: true,
 	},
 ];
 
@@ -383,6 +392,7 @@ export function AdminShell({
 	// Same grants the destination pages enforce server-side; this only hides dead ends.
 	// Spec 17 groups and order; a screen that is not built yet has no item until its slice merges.
 	const access = consoleAccess(roles, permissions);
+	const fin = financeAccess(roles, permissions);
 	const groups = visibleGroups([
 		{
 			label: "Operasional",
@@ -406,6 +416,13 @@ export function AdminShell({
 					show: access.print,
 				},
 				{
+					href: "/admin/exceptions",
+					label: "Masalah Pengiriman",
+					icon: TriangleAlert,
+					// Same rule as the exceptions page guard (S133).
+					show: returnAccess(roles, permissions).read,
+				},
+				{
 					href: "/admin/returns",
 					label: "Retur & Penggantian",
 					icon: Undo2,
@@ -415,6 +432,13 @@ export function AdminShell({
 					href: "/admin/support",
 					label: "Kotak Masuk Pelanggan",
 					icon: MessagesSquare,
+					show: access.support,
+				},
+				{
+					href: "/admin/customers",
+					label: "Akun Pembeli",
+					icon: UserSearch,
+					// Same rule as the customer lookup page guard (S138): owner and customer_service.
 					show: access.support,
 				},
 			],
@@ -429,6 +453,18 @@ export function AdminShell({
 					show: catalogAccess(roles, permissions).read,
 				},
 				{
+					href: "/admin/catalog/stock-items",
+					label: "SKU Fisik",
+					icon: Boxes,
+					show: catalogAccess(roles, permissions).edit,
+				},
+				{
+					href: "/admin/catalog/categories",
+					label: "Kategori",
+					icon: Tags,
+					show: catalogAccess(roles, permissions).edit,
+				},
+				{
 					href: "/admin/inventory",
 					label: "Stok Gudang",
 					icon: PackageOpen,
@@ -438,6 +474,13 @@ export function AdminShell({
 					href: "/admin/inventory/transfers",
 					label: "Transfer Stok",
 					icon: ArrowLeftRight,
+					show: access.inventory,
+				},
+				{
+					href: "/admin/warehouses",
+					label: "Gudang",
+					icon: Warehouse,
+					// Same rule as the warehouses page guard (S134).
 					show: access.inventory,
 				},
 			],
@@ -464,6 +507,13 @@ export function AdminShell({
 					// Same rule as the buyer-segments page guard (S126).
 					show: roles.some((r) => r === "owner" || r === "ecommerce_admin"),
 				},
+				{
+					href: "/admin/affiliates",
+					label: "Afiliasi",
+					icon: BadgePercent,
+					// Same rule as the affiliates page guard (S132, DEC-018 Q5): owner writes rates, finance reads.
+					show: roles.some((r) => r === "owner" || r === "finance"),
+				},
 			],
 		},
 		{
@@ -481,10 +531,96 @@ export function AdminShell({
 					icon: Banknote,
 					show: access.reconcileRead,
 				},
+				{
+					href: "/admin/finance/reconciliation",
+					label: "Rekonsiliasi",
+					icon: ArrowLeftRight,
+					show: fin.reconcileRead,
+				},
+				{
+					href: "/admin/finance/payouts",
+					label: "Pembayaran Komisi",
+					icon: Wallet,
+					show: fin.payouts,
+				},
+				{
+					href: "/admin/finance/refunds",
+					label: "Refund",
+					icon: Undo2,
+					show: fin.refundRead,
+				},
+				{
+					href: "/admin/finance/summary",
+					label: "Laporan Keuangan",
+					icon: ReceiptText,
+					show: fin.summaryRead,
+				},
 			],
 		},
-		// Shell only: S130/S135/S136/S137 add the settings items; an empty group is not rendered.
-		{ label: "Pengaturan", items: [] },
+		// S130/S137 add the remaining settings items; an empty group is not rendered.
+		{
+			label: "Pengaturan",
+			items: [
+				{
+					href: "/admin/settings/audit",
+					label: "Log Audit",
+					icon: ScrollText,
+					// Same rule as the audit page guard (S135, DEC-018 Q4): owner, and finance for money actions.
+					show: roles.some((r) => r === "owner" || r === "finance"),
+				},
+				{
+					href: "/admin/settings/system",
+					label: "Kesehatan Sistem",
+					icon: Activity,
+					// Same rule as the system health page guard (S136): owner only.
+					show: roles.includes("owner"),
+				},
+				{
+					href: "/admin/settings/staff",
+					label: "Staf & Peran",
+					icon: UserCog,
+					// Same rule as the staff page guard (S137): owner only.
+					show: roles.includes("owner"),
+				},
+				{
+					href: "/admin/settings/payment",
+					label: "Pembayaran & Biaya COD",
+					icon: Landmark,
+					// Same rule as the payment settings page guard (S130, DEC-018 Q3): owner writes, finance reads.
+					show: roles.some((r) => r === "owner" || r === "finance"),
+				},
+				{
+					href: "/admin/settings/commercial",
+					label: "Kebijakan Komersial",
+					icon: ReceiptText,
+					// Same rule as the commercial settings page guard (S130, DEC-018 Q3).
+					show: roles.some((r) => r === "owner" || r === "finance"),
+				},
+				{
+					href: "/admin/settings/label-templates",
+					label: "Template Label",
+					icon: Printer,
+					// Same rule as the label templates page guard (S130): read for the roles that print or reconcile.
+					show:
+						roles.some((r) => r === "owner" || r === "ecommerce_admin" || r === "warehouse" || r === "finance") ||
+						permissions.includes("shipping.labels.read"),
+				},
+				{
+					href: "/admin/settings/advertising",
+					label: "Integrasi Iklan",
+					icon: Activity,
+					// Same rule as the advertising settings page guard (S130): owner only, as the diagnostics API.
+					show: roles.includes("owner"),
+				},
+				{
+					href: "/admin/settings/support",
+					label: "Balasan & Tag CS",
+					icon: MessagesSquare,
+					// Same rule as the support settings page guard (S130).
+					show: access.support,
+				},
+			],
+		},
 	]);
 
 	return (

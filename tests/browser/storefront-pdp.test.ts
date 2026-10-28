@@ -12,7 +12,6 @@ import {handleInventory} from '../../src/modules/inventory/routes.ts';
 import {releaseReservation} from '../../src/modules/inventory/reservations.ts';
 import {seedCommerce} from '../../src/modules/local/commerce.ts';
 import {prepareStorefront} from '../../src/modules/local/storefront.ts';
-import {productSlug} from '../../src/modules/storefront/navigation.ts';
 import {actor,cleanup,enroll} from '../contract/access-fixture.ts';
 import {RENDERS} from '../render-root.ts';
 
@@ -32,11 +31,12 @@ async function move(id:string,kind:'quarantine'|'release_quarantine',quantity:nu
  const request=owner.browser.request('/api/v1/admin/inventory/movements',{warehouse_id:position.warehouse_id,stock_item_id:position.stock_item_id,kind,quantity,expected_version:position.revision,reason:'Owned S139 PDP out-of-stock render'});request.headers.set('idempotency-key',randomUUID());
  assert.equal((await handleInventory(request,identity)).status,201);
 }
+const slugOf=async(id:string)=>(await identity.sql<{public_slug:string}[]>`select public_slug from app.product where id=${id}`)[0].public_slug;
 // A dataset product by its exact catalog name, through the public storefront API.
 async function catalogPath(name:string){
  const response=await fetch(`${origin}/api/v1/products?${new URLSearchParams({q:name,limit:'5'})}`);assert.equal(response.status,200);
- const body=await response.json() as {data:{id:string;name:string}[]};const found=body.data.find(p=>p.name===name);assert.ok(found,`catalog product ${name}`);
- return `/produk/${productSlug(found.id,found.name)}`;
+ const body=await response.json() as {data:{id:string;name:string;public_slug:string}[]};const found=body.data.find(p=>p.name===name);assert.ok(found,`catalog product ${name}`);
+ return `/produk/${found.public_slug}`;
 }
 
 test.before(async()=>{
@@ -52,12 +52,12 @@ test.before(async()=>{
  const next=await readCatalogRevision(identity.sql,shirt.id),alternate=next.variants.find(v=>!v.retired&&v.sku.startsWith('S139_MULTI_'));assert.ok(alternate);multiAlternate=alternate.id;
  await appendCostVersion(command(),identity,principal,'assumption',alternate.id,{expected_version:0,effective_from:null,packaging_idr:1000,provider_fee_idr:1000,subsidy_idr:5000,returns_reserve_idr:1000,source:'TEST-ONLY owned S139 option assumptions',reason:'Initialize the owned option assumptions'});
  await publishProduct(command(),identity,principal,shirt.id,{expected_version:draft.version+1,expected_publication_version:publication.current.version,reason:'Owned S139 multi-offer render'});
- paths.multi=`/produk/${productSlug(shirt.id,next.name)}?offer=${shirt.offer_id}`;
+ paths.multi=`/produk/${await slugOf(shirt.id)}?offer=${shirt.offer_id}`;
  // Out of stock: every position of the owned cream stock is quarantined (the cream pair cannot be completed).
  const cream=curated.products['cream-pair'];
  const positions=await identity.sql<{id:string;available:number}[]>`select id,on_hand-reserved-quarantined as available from app.inventory_balance where id in ${identity.sql(Object.values(seeded.positions))} and stock_item_id=${seeded.stocks['fixture-cream']}`;
  for(const position of positions)if(position.available>0){await move(position.id,'quarantine',position.available);quarantined.push({id:position.id,quantity:position.available});}
- paths.oos=`/produk/${cream.id}`;
+ paths.oos=`/produk/${await slugOf(cream.id)}`;
  // Real catalog photos for the other states: a product with photos, the largest bundle (seven items, long text), the longest title.
  paths.default=await catalogPath('10 pcs Lem Perekat Super Kuat, 20ml');
  paths.bundle=await catalogPath('Paket Borongan Solusi Rumah Tangga');
@@ -105,6 +105,57 @@ for(const width of [390,768,1440])test(`PDP states render without overflow or co
  }finally{await f.browser.close();}
 });
 
+test('S143: a men\'s grooming bundle is under Fashion Pria, and its description lists hang and fade instead of ending in an ellipsis',{timeout:60000},async()=>{
+ const path=await catalogPath('Paket Barber & Grooming Pria di Rumah');
+ const f=await start(1440);try{
+  await open(f.page,path);
+  await expect(f.page.locator('.breadcrumb li').last()).toHaveText('Fashion Pria');
+  const text=f.page.locator('.description-body .detail-description');
+  // The "- item" lines are a real list; its wrapped lines hang under the text (padding on the list, no text-indent).
+  const list=text.locator('ul').first();await expect(list.locator('li')).toHaveCount(3);
+  assert.deepEqual(await list.evaluate(el=>{const s=getComputedStyle(el),li=getComputedStyle(el.firstElementChild as Element);return {type:s.listStyleType,left:s.paddingLeft,indent:li.textIndent};}),{type:'disc',left:'20px',indent:'0px'});
+  const first=await list.locator('li').first().boundingBox(),box=await list.boundingBox();assert.ok(first&&box&&first.height>=36&&Math.abs(first.x-box.x-20)<=1,'a long item wraps to two lines inside the 20px inset');
+  // Clamped at 8 lines by max-height and a fade, not a line-clamp ellipsis.
+  const clamp=await text.evaluate(el=>{const s=getComputedStyle(el);return {lines:s.getPropertyValue('-webkit-line-clamp'),max:s.maxHeight,mask:s.maskImage};});
+  assert.ok(clamp.lines===''||clamp.lines==='none');assert.equal(clamp.max,'144px');assert.notEqual(clamp.mask,'none');
+  await f.page.locator('.read-more summary').click();
+  assert.equal(await text.evaluate(el=>getComputedStyle(el).maskImage),'none');
+  assert.deepEqual(f.errors,[]);
+ }finally{await f.browser.close();}
+});
+
+test('legacy product URLs answer one 308 to the clean slug and keep the query; an unknown slug is a 404',{timeout:60000},async()=>{
+ const clean=paths.default.slice('/produk/'.length),[{id}]=await identity.sql<{id:string}[]>`select id from app.product where public_slug=${clean}`;
+ assert.match(clean,/^[a-z0-9]+(-[a-z0-9]+)*$/);
+ const search=`?${new URLSearchParams({offer:randomUUID(),from:'/cari?q=Contoh#product-'+id,utm_source:'google'})}`;
+ for(const legacy of [`/produk/judul-lama-yang-sudah-diganti-${id}`,`/produk/${id}`,`/produk/${id.toUpperCase()}`]){
+  const response=await fetch(origin+legacy+search,{redirect:'manual'});assert.equal(response.status,308,legacy);
+  const target=new URL(response.headers.get('location')??'',origin);assert.equal(target.pathname,`/produk/${clean}`,'one hop to the clean slug');
+  assert.equal(target.search,search,'the query string is kept exactly');
+  const final=await fetch(origin+legacy,{redirect:'follow'});assert.equal(final.status,200);assert.equal(new URL(final.url).pathname,`/produk/${clean}`);
+ }
+ const page=await (await fetch(origin+paths.default)).text();
+ assert.ok(page.includes(`<link rel="canonical" href="${origin}/produk/${clean}"`),'the canonical is the clean slug');
+ assert.ok(!/\/produk\/[a-z0-9-]*[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}/i.test(page),'no product URL in the page carries an id');
+ for(const missing of ['/produk/produk-yang-tidak-pernah-ada','/produk/00000000-0000-4000-8000-0000000000ff','/produk/%00','/produk/Bukan_Slug!']){
+  const response=await fetch(origin+missing,{redirect:'follow'});assert.equal(response.status,404,missing);
+ }
+});
+
+test('listing cards link to the clean slug and add ?offer= only for an offer the page would not select on its own',{timeout:60000},async()=>{
+ const f=await start(390);try{
+  await f.page.goto(`${origin}/cari?q=Lem&limit=40`);await expect(f.page.locator('.product').first()).toBeVisible();
+  const cards=await f.page.locator('.product').evaluateAll(items=>items.map(li=>({options:Number(li.getAttribute('data-options')),id:li.id.slice('product-'.length),href:li.querySelector('a.product-link')?.getAttribute('href')??''})));
+  assert.ok(cards.length>=3&&cards.some(c=>c.options===1));
+  for(const card of cards){
+   const url=new URL(card.href,origin);assert.match(url.pathname,/^\/produk\/[a-z0-9]+(-[a-z0-9]+)*$/,card.href);assert.ok(!url.pathname.includes(card.id.slice(0,8)),'the card URL path does not carry the product id');
+   if(card.options===1)assert.equal(url.searchParams.has('offer'),false,`a one-offer product links to the bare slug: ${card.href}`);
+   assert.ok(url.searchParams.get('from')?.endsWith(`#product-${card.id}`),'the return anchor still names the product');
+  }
+  assert.deepEqual(f.errors,[]);
+ }finally{await f.browser.close();}
+});
+
 test('gallery thumbnails are server links, take their column before hydration and move the photo row',{timeout:60000},async()=>{
  const html=await (await fetch(origin+paths.bundle)).text();
  assert.match(html,/class="gallery-thumbs"[\s\S]*?<a href="#foto-1"[^>]*aria-label="Foto 1 dari 4"/,'thumbnail links are in the server HTML');
@@ -125,9 +176,12 @@ test('gallery thumbnails are server links, take their column before hydration an
 test('option links switch the offer at once, keep the return path and work without JavaScript',{timeout:60000},async()=>{
  for(const js of [true,false]){const f=await start(390,js);try{
   const from='/cari?q=Contoh',path=`${paths.multi}&${new URLSearchParams({from})}`;await open(f.page,path);
-  const option=f.page.locator(`.offer-picker a[href*="offer=${multiAlternate}"]`);await option.focus();await option.press('Enter');
-  await expect(f.page.locator(`.offer-picker a[href*="offer=${multiAlternate}"]`)).toHaveAttribute('aria-current','true');await f.page.locator('summary',{hasText:'Isi yang diterima'}).click();await expect(f.page.getByText('2 × Kaos contoh',{exact:true})).toBeVisible();
-  assert.equal(new URL(f.page.url()).searchParams.get('offer'),multiAlternate);assert.equal(new URL(f.page.url()).searchParams.get('from'),from);await expect(f.page.locator('.offer-picker .field-label')).toContainText('Isi 2 kaos');
+  const links=await f.page.locator('.offer-picker a').evaluateAll(anchors=>anchors.map(x=>x.getAttribute('href')??''));
+  assert.equal(links.length,2);assert.ok(links.every(h=>/^\/produk\/[a-z0-9]+(-[a-z0-9]+)*(\?|$)/.test(h)),`clean slug paths: ${links}`);
+  assert.equal(links.filter(h=>!new URL(h,origin).searchParams.has('offer')).length,1,'the offer the page selects on its own links to the bare slug; the other keeps ?offer=');
+  const option=f.page.locator('.offer-picker a',{hasText:'Isi 2 kaos'}),alternateIsDefault=!new URL((await option.getAttribute('href'))??'',origin).searchParams.has('offer');await option.focus();await option.press('Enter');
+  await expect(f.page.locator('.offer-picker a',{hasText:'Isi 2 kaos'})).toHaveAttribute('aria-current','true');await f.page.locator('summary',{hasText:'Isi yang diterima'}).click();await expect(f.page.getByText('2 × Kaos contoh',{exact:true})).toBeVisible();
+  assert.equal(new URL(f.page.url()).searchParams.get('offer'),alternateIsDefault?null:multiAlternate);assert.equal(new URL(f.page.url()).searchParams.get('from'),from);await expect(f.page.locator('.offer-picker .field-label')).toContainText('Isi 2 kaos');
   if(js){await capture(f.page,'multi-switched-390');assert.deepEqual(f.errors,[]);}
  }finally{await f.browser.close();}}
 });
@@ -140,7 +194,7 @@ test('the phone buy bar submits the same form, then brings the feedback into vie
   // S143: the denser type puts the main button on the first phone screen, so scroll it out of view (above) to show the bar.
   await main.evaluate(el=>window.scrollTo(0,el.getBoundingClientRect().bottom+window.scrollY+8));
   await expect(bar).toBeVisible();await capture(f.page,'buy-bar-390',false);
-  await bar.locator('button').tap();
+  await bar.locator('.bar-add').tap();
   await expect(f.page.locator('.cart-feedback')).toContainText('ditambahkan');await expect(f.page.locator('.cart-feedback')).toBeInViewport();await expect(bar).toBeHidden();
   const cart=await (await f.page.request.get(`${origin}/api/v1/carts/current`)).json();assert.equal(cart.lines[0].quantity,1);await capture(f.page,'buy-bar-added-390',false);
   assert.deepEqual(f.errors,[]);

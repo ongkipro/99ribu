@@ -45,6 +45,8 @@ export type CatalogProduct = {
 /** Row of GET /api/v1/admin/products (summary computed server-side). */
 export type ProductSummary = {
 	id: string;
+	/** Short admin handle: opens at `/admin/catalog/{admin_no}`. */
+	admin_no: number;
 	catalog_id: string;
 	slug: string;
 	version: number;
@@ -113,9 +115,13 @@ export function catalogAccess(
 	const costs =
 		owner ||
 		(roles.includes("finance") && permissions.includes("finance.costs.read"));
+	// finance.costs.write (owner implicitly): the cost-version forms. The API refuses every other caller.
+	const costsWrite =
+		owner ||
+		(roles.includes("finance") && permissions.includes("finance.costs.write"));
 	// Owner and cost readers see every product; other readers only products
 	// whose active offers sit in their warehouses (server authority().company).
-	return { read: stock || costs, edit, stock, costs, company: costs };
+	return { read: stock || costs, edit, stock, costs, costsWrite, company: costs };
 }
 
 export const OFFER_KIND_LABELS: Record<OfferKind, string> = {

@@ -9,7 +9,7 @@ import {
 	problem,
 	readBody,
 } from "../access/http.ts";
-import { AccessError, getPrincipal } from "../access/policy.ts";
+import { AccessError, getPrincipal, type Principal } from "../access/policy.ts";
 import { measurementAllowed, type Platform } from "../consent/choices.ts";
 import type { Visitor } from "../consent/context.ts";
 import { type Consent, currentConsent } from "../consent/receipts.ts";
@@ -523,7 +523,21 @@ export async function listAdvertisingDestinations(
 	const data = [];
 	for (const row of rows) {
 		const diag = await computePlatformDiagnostics(identity.sql, row, from, to);
-		data.push(projectDestination(row, diag));
+		const versions = await identity.sql<
+			{
+				revision: number;
+				paused: boolean;
+				public_identifier: string | null;
+				reason: string | null;
+				created_at: string;
+			}[]
+		>`
+      select revision, paused, public_identifier, reason, created_at
+      from app.ad_destination_version
+      where destination_id = ${row.id}::uuid
+      order by revision desc
+    `;
+		data.push(projectDestination(row, diag, versions));
 	}
 
 	return {
@@ -622,7 +636,6 @@ export async function updateAdvertisingDestination(
 	if (!reason || reason.length > 1000) {
 		throw new AccessError(400, "INVALID_INPUT");
 	}
-
 	await ensureDefaultDestinations(identity.sql);
 
 	const updated = await identity.sql.begin(async (tx) => {
@@ -640,7 +653,6 @@ export async function updateAdvertisingDestination(
 		if (Number(locked.revision) !== expectedVersion) {
 			throw new AccessError(409, "VERSION_CONFLICT");
 		}
-
 		const nextPublicId =
 			typeof body.public_identifier === "string" &&
 			body.public_identifier.trim().length > 0
@@ -772,7 +784,6 @@ export async function setDestinationPauseState(
 		throw new AccessError(400, "INVALID_INPUT");
 	}
 	const desiredPause = body.paused;
-
 	await ensureDefaultDestinations(identity.sql);
 
 	const updated = await identity.sql.begin(async (tx) => {
@@ -790,7 +801,6 @@ export async function setDestinationPauseState(
 		if (Number(locked.revision) !== expectedVersion) {
 			throw new AccessError(409, "VERSION_CONFLICT");
 		}
-
 		const nextRevision = Number(locked.revision) + 1;
 		const [saved] = await tx<DestinationRow[]>`
       update app.ad_destination_config
@@ -910,7 +920,7 @@ export async function replayAdvertisingEvent(
 		return await replayWithTrace(
 			request,
 			identity,
-			principal.id,
+			principal,
 			destinationId,
 			trace,
 		);
@@ -940,10 +950,11 @@ export async function replayAdvertisingEvent(
 async function replayWithTrace(
 	request: Request,
 	identity: LocalAuth,
-	actorId: string,
+	principal: Principal,
 	destinationId: string,
 	trace: ReplayTrace,
 ) {
+	const actorId = principal.id;
 	const body = await readBody(request);
 
 	// Forbid caller-supplied amount/time/event_name overrides
@@ -972,7 +983,6 @@ async function replayWithTrace(
 	if (!reason || reason.length > 1000) {
 		throw new AccessError(400, "INVALID_INPUT");
 	}
-
 	const eventId = typeof body.event_id === "string" ? body.event_id : null;
 	const outboxIdInput =
 		typeof body.outbox_id === "string" ? body.outbox_id : null;
@@ -993,7 +1003,6 @@ async function replayWithTrace(
 	if (destination.paused) {
 		throw new AccessError(409, "DESTINATION_PAUSED");
 	}
-
 	const platform = destination.platform;
 
 	// Locate the outbox row and event

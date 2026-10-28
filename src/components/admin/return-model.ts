@@ -37,7 +37,10 @@ export type ReturnEvent = {
 };
 export type ReturnCase = {
 	id: string;
+	/** Short admin handles: this case at `/admin/returns/{admin_no}`, its order at `/admin/orders/{order_admin_no}`. */
+	admin_no: number;
 	order_id: string;
+	order_admin_no: number;
 	order_number: string;
 	version: number;
 	status: ReturnStatus;

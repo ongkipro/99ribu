@@ -10,9 +10,10 @@ import {sameOrigin} from './ui/product-card';
 import {hasPromoContent} from '../../modules/storefront/promotions';
 import {CategoryPills} from './sections/category-pills';
 import {SearchBox} from './sections/search-box';
-
-import {FilledIcon,Icon} from './ui/icon';
+import {Dock} from './sections/dock';
+import {Icon} from './ui/icon';
 import {SiteNotice,Wordmark} from './ui/brand';
+import {ProductBar} from './product-bar';
 // Header and footer catalog chrome (top departments with their pill photos, search suggestions,
 // whether /promo has content) is the same for every visitor, so it is computed once per 30s per
 // server process instead of on every request (it cost ~60ms of TTFB on every storefront page).
@@ -32,7 +33,7 @@ function chrome(){
  cached={at:Date.now(),value};value.catch(()=>{if(cached?.value===value) cached=null;});
  return value;
 }
-export async function Shell({children,q='',active='home',department=null}:{children:React.ReactNode;q?:string;active?:'home'|'category'|'cart'|'account'|'promo'|'none';department?:string|null}){
+export async function Shell({children,q='',active='home',department=null,productBar}:{children:React.ReactNode;q?:string;active?:'home'|'category'|'cart'|'account'|'promo'|'none';department?:string|null;productBar?:{title:string;backHref:string}}){
  // Every page using this shell already renders per request (it reads the cart cookies). Saying so up front keeps
  // `next build` from querying the database while prerendering, which a production image build cannot reach (S82/S84).
  await connection();
@@ -42,7 +43,7 @@ export async function Shell({children,q='',active='home',department=null}:{child
  const current=await currentBrowserCart(),count=current.kind==='ready'&&current.cart.state==='open'&&Date.parse(current.cart.expires_at)>Date.parse(current.now)?cartUnits(current.cart):0;
  const cartLabel=count?`Keranjang, ${count} pilihan`:'Keranjang';
  const {departments,pills,suggestions,promo}=await chrome();
- const destinations=[{key:'home',label:'Beranda',href:'/',icon:'home'},{key:'category',label:'Kategori',href:'/kategori',icon:'category'},{key:'cart',label:'Keranjang',href:'/keranjang',icon:'cart'},{key:'account',label:'Akun',href:'/akun',icon:'user'}] as const;
+ const dockDepartments=departments.map(d=>({name:d.name,slug:d.slug}));
  return <>
   <SiteNotice/>
   <header className="store-header"><div className="header-main wrap">
@@ -51,10 +52,12 @@ export async function Shell({children,q='',active='home',department=null}:{child
    <search className="search-region"><SearchBox key={q} q={q} suggestions={suggestions}/></search>
    <nav className="utilities" aria-label="Belanja">{promo&&<Link href="/promo" aria-label="Promo" aria-current={active==='promo'?'page':undefined}><Icon name="tag"/></Link>}<Link href="/keranjang" aria-label={cartLabel} aria-current={active==='cart'?'page':undefined}><Icon name="cart"/>{count>0&&<b className="cart-count utility-count" aria-hidden="true">{count}</b>}</Link><Link href="/akun" aria-label="Akun" aria-current={active==='account'?'page':undefined}><Icon name="user"/></Link></nav>
   </div><CategoryPills departments={pills} current={department} allCurrent={active==='category'&&department===null}/></header>
+  {/* Phone product page: this bar replaces the header (CSS hides the header while it exists, up to 700px). */}
+  {productBar&&<ProductBar title={productBar.title} backHref={productBar.backHref} count={count} cartLabel={cartLabel}/>}
   {children}
   {/* After main: on short phone screens the dock is static, so it follows the page content instead of preceding it. */}
-  {/* Icon-only dock (shop.com mobile tab bar): the label is the accessible name; the active tab shows the filled icon. */}
-  <nav className="shopping-tabs" aria-label="Navigasi belanja">{destinations.map(d=><Link key={d.key} href={d.href} data-count={d.key==='cart'&&count>0?count:undefined} aria-label={d.key==='cart'?cartLabel:d.label} aria-current={active===d.key?'page':undefined}><span className="tab-outline"><Icon name={d.icon}/></span><span className="tab-filled"><FilledIcon name={d.icon}/></span></Link>)}</nav>
+  {/* Five labelled tabs; Cari is raised and opens the search sheet (a real /cari link without JavaScript). */}
+  <Dock active={active} count={count} cartLabel={cartLabel} suggestions={suggestions} departments={dockDepartments}/>
   <footer className="store-footer"><div className="wrap footer-inner">
    <div className="footer-brand"><p className="brand footer-name"><Wordmark/></p><p>Semua pilihan lengkap Rp99.000.</p></div>
    <div className="footer-menus">

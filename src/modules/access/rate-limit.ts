@@ -22,6 +22,8 @@ export const LIMITS = {
 	checkoutOrderPerActor: [10, 600_000],
 	// Raw AutoLaris callback receiver (unauthenticated discovery endpoint), global budget.
 	autolarisCallbackGlobal: [120, 60_000],
+	// S129: ending the caller's own sessions (every attempt counts, including refused proofs).
+	sessionTerminationPerUser: [10, 900_000],
 } as const satisfies Record<string, readonly [number, number]>;
 
 // Fixed-window counter in the shared app.auth_rate_limit table. Pass the pool `sql`

@@ -61,11 +61,13 @@ export async function readCartView(request:Request,identity:LocalAuth){
  const state=await readBrowserCart(request,identity);if(state.kind!=='ready')return {...state,lines:[],quote:'none' as const};
  const lines=await identity.sql.begin(async tx=>{
   const products=new Map<string,PublicProduct|null>();const result=[];
+  // The product link uses the stored public slug even when the product is no longer sold (its page then answers 404).
+  const slugs=new Map((await tx<{id:string;public_slug:string}[]>`select id,public_slug from app.product where id = any(${[...new Set(state.cart.lines.map(l=>l.product_id))]}::uuid[])`).map(p=>[p.id,p.public_slug]));
   for(const line of state.cart.lines){
    if(!products.has(line.product_id))products.set(line.product_id,await publicProduct(tx,line.product_id));
    const product=products.get(line.product_id)??null,offer=product?.variants.find(v=>v.id===line.variant_id)??null;
    const stock=product&&offer?await hasCartStock(tx,{product_id:product.id,product_revision:product.version,offer_id:offer.id,quantity:line.quantity},state.namespace):false;
-   result.push({line,product,offer,stock,publicationChanged:product?.publication_id!==line.publication_id});
+   result.push({line,slug:slugs.get(line.product_id)??'',product,offer,stock,publicationChanged:product?.publication_id!==line.publication_id});
   }return result;
  });
  let quote:'none'|'current'|'expired'|'unavailable'='none';

@@ -186,8 +186,8 @@ export async function listManualQueue(identity:LocalAuth,principal:Principal,url
    order by d.packing_due_at asc nulls last,f.created_at asc,f.id asc limit ${limit+1}`;
   const data=[];
   for(const row of rows.slice(0,limit)){
-   const fulfillment=await projectFulfillment(tx,row.id),[context]=await tx`select o.number order_number,o.payment_method,w.name warehouse_name,w.city warehouse_city,w.district warehouse_district from app.commerce_order o join app.warehouse w on w.id=${fulfillment.warehouse_id} where o.id=${fulfillment.order_id}`;
-   data.push({...fulfillment,manual:await projectManual(tx,String(row.id)),order_number:String(context.order_number),payment_method:String(context.payment_method),warehouse_name:String(context.warehouse_name),warehouse_city:String(context.warehouse_city),warehouse_district:context.warehouse_district===null?null:String(context.warehouse_district),mode:'manual_dashboard',
+   const fulfillment=await projectFulfillment(tx,row.id),[context]=await tx`select o.number order_number,o.admin_no order_admin_no,o.payment_method,w.name warehouse_name,w.city warehouse_city,w.district warehouse_district from app.commerce_order o join app.warehouse w on w.id=${fulfillment.warehouse_id} where o.id=${fulfillment.order_id}`;
+   data.push({...fulfillment,manual:await projectManual(tx,String(row.id)),order_number:String(context.order_number),order_admin_no:Number(context.order_admin_no),payment_method:String(context.payment_method),warehouse_name:String(context.warehouse_name),warehouse_city:String(context.warehouse_city),warehouse_district:context.warehouse_district===null?null:String(context.warehouse_district),mode:'manual_dashboard',
     booking:await bookingFacts(tx,String(fulfillment.shipment_id))});
   }
   const last=rows.length>limit?rows[limit-1]:null;

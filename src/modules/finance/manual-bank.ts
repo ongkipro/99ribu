@@ -16,14 +16,14 @@ import {nextPageCursor,readPageCursor,STAMP_FORMAT} from './page-cursor.ts';
 // time, and the existing payment callback posts the receipt or a recovery case
 // (wrong amount / late transfer) through the existing journals.
 async function projectTransfer(tx:TransactionSql,attemptId:string){
- const [row]=await tx`select a.id,a.status,a.expected_amount,a.expires_at,a.created_at,o.id order_id,o.number,o.buyer_total,o.transfer_code,o.status order_status,o.payment_status,
+ const [row]=await tx`select a.id,a.status,a.expected_amount,a.expires_at,a.created_at,o.id order_id,o.admin_no order_admin_no,o.number,o.buyer_total,o.transfer_code,o.status order_status,o.payment_status,
   c.amount confirmed_amount,c.bank_reference,c.transferred_at,c.created_at confirmed_at,r.outcome,r.reason result_reason,b.account_number received_account,
   (select v.values->'manual_bank_accounts' from app.policy_version v where v.id=o.payment_policy_version_id) accounts
   from app.payment_attempt a join app.commerce_order o on o.id=a.order_id left join app.manual_bank_confirmation c on c.attempt_id=a.id left join app.manual_bank_reference b on b.attempt_id=a.id
   left join app.local_payment_event e on e.operation_id=c.operation_id and e.status='confirmed' left join app.payment_event_result r on r.event_id=e.id
   where a.id=${attemptId} and a.method_id='manual-bank'`;
  if(!row)throw new AccessError(404,'NOT_FOUND');
- return {id:String(row.id),order_id:String(row.order_id),order_number:String(row.number),status:String(row.status),currency:'IDR' as const,order_total:Number(row.buyer_total),transfer_code:Number(row.transfer_code),
+ return {id:String(row.id),order_id:String(row.order_id),order_admin_no:Number(row.order_admin_no),order_number:String(row.number),status:String(row.status),currency:'IDR' as const,order_total:Number(row.buyer_total),transfer_code:Number(row.transfer_code),
   expected_amount:Number(row.expected_amount),expires_at:new Date(row.expires_at).toISOString(),order_status:String(row.order_status),payment_status:String(row.payment_status),
   accounts:((row.accounts??[]) as {bank_name:string;account_number:string;account_holder:string}[]).map(a=>({bank_name:a.bank_name,account_number:a.account_number,account_holder:a.account_holder})),
   confirmation:row.confirmed_amount===null?null:{amount:Number(row.confirmed_amount),bank_reference:String(row.bank_reference),transferred_at:new Date(row.transferred_at).toISOString(),recorded_at:new Date(row.confirmed_at).toISOString(),
