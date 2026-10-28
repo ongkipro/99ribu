@@ -45,7 +45,7 @@ function snapshot(extra:(main:Place)=>ReturnType<typeof raw>[]=()=>[],bundles:{c
     items:[{rank:1,qty:1},{rank:4,qty:1}],google_catalog:{storefront_category:'Rumah Tangga & Kebersihan'}},
     ...bundles.map((b)=>({code:b.code,title:`Paket ${b.code}`,selling_price:99000,items:b.ranks.map((rank)=>({rank,qty:1})),google_catalog:{storefront_category:'Rumah Tangga & Kebersihan'}}))]});
   for(const item of products){const folder=join(dir,'images',item.assets.folder_slug);mkdirSync(folder,{recursive:true});
-    writeFileSync(join(folder,'thumb-clean-studio.webp'),vp8x(640,480));writeFileSync(join(folder,'img-02.webp'),vp8x(300,200));}
+    writeFileSync(join(folder,'img-01.webp'),vp8x(640,480));writeFileSync(join(folder,'img-02.webp'),vp8x(300,200));}
   return dir;
 }
 // Shared test database: catalog identities are immutable, so each run renames its SKUs/slugs.

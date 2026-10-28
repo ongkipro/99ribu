@@ -1,3 +1,4 @@
+import {CLAIM_PHOTO_REASONS} from './claim-photos.ts';
 import type {LocalAuth} from '../access/auth.ts';
 
 // Curated department imagery (round 26, coordinator decision): one clean photo per department,
@@ -6,22 +7,21 @@ import type {LocalAuth} from '../access/auth.ts';
 // and the content-addressed photo hash identify the pick. Used by the header pills, the home and
 // /kategori grids and the home hero. A department without a pick, or whose picked photo is no
 // longer on a current publication in that department, shows its tint without a photo.
+// 2026-10-28: the seller's original photos replaced the AI studio covers, so every pick below was re-chosen by eye among
+// ALL photos of the department's products (cover or not). fashion-wanita, hewan-peliharaan and mainan-hobi have no
+// photo without a seller logo or text banner, so they show their tint until clean photos exist.
 export const DEPARTMENT_PHOTOS:Readonly<Record<string,{product:string;photo:string;reason:string}>>={
- dapur:{product:'164',photo:'aea8a6f2a16b68e1ba1a767dd2204e9c92a401d2808187505a9aa7f2acfcf2ab',reason:'pastel knife set with vegetables, white ground, no text'},
- elektronik:{product:'397',photo:'ae7092f68d02216d522b5c53c993d0ba6639b60617ce6afb00ac90d070cae94b',reason:'TWS earbuds in their charging case, white ground, no text'},
- 'fashion-pria':{product:'207',photo:'1948d36075a3b911923b9e3e5cd4ccfba294a73fa6300e17a45c88b3ef77b323',reason:'man in a black tee, white ground, small chest print only'},
- 'fashion-wanita':{product:'16',photo:'3a1880f6db747d3865f67b1e71e2d9d4c5be23ba8698f03b5bed7569fece2d9b',reason:'women\'s sunglasses spread across the frame, white ground, no text'},
- 'hewan-peliharaan':{product:'91',photo:'09474b097b8686a4c16cf4df23adab54d2496f6203d3a2efb93081765c3e7594',reason:'grooming glove with a cat, white ground, no text'},
- ibadah:{product:'413',photo:'e0eb5e02de9c57e447cc051937d2e689faca18cca6ff9a183bd3bfae8a1e9a35',reason:'man in grey koko and white sarung, white ground, no text'},
- 'ibu-anak':{product:'251',photo:'894d012ae0e2941729dff8f339f9399dbc5e38c8f60928d0cbccc1cedb2c56c1',reason:'four girls\' dresses on hangers, white ground, no text'},
- kecantikan:{product:'318',photo:'621c1f709993a69535130a06fe525f5512c9a5910a3a2a310deeaf904a855f81',reason:'fanned set of wooden make-up brushes, white ground, no text'},
- kesehatan:{product:'39',photo:'1311beb824a03f26c651903ec051a366b632ec9fecbdb73c2ad902ce20895c28',reason:'two people wearing ankle supports, white ground, no text or claims'},
- 'mainan-hobi':{product:'96',photo:'146226e91988c9365502f10735c118d00c7a51b2475fe560bbd479038398f7f2',reason:'bait bottle with fruit, white ground, no banner'},
- 'makanan-minuman':{product:'308',photo:'a67d92c9b4a889b1b252f8f11616e8b6110574bf5507117b6565c3632e50e3fa',reason:'bottle of forest honey, white ground, product label only'},
- otomotif:{product:'156',photo:'773e7dbddfd7d4e7fda80bb5f6f85a20c2fd07e1b0528a3836a029384d853045',reason:'chrome disc lock with key, white ground, no text'},
- perkakas:{product:'83',photo:'d3ac5d40b8a376f40ce80f205822d7dbce0df8cdf67d08e0b6eab47e4127fb15',reason:'three pliers, white ground, no text'},
- // Round 51: the floor-drain pick carried a "PREMIUM QUALITY" seal (a claim overlay); replaced.
- 'rumah-tangga':{product:'payung-lipat-3d-capsule-mini',photo:'7143e0f0b8e5',reason:'four pastel mini umbrellas, white ground, no text'},
+ dapur:{product:'164',photo:'9bff024f9858e2f94be1da678383cace0cf8e273cf44616ba1b02766d004b396',reason:'pastel knife set on a soft pink ground, no text or logo'},
+ elektronik:{product:'268',photo:'696ab6951ef61eb5bc4c5aca1640cadf18b198b48caf786a2346f6bda2ecc759',reason:'four colour mini fans on white, no text'},
+ 'fashion-pria':{product:'207',photo:'35dfdf54f9531805f4d88c20a65acd847912e4e8a1003556767cc90639330944',reason:'two tees laid flat on a plain purple ground, no text'},
+ ibadah:{product:'413',photo:'157a77faac08380900c3d9506140cae0e07a7169b8e76fd6a93e8e57ff3b35e7',reason:'model in sarung on a light panelled wall, no logo or claim'},
+ 'ibu-anak':{product:'251',photo:'5f440796120ba4cb13baa2317a5649f6c990cf0c28ee2aaf30a5fee07126e10d',reason:'five girls\' dresses on white, no marks'},
+ kecantikan:{product:'325',photo:'1f90e888a06aae9fc61629fdd92ea6a2277af8598d75031e754e7459378c7054',reason:'makeup pouch with lipstick and perfume, small product mark only'},
+ kesehatan:{product:'39',photo:'0f52541d8c2c0bf85e8bcdfc2b47913e9c8df41235061aab2590a3232d9cc53f',reason:'pair of ankle supports on white, no text'},
+ 'makanan-minuman':{product:'429',photo:'17905bcabc6b7fe18faee8e042badece8f9842bbdb7d669ff290ffe3bca3cd96',reason:'three rice packs with spices, product brand only'},
+ otomotif:{product:'297',photo:'de97e4d64be04ef477d5e49bee4978ef8bbf0852ece15bd08b3dcef4ec3f28b6',reason:'spray cleaner and cloth on white, product brand only'},
+ perkakas:{product:'83',photo:'6b307cc3e0f4c49ccf09597e4373c4cafa9d52b63a2fcbb622556a1aec1369a8',reason:'three pliers on white, no text'},
+ 'rumah-tangga':{product:'417',photo:'bc8102543a0f',reason:'reed diffuser and box on a soft light ground, no text'},
 };
 // Catalog photo URLs are `/media/catalog/<title-slug>-<first 12 hex>.webp` (legacy `<sha256>.webp`):
 // a pick matches either form.
@@ -52,12 +52,12 @@ export async function departmentPhotos(identity:LocalAuth,departments:readonly {
 // Hero photos: further clean picks that are not any department's photo, so the hero does not
 // repeat the tiles and pills right below it. Shown in this order, only while still published.
 export const HERO_PHOTOS:readonly {product:string;photo:string;reason:string}[]=[
- {product:'483',photo:'bb29f0eac61811abe3055fb24c70895b421dcf77229d92d7c187cc1a579c0f77',reason:'glass teapot on a tray, white ground, one small size chip'},
- {product:'180',photo:'11920ce81fc5a83eaa9b1fd5c9ea3539f2a1f16cf2dbdc62855bd5f6b64f7a19',reason:'LED torch with cable, white ground, no text'},
- {product:'402',photo:'7dc1a21e11dc3668993a465c4e640885f64003e59305fafd5c9e025c7f35b17d',reason:'striped kids\' jersey, white ground, print only'},
- {product:'190',photo:'ee48e95aa1390f8068ca0541c1a09408cab23dcdcbf79a587cb54ade27c074a3',reason:'stainless oil pot and lid, white ground, no text'},
- {product:'31',photo:'f96ea2e86526c4f6476efa80c8c8d1329d2bab316fbe7ba085cfc421c2a14711',reason:'pair of green work gloves, white ground, no text'},
- {product:'335',photo:'f05857716ec3066fa10690e8a71205dd0720081447d00c866911814e87987d68',reason:'black quilted sling bag, grey ground, one small logo'},
+ {product:'180',photo:'6a0cc2b152321cce6a0eb5e32cad0d2b7c89d9f736563e3c1c1122e97b193c3b',reason:'hand-held LED torch on white, no text'},
+ {product:'402',photo:'d30e3febe19c2e4c85eeccf6ec8b7dd05bfef84d9cb281d6caca2182c3fe9445',reason:'kids\' jersey front on white, tiny chest mark only'},
+ {product:'190',photo:'239df681469c6e98011ed0d40a4219d11e6000b2d78d5279ba6f4801ec0022c1',reason:'stainless oil pot, lid and filter on a light counter, no text'},
+ {product:'31',photo:'3c79b7b0d5787fb292cfa617a2f0b8fe2635b518a0c0f33f6e9d5dbfbede5429',reason:'pair of work gloves on white, no text'},
+ {product:'150',photo:'c7ecdda78f2a1b4df0fac9fd1cc8e10c191680e5c04c8697c1fae69cf53331e7',reason:'lint remover in use on pink knit, no text'},
+ {product:'155',photo:'49af0171cfb9bd28d1525cecfe04ee4bf1cda8b613edec826aec3745d813ef1b',reason:'colourful bed-sheet lifters on white, no text'},
 ];
 export const heroPhotos=(identity:LocalAuth)=>photosById(identity,HERO_PHOTOS.map(h=>h.photo));
 // Curated photos by content id (full sha256 or its first 12 hex), in the given order, only while a
@@ -80,41 +80,13 @@ export async function photosById(identity:LocalAuth,shas:readonly string[]):Prom
 // photo or name carries an unsourced claim (before/after, "terbukti ampuh", body-shaping or
 // glow promises). They stay published and findable in listings; the owner can supply clean
 // photos or names later. Photos are matched by content hash, names by the listed claim words.
-const CLAIM_PHOTOS=new Set([
- 'fc166f85aa6404093b9ff87ee0b52d3688a6a7125f1934dcbd19be0fa842093f', // before/after, "terbukti ampuh"
- 'af9edb7025df9da962aaeea835dda889e342682a969f062f6a7a2abe3ff1826c', // face-slimming promise
- 'a8c39f094629ac004307829438219cecfbb4ab4a9b2eb95806a11d428b197670', // "pria kuat" health claim
- '24d156b282868a92a5c833bf156baf241afa4da038de4bc4c729088394d4e571', // "lebih ampuh" banner
- '1c7779d3d8ffc89de8df8f079eeacc61c4e7e3aaf760ade99ef8837502ed1772', // "wajah glow up" claims
- '5d195454befc746e37adfb3ab8b039892d9d8494c645f37271d283cebb52553c', // Marlov "whitening" deodorant
- '00f76d0f40bca8137ffcd2b738efcb75ca74ec1e876390919b2968ccae7bb1c9', // Marlov second photo
- // Round 56: screen of every cover on a curated surface (Terbaru, switcher panels, /promo bundles).
- '08fd527b540e', // "BUBUK AJAIB · Reaksi Cepat · Langsung Lancar"
- 'c2d0ce7da75f', // "7X Lebih STRIKE", "Mengandung ATTRACTANT"
- 'e00a3c8130c5', // percentage badges on the dishwash label panel
- '6ec23bb4c80d', // "long lasting" seal
- 'cfdfaee6a0d8', // "Premium quality" seal
- 'd6c6d47dde06', // "Potong cepat tanpa capek!"
- '4872e2fdd6e5', // "100% Organic"
- 'e563aa061365', // sauna sweat vest: body-shaping claim
- 'a252f7e7d5eb', // tummy wrap: slimming claim
- '068d5f9961b3', // "Slimming hot belt": slimming claim
- '5699154a9c63', // "Solusi badan ramping": slimming claim
- '25a318ae3b78', // "4 Step Shape" waist trainer: slimming claim
- // Round 58: covers surfaced by the 40-deep switcher read, screened the same way.
- '26b3ed24ac99', // toilet foam "99%" kill claim
- 'a2b38cbfa23c', // "80%" badge on the tee photo
- 'bb08f78074d2', // "Tahan lama, hemat biaya perawatan / long-lasting"
- 'd2e9d4af8ac0', // "Transformasi Rambut Instan" before/after
- 'cdb1a68daa0c', // Snap On Smile: "formula pemutih" (whitening)
- '51643e744aa8', // "1x semprot" before/after cleaning claim
- '0f26d8e0d6a0', // "1 produk multibersih" before/after cleaning claim
- 'db5406c7ce22', // ant bait: "Efektif membasmi", "Cepat & efektif", "0,05%"
- 'dc10c7b9077a', // underwear detergent: anti-bacterial and odour claims
-]);
+// The screened photo list lives in claim-photos.ts, keyed by the first 12 hex of the photo sha256. A catalog photo URL
+// ends in `<title-slug>-<12 hex>.webp`, `<12 hex>.webp` or the legacy `<64 hex>.webp`.
+const photoId=(url:string)=>{const name=(url.split('/').pop()??'').replace(/\.webp$/,'');return name.length>=64?name.slice(-64):name.slice(-12);};
+const claimPhoto=(url:string)=>{const id=photoId(url);return CLAIM_PHOTO_REASONS.has(id)||CLAIM_PHOTO_REASONS.has(id.slice(0,12));};
 // Gendes and Bright Glow: whitening/glow efficacy text on their photos (round 31); whitening, detox
 // and immunity names (round 34).
 const CLAIM_WORDS=/\b(?:pelangsing|anti botak|ampuh|tirus|glowing|gendes|bright glow|whitening|pemutih|detox|imun)\b/i;
 export const hasClaimTerm=(name:string)=>CLAIM_WORDS.test(name);
-export const homeSafe=(product:{name:string;images:{url:string}[]})=>!CLAIM_WORDS.test(product.name)&&!product.images.some(image=>[...CLAIM_PHOTOS].some(sha=>photoMatch(image.url,sha)));
+export const homeSafe=(product:{name:string;images:{url:string}[]})=>!CLAIM_WORDS.test(product.name)&&!product.images.some(image=>claimPhoto(image.url));
 

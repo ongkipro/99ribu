@@ -30,9 +30,23 @@ function fixtureDir(){
   json('curated-99ribu-packages.json',{curated_cross_sku_bundles:[
     {code:'BND-01',title:'Paket Dapur Bersih (Best-Seller Duo)',selling_price:99000,items:[{rank:1,qty:1},{rank:4,qty:1}],google_catalog:{storefront_category:'Rumah Tangga & Kebersihan'}},
     {code:'BND-02',title:'Paket Tidak Lengkap',selling_price:99000,items:[{rank:1,qty:1},{rank:99,qty:1}],google_catalog:{storefront_category:'Rumah Tangga & Kebersihan'}}]});
-  for(const item of products){const folder=join(dir,'images',item.assets.folder_slug);mkdirSync(folder,{recursive:true});writeFileSync(join(folder,'thumb-clean-studio.webp'),vp8x(640,480));writeFileSync(join(folder,'img-02.webp'),vp8l(300,200));}
+  for(const item of products){const folder=join(dir,'images',item.assets.folder_slug);mkdirSync(folder,{recursive:true});writeFileSync(join(folder,'img-01.webp'),vp8x(640,480));writeFileSync(join(folder,'img-02.webp'),vp8l(300,200));}
   return dir;
 }
+
+test('image selection: every img-NN then var-NN in numeric order, byte-identical copies dropped, at most 20, AI studio thumbnails and other files ignored',()=>{
+  const sourceDir=fixtureDir();
+  try{
+    const folder=join(sourceDir,'images','001-p-1');
+    // The fixture already holds img-01 (640x480) and img-02 (300x200).
+    for(const [file,size] of [['img-10.webp',410],['img-03.webp',411],['var-02.webp',412],['var-01.webp',413],['thumb-clean-studio.webp',414]] as const) writeFileSync(join(folder,file),vp8x(size,size));
+    writeFileSync(join(folder,'img-04.webp'),vp8x(640,480));writeFileSync(join(folder,'notes.txt'),'not an image');
+    const files=()=>readBerlapakSource(sourceDir).stocks.find((s)=>s.rank===1)?.images.map((i)=>i.file)??[];
+    assert.deepEqual(files(),['img-01.webp','img-02.webp','img-03.webp','img-10.webp','var-01.webp','var-02.webp']);
+    for(let n=20;n<45;n++) writeFileSync(join(folder,`var-${n}.webp`),vp8x(500+n,500+n));
+    const capped=files();assert.equal(capped.length,20);assert.equal(capped[0],'img-01.webp');assert.ok(capped.indexOf('var-01.webp')>capped.indexOf('img-10.webp'),'photos before variant photos');
+  }finally{rmSync(sourceDir,{recursive:true,force:true});}
+});
 
 test('webp header sizes and public names never carry supplier names or marketplace spam',()=>{
   assert.deepEqual(webpSize(vp8x(1080,720)),{width:1080,height:720});assert.deepEqual(webpSize(vp8l(300,200)),{width:300,height:200});
@@ -73,7 +87,7 @@ test('local snapshot import: 99000 offers, private HPP, skip rules, copied image
     assert.deepEqual(first.summary.skipped,{'not-ready-stock':1,'hpp-at-or-above-price':1,'bundle-rank-unresolved':1});
     assert.equal(first.summary.offers,3);assert.equal(first.summary.bundles,1);assert.equal(first.summary.stock_items,2);assert.equal(first.summary.warehouses,1);
     assert.equal(first.summary.published,3,JSON.stringify(first.summary.blocked));
-    for(const rank of ['1','4']) for(const file of ['thumb-clean-studio.webp','img-02.webp']) assert.ok(existsSync(join(publicDir,rank,file)));
+    for(const rank of ['1','4']) for(const file of ['img-01.webp','img-02.webp']) assert.ok(existsSync(join(publicDir,rank,file)));
     const offers=await identity.sql`select o.sku,o.product_id,c.stock_item_id,c.quantity from app.offer o join app.offer_component c on c.offer_id=o.id where o.sku like ${`BL_${namespace.toUpperCase()}_%`} order by o.sku`;
     assert.deepEqual([...new Set(offers.map((o)=>o.sku))],[`BL_${namespace.toUpperCase()}_1_OFFER`,`BL_${namespace.toUpperCase()}_4_OFFER`,`BL_${namespace.toUpperCase()}_BND-01_OFFER`]);
     const [position]=await identity.sql`select b.on_hand,b.warehouse_id from app.inventory_balance b join app.stock_item s on s.id=b.stock_item_id where s.sku=${`BL_${namespace.toUpperCase()}_1`}`;

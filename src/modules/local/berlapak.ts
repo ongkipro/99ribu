@@ -1,5 +1,5 @@
 import {createHash,randomUUID} from 'node:crypto';
-import {closeSync,constants,existsSync,lstatSync,mkdirSync,openSync,readFileSync,realpathSync,statSync,writeFileSync} from 'node:fs';
+import {closeSync,constants,existsSync,lstatSync,mkdirSync,openSync,readdirSync,readFileSync,realpathSync,statSync,unlinkSync,writeFileSync} from 'node:fs';
 import {join,sep} from 'node:path';
 import {fileURLToPath} from 'node:url';
 import {isDeepStrictEqual} from 'node:util';
@@ -10,7 +10,7 @@ import type {LocalAuth} from '../access/auth.ts';
 import {assertCurrentOwner} from '../access/grants.ts';
 import {assertOrigin} from '../access/http.ts';
 import {getPrincipal,type Principal} from '../access/policy.ts';
-import {createCategory,createProduct,createStockItem,readCatalogRevision} from '../catalog/catalog.ts';
+import {createCategory,createProduct,createStockItem,patchProduct,readCatalogRevision} from '../catalog/catalog.ts';
 import {publishProduct,readPublicationState} from '../catalog/publication.ts';
 import {array,integer,invalid,text} from '../catalog/validation.ts';
 import {appendCostVersion} from '../finance/costs.ts';
@@ -131,10 +131,23 @@ export function readBerlapakSource(directory:string){
       const qty=integer(strategy.recommended_bundle_qty,1,50);
       const warehouseId=text(place.warehouse_id,40);if(!/^[0-9a-f]{24}$/.test(warehouseId)) throw invalid();
       const folder=text(assets.folder_slug,300);if(!/^\d{3}-[A-Za-z0-9-]+$/.test(folder)||Number(folder.slice(0,3))!==rank%1000) throw invalid();
-      const images:Image[]=[];
-      for(const file of [existsSync(join(directory,'images',folder,'thumb-clean-studio.webp'))?'thumb-clean-studio.webp':'img-01.webp','img-02.webp']){
+      const images:Image[]=[];const imageFile=/^(img|var)-(\d+)\.webp$/;let folderFiles:string[]=[];
+      try{
+        const folderPath=inside(imagesRoot,join(directory,'images',folder));
+        folderFiles=readdirSync(folderPath).filter((f)=>imageFile.test(f)).sort((a,b)=>{
+          const ma=imageFile.exec(a) as RegExpExecArray,mb=imageFile.exec(b) as RegExpExecArray;
+          return (ma[1]===mb[1]?0:ma[1]==='img'?-1:1)||Number(ma[2])-Number(mb[2]);
+        });
+      }catch{/* outside images/ or unreadable folder: image omitted */}
+      const seenHashes=new Set<string>();
+      for(const file of folderFiles){
+        if(images.length>=20) break;
         const source=join(directory,'images',folder,file);if(!existsSync(source)) continue;
-        try{images.push({file,source,...webpSize(readContained(imagesRoot,source,IMAGE_LIMIT))});}catch{/* outside images/, oversized or unreadable header: image omitted */}
+        try{
+          const bytes=readContained(imagesRoot,source,IMAGE_LIMIT);const size=webpSize(bytes);
+          const hash=createHash('sha256').update(bytes).digest('hex');if(seenHashes.has(hash)) continue;seenHashes.add(hash);
+          images.push({file,source,...size});
+        }catch{/* outside images/, oversized or unreadable header: image omitted */}
       }
       if(!images.length){skip('image-missing');continue;}
       const grams=Number.isSafeInteger(inventory.weight_gram)&&Number(inventory.weight_gram)>0?Number(inventory.weight_gram)
@@ -251,6 +264,9 @@ export async function importBerlapak(request:Request,identity:LocalAuth,target:T
         return 1;
       });
       const folder=join(publicDir,String(item.rank));mkdirSync(folder,{recursive:true});if(!lstatSync(folder).isDirectory()) throw new Error(`Refusing non-directory image destination: ${folder}`);
+      const wantedFiles=new Set(item.images.map((i)=>i.file));
+      // Stale copies (earlier selections, the removed AI studio thumbnails) go; only plain files this importer could have written.
+      for(const existing of readdirSync(folder,{withFileTypes:true})) if(existing.isFile()&&!wantedFiles.has(existing.name)) unlinkSync(join(folder,existing.name));
       for(const image of item.images){
         // Read once through the same boundary; published dimensions must match the bytes written.
         const bytes=readContained(source.imagesRoot,image.source,IMAGE_LIMIT);const size=webpSize(bytes);
@@ -269,8 +285,12 @@ export async function importBerlapak(request:Request,identity:LocalAuth,target:T
       const definition={sku,label:offer.label,attributes:[],offer_kind:offer.kind,weight_grams:offer.grams,length_mm:side,width_mm:side,height_mm:side,default_warehouse_id:warehouseId,contents};
       let [stored]=await identity.sql`select id,product_id from app.offer where sku=${sku}`;
       if(!stored){const created=await createProduct(command(`product:${offer.key}`),identity,principal,{name:offer.name,description:offer.description,category_id:categories[offer.category],images,variants:[definition]});stored={id:created.variants[0].id,product_id:created.id};}
-      const draft=await readCatalogRevision(identity.sql,stored.product_id);const current=draft.variants.find((v)=>v.id===stored.id);
-      const pristine=draft.version===1&&draft.name===offer.name&&draft.description===offer.description&&draft.category_id===categories[offer.category]&&isDeepStrictEqual(draft.images,images)&&draft.variants.length===1&&current!==undefined&&!current.retired&&
+      let draft=await readCatalogRevision(identity.sql,stored.product_id);const current=draft.variants.find((v)=>v.id===stored.id);
+      if(draft.version===1&&current!==undefined&&!current.retired&&!isDeepStrictEqual(draft.images,images)){
+        await patchProduct(command(`product-images:${offer.key}:${draft.version}`),identity,principal,stored.product_id,{expected_version:draft.version,images,reason:'Refresh local snapshot product images'});
+        draft=await readCatalogRevision(identity.sql,stored.product_id);
+      }
+      const pristine=draft.name===offer.name&&draft.description===offer.description&&draft.category_id===categories[offer.category]&&isDeepStrictEqual(draft.images,images)&&draft.variants.length===1&&current!==undefined&&!current.retired&&
         isDeepStrictEqual({sku:current.sku,label:current.label,attributes:current.attributes,offer_kind:current.offer_kind,weight_grams:current.weight_grams,length_mm:current.length_mm,width_mm:current.width_mm,height_mm:current.height_mm,default_warehouse_id:current.default_warehouse_id,contents:current.contents},definition);
       if(pristine&&!(await identity.sql`select id from app.offer_cost_assumption_version where offer_id=${stored.id} limit 1`).length)
         await appendCostVersion(command(`assumption:${offer.key}`),identity,principal,'assumption',stored.id,{expected_version:0,effective_from:null,...DEFAULT_OFFER_ASSUMPTIONS,source:'TEST-ONLY local import assumptions',reason:'Initialize per-offer variable cost estimates; preserve later edits'});

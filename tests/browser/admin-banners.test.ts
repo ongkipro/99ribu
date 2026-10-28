@@ -67,7 +67,7 @@ function fixture(id: string, title: string, photo: string, patch: Record<string,
 }
 const BANNERS = [
 	fixture("6f9a0c1e-1d2b-4c3d-8e4f-5a6b7c8d9e01", "Paket campuran", "5e496b28d84b", { position: 0 }),
-	fixture("6f9a0c1e-1d2b-4c3d-8e4f-5a6b7c8d9e02", "Rawat kendaraan sendiri", "c6f35ee579a6", { position: 1, tint: "slate", href: "/kategori/otomotif" }),
+	fixture("6f9a0c1e-1d2b-4c3d-8e4f-5a6b7c8d9e02", "Rawat kendaraan sendiri", "ef7fae0c77d4", { position: 1, tint: "slate", href: "/kategori/otomotif" }),
 	fixture("6f9a0c1e-1d2b-4c3d-8e4f-5a6b7c8d9e03", "Gaya pria sehari-hari", "0f510b5d7bd5", {
 		position: 2,
 		href: "/kategori/fashion-pria",
