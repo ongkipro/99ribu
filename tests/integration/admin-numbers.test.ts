@@ -4,6 +4,7 @@ import test, { after, before } from "node:test";
 import { createLocalAuth } from "../../src/modules/access/auth.ts";
 import { classifyAdminParam } from "../../src/modules/access/admin-number.ts";
 import { type AdminNumberKind, adminPath, UNKNOWN_ADMIN_ID } from "../../src/modules/access/admin-paths.ts";
+import { getPrincipal } from "../../src/modules/access/policy.ts";
 import { handleAccess } from "../../src/modules/access/routes.ts";
 import { actor, cleanup, enroll } from "../contract/access-fixture.ts";
 
@@ -13,9 +14,9 @@ interface Warehouse {
 }
 
 // Migration 0041 / admin numeric ids: every entity with an admin detail page carries a unique, immutable
-// `admin_no` identity, the console resolves `/admin/<area>/<number>` to the row's UUID with one indexed read,
-// and UUID or malformed parameters are classified without ever echoing a user id. The page-level role gates
-// are proved in the browser suites (they navigate real pages by number as every role).
+// `admin_no` identity, and the console resolves `/admin/<area>/<number>` only within the API's object scope.
+// Unknown and out-of-scope numbers have the same payload; unknown and out-of-scope UUIDs never redirect.
+// The page-level role gates are proved in the browser suites (they navigate real pages by number as every role).
 const identity = createLocalAuth("test");
 const TABLES: Record<AdminNumberKind, string> = {
 	order: "commerce_order",
@@ -41,8 +42,8 @@ before(async () => {
 });
 
 after(async () => {
-	await identity.sql`delete from app.warehouse where id = any(${warehouses.map((w) => w.id)}::uuid[])`;
 	await cleanup(identity, users);
+	await identity.sql`delete from app.warehouse where id = any(${warehouses.map((w) => w.id)}::uuid[])`;
 	await identity.sql.end();
 });
 
@@ -99,24 +100,61 @@ test("admin_no is generated and immutable: no explicit value on insert, no chang
 });
 
 test("the route parameter resolves by number, redirects a UUID to its number, and refuses everything else", async () => {
+	const owner = await actor(identity, "owner", []);
+	users.push(owner);
+	await enroll(owner.browser, owner.password);
+	const principal = await getPrincipal(owner.browser.request("/admin"), identity);
 	const [a, b] = warehouses;
-	assert.deepEqual(await classifyAdminParam(identity.sql, "warehouse", String(a.admin_no)), { kind: "id", id: a.id });
-	assert.deepEqual(await classifyAdminParam(identity.sql, "warehouse", String(b.admin_no)), { kind: "id", id: b.id });
-	// A UUID (any case) is a redirect to the canonical numeric URL, never a second rendering.
-	assert.deepEqual(await classifyAdminParam(identity.sql, "warehouse", a.id), { kind: "redirect", adminNo: a.admin_no });
-	assert.deepEqual(await classifyAdminParam(identity.sql, "warehouse", a.id.toUpperCase()), { kind: "redirect", adminNo: a.admin_no });
+	assert.deepEqual(await classifyAdminParam(identity.sql, principal, "warehouse", String(a.admin_no)), { kind: "id", id: a.id });
+	assert.deepEqual(await classifyAdminParam(identity.sql, principal, "warehouse", String(b.admin_no)), { kind: "id", id: b.id });
+	// A readable UUID (any case) redirects to the canonical numeric URL.
+	assert.deepEqual(await classifyAdminParam(identity.sql, principal, "warehouse", a.id), { kind: "redirect", adminNo: a.admin_no });
+	assert.deepEqual(await classifyAdminParam(identity.sql, principal, "warehouse", a.id.toUpperCase()), { kind: "redirect", adminNo: a.admin_no });
 	assert.equal(adminPath("warehouse", a.admin_no), `/admin/warehouses/${a.admin_no}`);
-	// Unknown number and unknown UUID resolve to an id no row has: the client's API read answers 404, like an out-of-scope row.
-	assert.deepEqual(await classifyAdminParam(identity.sql, "warehouse", "999999999999999"), { kind: "id", id: UNKNOWN_ADMIN_ID });
+	// An unknown number yields the reserved id; an unknown UUID passes through for the client's API 404.
+	assert.deepEqual(await classifyAdminParam(identity.sql, principal, "warehouse", "999999999999999"), { kind: "id", id: UNKNOWN_ADMIN_ID });
 	const stray = randomUUID();
-	assert.deepEqual(await classifyAdminParam(identity.sql, "warehouse", stray), { kind: "id", id: stray });
+	assert.deepEqual(await classifyAdminParam(identity.sql, principal, "warehouse", stray), { kind: "id", id: stray });
 	// Non-canonical numbers, junk and user-id shapes are not found without a lookup.
 	for (const junk of ["", "0", "007", "-1", "1e3", "1.5", " 12", "12 ", "abc", "1".repeat(16), "user_2fa1", `${a.id}x`, `${a.admin_no}/../1`, "%31", "１２"]) {
-		assert.deepEqual(await classifyAdminParam(identity.sql, "warehouse", junk), { kind: "missing" }, JSON.stringify(junk));
+		assert.deepEqual(await classifyAdminParam(identity.sql, principal, "warehouse", junk), { kind: "missing" }, JSON.stringify(junk));
 	}
 	// A number of another entity never resolves here: the same number on another table is its own row.
 	const [{ n }] = await identity.sql`select count(*)::int as n from app.warehouse where admin_no = ${a.admin_no}`;
 	assert.equal(n, 1);
+});
+
+test("warehouse-scoped resolution cannot distinguish an out-of-scope number or UUID from an unknown row", async () => {
+	const [a, b] = warehouses;
+	const staff = await actor(identity, "warehouse", [a.id]);
+	users.push(staff);
+	await enroll(staff.browser, staff.password);
+	const principal = await getPrincipal(staff.browser.request("/admin"), identity);
+	assert.deepEqual(await classifyAdminParam(identity.sql, principal, "warehouse", String(a.admin_no)), { kind: "id", id: a.id });
+	assert.deepEqual(await classifyAdminParam(identity.sql, principal, "warehouse", a.id), { kind: "redirect", adminNo: a.admin_no });
+	assert.deepEqual(await classifyAdminParam(identity.sql, principal, "warehouse", String(b.admin_no)), { kind: "id", id: UNKNOWN_ADMIN_ID });
+	assert.deepEqual(await classifyAdminParam(identity.sql, principal, "warehouse", b.id), { kind: "id", id: b.id });
+	assert.deepEqual(await classifyAdminParam(identity.sql, principal, "warehouse", b.id.toUpperCase()), { kind: "id", id: b.id });
+	const stray = randomUUID();
+	assert.deepEqual(await classifyAdminParam(identity.sql, principal, "warehouse", stray), { kind: "id", id: stray });
+	// The API agrees: neither out-of-scope nor unknown UUIDs exposes a row.
+	for (const id of [b.id, stray]) {
+		const response = await handleAccess(staff.browser.request(`/api/v1/admin/warehouses/${id}`), identity);
+		assert.equal(response.status, 404);
+	}
+	// Every entity's scoped lookup retains the same unknown-number / unknown-UUID contract.
+	for (const kind of Object.keys(TABLES) as AdminNumberKind[]) {
+		assert.deepEqual(await classifyAdminParam(identity.sql, principal, kind, "999999999999999"), { kind: "id", id: UNKNOWN_ADMIN_ID }, kind);
+		assert.deepEqual(await classifyAdminParam(identity.sql, principal, kind, stray), { kind: "id", id: stray }, kind);
+	}
+	// Inactive warehouses are unreadable even while membership still exists.
+	await identity.sql`update app.warehouse set active=false where id=${a.id}`;
+	try {
+		assert.deepEqual(await classifyAdminParam(identity.sql, principal, "warehouse", String(a.admin_no)), { kind: "id", id: UNKNOWN_ADMIN_ID });
+		assert.deepEqual(await classifyAdminParam(identity.sql, principal, "warehouse", a.id), { kind: "id", id: a.id });
+	} finally {
+		await identity.sql`update app.warehouse set active=true where id=${a.id}`;
+	}
 });
 
 test("GET /admin/warehouses and /admin/warehouses/{id} return admin_no beside the UUID id", async () => {

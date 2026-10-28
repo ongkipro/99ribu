@@ -82,13 +82,16 @@ export async function publicProduct(tx:TransactionSql,productId:string){
 }
 export type PublicProduct=NonNullable<Awaited<ReturnType<typeof publicProduct>>>;
 // /produk/<segment>: a stored public slug answers directly; otherwise a legacy /produk/<title>-<uuid> (or bare uuid)
-// names the product by its trailing id and the caller answers a 308 to the current slug. Anything else is missing.
+// names the product by its trailing id and the caller answers a 308 to the current slug, but only while the product has
+// a current, unwithdrawn publication (a draft's or withdrawn product's slug is never disclosed). Anything else is missing.
 export async function resolveProductSegment(sql:Sql|TransactionSql,segment:string):Promise<{kind:'current';id:string}|{kind:'legacy';public_slug:string}|{kind:'missing'}>{
  if(segment.length<=160&&publicSlugShape.test(segment)){
   const [row]=await sql<{id:string}[]>`select id from app.product where public_slug=${segment}`;if(row)return {kind:'current',id:row.id};
  }
  const legacy=legacyProductId(segment);if(!legacy)return {kind:'missing'};
- const [row]=await sql<{public_slug:string}[]>`select public_slug from app.product where id=${legacy}`;
+ const [row]=await sql<{public_slug:string}[]>`select p.public_slug from app.product p
+  join app.publication_head h on h.product_id=p.id join app.publication_version v on v.product_id=h.product_id and v.revision=h.revision
+  where p.id=${legacy} and not exists (select 1 from app.publication_withdrawal w where w.publication_id=v.id)`;
  return row?{kind:'legacy',public_slug:row.public_slug}:{kind:'missing'};
 }
 export function matchingVariant(product:PublicProduct,input?:CatalogQuery){

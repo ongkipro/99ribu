@@ -1,7 +1,7 @@
 'use client';
 import Link from 'next/link';
 import {useEffect,useState} from 'react';
-import {shareProduct} from './product-utilities';
+import {shareProduct} from './share-product';
 import {Icon} from './ui/icon';
 
 // Phone product page (owner 2026-10-28, marketplace pattern): the store header with its search steps aside and

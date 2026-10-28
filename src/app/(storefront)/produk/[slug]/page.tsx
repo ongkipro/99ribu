@@ -5,7 +5,6 @@ import {cache,Suspense} from 'react';
 import {Shell} from '../../../../components/storefront/shell';
 import {Media,ProductGrid,rupiah,contentName,isSampleProduct,keepHyphens,sameOrigin} from '../../../../components/storefront/ui/product-card';
 import {ProductGallery} from '../../../../components/storefront/sections/product-gallery';
-import {ProductUtilities} from '../../../../components/storefront/product-utilities';
 import {Icon} from '../../../../components/storefront/ui/icon';
 import {ProductDescription} from '../../../../components/storefront/ui/product-description';
 import {OfferPicker} from '../../../../components/storefront/offer-picker';
@@ -76,7 +75,7 @@ export default async function Product({params,searchParams}:Props){
    {offer.availability!=='available'&&<Link className="button secondary stock-exit" href={alternative?productHref(product.public_slug,alternative.id,from,standard?.id):category?`/kategori/${category.slug}?availability=available`:'/cari?availability=available'}>{alternative?'Lihat pilihan tersedia':'Cari produk tersedia'}</Link>}
    {current.kind==='ready'&&!open&&<p className="cart-warning">Keranjang sebelumnya {current.cart.state==='submitted'?'sudah menjadi pesanan':'kedaluwarsa'}. Penambahan berikutnya memulai keranjang baru.</p>}
    {denied?<p className="cart-warning">{current.kind==='denied'?'Sesi belanja perlu diperiksa.':'Keranjang belum dapat dimuat.'} <Link href="/keranjang">Periksa keranjang</Link></p>:<CartMutations initial={initialCartMutation(intent)} permalink={productHref(product.public_slug,offer.id,from,standard?.id)} showCartLink><CartForm intent={intent} label="Tambah ke keranjang" disabled={offer.availability!=='available'} stepper bar={rupiah(offer.price)} buyNow/></CartMutations>}
-   <ProductUtilities title={product.name}/></div>
+   </div>
   </>:!invalid&&<p className="cart-advisory">Belum ada pilihan yang dapat ditambahkan.</p>}
   {/* Spesifikasi only when the product has spec data; no empty heading or placeholder. */}
   {facts.length>0&&<section className="product-facts"><h2>Spesifikasi</h2><dl>{facts.map(f=><div key={f.key}><dt>{f.label}</dt><dd>{f.values.join(', ')}</dd></div>)}</dl></section>}

@@ -28,8 +28,8 @@ const BASE: Record<AdminNumberKind, string> = {
 };
 
 /**
- * A well-formed UUID that no row has. A page that cannot resolve a number or UUID hands this to the client, whose API
- * read then answers 404 exactly as it does for a row outside the caller's scope: the page itself never says which.
+ * A well-formed UUID reserved for unresolved numbers. A missing or out-of-scope number yields this same page payload;
+ * missing or out-of-scope UUID parameters instead pass through unchanged, without redirect. Their API reads answer 404.
  */
 export const UNKNOWN_ADMIN_ID = "00000000-0000-4000-8000-000000000000";
 

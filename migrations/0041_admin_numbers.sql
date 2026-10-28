@@ -9,15 +9,19 @@
 -- their transition rules); the same triggers are re-enabled before the migration ends. The whole file is one
 -- transaction. Numbers are never reused: a deleted row leaves a gap, and `admin_no` cannot be changed afterwards
 -- (guard trigger below; GENERATED ALWAYS already refuses an explicit value).
+-- On a large database, schedule a quiet window: the backfill holds locks on all nine tables without a statement timeout.
 --
--- Rollback (documented, not scripted): ALTER TABLE app.<t> DROP COLUMN admin_no for the nine tables listed here and
--- DROP FUNCTION app.guard_admin_no(). Nothing else references the column; numbers already printed in links or exports
--- would be lost, so roll forward instead whenever the admin URLs have been shared.
+-- Rollback (documented, not scripted): first DROP TRIGGER <t>_admin_no_guard ON app.<t> on all nine tables listed here,
+-- then ALTER TABLE app.<t> DROP COLUMN admin_no on each (its identity sequence, unique constraint and index go with it),
+-- then DROP FUNCTION app.guard_admin_no(). Alternatively DROP COLUMN admin_no CASCADE also drops its dependent trigger.
+-- Numbers already printed in links or exports would be lost, so roll forward whenever the admin URLs have been shared.
 CREATE FUNCTION app.guard_admin_no() RETURNS trigger LANGUAGE plpgsql SET search_path = pg_catalog, pg_temp AS $$
 BEGIN
  IF NEW.admin_no IS DISTINCT FROM OLD.admin_no THEN RAISE EXCEPTION 'admin_no never changes' USING ERRCODE='23514'; END IF;
  RETURN NEW;
 END $$;
+--> statement-breakpoint
+SET LOCAL statement_timeout = 0;
 --> statement-breakpoint
 ALTER TABLE "app"."warehouse" DISABLE TRIGGER USER;--> statement-breakpoint
 ALTER TABLE "app"."product" DISABLE TRIGGER USER;--> statement-breakpoint
@@ -91,3 +95,5 @@ ALTER TABLE "app"."provider_settlement" ENABLE TRIGGER USER;--> statement-breakp
 ALTER TABLE "app"."affiliate_account" ENABLE TRIGGER USER;--> statement-breakpoint
 ALTER TABLE "app"."affiliate_payout" ENABLE TRIGGER USER;--> statement-breakpoint
 ALTER TABLE "app"."commerce_exception" ENABLE TRIGGER USER;
+--> statement-breakpoint
+RESET statement_timeout;

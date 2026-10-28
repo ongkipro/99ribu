@@ -393,6 +393,7 @@ function StatementTable({
 					id: "section",
 					header: "Pos keuangan",
 					stack: "title",
+					className: "whitespace-normal [overflow-wrap:anywhere]",
 					cell: (row) => (
 						<span className="flex flex-col">
 							<span className="font-medium">{row.label}</span>
@@ -406,6 +407,7 @@ function StatementTable({
 					id: "completeness",
 					header: "Kelengkapan",
 					stack: "status",
+					className: "md:w-px",
 					cell: (row) => (
 						<StatusBadge
 							tone={row.section.complete ? "success" : "problem"}
@@ -420,7 +422,7 @@ function StatementTable({
 					id: "amount",
 					header: "Nilai",
 					stack: "aside",
-					className: "text-right tabular-nums",
+					className: "text-right whitespace-nowrap tabular-nums md:w-px",
 					cell: (row) => (
 						<span
 							data-testid={`summary-value-${row.key}`}
@@ -437,6 +439,8 @@ function StatementTable({
 				{
 					id: "missing",
 					header: "Sumber yang belum lengkap",
+					className: "whitespace-normal [overflow-wrap:anywhere]",
+					cellClassName: "max-md:flex-col max-md:items-start max-md:text-left",
 					cell: (row) =>
 						row.section.missing_inputs.length === 0 ? (
 							<span className="text-xs text-muted-foreground">—</span>

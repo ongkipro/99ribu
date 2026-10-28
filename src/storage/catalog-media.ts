@@ -13,11 +13,11 @@ import { scanImagePayload, sniffImageContentType, webpSize } from "./media-sniff
 export const CATALOG_MEDIA_LIMIT = 512 * 1024;
 const NAME = /^([0-9a-f]{64})\.webp$/;
 const SHA256 = /^[0-9a-f]{64}$/;
-// Public name: optional slug (productSlug grammar, at most 80 chars) + 12 hex, or the legacy 64-hex name.
+// Public name: optional title slug (at most 80 chars) + 12 hex, or the legacy 64-hex name.
 const PUBLIC_NAME = /^(?:(?=[a-z0-9-]{1,80}-[0-9a-f]{12}\.webp$)[a-z0-9]+(?:-[a-z0-9]+)*-)?([0-9a-f]{12})\.webp$/;
 
-// SEO file name for a stored photo. The slug is exactly productSlug's title normalization
-// (src/modules/storefront/navigation.ts); an empty slug leaves the bare 12-hex prefix.
+// SEO file name for a stored photo. The slug is the product title normalized to [a-z0-9-] (NFKD, accents stripped,
+// at most 80 chars); an empty slug leaves the bare 12-hex prefix. It is independent of the product's public_slug.
 export function catalogMediaFileName(title: string, sha256: string): string {
 	if (!SHA256.test(sha256)) throw new Error("Catalog media hash must be 64 lowercase hex characters.");
 	const slug = title.normalize("NFKD").replace(/\p{M}/gu, "").toLowerCase().replace(/[^a-z0-9]+/g, "-").slice(0, 80).replace(/^-+|-+$/g, "");

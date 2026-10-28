@@ -140,6 +140,9 @@ test('legacy product URLs answer one 308 to the clean slug and keep the query; a
  for(const missing of ['/produk/produk-yang-tidak-pernah-ada','/produk/00000000-0000-4000-8000-0000000000ff','/produk/%00','/produk/Bukan_Slug!']){
   const response=await fetch(origin+missing,{redirect:'follow'});assert.equal(response.status,404,missing);
  }
+ // A product with no current publication never discloses its slug through a legacy URL: no 308, a plain 404.
+ const [draft]=await identity.sql<{id:string}[]>`select p.id from app.product p where not exists (select 1 from app.publication_head h where h.product_id=p.id) limit 1`;
+ if(draft){const response=await fetch(`${origin}/produk/${draft.id}`,{redirect:'manual'});assert.notEqual(response.status,308,'an unpublished product is not redirected');assert.equal((await fetch(`${origin}/produk/${draft.id}`,{redirect:'follow'})).status,404);}
 });
 
 test('listing cards link to the clean slug and add ?offer= only for an offer the page would not select on its own',{timeout:60000},async()=>{
