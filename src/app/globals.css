@@ -1123,11 +1123,14 @@ body:has(> .store-header) {
 	display: inline-flex;
 	align-items: center;
 }
+/* Cart (Dawn structure): a heading row, a Produk / Jumlah / Total header, one row per line (photo, name with variant and
+   unit price, quantity, line total) and a flat estimated-total footer with the checkout button. Phones stack each row. */
 .cart-layout {
 	display: grid;
-	grid-template-columns: minmax(0, 1.7fr) minmax(17rem, 1fr);
-	gap: 48px;
-	align-items: start;
+	gap: 8px;
+}
+.cart-columns {
+	display: none;
 }
 .cart-lines {
 	margin: 0;
@@ -1135,27 +1138,22 @@ body:has(> .store-header) {
 	list-style: none;
 }
 .cart-line {
-	display: flex;
-	flex-wrap: wrap;
-	gap: 24px;
-	padding-block: 24px;
+	display: grid;
+	grid-template-columns: 5rem minmax(0, 1fr);
+	grid-template-areas:
+		"media details"
+		"warn warn"
+		"qty qty"
+		"total total";
+	gap: 12px 16px;
+	padding-block: 20px;
 	border-top: 1px solid var(--line);
 }
-.cart-line:first-child {
-	padding-top: 0;
-	border-top: 0;
-}
-.cart-line-details {
-	flex: 1 1 12rem;
-	display: grid;
-	grid-template-columns: minmax(0, 1fr);
-	gap: 8px;
-	min-width: 0;
-	font-size: var(--small-size);
-	overflow-wrap: anywhere;
+.cart-line:last-child {
+	border-bottom: 1px solid var(--line);
 }
 .cart-line-media {
-	flex: 0 0 8rem;
+	grid-area: media;
 	min-width: 0;
 	max-width: 100%;
 }
@@ -1172,6 +1170,27 @@ body:has(> .store-header) {
 	width: 100%;
 	height: auto;
 }
+.cart-line-details {
+	grid-area: details;
+	display: grid;
+	align-content: start;
+	gap: 4px;
+	min-width: 0;
+	font-size: var(--small-size);
+	overflow-wrap: anywhere;
+}
+.cart-line-details h2 {
+	font-size: var(--body-size);
+	line-height: var(--body-leading);
+}
+.line-variant,
+.line-unit {
+	margin: 0;
+	color: var(--muted);
+}
+.line-unit {
+	color: var(--ink);
+}
 .cart-contents {
 	padding-left: 20px;
 	margin: 0;
@@ -1179,93 +1198,199 @@ body:has(> .store-header) {
 	/* Same filled bullets as the PDP contents list, also inside the disclosure. */
 	list-style: disc;
 }
+.cart-line > .cart-warning {
+	grid-area: warn;
+	margin: 0;
+}
 .cart-line-actions {
+	grid-area: qty;
 	display: flex;
-	align-items: end;
-	gap: 12px;
 	flex-wrap: wrap;
-	margin-top: 6px;
+	align-items: flex-start;
+	gap: 4px 8px;
 }
 .cart-line-actions .cart-mutation {
 	flex: 0 1 auto;
 }
-.cart-line-actions .cart-mutation:has(input[name="kind"][value="remove"]) {
-	flex: 0 1 auto;
+:where(.cart-line-actions) .cart-mutation .button {
+	flex: 0 0 auto;
+	min-height: 44px;
+	padding-inline: 16px;
+	font-size: var(--small-size);
 }
-
-.cart-summary {
-	padding: 24px;
+/* Quantity pill with minus and plus (the PDP's, scoped to the cart): the field's label is spoken, not shown. */
+.cart-line .cart-quantity {
+	display: grid;
+}
+.cart-line .quantity-stepper {
+	display: inline-flex;
+	align-items: center;
+	min-height: 44px;
+	border: 1px solid rgba(0, 0, 0, 0.16);
+	border-radius: 9999px;
 	background: #fff;
-	border: 1px solid var(--hairline);
-	border-radius: 20px;
+}
+:where(.cart-line .quantity-stepper) button {
+	display: grid;
+	place-items: center;
+	width: 44px;
+	height: 42px;
+	padding: 0;
+	border: 0;
+	border-radius: 9999px;
+	background: transparent;
+	color: var(--ink);
+	cursor: pointer;
+}
+:where(.cart-line .quantity-stepper) button:hover:not(:disabled) {
+	background: rgba(0, 0, 0, 0.04);
+}
+:where(.cart-line .quantity-stepper) button:disabled {
+	color: var(--field-border);
+	cursor: not-allowed;
+}
+.cart-line .quantity-stepper input[type="number"] {
+	width: 2.75rem;
+	min-height: 42px;
+	padding: 0;
+	border: 0;
+	border-radius: 0;
+	background: transparent;
+	font-size: var(--small-size);
+	font-weight: 600;
+	text-align: center;
+	appearance: textfield;
+}
+.cart-line .quantity-stepper input::-webkit-inner-spin-button,
+.cart-line .quantity-stepper input::-webkit-outer-spin-button {
+	appearance: none;
+	margin: 0;
+}
+.cart-line .quantity-stepper:focus-within {
+	border-color: var(--ink);
+	box-shadow: 0 0 0 3px rgba(0, 0, 0, 0.12);
+}
+.line-total {
+	grid-area: total;
+	margin: 0;
+	display: flex;
+	flex-wrap: wrap;
+	flex-direction: row-reverse;
+	justify-content: space-between;
+	align-items: baseline;
+	gap: 12px;
+}
+.line-total > strong {
+	display: block;
+	font-size: var(--subtitle-size);
+	line-height: 1.5rem;
+	font-weight: 600;
+}
+.line-total > span {
+	color: var(--muted);
+	font-size: var(--small-size);
+}
+.cart-summary {
+	padding-top: 16px;
 	min-width: 0;
 }
-.cart-summary h2 {
-	margin-bottom: 16px;
-}
-.cart-summary dl {
-	margin: 0 0 20px;
+.cart-summary > div {
 	display: grid;
-	gap: 16px;
+	gap: 12px;
+	width: 100%;
+	max-width: 26rem;
+	margin-inline-start: auto;
 }
-.cart-summary dl > div {
+.cart-total {
 	display: flex;
 	flex-wrap: wrap;
 	justify-content: space-between;
-	gap: 8px 16px;
-	font-size: var(--small-size);
+	align-items: baseline;
+	gap: 16px;
 }
-.cart-summary dd {
+.cart-summary h2 {
 	margin: 0;
-	margin-inline-start: auto;
-	text-align: right;
-	font-weight: 600;
+	font-size: var(--body-size);
+	line-height: var(--body-leading);
 }
-@media (max-width: 1050px) {
-	.cart-layout {
-		gap: 24px;
-		grid-template-columns: minmax(0, 1.4fr) minmax(15rem, 1fr);
+.cart-total-amount {
+	margin: 0;
+	font-size: var(--heading-size);
+	line-height: var(--heading-leading);
+	font-weight: 600;
+	letter-spacing: var(--tracking-tight);
+}
+.cart-summary p {
+	margin: 0;
+}
+.cart-dirty {
+	flex-basis: 100%;
+	margin: 0;
+}
+.cart-summary > a {
+	display: flex;
+	width: 100%;
+	max-width: 26rem;
+	margin-inline-start: auto;
+}
+@media (min-width: 701px) {
+	.cart-columns,
+	.cart-line {
+		--cart-columns: 7rem minmax(0, 1fr) 17.5rem 7rem;
+	}
+	.cart-columns {
+		display: grid;
+		grid-template-columns: var(--cart-columns);
+		gap: 0 24px;
+		padding-bottom: 12px;
+		font-size: var(--caption-size);
+		line-height: var(--caption-leading);
+		font-weight: 600;
+		letter-spacing: 0.04em;
+		text-transform: uppercase;
+		color: var(--muted);
+	}
+	.cart-columns > :first-child {
+		grid-column: 1 / 3;
+	}
+	.cart-columns > :last-child {
+		text-align: right;
 	}
 	.cart-line {
-		gap: 16px;
+		grid-template-columns: var(--cart-columns);
+		grid-template-areas:
+			"media details qty total"
+			"warn warn warn warn";
+		gap: 12px 24px;
+		align-items: start;
+		padding-block: 24px;
 	}
-	.cart-line-media {
-		flex-basis: 6rem;
+	/* Quantity and unit price are already on the row, so desktop shows the total alone; a row without a quantity cell (closed cart, row awaiting approval) keeps the basis. */
+	.cart-line:has(.cart-quantity) .line-total > span {
+		position: absolute;
+		width: 1px;
+		height: 1px;
+		overflow: hidden;
+		clip-path: inset(50%);
+		white-space: nowrap;
+	}
+	.line-total {
+		display: block;
+		text-align: right;
+	}
+}
+@media (min-width: 701px) and (max-width: 1023px) {
+	.cart-columns,
+	.cart-line {
+		--cart-columns: 5rem minmax(0, 1fr) 8.5rem 6rem;
 	}
 }
 @media (max-width: 700px) {
-	.cart-layout {
-		display: block;
-	}
-	.cart-summary {
-		margin-top: 24px;
-		padding: 20px 16px;
-	}
-	.cart-line {
-		gap: 12px;
-	}
-	.cart-line-media {
-		flex-basis: 5rem;
-	}
-	.cart-line-media .photo-slot small {
-		display: none;
-	}
-	.cart-mutation {
-		gap: 8px;
-	}
-	.cart-line-actions {
-		grid-column: 1 / -1;
-	}
 	.cart-page {
 		padding-top: 24px;
 	}
-	.cart-line-actions .cart-mutation {
-		flex-basis: 100%;
-	}
-	/* A 5.5rem quantity pill lets "Perbarui jumlah" sit beside it in the 264px line column at 390,
-	   which brings the summary 58px higher; narrower columns and larger text still wrap. */
-	.cart-line-actions .cart-mutation input[type="number"] {
-		width: 5.5rem;
+	.cart-summary > div {
+		max-width: none;
 	}
 }
 
@@ -1371,8 +1496,11 @@ body:has(> .store-header) {
 	color: var(--caption);
 }
 .contents-label {
-	font-size: var(--small-size);
+	margin: 8px 0 0;
+	font-size: var(--caption-size);
+	line-height: var(--caption-leading);
 	font-weight: 600;
+	color: var(--muted);
 }
 .publication-contents {
 	padding-left: 20px;
@@ -3372,18 +3500,6 @@ body:has(> .store-header) {
 	margin-top: 12px;
 }
 
-/* Cart line: one emphasised line total with its basis; the remove action
-   aligns to the quantity column; the summary link gets breathing room. */
-:where(.line-total > strong) {
-	display: block;
-	font-size: var(--subtitle-size);
-	line-height: 1.5rem;
-	font-weight: 600;
-}
-:where(.line-total > span) {
-	color: var(--muted);
-	font-size: var(--small-size);
-}
 .cart-line-actions .button.quiet {
 	padding-inline: 4px 12px;
 }
