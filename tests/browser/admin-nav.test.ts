@@ -85,7 +85,7 @@ const EXPECTED: [string, Role[], string[], [string, string[]][]][] = [
 	]],
 	["finance", ["finance"], ["orders.history.read", "finance.reconciliation.read", "finance.refunds.read", "finance.costs.read"], [
 		["Beranda", []],
-		["Keuangan", ["Pembayaran Masuk", "Setoran COD", "Rekonsiliasi", "Pengembalian Dana", "Komisi Afiliasi"]],
+		["Keuangan", ["Pembayaran Masuk", "Setoran COD", "Rekonsiliasi", "Pengembalian Dana", "Komisi Afiliasi", "Tarif Afiliasi"]],
 		["Pesanan", []],
 		["Pengaturan", []],
 	]],
