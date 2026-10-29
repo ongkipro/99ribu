@@ -194,40 +194,37 @@ If the owner wants a staff member who runs ads, banners and promotions without t
 
 Notation: `▸` marks a collapsible group (the parent row opens its main page and the chevron opens the children). **[baru]** means not built yet. (badge) is a live count, hidden at zero. Every route sits under `/admin`, so `/admin` is omitted below. Detail pages use the short number from S145 (`/pesanan/1042`).
 
-**Super Admin (`owner`)** — decides, approves, governs:
+**Super Admin (`owner`)** — **monitor, approver, governor; not an operator** (owner correction 2026-10-29: "super admin tidak perlu akses all produk, dia pemantau"). The owner does not edit products, move stock, input resi, reply to chats or confirm payments. Those jobs belong to Admin E-Commerce and staff (maker). The owner watches, approves exceptions (checker; never approves their own request) and sets the rules. This follows Shopify's split between owner-only account, billing and staff control and delegated operational permissions, and the maker-checker separation-of-duties pattern.
 
 ```
-Beranda                 /                                  Antrian Keputusan + money strip + trends
-Persetujuan (badge)     /persetujuan              [baru]   below-margin publication, owner exceptions
-Pesanan ▸               /pesanan                           Semua Pesanan
-   Kendala Pengiriman   /pesanan/kendala
-   Retur                /pesanan/retur
-Produk ▸                /produk
-   Kategori             /produk/kategori
-   Inventori            /produk/inventori
-   Gudang               /produk/gudang
-Keuangan ▸              /keuangan                          Ringkasan (was Laporan Keuangan)
-   Pembayaran Masuk     /keuangan/pembayaran
-   Setoran COD          /keuangan/cod
-   Rekonsiliasi         /keuangan/rekonsiliasi
-   Pengembalian Dana    /keuangan/refund
-   Komisi Afiliasi      /keuangan/komisi
-Pemasaran ▸             /pemasaran                         hub
-   Promo Ongkir         /promo/ongkir
-   Banner               /banner
-   Afiliasi             /afiliasi
-   Segmen Pembeli       /pelanggan/segmen
-   Integrasi Iklan      /pemasaran/iklan
+Beranda                 /                                  Pantauan: Antrian Keputusan, money strip, sales trend, health signals
+Persetujuan (badge)     /persetujuan              [baru]   approve/reject exceptions (below-margin publication, …)
+Pantauan ▸              /pantauan                 [baru]   READ-ONLY oversight hub, no edit controls
+   Pesanan              /pesanan                           read-only view (no shipping/return actions)
+   Katalog              /pantauan/katalog         [baru]   counts: terbit / siap / diblokir (reason) / ditarik, below-margin list; links open read-only product detail
+   Stok                 /pantauan/stok            [baru]   stock health per warehouse (low stock, in transit), read-only
+   Kendala & Retur      /pantauan/kendala         [baru]   open exceptions and returns, ageing, read-only
+Keuangan ▸              /keuangan                          Ringkasan (read)
+   Laporan Keuangan     /keuangan                          period flows, contribution completeness
+   Rekonsiliasi         /keuangan/rekonsiliasi             read-only for owner (finance acts)
+   Komisi Afiliasi      /keuangan/komisi                   read-only for owner (finance pays)
 Analitik                /analitik                 [baru]
-Pengaturan ▸            /pengaturan                        one index page of setting cards (tokophi pattern)
+Pengaturan ▸            /pengaturan                        owner-only governance
    Staf & Peran         /pengaturan/staf
-   Kebijakan Komersial  /pengaturan/komersial
+   Kebijakan Komersial  /pengaturan/komersial              margin floor, defaults
    Pembayaran & COD     /pengaturan/pembayaran
-   Template Label       /pengaturan/label
-   Balasan CS           /pengaturan/balasan-cs
+   Tarif Afiliasi       /afiliasi                          rate versions only
+   Gudang               /produk/gudang                     warehouses, calendar (owner approves calendars)
+   Integrasi Iklan      /pemasaran/iklan
    Log Audit            /pengaturan/audit
    Kesehatan Sistem     /pengaturan/sistem
 ```
+
+Rules for the owner view:
+- Every operational screen the owner can reach renders in **read-only mode**: no editor, no bulk bar, no action buttons. A note "Dikerjakan oleh Admin E-Commerce / Gudang / CS / Keuangan" points to the role that acts.
+- Self-approval is refused. A request created by an account is never approvable by that same account (S-A0).
+- Server authority is **unchanged in this programme**. The owner role keeps its existing API authority, which is needed for approvals, emergencies and the existing owner-exception publication path. Only the UI stops offering operational controls. Narrowing the owner's server permissions is decision **D11** (R4 IAM, later).
+- A multi-role account (owner + ecommerce_admin) still gets the operator screens through its `ecommerce_admin` lens.
 
 **Admin E-Commerce (`ecommerce_admin`)** — products, content, merchandising:
 
@@ -470,6 +467,7 @@ Each port is checked by `npm run check`, the browser tests per role, renders at 
 | D7 | The ten admin-wave decisions in `docs/history/STATUS-20261028-handoffs.md` |
 | D8 | A separate `marketing` (advertiser) staff role: yes/no |
 | D9 | Catalog scope of Admin E-Commerce: per warehouse (today) or company-wide |
+| D11 | Narrow the owner's server-side catalog/operations write permissions to match the monitor role (R4 IAM) — later; UI-only in this programme |
 | D10 | ~~Admin route slugs~~ — **answered 2026-10-29: Indonesian slugs like tokophi** (§4.2) |
 
 Build order after Gate 0: **S-U1 → S-V1 → S-H1**, then S-P1 / S-A0 / S-N1 in parallel worktrees (disjoint paths), then S-A1, S-C1. S-R1 only on D8.
