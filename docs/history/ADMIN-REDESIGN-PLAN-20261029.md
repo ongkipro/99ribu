@@ -225,6 +225,7 @@ Rules for the owner view:
 - Self-approval is refused. A request created by an account is never approvable by that same account (S-A0).
 - Server authority is **unchanged in this programme**. The owner role keeps its existing API authority, which is needed for approvals, emergencies and the existing owner-exception publication path. Only the UI stops offering operational controls. Narrowing the owner's server permissions is decision **D11** (R4 IAM, later).
 - A multi-role account (owner + ecommerce_admin) still gets the operator screens through its `ecommerce_admin` lens.
+- **Transition (for S-V1):** the `/pantauan/*` pages and owner read-only mode are built by follow-up slice **S-O1**, after this run. Until S-O1 merges, S-V1 keeps the owner's existing Pesanan, Produk (list/detail), Stok and Kendala/Retur links visible under a "Pantauan" group pointing at the existing pages, and the `/pantauan/*` items stay behind the built flag.
 
 **Admin E-Commerce (`ecommerce_admin`)** — products, content, merchandising:
 
@@ -451,6 +452,7 @@ Each port is checked by `npm run check`, the browser tests per role, renders at 
 | **S-N1** command search | Role-scoped search for order, resi and product | R3 | S-V1 |
 | **S-A1** Analitik | Sales trend, top offers, COD refused/RTS per courier | R3 | S-H1, D2, D3 |
 | **S-C1** Toko Online | Static pages + media | R3 | later |
+| **S-O1** owner oversight | `/pantauan` hub + katalog/stok/kendala read-only pages, owner read-only mode on operational screens, self-approval refusal check with S-A0 | R3 | after this run |
 | **S-R1** marketing role | Only if D8 = yes | R4 (IAM) | D8 |
 
 ## 7. Owner decisions
