@@ -615,3 +615,186 @@
 	}
 }
 
+
+/* ===== Department highlight cards (shop.com home merchant cards, observed 2026-10-29) =====
+   shop.com: 330px cards at 250.4:381, 28px radius, 8px apart in a scrolling row; cover photo with a
+   20% dark veil and a gradient from the card colour (20%) to transparent (80%); the name centred and
+   scaling to 1.1 on hover; three square 20px-radius product tiles 6px apart along a 12px inset bottom.
+   Ours: three cards side by side from 701px (4:5, so a 410px card stays about shop.com's height), a
+   scrolling row with the next card peeking on phones. The card colour is the department tint's deep
+   shade so white text keeps >= 4.5:1 over the gradient. */
+.highlight-row {
+	list-style: none;
+	margin: 0 calc(-1 * var(--gutter));
+	padding: 0 var(--gutter) 8px;
+	display: grid;
+	grid-auto-flow: column;
+	grid-auto-columns: min(78%, 330px);
+	gap: 8px;
+	overflow-x: auto;
+	scroll-snap-type: x mandatory;
+	scroll-padding-inline: var(--gutter);
+	scrollbar-width: none;
+	overscroll-behavior-x: contain;
+}
+.highlight-row::-webkit-scrollbar {
+	display: none;
+}
+.highlight-row > li {
+	display: flex;
+	scroll-snap-align: start;
+}
+@media (min-width: 701px) {
+	.highlight-row {
+		margin-inline: 0;
+		padding-inline: 0;
+		grid-auto-flow: row;
+		grid-template-columns: repeat(3, minmax(0, 1fr));
+		overflow: visible;
+	}
+}
+.highlight-card {
+	--deep: #3d4250;
+	position: relative;
+	isolation: isolate;
+	display: flex;
+	flex: 1;
+	flex-direction: column;
+	aspect-ratio: 250.4 / 381;
+	overflow: hidden;
+	border-radius: 28px;
+	background: var(--deep);
+	box-shadow: 0 4px 16px rgba(0, 0, 0, 0.08);
+	color: #fff;
+}
+@media (min-width: 701px) {
+	.highlight-card {
+		aspect-ratio: 4 / 5;
+	}
+}
+.highlight-card[data-tint="rose"] { --deep: #8a3348; }
+.highlight-card[data-tint="amber"] { --deep: #7a5212; }
+.highlight-card[data-tint="green"] { --deep: #2f5d3a; }
+.highlight-card[data-tint="blue"] { --deep: #2c4a7a; }
+.highlight-card[data-tint="violet"] { --deep: #4b3596; }
+.highlight-card[data-tint="teal"] { --deep: #1f5d55; }
+.highlight-card[data-tint="slate"] { --deep: #3d4250; }
+.highlight-cover {
+	position: absolute;
+	inset: 0;
+	width: 100%;
+	height: 100%;
+	object-fit: cover;
+	transition: transform 500ms ease-out;
+}
+.highlight-card::after {
+	content: "";
+	position: absolute;
+	inset: 0;
+	background:
+		linear-gradient(to top, var(--deep) 20%, transparent 80%),
+		rgba(0, 0, 0, 0.2);
+	pointer-events: none;
+}
+.highlight-link {
+	position: relative;
+	z-index: 1;
+	display: flex;
+	flex: 1;
+	flex-direction: column;
+	align-items: center;
+	justify-content: center;
+	gap: 8px;
+	padding: 16px;
+	border-radius: 28px;
+	color: #fff;
+	text-align: center;
+}
+.highlight-link:hover {
+	text-decoration: none;
+}
+.highlight-link:focus-visible {
+	outline: 2px solid #fff;
+	outline-offset: -6px;
+}
+.highlight-title {
+	margin: 0;
+	font-size: clamp(1.5rem, 1.1rem + 1.2vw, 2rem);
+	line-height: 1.1;
+	font-weight: 800;
+	letter-spacing: -1px;
+	text-wrap: balance;
+	text-shadow: 0 1px 12px rgba(0, 0, 0, 0.35);
+	transition: transform 150ms ease-out;
+}
+.highlight-action {
+	display: inline-flex;
+	align-items: center;
+	gap: 2px;
+	font-size: var(--caption-size);
+	line-height: var(--caption-leading);
+	font-weight: 600;
+}
+:where(.highlight-action svg) {
+	width: 14px;
+	height: 14px;
+}
+.highlight-products {
+	position: relative;
+	z-index: 1;
+	list-style: none;
+	margin: 0;
+	padding: 0 12px 12px;
+	display: flex;
+	justify-content: center;
+	gap: 6px;
+}
+.highlight-products li {
+	flex: 0 1 calc((100% - 12px) / 3);
+	min-width: 0;
+}
+.highlight-product {
+	position: relative;
+	display: block;
+	aspect-ratio: 1;
+	overflow: hidden;
+	border-radius: 20px;
+	background: #fff;
+	box-shadow: 0 1px 4px rgba(0, 0, 0, 0.12);
+}
+.highlight-product::after {
+	content: "";
+	position: absolute;
+	inset: 0;
+	border-radius: inherit;
+	box-shadow: inset 0 0 0 0.5px rgba(0, 0, 0, 0.1);
+}
+.highlight-product:focus-visible {
+	outline: 2px solid #fff;
+	outline-offset: 2px;
+}
+:where(.highlight-product img) {
+	display: block;
+	width: 100%;
+	height: 100%;
+	object-fit: cover;
+	transition: transform 150ms ease-out;
+}
+@media (hover: hover) {
+	.highlight-card:hover .highlight-cover {
+		transform: scale(1.05);
+	}
+	.highlight-link:hover .highlight-title {
+		transform: scale(1.1);
+	}
+	.highlight-product:hover img {
+		transform: scale(1.1);
+	}
+}
+@media (prefers-reduced-motion: reduce) {
+	.highlight-cover,
+	.highlight-title,
+	:where(.highlight-product img) {
+		transition: none;
+	}
+}

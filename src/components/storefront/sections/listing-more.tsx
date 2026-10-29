@@ -6,7 +6,9 @@ import {useCallback,useEffect,useLayoutEffect,useRef,useState} from 'react';
 // crawlable rel="next" link (no-JS users and crawlers); with this island mounted it is hidden by
 // CSS. Each next page is fetched as the same server-rendered listing URL and its cards are
 // appended, so there is no second card renderer and no new API. After AUTO pages the footer
-// stays reachable: loading continues only through "Lihat produk lainnya".
+// stays reachable: loading continues only through "Lihat produk lainnya". `auto={0}` (the home's
+// "Terbaru" feed) loads only on that button. `reveal` (the home): the server page holds more cards
+// than CSS shows (four rows per width); the first press only shows them, no request.
 const AUTO=3,KEEP=20,SKELETON=['a','b','c','d','e','f','g','h'];
 type Saved={pages:string[];next:string|null;scroll:number};
 const keyOf=()=>`listing:${location.pathname}${location.search}`;
@@ -20,10 +22,11 @@ function adopt(html:string){
  }
  return doc.body.firstElementChild?.innerHTML??'';
 }
-export function ListingMore({next:first}:{next:string|null}){
+export function ListingMore({next:first,auto:autoPages=AUTO,reveal=false}:{next:string|null;auto?:number;reveal?:boolean}){
  const [pages,setPages]=useState<string[]>([]),[next,setNext]=useState(first),[state,setState]=useState<'idle'|'loading'|'error'>('idle');
  const [status,setStatus]=useState(''),[mounted,setMounted]=useState(false),[columns,setColumns]=useState(6);
- const sentinel=useRef<HTMLDivElement>(null),busy=useRef(false);
+ const sentinel=useRef<HTMLDivElement>(null),root=useRef<HTMLDivElement>(null),busy=useRef(false);
+ const [hidden,setHidden]=useState(0),[expanded,setExpanded]=useState(false);
  useLayoutEffect(()=>{
   setMounted(true);
   // Restore on Back/forward (entry marked in history) or when the URL names a product that only
@@ -35,6 +38,11 @@ export function ListingMore({next:first}:{next:string|null}){
   try{if(saved?.pages.length){setPages(saved.pages);setNext(saved.next);window.history.replaceState({...window.history.state,listingPages:true},'');
    requestAnimationFrame(()=>{const target=location.hash?document.getElementById(location.hash.slice(1)):null;if(target)target.scrollIntoView({block:'center'});else window.scrollTo(0,saved.scroll);});}}catch{}
  },[]);
+ // CSS hides the extra rows only once data-mounted is set, so count after that commit.
+ // lazy: counted once; a later resize that hides or shows rows is not recounted.
+ useLayoutEffect(()=>{
+  if(reveal&&mounted) setHidden([...root.current?.closest('.listing-grid')?.querySelectorAll(':scope > .product-grid > li')??[]].filter(li=>getComputedStyle(li).display==='none').length);
+ },[reveal,mounted]);
  const save=useCallback((p:string[],n:string|null)=>{
   try{sessionStorage.setItem(keyOf(),JSON.stringify({pages:p.slice(-KEEP),next:n,scroll:Math.round(scrollY)} satisfies Saved));window.history.replaceState({...window.history.state,listingPages:true},'');}catch{}
  },[]);
@@ -54,20 +62,22 @@ export function ListingMore({next:first}:{next:string|null}){
   }catch{setState('error');setStatus('Produk berikutnya belum dapat dimuat.');}
   finally{busy.current=false;}
  },[next,pages,save]);
- const auto=pages.length<AUTO;
+ const auto=pages.length<autoPages;
  useEffect(()=>{
   const el=sentinel.current;if(!el||!next||!auto||state!=='idle') return;
   const io=new IntersectionObserver(entries=>{if(entries.some(e=>e.isIntersecting)) load();},{rootMargin:'0px 0px 100% 0px'});
   io.observe(el);return ()=>io.disconnect();
  },[next,auto,state,load]);
- return <div className="listing-more" data-mounted={mounted||undefined}>
+ const more=reveal&&hidden>0&&!expanded&&!pages.length;
+ const show=()=>{setExpanded(true);setStatus(`${hidden} produk lagi ditampilkan.`);};
+ return <div ref={root} className="listing-more" data-mounted={mounted||undefined} data-expanded={expanded||pages.length>0||undefined}>
   {pages.map((html,i)=>
    // biome-ignore lint/security/noDangerouslySetInnerHtml: same-origin card markup from this listing's own server-rendered next page (product names are escaped by React there).
    <ul key={/id="(product-[^"]+)"/.exec(html)?.[1]??`page-${i}`} className="product-grid" data-page={i+2} dangerouslySetInnerHTML={{__html:html}}/>)}
   {state==='loading'&&<ul className="product-grid listing-skeleton" aria-hidden="true">{SKELETON.slice(0,columns).map(k=><li key={k} className="product"><span className="product-frame"/><span className="skeleton-line"/><span className="skeleton-line short"/></li>)}</ul>}
   <p className="sr-only" role="status" aria-live="polite">{status}</p>
   {state==='error'&&<div className="listing-end"><p>Produk berikutnya belum dapat dimuat.</p><button type="button" className="listing-more-button" onClick={load}>Coba lagi</button></div>}
-  {next&&!auto&&state==='idle'&&<div className="listing-end"><button type="button" className="listing-more-button" onClick={load}>Lihat produk lainnya</button></div>}
+  {(more||(next&&!auto&&state==='idle'))&&<div className="listing-end"><button type="button" className="listing-more-button" onClick={more?show:load}>Lihat produk lainnya</button></div>}
   {next&&<div ref={sentinel} className="listing-sentinel" aria-hidden="true"/>}
  </div>;
 }
