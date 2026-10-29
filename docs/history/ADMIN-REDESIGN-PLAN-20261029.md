@@ -418,6 +418,32 @@ One page of setting cards. Each card shows its current version and links to its 
 | Log Audit | `/admin/pengaturan/audit` | Append-only trail |
 | Kesehatan Sistem | `/admin/pengaturan/sistem` | Outbox and worker health |
 
+### 4.6 Account areas: internal (ours) vs external users — no overlap
+
+Owner direction 2026-10-29: separate the accounts of the company (Super Admin, Admin and staff) from external users (buyers, affiliates) so they never overlap.
+
+Found today:
+- `/masuk` is one sign-in for staff (with TOTP), buyers and affiliates.
+- `/akun/*` has no role check, so a staff account signed in on the storefront opens the buyer account area.
+- Affiliates have one page, `/afiliasi`, inside the storefront.
+
+| | **Internal — Konsol (kepemilikan kita)** | **External — Pengguna** |
+|---|---|---|
+| Who | Super Admin, Admin E-Commerce, Gudang, CS, Keuangan | Pembeli, Afiliasi (and guests) |
+| How accounts are created | Only by Super Admin (Pengaturan → Staf & Peran); no self sign-up | Self sign-up / guest checkout (buyer); affiliate by application or owner invite |
+| Sign-in page | **`/admin/masuk`** (new): email + password + **mandatory TOTP**, backup code; no guest, no sign-up link; "Lupa kata sandi" goes to Super Admin reset | **`/masuk`**, `/masuk/verifikasi`, `/masuk/atur-sandi` (existing); staff accounts are refused here with a link to `/admin/masuk` |
+| After sign-in | `/admin` (role home) | Buyer `/akun/pesanan`; affiliate `/afiliasi` |
+| Own account pages | `/admin/akun/profil` (name, email, roles, grants, warehouses: read-only), `/admin/akun/keamanan` (password, 2FA, backup codes, active sessions) | Buyer: `/akun/pesanan`, `/akun/profil`, `/akun/pengaturan`. Affiliate: **`/afiliasi`** (ringkasan + link rujukan), **`/afiliasi/komisi`**, **`/afiliasi/pencairan`**, **`/afiliasi/profil`** (rekening pencairan) — split from today's single page |
+| Ownership / control | Super Admin only: add/remove staff, roles, MFA reset, last-owner protection (`/admin/pengaturan/staf`) | Users control only their own data; support and claims go through CS |
+| Header / entry | Konsol topbar avatar menu; storefront shows "Konsol Admin" to a signed-in staff account, never "Akun" | Storefront header "Akun"; buyer ↔ affiliate switch when one person holds both |
+| Visual | Admin shell (§2–§3) | Storefront design (`DESIGN.md`) |
+
+Rules:
+1. **An internal account is never an external account.** An account holding any staff role is refused by `/akun/*`, `/afiliasi/*` and signed-in checkout, with the message "Akun staf tidak dipakai untuk belanja. Gunakan akun pribadi." A staff member who shops uses a separate personal buyer account. The existing role model (`policy.ts`) already keeps staff roles and buyer/affiliate roles in one `roles` array, so the server must refuse mixed internal+external grants (`grantStaffRoles` refuses granting staff to an account holding `buyer`/`affiliate`, and the reverse). Decision **D12**.
+2. **External roles may combine.** One person can be both buyer and affiliate, with a switch between `/akun` and `/afiliasi`.
+3. **Sessions follow the area.** Signing in at `/admin/masuk` with a non-staff account is refused, and signing in at `/masuk` with a staff account is refused. A session never carries one area into the other's pages. The server checks on every request; the UI only hides.
+4. Existing data: the local fixtures already hold one role per account. Any real account found holding both kinds is listed for Super Admin to split before the rule is enforced. There is no silent migration.
+
 ## 5. Port plan — tokophi code to 99ribu (for the development phase, not done now)
 
 Same owner, same stack, so copying is allowed. Every port swaps `@tokophi/ui` imports for 99ribu's `src/components/ui/*`, swaps `@tokophi/lib/format` for 99ribu `rupiah`/`Intl` helpers, removes emoji and SaaS bits, and keeps 99ribu tokens.
@@ -453,6 +479,7 @@ Each port is checked by `npm run check`, the browser tests per role, renders at 
 | **S-A1** Analitik | Sales trend, top offers, COD refused/RTS per courier | R3 | S-H1, D2, D3 |
 | **S-C1** Toko Online | Static pages + media | R3 | later |
 | **S-O1** owner oversight | `/pantauan` hub + katalog/stok/kendala read-only pages, owner read-only mode on operational screens, self-approval refusal check with S-A0 | R3 | after this run |
+| **S-K1** account separation | §4.6: `/admin/masuk`, refuse staff on `/masuk` `/akun` `/afiliasi` and the reverse, mixed-grant refusal in `grantStaffRoles`, affiliate sub-pages, storefront header "Konsol Admin" | R4 (auth/IAM) | after this run, D12 |
 | **S-R1** marketing role | Only if D8 = yes | R4 (IAM) | D8 |
 
 ## 7. Owner decisions
@@ -470,6 +497,7 @@ Each port is checked by `npm run check`, the browser tests per role, renders at 
 | D8 | A separate `marketing` (advertiser) staff role: yes/no |
 | D9 | Catalog scope of Admin E-Commerce: per warehouse (today) or company-wide |
 | D11 | Narrow the owner's server-side catalog/operations write permissions to match the monitor role (R4 IAM) — later; UI-only in this programme |
+| D12 | Internal and external accounts strictly separate (§4.6): staff accounts cannot shop or be affiliates; mixed grants refused — recommended yes |
 | D10 | ~~Admin route slugs~~ — **answered 2026-10-29: Indonesian slugs like tokophi** (§4.2) |
 
 Build order after Gate 0: **S-U1 → S-V1 → S-H1**, then S-P1 / S-A0 / S-N1 in parallel worktrees (disjoint paths), then S-A1, S-C1. S-R1 only on D8.
