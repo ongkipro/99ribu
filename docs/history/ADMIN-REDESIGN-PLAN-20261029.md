@@ -480,6 +480,7 @@ Each port is checked by `npm run check`, the browser tests per role, renders at 
 | **S-C1** Toko Online | Static pages + media | R3 | later |
 | **S-O1** owner oversight | `/pantauan` hub + katalog/stok/kendala read-only pages, owner read-only mode on operational screens, self-approval refusal check with S-A0 | R3 | after this run |
 | **S-K1** account separation | §4.6: `/admin/masuk`, refuse staff on `/masuk` `/akun` `/afiliasi` and the reverse, mixed-grant refusal in `grantStaffRoles`, affiliate sub-pages, storefront header "Konsol Admin" | R4 (auth/IAM) | after this run, D12 |
+| **S-K2** admin host (D13) | Host-based routing in `src/proxy.ts`, `ADMIN_ORIGIN` config, Better Auth trusted origins/baseURL per host, host-only cookies, 308 from `/admin/*`, CSP/noindex for the console host, tests, RELEASE.md OD-1 update, DNS/TLS steps for S88 (deploy itself stays gated) | R4 (auth, deploy contract) | with S-K1, before S88 |
 | **S-R1** marketing role | Only if D8 = yes | R4 (IAM) | D8 |
 
 ## 7. Owner decisions
@@ -498,6 +499,7 @@ Each port is checked by `npm run check`, the browser tests per role, renders at 
 | D9 | Catalog scope of Admin E-Commerce: per warehouse (today) or company-wide |
 | D11 | Narrow the owner's server-side catalog/operations write permissions to match the monitor role (R4 IAM) — later; UI-only in this programme |
 | D12 | Internal and external accounts strictly separate (§4.6): staff accounts cannot shop or be affiliates; mixed grants refused — recommended yes |
+| D13 | **Accepted 2026-10-29 (owner):** internal console on its own host in production; external users stay on `https://99ribu.com` (`/akun`, `/afiliasi`, checkout, cart). Host: **`admin.99ribu.com`** (default; alternative `konsol.99ribu.com`; `app.` rejected because it collides with future customer apps, `master.` rejected because it reads as master data). Final name locked before S88. Same single Next.js app: `src/proxy.ts` serves the console by host and answers `99ribu.com/admin/*` with 308 to the admin host; separate host-only cookies; console-wide `noindex`, stricter CSP and the option of network access control (Cloudflare Access / IP allowlist). **Supersedes RELEASE.md OD-1** ("admin stays under /admin on the same host") when implemented; RELEASE.md is updated by that slice, not now. Local development is unchanged (`127.0.0.1:3099/admin`, tailnet). |
 | D10 | ~~Admin route slugs~~ — **answered 2026-10-29: Indonesian slugs like tokophi** (§4.2) |
 
 Build order after Gate 0: **S-U1 → S-V1 → S-H1**, then S-P1 / S-A0 / S-N1 in parallel worktrees (disjoint paths), then S-A1, S-C1. S-R1 only on D8.
