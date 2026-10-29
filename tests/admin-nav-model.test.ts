@@ -5,6 +5,7 @@ import test from "node:test";
 import {
 	activeHref,
 	canOpen,
+	GUARDED_PAGES,
 	highlightedRows,
 	NAV_BY_LENS,
 	type NavSection,
@@ -93,7 +94,7 @@ test("S-V1 nav per role lens: exactly the plan §4.1 items each principal's gran
 				[
 					"Keuangan",
 					"/admin/keuangan/pembayaran",
-					["Pembayaran Masuk", "Setoran COD", "Rekonsiliasi", "Pengembalian Dana", "Komisi Afiliasi"],
+					["Pembayaran Masuk", "Setoran COD", "Rekonsiliasi", "Pengembalian Dana", "Komisi Afiliasi", "Tarif Afiliasi"],
 				],
 				["Pesanan", "/admin/pesanan"],
 				["Pengaturan", "/admin/pengaturan"],
@@ -131,6 +132,42 @@ test("S-V1 every unbuilt page is defined in the nav, hidden, and has no route ye
 		if (!UNBUILT_PAGES.has(route)) assert.ok(pageExists(route), `${route} has a page`);
 	}
 	for (const card of SETTINGS_CARDS) assert.ok(pageExists(card.href), card.href);
+});
+
+test("S-V1 every guard-allowed page is reachable from the nav, except the listed deliberate omissions", () => {
+	const lenses = ["owner", "ecommerce_admin", "warehouse", "customer_service", "finance"] as const;
+	// [account, roles, grants, guard-allowed pages deliberately left out of every lens it may open]
+	const cases: [string, string[], string[], string[]][] = [
+		["owner", ["owner"], [], []],
+		["ecommerce_admin", ["ecommerce_admin"], ["orders.history.read"], []],
+		// Plan §4.1: the warehouse Produk row opens Inventori; the product list is catalog work.
+		["warehouse", ["warehouse"], [], ["/admin/produk"]],
+		["customer_service", ["customer_service"], ["orders.history.read"], []],
+		// Plan §4.1: finance acts on refunds in Pengembalian Dana, not on the return/exception queues,
+		// and its tree has no Produk row.
+		[
+			"finance (all finance grants)",
+			["finance"],
+			["orders.history.read", "finance.reconciliation.read", "finance.refunds.read", "finance.summary.read", "finance.costs.read"],
+			["/admin/pesanan/kendala", "/admin/pesanan/retur", "/admin/produk"],
+		],
+	];
+	for (const [name, roles, permissions, omitted] of cases) {
+		// The layout gives the owner every lens and other staff their own roles.
+		const own = roles.includes("owner") ? lenses : lenses.filter((l) => roles.includes(l));
+		const reach = new Set(
+			own.flatMap((lens) =>
+				navFor(lens, roles, permissions).flatMap((s) =>
+					s.items.flatMap((i) => [i.href, ...(i.children ?? []).map((c) => c.href)]).map((h) => h.split("?")[0]),
+				),
+			),
+		);
+		// The Pengaturan index lists every card the principal can open.
+		if (reach.has("/admin/pengaturan"))
+			for (const card of SETTINGS_CARDS) if (canOpen(card.href, roles, permissions)) reach.add(card.href);
+		const missing = GUARDED_PAGES.filter((path) => canOpen(path, roles, permissions) && !reach.has(path));
+		assert.deepEqual(missing, omitted, name);
+	}
 });
 
 test("S-V1 exactly one active row: longest path, query views, child over parent, Beranda only at home", () => {

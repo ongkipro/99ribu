@@ -122,8 +122,12 @@ export function readOrderFilters(get: (key: string) => string | null | undefined
  * List tabs (plan §4.3): each tab is a saved filter built only from what GET /api/v1/admin/orders
  * filters on (no counts yet). "Perlu Dikirim" lists every order with a parcel not yet handed over
  * (`fulfillment_group=due`, the fulfillments_due predicate) and narrows to one stage with chips
- * (`kirim`). Open gap for a follow-up slice: "Selesai", the combined "Retur/Batal" view and the tab
- * counts need API support; "Dibatalkan" stands in and returns stay a filter.
+ * (`kirim`). §4.3 is only partly delivered by S-V1; open gaps (recorded in STATUS by the merge, owned
+ * by S-T1 for the tabs and S-H1 for the counts): "Selesai" (every parcel delivered) and the combined
+ * "Retur/Batal" (open return or cancelled) need order-level API predicates, so "Dibatalkan" stands in
+ * and returns stay a filter; "Dikirim" is any parcel handed over, delivered ones included (not yet
+ * "handed over and not all delivered"); tabs carry no counts, and the Pesanan nav badge waits for an
+ * order-level "Perlu Dikirim" count (admin-nav.ts NavBadgeKey).
  */
 export const PERLU_DIKIRIM_STAGES = ["ready", "picking", "packed", "handover_pending", "exception"] as const;
 export const ORDER_TABS: Record<string, { label: string; fixed: OrderFilters }> = {

@@ -3,14 +3,15 @@
 import { cn } from "cn";
 import { ChevronRight } from "lucide-react";
 import Link from "next/link";
-import { type ReactNode, useState } from "react";
+import { type ReactNode, useId, useState } from "react";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { NAV_BADGE_LABELS, type NavCounts, type NavItem, type NavSection, parentActive } from "./admin-nav";
 
 // S-V1 port of tokophi `nav-links.tsx`: collapsible groups (parent row = link to the main page,
 // separate chevron button), children indented under a left border, auto-expanded while the active
 // row is inside, exactly one active row (`active`, computed by activeHref). In the tablet icon rail
-// (`rail:` variant, admin.css) only the parent icons show, with a tooltip once `tooltips` is on.
+// (`rail:` variant, admin.css) only the parent icons show, with a tooltip once `tooltips` is on; a
+// parent whose child is active carries the highlight there (`data-inside`), since the child is hidden.
 
 const count = new Intl.NumberFormat("id-ID");
 
@@ -29,8 +30,10 @@ function Row({
 }) {
 	const children = item.children ?? [];
 	const isActive = parentActive(item, active);
-	const inside = isActive || children.some((c) => c.href === active);
+	const childActive = !isActive && children.some((c) => c.href === active);
+	const inside = isActive || childActive;
 	const [open, setOpen] = useState<boolean | null>(null);
+	const listId = useId();
 	const expanded = children.length > 0 && (open ?? inside);
 	const badge = item.badge ? (counts[item.badge] ?? 0) : 0;
 	const Icon = item.icon;
@@ -41,13 +44,15 @@ function Row({
 			aria-current={isActive ? "page" : undefined}
 			data-slot="nav-link"
 			data-active={isActive || undefined}
+			data-inside={childActive || undefined}
 			className={cn(
 				"group relative flex min-h-9 min-w-0 flex-1 items-center gap-3 rounded-lg px-3 py-2 text-sm font-medium outline-none transition-colors focus-visible:ring-2 focus-visible:ring-ring pointer-coarse:min-h-11",
 				"rail:justify-center rail:px-0",
 				isActive
 					? "bg-primary/10 text-primary"
 					: inside
-						? "text-foreground hover:bg-muted"
+						? // The rail hides the children, so the parent carries the highlight of its active child.
+							"text-foreground hover:bg-muted rail:bg-primary/10 rail:text-primary"
 						: "text-muted-foreground hover:bg-muted hover:text-foreground",
 			)}
 		>
@@ -81,6 +86,7 @@ function Row({
 					type="button"
 					onClick={() => setOpen(!expanded)}
 					aria-expanded={expanded}
+					aria-controls={expanded ? listId : undefined}
 					aria-label={`${expanded ? "Tutup" : "Buka"} ${item.label}`}
 					data-slot="nav-toggle"
 					className="ml-0.5 flex size-8 shrink-0 items-center justify-center rounded-lg text-muted-foreground outline-none transition-colors hover:bg-muted hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring pointer-coarse:size-11 rail:hidden"
@@ -89,7 +95,7 @@ function Row({
 				</button>
 			</div>
 			{expanded && (
-				<ul className="mt-0.5 ml-[26px] flex flex-col gap-0.5 border-l pl-3 rail:hidden">
+				<ul id={listId} className="mt-0.5 ml-[26px] flex flex-col gap-0.5 border-l pl-3 rail:hidden">
 					{children.map((child) => {
 						const childActive = child.href === active;
 						return (

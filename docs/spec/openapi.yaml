@@ -7097,7 +7097,9 @@ paths:
         in: query
         description: S-V1 "Perlu Dikirim" tab. `due` matches orders with at least one authorized parcel
           not yet handed over (any status except handed_over), the same predicate as the fulfillments_due
-          dashboard metric. Combines with fulfillment_status by AND.
+          dashboard metric. The transient `preparing` state never commits (it becomes ready or exception
+          in the creating transaction), so `due` equals ready, picking, packed, handover_pending or exception.
+          Combines with fulfillment_status by AND.
         schema:
           type: string
           enum:

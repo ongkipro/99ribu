@@ -238,6 +238,8 @@ export const NAV_BY_LENS: Record<CanonicalWorkspace, NavSection[]> = {
 						{ label: "Rekonsiliasi", href: "/admin/keuangan/rekonsiliasi" },
 						{ label: "Pengembalian Dana", href: "/admin/keuangan/refund" },
 						{ label: "Komisi Afiliasi", href: "/admin/keuangan/komisi" },
+						// Read-only rate versions (S132, DEC-018 Q5); the owner reaches it under Pengaturan.
+						{ label: "Tarif Afiliasi", href: "/admin/afiliasi" },
 					],
 				},
 				{ label: "Pesanan", href: "/admin/pesanan", icon: ReceiptText },
@@ -312,6 +314,8 @@ const PAGE_RULES: Record<string, Rule> = {
 // The settings index opens when at least one of its cards does.
 PAGE_RULES["/admin/pengaturan"] = (r, p) =>
 	SETTINGS_CARDS.some((card) => PAGE_RULES[card.href]?.(r, p) ?? false);
+/** Every list page with a nav rule (the nav-model test checks which of them each role reaches). */
+export const GUARDED_PAGES: readonly string[] = Object.keys(PAGE_RULES);
 
 const pathOf = (href: string) => href.split("?")[0];
 

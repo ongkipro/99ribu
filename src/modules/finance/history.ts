@@ -51,7 +51,9 @@ export async function listOrderHistory(identity:LocalAuth,principal:Principal,ur
   status:state(p.get('status'),['pending','processing','partially_completed','cancelled']),payment_status:state(p.get('payment_status'),['pending','cod_due','partially_collected','confirmed','expired','failed','partially_refunded','refunded']),
   warehouse_id:p.has('warehouse_id')?id(p.get('warehouse_id')):null,reference:p.has('reference')?text(p.get('reference'),100):null,phone_suffix:p.has('phone_suffix')?phoneSuffix(p.get('phone_suffix')):null,
   fulfillment_status:state(p.get('fulfillment_status'),['ready','picking','packed','handover_pending','handed_over','exception']),
-  // S-V1 "Perlu Dikirim": `due` is every parcel stage before handover, the same predicate as the fulfillments_due metric.
+  // S-V1 "Perlu Dikirim": `due` is every parcel stage before handover, the same predicate as the fulfillments_due metric
+  // (status<>'handed_over'). 'preparing' never commits: initializeFulfillments inserts it and advances it to ready or
+  // exception in the same transaction, so `due` lists exactly the ready/picking/packed/handover_pending/exception chips.
   fulfillment_group:state(p.get('fulfillment_group'),['due']),return_status:state(p.get('return_status'),['requested','reviewing','approved','rejected','awaiting_goods','inspecting','refunding','replacing','resolved'])};
  if(filters.from&&filters.to&&filters.from>=filters.to||filters.reference&&/[\p{Cc}\p{Cf}]/u.test(filters.reference)) throw invalid();
  const take=limit(p.get('limit'));
