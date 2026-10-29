@@ -49,7 +49,7 @@ export async function projectStaffConversation(
 ) {
 	const conversation = await projectPublicConversation(tx, row);
 	// S113: the printed order number for the inbox (staff never read the raw order id there).
-	// The admin numbers address the order and product pages (`/admin/orders/{n}`, `/admin/catalog/{n}`); staff-only.
+	// The admin numbers address the order and product pages (`/admin/pesanan/{n}`, `/admin/produk/{n}`); staff-only.
 	const [facts] = await tx<
 		{
 			last_read_sequence: number | null;

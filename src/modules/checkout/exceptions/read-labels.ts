@@ -77,7 +77,7 @@ export async function labelExceptions(
 	}));
 }
 
-/** A just-created case answers with its admin number so the console can open `/admin/exceptions/{admin_no}`. */
+/** A just-created case answers with its admin number so the console can open `/admin/pesanan/kendala/{admin_no}`. */
 export async function numberException(sql: Sql, created: Record<string, unknown>) {
 	const [row] = await sql<{ admin_no: string }[]>`select admin_no from app.commerce_exception where id=${String(created.id)}`;
 	return row ? { ...created, admin_no: Number(row.admin_no) } : created;

@@ -127,7 +127,7 @@ test("S74 built browser: customer and staff open on the newest messages, page ol
 			)
 				conflicts++;
 		});
-		await desk.page.goto(`${origin}/admin/support`);
+		await desk.page.goto(`${origin}/admin/obrolan`);
 		// S113: the staff queue is the shared DataTable (rows from md, cards below). The row label is
 		// the order number (none here), never a short id, so the row is found by its test id.
 		await desk.page

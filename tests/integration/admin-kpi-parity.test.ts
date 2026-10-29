@@ -102,7 +102,7 @@ test('returns and support KPIs equal their drilldown with seeded open rows',{tim
   const period={from:new Date(latest-3600_000).toISOString(),to:new Date(latest+86400_000).toISOString()};
   await assertParity(f.identity,f.owner,{workspace:'owner',...period},['returns_pending','support_unassigned']);
   const support=(await dashboard(f.identity,f.owner,{workspace:'owner',...period})).metrics.find(m=>m.key==='support_unassigned');
-  assert.equal((support as unknown as {action_href:string|null}).action_href,'/admin/support','the unassigned card links to the inbox');
+  assert.equal((support as unknown as {action_href:string|null}).action_href,'/admin/obrolan','the unassigned card links to the inbox');
   const warehouse=String(f.parcels[0].warehouse_id);
   await assertParity(f.identity,f.owner,{workspace:'owner',warehouse_id:warehouse,...period},['returns_pending']);
   const scoped=await actor(f.identity,'warehouse',[warehouse]);users.push(scoped);await enroll(scoped.browser,scoped.password);

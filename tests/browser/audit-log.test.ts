@@ -9,7 +9,7 @@ import type { Role } from "../../src/modules/access/policy.ts";
 import { actor, cleanup, enroll } from "../contract/access-fixture.ts";
 import { RENDERS } from "../render-root.ts";
 
-// S135 Log Audit (/admin/settings/audit) against the built web on the canonical origin: the owner filters real
+// S135 Log Audit (/admin/pengaturan/audit) against the built web on the canonical origin: the owner filters real
 // rows through the real API, loads the next keyset page without a repeat, reads a redacted detail; finance sees only
 // money actions; customer service gets the denied screen; phone width has no horizontal overflow.
 const origin = "http://127.0.0.1:3099";
@@ -62,7 +62,7 @@ test("S135 owner filters, pages and reads redacted details", async () => {
 	const owner = await staff("owner");
 	const view = await open(owner);
 	try {
-		await view.page.goto(`${origin}/admin/settings/audit`);
+		await view.page.goto(`${origin}/admin/pengaturan/audit`);
 		await expect(view.page.getByRole("heading", { name: "Log Audit", level: 1 })).toBeVisible();
 		await view.page.getByLabel("Pelaku (ID akun)").fill(marker);
 		await view.page.getByRole("button", { name: "Terapkan" }).click();
@@ -104,13 +104,13 @@ test("S135 finance sees money actions only; customer service is denied", async (
 	const view = await open(finance);
 	const denied = await open(cs);
 	try {
-		await view.page.goto(`${origin}/admin/settings/audit`);
+		await view.page.goto(`${origin}/admin/pengaturan/audit`);
 		await view.page.getByLabel("Pelaku (ID akun)").fill(marker);
 		await view.page.getByRole("button", { name: "Terapkan" }).click();
 		await expect(view.page.getByTestId("audit-row")).toHaveCount(15);
 		await expect(view.page.getByText("staff_roles.replace")).toHaveCount(0);
 		await expect(view.page.getByLabel("Jenis tindakan").locator("option", { hasText: "Peran staf" })).toHaveCount(0);
-		await denied.page.goto(`${origin}/admin/settings/audit`);
+		await denied.page.goto(`${origin}/admin/pengaturan/audit`);
 		await expect(denied.page.getByRole("heading", { name: "Akses log audit diperlukan" })).toBeVisible();
 		await expect(denied.page.getByTestId("audit-page")).toHaveCount(0);
 		assert.deepEqual([...view.errors, ...denied.errors], []);
@@ -124,7 +124,7 @@ test("S135 phone width: no horizontal overflow, cards stack", async () => {
 	const owner = await staff("owner");
 	const view = await open(owner, { width: 390, height: 844 }, true);
 	try {
-		await view.page.goto(`${origin}/admin/settings/audit`);
+		await view.page.goto(`${origin}/admin/pengaturan/audit`);
 		await view.page.getByLabel("Pelaku (ID akun)").fill(marker);
 		await view.page.getByRole("button", { name: "Terapkan" }).click();
 		await expect(view.page.getByTestId("audit-row")).toHaveCount(25);

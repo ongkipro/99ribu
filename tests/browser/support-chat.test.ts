@@ -314,7 +314,7 @@ function renderAdminSupportHtml(targetSavedReplyId: string): string {
 </html>`;
 }
 
-test("S44-S45 browser: customer support chat on /help and staff CS workbench on /admin/support operate end-to-end with zero internal note leakage and zero horizontal overflow across 320px, 390px, 768px, and 1440px", async () => {
+test("S44-S45 browser: customer support chat on /help and staff CS workbench on /admin/obrolan operate end-to-end with zero internal note leakage and zero horizontal overflow across 320px, 390px, 768px, and 1440px", async () => {
 	const f = await shippingFixture();
 	const identity = f.identity;
 	const sql = identity.sql;
@@ -352,7 +352,7 @@ test("S44-S45 browser: customer support chat on /help and staff CS workbench on 
 					res.end(renderHelpPageHtml());
 					return;
 				}
-				if (url.pathname === "/admin/support") {
+				if (url.pathname === "/admin/obrolan") {
 					res.writeHead(200, { "content-type": "text/html; charset=utf-8" });
 					res.end(renderAdminSupportHtml(srPayload.id as string));
 					return;
@@ -487,7 +487,7 @@ test("S44-S45 browser: customer support chat on /help and staff CS workbench on 
 				);
 			}
 
-			// 2. Staff CS browser session on /admin/support
+			// 2. Staff CS browser session on /admin/obrolan
 			const staffContext = await browser.newContext({
 				viewport: { width: 1440, height: 900 },
 				reducedMotion: "reduce",
@@ -502,7 +502,7 @@ test("S44-S45 browser: customer support chat on /help and staff CS workbench on 
 			);
 			const staffPage = await staffContext.newPage();
 			assert.ok(createdConversationIds[0], "the buyer conversation was created");
-			await staffPage.goto(`${baseUrl}/admin/support?conv=${createdConversationIds[0]}`);
+			await staffPage.goto(`${baseUrl}/admin/obrolan?conv=${createdConversationIds[0]}`);
 
 			await staffPage.getByRole("button", { name: "Muat Antrean" }).click();
 			// The queue walks keyset pages; claim only after this run's thread is listed (and selected).
@@ -553,7 +553,7 @@ test("S44-S45 browser: customer support chat on /help and staff CS workbench on 
 				);
 				assert.ok(
 					overflow <= 1,
-					`No horizontal overflow on /admin/support at ${width}px (overflow=${overflow})`,
+					`No horizontal overflow on /admin/obrolan at ${width}px (overflow=${overflow})`,
 				);
 			}
 

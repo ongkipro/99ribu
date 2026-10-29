@@ -45,13 +45,13 @@ test("S113: order history labels a status by its event kind (order pending is no
 });
 
 test("S128: a signed-out production console request redirects to /masuk with the same console path", () => {
-	assert.equal(consoleSignInRedirect("production", false, "/admin/orders?jenis=resi"), "/masuk?next=%2Fadmin%2Forders%3Fjenis%3Dresi");
+	assert.equal(consoleSignInRedirect("production", false, "/admin/pesanan?jenis=resi"), "/masuk?next=%2Fadmin%2Fpesanan%3Fjenis%3Dresi");
 	assert.equal(consoleSignInRedirect("production", false, "/admin"), "/masuk?next=%2Fadmin");
 	// Missing, foreign or unsafe paths return to the console home.
 	for (const path of [null, "", "/akun", "//evil.invalid/admin", "/admin\\x", "/adminx"]) {
 		assert.equal(consoleSignInRedirect("production", false, path), "/masuk?next=%2Fadmin", String(path));
 	}
 	// Signed in, or the local/test preview: no redirect.
-	assert.equal(consoleSignInRedirect("production", true, "/admin/orders"), null);
-	assert.equal(consoleSignInRedirect("local", false, "/admin/orders"), null);
+	assert.equal(consoleSignInRedirect("production", true, "/admin/pesanan"), null);
+	assert.equal(consoleSignInRedirect("local", false, "/admin/pesanan"), null);
 });

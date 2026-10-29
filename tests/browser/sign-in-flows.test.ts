@@ -140,18 +140,18 @@ test("without JavaScript the page posts a plain form: errors, rate-limit copy, b
 		assert.ok(await session(page));
 		await context.clearCookies();
 		// Staff: password, then the TOTP step as its own page, then the console deep link.
-		await page.goto(`${origin}/masuk?next=%2Fadmin%2Fprint-center`);
+		await page.goto(`${origin}/masuk?next=%2Fadmin%2Fpesanan%2Fcetak-label`);
 		await page.getByLabel("Email").fill(staff.email);
 		await page.getByLabel("Kata sandi").fill(staff.password);
 		await page.getByRole("button", { name: "Masuk", exact: true }).click();
-		await page.waitForURL(/\/masuk\?langkah=kode&next=%2Fadmin%2Fprint-center$/);
-		assert.equal(await page.getByRole("link", { name: "Pakai kode cadangan" }).getAttribute("href"), "/masuk?langkah=cadangan&next=%2Fadmin%2Fprint-center");
+		await page.waitForURL(/\/masuk\?langkah=kode&next=%2Fadmin%2Fpesanan%2Fcetak-label$/);
+		assert.equal(await page.getByRole("link", { name: "Pakai kode cadangan" }).getAttribute("href"), "/masuk?langkah=cadangan&next=%2Fadmin%2Fpesanan%2Fcetak-label");
 		await page.getByLabel("Kode autentikator").fill("12");
 		await page.getByRole("button", { name: "Verifikasi" }).click();
 		await page.getByTestId("signin-error").getByText("Masukkan 6 digit kode dari aplikasi autentikator.").waitFor();
 		await page.getByLabel("Kode autentikator").fill(await code(staff.email));
 		await page.getByRole("button", { name: "Verifikasi" }).click();
-		await page.waitForURL(`${origin}/admin/print-center`);
+		await page.waitForURL(`${origin}/admin/pesanan/cetak-label`);
 		// Rate-limit copy reaches the no-JS page through the redirect (the limit itself is proven in auth tests).
 		await context.clearCookies();
 		await page.route("**/masuk/kirim", (route) => route.fulfill({ status: 303, headers: { location: "/masuk?next=%2Fakun&galat=limit&tunggu=120" } }));

@@ -9,7 +9,7 @@ import type { Role } from "../../src/modules/access/policy.ts";
 import { actor, cleanup, enroll } from "../contract/access-fixture.ts";
 import { RENDERS } from "../render-root.ts";
 
-// S137 Staf & Peran (/admin/settings/staff) against the built web on the canonical origin. NOT run by the author:
+// S137 Staf & Peran (/admin/pengaturan/staf) against the built web on the canonical origin. NOT run by the author:
 // the coordinator runs it serially on 127.0.0.1:3099 (selector `--case=staff-roles` in browser mode).
 // The owner finds an account by email, gives it roles with a real password proof, sees a stale version refused, resets
 // a lost authenticator, steps down as a second owner exists, and pages the list; finance is denied; phone, tablet and
@@ -72,7 +72,7 @@ test("S137 owner finds an account, validates, is refused a wrong password and a 
 	await identity.sql`update app.auth_user set name=${name("a-target")} where id=${target.id}`;
 	const view = await open(owner);
 	try {
-		await view.page.goto(`${origin}/admin/settings/staff`);
+		await view.page.goto(`${origin}/admin/pengaturan/staf`);
 		await expect(view.page.getByRole("heading", { name: "Staf & Peran", level: 1 })).toBeVisible();
 		const ownerRow = view.page.getByTestId("staff-row").filter({ hasText: owner.email });
 		await expect(ownerRow).toContainText("(Anda)");
@@ -152,7 +152,7 @@ test("S137 owner pages the list and resets a lost authenticator", async () => {
 	const member = await staff("finance", "member");
 	const view = await open(owner);
 	try {
-		await view.page.goto(`${origin}/admin/settings/staff`);
+		await view.page.goto(`${origin}/admin/pengaturan/staf`);
 		const rows = view.page.getByTestId("staff-row");
 		await expect(rows).toHaveCount(25);
 		await view.page.getByTestId("staff-more").click();
@@ -195,7 +195,7 @@ test("S137 an owner steps down while another owner exists and is signed out", as
 	assert.ok(keeper.id);
 	const view = await open(owner);
 	try {
-		await view.page.goto(`${origin}/admin/settings/staff`);
+		await view.page.goto(`${origin}/admin/pengaturan/staf`);
 		const row = view.page.getByTestId("staff-row").filter({ hasText: owner.email });
 		await row.getByTestId("staff-edit").click();
 		const dialog = view.page.getByRole("dialog");
@@ -218,7 +218,7 @@ test("S137 finance is denied on the page and by the API", async () => {
 	const finance = await staff("finance", "finance");
 	const view = await open(finance);
 	try {
-		await view.page.goto(`${origin}/admin/settings/staff`);
+		await view.page.goto(`${origin}/admin/pengaturan/staf`);
 		await expect(view.page.getByRole("heading", { name: "Akses Super Admin diperlukan" })).toBeVisible();
 		await expect(view.page.getByTestId("staff-page")).toHaveCount(0);
 		const response = await view.page.request.get(`${origin}/api/v1/admin/staff`);
@@ -238,7 +238,7 @@ test("S137 phone, tablet and desktop: no horizontal overflow, dialog fits", asyn
 	] as const) {
 		const view = await open(owner, viewport, touch);
 		try {
-			await view.page.goto(`${origin}/admin/settings/staff`);
+			await view.page.goto(`${origin}/admin/pengaturan/staf`);
 			await expect(view.page.getByTestId("staff-row").first()).toBeVisible();
 			const overflow = () => view.page.evaluate(() => document.documentElement.scrollWidth - document.documentElement.clientWidth);
 			assert.ok((await overflow()) <= 0, `${label}: horizontal overflow ${await overflow()}px`);

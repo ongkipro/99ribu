@@ -73,7 +73,7 @@ test("S136 Kesehatan Sistem is shown to the owner only", async () => {
 	const cs = await staff("customer_service");
 	const denied = await open(cs);
 	try {
-		await denied.page.goto(`${origin}/admin/settings/system`);
+		await denied.page.goto(`${origin}/admin/pengaturan/sistem`);
 		await expect(denied.page.getByRole("heading", { name: "Akses Super Admin diperlukan" })).toBeVisible();
 		await expect(denied.page.getByTestId("system-health-page")).toHaveCount(0);
 	} finally {
@@ -83,7 +83,7 @@ test("S136 Kesehatan Sistem is shown to the owner only", async () => {
 	const allowed = await open(owner);
 	try {
 		// The real API: the owner reads live counts; nothing is mocked.
-		await allowed.page.goto(`${origin}/admin/settings/system`);
+		await allowed.page.goto(`${origin}/admin/pengaturan/sistem`);
 		await expect(allowed.page.getByRole("heading", { name: "Kesehatan Sistem", level: 1 })).toBeVisible();
 		await expect(allowed.page.getByTestId("health-totals")).toBeVisible();
 		await expect(allowed.page.getByTestId("health-retention-note")).toBeVisible();
@@ -98,7 +98,7 @@ test("S136 totals, kinds needing attention first, idle kinds hidden until asked,
 	const { page, errors, close } = await open(owner);
 	try {
 		await mock(page, (route) => json(route, HEALTH));
-		await page.goto(`${origin}/admin/settings/system`);
+		await page.goto(`${origin}/admin/pengaturan/sistem`);
 		await expect(page.getByTestId("health-total-value-due")).toHaveText("4");
 		await expect(page.getByTestId("health-total-value-failed")).toHaveText("3");
 		await expect(page.getByTestId("health-total-failed")).toHaveAttribute("data-tone", "attention");
@@ -134,7 +134,7 @@ test("S136 shows an empty state, a retryable error and a denial for a refused re
 			if (mode === "error") return json(route, { type: "about:blank", title: "SERVICE_UNAVAILABLE", status: 503, code: "SERVICE_UNAVAILABLE", request_id: "00000000-0000-4000-8000-000000000000" }, 503);
 			return json(route, { type: "about:blank", title: "FORBIDDEN", status: 403, code: "FORBIDDEN", request_id: "00000000-0000-4000-8000-000000000000" }, 403);
 		});
-		await page.goto(`${origin}/admin/settings/system`);
+		await page.goto(`${origin}/admin/pengaturan/sistem`);
 		await expect(page.getByTestId("health-empty")).toBeVisible();
 		mode = "error";
 		await page.getByTestId("health-refresh").click();
@@ -159,7 +159,7 @@ test("S136 renders at 390 (touch) and 768 without sideways page scroll", async (
 		const { page, errors, close } = await open(owner, { width, height: 900 }, touch);
 		try {
 			await mock(page, (route) => json(route, HEALTH));
-			await page.goto(`${origin}/admin/settings/system`);
+			await page.goto(`${origin}/admin/pengaturan/sistem`);
 			await expect(page.getByTestId("health-kind-payment.callback")).toBeVisible();
 			assert.ok(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth), "no horizontal page scroll");
 			await page.screenshot({ path: join(renders, `system-health-owner-${width}.png`), fullPage: true });

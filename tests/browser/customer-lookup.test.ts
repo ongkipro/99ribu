@@ -9,7 +9,7 @@ import type { Role } from "../../src/modules/access/policy.ts";
 import { actor, cleanup, enroll } from "../contract/access-fixture.ts";
 import { RENDERS } from "../render-root.ts";
 
-// S138 Akun Pembeli (/admin/customers, spec 17 B29) against the built web on the canonical origin and the local DB.
+// S138 Akun Pembeli (/admin/pelanggan, spec 17 B29) against the built web on the canonical origin and the local DB.
 // Customer service looks up a seeded buyer by phone and by email through the real API: masked contact, ticket history,
 // the order-access notice, no full phone/email anywhere in the page, the audit row; owner opens an account that has a
 // real order (a demo-orders account: `npm run fixture -- demo-orders local` must have run); invalid, unknown, rate
@@ -115,7 +115,7 @@ test("S138 customer service finds a buyer by phone and email: masked contact, ti
 	const cs = await staff("customer_service");
 	const view = await open(cs);
 	try {
-		await view.page.goto(`${origin}/admin/customers`);
+		await view.page.goto(`${origin}/admin/pelanggan`);
 		await expect(view.page.getByRole("heading", { name: "Akun Pembeli", level: 1 })).toBeVisible();
 		await expect(view.page.getByTestId("customer-idle")).toBeVisible();
 		await search(view, "phone", LOCAL_PHONE);
@@ -130,7 +130,7 @@ test("S138 customer service finds a buyer by phone and email: masked contact, ti
 		await expect(view.page.getByTestId("customer-tickets-table")).toContainText("Menunggu pembeli");
 		// No order-history grant: the list says why it is empty instead of looking like "no orders".
 		await expect(view.page.getByTestId("customer-orders-empty")).toContainText("belum memegang akses riwayat pesanan");
-		await expect(card.getByRole("link", { name: "Buka Kotak Masuk" })).toHaveAttribute("href", "/admin/support");
+		await expect(card.getByRole("link", { name: "Buka Kotak Masuk" })).toHaveAttribute("href", "/admin/obrolan");
 
 		// The search input still holds the typed LOCAL_PHONE; the result area must not carry it, and nothing else in the page may carry any secret.
 		const resultHtml = await view.page.getByTestId("customer-result").innerHTML();
@@ -163,7 +163,7 @@ test("S138 invalid, unknown, throttled and failing lookups each have their own s
 	const cs = await staff("customer_service");
 	const view = await open(cs);
 	try {
-		await view.page.goto(`${origin}/admin/customers`);
+		await view.page.goto(`${origin}/admin/pelanggan`);
 		// A fragment is refused on the screen before any request: there is no partial search.
 		await search(view, "phone", LOCAL_PHONE.slice(0, 8));
 		await expect(view.page.getByText("Pencarian sebagian tidak tersedia").first()).toBeVisible();
@@ -213,17 +213,17 @@ test("S138 owner opens an account with a real order: the order links to the orde
 	assert.ok(seeded, "needs an account-owned order: run `npm run fixture -- demo-orders local`");
 	const view = await open(owner);
 	try {
-		await view.page.goto(`${origin}/admin/customers`);
+		await view.page.goto(`${origin}/admin/pelanggan`);
 		await search(view, "email", String(seeded.email));
 		const card = view.page.getByTestId("customer-account").filter({ hasText: String(seeded.number) });
 		await expect(card).toHaveCount(1);
 		const row = card.getByTestId("customer-order-row").filter({ hasText: String(seeded.number) });
 		const [seededNo] = await identity.sql`select admin_no::int as n from app.commerce_order where id = ${seeded.id}`;
-		await expect(row.getByRole("link", { name: String(seeded.number) })).toHaveAttribute("href", `/admin/orders/${seededNo.n}`);
+		await expect(row.getByRole("link", { name: String(seeded.number) })).toHaveAttribute("href", `/admin/pesanan/${seededNo.n}`);
 		await expect(card).not.toContainText(String(seeded.email));
 		await view.page.screenshot({ path: join(renders, "customers-owner-1440.png"), fullPage: true });
 		await row.getByRole("link", { name: String(seeded.number) }).click();
-		await expect(view.page).toHaveURL(new RegExp(`/admin/orders/${seededNo.n}$`));
+		await expect(view.page).toHaveURL(new RegExp(`/admin/pesanan/${seededNo.n}$`));
 		assert.deepEqual(view.errors, []);
 	} finally {
 		await view.close();
@@ -235,7 +235,7 @@ test("S138 finance and ecommerce_admin get the denied screen", async () => {
 		const user = await staff(role);
 		const view = await open(user);
 		try {
-			await view.page.goto(`${origin}/admin/customers`);
+			await view.page.goto(`${origin}/admin/pelanggan`);
 			await expect(view.page.getByRole("heading", { name: "Akses layanan pelanggan diperlukan" })).toBeVisible();
 			await expect(view.page.getByTestId("customers-page")).toHaveCount(0);
 			await expect(view.page.getByTestId("customer-form")).toHaveCount(0);
@@ -255,7 +255,7 @@ test("S138 phone and tablet widths: no horizontal overflow, history rows stack a
 	] as const) {
 		const view = await open(cs, viewport, touch);
 		try {
-			await view.page.goto(`${origin}/admin/customers`);
+			await view.page.goto(`${origin}/admin/pelanggan`);
 			await expect(view.page.getByTestId("customer-input")).toBeVisible();
 			assert.ok((await noOverflow(view)) <= 0, `idle overflow at ${name}`);
 			await search(view, "phone", LOCAL_PHONE);

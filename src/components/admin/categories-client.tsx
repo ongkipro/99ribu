@@ -64,7 +64,7 @@ export function CategoriesClient() {
 		<AdminPage testId="categories-page">
 			<PageHeader
 				title="Kategori"
-				back={{ href: "/admin/catalog", label: "Produk" }}
+				back={{ href: "/admin/produk", label: "Produk" }}
 				description="Kamus kategori produk, paling dalam 3 tingkat. Kategori tidak diganti nama atau dihapus; perubahan dibuat sebagai kategori baru."
 				actions={
 					<Button type="button" data-testid="category-new" onClick={() => setDialog(true)}>

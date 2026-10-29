@@ -52,7 +52,7 @@ export function RefundsListClient({
 	const remember = (nextStatus: string) => {
 		const query = new URLSearchParams();
 		if (nextStatus) query.set("status", nextStatus);
-		router.replace(`/admin/finance/refunds${query.size ? `?${query}` : ""}`, {
+		router.replace(`/admin/keuangan/refund${query.size ? `?${query}` : ""}`, {
 			scroll: false,
 		});
 	};
@@ -261,7 +261,7 @@ export function RefundDetailClient({
 	}, [notice]);
 
 	const back = {
-		href: "/admin/finance/refunds",
+		href: "/admin/keuangan/refund",
 		label: "Kembali ke daftar refund",
 	};
 

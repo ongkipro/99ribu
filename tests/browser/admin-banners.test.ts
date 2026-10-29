@@ -115,7 +115,7 @@ test("S110 Banner Beranda is gated to owner and ecommerce_admin", async () => {
 	const cs = await staff("customer_service");
 	const denied = await open(cs);
 	try {
-		await denied.page.goto(`${origin}/admin/banners`);
+		await denied.page.goto(`${origin}/admin/banner`);
 		await expect(denied.page.getByRole("heading", { name: "Akses konten toko diperlukan" })).toBeVisible();
 		await expect(denied.page.getByTestId("banners-page")).toHaveCount(0);
 	} finally {
@@ -124,7 +124,7 @@ test("S110 Banner Beranda is gated to owner and ecommerce_admin", async () => {
 	const editor = await staff("ecommerce_admin");
 	const allowed = await open(editor);
 	try {
-		await allowed.page.goto(`${origin}/admin/banners`);
+		await allowed.page.goto(`${origin}/admin/banner`);
 		await expect(allowed.page.getByRole("heading", { name: "Banner Beranda", level: 1 })).toBeVisible();
 		await expect(allowed.page.getByTestId("banners-list").or(allowed.page.getByTestId("banners-empty"))).toBeVisible();
 		assert.deepEqual(allowed.errors, []);
@@ -138,7 +138,7 @@ test("S110 list, preview, reorder, create (WIB schedule, link check, upload) and
 	const { page, errors, close } = await open(owner);
 	try {
 		const writes = await mockApi(page);
-		await page.goto(`${origin}/admin/banners`);
+		await page.goto(`${origin}/admin/banner`);
 		for (const b of BANNERS) await expect(page.getByTestId(`banner-row-${b.id}`)).toBeVisible();
 		await expect(page.getByTestId(`banner-phase-${BANNERS[0].id}`)).toHaveText("Tayang");
 		await expect(page.getByTestId(`banner-phase-${BANNERS[2].id}`)).toHaveText("Terjadwal");
@@ -227,7 +227,7 @@ test("S110 Banner Beranda renders at 390 (touch) and 768 with 44 px targets and 
 		const { page, errors, close } = await open(owner, { width, height: 900 }, touch);
 		try {
 			await mockApi(page);
-			await page.goto(`${origin}/admin/banners`);
+			await page.goto(`${origin}/admin/banner`);
 			await expect(page.getByTestId(`banner-row-${BANNERS[0].id}`)).toBeVisible();
 			assert.ok(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth), "no horizontal page scroll");
 			if (touch) {
@@ -246,7 +246,7 @@ test("S110 a real banner replaces the home rail defaults while current and disap
 	const owner = await staff("owner");
 	const { page, close } = await open(owner);
 	try {
-		await page.goto(`${origin}/admin/banners`);
+		await page.goto(`${origin}/admin/banner`);
 		const title = `Synthetic banner ${randomUUID().slice(0, 8)}`;
 		// A unique synthetic WebP (VP8X header, 1080x1350) uploaded and used through the real API.
 		const bytes = Buffer.concat([Buffer.alloc(30), randomBytes(512)]);

@@ -81,7 +81,7 @@ export function ReconciliationListClient({
 		if (nextProvider) query.set("provider", nextProvider);
 		if (nextReference) query.set("reference", nextReference);
 		router.replace(
-			`/admin/finance/reconciliation${query.size ? `?${query}` : ""}`,
+			`/admin/keuangan/rekonsiliasi${query.size ? `?${query}` : ""}`,
 			{ scroll: false },
 		);
 	};
@@ -370,7 +370,7 @@ export function ReconciliationDetailClient({
 	}, [notice]);
 
 	const back = {
-		href: "/admin/finance/reconciliation",
+		href: "/admin/keuangan/rekonsiliasi",
 		label: "Kembali ke daftar rekonsiliasi",
 	};
 

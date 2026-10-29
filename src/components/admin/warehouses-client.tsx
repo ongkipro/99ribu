@@ -103,7 +103,7 @@ export function WarehouseDetailClient({ warehouseId, profileAccess, owner }: { w
 	useEffect(() => {
 		void load();
 	}, [load]);
-	const back = { href: "/admin/warehouses", label: "Gudang" };
+	const back = { href: "/admin/produk/gudang", label: "Gudang" };
 	if (state.kind === "loading")
 		return (
 			<AdminPage>
@@ -132,10 +132,10 @@ export function WarehouseDetailClient({ warehouseId, profileAccess, owner }: { w
 			<DetailSection id="warehouse-links" title="Stok dan transfer" description="Stok per gudang dicatat dan dilihat di halaman Stok Gudang.">
 				<div className="flex flex-wrap gap-2 max-md:*:flex-1">
 					<Button asChild variant="outline">
-						<Link href="/admin/inventory">Stok Gudang</Link>
+						<Link href="/admin/produk/inventori">Stok Gudang</Link>
 					</Button>
 					<Button asChild variant="outline">
-						<Link href="/admin/inventory/transfers">Transfer Stok</Link>
+						<Link href="/admin/produk/inventori/transfer">Transfer Stok</Link>
 					</Button>
 				</div>
 			</DetailSection>
@@ -431,7 +431,7 @@ function CalendarView({ warehouse }: { warehouse: Warehouse }) {
 					)}
 					<p className="text-xs text-muted-foreground">
 						Kalender masih berstatus TEST-ONLY sampai kalender produksi disetujui. Ubah atau terapkan kalender default di{" "}
-						<Link href="/admin/fulfillment" className="text-primary underline-offset-4 hover:underline">
+						<Link href="/admin/pesanan/kirim" className="text-primary underline-offset-4 hover:underline">
 							Pengiriman Manual
 						</Link>
 						.

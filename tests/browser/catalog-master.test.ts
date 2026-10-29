@@ -174,7 +174,7 @@ test("S134 owner creates a SKU, appends HPP versions, sees the domain refuse a b
 	const view = await open(owner);
 	const { page } = view;
 	try {
-		await page.goto(`${origin}/admin/catalog/stock-items`);
+		await page.goto(`${origin}/admin/produk/sku`);
 		await expect(page.getByRole("heading", { name: "SKU Fisik", level: 1 })).toBeVisible();
 		await page.getByTestId("stock-item-new").click();
 		const create = page.getByRole("dialog", { name: "Tambah SKU fisik" });
@@ -255,7 +255,7 @@ test("S134 finance writes HPP and assumptions from the product page only with th
 	const writer = await open(financeWrite);
 	const reader = await open(financeRead);
 	try {
-		await writer.page.goto(`${origin}/admin/catalog/${await adminNo("product", productId)}`);
+		await writer.page.goto(`${origin}/admin/produk/${await adminNo("product", productId)}`);
 		const costs = writer.page.locator('section[aria-labelledby="costs-heading"]');
 		await expect(costs).toBeVisible();
 		await writer.page.getByTestId(`hpp-${productStockId}-toggle`).click();
@@ -287,7 +287,7 @@ test("S134 finance writes HPP and assumptions from the product page only with th
 		await expect(costs).toContainText("Data biaya belum lengkap");
 
 		// Read-only finance sees the history and no control to add one; the API refuses a write anyway.
-		await reader.page.goto(`${origin}/admin/catalog/${await adminNo("product", productId)}`);
+		await reader.page.goto(`${origin}/admin/produk/${await adminNo("product", productId)}`);
 		await expect(reader.page.locator('section[aria-labelledby="costs-heading"]')).toContainText("Rp20.000");
 		await reader.page.getByTestId(`hpp-${productStockId}-toggle`).click();
 		await expect(reader.page.getByTestId(`hpp-${productStockId}-row-1`)).toContainText("Rp20.000");
@@ -315,30 +315,30 @@ test("S134 roles without cost access see no amount and no cost control", async (
 	const financeOnly = await open(financeRead);
 	try {
 		// Ecommerce admin: SKU list without HPP buttons, product page without the cost section.
-		await admin.page.goto(`${origin}/admin/catalog/stock-items`);
+		await admin.page.goto(`${origin}/admin/produk/sku`);
 		await expect(admin.page.getByTestId("stock-items-no-costs")).toBeVisible();
 		await expect(admin.page.getByTestId("stock-items")).toBeVisible();
 		await expect(admin.page.locator('[data-testid^="stock-item-hpp-"]')).toHaveCount(0);
-		await admin.page.goto(`${origin}/admin/catalog/${await adminNo("product", productId)}`);
+		await admin.page.goto(`${origin}/admin/produk/${await adminNo("product", productId)}`);
 		await expect(admin.page.getByRole("heading", { name: `Produk S134 ${run}`, level: 1 })).toBeVisible();
 		await expect(admin.page.locator('section[aria-labelledby="costs-heading"]')).toHaveCount(0);
 		await expect(admin.page.getByText(/Rp20\.000|Rp12\.500/)).toHaveCount(0);
 		// Customer service and finance (no SKU dictionary grant) get the denied screen.
 		// A valid product number (and the old UUID link) is denied exactly like the list: no lookup, no redirect, no row.
 		for (const target of [await adminNo("product", productId), productId]) {
-			await denied.page.goto(`${origin}/admin/catalog/${target}`);
+			await denied.page.goto(`${origin}/admin/produk/${target}`);
 			await expect(denied.page.getByRole("heading", { name: "Akses katalog diperlukan" })).toBeVisible();
 			await expect(denied.page.getByText(`Produk S134 ${run}`)).toHaveCount(0);
 		}
 		// Anyone allowed: the old UUID link redirects once to the numeric URL.
-		await admin.page.goto(`${origin}/admin/catalog/${productId}`);
-		await expect(admin.page).toHaveURL(`${origin}/admin/catalog/${await adminNo("product", productId)}`);
-		await denied.page.goto(`${origin}/admin/catalog/stock-items`);
+		await admin.page.goto(`${origin}/admin/produk/${productId}`);
+		await expect(admin.page).toHaveURL(`${origin}/admin/produk/${await adminNo("product", productId)}`);
+		await denied.page.goto(`${origin}/admin/produk/sku`);
 		await expect(denied.page.getByRole("heading", { name: "Akses katalog diperlukan" })).toBeVisible();
 		await expect(denied.page.getByTestId("stock-items-page")).toHaveCount(0);
-		await financeOnly.page.goto(`${origin}/admin/catalog/stock-items`);
+		await financeOnly.page.goto(`${origin}/admin/produk/sku`);
 		await expect(financeOnly.page.getByRole("heading", { name: "Akses katalog diperlukan" })).toBeVisible();
-		await denied.page.goto(`${origin}/admin/catalog/categories`);
+		await denied.page.goto(`${origin}/admin/produk/kategori`);
 		await expect(denied.page.getByRole("heading", { name: "Akses katalog diperlukan" })).toBeVisible();
 		assert.deepEqual([...admin.errors, ...denied.errors, ...financeOnly.errors], []);
 	} finally {
@@ -353,7 +353,7 @@ test("S134 owner creates a category with an attribute rule; a repeated slug is r
 	const view = await open(owner);
 	const { page } = view;
 	try {
-		await page.goto(`${origin}/admin/catalog/categories`);
+		await page.goto(`${origin}/admin/produk/kategori`);
 		await expect(page.getByRole("heading", { name: "Kategori", level: 1 })).toBeVisible();
 		await page.getByTestId("category-new").click();
 		const dialog = page.getByRole("dialog", { name: "Tambah kategori" });
@@ -400,7 +400,7 @@ test("S134 warehouse list and detail follow scope: pickup profile, calendar view
 	const ownerView = await open(owner);
 	try {
 		// A scoped role lists only its own warehouse.
-		await adminView.page.goto(`${origin}/admin/warehouses`);
+		await adminView.page.goto(`${origin}/admin/produk/gudang`);
 		await expect(adminView.page.getByRole("heading", { name: "Gudang", level: 1 })).toBeVisible();
 		await expect(adminView.page.getByTestId(`warehouse-row-${warehouseAName}`)).toBeVisible();
 		await expect(adminView.page.getByTestId("warehouses").locator("tbody tr")).toHaveCount(1);
@@ -424,12 +424,12 @@ test("S134 warehouse list and detail follow scope: pickup profile, calendar view
 		await expect(adminView.page.getByTestId("calendar-restricted")).toBeVisible();
 		await expect(adminView.page.getByTestId("warehouse-calendar")).toHaveCount(0);
 		// A warehouse outside the scope is "not found", with no name or data.
-		await adminView.page.goto(`${origin}/admin/warehouses/${await adminNo("warehouse", warehouseB)}`);
+		await adminView.page.goto(`${origin}/admin/produk/gudang/${await adminNo("warehouse", warehouseB)}`);
 		await expect(adminView.page.getByTestId("warehouse-missing")).toBeVisible();
 		await expect(adminView.page.getByText(`Gudang S134 B ${run}`)).toHaveCount(0);
 
 		// Warehouse staff: list and detail, but no personal pickup data and no calendar.
-		await staffView.page.goto(`${origin}/admin/warehouses/${await adminNo("warehouse", warehouseA)}`);
+		await staffView.page.goto(`${origin}/admin/produk/gudang/${await adminNo("warehouse", warehouseA)}`);
 		await expect(staffView.page.getByTestId("warehouse-title")).toHaveText(warehouseAName);
 		await expect(staffView.page.getByTestId("pickup-restricted")).toBeVisible();
 		await expect(staffView.page.getByText("Budi Uji")).toHaveCount(0);
@@ -437,7 +437,7 @@ test("S134 warehouse list and detail follow scope: pickup profile, calendar view
 		await expect(staffView.page.getByTestId("calendar-restricted")).toBeVisible();
 
 		// Owner: the calendar view shows the current version's values.
-		await ownerView.page.goto(`${origin}/admin/warehouses/${await adminNo("warehouse", warehouseA)}`);
+		await ownerView.page.goto(`${origin}/admin/produk/gudang/${await adminNo("warehouse", warehouseA)}`);
 		const calendar = ownerView.page.getByTestId("warehouse-calendar");
 		await expect(calendar).toContainText(`Berlaku ${year}`);
 		await expect(ownerView.page.getByTestId("calendar-values")).toContainText("Senin, Selasa, Rabu, Kamis, Jumat");
@@ -461,7 +461,7 @@ for (const [name, viewport, touch] of [
 		const view = await open(owner, viewport, touch);
 		const { page } = view;
 		try {
-			await page.goto(`${origin}/admin/catalog/stock-items`);
+			await page.goto(`${origin}/admin/produk/sku`);
 			await expect(page.getByTestId("stock-items")).toBeVisible();
 			await noOverflow(page);
 			await page.locator('[data-testid^="stock-item-hpp-"]').first().click();
@@ -469,11 +469,11 @@ for (const [name, viewport, touch] of [
 			await noOverflow(page);
 			await page.screenshot({ path: join(renders, `stock-items-hpp-${name}.png`), fullPage: false });
 			await page.keyboard.press("Escape");
-			await page.goto(`${origin}/admin/catalog/categories`);
+			await page.goto(`${origin}/admin/produk/kategori`);
 			await expect(page.getByTestId("categories")).toBeVisible();
 			await noOverflow(page);
 			await page.screenshot({ path: join(renders, `categories-${name}.png`), fullPage: false });
-			await page.goto(`${origin}/admin/warehouses/${await adminNo("warehouse", warehouseA)}`);
+			await page.goto(`${origin}/admin/produk/gudang/${await adminNo("warehouse", warehouseA)}`);
 			await expect(page.getByTestId("warehouse-calendar")).toBeVisible();
 			await noOverflow(page);
 			await page.screenshot({ path: join(renders, `warehouse-detail-${name}.png`), fullPage: true });

@@ -90,7 +90,7 @@ interface WorkQueueItem {
 	version: number;
 	reference: string | null;
 	order_id: string | null;
-	/** `admin_no` of `order_id`: the console opens the order at `/admin/orders/{admin_no}`. */
+	/** `admin_no` of `order_id`: the console opens the order at `/admin/pesanan/{admin_no}`. */
 	order_admin_no: number | null;
 	/** Reconciliation rows: net settlement amount and feed. */
 	amount_idr?: number | null;
@@ -174,10 +174,10 @@ const EXPORT_DENIED =
 	"Ekspor CSV memerlukan izin unduh ekspor. Minta Super Admin menambahkan izin ini.";
 // Screens the API may point a metric at (existing console routes only).
 const ACTION_LABELS: Record<string, string> = {
-	"/admin/fulfillment": "Buka Pengiriman Manual",
-	"/admin/payments": "Buka Pembayaran",
-	"/admin/cod-settlements": "Buka Setoran COD",
-	"/admin/support": "Buka Kotak Masuk",
+	"/admin/pesanan/kirim": "Buka Pengiriman Manual",
+	"/admin/keuangan/pembayaran": "Buka Pembayaran",
+	"/admin/keuangan/cod": "Buka Setoran COD",
+	"/admin/obrolan": "Buka Kotak Masuk",
 };
 // Phones show the first rows of the dashboard queue; "Lihat semua" opens the full queue page.
 const PHONE_QUEUE_ROWS = 5;
@@ -581,7 +581,7 @@ const PREVIEW_METRICS: Record<CanonicalWorkspace, DashboardMetric[]> = {
 			queue_filter_token: "preview-token-finance-cod",
 			filter_version: 1,
 			filter_expires_at: "2026-10-21T12:30:00.000Z",
-			action_href: "/admin/cod-settlements",
+			action_href: "/admin/keuangan/cod",
 		},
 		{
 			key: "cod_remitted",
@@ -599,7 +599,7 @@ const PREVIEW_METRICS: Record<CanonicalWorkspace, DashboardMetric[]> = {
 			queue_filter_token: "preview-token-finance-cod-remitted",
 			filter_version: 1,
 			filter_expires_at: "2026-10-21T12:30:00.000Z",
-			action_href: "/admin/cod-settlements",
+			action_href: "/admin/keuangan/cod",
 		},
 		{
 			key: "affiliate_liability",
@@ -697,7 +697,7 @@ export function AdminWorkspacesClient({
 	requestedMetric = null,
 	requestedWindow = null,
 }: {
-	/** "queue": the full work-queue page (/admin/queue) behind the dashboard's "Lihat semua". */
+	/** "queue": the full work-queue page (/admin/antrian) behind the dashboard's "Lihat semua". */
 	view?: "dashboard" | "queue";
 	requestedQueue?: string | null;
 	/** Metric key whose signed filter the full queue page re-reads from the dashboard API. */
@@ -1000,10 +1000,10 @@ export function AdminWorkspacesClient({
 	const canExport = !preview && access.exportDownload;
 	// KPI shortcuts only to screens this principal can open (same gates as the sidebar).
 	const actionAllowed: Record<string, boolean> = {
-		"/admin/fulfillment": !preview && access.ship,
-		"/admin/payments": !preview && access.reconcileRead,
-		"/admin/cod-settlements": !preview && access.reconcileRead,
-		"/admin/support": !preview && access.support,
+		"/admin/pesanan/kirim": !preview && access.ship,
+		"/admin/keuangan/pembayaran": !preview && access.reconcileRead,
+		"/admin/keuangan/cod": !preview && access.reconcileRead,
+		"/admin/obrolan": !preview && access.support,
 	};
 	const actionLabel = (href: string | null | undefined) =>
 		href && actionAllowed[href] ? ACTION_LABELS[href] : null;
@@ -1016,7 +1016,7 @@ export function AdminWorkspacesClient({
 	const compactQueue = isMobile && view === "dashboard";
 	const shownRows = compactQueue ? rows.slice(0, PHONE_QUEUE_ROWS) : rows;
 	const queueHref = (q: QueueKey, metric: string | null) =>
-		`/admin/queue?${new URLSearchParams({
+		`/admin/antrian?${new URLSearchParams({
 			workspace,
 			queue: q,
 			window: windowRange,
@@ -1151,7 +1151,7 @@ export function AdminWorkspacesClient({
 		if (item.resource_kind === "fulfillment" && canPrint)
 			return (
 				<Button asChild variant="outline" size="sm">
-					<Link href="/admin/print-center">
+					<Link href="/admin/pesanan/cetak-label">
 						<Printer data-icon="inline-start" aria-hidden="true" />
 						Cetak label
 					</Link>
@@ -1160,7 +1160,7 @@ export function AdminWorkspacesClient({
 		if (item.resource_kind === "conversation" && canSupport)
 			return (
 				<Button asChild variant="outline" size="sm">
-					<Link href="/admin/support">Buka Kotak Masuk</Link>
+					<Link href="/admin/obrolan">Buka Kotak Masuk</Link>
 				</Button>
 			);
 		return null;
@@ -1174,8 +1174,8 @@ export function AdminWorkspacesClient({
 	const settlementHref = (item: WorkQueueItem) =>
 		item.resource_kind === "reconciliation" && !item.order_id && access.reconcileRead && !preview
 			? item.settlement_source === "cod"
-				? "/admin/cod-settlements"
-				: "/admin/payments"
+				? "/admin/keuangan/cod"
+				: "/admin/keuangan/pembayaran"
 			: null;
 	const rowHref = (item: WorkQueueItem) =>
 		canOrders && item.order_admin_no != null
@@ -1450,7 +1450,7 @@ export function AdminWorkspacesClient({
 					<div className="flex flex-wrap gap-2">
 						{queue === "fulfillments" && canPrint && (
 							<Button asChild variant="outline" size="sm">
-								<Link href="/admin/print-center">
+								<Link href="/admin/pesanan/cetak-label">
 									<Printer data-icon="inline-start" aria-hidden="true" />
 									Pusat Cetak Label
 								</Link>

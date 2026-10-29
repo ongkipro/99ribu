@@ -272,7 +272,7 @@ test("S91 built browser: scoped warehouse staff records a Berlapak reference and
 	const desk = await asStaff(staff);
 	try {
 		const { page } = desk;
-		await page.goto(`${origin}/admin/fulfillment`);
+		await page.goto(`${origin}/admin/pesanan/kirim`);
 		await expect(page.getByRole("heading", { name: "Pengiriman Manual", level: 1 })).toBeVisible();
 		await expect(page.getByRole("tab", { name: "Perlu dipesan kurir" })).toHaveAttribute("aria-selected", "true");
 		const rows = await manualRow(page, order.number);
@@ -384,7 +384,7 @@ test("S99/S100 built browser: the manual queue shows the booking facts and the b
 	const desk = await asStaff(admin);
 	try {
 		const { page } = desk;
-		await page.goto(`${origin}/admin/fulfillment`);
+		await page.goto(`${origin}/admin/pesanan/kirim`);
 		await expect(page.getByTestId("manual-scope-rule")).toContainText("hanya melihat gudang yang ditugaskan");
 		const row = await manualRow(page, order.number);
 		await expect(row).toHaveCount(1);
@@ -409,7 +409,7 @@ test("S99/S100 built browser: the manual queue shows the booking facts and the b
 
 		// Queue → order detail (same console, client navigation).
 		await row.getByRole("link", { name: order.number }).click();
-		await page.waitForURL(`${origin}/admin/orders/${(await sql`select admin_no::int as n from app.commerce_order where id = ${order.id}`)[0].n}`);
+		await page.waitForURL(`${origin}/admin/pesanan/${(await sql`select admin_no::int as n from app.commerce_order where id = ${order.id}`)[0].n}`);
 		await expect(page.getByRole("heading", { name: order.number, level: 1 })).toBeVisible();
 		await expect(page.getByTestId("order-payment")).toContainText("Biaya COD (3,33%)");
 		await expect(page.getByTestId("order-shipments")).toContainText("Belum terbit");
@@ -423,7 +423,7 @@ test("S99/S100 built browser: the manual queue shows the booking facts and the b
 	// Warehouse staff never read whole orders: the console page says so.
 	const keeper = await asStaff(staff);
 	try {
-		await keeper.page.goto(`${origin}/admin/orders`);
+		await keeper.page.goto(`${origin}/admin/pesanan`);
 		await expect(keeper.page.getByRole("heading", { name: "Akses riwayat pesanan diperlukan" })).toBeVisible();
 		assert.equal((await keeper.page.request.get(`${origin}/api/v1/admin/orders/${order.id}`)).status(), 403);
 	} finally {
@@ -435,12 +435,12 @@ test("S99/S100 built browser: the manual queue shows the booking facts and the b
 	const desk2 = await asStaff(owner);
 	try {
 		const { page } = desk2;
-		await page.goto(`${origin}/admin/orders`);
+		await page.goto(`${origin}/admin/pesanan`);
 		// A phone suffix stays out of every URL: the address bar and the detail link's `dari`.
 		await page.getByLabel("Cari berdasarkan").selectOption("hp");
 		await page.getByLabel("Akhiran nomor HP", { exact: true }).fill("00000000");
 		await page.getByRole("button", { name: "Cari", exact: true }).click();
-		await expect(page).toHaveURL(`${origin}/admin/orders?jenis=hp`);
+		await expect(page).toHaveURL(`${origin}/admin/pesanan?jenis=hp`);
 		await expect(page.getByRole("heading", { name: /Hasil untuk akhiran nomor hp/i })).toBeVisible();
 		for (const href of await page.getByTestId("order-row").getByRole("link").evaluateAll((links) => links.map((l) => l.getAttribute("href") ?? "")))
 			assert.ok(!href.includes("00000000"), href);
@@ -453,7 +453,7 @@ test("S99/S100 built browser: the manual queue shows the booking facts and the b
 		await expect(hit).toContainText(s91.number);
 		await captureAll(page, "s100-order-search");
 		await hit.getByRole("link", { name: s91.number }).click();
-		await page.waitForURL(new RegExp(`/admin/orders/${(await sql`select admin_no::int as n from app.commerce_order where id = ${s91.order}`)[0].n}(\\?|$)`));
+		await page.waitForURL(new RegExp(`/admin/pesanan/${(await sql`select admin_no::int as n from app.commerce_order where id = ${s91.order}`)[0].n}(\\?|$)`));
 		await expect(page.getByTestId("order-shipments")).toContainText(s91.resi);
 		await expect(page.getByTestId("order-shipments")).toContainText("Dalam perjalanan");
 		await expect(page.getByTestId("order-shipments")).toContainText("JNE");
@@ -470,9 +470,9 @@ test("S99/S100 built browser: the manual queue shows the booking facts and the b
 		const seeAll = page.getByTestId("queue-see-all");
 		await expect(link.or(seeAll).first()).toBeVisible();
 		if (!(await link.count())) {
-			await expect(seeAll).toHaveAttribute("href", /^\/admin\/queue\?workspace=owner&queue=orders&window=30d$/);
+			await expect(seeAll).toHaveAttribute("href", /^\/admin\/antrian\?workspace=owner&queue=orders&window=30d$/);
 			await seeAll.click();
-			await page.waitForURL(`${origin}/admin/queue?workspace=owner&queue=orders&window=30d`);
+			await page.waitForURL(`${origin}/admin/antrian?workspace=owner&queue=orders&window=30d`);
 			await expect(page.getByTestId("work-queue-section")).toBeVisible();
 			const more = page.getByRole("button", { name: "Muat baris berikutnya" });
 			await expect(link.or(more).first()).toBeVisible();
@@ -481,7 +481,7 @@ test("S99/S100 built browser: the manual queue shows the booking facts and the b
 				await expect(more).not.toHaveText("Memuat…");
 			}
 		}
-		await expect(link).toHaveAttribute("href", `/admin/orders/${(await sql`select admin_no::int as n from app.commerce_order where id = ${order.id}`)[0].n}`);
+		await expect(link).toHaveAttribute("href", `/admin/pesanan/${(await sql`select admin_no::int as n from app.commerce_order where id = ${order.id}`)[0].n}`);
 		assert.deepEqual(desk2.problems, []);
 	} finally {
 		await desk2.context.close();
@@ -554,7 +554,7 @@ test("S92 built browser: manual bank checkout adds the unique code and a 24 h de
 		// Denial: warehouse staff has no finance queue, neither the page nor the API.
 		const keeper = await asStaff(staff);
 		try {
-			await keeper.page.goto(`${origin}/admin/payments`);
+			await keeper.page.goto(`${origin}/admin/keuangan/pembayaran`);
 			await expect(keeper.page.getByRole("heading", { name: "Akses keuangan diperlukan" })).toBeVisible();
 			assert.equal((await keeper.page.request.get(`${origin}/api/v1/admin/manual-transfers?state=open`)).status(), 403);
 			await expect(keeper.page.getByRole("button", { name: "Konfirmasi transfer" })).toHaveCount(0);
@@ -565,7 +565,7 @@ test("S92 built browser: manual bank checkout adds the unique code and a 24 h de
 		const desk = await asStaff(finance);
 		try {
 			const fp = desk.page;
-			await fp.goto(`${origin}/admin/payments`);
+			await fp.goto(`${origin}/admin/keuangan/pembayaran`);
 			await expect(fp.getByRole("heading", { name: "Pembayaran", level: 1 })).toBeVisible();
 			const row = fp.getByTestId("manual-transfers").getByRole("row").filter({ hasText: order.number });
 			await expect(row).toHaveCount(1);
@@ -658,7 +658,7 @@ test("S92 built browser: COD checkout discloses the frozen 3.33% fee line and th
 
 	const keeper = await asStaff(staff);
 	try {
-		await keeper.page.goto(`${origin}/admin/cod-settlements`);
+		await keeper.page.goto(`${origin}/admin/keuangan/cod`);
 		await expect(keeper.page.getByRole("heading", { name: "Akses rekonsiliasi keuangan diperlukan" })).toBeVisible();
 		assert.equal((await keeper.page.request.get(`${origin}/api/v1/admin/cod-collectible-parcels`)).status(), 403);
 	} finally {
@@ -668,7 +668,7 @@ test("S92 built browser: COD checkout discloses the frozen 3.33% fee line and th
 	const desk = await asStaff(finance);
 	try {
 		const { page } = desk;
-		await page.goto(`${origin}/admin/cod-settlements`);
+		await page.goto(`${origin}/admin/keuangan/cod`);
 		await expect(page.getByRole("heading", { name: "Setoran COD Mengantar", level: 1 })).toBeVisible();
 		await expect(page.getByTestId("cod-statements").or(page.getByText("Belum ada setoran COD Mengantar yang dicatat."))).toBeVisible();
 		await captureBoth(page, "s92-cod-settlements");

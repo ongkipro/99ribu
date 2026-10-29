@@ -115,7 +115,7 @@ export type SettlementClaimInput = {
 
 export type ReconciliationItem = {
 	id: string;
-	/** Short admin handle: opens at `/admin/finance/reconciliation/{admin_no}`. */
+	/** Short admin handle: opens at `/admin/keuangan/rekonsiliasi/{admin_no}`. */
 	admin_no: number;
 	provider: ReconciliationProvider;
 	environment: string;
@@ -260,7 +260,7 @@ export const PAYOUT_STATUS: Record<PayoutStatus, [string, StatusTone]> = {
 
 export type Payout = {
 	id: string;
-	/** Short admin handle: opens at `/admin/finance/payouts/{admin_no}`. */
+	/** Short admin handle: opens at `/admin/keuangan/komisi/{admin_no}`. */
 	admin_no: number;
 	amount: number;
 	currency: "IDR";

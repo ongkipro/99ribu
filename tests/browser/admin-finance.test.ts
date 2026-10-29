@@ -21,7 +21,7 @@ import {
 } from "../contract/access-fixture.ts";
 import { RENDERS } from "../render-root.ts";
 
-// S131 Finance workbench (/admin/finance/reconciliation, /payouts, /refunds, /summary) browser
+// S131 Finance workbench (/admin/keuangan/rekonsiliasi, /payouts, /refunds, /summary) browser
 // behavioral and responsive proof on the built web at 127.0.0.1:3099.
 const origin = "http://127.0.0.1:3099";
 const identity = createLocalAuth("local");
@@ -251,12 +251,12 @@ test("access: non-permitted roles see AccessDenied across B16–B19 without trig
 	try {
 		for (const [path, heading] of [
 			[
-				"/admin/finance/reconciliation",
+				"/admin/keuangan/rekonsiliasi",
 				"Akses rekonsiliasi keuangan diperlukan",
 			],
-			["/admin/finance/payouts", "Akses pembayaran komisi diperlukan"],
-			["/admin/finance/refunds", "Akses pengembalian dana diperlukan"],
-			["/admin/finance/summary", "Akses laporan keuangan diperlukan"],
+			["/admin/keuangan/komisi", "Akses pembayaran komisi diperlukan"],
+			["/admin/keuangan/refund", "Akses pengembalian dana diperlukan"],
+			["/admin/keuangan", "Akses laporan keuangan diperlukan"],
 		] as const) {
 			await page.goto(`${origin}${path}`);
 			await expect(page.getByRole("heading", { name: heading })).toBeVisible();
@@ -264,11 +264,11 @@ test("access: non-permitted roles see AccessDenied across B16–B19 without trig
 		// Finance without explicit read permissions is denied on reconciliation, refunds, and summary, but allowed on payouts.
 		for (const [path, heading] of [
 			[
-				"/admin/finance/reconciliation",
+				"/admin/keuangan/rekonsiliasi",
 				"Akses rekonsiliasi keuangan diperlukan",
 			],
-			["/admin/finance/refunds", "Akses pengembalian dana diperlukan"],
-			["/admin/finance/summary", "Akses laporan keuangan diperlukan"],
+			["/admin/keuangan/refund", "Akses pengembalian dana diperlukan"],
+			["/admin/keuangan", "Akses laporan keuangan diperlukan"],
 		] as const) {
 			await finPage.page.goto(`${origin}${path}`);
 			await expect(
@@ -424,7 +424,7 @@ test("B16 reconciliation: list filters, detail source/match inspection, match/un
 	);
 
 	try {
-		await page.goto(`${origin}/admin/finance/reconciliation`);
+		await page.goto(`${origin}/admin/keuangan/rekonsiliasi`);
 		await expect(page.getByTestId(`reconciliation-row-${recId}`)).toContainText(
 			"MUT-S131-001",
 		);
@@ -434,7 +434,7 @@ test("B16 reconciliation: list filters, detail source/match inspection, match/un
 			fullPage: true,
 		});
 
-		await page.goto(`${origin}/admin/finance/reconciliation/${recNo}`);
+		await page.goto(`${origin}/admin/keuangan/rekonsiliasi/${recNo}`);
 		await expect(page.getByTestId("reconciliation-status")).toContainText(
 			"Menunggu pencocokan",
 		);
@@ -556,14 +556,14 @@ test("B17 affiliate payouts: queue list and claim -> upload evidence -> verify -
 	);
 
 	try {
-		await page.goto(`${origin}/admin/finance/payouts`);
+		await page.goto(`${origin}/admin/keuangan/komisi`);
 		await expect(page.getByTestId(`payout-row-${payoutId}`)).toBeVisible();
 		await page.screenshot({
 			path: join(renders, "payouts-list-1280.png"),
 			fullPage: true,
 		});
 
-		await page.goto(`${origin}/admin/finance/payouts/${payoutNo}`);
+		await page.goto(`${origin}/admin/keuangan/komisi/${payoutNo}`);
 		await expect(page.getByTestId("payout-status")).toContainText(
 			"Dalam antrean",
 		);
@@ -734,7 +734,7 @@ test("B18 refunds & B19 finance summary: unknown refund hides retry, summary sho
 
 	try {
 		// B18 Refunds
-		await page.goto(`${origin}/admin/finance/refunds`);
+		await page.goto(`${origin}/admin/keuangan/refund`);
 		await expect(page.getByTestId(`refund-row-${refundId}`)).toContainText(
 			"Hasil belum pasti",
 		);
@@ -743,7 +743,7 @@ test("B18 refunds & B19 finance summary: unknown refund hides retry, summary sho
 			fullPage: true,
 		});
 
-		await page.goto(`${origin}/admin/finance/refunds/${refundNo}`);
+		await page.goto(`${origin}/admin/keuangan/refund/${refundNo}`);
 		await expect(page.getByTestId("refund-unknown")).toBeVisible();
 		await expect(page.getByTestId("refund-reconcile")).toBeVisible();
 		await expect(page.getByTestId("refund-retry")).toHaveCount(0);
@@ -761,7 +761,7 @@ test("B18 refunds & B19 finance summary: unknown refund hides retry, summary sho
 		});
 
 		// B19 Finance Summary
-		await page.goto(`${origin}/admin/finance/summary`);
+		await page.goto(`${origin}/admin/keuangan`);
 		await expect(page.getByTestId("summary-incomplete-alert")).toBeVisible();
 		await expect(
 			page.getByTestId("summary-value-realized_contribution"),

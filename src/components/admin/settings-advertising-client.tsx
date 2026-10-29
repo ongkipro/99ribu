@@ -16,7 +16,7 @@ import { EmptyState, ErrorState } from "./states";
 import { StatusBadge } from "./status";
 
 // S130 / spec 17 B24: advertising destinations, redacted diagnostics, version history, pause/resume,
-// and controlled event replay moved off the owner dashboard to /admin/settings/advertising.
+// and controlled event replay moved off the owner dashboard to /admin/pemasaran/iklan.
 
 const CONVERSION_SOURCE_LABELS: Record<string, string> = {
 	UPLOAD_CLICKS: "Unggah klik offline",

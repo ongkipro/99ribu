@@ -72,7 +72,7 @@ export type AdminAffiliateCommissionSummary = {
 
 export type AdminAffiliateSummary = {
 	id: string;
-	/** Short admin handle for `/admin/affiliates/{admin_no}`; the API keeps taking `id`. */
+	/** Short admin handle for `/admin/afiliasi/{admin_no}`; the API keeps taking `id`. */
 	admin_no: number;
 	referral_code: string | null;
 	display_name: string;

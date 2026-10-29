@@ -9,7 +9,7 @@ import type { Role } from "../../src/modules/access/policy.ts";
 import { actor, type BrowserSession, cleanup, enroll } from "../contract/access-fixture.ts";
 import { RENDERS } from "../render-root.ts";
 
-// S130 Settings hub (/admin/settings/{payment,commercial,label-templates,advertising,support})
+// S130 Settings hub (/admin/pengaturan/{pembayaran,komersial,label,balasan-cs} and /admin/pemasaran/iklan)
 // on the built web at 127.0.0.1:3099 (selector `--case=settings-hub` in browser mode).
 // Written for serial execution by the coordinator.
 
@@ -218,7 +218,7 @@ test("S130 payment & commercial policy screens: owner saves new version with pro
 	const ownerView = await open(owner);
 	try {
 		await mountPolicyRoutes(ownerView.page);
-		await ownerView.page.goto(`${origin}/admin/settings/payment`);
+		await ownerView.page.goto(`${origin}/admin/pengaturan/pembayaran`);
 		await expect(
 			ownerView.page.getByRole("heading", { name: "Pembayaran & Biaya COD", level: 1 }),
 		).toBeVisible();
@@ -261,7 +261,7 @@ test("S130 payment & commercial policy screens: owner saves new version with pro
 		assert.equal(postedBodies.at(-1)?.expected_version, 5);
 
 		// Commercial policy page
-		await ownerView.page.goto(`${origin}/admin/settings/commercial`);
+		await ownerView.page.goto(`${origin}/admin/pengaturan/komersial`);
 		await expect(
 			ownerView.page.getByRole("heading", { name: "Kebijakan Komersial", level: 1 }),
 		).toBeVisible();
@@ -285,21 +285,21 @@ test("S130 payment & commercial policy screens: owner saves new version with pro
 	const csView = await open(cs);
 	try {
 		await mountPolicyRoutes(finView.page);
-		await finView.page.goto(`${origin}/admin/settings/payment`);
+		await finView.page.goto(`${origin}/admin/pengaturan/pembayaran`);
 		await expect(finView.page.getByTestId("payment-policy-readonly")).toBeVisible();
 		await expect(finView.page.getByTestId("payment-policy-new")).toHaveCount(0);
 		await expect(finView.page.getByTestId("payment-policy-table")).toBeVisible();
 
-		await finView.page.goto(`${origin}/admin/settings/commercial`);
+		await finView.page.goto(`${origin}/admin/pengaturan/komersial`);
 		await expect(finView.page.getByTestId("commercial-policy-readonly")).toBeVisible();
 		await expect(finView.page.getByTestId("commercial-policy-new")).toHaveCount(0);
 		await expect(finView.page.getByTestId("commercial-policy-table")).toBeVisible();
 
-		await csView.page.goto(`${origin}/admin/settings/payment`);
+		await csView.page.goto(`${origin}/admin/pengaturan/pembayaran`);
 		await expect(
 			csView.page.getByRole("heading", { name: "Akses kebijakan pembayaran diperlukan" }),
 		).toBeVisible();
-		await csView.page.goto(`${origin}/admin/settings/commercial`);
+		await csView.page.goto(`${origin}/admin/pengaturan/komersial`);
 		await expect(
 			csView.page.getByRole("heading", { name: "Akses kebijakan komersial diperlukan" }),
 		).toBeVisible();
@@ -355,7 +355,7 @@ test("S130 uncertain policy submits survive failed history reloads and retry the
 					return json(route, { ...current, version: 4, values: body.values, reason: body.reason }, 201);
 				},
 			);
-			await view.page.goto(`${origin}/admin/settings/${kind}`);
+			await view.page.goto(`${origin}/admin/pengaturan/${kind === "payment" ? "pembayaran" : "komersial"}`);
 			await view.page.getByTestId(`${kind}-policy-new`).click();
 			const dialog = view.page.getByRole("dialog");
 			const field = dialog.getByTestId(kind === "payment" ? "payment-cod-fee" : "commercial-commission");
@@ -404,7 +404,7 @@ test("S130 label templates, advertising & support screens: version history, crea
 
 	try {
 		// 1. Label templates: owner expands version history, finance sees read-only, CS denied
-		await ownerView.page.goto(`${origin}/admin/settings/label-templates`);
+		await ownerView.page.goto(`${origin}/admin/pengaturan/label`);
 		await expect(
 			ownerView.page.getByRole("heading", { name: "Template Label", level: 1 }),
 		).toBeVisible();
@@ -418,18 +418,18 @@ test("S130 label templates, advertising & support screens: version history, crea
 			ownerView.page.locator('[data-testid^="label-template-history-"]').first(),
 		).toBeVisible();
 
-		await finView.page.goto(`${origin}/admin/settings/label-templates`);
+		await finView.page.goto(`${origin}/admin/pengaturan/label`);
 		await expect(finView.page.getByTestId("label-templates-readonly")).toBeVisible();
 		await expect(finView.page.getByTestId("label-template-new")).toHaveCount(0);
 		await expect(finView.page.getByTestId("label-templates-table")).toBeVisible();
 
-		await csView.page.goto(`${origin}/admin/settings/label-templates`);
+		await csView.page.goto(`${origin}/admin/pengaturan/label`);
 		await expect(
 			csView.page.getByRole("heading", { name: "Akses template label diperlukan" }),
 		).toBeVisible();
 
 		// 2. Advertising destinations: owner sees cards & history, finance denied
-		await ownerView.page.goto(`${origin}/admin/settings/advertising`);
+		await ownerView.page.goto(`${origin}/admin/pemasaran/iklan`);
 		await expect(
 			ownerView.page.getByRole("heading", { name: "Integrasi Iklan", level: 1 }),
 		).toBeVisible();
@@ -438,36 +438,36 @@ test("S130 label templates, advertising & support screens: version history, crea
 		await expect(ownerView.page.getByTestId("ad-destination-card-tiktok")).toBeVisible();
 		await expect(ownerView.page.getByTestId("ad-history-meta")).toBeVisible();
 
-		await finView.page.goto(`${origin}/admin/settings/advertising`);
+		await finView.page.goto(`${origin}/admin/pemasaran/iklan`);
 		await expect(
 			finView.page.getByRole("heading", { name: "Akses integrasi iklan diperlukan" }),
 		).toBeVisible();
 
 		// 3. Support saved replies & tags: owner sees create controls, CS sees read-only, finance denied
-		await ownerView.page.goto(`${origin}/admin/settings/support`);
+		await ownerView.page.goto(`${origin}/admin/pengaturan/balasan-cs`);
 		await expect(
 			ownerView.page.getByRole("heading", { name: "Balasan & Tag CS", level: 1 }),
 		).toBeVisible();
 		await expect(ownerView.page.getByTestId("saved-reply-new")).toBeVisible();
 		await expect(ownerView.page.getByTestId("support-tag-new")).toBeVisible();
 
-		await csView.page.goto(`${origin}/admin/settings/support`);
+		await csView.page.goto(`${origin}/admin/pengaturan/balasan-cs`);
 		await expect(csView.page.getByTestId("support-settings-readonly")).toBeVisible();
 		await expect(csView.page.getByTestId("saved-reply-new")).toHaveCount(0);
 		await expect(csView.page.getByTestId("support-tag-new")).toHaveCount(0);
 
-		await finView.page.goto(`${origin}/admin/settings/support`);
+		await finView.page.goto(`${origin}/admin/pengaturan/balasan-cs`);
 		await expect(
 			finView.page.getByRole("heading", { name: "Akses layanan pelanggan diperlukan" }),
 		).toBeVisible();
 
 		// 4. Responsive geometry across 390, 768, 1440 on all 5 routes
 		const routes = [
-			["payment", "/admin/settings/payment"],
-			["commercial", "/admin/settings/commercial"],
-			["label-templates", "/admin/settings/label-templates"],
-			["advertising", "/admin/settings/advertising"],
-			["support", "/admin/settings/support"],
+			["payment", "/admin/pengaturan/pembayaran"],
+			["commercial", "/admin/pengaturan/komersial"],
+			["label-templates", "/admin/pengaturan/label"],
+			["advertising", "/admin/pemasaran/iklan"],
+			["support", "/admin/pengaturan/balasan-cs"],
 		] as const;
 
 		for (const [slug, path] of routes) {

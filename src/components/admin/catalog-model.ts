@@ -45,7 +45,7 @@ export type CatalogProduct = {
 /** Row of GET /api/v1/admin/products (summary computed server-side). */
 export type ProductSummary = {
 	id: string;
-	/** Short admin handle: opens at `/admin/catalog/{admin_no}`. */
+	/** Short admin handle: opens at `/admin/produk/{admin_no}`. */
 	admin_no: number;
 	catalog_id: string;
 	slug: string;

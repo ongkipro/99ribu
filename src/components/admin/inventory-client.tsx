@@ -129,7 +129,7 @@ export function InventoryClient({ canTransfer, canReceiveNew }: { canTransfer: b
 				actions={
 					<>
 						<Button asChild variant="outline">
-							<Link href="/admin/inventory/transfers">Buka Transfer Stok</Link>
+							<Link href="/admin/produk/inventori/transfer">Buka Transfer Stok</Link>
 						</Button>
 						{canReceiveNew && (
 							<Button data-testid="inventory-receive-new" onClick={() => setDialog({ kind: "receive-new" })}>
