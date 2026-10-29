@@ -19,8 +19,10 @@ import { DeniedState, EmptyState, ErrorState, LoadingState } from "./states";
 // mobile card. Detail pages use it too (order items, stock per warehouse, cost history).
 // Below md a list either renders its own `card`, or with `stack` the same row and cells as a
 // labelled card (one DOM, so row/cell locators and accessible names hold at every width).
-// Otherwise the table scrolls: the first column and an "actions" column stay pinned and a fade
-// marks the edge that has more columns.
+// Otherwise the table scrolls: the first column stays pinned (a 1px line once columns pass under
+// it) and a fade marks the right edge while more columns follow. The "actions" column scrolls with
+// its row (admin review 2026-10-28, finding 2): a pinned right column covered dates and labels at
+// 768-1440, so low-priority columns give way first (`hideBelow`) and the rest stay readable.
 // Admin mobile pass: a stacked row and a custom card share one anatomy (`stack` roles and the
 // Card* helpers below): title line (identifier link left, amount right), meta line, status
 // badges, labelled values, then the actions as a full-width bottom row.
@@ -38,7 +40,27 @@ export type DataTableColumn<T> = {
 	 * default) or "plain" (value only, full width). A column with id "actions" is the bottom row.
 	 */
 	stack?: "title" | "aside" | "meta" | "status" | "label" | "plain";
+	/**
+	 * Low-priority column: from md, hidden while the table frame (not the viewport, so the sidebar
+	 * state counts) is narrower than 64rem ("5xl"), 72rem ("6xl") or 80rem ("7xl"), so the columns
+	 * that stay keep their width instead of sliding under the pinned edges. The stacked phone card
+	 * still shows it; keep the value on the detail page too.
+	 */
+	hideBelow?: keyof typeof hideBelowClass;
+	/**
+	 * "datetime": a WIB date and time ("28 Okt 2026, 10.46 WIB") that never wraps or clips: nowrap,
+	 * tabular digits and a 10rem minimum from md (the stacked phone card keeps its own layout).
+	 */
+	kind?: "datetime";
 };
+
+// Literal classes (Tailwind only sees whole class names); the frame is the `@container`.
+const hideBelowClass = {
+	"5xl": "md:@max-5xl:hidden",
+	"6xl": "md:@max-6xl:hidden",
+	"7xl": "md:@max-7xl:hidden",
+};
+const datetimeClass = "whitespace-nowrap tabular-nums md:min-w-40";
 
 export type DataTableStatus =
 	| { kind: "loading" }
@@ -207,11 +229,11 @@ export function DataTable<T>({
 		stack ? { role: name } : {};
 	const first = columns[0]?.id;
 	const last = columns.at(-1)?.id === "actions" ? "actions" : null;
-	// Pinned cells need an opaque background, so every cell paints the same one (row hover and
-	// selection included) and no column bands; while columns hide behind a pinned edge it draws a
-	// 1px line in the 3:1 input tone (an inset shadow: collapsed table borders stay in the grid and do
-	// not follow a sticky cell), and action buttons never wrap. Literal classes per mode (Tailwind only sees whole
-	// class names).
+	// The pinned first column needs an opaque background, so every cell paints the same one (row
+	// hover and selection included) and no column bands; while columns pass under it it draws a 1px
+	// line in the 3:1 input tone (an inset shadow: collapsed table borders stay in the grid and do
+	// not follow a sticky cell). Action links and buttons never wrap. Literal classes per mode
+	// (Tailwind only sees whole class names).
 	const headBg = stack ? "md:bg-card" : "bg-card";
 	const cellBg = stack
 		? "md:bg-card md:group-hover/row:bg-muted md:group-has-aria-expanded/row:bg-muted md:group-data-[state=selected]/row:bg-muted"
@@ -225,12 +247,9 @@ export function DataTable<T>({
 					edges.start && (stack ? "md:shadow-[inset_-1px_0_0_var(--color-input)]" : "shadow-[inset_-1px_0_0_var(--color-input)]"),
 				)
 			: id === last
-				? cn(
-						stack
-							? "md:sticky md:right-0 md:z-10 md:[&_a]:whitespace-nowrap md:[&_button]:whitespace-nowrap"
-							: "sticky right-0 z-10 [&_a]:whitespace-nowrap [&_button]:whitespace-nowrap",
-						edges.end && (stack ? "md:shadow-[inset_1px_0_0_var(--color-input)]" : "shadow-[inset_1px_0_0_var(--color-input)]"),
-					)
+				? stack
+					? "md:[&_a]:whitespace-nowrap md:[&_button]:whitespace-nowrap"
+					: "[&_a]:whitespace-nowrap [&_button]:whitespace-nowrap"
 				: undefined;
 	const stackCell = (c: DataTableColumn<T>) =>
 		stack &&
@@ -286,10 +305,11 @@ export function DataTable<T>({
 				ref={scrollRef}
 				className={cn(
 					"relative rounded-md border",
+					columns.some((c) => c.hideBelow) && "@container",
 					card && "hidden md:block",
 				)}
 			>
-				{!last && edges.end && (
+				{edges.end && (
 					<div
 						aria-hidden="true"
 						className={cn(
@@ -327,7 +347,7 @@ export function DataTable<T>({
 									key={c.id}
 									scope="col"
 									{...role("columnheader")}
-									className={cn(c.className, headBg, pin(c.id))}
+									className={cn(c.className, c.hideBelow && hideBelowClass[c.hideBelow], c.kind === "datetime" && datetimeClass, headBg, pin(c.id))}
 								>
 									{c.header}
 								</TableHead>
@@ -361,7 +381,8 @@ export function DataTable<T>({
 										data-state={selected.has(id) || id === activeKey ? "selected" : undefined}
 										{...role("row")}
 										className={cn(
-											"group/row",
+											// Spec 10: 48px minimum row (a table row's height acts as its minimum) so 44px actions never overlap.
+											"group/row h-12",
 											selectedBadge,
 											rowClassName,
 											stack &&
@@ -381,7 +402,16 @@ export function DataTable<T>({
 												key={c.id}
 												{...role("cell")}
 												inert={c.id === "actions" && selecting ? true : undefined}
-												className={cn(c.className, cellBg, pin(c.id), stackCell(c), c.cellClassName, c.id === "actions" && selecting && "opacity-50")}
+												className={cn(
+													c.className,
+													c.hideBelow && hideBelowClass[c.hideBelow],
+													c.kind === "datetime" && datetimeClass,
+													cellBg,
+													pin(c.id),
+													stackCell(c),
+													c.cellClassName,
+													c.id === "actions" && selecting && "opacity-50",
+												)}
 											>
 												{stackLabel(c) && typeof c.header === "string" && (
 													<span

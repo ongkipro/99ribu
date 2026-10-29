@@ -25093,6 +25093,8 @@ components:
           type: boolean
         history:
           type: array
+          description: The newest 50 versions; the audit log keeps every version.
+          maxItems: 50
           items:
             type: object
             additionalProperties: false
@@ -25297,6 +25299,8 @@ components:
           type: boolean
         history:
           type: array
+          description: The newest 50 versions; the audit log keeps every version.
+          maxItems: 50
           items:
             type: object
             additionalProperties: false

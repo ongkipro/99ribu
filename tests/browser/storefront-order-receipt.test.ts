@@ -154,7 +154,8 @@ test('prepaid order receipt renders pending, instructions, unknown, failed, and 
   await expect(f.page.getByText('+62••••0000',{exact:true})).toBeVisible();
   await expect(f.page.locator('.receipt-parcel .checkout-charges').getByText('Ongkir yang dibayar',{exact:true})).toBeVisible();
   await expect(f.page.locator('.receipt-summary-card .checkout-charges').getByText('Subsidi ongkir',{exact:true})).toBeAttached();
-  assert.ok(!(await f.page.content()).includes('+6281200000000')&&!(await f.page.content()).includes('081200000000'),'Raw phone stays masked in HTML');
+  // S123 hands this order's own contact to the sign-up prefill for the order-access holder (order-account.tsx); what the page shows stays masked.
+  const shown=await f.page.locator('body').innerText();assert.ok(!shown.includes('+6281200000000')&&!shown.includes('081200000000'),'Raw phone stays masked on the page');
   for(const width of [390,768,1024,1440]){
    await f.page.setViewportSize({width,height:900});
    const statusBox=await f.page.locator('.receipt-status-card').boundingBox(),summaryBox=await f.page.locator('.receipt-summary-card').boundingBox(),parcelsBox=await f.page.locator('.receipt-parcels').boundingBox();
@@ -261,7 +262,7 @@ test('two-origin split-COD receipt renders cod_due, partial collection, full col
    await expect(f.page.locator('.receipt-summary-card>details')).not.toHaveAttribute('open','');
    const back=await f.page.locator('.checkout-back').boundingBox(),help=await f.page.getByRole('link',{name:'Bantuan',exact:true}).boundingBox(),panelBox=await f.page.locator('.receipt-cod-panel').boundingBox(),leadBox=await f.page.locator('.receipt-lead').boundingBox(),figureBox=await f.page.locator('.receipt-cod-figure').boundingBox();
    assert.ok(back&&help&&panelBox&&leadBox&&figureBox);
-   assert.ok(leadBox.y<panelBox.y&&figureBox.y+figureBox.height<568,'320px/200% keeps lead above COD panel and places COD cash figure in the first 568px screen');
+   assert.ok(leadBox.y<panelBox.y&&figureBox.y+figureBox.height<568,`320px/200% keeps lead above COD panel and places COD cash figure in the first 568px screen (lead ${Math.round(leadBox.y)}, panel ${Math.round(panelBox.y)}, figure bottom ${Math.round(figureBox.y+figureBox.height)})`);
    assert.ok(help.width>=44&&help.height>=44,'Help keeps 44px target at 320px/200%');
    await f.page.locator('.receipt-summary-card>details>summary').click();
    await expect(f.page.locator('.receipt-summary-card>details')).toHaveAttribute('open','');

@@ -7,7 +7,7 @@ import { AdminPage, PageHeader } from "../../../../components/admin/page-blocks"
 
 export const dynamic = "force-dynamic";
 export const metadata = {
-	title: "Pembayaran · Admin 99ribu",
+	title: "Pembayaran Masuk · Admin 99ribu",
 	robots: { index: false, follow: false },
 };
 
@@ -17,7 +17,7 @@ export default async function PaymentsPage() {
 	const access = consoleAccess(roles, permissions);
 	if (!access.reconcileRead)
 		return (
-			<AccessDenied title="Pembayaran" heading="Akses keuangan diperlukan">
+			<AccessDenied title="Pembayaran Masuk" heading="Akses keuangan diperlukan">
 				Halaman ini untuk Super Admin atau staf keuangan dengan izin rekonsiliasi
 				dan verifikasi dua langkah aktif.
 			</AccessDenied>
@@ -25,7 +25,7 @@ export default async function PaymentsPage() {
 	return (
 		<AdminPage>
 			<PageHeader
-				title="Pembayaran"
+				title="Pembayaran Masuk"
 				description={
 					<>
 						Konfirmasi transfer bank manual dari mutasi rekening dan pantau Virtual Account / QRIS AutoLaris. Nominal yang

@@ -102,3 +102,8 @@ test("image audit patterns: private, test and design material is flagged; runtim
     "/app/public/brand/logo-512.png", "/app/node_modules/some-package/test/fixture.key", "/usr/local/bin/node",
   ]) assert.equal(forbiddenFile(path), false, path);
 });
+
+
+test("local PostgreSQL uses an init process to reap orphaned tool children", () => {
+  assert.match(readFileSync("compose.yaml", "utf8"), /database:\n(?:\s*#.*\n)*\s+init: true/);
+});

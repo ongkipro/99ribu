@@ -118,7 +118,7 @@ if (import.meta.main) {
       : selector === "--case=T-34"
       ? mode === "integration" ? ["tests/integration/admin-reporting.test.ts","tests/integration/admin-kpis.test.ts","tests/integration/audit-trail.test.ts"] : ["tests/browser/admin-workspaces.test.ts"]
       : selector === "--case=T-35"
-      ? mode === "integration" ? ["tests/integration/buyer-account.test.ts"] : ["tests/browser/buyer-account.test.ts"]
+      ? mode === "integration" ? ["tests/integration/buyer-account.test.ts","tests/integration/account-orders.test.ts"] : ["tests/browser/buyer-account.test.ts"]
       : selector === "--case=T-36"
       ? ["tests/integration/shipping-labels.test.ts"]
       : selector === "--case=T-37"

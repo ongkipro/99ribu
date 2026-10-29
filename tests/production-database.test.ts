@@ -40,7 +40,7 @@ const applied = (stdout: string) => Number(/newly applied: (\d+)\)/.exec(stdout)
 before(async () => {
   assert.match(image, /^postgres:18\.6-bookworm@sha256:[0-9a-f]{64}$/);
   // Trust only on the container's own Unix socket (docker exec psql); every TCP rule, loopback included, is scram-sha-256.
-  const started = docker(["run", "-d", "--rm", "--name", name, "-e", "POSTGRES_PASSWORD", "-e", "POSTGRES_INITDB_ARGS=--auth-host=scram-sha-256", "-p", "127.0.0.1::5432", image]);
+  const started = docker(["run", "-d", "--rm", "--init", "--name", name, "-e", "POSTGRES_PASSWORD", "-e", "POSTGRES_INITDB_ARGS=--auth-host=scram-sha-256", "-p", "127.0.0.1::5432", image]);
   assert.equal(started.status, 0, "docker run failed");
   port = Number(/:(\d+)\s*$/m.exec(docker(["port", name, "5432/tcp"]).stdout)?.[1]);
   assert.ok(port > 0);
@@ -95,6 +95,21 @@ test("host connections require SCRAM and the bootstrap applies exactly once", as
   } finally { await publicSchema.end(); }
 });
 
+test("the init process reaps an orphan tool exit without restarting PostgreSQL", async () => {
+  const init = docker(["inspect", "--format", "{{.HostConfig.Init}}", name]);
+  assert.equal(init.stdout.trim(), "true");
+  const sql = connect("postgres", password.superuser, "postgres");
+  try {
+    const [before] = await sql`select pg_postmaster_start_time()::text as started, pg_backend_pid() as backend`;
+    const orphan = docker(["exec", name, "sh", "-c", "(sleep 0.2; exit 2) >/dev/null 2>&1 &"]);
+    assert.equal(orphan.status, 0);
+    await sleep(1000);
+    const [after] = await sql`select pg_postmaster_start_time()::text as started, pg_backend_pid() as backend`;
+    assert.equal(after.started, before.started);
+    assert.equal(after.backend, before.backend, "crash recovery must not replace the existing backend");
+  } finally { await sql.end(); }
+});
+
 test("two concurrent production migrate runs both succeed, one applies every migration, a re-run is a no-op", { timeout: 120000 }, async () => {
   const runs = await Promise.all([node(["scripts/migrate.ts", "production"]), node(["scripts/migrate.ts", "production"])]);
   for (const run of runs) assert.equal(run.status, 0, run.stderr);
@@ -105,6 +120,43 @@ test("two concurrent production migrate runs both succeed, one applies every mig
   for (const run of [...runs, again]) {
     for (const secret of Object.values(password)) assert.ok(!run.stdout.includes(secret) && !run.stderr.includes(secret), "a password was printed");
   }
+});
+
+test("migrations refuse changed, missing and ahead-of-release history before granting privileges", async () => {
+  const owner = connect("99ribu_production_owner", password.owner, "99ribu_production");
+  const rows = await owner`select id, hash, created_at from drizzle.__drizzle_migrations order by id`;
+  const first = rows[0];
+  const restore = async () => {
+    await owner`delete from drizzle.__drizzle_migrations`;
+    await owner`insert into drizzle.__drizzle_migrations ${owner(rows, "id", "hash", "created_at")}`;
+  };
+  try {
+    // Revocation makes it observable that failure happens before the runner's GRANT phase.
+    await owner`revoke delete on app.outbox_job from "99ribu_production_app"`;
+    for (const mutation of [
+      () => owner`update drizzle.__drizzle_migrations set hash = 'changed' where id = ${first.id}`,
+      () => owner`delete from drizzle.__drizzle_migrations where id = ${first.id}`,
+      () => owner`insert into drizzle.__drizzle_migrations (hash, created_at) values ('future', 9999999999999)`,
+    ]) {
+      await mutation();
+      const before = await owner`select id, hash, created_at from drizzle.__drizzle_migrations order by id`;
+      const run = await node(["scripts/migrate.ts", "production"]);
+      assert.notEqual(run.status, 0);
+      assert.match(run.stderr, /Migration history mismatch/);
+      assert.doesNotMatch(run.stdout, /Migrations applied/);
+      assert.deepEqual(await owner`select id, hash, created_at from drizzle.__drizzle_migrations order by id`, before);
+      const [grant] = await owner`select has_table_privilege('99ribu_production_app', 'app.outbox_job', 'DELETE') allowed`;
+      assert.equal(grant.allowed, false);
+      await restore();
+    }
+  } finally {
+    await restore();
+    await owner`grant delete on app.outbox_job to "99ribu_production_app"`;
+    await owner.end();
+  }
+  const valid = await node(["scripts/migrate.ts", "production"]);
+  assert.equal(valid.status, 0, valid.stderr);
+  assert.equal(applied(valid.stdout), 0);
 });
 
 test("the production app role connects over TCP with its limits and is refused DDL, TRUNCATE and other databases", async () => {

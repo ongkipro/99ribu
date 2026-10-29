@@ -1,7 +1,6 @@
 "use client";
 
-import { cn } from "cn";
-import { CircleAlert, ImageOff, Search } from "lucide-react";
+import { CircleAlert, ImageOff, Search, X } from "lucide-react";
 import Link from "next/link";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { Badge } from "@/components/ui/badge";
@@ -10,7 +9,7 @@ import { Input } from "@/components/ui/input";
 import { rupiah } from "@/modules/storefront/format";
 import { failureText, getJson } from "./admin-errors";
 import { CardMeta, CardStatus, CardTitle, DataTable } from "./data-table";
-import { FilterSheet } from "./form";
+import { FilterSheet, nativeSelectClass } from "./form";
 import {
 	blockerLabel,
 	type CatalogStatus,
@@ -42,6 +41,7 @@ type Access = ReturnType<typeof catalogAccess>;
 type Load =
 	| { state: "loading" }
 	| { state: "error"; error: string }
+	| { state: "denied"; message: string }
 	| { state: "ready"; rows: ProductSummary[]; next: string | null };
 
 export function CatalogListClient({
@@ -106,7 +106,9 @@ export function CatalogListClient({
 						rows: res.data.data,
 						next: res.data.pagination.next_cursor,
 					}
-				: { state: "error", error: failureText(res.failure) },
+				: res.failure.status === 403
+					? { state: "denied", message: res.failure.message }
+					: { state: "error", error: failureText(res.failure) },
 		);
 	}, [query, filters.category, filters.status, filters.review, cursor]);
 
@@ -142,6 +144,20 @@ export function CatalogListClient({
 	const filtered = Boolean(query || filters.category || filters.status || filters.review);
 	const activeFilters =
 		Number(Boolean(filters.category)) + Number(Boolean(filters.status)) + Number(filters.review);
+	const categoryLabel = (id: string) =>
+		categoryPath(id, categories) ?? categories.find((c) => c.id === id)?.name ?? "Kategori terpilih";
+	// The applied filters as removable chips (same values as the fields and the URL).
+	const chips: { key: string; label: string; clear: Partial<Filters> }[] = [
+		...(query ? [{ key: "q", label: `Cari: ${query}`, clear: { q: "" } }] : []),
+		...(filters.category
+			? [{ key: "category", label: `Kategori: ${categoryLabel(filters.category)}`, clear: { category: "" } }]
+			: []),
+		...(filters.status
+			? [{ key: "status", label: `Status: ${STATUS_LABELS[filters.status]}`, clear: { status: "" as const } }]
+			: []),
+		...(filters.review ? [{ key: "review", label: "Perlu tinjauan klaim", clear: { review: false } }] : []),
+	];
+	const clearAll = () => update({ q: "", category: "", status: "", review: false });
 	const detailHref = (adminNo: number) =>
 		`${adminPath("product", adminNo)}${urlQuery ? `?dari=${encodeURIComponent(urlQuery)}` : ""}`;
 	// Readers without stock access get readiness flags, never quantities.
@@ -180,15 +196,17 @@ export function CatalogListClient({
 
 	const stock = (r: ProductSummary) => {
 		if (r.blocker_codes.includes("ACTIVE_WAREHOUSE_REQUIRED"))
-			return <Badge variant="warning">Gudang belum aktif</Badge>;
+			return <StatusBadge tone="problem">Gudang belum aktif</StatusBadge>;
 		if (r.offer_count === 0)
 			return <span className="text-xs text-muted-foreground">—</span>;
 		return r.stock_ready_offers === r.offer_count ? (
-			<Badge variant="success">{access.stock ? "Lengkap" : "Stok siap"}</Badge>
+			<StatusBadge tone="success">{access.stock ? "Lengkap" : "Stok siap"}</StatusBadge>
 		) : (
-			<Badge variant="warning">
-				{r.stock_ready_offers} dari {r.offer_count} varian {ready}
-			</Badge>
+			<StatusBadge tone="problem">
+				<span className="tabular-nums">
+					{r.stock_ready_offers} dari {r.offer_count} varian {ready}
+				</span>
+			</StatusBadge>
 		);
 	};
 
@@ -271,7 +289,7 @@ export function CatalogListClient({
 								id="catalog-category"
 								value={filters.category}
 								onChange={(e) => update({ category: e.target.value })}
-								className={selectClass}
+								className={`${nativeSelectClass} w-full`}
 							>
 								<option value="">Semua kategori</option>
 								{categories
@@ -297,7 +315,7 @@ export function CatalogListClient({
 								onChange={(e) =>
 									update({ status: e.target.value as CatalogStatus | "" })
 								}
-								className={selectClass}
+								className={`${nativeSelectClass} w-full`}
 							>
 								<option value="">Semua status</option>
 								{STATUSES.map((s) => (
@@ -315,7 +333,7 @@ export function CatalogListClient({
 								id="catalog-review"
 								value={filters.review ? "klaim" : ""}
 								onChange={(e) => update({ review: e.target.value === "klaim" })}
-								className={selectClass}
+								className={`${nativeSelectClass} w-full`}
 							>
 								<option value="">Semua produk</option>
 								<option value="klaim">Perlu tinjauan klaim</option>
@@ -323,6 +341,29 @@ export function CatalogListClient({
 						</div>
 					</FilterSheet>
 				</search>
+				{chips.length > 0 && (
+					<div className="flex flex-wrap items-center gap-2" data-testid="catalog-active-filters">
+						<span className="text-xs text-muted-foreground">Filter aktif:</span>
+						{chips.map((chip) => (
+							<Button
+								key={chip.key}
+								type="button"
+								variant="outline"
+								size="sm"
+								aria-label={`Hapus filter ${chip.label}`}
+								onClick={() => update(chip.clear)}
+							>
+								<span className="max-w-60 truncate">{chip.label}</span>
+								<X data-icon="inline-end" aria-hidden="true" />
+							</Button>
+						))}
+						{chips.length > 1 && (
+							<Button type="button" variant="ghost" size="sm" onClick={clearAll}>
+								Hapus semua filter
+							</Button>
+						)}
+					</div>
+				)}
 
 				{load.state === "ready" && load.rows.length > 0 && (
 					<p className="text-sm tabular-nums" role="status">
@@ -342,24 +383,23 @@ export function CatalogListClient({
 										message: `Katalog gagal dimuat. ${load.error}`,
 										onRetry: () => void fetchPage(),
 									}
-								: { kind: "loading" }
+								: load.state === "denied"
+									? { kind: "denied", message: load.message }
+									: { kind: "loading" }
 					}
 					loadingLabel="Memuat katalog…"
 					empty={
 						filtered ? (
 							<>
-								<p>Tidak ada produk yang cocok dengan filter ini.</p>
-								<Button
-									type="button"
-									variant="outline"
-									size="sm"
-									onClick={() => update({ q: "", category: "", status: "", review: false })}
-								>
+								<p>Tidak ada produk yang cocok dengan filter ini. Ubah atau hapus filter untuk melihat produk lain.</p>
+								<Button type="button" variant="outline" size="sm" onClick={clearAll}>
 									Hapus filter
 								</Button>
 							</>
+						) : access.company ? (
+							"Katalog belum berisi produk. Produk muncul di sini setelah impor katalog."
 						) : (
-							"Katalog belum berisi produk."
+							"Belum ada produk dengan varian di gudang Anda. Produk muncul di sini setelah varian ditetapkan ke gudang Anda."
 						)
 					}
 					caption="Daftar produk katalog"
@@ -391,7 +431,7 @@ export function CatalogListClient({
 							cellClassName: "max-w-56 whitespace-normal",
 							cell: (r) => r.category_path ?? "Tanpa kategori",
 						},
-						{ id: "kinds", header: "Jenis varian", cell: kinds },
+						{ id: "kinds", header: "Jenis varian", hideBelow: "6xl", cell: kinds },
 						...(uniformPrice
 							? []
 							: [
@@ -492,8 +532,3 @@ export function ClaimBadge() {
 		</Badge>
 	);
 }
-
-const selectClass = cn(
-	"h-9 w-full rounded-md border border-input bg-background px-3 text-sm shadow-xs outline-none",
-	"focus-visible:border-ring focus-visible:ring-[3px] focus-visible:ring-ring/50",
-);

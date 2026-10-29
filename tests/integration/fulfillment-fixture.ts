@@ -13,6 +13,7 @@ import {expireOwnedOrderJob} from '../../src/modules/checkout/expiry.ts';
 import {readFixtureClock,advanceFixtureClock} from '../../src/modules/local/fixtures.ts';
 import {cleanup,type actor} from '../contract/access-fixture.ts';
 import {paymentFixture} from './payment-fixture.ts';
+import {deactivateFixtureWarehouses} from './shipping-fixture.ts';
 import {ownShippingCampaign} from './checkout-fixture.ts';
 
 export async function closeFulfillmentActor(identity:LocalAuth,user:{id:string;email:string}){
@@ -61,7 +62,7 @@ export async function fulfillmentFixture(method:'cod'|'prepaid'='cod',{calendars
     const [expiry]=await sql`select id,kind,payload from app.outbox_job where kind='checkout.order.expire' and payload->>'orderId'=${order.id}`;
     if(expiry)await sql.begin(tx=>expireOwnedOrderJob(tx,{id:expiry.id,kind:expiry.kind,payload:expiry.payload}));
     for(const reservation of Object.values(f.seeded.reservations)){await sql.begin(tx=>releaseReservation(tx,reservation,'SYNTHETIC fulfillment fixture finished'));await sql`delete from app.outbox_job where kind='inventory.reservation.expire' and payload->>'reservationId'=${reservation}`;}
-   }finally{try{await closeFulfillmentActor(f.identity,f.owner);}finally{await sql.end();}}
+   }finally{try{await closeFulfillmentActor(f.identity,f.owner);await deactivateFixtureWarehouses(f.identity,f.namespace);}finally{await sql.end();}}
   };
   return {...f,placeOrder:f.order,client,order,parcels,run,fulfillmentCall:call,book,close};
  }catch(error){try{await campaign?.close();}finally{await f.close();}throw error;}

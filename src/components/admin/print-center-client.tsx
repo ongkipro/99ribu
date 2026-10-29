@@ -3,7 +3,6 @@
 import { CircleAlert, CircleCheck, FileText, Printer } from "lucide-react";
 import { useEffect, useState } from "react";
 import { Alert, AlertDescription } from "@/components/ui/alert";
-import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import type {
@@ -44,6 +43,13 @@ const ARTIFACT_LABELS: Record<ShippingLabelArtifactResponse["status"], string> =
 		invalidated_by_cancellation: "Batal, jangan dicetak",
 		expired: "Kedaluwarsa",
 	};
+// A replaced or cancelled label must never be printed: danger; an expired one is just closed.
+const ARTIFACT_TONE: Record<ShippingLabelArtifactResponse["status"], StatusTone> = {
+	valid: "success",
+	invalidated_by_reissue: "danger",
+	invalidated_by_cancellation: "danger",
+	expired: "closed",
+};
 const PHONE_PAGE = 20;
 const FULFILLMENT_LABELS: Record<string, string> = {
 	preparing: "Disiapkan",
@@ -55,6 +61,8 @@ const FULFILLMENT_LABELS: Record<string, string> = {
 	exception: "Bermasalah",
 };
 const FULFILLMENT_TONE: Record<string, StatusTone> = {
+	picking: "progress",
+	packed: "progress",
 	handed_over: "done",
 	exception: "problem",
 };
@@ -380,14 +388,14 @@ export function PrintCenterClient({
 		p: string,
 	) =>
 		art ? (
-			<div className="flex flex-col gap-0.5">
-				<Badge
-					variant={art.status === "valid" ? "success" : "warning"}
-					data-testid={`${p}artifact-status-badge-${art.id}`}
+			<div className="flex flex-col items-start gap-0.5">
+				<StatusBadge
+					tone={ARTIFACT_TONE[art.status]}
+					testId={`${p}artifact-status-badge-${art.id}`}
 					data-status={art.status}
 				>
 					{ARTIFACT_LABELS[art.status]}
-				</Badge>
+				</StatusBadge>
 				<span className="text-xs text-muted-foreground">
 					{FORMAT_LABELS[art.format]}
 				</span>
@@ -569,7 +577,7 @@ export function PrintCenterClient({
 			>
 				<div className="flex flex-col gap-1">
 					<h2 id="shipments-queue-heading" className="text-base font-semibold">
-						Daftar Paket & Status Resi Gudang
+						Daftar paket dan status resi gudang
 					</h2>
 					<p className="text-xs text-muted-foreground">
 						Urutan: belum punya label, lalu sudah berlabel tetapi belum
@@ -586,7 +594,7 @@ export function PrintCenterClient({
 					rowKey={(s) => s.shipment_id}
 					status={{ kind: "ready" }}
 					loadingLabel="Memuat paket…"
-					empty="Belum ada paket gudang yang siap dicetak labelnya."
+					empty="Belum ada paket gudang di antrean label. Paket muncul di sini setelah pesanan lunas atau COD terkonfirmasi dialokasikan ke gudang Anda."
 					caption="Paket gudang dan status labelnya"
 					bodyTestId="print-shipment-list"
 					rowTestId={(s) => `print-shipment-row-${s.shipment_id}`}
@@ -764,13 +772,22 @@ export function PrintCenterClient({
 							cellClassName: "font-medium",
 							cell: (att) => ATTEMPT_KIND_LABELS[att.kind],
 						},
-						{ id: "outcome", header: "Hasil", cell: (att) => ATTEMPT_OUTCOME_LABELS[att.outcome] },
+						{
+							id: "outcome",
+							header: "Hasil",
+							stack: "status",
+							cell: (att) => (
+								<StatusBadge tone={att.outcome === "failed" ? "danger" : att.outcome === "completed" ? "done" : "progress"}>
+									{ATTEMPT_OUTCOME_LABELS[att.outcome]}
+								</StatusBadge>
+							),
+						},
 						{ id: "parcel", header: "Paket", cell: (att) => parcelName(att.shipment_id) },
 						{
 							id: "time",
 							header: "Waktu (WIB)",
 							stack: "meta",
-							className: "tabular-nums",
+							kind: "datetime",
 							cell: (att) => wibDateTime(att.created_at),
 						},
 						{

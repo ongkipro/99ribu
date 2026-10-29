@@ -5,7 +5,7 @@ import {
 	type Department,
 } from "../../../components/storefront/sections/category-grid";
 import { departmentTint } from "../../../components/storefront/sections/category-pills";
-import { sameOrigin } from "../../../components/storefront/ui/product-card";
+import { sameOrigin } from "../../../modules/storefront/format";
 import { departmentPhotos } from "../../../modules/storefront/department-photos";
 import { Shell } from "../../../components/storefront/shell";
 import { getLocalAuth } from "../../../modules/access/auth";

@@ -5,13 +5,13 @@ import { useCallback, useEffect, useId, useRef, useState } from "react";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Skeleton } from "@/components/ui/skeleton";
 import { Textarea } from "@/components/ui/textarea";
 import { rupiah, wibDateTime, wibInputToIso } from "@/modules/storefront/format";
 import { failureText, getJson } from "./admin-errors";
 import { DataTable, type DataTableStatus } from "./data-table";
 import { FormDialog, FormField } from "./form";
 import { send, useOperationKey } from "./ops-api";
+import { LoadingState } from "./states";
 import { StatusBadge } from "./status";
 
 // S134 / spec 17 B9 and A9: HPP (component) and offer cost-assumption version history with the append form.
@@ -55,7 +55,7 @@ const CODE_MESSAGES: Record<string, string> = {
 	VERSION_CONFLICT:
 		"Versi biaya sudah berubah sejak dialog dibuka. Riwayat dimuat ulang; tutup dialog, periksa versi terbaru, lalu buat versi baru.",
 	NOT_FOUND: "SKU atau varian ini tidak ditemukan.",
-	FORBIDDEN: "Peran Anda tidak boleh menulis biaya. Izin finance.costs.write diperlukan.",
+	FORBIDDEN: "Peran Anda tidak boleh menulis biaya. Minta Super Admin memberi izin tulis biaya.",
 };
 const money = (value: number | null | undefined) => (value === null || value === undefined ? "Belum diisi" : rupiah(value));
 
@@ -173,7 +173,7 @@ export function CostHistory({ kind, scopeId, subject, canWrite, onWritten, testI
 			stack: "title" as const,
 			className: "tabular-nums",
 			cell: (row: Version) => (
-				<span className="flex flex-wrap items-center gap-2">
+				<span className="flex flex-wrap items-center gap-2 tabular-nums">
 					{row.version}
 					{row.id === history?.current?.id ? (
 						<StatusBadge tone="success">Berlaku</StatusBadge>
@@ -187,7 +187,7 @@ export function CostHistory({ kind, scopeId, subject, canWrite, onWritten, testI
 			id: "from",
 			header: "Berlaku sejak",
 			stack: "meta" as const,
-			className: "tabular-nums",
+			kind: "datetime" as const,
 			cell: (row: Version) => wibDateTime(row.effective_from),
 		},
 		...(kind === "component"
@@ -198,8 +198,18 @@ export function CostHistory({ kind, scopeId, subject, canWrite, onWritten, testI
 					className: "text-right tabular-nums",
 					cell: (row: Version) => money(row[field]),
 				}))),
-		{ id: "source", header: "Sumber", cellClassName: "max-w-48 whitespace-normal", cell: (row: Version) => row.source },
-		{ id: "reason", header: "Alasan", cellClassName: "max-w-48 whitespace-normal", cell: (row: Version) => row.reason },
+		{
+			// One wrapping column: two narrow text columns were clipped inside the dialog ("Versi tersela").
+			id: "note",
+			header: "Sumber dan alasan",
+			cellClassName: "min-w-40 max-w-64 whitespace-normal",
+			cell: (row: Version) => (
+				<span className="flex min-w-0 flex-col gap-0.5 break-words">
+					<span>{row.source}</span>
+					<span className="text-xs text-muted-foreground">{row.reason}</span>
+				</span>
+			),
+		},
 	];
 
 	return (
@@ -211,7 +221,7 @@ export function CostHistory({ kind, scopeId, subject, canWrite, onWritten, testI
 				</Alert>
 			)}
 			{status.kind === "loading" && !history ? (
-				<Skeleton className="h-24 w-full" />
+				<LoadingState label="Memuat riwayat biaya…" lines={2} columns={4} />
 			) : (
 				<>
 					{history && (
@@ -234,7 +244,13 @@ export function CostHistory({ kind, scopeId, subject, canWrite, onWritten, testI
 									))}
 							</dl>
 							{canWrite && (
-								<Button type="button" size="sm" data-testid={`${testId}-new`} className="max-md:w-full" onClick={() => setDialog(true)}>
+								<Button type="button" size="sm" data-testid={`${testId}-new`} className="max-md:w-full"
+									onClick={() => {
+										// The last save's notice would outlive a conflict or cancel and name a superseded version.
+										setNotice(null);
+										setDialog(true);
+									}}
+								>
 									<Plus aria-hidden="true" />
 									Versi biaya baru
 								</Button>
@@ -243,7 +259,7 @@ export function CostHistory({ kind, scopeId, subject, canWrite, onWritten, testI
 					)}
 					{!canWrite && history && (
 						<p className="text-xs text-muted-foreground" data-testid={`${testId}-readonly`}>
-							Hanya baca. Menambah versi biaya memerlukan izin tulis biaya (finance.costs.write).
+							Hanya baca. Menambah versi biaya memerlukan izin tulis biaya dari Super Admin.
 						</p>
 					)}
 					<DataTable
@@ -251,7 +267,7 @@ export function CostHistory({ kind, scopeId, subject, canWrite, onWritten, testI
 						rowKey={(row) => row.id}
 						status={status}
 						loadingLabel="Memuat riwayat…"
-						empty="Belum ada versi biaya."
+						empty={canWrite ? "Belum ada versi biaya. Tambah versi pertama dengan Versi biaya baru." : "Belum ada versi biaya. Staf keuangan dengan izin tulis biaya mengisinya."}
 						caption={`Riwayat biaya ${subject}`}
 						testId={`${testId}-table`}
 						rowTestId={(row) => `${testId}-row-${row.version}`}
@@ -319,6 +335,7 @@ function CostVersionDialog({
 	const [reason, setReason] = useState("");
 	const [error, setError] = useState<string | null>(null);
 	const [pending, setPending] = useState(false);
+	const dirty = Object.values(amounts).some((v) => v.trim()) || when !== "now" || Boolean(at || source.trim() || reason.trim());
 	const fields = kind === "component" ? (["unit_cost"] as const) : ASSUMPTION_FIELDS;
 	const label = (field: string) => (field === "unit_cost" ? "HPP satuan (Rp)" : `${ASSUMPTION_LABELS[field as AssumptionField]} (Rp)`);
 
@@ -355,10 +372,11 @@ function CostVersionDialog({
 	return (
 		<FormDialog
 			title={`Versi biaya baru: ${subject}`}
-			description={`Menambah versi ${expectedVersion + 1}. Versi lama tidak diubah dan hanya waktu berlaku ke depan yang diterima. Kosongkan kolom yang belum diketahui; kosong tidak dihitung sebagai Rp0.`}
+			description={`Menambah versi ${capturedVersion + 1}. Versi lama tidak diubah dan hanya waktu berlaku ke depan yang diterima. Kosongkan kolom yang belum diketahui; kosong tidak dihitung sebagai Rp0.`}
 			pending={pending}
 			error={error}
 			submitLabel="Simpan versi"
+			dirty={dirty}
 			onClose={onClose}
 			onSubmit={() => void submit()}
 		>
@@ -397,7 +415,7 @@ function CostVersionDialog({
 						<Input
 							id={`${id}-at`}
 							data-testid={`${testId}-at`}
-							type="datetime-local"
+							type="datetime-local" lang="id"
 							aria-describedby={`${id}-at-hint`}
 							value={at}
 							onChange={(event) => setAt(event.target.value)}

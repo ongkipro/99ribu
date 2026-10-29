@@ -1,12 +1,7 @@
-import Link from "next/link";
+import { redirect } from "next/navigation";
 import { BuyerAccountClient } from "../../../components/storefront/buyer-account-client";
 import { Shell } from "../../../components/storefront/shell";
-import { SignOutButton } from "../../../components/storefront/sign-out-button";
-import { getLocalAuth } from "../../../modules/access/auth";
-import { readProfileCompletion } from "../../../modules/accounts/profile-completion";
-import { readBuyerAccountWorkspace } from "../../../modules/accounts/service";
-import { shippingFixture } from "../../../modules/shipping/address";
-import { storefrontRequest } from "../../../modules/storefront/browser";
+import { loadAccount } from "./load";
 
 export const dynamic = "force-dynamic";
 export const metadata = {
@@ -14,89 +9,15 @@ export const metadata = {
 	robots: { index: false, follow: false },
 };
 
+// Signed in: the account opens on its orders (Shopify customer accounts pattern). Signed out:
+// sign-in actions beside the guest order lookup.
 export default async function AccountPage() {
-	const req = await storefrontRequest("GET", "/akun");
-	const identity = getLocalAuth();
-	const workspace = await readBuyerAccountWorkspace(req, identity);
-	const completion = workspace.authenticated
-		? await readProfileCompletion(req, identity)
-				.then((data) => ({
-					...data,
-					destinations: shippingFixture().destinations.map(
-						({ id, province, city, district, postal_code }) => ({
-							id,
-							province,
-							city,
-							district,
-							postal_code,
-						}),
-					),
-				}))
-				.catch(() => null)
-		: null;
+	const { workspace } = await loadAccount("/akun", { orders: false, completion: false });
+	if (workspace.authenticated) redirect("/akun/pesanan");
 	return (
 		<Shell active="account">
-			<main id="main" className="wrap" style={{ paddingTop: "24px" }}>
-				<section className="notice-panel">
-					<h1>
-						{workspace.authenticated
-							? `Akun ${workspace.profile.display_name}`
-							: "Akun opsional"}
-					</h1>
-					<p>
-						Belanja Rp99.000 per pilihan tetap bisa dilakukan tanpa membuat
-						akun. Status pengiriman dan pembayaran selalu mengikuti tautan tanda
-						terima pesanan Anda.
-					</p>
-					{!workspace.authenticated && (
-						<p data-testid="account-signup-value">
-							Dengan akun: lacak pesanan dari halaman ini, simpan alamat untuk
-							belanja berikutnya, dan lihat riwayat belanja.
-						</p>
-					)}
-					{workspace.authenticated ? (
-						<div className="notice-actions">
-							<Link className="button" href="/">
-								Belanja produk
-							</Link>
-							<Link className="button button-secondary" href="/bantuan">
-								Bantuan pesanan
-							</Link>
-							<SignOutButton to="/" />
-						</div>
-					) : (
-						// S123: signed out, the account actions lead; Daftar opens the sign-up modal.
-						<div className="notice-actions">
-							<Link
-								className="button"
-								href="/masuk?langkah=daftar&next=%2Fakun"
-							>
-								Daftar
-							</Link>
-							<Link
-								className="button button-secondary"
-								href="/masuk?next=%2Fakun"
-							>
-								Masuk
-							</Link>
-							<Link className="button button-secondary" href="/">
-								Belanja produk
-							</Link>
-							<Link className="button button-secondary" href="/bantuan">
-								Bantuan pesanan
-							</Link>
-						</div>
-					)}
-				</section>
-				<BuyerAccountClient
-					initialAuthenticated={workspace.authenticated}
-					initialProfile={workspace.profile}
-					initialAddresses={workspace.addresses}
-					initialPreferences={workspace.preferences}
-					initialNotifications={workspace.notifications}
-					initialOrders={workspace.orders}
-					initialCompletion={completion}
-				/>
+			<main id="main" className="wrap account-page">
+				<BuyerAccountClient view="signed-out" initialAuthenticated={false} initialProfile={null} initialAddresses={null} initialPreferences={null} initialNotifications={[]} initialOrders={[]} />
 			</main>
 		</Shell>
 	);

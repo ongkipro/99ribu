@@ -2,7 +2,7 @@
 
 import { cn } from "cn";
 import { SlidersHorizontal } from "lucide-react";
-import { type ReactNode, useEffect, useRef, useState } from "react";
+import { createContext, type ReactNode, useContext, useEffect, useId, useRef, useState } from "react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import {
@@ -38,11 +38,14 @@ export function FormField({
 	id,
 	label,
 	hint,
+	invalid = false,
 	className,
 	children,
 }: {
 	/** e.g. "w-auto" for an inline filter row; fields are full width by default. */
 	className?: string;
+	/** The hint is an error: label and hint turn destructive (the control still sets aria-invalid). */
+	invalid?: boolean;
 	/** id of the control inside `children`; the label points at it. */
 	id: string;
 	label: ReactNode;
@@ -51,7 +54,7 @@ export function FormField({
 	children: ReactNode;
 }) {
 	return (
-		<Field className={cn("gap-1.5", className)}>
+		<Field className={cn("gap-1.5", className)} data-invalid={invalid || undefined}>
 			<FieldLabel htmlFor={id}>{label}</FieldLabel>
 			{children}
 			{hint && (
@@ -173,6 +176,13 @@ export function FilterSheet({
 	);
 }
 
+/**
+ * Id of the open FormDialog's error line while it shows, else undefined. A field inside the dialog
+ * adds it to its aria-describedby so the refusal is read with the control it concerns.
+ */
+const FormDialogErrorContext = createContext<string | undefined>(undefined);
+export const useFormDialogErrorId = () => useContext(FormDialogErrorContext);
+
 export function FormDialog({
 	title,
 	description,
@@ -183,6 +193,8 @@ export function FormDialog({
 	onClose,
 	onSubmit,
 	className,
+	dirty = false,
+	destructive = false,
 	children,
 }: {
 	title: ReactNode;
@@ -195,13 +207,28 @@ export function FormDialog({
 	pendingLabel?: string;
 	onClose: () => void;
 	onSubmit: () => void;
+	/**
+	 * Unsaved input: Esc, the overlay, the close button and Batal first ask "Buang perubahan?"
+	 * ("Lanjut mengedit" focused, "Buang" closes). Off: they close at once, as before.
+	 */
+	dirty?: boolean;
+	/** The submit is a destructive action: destructive button; focus never starts on it. */
+	destructive?: boolean;
 	children: ReactNode;
 }) {
+	const errorId = useId();
+	const [confirming, setConfirming] = useState(false);
+	const keepRef = useRef<HTMLButtonElement>(null);
+	const requestClose = () => {
+		if (pending) return;
+		if (dirty) setConfirming(true);
+		else onClose();
+	};
 	return (
 		<Dialog
 			open
 			onOpenChange={(next) => {
-				if (!next && !pending) onClose();
+				if (!next) requestClose();
 			}}
 		>
 			<DialogContent
@@ -217,32 +244,80 @@ export function FormDialog({
 					}}
 				>
 					<DialogHeader>
+						{/* DialogTitle keeps clear of the corner close button and wraps long names. */}
 						<DialogTitle>{title}</DialogTitle>
 						{description && (
 							<DialogDescription>{description}</DialogDescription>
 						)}
 					</DialogHeader>
-					{children}
+					<FormDialogErrorContext value={error ? errorId : undefined}>
+						{children}
+					</FormDialogErrorContext>
+					{/* Inside the dialog, next to the entered values (they stay); role=alert announces it. */}
 					{error && (
-						<p role="alert" className="text-sm text-destructive">
+						<p id={errorId} role="alert" className="text-sm text-destructive">
 							{error}
 						</p>
 					)}
+					{/* Batal comes first in the DOM, so a destructive submit never takes the first focus. */}
 					<DialogFooter>
 						<Button
 							type="button"
 							variant="outline"
 							disabled={pending}
-							onClick={onClose}
+							onClick={requestClose}
 						>
 							Batal
 						</Button>
-						<Button type="submit" disabled={pending}>
+						<Button
+							type="submit"
+							variant={destructive ? "destructive" : "default"}
+							disabled={pending}
+						>
 							{pending ? pendingLabel : submitLabel}
 						</Button>
 					</DialogFooter>
 				</form>
 			</DialogContent>
+			{/* Nested modal: Esc or the overlay here only closes the question, the form stays. */}
+			<Dialog open={confirming} onOpenChange={setConfirming}>
+				<DialogContent
+					role="alertdialog"
+					showCloseButton={false}
+					className="sm:max-w-sm"
+					onOpenAutoFocus={(event) => {
+						event.preventDefault();
+						keepRef.current?.focus();
+					}}
+				>
+					<DialogHeader>
+						<DialogTitle>Buang perubahan?</DialogTitle>
+						<DialogDescription>
+							Isian yang belum disimpan di formulir ini akan hilang.
+						</DialogDescription>
+					</DialogHeader>
+					<DialogFooter>
+						<Button
+							type="button"
+							variant="outline"
+							ref={keepRef}
+							onClick={() => setConfirming(false)}
+						>
+							Lanjut mengedit
+						</Button>
+						<Button
+							type="button"
+							variant="destructive"
+							onClick={() => {
+								setConfirming(false);
+								onClose();
+							}}
+						>
+							Buang
+						</Button>
+					</DialogFooter>
+				</DialogContent>
+			</Dialog>
 		</Dialog>
 	);
 }

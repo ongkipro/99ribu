@@ -32,9 +32,11 @@ import { rupiah } from "../../src/modules/storefront/format.ts";
 import { actor, cleanup, enroll } from "../contract/access-fixture.ts";
 import { CommerceClient } from "../integration/checkout-fixture.ts";
 
-const css = readFileSync(
-	new URL("../../src/app/globals.css", import.meta.url),
-	"utf8",
+// globals.css only @imports the ordered files under src/app/styles; inline them in that order.
+const cssRoot = new URL("../../src/app/globals.css", import.meta.url);
+const css = readFileSync(cssRoot, "utf8").replace(
+	/@import "(.+?)";\n/g,
+	(_, path: string) => readFileSync(new URL(path, cssRoot), "utf8"),
 );
 
 function escapeHtml(value: string) {

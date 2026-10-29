@@ -334,14 +334,14 @@ test("client budget keys: IPv4 as is, IPv6 by its /64, IPv4-mapped IPv6 as IPv4"
   assert.notEqual(addressBucket("2001:db8:1:2::a"), addressBucket("2001:db8:1:3::a"));
 });
 
-test("production database TLS: plaintext only on a private network, an external database requires TLS", () => {
+test("production database TLS: plaintext only on a private network, an external database requires verified TLS", () => {
   const database = (change: Record<string, string>) => productionDatabase({ ...production, ...change }, "app");
   for (const host of ["postgres-99ribu", "db.internal", "pg.local", "10.0.0.5", "172.20.1.1", "192.168.1.10", "127.0.0.1", "fd00::5", "::1"]) {
     assert.equal(database({ DATABASE_HOST: host }).ssl, false, host);
   }
   for (const host of ["203.0.113.5", "172.32.0.1", "8.8.8.8", "db.example.com", "2001:db8::5"]) {
-    assert.throws(() => database({ DATABASE_HOST: host }), /DATABASE_SSL must be require or verify-full/, host);
-    assert.equal(database({ DATABASE_HOST: host, DATABASE_SSL: "require" }).ssl, "require");
+    assert.throws(() => database({ DATABASE_HOST: host }), /DATABASE_SSL must be verify-full/, host);
+    assert.throws(() => database({ DATABASE_HOST: host, DATABASE_SSL: "require" }), /DATABASE_SSL must be verify-full/, host);
     assert.equal(database({ DATABASE_HOST: host, DATABASE_SSL: "verify-full" }).ssl, "verify-full");
   }
   for (const mode of ["prefer", "allow", "true", "VERIFY-FULL"]) assert.throws(() => database({ DATABASE_SSL: mode }), /DATABASE_SSL must be disable, require or verify-full/);
@@ -411,4 +411,16 @@ test("production Next config hides public/prototypes; the local config does not 
   const saved = process.env;
   process.env = { ...local } as NodeJS.ProcessEnv;
   try { assert.equal((await import(`../next.config.ts?profile=${"local"}`)).default.rewrites, undefined); } finally { process.env = saved; }
+});
+
+
+test("production database preserves IPv6 literals in driver connection options", async () => {
+  const saved = process.env;
+  process.env = { NODE_ENV: "production", ...production, DATABASE_HOST: "fd00::5" };
+  try {
+    const { sql } = connectDatabase("production");
+    assert.deepEqual(sql.options.host, ["fd00::5"]);
+    assert.deepEqual(sql.options.port, [5432]);
+    await sql.end();
+  } finally { process.env = saved; }
 });

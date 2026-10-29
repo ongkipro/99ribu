@@ -3,8 +3,10 @@
 import { cn } from "cn";
 import { CircleAlert, Download, Info, Printer, X } from "lucide-react";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { Alert, AlertDescription } from "@/components/ui/alert";
+import { Skeleton } from "@/components/ui/skeleton";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import {
@@ -24,7 +26,7 @@ import { CardActions, CardMeta, CardStatus, CardTitle, DataTable } from "./data-
 import { nativeSelectClass, SegmentedControl } from "./form";
 import { KpiCard, KpiGrid } from "./kpi-card";
 import { AdminPage, Disclosure, PageHeader } from "./page-blocks";
-import { ErrorState, LoadingState } from "./states";
+import { ErrorState } from "./states";
 import { Deadline, StatusBadge } from "./status";
 import { adminPath } from "@/modules/access/admin-paths";
 
@@ -258,7 +260,7 @@ const KIND_LABELS: Record<string, string> = {
 };
 
 // Tones of StatusBadge (status.tsx); "closed" is terminal without success.
-type Tone = "open" | "problem" | "done" | "closed";
+type Tone = "open" | "progress" | "problem" | "done" | "closed";
 
 // [label, tone] per state; per-kind entries override the shared ones.
 const SHARED_STATES: Record<string, [string, Tone]> = {
@@ -267,12 +269,12 @@ const SHARED_STATES: Record<string, [string, Tone]> = {
 	exception: ["Bermasalah", "problem"],
 	unknown: ["Status tidak diketahui", "problem"],
 	resolved: ["Selesai", "done"],
-	refunding: ["Pengembalian dana berjalan", "open"],
+	refunding: ["Pengembalian dana berjalan", "progress"],
 };
 const KIND_STATES: Record<string, Record<string, [string, Tone]>> = {
 	order: {
-		processing: ["Diproses", "open"],
-		partially_completed: ["Selesai sebagian", "open"],
+		processing: ["Diproses", "progress"],
+		partially_completed: ["Selesai sebagian", "done"],
 		cancelled: ["Dibatalkan", "closed"],
 	},
 	fulfillment: {
@@ -298,7 +300,7 @@ const KIND_STATES: Record<string, Record<string, [string, Tone]>> = {
 		rejected: ["Ditolak", "closed"],
 		awaiting_goods: ["Menunggu barang", "open"],
 		inspecting: ["Diperiksa", "open"],
-		replacing: ["Penggantian berjalan", "open"],
+		replacing: ["Penggantian berjalan", "progress"],
 	},
 	stock_item: {
 		in_stock: ["Tersedia", "done"],
@@ -1013,13 +1015,26 @@ export function AdminWorkspacesClient({
 	const isMobile = useIsMobile();
 	const compactQueue = isMobile && view === "dashboard";
 	const shownRows = compactQueue ? rows.slice(0, PHONE_QUEUE_ROWS) : rows;
-	const queuePageHref = `/admin/queue?${new URLSearchParams({
-		workspace,
-		queue,
-		window: windowRange,
-		...(metricKey && activeMetric?.queue_key === queue ? { metric: metricKey } : {}),
-		...(warehouseId ? { warehouse_id: warehouseId } : {}),
-	})}`;
+	const queueHref = (q: QueueKey, metric: string | null) =>
+		`/admin/queue?${new URLSearchParams({
+			workspace,
+			queue: q,
+			window: windowRange,
+			...(metric ? { metric } : {}),
+			...(warehouseId ? { warehouse_id: warehouseId } : {}),
+		})}`;
+	const queuePageHref = queueHref(queue, metricKey && activeMetric?.queue_key === queue ? metricKey : null);
+	const router = useRouter();
+	// Phones: a card opens its filtered queue as its own page (the full list, Back returns here);
+	// wider screens filter the queue below the cards.
+	const drilldown = (m: DashboardMetric) => {
+		if (compactQueue) {
+			router.push(queueHref(m.queue_key, m.key));
+			return;
+		}
+		openQueue(m.queue_key, m);
+		focusQueue();
+	};
 	const queueCount = queueTotal ?? (nextCursor ? `${rows.length}+` : String(rows.length));
 	const openExport = (mode: "filter" | "selection") => {
 		exportOpenerRef.current = document.activeElement as HTMLElement | null;
@@ -1321,11 +1336,23 @@ export function AdminWorkspacesClient({
 				aria-labelledby="kpi-section-heading"
 				className="flex flex-col gap-2"
 			>
-				<h2 id="kpi-section-heading" className="text-sm font-semibold max-md:sr-only">
+				<h2 id="kpi-section-heading" className="text-base font-semibold max-md:sr-only">
 					Antrean kerja · {WINDOW_LABELS[windowRange]}
 				</h2>
 				{dashState === "loading" ? (
-					<LoadingState label="Memuat ringkasan…" className="h-14 w-full max-w-md" />
+					// Same shape as the loaded grid: a few count cards.
+					<div className="flex flex-col gap-2" aria-busy="true" aria-live="polite">
+						<p className="text-sm text-muted-foreground">Memuat ringkasan…</p>
+						<ul aria-hidden="true" className="grid grid-cols-[repeat(auto-fill,minmax(min(100%,10rem),1fr))] gap-2">
+							{[0, 1, 2, 3].map((i) => (
+								<li key={i} className="flex flex-col gap-2 rounded-lg border p-4">
+									<Skeleton className="h-3 w-2/3 bg-border/70" />
+									<Skeleton className="h-6 w-12 bg-border/70" />
+									<Skeleton className="h-3 w-1/2 bg-border/70" />
+								</li>
+							))}
+						</ul>
+					</div>
 				) : dashState === "error" ? (
 					<ErrorState
 						message={`Ringkasan gagal dimuat. ${dashError ?? ""}`}
@@ -1360,10 +1387,7 @@ export function AdminWorkspacesClient({
 										tone={kpiTone(m)}
 										reserveAction={countMetrics.some((x) => actionLabel(x.action_href))}
 										drilldownLabel="Lihat baris"
-										onDrilldown={() => {
-											openQueue(m.queue_key, m);
-											focusQueue();
-										}}
+										onDrilldown={() => drilldown(m)}
 										action={m.action_href && action ? { href: m.action_href, label: action } : null}
 									/>
 								);
@@ -1559,7 +1583,7 @@ export function AdminWorkspacesClient({
 					emptyTestId="empty-queue-message"
 					empty={
 						filterToken
-							? "Tidak ada baris untuk filter ini."
+							? `Tidak ada baris yang cocok dengan filter ${(METRIC_LABELS[metricKey ?? ""] ?? "ini").toLowerCase()} saat ini. Hapus filter untuk melihat seluruh antrean.`
 							: `Belum ada ${QUEUE_LABELS[queue].toLowerCase()} pada ${WINDOW_LABELS[windowRange]} dalam cakupan Anda.`
 					}
 					caption={`Antrean ${QUEUE_LABELS[queue]}`}
@@ -1594,7 +1618,8 @@ export function AdminWorkspacesClient({
 									{
 										id: "time",
 										header: timeLabel,
-										className: hasRowActions ? "hidden tabular-nums xl:table-cell" : "tabular-nums",
+										kind: "datetime" as const,
+										className: hasRowActions ? "hidden xl:table-cell" : undefined,
 										cell: (item: WorkQueueItem) => (
 											<>
 												{rowTimeLabel(item) !== timeLabel && (
@@ -1713,10 +1738,7 @@ export function AdminWorkspacesClient({
 									}
 									active={metricKey === m.key}
 									drilldownLabel={`Lihat antrean ${QUEUE_LABELS[m.queue_key].toLowerCase()}`}
-									onDrilldown={() => {
-										openQueue(m.queue_key, m);
-										focusQueue();
-									}}
+									onDrilldown={() => drilldown(m)}
 									action={m.action_href && action ? { href: m.action_href, label: action } : null}
 								/>
 							);

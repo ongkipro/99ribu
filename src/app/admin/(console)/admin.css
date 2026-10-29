@@ -18,6 +18,22 @@
 /* Light-only admin (spec 10): `dark:` must never follow the OS preference. */
 @custom-variant dark (&:is(.dark *));
 
+/*
+ * Sidebar icon rail (spec 10). Collapsed by state, or, before the first client effect has
+ * settled the state (`data-rail="auto"` on the sidebar wrapper, admin-shell.tsx), by the tablet
+ * media query, so the server's first paint at 768-1023px is already the rail.
+ */
+@custom-variant sidebar-icon {
+	&:is(:where([data-slot="sidebar"])[data-collapsible="icon"] *) {
+		@slot;
+	}
+	@media (width >= 48rem) and (width < 64rem) {
+		&:is(:where([data-rail="auto"]) [data-slot="sidebar"] *) {
+			@slot;
+		}
+	}
+}
+
 /* Brand tokens from globals.css (#5b35d5 purple, #18181b ink, #d8d8df line). */
 :root {
 	--radius: 0.5rem;

@@ -14,6 +14,7 @@ import {handleInventory} from '../../src/modules/inventory/routes.ts';
 import {seedCommerce} from '../../src/modules/local/commerce.ts';
 import {advanceFixtureClock,readFixtureClock} from '../../src/modules/local/fixtures.ts';
 import {actor,cleanup,enroll} from '../contract/access-fixture.ts';
+import {deactivateFixtureWarehouses} from './shipping-fixture.ts';
 const exec=promisify(execFile);
 const namespace=()=>`s18-${randomUUID().slice(0,12)}`;
 const denied=(code:string)=>(error:unknown)=>error instanceof Error&&'code' in error&&error.code===code;
@@ -21,7 +22,7 @@ async function setup(){
  const identity=createLocalAuth('test');const owner=await actor(identity,'owner',[]);await enroll(owner.browser,owner.password);const users=[owner];const ns=namespace();
  const request=()=>owner.browser.request('/api/v1/admin/local-fixture-command');
  const seed=()=>seedCommerce(request(),identity,'test',ns);
- const close=async()=>{await cleanup(identity,users);await identity.sql.end();};return {identity,owner,users,ns,request,seed,close};
+ const close=async()=>{await deactivateFixtureWarehouses(identity,ns);await cleanup(identity,users);await identity.sql.end();};return {identity,owner,users,ns,request,seed,close};
 }
 
 test('two authenticated seed callers converge on stable catalog/stock/cost identities with real guarded publication',async()=>{

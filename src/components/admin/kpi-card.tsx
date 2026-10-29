@@ -9,7 +9,8 @@ import { Button } from "@/components/ui/button";
 // S113: the one KPI card of the console. Every card opens its drilldown queue (the exact rows
 // behind the number, same SQL fragment) and, when the principal can open it, the screen where
 // staff act on it. Count and money cards differ only in value size and the basis badge.
-// Tone ranks the grid: "attention" (a non-zero queue someone must work: warning edge + icon),
+// Tone ranks the grid: "attention" (a non-zero queue someone must work: amber border, icon and
+// amber label; no edge stripe or tinted fill),
 // "idle" (zero: muted), "neutral" (informational). Descriptions clamp to two lines (the full text
 // lives in the page's "Arti setiap angka" disclosure) and hide below md, so the links align.
 // Phones (admin mobile pass): the whole card is the drilldown target (a chevron marks it) and
@@ -55,8 +56,8 @@ export function KpiCard({
 			data-testid={`kpi-card-${metricKey}`}
 			data-tone={tone}
 			className={cn(
-				"relative flex min-w-0 flex-col gap-1.5 rounded-lg border bg-card p-3",
-				tone === "attention" && "border-l-4 border-l-warning bg-warning-surface",
+				"relative flex min-w-0 flex-col gap-2 rounded-lg border bg-card p-4",
+				tone === "attention" && "border-warning/50",
 				// Below md a zero queue is listed in one line under the grid instead (phone = task subset).
 				tone === "idle" && "bg-muted/40 max-md:hidden",
 				active && "border-primary ring-1 ring-primary",
@@ -133,9 +134,11 @@ export function KpiGrid({
 	children,
 	testId,
 	money = false,
+	className,
 }: {
 	children: ReactNode;
 	testId?: string;
+	className?: string;
 	/** Rupiah values need wider cards from md (they never wrap mid-number). */
 	money?: boolean;
 }) {
@@ -145,6 +148,7 @@ export function KpiGrid({
 			className={cn(
 				"grid grid-cols-[repeat(auto-fill,minmax(min(100%,10rem),1fr))] gap-2",
 				money && "md:grid-cols-[repeat(auto-fill,minmax(min(100%,12.5rem),1fr))]",
+				className,
 			)}
 		>
 			{children}

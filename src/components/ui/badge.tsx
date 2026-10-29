@@ -14,8 +14,10 @@ const badgeVariants = cva(
           "bg-secondary text-secondary-foreground [a]:hover:bg-secondary/80",
         destructive:
           "bg-destructive/10 text-destructive focus-visible:ring-destructive/20 dark:bg-destructive/20 dark:focus-visible:ring-destructive/40 [a]:hover:bg-destructive/20",
-        warning: "bg-warning-surface text-warning",
-        success: "bg-success-surface text-success",
+        // Status surfaces (admin status.tsx): each text colour keeps >= 4.5:1 on its own surface.
+        warning: "border-warning/30 bg-warning-surface text-warning",
+        success: "border-success/30 bg-success-surface text-success",
+        muted: "border-border bg-muted text-muted-foreground",
         outline:
           "border-border text-foreground [a]:hover:bg-muted [a]:hover:text-muted-foreground",
         ghost:

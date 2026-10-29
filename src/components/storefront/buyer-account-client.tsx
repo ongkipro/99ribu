@@ -1,13 +1,17 @@
 "use client";
 
-import { useRef, useState } from "react";
+import Link from "next/link";
+import { useEffect, useRef, useState } from "react";
+import { maskedEmail } from "@/modules/accounts/masking";
+import type { AccountOrder } from "@/modules/accounts/order-summary";
 import type {
 	BuyerAddressListResponse,
 	BuyerProfileResponse,
 	NotificationPreferenceResponse,
 	PrivateNotificationResponse,
 } from "@/modules/accounts/service";
-import type { ProjectedOrder } from "@/modules/orders/receipt";
+import { AccountNavigation, type AccountView } from "./account/navigation";
+import { AccountOrders } from "./account/orders";
 import {
 	displayPhone,
 	looksLikeWhatsApp,
@@ -15,26 +19,31 @@ import {
 	WHATSAPP_HINT,
 	WHATSAPP_PATTERN,
 } from "@/modules/storefront/contact";
-import { rupiah } from "@/modules/storefront/format";
+import { SignOutButton } from "./sign-out-button";
 import {
 	type CompletionData,
+	ProfileAddress,
 	ProfileCompletion,
 	PromoConsents,
 } from "./profile-completion";
 import { EmailSuggestion, filterContact } from "./ui/contact-fields";
+import { Icon } from "./ui/icon";
 
 type Props = {
+	/** Which account page renders: the three signed-in tabs, or the signed-out sign-in and guest lookup. */
+	view: AccountView | "signed-out";
 	initialAuthenticated: boolean;
 	initialProfile: BuyerProfileResponse | null;
 	initialAddresses: BuyerAddressListResponse | null;
 	initialPreferences: NotificationPreferenceResponse | null;
 	initialNotifications: PrivateNotificationResponse[];
-	initialOrders: ProjectedOrder[];
+	initialOrders: AccountOrder[];
 	// S126: null when signed out or when the completion read failed (the rest of the account still works).
 	initialCompletion?: CompletionData | null;
 };
 
 export function BuyerAccountClient({
+	view,
 	initialAuthenticated,
 	initialProfile,
 	initialAddresses,
@@ -47,12 +56,13 @@ export function BuyerAccountClient({
 	const [addresses, setAddresses] = useState(initialAddresses);
 	const [preferences, setPreferences] = useState(initialPreferences);
 	const [notifications, setNotifications] = useState(initialNotifications);
-	const [orders] = useState(initialOrders);
 	const [displayName, setDisplayName] = useState(
 		initialProfile?.display_name ?? "",
 	);
 	const [statusMsg, setStatusMsg] = useState<string | null>(null);
 	const [editingPhone, setEditingPhone] = useState(false);
+	// The profile shows as a summary; its form opens on "Ubah" and closes after a save.
+	const [editingProfile, setEditingProfile] = useState(false);
 	const [phone, setPhone] = useState("");
 	// One action at a time: every account action shares one busy state, so a double click or a
 	// second control cannot send a duplicate request (fresh idempotency keys would not dedupe it,
@@ -90,6 +100,17 @@ export function BuyerAccountClient({
 	const [guestChallengeId, setGuestChallengeId] = useState<string | null>(null);
 	const [guestOtp, setGuestOtp] = useState("");
 	const [recoveredOrderId, setRecoveredOrderId] = useState<string | null>(null);
+	const guestPanel = useRef<HTMLDetailsElement>(null);
+	useEffect(() => {
+		if (initialAuthenticated) return;
+		const desktop = window.matchMedia("(min-width: 701px)");
+		const syncDisclosure = () => {
+			if (guestPanel.current) guestPanel.current.open = desktop.matches;
+		};
+		syncDisclosure();
+		desktop.addEventListener("change", syncDisclosure);
+		return () => desktop.removeEventListener("change", syncDisclosure);
+	}, [initialAuthenticated]);
 
 	async function handleProfileSaveRun(e: React.FormEvent) {
 		e.preventDefault();
@@ -114,6 +135,7 @@ export function BuyerAccountClient({
 			const updated = (await res.json()) as BuyerProfileResponse;
 			setProfile(updated);
 			setEditingPhone(false);
+			setEditingProfile(false);
 			setStatusMsg("Profil berhasil diperbarui.");
 		} else {
 			const problem = (await res.json().catch(() => null)) as {
@@ -332,407 +354,586 @@ export function BuyerAccountClient({
 	const handleRequestGuestRecovery = guard(handleRequestGuestRecoveryRun);
 	const handleVerifyGuestRecovery = guard(handleVerifyGuestRecoveryRun);
 
+	const maskedContact = profile?.phone
+		? maskedPhone(profile.phone)
+		: (maskedEmail(profile?.email) ?? "Belum ada kontak");
+
 	return (
 		<div className="buyer-account-workspace" data-testid="buyer-account-root">
-			{statusMsg && (
-				<output className="checkout-hint" data-testid="account-status-banner">
-					{statusMsg}
-				</output>
-			)}
-
-			{initialAuthenticated && profile ? (
-				<div className="receipt-layout">
-					<div className="receipt-primary">
-						{initialCompletion && (
-							<ProfileCompletion
-								{...initialCompletion}
-								profile={profile}
-								addresses={addresses}
-								onAddresses={setAddresses}
-								onStatus={setStatusMsg}
-							/>
-						)}
-						<section
-							className="receipt-card"
-							aria-labelledby="account-profile-heading"
-							data-testid="account-profile-section"
+			{view !== "signed-out" && initialAuthenticated && profile ? (
+				<>
+					<header className="account-header">
+						<span className="account-avatar" aria-hidden="true">
+							{profile.display_name.trim().slice(0, 1).toUpperCase()}
+						</span>
+						<div className="account-identity">
+							<h1>{profile.display_name}</h1>
+							<p className="account-meta">{maskedContact}</p>
+						</div>
+						<div className="account-actions">
+							<Link className="button button-secondary" href="/">
+								Belanja
+							</Link>
+							<SignOutButton to="/" />
+						</div>
+					</header>
+					<AccountNavigation current={view} />
+					{/* Feedback sits under the tabs, next to the card that changed, not above the identity header. */}
+					{statusMsg && (
+						<output
+							className="account-status"
+							data-testid="account-status-banner"
 						>
-							<h2 id="account-profile-heading">Profil & Identitas Pembeli</h2>
-							{/* noValidate: the WhatsApp check answers with its own message (the pattern stays for no-JS hints). */}
-							<form onSubmit={handleProfileSave} noValidate>
-								<label htmlFor="buyer-display-name">
-									Nama tampilan (mendukung nama satu kata / mononim)
-								</label>
-								<input
-									id="buyer-display-name"
-									data-testid="profile-display-name-input"
-									type="text"
-									value={displayName}
-									onChange={(e) => setDisplayName(e.target.value)}
-									maxLength={120}
-									required
-								/>
-								{/* S123: the WhatsApp contact, masked except the last 4 digits until the buyer edits it. */}
-								<label htmlFor="buyer-phone">Nomor WhatsApp</label>
-								{editingPhone ? (
-									<>
-										<input
-											id="buyer-phone"
-											data-testid="profile-phone-input"
-											type="tel"
-											inputMode="numeric"
-											autoComplete="tel"
-											maxLength={24}
-											pattern={WHATSAPP_PATTERN}
-											placeholder="08…"
-											value={phone}
-											onChange={(e) => setPhone(filterContact(e))}
-											aria-describedby="buyer-phone-hint"
-										/>
-										<p id="buyer-phone-hint" className="checkout-hint">
-											Diawali 08. Kosongkan untuk menghapus.
-										</p>
-									</>
-								) : (
-									<p className="checkout-hint">
-										<strong data-testid="profile-phone">
-											{profile.phone
-												? maskedPhone(profile.phone)
-												: "Belum diatur"}
-										</strong>{" "}
-										{/* A verified number changes only through a contact-change challenge (server: VERIFIED_PHONE_LOCKED). */}
-										{profile.phone_verified ? (
-											"(terverifikasi)"
-										) : (
+							{statusMsg}
+						</output>
+					)}
+					<div className="account-content">
+						{view === "orders" && <AccountOrders orders={initialOrders} />}
+						{view === "profile" && (
+							<>
+								<section
+									className="account-section"
+									aria-labelledby="account-profile-title"
+									data-testid="account-profile-section"
+								>
+									<div className="account-section-head">
+										<h2 id="account-profile-title">Data diri</h2>
+										{!editingProfile && (
 											<button
 												type="button"
-												className="contact-suggest-fix"
-												data-testid="profile-phone-edit"
+												className="button button-secondary"
+												data-testid="profile-edit-button"
 												onClick={() => {
-													setPhone(displayPhone(profile.phone));
-													setEditingPhone(true);
+													setDisplayName(profile.display_name);
+													setEditingProfile(true);
 												}}
 											>
 												Ubah
 											</button>
 										)}
-									</p>
-								)}
-								<p className="checkout-hint">
-									Email:{" "}
-									<strong data-testid="profile-email">
-										{profile.email ?? "Belum diatur (opsional)"}
-									</strong>{" "}
-									· Versi:{" "}
-									<span data-testid="profile-version">v{profile.version}</span>
-								</p>
-								<button
-									disabled={busy}
-									type="submit"
-									className="button"
-									data-testid="profile-save-button"
-								>
-									Simpan profil
-								</button>
-							</form>
-						</section>
-
-						<section
-							className="receipt-card"
-							aria-labelledby="account-addresses-heading"
-							data-testid="account-addresses-section"
-						>
-							<h2 id="account-addresses-heading">
-								Buku Alamat Pengiriman (Revisi v{addresses?.book_version ?? 0})
-							</h2>
-							{addresses && addresses.data.length > 0 ? (
-								<ul
-									className="receipt-parcel-items"
-									data-testid="address-book-list"
-								>
-									{addresses.data.map((item) => (
-										<li
-											key={item.id}
-											data-testid={`address-card-${item.id}`}
-											data-default={item.is_default}
-										>
-											<div>
-												<strong>
-													{item.address.label ?? "Alamat"} ·{" "}
-													{item.address.recipient_name}
-												</strong>{" "}
-												{item.is_default && (
-													<span
-														className="receipt-badge"
-														data-testid="default-address-badge"
-													>
-														Utama
-													</span>
+									</div>
+									{editingProfile ? (
+										<form onSubmit={handleProfileSave} noValidate>
+											<div className="account-field">
+												<label htmlFor="buyer-display-name">Nama</label>
+												<input
+													id="buyer-display-name"
+													data-testid="profile-display-name-input"
+													type="text"
+													autoComplete="name"
+													value={displayName}
+													onChange={(e) => setDisplayName(e.target.value)}
+													maxLength={120}
+													required
+												/>
+											</div>
+											<div className="account-field">
+												{editingPhone ? (
+													<>
+														<label htmlFor="buyer-phone">Nomor WhatsApp</label>
+														<input
+															id="buyer-phone"
+															data-testid="profile-phone-input"
+															type="tel"
+															inputMode="numeric"
+															autoComplete="tel"
+															maxLength={24}
+															pattern={WHATSAPP_PATTERN}
+															placeholder="08…"
+															value={phone}
+															onChange={(e) => setPhone(filterContact(e))}
+															aria-describedby="buyer-phone-hint"
+														/>
+														<p id="buyer-phone-hint" className="checkout-hint">
+															Diawali 08. Kosongkan untuk menghapus.
+														</p>
+													</>
+												) : (
+													<>
+														<span className="account-field-label">
+															Nomor WhatsApp
+														</span>
+														<p className="account-field-value">
+															<span data-testid="profile-phone">
+																{profile.phone
+																	? maskedPhone(profile.phone)
+																	: "Belum diatur"}
+															</span>
+															{profile.phone_verified ? (
+																<span className="account-verified">
+																	<Icon name="check" size={16} />
+																	Terverifikasi
+																</span>
+															) : (
+																<button
+																	type="button"
+																	className="contact-suggest-fix"
+																	data-testid="profile-phone-edit"
+																	onClick={() => {
+																		setPhone(displayPhone(profile.phone));
+																		setEditingPhone(true);
+																	}}
+																>
+																	Ubah
+																</button>
+															)}
+														</p>
+													</>
 												)}
 											</div>
-											<p className="checkout-hint">
-												{item.address.phone} · {item.address.street},{" "}
-												{item.address.district}, {item.address.city},{" "}
-												{item.address.province} {item.address.postcode}
-											</p>
-											{!item.is_default && (
+											<div className="account-actions">
 												<button
 													disabled={busy}
+													type="submit"
+													className="button"
+													data-testid="profile-save-button"
+												>
+													{busy ? "Menyimpan…" : "Simpan"}
+												</button>
+												<button
 													type="button"
 													className="button button-secondary"
-													data-testid={`make-default-${item.id}`}
-													onClick={() => handleSetDefaultAddress(item.id)}
+													onClick={() => {
+														setEditingProfile(false);
+														setEditingPhone(false);
+													}}
 												>
-													Jadikan utama
+													Batal
 												</button>
-											)}
-										</li>
-									))}
-								</ul>
-							) : (
-								<p className="checkout-hint">
-									Belum ada alamat tersimpan. Alamat pertama otomatis menjadi
-									alamat utama.
-								</p>
-							)}
-						</section>
-
-						<section
-							className="receipt-card"
-							aria-labelledby="account-orders-heading"
-							data-testid="account-orders-section"
-						>
-							<h2 id="account-orders-heading">
-								Riwayat Pesanan & Kontinuitas Pesanan Tamu
-							</h2>
-							{orders.length > 0 ? (
-								<ul
-									className="receipt-parcel-items"
-									data-testid="buyer-orders-list"
+											</div>
+										</form>
+									) : (
+										<dl className="account-facts">
+											<div>
+												<dt>Nama</dt>
+												<dd data-testid="profile-name">
+													{profile.display_name}
+												</dd>
+											</div>
+											<div>
+												<dt>WhatsApp</dt>
+												<dd>
+													<span data-testid="profile-phone">
+														{profile.phone
+															? maskedPhone(profile.phone)
+															: "Belum diatur"}
+													</span>
+													{profile.phone && profile.phone_verified && (
+														<span className="account-verified">
+															<Icon name="check" size={16} />
+															Terverifikasi
+														</span>
+													)}
+												</dd>
+											</div>
+											<div>
+												<dt>Email</dt>
+												<dd data-testid="profile-email">
+													{maskedEmail(profile.email) ?? "Belum diatur"}
+												</dd>
+											</div>
+										</dl>
+									)}
+								</section>
+								<section
+									className="account-section"
+									aria-labelledby="account-addresses-title"
+									data-testid="account-addresses-section"
 								>
-									{orders.map((ord) => (
-										<li key={ord.id} data-testid={`buyer-order-row-${ord.id}`}>
-											<a href={`/pesanan/${ord.id}`}>
-												<strong>{ord.number}</strong> · {ord.status} ·{" "}
-												{rupiah(ord.buyer_total)}
-											</a>
-										</li>
-									))}
-								</ul>
-							) : (
-								<p className="checkout-hint">
-									Belum ada riwayat pesanan pada akun ini.
-								</p>
-							)}
-						</section>
-					</div>
-
-					<div className="receipt-secondary">
-						{initialCompletion && (
-							<PromoConsents
-								initial={initialCompletion.consents}
-								profile={profile}
-								onStatus={setStatusMsg}
-							/>
-						)}
-						<section
-							className="receipt-card"
-							aria-labelledby="account-notifications-heading"
-							data-testid="account-notifications-section"
-						>
-							<h2 id="account-notifications-heading">
-								Preferensi & Kotak Masuk Notifikasi
-							</h2>
-							{preferences && (
-								<div className="checkout-charges">
-									<label>
-										<input
-											type="checkbox"
-											disabled={busy}
-											data-testid="pref-in-app-order"
-											checked={preferences.in_app_order_updates}
-											onChange={() =>
-												handleTogglePreference("in_app_order_updates")
-											}
-										/>{" "}
-										Update pesanan di aplikasi
-									</label>
-									<label>
-										<input
-											type="checkbox"
-											disabled={busy}
-											data-testid="pref-in-app-support"
-											checked={preferences.in_app_support_updates}
-											onChange={() =>
-												handleTogglePreference("in_app_support_updates")
-											}
-										/>{" "}
-										Balasan bantuan di aplikasi
-									</label>
-									<label>
-										<input
-											type="checkbox"
-											disabled={busy}
-											data-testid="pref-email-order"
-											checked={preferences.email_order_updates}
-											onChange={() =>
-												handleTogglePreference("email_order_updates")
-											}
-										/>{" "}
-										Update pesanan via email
-									</label>
-								</div>
-							)}
-							<ul
-								className="receipt-parcel-items"
-								data-testid="notifications-list"
-							>
-								{notifications.map((n) => (
-									<li
-										key={n.id}
-										data-testid={`notification-item-${n.id}`}
-										data-state={n.state}
+									<h2 id="account-addresses-title">Alamat</h2>
+									{addresses && addresses.data.length > 0 ? (
+										<ul
+											className="receipt-parcel-items"
+											data-testid="address-book-list"
+										>
+											{addresses.data.map((item) => (
+												<li
+													key={item.id}
+													data-testid={`address-card-${item.id}`}
+													data-default={item.is_default}
+												>
+													<div>
+														<strong>
+															{item.address.label ?? "Alamat"} ·{" "}
+															{item.address.recipient_name}
+														</strong>{" "}
+														{item.is_default && (
+															<span
+																className="receipt-badge"
+																data-testid="default-address-badge"
+															>
+																Utama
+															</span>
+														)}
+													</div>
+													<p className="checkout-hint">
+														{item.address.phone} · {item.address.street},{" "}
+														{item.address.district}, {item.address.city},{" "}
+														{item.address.province} {item.address.postcode}
+													</p>
+													{!item.is_default && (
+														<button
+															disabled={busy}
+															type="button"
+															className="button button-secondary"
+															data-testid={`make-default-${item.id}`}
+															onClick={() => handleSetDefaultAddress(item.id)}
+														>
+															Jadikan utama
+														</button>
+													)}
+												</li>
+											))}
+										</ul>
+									) : (
+										<p className="checkout-hint">Belum ada alamat tersimpan.</p>
+									)}
+									{initialCompletion ? (
+										<ProfileAddress
+											profile={profile}
+											addresses={addresses}
+											destinations={initialCompletion.destinations}
+											onAddresses={setAddresses}
+											onStatus={setStatusMsg}
+										/>
+									) : (
+										<p className="checkout-hint">
+											Formulir alamat gagal dimuat. Muat ulang halaman untuk
+											mencoba lagi.
+										</p>
+									)}
+								</section>
+								{initialCompletion ? (
+									<ProfileCompletion
+										{...initialCompletion}
+										onStatus={setStatusMsg}
+									/>
+								) : (
+									<section
+										className="account-section"
+										aria-labelledby="profile-completion-heading"
 									>
-										<strong>{n.title}</strong> ({n.state})
-										<p className="checkout-hint">{n.body}</p>
+										<h2 id="profile-completion-heading">Data tambahan</h2>
+										<p className="checkout-hint">
+											Data tambahan gagal dimuat. Muat ulang halaman untuk
+											mencoba lagi.
+										</p>
+									</section>
+								)}
+							</>
+						)}
+						{view === "settings" && (
+							<>
+								<section
+									className="account-section"
+									aria-labelledby="account-notifications-title"
+									data-testid="account-notifications-section"
+								>
+									<h2 id="account-notifications-title">
+										Promo &amp; notifikasi
+									</h2>
+									{initialCompletion ? (
+										<PromoConsents
+											initial={initialCompletion.consents}
+											profile={profile}
+											onStatus={setStatusMsg}
+										/>
+									) : (
+										<p className="checkout-hint account-promo">
+											Pilihan promo gagal dimuat. Muat ulang halaman untuk
+											mencoba lagi.
+										</p>
+									)}
+									<h3>Kabar pesanan &amp; bantuan</h3>
+									{!preferences && (
+										<p className="checkout-hint">
+											Pilihan kabar pesanan gagal dimuat. Muat ulang halaman
+											untuk mencoba lagi.
+										</p>
+									)}
+									{preferences && (
+										<div className="checkout-charges">
+											<label>
+												<input
+													type="checkbox"
+													disabled={busy}
+													data-testid="pref-in-app-order"
+													checked={preferences.in_app_order_updates}
+													onChange={() =>
+														handleTogglePreference("in_app_order_updates")
+													}
+												/>{" "}
+												Kabar pesanan di situs
+											</label>
+											<label>
+												<input
+													type="checkbox"
+													disabled={busy}
+													data-testid="pref-in-app-support"
+													checked={preferences.in_app_support_updates}
+													onChange={() =>
+														handleTogglePreference("in_app_support_updates")
+													}
+												/>{" "}
+												Balasan bantuan di situs
+											</label>
+											<label>
+												<input
+													type="checkbox"
+													disabled={busy}
+													data-testid="pref-email-order"
+													checked={preferences.email_order_updates}
+													onChange={() =>
+														handleTogglePreference("email_order_updates")
+													}
+												/>{" "}
+												Kabar pesanan lewat email
+											</label>
+										</div>
+									)}
+									{notifications.length > 0 && (
+										<>
+											<h3>Notifikasi terbaru</h3>
+											<ul
+												className="receipt-parcel-items"
+												data-testid="notifications-list"
+											>
+												{notifications.map((n) => (
+													<li
+														key={n.id}
+														data-testid={`notification-item-${n.id}`}
+														data-state={n.state}
+													>
+														<strong>{n.title}</strong> ·{" "}
+														{n.state === "unread"
+															? "Belum dibaca"
+															: "Sudah dibaca"}
+														<p className="checkout-hint">{n.body}</p>
+														<button
+															disabled={busy}
+															type="button"
+															className="button button-secondary"
+															data-testid={`toggle-notification-${n.id}`}
+															onClick={() =>
+																handleNotificationState(
+																	n.id,
+																	n.state === "unread" ? "read" : "unread",
+																)
+															}
+														>
+															{n.state === "unread"
+																? "Tandai sudah dibaca"
+																: "Tandai belum dibaca"}
+														</button>
+													</li>
+												))}
+											</ul>
+										</>
+									)}
+								</section>
+								<section
+									className="account-section"
+									aria-labelledby="account-security-title"
+									data-testid="account-security-section"
+								>
+									<h2 id="account-security-title">Keamanan</h2>
+									<div className="account-field">
+										<label htmlFor="session-password">Kata sandi akun</label>
+										<input
+											id="session-password"
+											data-testid="session-password"
+											type="password"
+											autoComplete="current-password"
+											maxLength={128}
+											value={sessionPassword}
+											onChange={(e) => setSessionPassword(e.target.value)}
+											aria-describedby="session-password-hint"
+										/>
+										<p id="session-password-hint" className="checkout-hint">
+											Masukkan kata sandi untuk keluar dari perangkat lain.
+										</p>
+									</div>
+									<div className="account-actions">
 										<button
 											disabled={busy}
 											type="button"
 											className="button button-secondary"
-											data-testid={`toggle-notification-${n.id}`}
-											onClick={() =>
-												handleNotificationState(
-													n.id,
-													n.state === "unread" ? "read" : "unread",
-												)
-											}
+											data-testid="terminate-other-sessions-button"
+											onClick={() => handleTerminateSessions("others")}
 										>
-											{n.state === "unread"
-												? "Tandai sudah dibaca"
-												: "Tandai belum dibaca"}
+											Keluar dari perangkat lain
 										</button>
-									</li>
-								))}
-							</ul>
-						</section>
-
-						<section
-							className="receipt-card"
-							aria-labelledby="account-security-heading"
-							data-testid="account-security-section"
+										<button
+											disabled={busy}
+											type="button"
+											className="button button-secondary"
+											data-testid="terminate-all-sessions-button"
+											onClick={() => handleTerminateSessions("all")}
+										>
+											Keluar dari semua perangkat
+										</button>
+									</div>
+								</section>
+							</>
+						)}
+					</div>
+				</>
+			) : (
+				<>
+					{statusMsg && (
+						<output
+							className="account-status"
+							data-testid="account-status-banner"
 						>
-							<h2 id="account-security-heading">Keamanan & Sesi Perangkat</h2>
-							<label htmlFor="session-password">Kata sandi akun</label>
-							<input
-								id="session-password"
-								data-testid="session-password"
-								type="password"
-								autoComplete="current-password"
-								maxLength={128}
-								value={sessionPassword}
-								onChange={(e) => setSessionPassword(e.target.value)}
-							/>
-							<p className="checkout-hint">
-								Kata sandi diminta setiap kali Anda mengakhiri sesi di perangkat lain.
-							</p>
-							<div className="notice-actions">
-								<button
-									disabled={busy}
-									type="button"
-									className="button button-secondary"
-									data-testid="terminate-other-sessions-button"
-									onClick={() => handleTerminateSessions("others")}
+							{statusMsg}
+						</output>
+					)}
+					<div className="account-signed-out">
+						<section
+							className="account-intro"
+							aria-labelledby="account-heading"
+						>
+							<h1 id="account-heading">Akun</h1>
+							<p>Simpan alamat dan cek pesanan di satu tempat.</p>
+							<ul
+								className="account-benefits"
+								data-testid="account-signup-value"
+							>
+								<li>
+									<Icon name="truck" size={22} />
+									<span>Pantau pengiriman</span>
+								</li>
+								<li>
+									<Icon name="home" size={22} />
+									<span>Pakai alamat tersimpan saat checkout</span>
+								</li>
+								<li>
+									<Icon name="cart" size={22} />
+									<span>Beli lagi dari riwayat pesanan</span>
+								</li>
+							</ul>
+							<div className="account-actions">
+								<Link
+									className="button"
+									href="/masuk?langkah=daftar&next=%2Fakun"
 								>
-									Keluar dari perangkat lain
-								</button>
-								<button
-									disabled={busy}
-									type="button"
+									Daftar
+								</Link>
+								<Link
 									className="button button-secondary"
-									data-testid="terminate-all-sessions-button"
-									onClick={() => handleTerminateSessions("all")}
+									href="/masuk?next=%2Fakun"
 								>
-									Keluar dari semua sesi
-								</button>
+									Masuk
+								</Link>
 							</div>
 						</section>
+						<details
+							ref={guestPanel}
+							className="account-guest-details"
+							data-testid="guest-order-recovery-section"
+						>
+							{/* biome-ignore lint/a11y/noStaticElementInteractions: Native summary handles keyboard activation; only desktop collapsing is prevented. */}
+							<summary
+								className="account-guest-summary"
+								onClick={(event) => {
+									if (window.matchMedia("(min-width: 701px)").matches)
+										event.preventDefault();
+								}}
+							>
+								<h2 id="guest-recovery-heading">Cek pesanan tanpa akun</h2>
+								<Icon name="down" size={20} />
+							</summary>
+							<div className="account-guest-content">
+								<p id="guest-recovery-help" className="checkout-hint">
+									Masukkan nomor pesanan dari tanda terima dan kontak yang
+									dipakai saat memesan. Kami kirim kode untuk membuka pesanan.
+								</p>
+								<form
+									onSubmit={handleRequestGuestRecovery}
+									aria-describedby="guest-recovery-help"
+								>
+									<label htmlFor="guest-order-id">Nomor pesanan</label>
+									<input
+										id="guest-order-id"
+										data-testid="guest-recovery-order-id"
+										type="text"
+										value={guestOrderId}
+										onChange={(e) => setGuestOrderId(e.target.value)}
+										placeholder="99-XXXXXXXXXXXXXXXX"
+										autoComplete="off"
+										required
+									/>
+									<label htmlFor="guest-order-contact">
+										Email atau nomor HP pesanan
+									</label>
+									<input
+										id="guest-order-contact"
+										data-testid="guest-recovery-contact"
+										type="text"
+										autoComplete="off"
+										autoCapitalize="none"
+										spellCheck={false}
+										maxLength={254}
+										value={guestContact}
+										onChange={(e) => setGuestContact(filterContact(e, true))}
+										placeholder="08… atau nama@email.com"
+										required
+									/>
+									<EmailSuggestion
+										value={guestContact}
+										onPick={setGuestContact}
+									/>
+									<button
+										disabled={busy}
+										type="submit"
+										className="button button-secondary"
+										data-testid="guest-recovery-request-button"
+									>
+										{busy ? "Mengirim…" : "Kirim kode akses"}
+									</button>
+								</form>
+								{guestChallengeId && (
+									<form onSubmit={handleVerifyGuestRecovery}>
+										<label htmlFor="guest-order-otp">Kode verifikasi</label>
+										<input
+											id="guest-order-otp"
+											data-testid="guest-recovery-otp"
+											type="text"
+											inputMode="numeric"
+											autoComplete="one-time-code"
+											pattern="[0-9]{6}"
+											maxLength={6}
+											value={guestOtp}
+											onChange={(e) =>
+												setGuestOtp(e.target.value.replace(/\D/g, ""))
+											}
+											required
+										/>
+										<button
+											disabled={busy}
+											type="submit"
+											className="button"
+											data-testid="guest-recovery-verify-button"
+										>
+											{busy ? "Memeriksa…" : "Buka pesanan"}
+										</button>
+									</form>
+								)}
+								{recoveredOrderId && (
+									<p className="checkout-hint">
+										<a
+											data-testid="guest-recovered-receipt-link"
+											href={`/pesanan/${encodeURIComponent(recoveredOrderId)}`}
+										>
+											Lihat pesanan
+										</a>
+									</p>
+								)}
+							</div>
+						</details>
 					</div>
-				</div>
-			) : null}
-
-			<section
-				className="receipt-card"
-				aria-labelledby="guest-recovery-heading"
-				data-testid="guest-order-recovery-section"
-			>
-				<h2 id="guest-recovery-heading">
-					Pulihkan Akses Pesanan Tamu Tanpa Akun
-				</h2>
-				<form onSubmit={handleRequestGuestRecovery}>
-					<label htmlFor="guest-order-id">Nomor Pesanan</label>
-					<input
-						id="guest-order-id"
-						data-testid="guest-recovery-order-id"
-						type="text"
-						value={guestOrderId}
-						onChange={(e) => setGuestOrderId(e.target.value)}
-						placeholder="99-XXXXXXXXXXXXXXXX"
-						autoComplete="off"
-					/>
-					<label htmlFor="guest-order-contact">Nomor HP / Email Pesanan</label>
-					<input
-						id="guest-order-contact"
-						data-testid="guest-recovery-contact"
-						type="text"
-						autoComplete="off"
-						autoCapitalize="none"
-						spellCheck={false}
-						maxLength={254}
-						value={guestContact}
-						onChange={(e) => setGuestContact(filterContact(e, true))}
-						placeholder="08… atau nama@email.com"
-					/>
-					<EmailSuggestion value={guestContact} onPick={setGuestContact} />
-					<button
-						disabled={busy}
-						type="submit"
-						className="button button-secondary"
-						data-testid="guest-recovery-request-button"
-					>
-						Kirim kode akses tamu
-					</button>
-				</form>
-				{guestChallengeId && (
-					<form onSubmit={handleVerifyGuestRecovery}>
-						<label htmlFor="guest-order-otp">Kode Verifikasi</label>
-						<input
-							id="guest-order-otp"
-							data-testid="guest-recovery-otp"
-							type="text"
-							value={guestOtp}
-							onChange={(e) => setGuestOtp(e.target.value)}
-						/>
-						<button
-							disabled={busy}
-							type="submit"
-							className="button"
-							data-testid="guest-recovery-verify-button"
-						>
-							Verifikasi & buka tanda terima
-						</button>
-					</form>
-				)}
-				{recoveredOrderId && (
-					<p className="checkout-hint">
-						<a
-							data-testid="guest-recovered-receipt-link"
-							href={`/pesanan/${encodeURIComponent(recoveredOrderId)}`}
-						>
-							Buka tanda terima pesanan tamu sekarang
-						</a>
-					</p>
-				)}
-			</section>
+				</>
+			)}
 		</div>
 	);
 }

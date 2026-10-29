@@ -251,7 +251,7 @@ export type PayoutStatus = (typeof PAYOUT_STATUSES)[number];
 
 export const PAYOUT_STATUS: Record<PayoutStatus, [string, StatusTone]> = {
 	queued: ["Dalam antrean", "open"],
-	processing: ["Sedang diproses", "open"],
+	processing: ["Sedang diproses", "progress"],
 	unknown: ["Hasil belum pasti", "problem"],
 	succeeded: ["Selesai", "success"],
 	failed: ["Gagal", "danger"],
@@ -335,7 +335,7 @@ export const ADMIN_REFUND_STATUS: Record<
 > = {
 	awaiting_destination: ["Menunggu rekening pembeli", "open"],
 	queued: ["Dalam antrean", "open"],
-	processing: ["Diproses", "open"],
+	processing: ["Diproses", "progress"],
 	unknown: ["Hasil belum pasti", "problem"],
 	succeeded: ["Berhasil", "success"],
 	failed: ["Gagal", "danger"],
@@ -405,7 +405,7 @@ export const CLOSING_BALANCE_SECTIONS: readonly {
 }[] = [
 	{
 		key: "cash",
-		label: "Kas perusahaan tereconcile",
+		label: "Kas perusahaan terekonsiliasi",
 		description: "Saldo kas perusahaan dari mutasi yang sudah dicocokkan (di luar piutang belum cair).",
 	},
 	{
@@ -458,7 +458,7 @@ export const PERIOD_FLOW_SECTIONS: readonly {
 	{
 		key: "realized_contribution",
 		label: "Kontribusi margin terealisasi",
-		description: "Margin aktual setelah HPP, biaya kurir/penyedia tereconcile, subsidi ongkir, kemasan, selisih stok, dan komisi afiliasi.",
+		description: "Margin aktual setelah HPP, biaya kurir/penyedia terekonsiliasi, subsidi ongkir, kemasan, selisih stok, dan komisi afiliasi.",
 	},
 	{
 		key: "operating_expenses",
@@ -512,7 +512,7 @@ export const FINANCE_ERROR_MESSAGES: Record<string, string> = {
 	SETTLEMENT_SOURCE_CHANGED:
 		"Pernyataan sumber mutasi ini sudah diperbarui. Halaman dimuat ulang; periksa pernyataan terbaru sebelum mengambil keputusan.",
 	SETTLEMENT_SOURCE_PROCESSING_PENDING:
-		"Pernyataan sumber terbaru masih menunggu pemrosesan worker. Tunggu pemrosesan selesai lalu muat ulang.",
+		"Pernyataan sumber terbaru masih diproses sistem. Tunggu sampai selesai lalu muat ulang.",
 	SETTLEMENT_STATEMENT_INCOMPLETE:
 		"Pernyataan sumber belum memiliki rincian nominal kotor dan biaya yang lengkap.",
 	SETTLEMENT_TOTAL_MISMATCH:

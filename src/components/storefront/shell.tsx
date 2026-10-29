@@ -6,7 +6,7 @@ import {cartUnits} from '../../modules/storefront/cart';
 import {getLocalAuth} from '../../modules/access/auth';
 import {featuredDepartments,searchSuggestions} from '../../modules/storefront/catalog';
 import {departmentPhotos} from '../../modules/storefront/department-photos';
-import {sameOrigin} from './ui/product-card';
+import {sameOrigin} from '../../modules/storefront/format';
 import {hasPromoContent} from '../../modules/storefront/promotions';
 import {CategoryPills} from './sections/category-pills';
 import {SearchBox} from './sections/search-box';
@@ -51,7 +51,8 @@ export async function Shell({children,q='',active='home',department=null,product
    <Link href="/" className="brand brand-reveal" aria-label="Serba 99ribu, beranda"><span className="grow" aria-hidden="true"><span>Serba&nbsp;</span></span>99<span>r<span className="grow" aria-hidden="true"><span>i</span></span>b<span className="grow" aria-hidden="true"><span>u</span></span></span><i aria-hidden="true">.</i></Link>
    <search className="search-region"><SearchBox key={q} q={q} suggestions={suggestions}/></search>
    <nav className="utilities" aria-label="Belanja">{promo&&<Link href="/promo" aria-label="Promo" aria-current={active==='promo'?'page':undefined}><Icon name="tag"/></Link>}<Link href="/keranjang" aria-label={cartLabel} aria-current={active==='cart'?'page':undefined}><Icon name="cart"/>{count>0&&<b className="cart-count utility-count" aria-hidden="true">{count}</b>}</Link><Link href="/akun" aria-label="Akun" aria-current={active==='account'?'page':undefined}><Icon name="user"/></Link></nav>
-  </div><CategoryPills departments={pills} current={department} allCurrent={active==='category'&&department===null}/></header>
+  </div></header>
+  <CategoryPills departments={pills} current={department} allCurrent={active==='category'&&department===null}/>
   {/* Phone product page: this bar replaces the header (CSS hides the header while it exists, up to 700px). */}
   {productBar&&<ProductBar title={productBar.title} backHref={productBar.backHref} count={count} cartLabel={cartLabel}/>}
   {children}

@@ -35,8 +35,7 @@ export default async function SettingsLabelTemplatesPage() {
 		<AdminPage testId="settings-label-templates-page">
 			<PageHeader
 				title="Template Label"
-				description="Kelola template label pengiriman termal dan A4, mode privasi nomor telepon penerima, dan tata kelola merek mitra. Penambahan atau perubahan versi template memerlukan Super Admin dengan autentikasi ulang; staf keuangan, e-commerce, dan gudang dapat meninjau versi aktif dan riwayatnya."
-				meta={<span>Waktu dalam WIB</span>}
+				description="Template label termal dan A4, privasi telepon penerima, dan merek mitra. Versi baru dibuat Super Admin."
 			/>
 			<SettingsLabelTemplatesClient canWrite={roles.includes("owner")} />
 		</AdminPage>

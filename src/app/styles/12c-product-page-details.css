@@ -1,0 +1,98 @@
+.product-detail .purchase-region .detail-help {
+	margin-top: 8px;
+}
+.product-detail .product-facts dl {
+	display: grid;
+	gap: 8px;
+	margin: 12px 0 0;
+	font-size: var(--small-size);
+	line-height: 1.375rem;
+	letter-spacing: var(--tracking-small);
+}
+.product-detail .product-facts dl > div {
+	display: grid;
+	grid-template-columns: minmax(5rem, 1fr) minmax(0, 2fr);
+	gap: 16px;
+}
+.product-detail .product-facts dd {
+	margin: 0;
+	overflow-wrap: anywhere;
+}
+/* Accordions: 52px headers, 18/20 600 -0.5px, a chevron on the right (up while open), one hairline
+   between sections; body 14/18. */
+.product-detail .product-policy {
+	border-bottom: 1px solid rgba(24, 59, 78, 0.12);
+}
+.product-detail .product-policy summary {
+	display: flex;
+	align-items: center;
+	justify-content: space-between;
+	gap: 12px;
+	min-height: 52px;
+	padding-block: 16px;
+	list-style: none;
+	font-size: var(--title-size);
+	line-height: var(--title-leading);
+	font-weight: 600;
+	letter-spacing: var(--tracking-tight);
+	cursor: pointer;
+}
+.product-detail .product-policy summary::-webkit-details-marker {
+	display: none;
+}
+:where(.product-policy svg) {
+	flex: none;
+	width: 1.25rem;
+	height: 1.25rem;
+	transform: rotate(-90deg);
+}
+:where(.product-policy[open] svg) {
+	transform: rotate(90deg);
+}
+.product-detail .product-policy p {
+	padding-bottom: 16px;
+	font-size: var(--small-size);
+	line-height: var(--small-leading);
+	letter-spacing: var(--tracking-small);
+}
+@media (max-width: 1050px) {
+	.product-detail .detail-layout {
+		grid-template-columns: minmax(0, 1fr) minmax(18rem, 1fr);
+		gap: 32px;
+	}
+	.product-detail .product-gallery:has(.gallery-thumbs) {
+		grid-template-columns: minmax(0, 1fr);
+	}
+	.product-detail .gallery-thumbs {
+		display: none;
+	}
+}
+@media (max-width: 700px) {
+	.product-detail {
+		padding-top: 16px;
+	}
+	.product-detail .detail-layout {
+		display: block;
+	}
+	.product-detail .detail-layout > :first-child {
+		position: static;
+		margin-bottom: 20px;
+	}
+	/* The photo row bleeds to the screen edge; the next photo peeks. */
+	.product-detail .gallery-row {
+		grid-auto-columns: 88%;
+		gap: 8px;
+		margin-inline: calc(-1 * var(--gutter));
+		padding-inline: var(--gutter);
+		scroll-padding-inline: var(--gutter);
+	}
+	.product-detail .gallery-row:has(> li:only-child) {
+		grid-auto-columns: 100%;
+	}
+}
+@media (prefers-reduced-motion: reduce) {
+	.product-detail .gallery-row {
+		scroll-behavior: auto;
+	}
+}
+

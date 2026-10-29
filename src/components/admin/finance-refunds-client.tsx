@@ -1,6 +1,7 @@
 "use client";
 
 import { CircleAlert, CircleCheck, RefreshCw } from "lucide-react";
+import { cn } from "cn";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { type ReactNode, useCallback, useEffect, useRef, useState } from "react";
@@ -172,7 +173,7 @@ export function RefundsListClient({
 					{
 						id: "links",
 						header: "Kasus retur",
-						className: "md:max-lg:hidden",
+						hideBelow: "5xl",
 						cell: (row) => (
 							<div className="flex flex-wrap items-center gap-2 text-xs">
 								<Link
@@ -236,7 +237,7 @@ export function RefundDetailClient({
 	const [refund, setRefund] = useState<AdminRefund | null>(null);
 	const [failure, setFailure] = useState<ApiFailure | null>(null);
 	const [dialog, setDialog] = useState<RefundAction | null>(null);
-	const [notice, setNotice] = useState<string | null>(null);
+	const [notice, setNotice] = useState<{ text: string; warn: boolean } | null>(null);
 	const noticeRef = useRef<HTMLDivElement>(null);
 
 	const load = useCallback(async () => {
@@ -390,19 +391,26 @@ export function RefundDetailClient({
 					ref={noticeRef}
 					tabIndex={-1}
 					role="status"
-					className="outline-none"
+					className={cn("outline-none", notice.warn && "border-warning/40 bg-warning-surface")}
 					data-testid="refund-notice"
+					data-tone={notice.warn ? "warning" : "success"}
 				>
-					<CircleCheck aria-hidden="true" />
-					<AlertDescription className="text-foreground">
-						{notice}
-					</AlertDescription>
+					{notice.warn ? (
+						<CircleAlert aria-hidden="true" className="text-warning" />
+					) : (
+						<CircleCheck aria-hidden="true" />
+					)}
+					<AlertDescription className="text-foreground">{notice.text}</AlertDescription>
 				</Alert>
 			)}
 
 			{refund.status === "unknown" && (
-				<Alert role="alert" data-testid="refund-unknown">
-					<CircleAlert aria-hidden="true" />
+				<Alert
+					role="alert"
+					data-testid="refund-unknown"
+					className="border-warning/40 bg-warning-surface"
+				>
+					<CircleAlert aria-hidden="true" className="text-warning" />
 					<AlertDescription className="text-foreground">
 						Hasil pengiriman dana belum pasti; dana mungkin sudah keluar dari bank. Jangan
 						mengajukan refund lagi dan jangan coba ulang. Rekonsiliasi memeriksa hasil refund
@@ -488,11 +496,13 @@ export function RefundDetailClient({
 							saved.status,
 							"open",
 						];
-						setNotice(
-							act === "retry"
-								? `Percobaan baru untuk refund ${rupiah(saved.amount)} masuk antrean. Status: ${st}.`
-								: `Rekonsiliasi refund dijalankan. Status: ${st}.`,
-						);
+						setNotice({
+							text:
+								act === "retry"
+									? `Percobaan baru untuk refund ${rupiah(saved.amount)} masuk antrean. Status: ${st}.`
+									: `Rekonsiliasi refund dijalankan. Status: ${st}.`,
+							warn: saved.status === "unknown" || saved.status === "failed",
+						});
 					}}
 				/>
 			)}
@@ -552,7 +562,7 @@ function RefundActionDialog({
 			description={
 				retry
 					? "Hanya untuk kegagalan yang terbukti tanpa dana keluar. Server memeriksa ulang sebelum membuat percobaan pengiriman baru untuk kewajiban refund yang sama."
-					: "Memeriksa ulang hasil bank asli untuk refund ini dan memulihkan callback yang tertahan tanpa mengirim dana baru."
+					: "Memeriksa ulang hasil bank asli untuk refund ini dan memulihkan pemberitahuan bank yang tertahan tanpa mengirim dana baru."
 			}
 			pending={intent.pending}
 			pendingLabel="Memproses…"

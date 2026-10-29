@@ -1,6 +1,15 @@
 "use client";
 
-import { AlarmClock, CircleAlert, CircleCheck, CircleMinus, CircleX, Clock, type LucideIcon } from "lucide-react";
+import {
+	AlarmClock,
+	CircleCheck,
+	CircleDotDashed,
+	CircleMinus,
+	CircleX,
+	Clock,
+	type LucideIcon,
+	TriangleAlert,
+} from "lucide-react";
 import Link from "next/link";
 import { type ReactNode, useEffect, useState } from "react";
 import { cn } from "cn";
@@ -11,15 +20,28 @@ import { wibDateTime } from "@/modules/storefront/format";
 // S113: one status badge (icon + text, never wraps), one order-number link and one overdue flag
 // for every console screen. Tone, not colour alone, carries the meaning (icon and wording too).
 
-export type StatusTone = "open" | "problem" | "done" | "closed" | "success" | "danger";
-const TONE: Record<StatusTone, { icon: LucideIcon; variant: "secondary" | "warning" | "outline" | "success" | "destructive" }> = {
-	open: { icon: Clock, variant: "secondary" },
-	problem: { icon: CircleAlert, variant: "warning" },
-	done: { icon: CircleCheck, variant: "outline" },
-	/** Terminal without success (cancelled, rejected). */
+/**
+ * The console's six status kinds plus a plain label; each has its own icon or shape, its wording and
+ * its colour (text >= 4.5:1 on its surface):
+ * - open: pending or waiting (clock, neutral grey surface);
+ * - progress: work under way (dashed circle, purple);
+ * - done / success: finished well (check, green);
+ * - problem: uncertain or needs a look, e.g. "Hasil belum pasti" (warning triangle, amber);
+ * - danger: failed or retries exhausted (x circle, red);
+ * - closed: terminal without success, e.g. cancelled or switched off (minus circle, outline);
+ * - neutral: a plain label such as a role (no icon, outline).
+ */
+export type StatusTone = "open" | "progress" | "problem" | "done" | "closed" | "success" | "danger" | "neutral";
+type BadgeVariant = "muted" | "secondary" | "warning" | "outline" | "success" | "destructive";
+const TONE: Record<StatusTone, { icon: LucideIcon | null; variant: BadgeVariant }> = {
+	open: { icon: Clock, variant: "muted" },
+	progress: { icon: CircleDotDashed, variant: "secondary" },
+	problem: { icon: TriangleAlert, variant: "warning" },
+	done: { icon: CircleCheck, variant: "success" },
 	closed: { icon: CircleMinus, variant: "outline" },
 	success: { icon: CircleCheck, variant: "success" },
 	danger: { icon: CircleX, variant: "destructive" },
+	neutral: { icon: null, variant: "outline" },
 };
 
 export function StatusBadge({
@@ -35,8 +57,8 @@ export function StatusBadge({
 }) {
 	const { icon: Icon, variant } = TONE[tone];
 	return (
-		<Badge variant={variant} data-testid={testId} className="whitespace-nowrap" {...rest}>
-			<Icon aria-hidden="true" />
+		<Badge variant={variant} data-testid={testId} data-tone={tone} className="whitespace-nowrap" {...rest}>
+			{Icon && <Icon aria-hidden="true" />}
 			{children}
 		</Badge>
 	);

@@ -84,8 +84,9 @@ export function AffiliatesListClient({ owner }: { owner: boolean }) {
 				}
 				meta={<span>Waktu dalam WIB · tanpa data pribadi pembeli atau nomor rekening</span>}
 			/>
-			<search aria-label="Filter afiliasi" className="flex flex-col gap-3">
-				<div className="flex flex-wrap items-end justify-between gap-3">
+			<search aria-label="Filter afiliasi" className="flex flex-col gap-2">
+				{/* Status tabs, code field and its button share one row from md; the label is for screen readers only. */}
+				<div className="flex flex-wrap items-center justify-between gap-3">
 					<SegmentedControl
 						legend="Filter status mitra"
 						value={status}
@@ -96,49 +97,50 @@ export function AffiliatesListClient({ owner }: { owner: boolean }) {
 					<form
 						noValidate
 						data-testid="affiliates-filter-form"
-						className="flex flex-wrap items-start gap-2 max-md:w-full"
+						className="flex items-center gap-2 max-md:w-full"
 						onSubmit={(event) => {
 							event.preventDefault();
 							submitCode(codeDraft);
 						}}
 					>
-						<FormField
+						<label htmlFor="affiliates-code" className="sr-only">
+							Kode rujukan
+						</label>
+						<Input
 							id="affiliates-code"
-							label="Kode rujukan"
-							hint={codeProblem ?? undefined}
-							className="min-w-52 max-md:w-full"
-						>
-							<Input
-								id="affiliates-code"
-								data-testid="affiliates-code"
-								value={codeDraft}
-								maxLength={64}
-								autoComplete="off"
-								placeholder="SERBA99-..."
-								aria-invalid={codeProblem ? true : undefined}
-								aria-describedby={codeProblem ? "affiliates-code-hint" : undefined}
-								onChange={(event) => setCodeDraft(event.target.value)}
-							/>
-						</FormField>
-						<div className="flex gap-2 pt-6 max-md:w-full max-md:pt-0 max-md:*:flex-1">
-							<Button type="submit" variant="outline" data-testid="affiliates-filter-submit">
-								<Search aria-hidden="true" data-icon="inline-start" />
-								Cari kode
+							data-testid="affiliates-code"
+							className="min-w-0 flex-1 md:w-56 md:flex-none"
+							value={codeDraft}
+							maxLength={64}
+							autoComplete="off"
+							placeholder="Kode rujukan, mis. SERBA99-..."
+							aria-invalid={codeProblem ? true : undefined}
+							aria-describedby={codeProblem ? "affiliates-code-hint" : undefined}
+							onChange={(event) => setCodeDraft(event.target.value)}
+						/>
+						<Button type="submit" variant="outline" className="shrink-0" data-testid="affiliates-filter-submit">
+							<Search aria-hidden="true" data-icon="inline-start" />
+							Cari kode
+						</Button>
+						{filtered && (
+							<Button
+								type="button"
+								variant="ghost"
+								className="shrink-0"
+								data-testid="affiliates-filter-reset"
+								onClick={resetFilters}
+							>
+								<RotateCcw aria-hidden="true" data-icon="inline-start" />
+								Atur ulang
 							</Button>
-							{filtered && (
-								<Button
-									type="button"
-									variant="ghost"
-									data-testid="affiliates-filter-reset"
-									onClick={resetFilters}
-								>
-									<RotateCcw aria-hidden="true" data-icon="inline-start" />
-									Atur ulang
-								</Button>
-							)}
-						</div>
+						)}
 					</form>
 				</div>
+				{codeProblem && (
+					<p id="affiliates-code-hint" role="alert" className="text-xs text-destructive md:self-end">
+						{codeProblem}
+					</p>
+				)}
 			</search>
 			<DataTable
 				testId="affiliates-table"
@@ -165,7 +167,8 @@ export function AffiliatesListClient({ owner }: { owner: boolean }) {
 						id: "affiliate",
 						header: "Mitra & Kode",
 						stack: "title",
-						cellClassName: "whitespace-normal",
+						// Names stay on one or two lines instead of folding to the narrowest word.
+						cellClassName: "whitespace-normal md:min-w-48",
 						cell: (row) => (
 							<span className="flex flex-col gap-0.5">
 								<Link
@@ -203,7 +206,9 @@ export function AffiliatesListClient({ owner }: { owner: boolean }) {
 						id: "enrolled",
 						header: "Terdaftar",
 						stack: "meta",
-						className: "whitespace-nowrap tabular-nums",
+						kind: "datetime",
+						// Priority below the commission columns; the detail page repeats it.
+						hideBelow: "7xl",
 						cell: (row) => formatWib(row.enrolled_at),
 					},
 					{
@@ -235,21 +240,24 @@ export function AffiliatesListClient({ owner }: { owner: boolean }) {
 					{
 						id: "pending",
 						header: "Menunggu H+10",
-						className: "text-right tabular-nums md:max-lg:hidden",
+						className: "text-right tabular-nums",
+						hideBelow: "5xl",
 						cell: (row) =>
 							`${rupiah(row.commissions.pending_idr)} (${row.commissions.pending_count} unit)`,
 					},
 					{
 						id: "paid",
 						header: "Sudah dibayar",
-						className: "text-right tabular-nums md:max-xl:hidden",
+						className: "text-right tabular-nums",
+						hideBelow: "7xl",
 						cell: (row) =>
 							`${rupiah(row.commissions.paid_idr)} (${row.commissions.paid_count} unit)`,
 					},
 					{
 						id: "held_void",
 						header: "Ditahan / Batal",
-						className: "text-right tabular-nums md:max-xl:hidden",
+						className: "text-right tabular-nums",
+						hideBelow: "7xl",
 						cell: (row) =>
 							`Ditahan ${rupiah(row.commissions.held_idr)} (${row.commissions.held_count}) · Batal ${row.commissions.void_count}`,
 					},
@@ -329,8 +337,12 @@ export function AffiliateDetailClient({
 	if (state.kind === "loading") {
 		return (
 			<AdminPage>
-				<PageHeader title="Memuat afiliasi…" back={back} />
-				<Skeleton className="h-32 w-full" />
+				<PageHeader title="Detail Afiliasi" back={back} />
+				<div className="flex flex-col gap-4" aria-busy="true" aria-live="polite">
+					<p className="text-sm text-muted-foreground">Memuat detail afiliasi…</p>
+					<Skeleton className="h-48 w-full bg-border/70" />
+					<Skeleton className="h-40 w-full bg-border/70" />
+				</div>
 			</AdminPage>
 		);
 	}
@@ -339,7 +351,8 @@ export function AffiliateDetailClient({
 			<AdminPage testId="affiliate-missing">
 				<PageHeader title="Mitra afiliasi tidak ditemukan" back={back} />
 				<p className="text-sm">
-					Mitra afiliasi dengan ID ini tidak terdaftar di sistem.
+					Mitra afiliasi dengan ID ini tidak terdaftar. Kembali ke daftar afiliasi lalu cari
+					dengan kode rujukannya.
 				</p>
 			</AdminPage>
 		);
@@ -390,6 +403,7 @@ export function AffiliateDetailClient({
 							type="button"
 							data-testid="affiliate-rate-open"
 							disabled={!affiliate.rate_eligible}
+							aria-describedby={affiliate.rate_eligible ? undefined : "affiliate-rate-ineligible"}
 							onClick={() => setDialogOpen(true)}
 						>
 							<Plus aria-hidden="true" data-icon="inline-start" />
@@ -420,9 +434,10 @@ export function AffiliateDetailClient({
 				description="Setiap unit penawaran lengkap Rp99.000 dihitung terpisah. Data pribadi pembeli dan nomor rekening tujuan tidak ditampilkan di halaman ini."
 				testId="affiliate-commissions"
 			>
-				<dl className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+				{/* Figures sit directly in the section (no card inside a card). */}
+				<dl className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
 					<div
-						className="flex flex-col gap-0.5 rounded-md border p-3"
+						className="flex flex-col gap-0.5"
 						data-testid="commission-matured"
 					>
 						<dt className="text-xs text-muted-foreground">
@@ -441,7 +456,7 @@ export function AffiliateDetailClient({
 						</dd>
 					</div>
 					<div
-						className="flex flex-col gap-0.5 rounded-md border p-3"
+						className="flex flex-col gap-0.5"
 						data-testid="commission-pending"
 					>
 						<dt className="text-xs text-muted-foreground">
@@ -458,7 +473,7 @@ export function AffiliateDetailClient({
 						</dd>
 					</div>
 					<div
-						className="flex flex-col gap-0.5 rounded-md border p-3"
+						className="flex flex-col gap-0.5"
 						data-testid="commission-paid"
 					>
 						<dt className="text-xs text-muted-foreground">Sudah dibayar</dt>
@@ -474,7 +489,7 @@ export function AffiliateDetailClient({
 						</dd>
 					</div>
 					<div
-						className="flex flex-col gap-0.5 rounded-md border p-3"
+						className="flex flex-col gap-0.5"
 						data-testid="commission-held"
 					>
 						<dt className="text-xs text-muted-foreground">
@@ -488,7 +503,7 @@ export function AffiliateDetailClient({
 						</dd>
 					</div>
 					<div
-						className="flex flex-col gap-0.5 rounded-md border p-3"
+						className="flex flex-col gap-0.5"
 						data-testid="commission-void"
 					>
 						<dt className="text-xs text-muted-foreground">
@@ -502,7 +517,7 @@ export function AffiliateDetailClient({
 						</dd>
 					</div>
 					<div
-						className="flex flex-col gap-0.5 rounded-md border p-3"
+						className="flex flex-col gap-0.5"
 						data-testid="commission-orders"
 					>
 						<dt className="text-xs text-muted-foreground">
@@ -549,6 +564,7 @@ export function AffiliateDetailClient({
 				)}
 				{owner && !affiliate.rate_eligible && (
 					<p
+						id="affiliate-rate-ineligible"
 						className="text-xs text-muted-foreground"
 						data-testid="affiliate-rate-ineligible"
 					>
@@ -616,7 +632,8 @@ export function AffiliateDetailClient({
 						{
 							id: "created_at",
 							header: "Dicatat",
-							className: "whitespace-nowrap tabular-nums md:max-lg:hidden",
+							className: "whitespace-nowrap tabular-nums",
+							hideBelow: "6xl",
 							cell: (row: AdminAffiliateRateVersion) =>
 								formatWib(row.created_at),
 						},

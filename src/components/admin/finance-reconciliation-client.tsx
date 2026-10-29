@@ -244,6 +244,8 @@ export function ReconciliationListClient({
 						id: "status",
 						header: "Status",
 						stack: "status",
+						// The problem note wraps under the badge.
+						cellClassName: "whitespace-normal md:min-w-48",
 						cell: (row) => {
 							const [label, tone] = RECONCILIATION_STATUS[row.status] ?? [
 								row.status,
@@ -267,7 +269,9 @@ export function ReconciliationListClient({
 					{
 						id: "gross",
 						header: "Nominal kotor",
-						className: "text-right tabular-nums md:max-lg:hidden",
+						className: "text-right tabular-nums",
+						// The detail page shows the statement totals.
+						hideBelow: "5xl",
 						cell: (row) =>
 							row.statement_totals.gross_amount !== null
 								? rupiah(row.statement_totals.gross_amount)
@@ -277,7 +281,7 @@ export function ReconciliationListClient({
 						id: "occurred",
 						header: "Waktu mutasi",
 						stack: "meta",
-						className: "whitespace-nowrap tabular-nums",
+						kind: "datetime",
 						cell: (row) => formatWib(row.occurred_at),
 					},
 					{
@@ -494,10 +498,14 @@ export function ReconciliationDetailClient({
 			)}
 
 			{item.source_processing_pending && (
-				<Alert role="alert" data-testid="reconciliation-source-pending">
-					<CircleAlert aria-hidden="true" />
+				<Alert
+					role="alert"
+					data-testid="reconciliation-source-pending"
+					className="border-warning/40 bg-warning-surface"
+				>
+					<CircleAlert aria-hidden="true" className="text-warning" />
 					<AlertDescription className="text-foreground">
-						Pernyataan sumber versi {item.latest_source_version} belum selesai diproses worker
+						Pernyataan sumber versi {item.latest_source_version} belum selesai diproses sistem
 						(saat ini pada versi {item.source_version}). Keputusan akan ditolak sampai pernyataan
 						terbaru diproses.
 					</AlertDescription>
@@ -505,10 +513,14 @@ export function ReconciliationDetailClient({
 			)}
 
 			{item.problem_code && (
-				<Alert role="status" data-testid="reconciliation-problem">
-					<CircleAlert aria-hidden="true" />
+				<Alert
+					role="status"
+					data-testid="reconciliation-problem"
+					className="border-warning/40 bg-warning-surface"
+				>
+					<CircleAlert aria-hidden="true" className="text-warning" />
 					<AlertDescription className="text-foreground">
-						<strong>Kendala rekonsiliasi ({item.problem_code}):</strong>{" "}
+						<strong>Kendala rekonsiliasi:</strong>{" "}
 						{RECONCILIATION_PROBLEM_LABEL[item.problem_code] ?? item.explanation}
 					</AlertDescription>
 				</Alert>
@@ -680,18 +692,22 @@ export function ReconciliationDetailClient({
 											</span>
 										</div>
 										<p className="text-xs text-muted-foreground tabular-nums">
-											Kotor:{" "}
-											{stmt.totals.gross_amount !== null
-												? rupiah(stmt.totals.gross_amount)
-												: "Belum lengkap"}{" "}
-											· Kurir:{" "}
-											{stmt.totals.carrier_fee !== null
-												? rupiah(stmt.totals.carrier_fee)
-												: "Belum lengkap"}{" "}
-											· Penyedia:{" "}
-											{stmt.totals.provider_fee !== null
-												? rupiah(stmt.totals.provider_fee)
-												: "Belum lengkap"}
+											{stmt.totals.gross_amount === null &&
+											stmt.totals.carrier_fee === null &&
+											stmt.totals.provider_fee === null
+												? "Total belum dilaporkan sumber"
+												: (
+														[
+															["Kotor", stmt.totals.gross_amount],
+															["Kurir", stmt.totals.carrier_fee],
+															["Penyedia", stmt.totals.provider_fee],
+														] as const
+													)
+														.map(
+															([label, value]) =>
+																`${label}: ${value !== null ? rupiah(value) : "belum dilaporkan"}`,
+														)
+														.join(" · ")}
 											{stmt.allocation_claims
 												? ` · ${stmt.allocation_claims.length} klaim alokasi`
 												: " · tanpa klaim alokasi"}

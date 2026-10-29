@@ -1,0 +1,417 @@
+/* Sign-in (/masuk page and the intercepted modal), shop.com 2026-10-24 (references/shop-com/
+   2026-10-24-signin): one centred 344px column, no card frame; brand mark, 32/35 800 heading (28 on
+   phones), 16/22 muted lead, 52px pill fields (1px ink edge, 4% ink fill, soft shadow), a 52px primary
+   pill, a 12/16 muted footnote. 99ribu keeps visible field labels (12/16 600) and the shared focus ring;
+   errors sit under the fields with the error edge, like shop.com, at 14/20. */
+.signin-main {
+	display: grid;
+	justify-items: center;
+	padding-block: 56px 96px;
+}
+.signin-card {
+	box-sizing: border-box;
+	width: min(100%, 344px);
+	display: grid;
+	text-align: center;
+}
+.signin-mark {
+	justify-self: center;
+	font-size: 2rem;
+	line-height: 2rem;
+}
+.signin-card :is(h1, h2) {
+	margin: 24px 0 0;
+	font-size: 2rem;
+	line-height: 2.2rem;
+	font-weight: 800;
+	letter-spacing: var(--tracking-body);
+	overflow-wrap: anywhere;
+}
+.signin-lead {
+	margin: 8px 0 0;
+	color: var(--muted);
+	font-size: var(--body-size);
+	line-height: var(--body-leading);
+	letter-spacing: var(--tracking-body);
+}
+.signin-field {
+	display: grid;
+	gap: 6px;
+	margin-top: 16px;
+	text-align: left;
+}
+.signin-lead + .signin-field {
+	margin-top: 24px;
+}
+:where(.signin-field label) {
+	font-size: var(--caption-size);
+	line-height: var(--caption-leading);
+	font-weight: 600;
+	letter-spacing: var(--tracking-small);
+}
+.signin-card .signin-field input {
+	box-sizing: border-box;
+	width: 100%;
+	min-height: 52px;
+	padding: 0 16px;
+	border-color: var(--ink);
+	border-radius: 9999px;
+	background-color: rgba(0, 0, 0, 0.04);
+	box-shadow:
+		0 2px 4px rgba(0, 0, 0, 0.02),
+		0 6px 16px rgba(0, 0, 0, 0.04);
+	color: inherit;
+	font-size: var(--body-size);
+	line-height: var(--body-leading);
+	letter-spacing: var(--tracking-body);
+}
+.signin-card .signin-field input[aria-invalid="true"] {
+	border-color: var(--error);
+}
+.signin-field-hint {
+	margin: 0;
+	padding-inline: 16px;
+	color: var(--muted);
+	font-size: var(--caption-size);
+	line-height: var(--caption-leading);
+	letter-spacing: var(--tracking-small);
+}
+.signin-alert {
+	display: flex;
+	align-items: flex-start;
+	gap: 6px;
+	margin-top: 8px;
+	padding-inline: 16px;
+	border-radius: 8px;
+	color: var(--error);
+	font-size: var(--small-size);
+	line-height: 1.25rem;
+	text-align: left;
+}
+:where(.signin-alert p) {
+	margin: 0;
+}
+:where(.signin-alert svg) {
+	flex: none;
+	width: 1.143em;
+	height: 1.143em;
+	margin-top: 0.071em;
+}
+.signin-alert:focus-visible {
+	outline: 3px solid var(--purple);
+	outline-offset: 2px;
+}
+.signin-card .signin-submit {
+	margin-top: 16px;
+}
+.signin-hint {
+	margin: 16px 0 0;
+	color: var(--muted);
+	font-size: var(--caption-size);
+	line-height: var(--caption-leading);
+	letter-spacing: var(--tracking-small);
+}
+/* A link inside the footnote is prose: it keeps its underline (WCAG 1.4.1). */
+.signin-hint a {
+	text-decoration: underline;
+	text-underline-offset: 3px;
+}
+/* Step switches: standalone 44px links, colour feedback on hover. */
+.signin-links {
+	display: grid;
+	justify-items: center;
+	margin: 8px 0 0;
+}
+.signin-links a {
+	display: inline-flex;
+	align-items: center;
+	min-height: 44px;
+	color: var(--purple);
+	font-size: var(--small-size);
+	line-height: 1.25rem;
+	font-weight: 600;
+	letter-spacing: var(--tracking-small);
+}
+.signin-links a:hover {
+	color: var(--purple-hover);
+}
+/* Sign-up (S123): the "Masuk / Daftar" switch is a 4% ink track holding two 44px pills, the current one
+   white with the resting surface shadow (the chip look); fields, primary pill and footnote are the
+   sign-in ones. The swapped forms sit in a contents-only wrapper, so the column stays the grid item. */
+.signin-forms {
+	display: contents;
+}
+.signin-switch {
+	display: grid;
+	grid-template-columns: 1fr 1fr;
+	gap: 4px;
+	margin-top: 24px;
+	padding: 4px;
+	border-radius: 9999px;
+	background: rgba(0, 0, 0, 0.04);
+}
+.signin-switch a {
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	min-height: 44px;
+	padding-inline: 12px;
+	border-radius: 9999px;
+	color: var(--muted);
+	font-size: var(--body-size);
+	line-height: 1.25rem;
+	font-weight: 600;
+	letter-spacing: var(--tracking-body);
+	transition:
+		color 150ms cubic-bezier(0.4, 0, 0.2, 1),
+		background-color 150ms cubic-bezier(0.4, 0, 0.2, 1),
+		box-shadow 150ms cubic-bezier(0.4, 0, 0.2, 1);
+}
+.signin-switch a:hover {
+	color: var(--ink);
+}
+.signin-switch a[aria-current="page"] {
+	background: #fff;
+	color: var(--ink);
+	box-shadow: 0 2px 8px rgba(0, 0, 0, 0.06);
+}
+.signin-switch a:focus-visible {
+	outline-offset: 0;
+}
+/* Password with a 44px show/hide toggle inside the pill's right end. */
+.signin-password {
+	position: relative;
+}
+.signin-card .signin-password input {
+	padding-right: 56px;
+}
+.signin-reveal {
+	position: absolute;
+	top: 4px;
+	right: 4px;
+	display: grid;
+	place-items: center;
+	width: 44px;
+	height: 44px;
+	padding: 0;
+	border: 0;
+	border-radius: 50%;
+	background: transparent;
+	color: var(--ink);
+	transition: background-color 150ms cubic-bezier(0.4, 0, 0.2, 1);
+}
+.signin-reveal:hover {
+	background: rgba(0, 0, 0, 0.06);
+}
+.signin-reveal:focus-visible {
+	outline-offset: 0;
+}
+.signin-field-hint:has(svg) {
+	display: flex;
+	align-items: center;
+	gap: 4px;
+	color: var(--ink);
+}
+:where(.signin-field-hint svg) {
+	flex: none;
+}
+/* "Cek email Anda untuk verifikasi" and the verification landing: a 56px lavender disc with the glyph. */
+.signin-sent-icon {
+	justify-self: center;
+	display: grid;
+	place-items: center;
+	width: 56px;
+	height: 56px;
+	margin-top: 24px;
+	border-radius: 50%;
+	background: rgba(91, 53, 213, 0.08);
+	color: var(--purple);
+}
+.signin-sent-icon:is([data-state="expired"], [data-state="invalid"]) {
+	background: var(--warning-surface);
+	color: var(--warning);
+}
+.signin-card .signin-sent-icon + :is(h1, h2) {
+	margin-top: 16px;
+}
+.signin-card :is(h1, h2)[tabindex="-1"]:focus:not(:focus-visible) {
+	outline: none;
+}
+.signin-address {
+	color: var(--ink);
+	font-weight: 600;
+	overflow-wrap: anywhere;
+}
+.signin-resend {
+	display: grid;
+	margin-top: 8px;
+}
+.signin-status {
+	display: flex;
+	align-items: flex-start;
+	gap: 6px;
+	margin: 16px 0 0;
+	padding-inline: 16px;
+	font-size: var(--small-size);
+	line-height: 1.25rem;
+	text-align: left;
+}
+:where(.signin-status svg) {
+	flex: none;
+	width: 1.143em;
+	height: 1.143em;
+	margin-top: 0.071em;
+	color: var(--purple);
+}
+@media (max-width: 700px) {
+	.signin-main {
+		padding-block: 24px 48px;
+	}
+	.signin-card :is(h1, h2) {
+		font-size: 1.75rem;
+		line-height: 1.925rem;
+	}
+}
+/* Modal (intercepted /masuk): white 28px surface over a 40% scrim, centred from 701px, a bottom sheet
+   16px from the edges on phones (the filter sheet's geometry); the page behind does not scroll. */
+.signin-sheet {
+	box-sizing: border-box;
+	width: min(400px, 100vw - 32px);
+	max-width: none;
+	max-height: calc(100dvh - 32px);
+	padding: 0;
+	border: 0;
+	border-radius: 28px;
+	background: #fff;
+	color: var(--ink);
+	box-shadow: 0 8px 40px rgba(0, 0, 0, 0.24);
+	overflow: hidden auto;
+	overscroll-behavior: contain;
+	opacity: 1;
+	translate: 0 0;
+	transition:
+		opacity 240ms cubic-bezier(0.2, 0, 0, 1),
+		translate 240ms cubic-bezier(0.2, 0, 0, 1);
+}
+@starting-style {
+	.signin-sheet[open] {
+		opacity: 0;
+		translate: 0 16px;
+	}
+}
+.signin-sheet::backdrop {
+	background: rgba(0, 0, 0, 0.4);
+}
+html:has(.signin-sheet[open]) {
+	overflow: hidden;
+}
+.signin-sheet-body {
+	position: relative;
+	display: grid;
+	justify-items: center;
+	padding: 40px 28px 28px;
+}
+.signin-close {
+	/* Stays in view while enlarged content scrolls inside the sheet (round 63); the negative margins
+	   keep it out of the column's flow, where the absolute version used to sit. */
+	position: sticky;
+	top: 8px;
+	z-index: 1;
+	justify-self: end;
+	margin: -32px -20px -12px 0;
+}
+/* A white backing so the sticky control never sits on top of scrolled text. */
+.signin-sheet .signin-close {
+	border-radius: 50%;
+	background: #fff;
+}
+@media (max-width: 700px) {
+	.signin-sheet {
+		width: auto;
+		margin: auto 16px 16px;
+	}
+}
+@media (prefers-reduced-motion: reduce) {
+	.signin-sheet,
+	.signin-switch a,
+	.signin-reveal {
+		transition: none;
+	}
+}
+
+/* Short hyphenated tokens ("3-in-1", "Anti-Stres") never break at the hyphen. */
+.keep-hyphen {
+	white-space: nowrap;
+}
+/* Long bundles on the PDP: the first three items, the rest behind a disclosure. */
+:where(.contents-more > summary) {
+	/* Block flow keeps the chevron right after the label even when it wraps. */
+	display: block;
+	padding-block: 12px;
+	min-height: 44px;
+	cursor: pointer;
+	list-style: none;
+	color: var(--purple);
+	font-weight: 600;
+}
+:where(.contents-more > summary)::-webkit-details-marker {
+	display: none;
+}
+:where(.contents-more summary svg) {
+	flex: none;
+	width: 1.125em;
+	height: 1.125em;
+	transform: rotate(-90deg);
+}
+:where(.contents-more[open] summary svg) {
+	transform: rotate(90deg);
+}
+
+/* PDP extra-contents disclosure: the label states the action ("Sembunyikan" when open). */
+.contents-more[open] .more-show,
+.contents-more:not([open]) .more-hide {
+	display: none;
+}
+/* Help chat card: the attachment disclosure spaces only what follows it, so when it
+   is the last block the card ends on its own 24px padding. */
+.chat-attach:not(:last-child) {
+	margin-bottom: 16px;
+}
+/* /bantuan starts 24px under the header at every width, as the listings and /promo (shop.com: 24). */
+.wrap.help-main {
+	padding-top: 24px;
+}
+/* /categories subcategory links: visible wrapping chips, never a hidden disclosure. */
+.subcategories {
+	margin-top: 40px;
+}
+.subcategories h2 {
+	margin-bottom: 12px;
+}
+.subcategories ul {
+	list-style: none;
+	margin: 0;
+	padding: 0;
+	display: flex;
+	flex-wrap: wrap;
+	gap: 8px;
+}
+:where(.subcategories a) {
+	display: inline-flex;
+	align-items: center;
+	min-height: 44px;
+	padding: 6px 16px;
+	border-radius: 9999px;
+	background: #fff;
+	border: 1px solid rgba(0, 0, 0, 0.1);
+	font-size: var(--small-size);
+	font-weight: 600;
+	overflow-wrap: anywhere;
+}
+
+:where(.contents-more > summary svg) {
+	display: inline-block;
+	vertical-align: middle;
+	margin-left: 4px;
+}
+

@@ -14,7 +14,8 @@ import { FormDialog, FormField } from "./form";
 type Props = {
 	detail: CommerceException;
 	onClose: () => void;
-	onDone: (text: string) => void;
+	/** `warn`: the saved status still needs attention (escalated, unknown). */
+	onDone: (text: string, warn?: boolean) => void;
 	/** The answer was lost: the page reloads while the dialog keeps its intent. */
 	onUncertain: () => void;
 };
@@ -33,7 +34,7 @@ export function DecideDialog({ detail, onClose, onDone, onUncertain }: Props) {
 			() => ({ expected_version: detail.version, decision, reason: reason.trim() }),
 			{ onUncertain },
 		);
-		if (saved) onDone(`Keputusan tersimpan. Status: ${STATUS[saved.status][0]}.`);
+		if (saved) onDone(`Keputusan tersimpan. Status: ${STATUS[saved.status][0]}.`, STATUS[saved.status][1] === "problem");
 	}
 	return (
 		<FormDialog
@@ -91,7 +92,7 @@ export function ApplyDialog({ detail, onClose, onDone, onUncertain }: Props) {
 			() => ({ expected_version: detail.version, proposal_id: proposal.id, reason: reason.trim() }),
 			{ onUncertain },
 		);
-		if (saved) onDone(`Persetujuan pembeli diterapkan. Status: ${STATUS[saved.status][0]}.`);
+		if (saved) onDone(`Persetujuan pembeli diterapkan. Status: ${STATUS[saved.status][0]}.`, STATUS[saved.status][1] === "problem");
 	}
 	return (
 		<FormDialog

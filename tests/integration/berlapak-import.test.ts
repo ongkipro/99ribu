@@ -1,15 +1,17 @@
 import assert from 'node:assert/strict';
 import {createHash,randomUUID} from 'node:crypto';
-import {existsSync,mkdirSync,mkdtempSync,renameSync,rmSync,symlinkSync,writeFileSync} from 'node:fs';
+import {existsSync,mkdirSync,mkdtempSync,readFileSync,renameSync,rmSync,symlinkSync,writeFileSync} from 'node:fs';
 import {tmpdir} from 'node:os';
 import {join} from 'node:path';
 import test from 'node:test';
 import {isDeepStrictEqual} from 'node:util';
 import {createLocalAuth} from '../../src/modules/access/auth.ts';
 import {importBerlapak,publicName,readBerlapakSource,supplierPatterns,webpSize} from '../../src/modules/local/berlapak.ts';
+import {variantKey} from '../../src/modules/local/berlapak-identities.ts';
 import {handleStorefront} from '../../src/modules/storefront/routes.ts';
 import {actor,cleanup,enroll} from '../contract/access-fixture.ts';
 import {createBerlapakOrders} from '../../src/modules/local/seed-runtime.ts';
+import {deactivateFixtureWarehouses} from './shipping-fixture.ts';
 
 // Header-only WebP files: enough for the dimension parser; no decoder is involved.
 const vp8x=(width:number,height:number)=>{const b=Buffer.alloc(30);b.write('RIFF',0,'latin1');b.writeUInt32LE(22,4);b.write('WEBPVP8X',8,'latin1');b.writeUInt32LE(10,16);b.writeUIntLE(width-1,24,3);b.writeUIntLE(height-1,27,3);return b;};
@@ -44,7 +46,7 @@ test('image selection: every img-NN then var-NN in numeric order, byte-identical
     const files=()=>readBerlapakSource(sourceDir).stocks.find((s)=>s.rank===1)?.images.map((i)=>i.file)??[];
     assert.deepEqual(files(),['img-01.webp','img-02.webp','img-03.webp','img-10.webp','var-01.webp','var-02.webp']);
     for(let n=20;n<45;n++) writeFileSync(join(folder,`var-${n}.webp`),vp8x(500+n,500+n));
-    const capped=files();assert.equal(capped.length,20);assert.equal(capped[0],'img-01.webp');assert.ok(capped.indexOf('var-01.webp')>capped.indexOf('img-10.webp'),'photos before variant photos');
+    const capped=readBerlapakSource(sourceDir).offers.find((o)=>o.key==='1')?.images.map((i)=>i.file)??[];assert.equal(capped.length,20);assert.equal(capped[0],'img-01.webp');assert.ok(capped.indexOf('var-01.webp')>capped.indexOf('img-10.webp'),'photos before variant photos');
   }finally{rmSync(sourceDir,{recursive:true,force:true});}
 });
 
@@ -114,5 +116,31 @@ test('local snapshot import: 99000 offers, private HPP, skip rules, copied image
     const again=await createBerlapakOrders(identity,'test',namespace,first.products);assert.equal(again.created,0);assert.equal(again.existing,16);assert.equal(again.resumed,0);assert.equal(await count(),16);
     assert.ok(pair.some((p)=>isDeepStrictEqual(p.states,again.states)),JSON.stringify(pair));
     assert.ok(Object.keys(again.states).some((s)=>s.startsWith('cod:'))&&Object.keys(again.states).some((s)=>s.endsWith(':confirmed')),JSON.stringify(again.states));
-  }finally{rmSync(sourceDir,{recursive:true,force:true});rmSync(publicDir,{recursive:true,force:true});await cleanup(identity,[owner]);await identity.sql.end();}
+  }finally{rmSync(sourceDir,{recursive:true,force:true});rmSync(publicDir,{recursive:true,force:true});await deactivateFixtureWarehouses(identity,namespace);await cleanup(identity,[owner]);await identity.sql.end();}
+});
+
+test('S69 fixture imports three sellable variants as one product with independent physical stock and frozen variant photos',async()=>{
+  const identity=createLocalAuth('test'),owner=await actor(identity,'owner',[]);await enroll(owner.browser,owner.password);
+  const sourceDir=fixtureDir(),publicDir=mkdtempSync(join(tmpdir(),'berlapak-variants-')),namespace=`bl-${randomUUID().slice(0,8)}`;
+  const file=join(sourceDir,'data-json','products-up-to-49k-ready-stock.json'),data=JSON.parse(readFileSync(file,'utf8')),row=data.products[0];
+  const ids=['68f5d3f165db302e467c8204','red-variant','green-variant'];
+  row.variants_summary={has_variants:true,variants:ids.map((id,index)=>({_id:id,name:['Biru','Merah','Hijau'][index],hpp_price:10000+index*5000,stock:30-index*5,
+    image_local_path:`images/${row.assets.folder_slug}/var-0${index+1}.webp`}))};
+  for(let n=1;n<=3;n++) writeFileSync(join(sourceDir,'images',row.assets.folder_slug,`var-0${n}.webp`),vp8x(400+n,300+n));
+  writeFileSync(file,JSON.stringify(data));
+  try{
+    const run=()=>importBerlapak(owner.browser.request('/api/v1/admin/products'),identity,'test',namespace,{sourceDir,publicDir}),first=await run();
+    assert.equal(first.summary.stock_items,4);assert.equal(first.summary.offers,5);assert.equal(first.summary.published,3);
+    const keys=ids.map((id)=>variantKey(1,id)),products=keys.map((key)=>first.products[key]);
+    assert.ok(products.every((p)=>p.product_id===products[0].product_id));assert.equal(new Set(products.map((p)=>p.offer_id)).size,3);
+    const rows=await identity.sql`select s.sku,b.on_hand,c.unit_cost from app.stock_item s join app.inventory_balance b on b.stock_item_id=s.id
+      join app.component_cost_version c on c.stock_item_id=s.id where s.sku in ${identity.sql(keys.map((key)=>`BL_${namespace.toUpperCase()}_${key.replaceAll('-','_')}`))}`;
+    assert.equal(rows.length,3);assert.deepEqual(rows.map((r)=>r.on_hand).sort((a,b)=>b-a),[30,25,20]);
+    assert.deepEqual(rows.map((r)=>r.unit_cost).sort((a,b)=>a-b),[10000,15000,20000]);
+    const response=await handleStorefront(new Request(`http://127.0.0.1:3099/api/v1/products/${products[0].product_id}`),identity);
+    assert.equal(response.status,200);const product=await response.json();assert.equal(product.variants.length,3);
+    assert.ok(product.variants.every((v:{image:{url:string};price:number})=>/\/var-0[123]\.webp$/.test(v.image.url)&&v.price===99000));
+    assert.ok(!/Biru|Merah|Hijau/.test(product.name));
+    const again=await run();assert.deepEqual(again.products,first.products);assert.equal(again.summary.positions_received_now,0);
+  }finally{rmSync(sourceDir,{recursive:true,force:true});rmSync(publicDir,{recursive:true,force:true});await deactivateFixtureWarehouses(identity,namespace);await cleanup(identity,[owner]);await identity.sql.end();}
 });

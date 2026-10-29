@@ -47,13 +47,17 @@ export function productionDatabase(env: Environment, access: "app" | "owner") {
   const name = access === "owner" ? "DATABASE_OWNER_PASSWORD" : "DATABASE_APP_PASSWORD";
   const password = env[name];
   if (!password || password.length < 16) throw new Error(`${name} is required (at least 16 characters).`);
-  // An external database requires TLS: plaintext is accepted only for a private-network host.
-  const ssl = env.DATABASE_SSL ?? "disable";
+  return { host, port: port(env.DATABASE_PORT, "DATABASE_PORT", 5432), password, ssl: databaseTls(host, env.DATABASE_SSL) };
+}
+
+// Shared by the app and backup tools: require encrypts but does not authenticate postgres.js peers.
+export function databaseTls(host: string, mode: string | undefined): false | "require" | "verify-full" {
+  const ssl = mode ?? "disable";
   if (ssl !== "disable" && ssl !== "require" && ssl !== "verify-full") throw new Error("DATABASE_SSL must be disable, require or verify-full.");
-  if (ssl === "disable" && !privateNetworkHost(host)) {
-    throw new Error("DATABASE_SSL must be require or verify-full unless DATABASE_HOST is on a private network.");
+  if (ssl !== "verify-full" && !privateNetworkHost(host)) {
+    throw new Error("DATABASE_SSL must be verify-full unless DATABASE_HOST is on a private network.");
   }
-  return { host, port: port(env.DATABASE_PORT, "DATABASE_PORT", 5432), password, ssl: ssl === "disable" ? false as const : ssl as "require" | "verify-full" };
+  return ssl === "disable" ? false as const : ssl;
 }
 
 // Private: loopback, RFC 1918 / IPv6 ULA literals, and Docker-network names (single label, or .internal/.local).

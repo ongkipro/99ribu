@@ -19,7 +19,7 @@ import { array, integer, object, sku, text } from "./validation.ts";
 // warehouse by an opaque hashed key; the warehouse list has generic names and kecamatan-level
 // location only. importCatalog loads it through the real catalog and publication services,
 // creating the origin warehouses; it never writes stock, cost or order rows.
-export const CATALOG_FORMAT = "99ribu.catalog/v2";
+export const CATALOG_FORMAT = "99ribu.catalog/v3";
 // The committed dataset (repository-relative), also read by the local feed for Google categories.
 export const defaultCatalogDatasetDir = new URL("../../../data/catalog/berlapak/", import.meta.url).pathname;
 export const MANIFEST_FORMAT = "99ribu.catalog-manifest/v1";
@@ -34,8 +34,8 @@ function field<T>(where: string, parse: () => T): T {
 }
 
 type Content = { stock_item: string; quantity: number };
-type Offer = { sku: string; label: string; kind: "unit" | "multipack" | "bundle"; warehouse: string; weight_grams: number; length_mm: number; width_mm: number; height_mm: number; contents: Content[] };
-type Product = { key: string; name: string; description: string; category: string; google_product_category?: number; photos: { sha256: string; alt: string }[]; offer: Offer };
+type Offer = { sku: string; label: string; kind: "unit" | "multipack" | "bundle"; image: string | null; warehouse: string; weight_grams: number; length_mm: number; width_mm: number; height_mm: number; contents: Content[] };
+type Product = { key: string; name: string; description: string; category: string; google_product_category?: number; photos: { sha256: string; alt: string }[]; offers: Offer[] };
 export type OriginWarehouse = { key: string; name: string; province: string; city: string; district: string };
 export type CatalogDocument = { format: string; source: string; source_snapshot: string; price_idr: number;
   categories: { slug: string; name: string; google_product_category?: number }[]; warehouses: OriginWarehouse[]; stock_items: { sku: string; name: string }[]; products: Product[] };
@@ -63,34 +63,39 @@ export function parseCatalog(value: unknown): CatalogDocument {
     const row = object(v, ["sku", "name"]); return { sku: sku(row.sku), name: text(row.name, 200) };
   }, 1, 10000));
   const products = field("products", () => array(data.products, (v) => v, 1, 10000)).map((v, index) => field(`products[${index}]`, () => {
-    const row = object(v, ["key", "name", "description", "category", "google_product_category", "photos", "offer"]);
+    const row = object(v, ["key", "name", "description", "category", "google_product_category", "photos", "offers"]);
     const key = text(row.key, 40); if (key !== row.key || !/^[A-Za-z0-9-]+$/.test(key)) throw new Error();
     const photos = array(row.photos, (p) => {
       const photo = object(p, ["sha256", "alt"]); if (typeof photo.sha256 !== "string" || !SHA.test(photo.sha256)) throw new Error();
       return { sha256: photo.sha256, alt: text(photo.alt, 500) };
     }, 1, 20);
-    const o = object(row.offer, ["sku", "label", "kind", "warehouse", "weight_grams", "length_mm", "width_mm", "height_mm", "contents"]);
-    if (typeof o.warehouse !== "string" || !ORIGIN_KEY.test(o.warehouse)) throw new Error();
-    const contents = array(o.contents, (c) => {
-      const item = object(c, ["stock_item", "quantity"]); return { stock_item: sku(item.stock_item), quantity: integer(item.quantity, 1, 1000) };
-    }, 1, 20);
-    const kind = o.kind;
-    if ((kind === "unit" && (contents.length !== 1 || contents[0].quantity !== 1)) || (kind === "multipack" && (contents.length !== 1 || contents[0].quantity < 2)) ||
-      (kind === "bundle" && contents.length < 2) || !["unit", "multipack", "bundle"].includes(kind as string)) throw new Error();
-    if (new Set(contents.map((c) => c.stock_item)).size !== contents.length) throw new Error();
-    return { key, name: text(row.name, 200), description: text(row.description, 10000), category: text(row.category, 100), ...google(row.google_product_category), photos,
-      offer: { sku: sku(o.sku), label: text(o.label, 200), kind: kind as Offer["kind"], warehouse: o.warehouse, weight_grams: integer(o.weight_grams, 1, 1000000),
-        length_mm: integer(o.length_mm, 1, 10000), width_mm: integer(o.width_mm, 1, 10000), height_mm: integer(o.height_mm, 1, 10000), contents } };
+    const offers = array(row.offers, (value) => {
+      const o = object(value, ["sku", "label", "kind", "image", "warehouse", "weight_grams", "length_mm", "width_mm", "height_mm", "contents"]);
+      if (typeof o.warehouse !== "string" || !ORIGIN_KEY.test(o.warehouse)) throw new Error();
+      if (o.image !== null && (typeof o.image !== "string" || !SHA.test(o.image) || !photos.some((p) => p.sha256 === o.image))) throw new Error();
+      const contents = array(o.contents, (c) => {
+        const item = object(c, ["stock_item", "quantity"]); return { stock_item: sku(item.stock_item), quantity: integer(item.quantity, 1, 1000) };
+      }, 1, 20);
+      const kind = o.kind;
+      if ((kind === "unit" && (contents.length !== 1 || contents[0].quantity !== 1)) || (kind === "multipack" && (contents.length !== 1 || contents[0].quantity < 2)) ||
+        (kind === "bundle" && contents.length < 2) || !["unit", "multipack", "bundle"].includes(kind as string)) throw new Error();
+      if (new Set(contents.map((c) => c.stock_item)).size !== contents.length) throw new Error();
+      return { sku: sku(o.sku), label: text(o.label, 200), kind: kind as Offer["kind"], image: o.image as string | null, warehouse: o.warehouse,
+        weight_grams: integer(o.weight_grams, 1, 1000000), length_mm: integer(o.length_mm, 1, 10000), width_mm: integer(o.width_mm, 1, 10000),
+        height_mm: integer(o.height_mm, 1, 10000), contents };
+    }, 1, 100);
+    if (new Set(photos.map((p) => p.sha256)).size !== photos.length) throw new Error();
+    return { key, name: text(row.name, 200), description: text(row.description, 10000), category: text(row.category, 100), ...google(row.google_product_category), photos, offers };
   }));
   const unique = (values: string[], what: string) => { if (new Set(values).size !== values.length) refuse(`Duplicate ${what} in catalog dataset.`); };
   unique(categories.map((c) => c.slug), "category slug"); unique(stockItems.map((s) => s.sku), "stock item SKU");
-  unique(products.map((p) => p.key), "product key"); unique(products.map((p) => p.offer.sku), "offer SKU");
+  unique(products.map((p) => p.key), "product key"); unique(products.flatMap((p) => p.offers.map((o) => o.sku)), "offer SKU");
   unique(warehouses.map((w) => w.key), "warehouse key"); unique(warehouses.map((w) => w.name), "warehouse name");
   const slugs = new Set(categories.map((c) => c.slug)), skus = new Set(stockItems.map((s) => s.sku)), keys = new Set(warehouses.map((w) => w.key));
   for (const product of products) {
     if (!slugs.has(product.category)) refuse(`Product ${product.key} references an unknown category.`);
-    if (product.offer.contents.some((c) => !skus.has(c.stock_item))) refuse(`Product ${product.key} references an unknown stock item.`);
-    if (!keys.has(product.offer.warehouse)) refuse(`Product ${product.key} references an unknown origin warehouse.`);
+    if (product.offers.some((o) => o.contents.some((c) => !skus.has(c.stock_item)))) refuse(`Product ${product.key} references an unknown stock item.`);
+    if (product.offers.some((o) => !keys.has(o.warehouse))) refuse(`Product ${product.key} references an unknown origin warehouse.`);
   }
   const catalog = { format: CATALOG_FORMAT, source: field("source", () => text(data.source, 100)), source_snapshot: field("source_snapshot", () => text(data.source_snapshot, 100)),
     price_idr: PRICE, categories, warehouses, stock_items: stockItems, products };
@@ -104,10 +109,10 @@ export function parseCatalog(value: unknown): CatalogDocument {
 // ships from that item's warehouse (bundles never mix origins).
 export function stockOrigins(catalog: Pick<CatalogDocument, "products">) {
   const origins = new Map<string, string>();
-  for (const product of catalog.products) for (const content of product.offer.contents) {
+  for (const product of catalog.products) for (const offer of product.offers) for (const content of offer.contents) {
     const prior = origins.get(content.stock_item);
-    if (prior !== undefined && prior !== product.offer.warehouse) refuse(`Stock item ${content.stock_item} is bound to two origin warehouses.`);
-    origins.set(content.stock_item, product.offer.warehouse);
+    if (prior !== undefined && prior !== offer.warehouse) refuse(`Stock item ${content.stock_item} is bound to two origin warehouses.`);
+    origins.set(content.stock_item, offer.warehouse);
   }
   return origins;
 }
@@ -232,6 +237,17 @@ export async function importCatalog(request: Request, identity: LocalAuth, datas
       }
       const stockRows = await identity.sql`select id,sku,name from app.stock_item where sku in ${identity.sql(catalog.stock_items.map((s) => s.sku))}`;
       for (const row of stockRows) if (row.name !== catalog.stock_items.find((s) => s.sku === row.sku)?.name) refuse(`Stock item ${row.sku} exists with a different immutable name.`);
+      const offerRows = await identity.sql<{ id: string; sku: string; product_id: string }[]>`select id,sku,product_id from app.offer where sku in ${identity.sql(catalog.products.flatMap((p) => p.offers.map((o) => o.sku)))}`;
+      const existingOffers = new Map(offerRows.map((o) => [o.sku, o]));
+      const productOwners = new Map<string, string>();
+      for (const product of catalog.products) {
+        const ids = new Set(product.offers.flatMap((o) => { const stored = existingOffers.get(o.sku); return stored ? [stored.product_id] : []; }));
+        if (ids.size > 1) refuse(`Product ${product.key} offers belong to different existing products; identities cannot be merged.`);
+        for (const id of ids) {
+          if (productOwners.has(id)) refuse(`Products ${productOwners.get(id)} and ${product.key} resolve to the same existing product.`);
+          productOwners.set(id, product.key);
+        }
+      }
 
       const summary: ImportSummary = { catalog_sha256: catalogSha256, photos: { stored: 0, existing: 0 },
         warehouses: { created: 0, existing: existingWarehouses.size }, categories: { created: 0, existing: categoryRows.length },
@@ -274,38 +290,51 @@ export async function importCatalog(request: Request, identity: LocalAuth, datas
         signal?.throwIfAborted();
         const images = product.photos.map((photo) => { const meta = dataset.photos.get(photo.sha256) as { width: number; height: number };
           return { url: `${config.origin}/media/catalog/${photoNames.get(photo.sha256) as string}`, alt: photo.alt, width: meta.width, height: meta.height }; });
-        const variant = { label: product.offer.label, attributes: [], offer_kind: product.offer.kind, weight_grams: product.offer.weight_grams, length_mm: product.offer.length_mm,
-          width_mm: product.offer.width_mm, height_mm: product.offer.height_mm, default_warehouse_id: warehouses.ids.get(product.offer.warehouse) as string,
-          contents: product.offer.contents.map((c) => { const stock = stocks.get(c.stock_item) as { id: string; name: string }; return { stock_item_id: stock.id, name: stock.name, quantity: c.quantity }; })
-            .sort((a, b) => a.stock_item_id.localeCompare(b.stock_item_id)) };
+        const variants = product.offers.map((offer) => ({
+          sku: offer.sku, label: offer.label, attributes: [], offer_kind: offer.kind, weight_grams: offer.weight_grams, length_mm: offer.length_mm,
+          width_mm: offer.width_mm, height_mm: offer.height_mm, default_warehouse_id: warehouses.ids.get(offer.warehouse) as string,
+          ...(offer.image ? { image: images[product.photos.findIndex((p) => p.sha256 === offer.image)] } : {}),
+          contents: offer.contents.map((c) => { const stock = stocks.get(c.stock_item) as { id: string; name: string }; return { stock_item_id: stock.id, name: stock.name, quantity: c.quantity }; })
+            .sort((a, b) => a.stock_item_id.localeCompare(b.stock_item_id))
+        }));
         const fields = { name: product.name, description: product.description, category_id: categories.get(product.category) as string, images };
-        let [stored] = await identity.sql`select id,product_id from app.offer where sku=${product.offer.sku}`;
-        const fresh = !stored;
-        if (!stored) {
+        const stored = product.offers.map((o) => existingOffers.get(o.sku)).find((o) => o !== undefined);
+        let productId = stored?.product_id;
+        const fresh = !productId;
+        if (!productId) {
           await begin();
-          const created = await createProduct(command(`product:${product.offer.sku}`), identity, principal, { ...fields, variants: [{ sku: product.offer.sku, ...variant }] });
-          stored = { id: created.variants[0].id, product_id: created.id }; summary.products.created++;
+          const created = await createProduct(command(`product:${product.key}`), identity, principal, { ...fields, variants });
+          productId = created.id as string; summary.products.created++;
         }
-        const draft = await readCatalogRevision(identity.sql, stored.product_id);
-        const active = draft.variants.filter((v) => !v.retired), current = active.find((v) => v.id === stored.id);
+        const draft = await readCatalogRevision(identity.sql, productId);
+        const active = draft.variants.filter((v) => !v.retired);
         const owned = (await identity.sql`select 1 from app.product_revision r where r.product_id=${draft.id} and r.revision=${draft.version}
           and exists (select 1 from app.audit_event a where a.action=${IMPORT_ACTION} and a.actor_id=r.actor_id)`).length > 0;
-        const matches = active.length === 1 && current !== undefined && draft.name === fields.name && draft.description === fields.description && draft.category_id === fields.category_id &&
-          isDeepStrictEqual(draft.images, images) && isDeepStrictEqual(draft.facts, []) &&
-          isDeepStrictEqual({ label: current.label, attributes: current.attributes, offer_kind: current.offer_kind, weight_grams: current.weight_grams, length_mm: current.length_mm,
-            width_mm: current.width_mm, height_mm: current.height_mm, default_warehouse_id: current.default_warehouse_id, contents: current.contents, image: current.image }, { ...variant, image: null });
+        const currentBySku = new Map(active.map((v) => [v.sku, v]));
+        const variantValue = (v: typeof active[number]) => ({ label: v.label, attributes: v.attributes, offer_kind: v.offer_kind,
+          weight_grams: v.weight_grams, length_mm: v.length_mm, width_mm: v.width_mm, height_mm: v.height_mm,
+          default_warehouse_id: v.default_warehouse_id, contents: v.contents, image: v.image });
+        const changes = variants.map(({ sku: offerSku, ...variant }) => {
+          const current = currentBySku.get(offerSku);
+          if (!current) return { operation: "create" as const, create: { sku: offerSku, ...variant } };
+          return isDeepStrictEqual(variantValue(current), { ...variant, image: variant.image ?? null }) ? null
+            : { operation: "update" as const, variant_id: current.id, update: variant };
+        }).filter((c) => c !== null);
+        const matches = !changes.length && draft.name === fields.name && draft.description === fields.description && draft.category_id === fields.category_id &&
+          isDeepStrictEqual(draft.images, images) && isDeepStrictEqual(draft.facts, []);
         let version = draft.version;
-        if (!owned || (!matches && (active.length !== 1 || current === undefined))) { summary.products.preserved.push(product.key); continue; }
+        if (!owned || draft.variants.some((v) => v.retired && product.offers.some((o) => o.sku === v.sku))) { summary.products.preserved.push(product.key); continue; }
         if (!matches) {
           await begin();
-          const revised = await patchProduct(command(`revise:${product.offer.sku}:${draft.version}`), identity, principal, draft.id, { ...fields, expected_version: draft.version,
-            reason: `Catalog dataset import ${catalogSha256.slice(0, 12)}`, variant_changes: [{ operation: "update", variant_id: stored.id, update: variant }] });
+          const revised = await patchProduct(command(`revise:${product.key}:${draft.version}`), identity, principal, draft.id, { ...fields, expected_version: draft.version,
+            reason: `Catalog dataset import ${catalogSha256.slice(0, 12)}`, ...(changes.length ? { variant_changes: changes } : {}) });
           version = revised.version; summary.products.revised++;
         } else if (!fresh) summary.products.unchanged++;
         let state = await readPublicationState(identity, principal, draft.id);
-        if (state.ready && state.draft_version === version && state.current?.product_revision !== version) {
+        // A withdrawn product (no current publication after an earlier one) stays withdrawn.
+        if (state.ready && state.draft_version === version && (state.current || state.latest_version === 0) && state.current?.product_revision !== version) {
           await begin();
-          await publishProduct(command(`publish:${product.offer.sku}:${version}:${state.latest_version}`), identity, principal, draft.id,
+          await publishProduct(command(`publish:${product.key}:${version}:${state.latest_version}`), identity, principal, draft.id,
             { expected_version: version, expected_publication_version: state.latest_version, reason: "Guarded catalog dataset publication; no exception" });
           state = await readPublicationState(identity, principal, draft.id); summary.published_now++;
         }

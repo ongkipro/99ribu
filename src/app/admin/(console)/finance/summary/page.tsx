@@ -29,7 +29,7 @@ export default async function FinanceSummaryPage() {
 		<AdminPage testId="finance-summary-screen">
 			<PageHeader
 				title="Laporan Keuangan"
-				description="Posisi kas tereconcile, piutang, kewajiban, pendapatan bersih barang dagangan, HPP diakui, dan kontribusi margin pada rentang periode maksimal 366 hari."
+				description="Posisi kas terekonsiliasi, piutang, kewajiban, pendapatan bersih barang dagangan, HPP diakui, dan kontribusi margin pada rentang periode maksimal 366 hari."
 			/>
 			<FinanceSummaryClient />
 		</AdminPage>

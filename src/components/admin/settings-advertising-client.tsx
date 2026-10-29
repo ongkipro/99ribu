@@ -298,7 +298,7 @@ export function SettingsAdvertisingClient({ canWrite }: { canWrite: boolean }) {
 									<summary className="min-h-9 cursor-pointer font-medium text-muted-foreground pointer-coarse:flex pointer-coarse:min-h-11 pointer-coarse:items-center">
 										Riwayat versi ({dest.history?.length ?? 1})
 									</summary>
-									<ol className="mt-2 flex flex-col gap-2">
+									<ol className="mt-2 flex flex-col divide-y">
 										{(
 											dest.history ?? [
 												{
@@ -313,7 +313,7 @@ export function SettingsAdvertisingClient({ canWrite }: { canWrite: boolean }) {
 											<li
 												key={ver.version}
 												data-testid={`ad-version-${dest.platform}-${ver.version}`}
-												className="flex flex-col gap-0.5 border-l-2 pl-2.5"
+												className="flex flex-col gap-0.5 py-2 first:pt-0 last:pb-0"
 											>
 												<div className="flex flex-wrap items-center gap-1.5">
 													<span className="font-semibold tabular-nums">
@@ -327,7 +327,7 @@ export function SettingsAdvertisingClient({ canWrite }: { canWrite: boolean }) {
 													</span>
 												</div>
 												{ver.public_identifier && (
-													<code className="font-mono text-[11px] text-muted-foreground">
+													<code className="font-mono text-xs text-muted-foreground">
 														{ver.public_identifier}
 													</code>
 												)}

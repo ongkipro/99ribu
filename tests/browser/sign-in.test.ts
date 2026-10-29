@@ -106,7 +106,7 @@ test("buyer signs in without MFA, ignores an off-site next and lands on /account
 		await page.getByLabel("Email").fill(buyer.email);
 		await page.getByLabel("Kata sandi").fill(buyer.password);
 		await page.getByRole("button", { name: "Masuk", exact: true }).click();
-		await page.waitForURL(`${origin}/akun`);
+		await page.waitForURL(`${origin}/akun/pesanan`);
 		await page.getByTestId("sign-out-button").waitFor();
 		// A buyer asked to return to the console is offered an account switch, not a staff session.
 		await page.goto(`${origin}/masuk?next=%2Fadmin`);

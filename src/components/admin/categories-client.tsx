@@ -65,7 +65,7 @@ export function CategoriesClient() {
 			<PageHeader
 				title="Kategori"
 				back={{ href: "/admin/catalog", label: "Produk" }}
-				description="Kamus kategori produk, paling dalam 3 tingkat. Kategori tidak diganti nama atau dihapus: perubahan dibuat sebagai kategori baru. Daftar memuat kategori yang dipakai produk; kategori baru muncul di sini setelah dipakai."
+				description="Kamus kategori produk, paling dalam 3 tingkat. Kategori tidak diganti nama atau dihapus; perubahan dibuat sebagai kategori baru."
 				actions={
 					<Button type="button" data-testid="category-new" onClick={() => setDialog(true)}>
 						<Plus aria-hidden="true" />
@@ -87,7 +87,7 @@ export function CategoriesClient() {
 				rowTestId={({ row }) => `category-row-${row.slug}`}
 				status={list.status}
 				loadingLabel="Memuat kategori…"
-				empty="Belum ada kategori yang dipakai produk. Tambah kategori dengan tombol di atas."
+				empty="Belum ada kategori yang dipakai produk. Tambah kategori dengan tombol Tambah kategori, lalu pilih kategori itu di produk."
 				emptyTestId="categories-empty"
 				stack
 				paging={{ ...list.paging, testId: "categories-more", summary: `${list.rows.length} kategori dimuat` }}
@@ -108,26 +108,29 @@ export function CategoriesClient() {
 						id: "status",
 						header: "Status",
 						stack: "status",
+						// An empty status cell would leave a blank row under the name on the phone card.
+						cellClassName: "max-md:empty:hidden",
 						cell: ({ row }) => (unused(row) ? <StatusBadge tone="open">Belum dipakai produk</StatusBadge> : null),
 					},
-					{ id: "slug", header: "Slug", className: "font-mono", cell: ({ row }) => row.slug },
-					{ id: "depth", header: "Tingkat", className: "tabular-nums", cell: ({ row }) => row.depth },
+					{ id: "slug", header: "Slug", className: "font-mono", hideBelow: "5xl", cell: ({ row }) => row.slug },
+					{ id: "depth", header: "Tingkat", className: "text-right tabular-nums", cell: ({ row }) => row.depth },
 					{
 						id: "rules",
-						header: "Atribut wajib dan pilihan",
-						cellClassName: "max-w-72 whitespace-normal",
+						header: "Atribut",
+						// Full card width on phones so this row lines up with Slug and Tingkat.
+						cellClassName: "whitespace-normal md:max-w-72",
 						cell: ({ row }) =>
 							row.attribute_definitions?.length ? (
-								<span className="flex flex-wrap gap-x-2 text-xs">
+								<span className="flex min-w-0 flex-wrap gap-x-2 text-xs max-md:justify-end">
 									{row.attribute_definitions.map((rule) => (
 										<span key={rule.key}>
 											{rule.label}
-											{rule.required ? " *" : ""}
+											{rule.required ? " (wajib)" : ""}
 										</span>
 									))}
 								</span>
 							) : (
-								<span className="text-xs text-muted-foreground">Tanpa aturan atribut</span>
+								<span className="text-xs text-muted-foreground">Tanpa aturan</span>
 							),
 					},
 				]}
@@ -160,6 +163,7 @@ function CreateDialog({ parents, onClose, onDone }: { parents: Row[]; onClose: (
 	const [error, setError] = useState<string | null>(null);
 	const [pending, setPending] = useState(false);
 	const options = parents.filter((row) => row.depth < 3);
+	const dirty = Boolean(name.trim() || slug || parent || rules.length);
 	const setRule = (index: number, patch: Partial<RuleDraft>) => setRules((current) => current.map((rule, i) => (i === index ? { ...rule, ...patch } : rule)));
 
 	async function submit() {
@@ -196,6 +200,7 @@ function CreateDialog({ parents, onClose, onDone }: { parents: Row[]; onClose: (
 			submitLabel="Tambah kategori"
 			onClose={onClose}
 			onSubmit={() => void submit()}
+			dirty={dirty}
 			className="md:max-w-xl"
 		>
 			<FormField id={`${id}-name`} label="Nama kategori">

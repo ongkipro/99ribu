@@ -1,6 +1,6 @@
 "use client";
 
-import { CircleCheck, KeyRound, LogOut, Monitor, ShieldCheck, Smartphone } from "lucide-react";
+import { Check, CircleCheck, Copy, KeyRound, LogOut, Monitor, ShieldCheck, Smartphone } from "lucide-react";
 import { useCallback, useEffect, useId, useRef, useState } from "react";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
@@ -11,7 +11,7 @@ import { type AccountSecurity, type OwnSession, SECURITY_MESSAGES, describeDevic
 import { describeFailure, failureText, getJson, readFailure } from "./admin-errors";
 import { FormDialog, FormField } from "./form";
 import { DetailSection } from "./page-blocks";
-import { ErrorState, LoadingState } from "./states";
+import { DeniedState, ErrorState, LoadingState } from "./states";
 import { StatusBadge } from "./status";
 
 // S129 (spec 17 B2): own password, two-step verification and sessions. Every change asks for the current password.
@@ -73,18 +73,16 @@ export function AccountSecurityClient() {
 	};
 
 	if (status.kind === "loading") return <LoadingState label="Memuat keamanan akun…" lines={3} />;
+	if (status.kind === "denied")
+		return <DeniedState>{status.message} Masuk lagi sebagai staf dengan kode autentikator, lalu buka halaman ini.</DeniedState>;
 	if (status.kind !== "ready" || !data)
 		return (
 			<ErrorState
 				message={status.kind === "ready" ? "Data keamanan tidak tersedia." : status.message}
-				onRetry={
-					status.kind === "error"
-						? () => {
-								setStatus({ kind: "loading" });
-								void load();
-							}
-						: undefined
-				}
+				onRetry={() => {
+					setStatus({ kind: "loading" });
+					void load();
+				}}
 			/>
 		);
 	const others = data.sessions.filter((session) => !session.current).length;
@@ -230,6 +228,7 @@ function PasswordDialog({ onClose, onDone }: { onClose: () => void; onDone: () =
 			pending={pending}
 			error={error}
 			submitLabel="Ganti kata sandi"
+			dirty={!!(current || next || repeat)}
 			onClose={onClose}
 			onSubmit={() => void submit()}
 		>
@@ -268,6 +267,7 @@ function BackupDialog({ onClose, onDone }: { onClose: () => void; onDone: (codes
 			pending={pending}
 			error={error}
 			submitLabel="Buat kode baru"
+			destructive
 			onClose={onClose}
 			onSubmit={() => void submit()}
 		>
@@ -279,6 +279,16 @@ function BackupDialog({ onClose, onDone }: { onClose: () => void; onDone: (codes
 }
 
 function CodesDialog({ codes, onClose }: { codes: string[]; onClose: () => void }) {
+	const [copy, setCopy] = useState<"idle" | "done" | "failed">("idle");
+	// User-initiated only, straight to this device's clipboard; nothing is sent or stored.
+	async function copyCodes() {
+		try {
+			await navigator.clipboard.writeText(codes.join("\n"));
+			setCopy("done");
+		} catch {
+			setCopy("failed");
+		}
+	}
 	return (
 		<Dialog open onOpenChange={(next) => !next && onClose()}>
 			<DialogContent>
@@ -286,14 +296,26 @@ function CodesDialog({ codes, onClose }: { codes: string[]; onClose: () => void 
 					<DialogTitle>Simpan kode cadangan baru</DialogTitle>
 					<DialogDescription>Setiap kode dapat dipakai satu kali bila autentikator tidak tersedia. Kode ini tidak akan ditampilkan lagi setelah dialog ditutup.</DialogDescription>
 				</DialogHeader>
-				<ul className="grid grid-cols-2 gap-2 font-mono text-sm" data-testid="backup-codes">
+				{/* Inter with tabular, slashed-zero figures: 0 and O stay distinct without a fallback Courier. */}
+				<ul className="grid grid-cols-2 gap-2 text-sm font-medium tracking-wide tabular-nums slashed-zero" data-testid="backup-codes">
 					{codes.map((code) => (
 						<li key={code} className="rounded-md border bg-muted/40 px-3 py-2 break-all">
 							{code}
 						</li>
 					))}
 				</ul>
+				<p role="status" className="text-xs text-muted-foreground empty:hidden" data-testid="backup-codes-copy-status">
+					{copy === "done"
+						? `${codes.length} kode tersalin. Tempel di pengelola kata sandi, lalu kosongkan papan klip.`
+						: copy === "failed"
+							? "Browser menolak akses papan klip. Salin kode secara manual."
+							: null}
+				</p>
 				<DialogFooter>
+					<Button type="button" variant="outline" data-testid="backup-codes-copy" onClick={() => void copyCodes()}>
+						{copy === "done" ? <Check aria-hidden="true" /> : <Copy aria-hidden="true" />}
+						{copy === "done" ? "Tersalin" : "Salin semua kode"}
+					</Button>
 					<Button type="button" data-testid="backup-codes-done" onClick={onClose}>
 						Sudah saya simpan
 					</Button>
@@ -340,6 +362,7 @@ function SessionsDialog({ count, onClose, onDone }: { count: number; onClose: ()
 			pending={pending}
 			error={error}
 			submitLabel="Akhiri sesi lain"
+			destructive
 			onClose={onClose}
 			onSubmit={() => void submit()}
 		>

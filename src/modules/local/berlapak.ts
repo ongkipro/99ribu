@@ -17,6 +17,7 @@ import {appendCostVersion} from '../finance/costs.ts';
 import {ensurePosition,postMovement} from '../inventory/state.ts';
 import {webpSize} from '../../storage/media-sniff.ts';
 import {seedLocal} from './fixtures.ts';
+import {variantKey} from './berlapak-identities.ts';
 
 // Host-only importer for the local Berlapak supplier snapshot. Supplier names, HPP and
 // supplier/warehouse IDs stay in private stock/cost/warehouse rows; public names,
@@ -95,9 +96,14 @@ const slugify=(value:string)=>value.normalize('NFKD').toLowerCase().replace(/&/g
 // Upgrade path: replace with measured carton dimensions per SKU when the operator records them.
 export const cube=(grams:number)=>Math.min(1000,Math.max(50,Math.ceil(Math.cbrt(grams*6000))));
 
+// The buyer-facing variant choice keeps the seller's own words ("Plus 2", "XXXL", "CRF 150 / Paking Head"):
+// whitespace is tidied and a shouted word is capitalised; model codes, sizes and words with digits stay.
+const variantLabel=(value:string)=>value.normalize('NFC').replace(/\s+/g,' ').trim().split(' ').map((word)=>{
+  const letters=word.replace(/[^\p{L}]/gu,'');
+  return letters.length>3&&/^\p{Lu}+$/u.test(letters)&&!/\d/.test(word)&&!/^X+L$/.test(letters)?word.charAt(0)+word.slice(1).toLowerCase():word;}).join(' ');
 type Image={file:string;source:string;width:number;height:number};
-type StockSource={rank:number;name:string;title:string;variant:string|null;details:string;hpp:number;stock:number;unitGrams:number;weightDefaulted:boolean;warehouse:{id:string;name:string;province:string;city:string;district:string};category:string;images:Image[];qty:number};
-type OfferSource={key:string;name:string;description:string;category:string;kind:'unit'|'multipack'|'bundle';label:string;parts:{rank:number;quantity:number}[];warehouse:string;grams:number;images:{rank:number;file:string;alt:string}[]};
+type StockSource={rank:number;key:string;name:string;title:string;variant:string|null;choice:string|null;details:string;hpp:number;stock:number;unitGrams:number;weightDefaulted:boolean;warehouse:{id:string;name:string;province:string;city:string;district:string};category:string;images:Image[];image:Image|null;qty:number};
+type OfferSource={key:string;productKey:string;name:string;description:string;category:string;kind:'unit'|'multipack'|'bundle';label:string;choice:string|null;parts:{rank:number;stock:string;quantity:number}[];warehouse:string;grams:number;images:{rank:number;file:string;alt:string}[];image:{rank:number;file:string}|null};
 
 export function readBerlapakSource(directory:string){
   if(!existsSync(join(directory,'data-json'))||!existsSync(join(directory,'images'))) throw new Error(`Berlapak data directory not found or incomplete: ${directory}`);
@@ -111,23 +117,19 @@ export function readBerlapakSource(directory:string){
   const skipped:Record<string,number>={};const skip=(reason:string)=>{skipped[reason]=(skipped[reason]??0)+1;};
   const supplierNames=new Set<string>();for(const row of rows){try{const name=optionalText(rec(row.supplier).name,200);if(name) supplierNames.add(name);}catch{/* validated per row below */}}
   const suppliers=supplierPatterns([...supplierNames]);
-  const stocks=new Map<number,StockSource>();
+  const stocks=new Map<string,StockSource>(),ranks=new Set<number>();
   for(const row of rows){
     let rank:number;
     try{rank=integer(row.rank,1,99999);}catch{skip('invalid-record');continue;}
-    if(stocks.has(rank)){skip('invalid-record');continue;}
+    if(ranks.has(rank)){skip('invalid-record');continue;}ranks.add(rank);
     try{
       const inventory=rec(row.inventory);if(inventory.is_ready_stock!==true){skip('not-ready-stock');continue;}
       const pricing=rec(row.pricing),strategy=rec(row.strategy_99ribu),variants=rec(row.variants_summary),assets=rec(row.assets),place=rec(row.warehouse_and_shipping),category=rec(row.category_mapping);
-      let hpp:number,stock:number,variantName:string|null=null;
-      const options=array(variants.variants,rec,0,200).flatMap((v)=>{try{return [{name:text(v.name,100),hpp:integer(v.hpp_price,1,PRICE*10),stock:integer(v.stock,0),id:text(v._id,40)}];}catch{return [];}});
-      if(variants.has_variants===true){
-        const best=options.filter((v)=>v.stock>0).sort((a,b)=>b.stock-a.stock||a.hpp-b.hpp||a.id.localeCompare(b.id))[0];
-        if(!best){skip('hpp-unusable');continue;}({hpp,stock}=best);variantName=best.name;
-      }else{
-        if(!Number.isSafeInteger(pricing.hpp_price)||Number(pricing.hpp_price)<1){skip('hpp-unusable');continue;}
-        hpp=Number(pricing.hpp_price);stock=integer(inventory.total_stock,0);
-      }
+      const options=array(variants.variants,rec,0,200).flatMap((v)=>{try{return [{name:text(v.name,100),hpp:integer(v.hpp_price,1,PRICE*10),stock:integer(v.stock,0),id:text(v._id,40),image:optionalText(v.image_local_path,600)}];}catch{skip('variant-invalid');return [];}});
+      if(new Set(options.map((v)=>v.id)).size!==options.length) throw invalid();
+      const candidates=variants.has_variants===true?options.filter((v)=>v.stock>0):[{
+        name:null,hpp:integer(pricing.hpp_price,1,PRICE*10),stock:integer(inventory.total_stock,0),id:null,image:null}];
+      if(!candidates.length){skip('hpp-unusable');continue;}
       const qty=integer(strategy.recommended_bundle_qty,1,50);
       const warehouseId=text(place.warehouse_id,40);if(!/^[0-9a-f]{24}$/.test(warehouseId)) throw invalid();
       const folder=text(assets.folder_slug,300);if(!/^\d{3}-[A-Za-z0-9-]+$/.test(folder)||Number(folder.slice(0,3))!==rank%1000) throw invalid();
@@ -139,14 +141,13 @@ export function readBerlapakSource(directory:string){
           return (ma[1]===mb[1]?0:ma[1]==='img'?-1:1)||Number(ma[2])-Number(mb[2]);
         });
       }catch{/* outside images/ or unreadable folder: image omitted */}
-      const seenHashes=new Set<string>();
+      const seenHashes=new Map<string,Image>(),aliases=new Map<string,Image>();
       for(const file of folderFiles){
-        if(images.length>=20) break;
         const source=join(directory,'images',folder,file);if(!existsSync(source)) continue;
         try{
           const bytes=readContained(imagesRoot,source,IMAGE_LIMIT);const size=webpSize(bytes);
-          const hash=createHash('sha256').update(bytes).digest('hex');if(seenHashes.has(hash)) continue;seenHashes.add(hash);
-          images.push({file,source,...size});
+          const hash=createHash('sha256').update(bytes).digest('hex');let image=seenHashes.get(hash);
+          if(!image){image={file,source,...size};seenHashes.set(hash,image);images.push(image);}aliases.set(file,image);
         }catch{/* outside images/, oversized or unreadable header: image omitted */}
       }
       if(!images.length){skip('image-missing');continue;}
@@ -154,26 +155,38 @@ export function readBerlapakSource(directory:string){
         :typeof inventory.weight_kg==='number'&&inventory.weight_kg>0?Math.ceil(inventory.weight_kg*1000):null;
       const code=text(category.storefront_category_code,20);if(!categories.some((c)=>c.code===code)){skip('category-unmapped');continue;}
       const fallback=optionalText(category.storefront_subcategory,100)??undefined;
-      const base=publicName(text(row.name,500),suppliers,NAME_LIMIT,fallback);const variant=variantName?publicName(variantName,suppliers,60):null;
+      const base=publicName(text(row.name,500),suppliers,NAME_LIMIT,fallback);
       // Raw marketplace description: cleaned by the DEC-005 generator before anything is published.
       let details='';try{details=optionalText(row.description,20000)??'';}catch{/* unusable text: no details */}
-      const name=variant?`${base} - ${variant}`:base;
-      // `title`/`variant`: the uncut public name and variant, for the DEC-005 dataset's short card titles.
-      stocks.set(rank,{rank,name:text(name,200),title:publicName(text(row.name,500),suppliers,500,fallback,true),variant,hpp,stock,unitGrams:grams??FALLBACK_UNIT_GRAMS,weightDefaulted:grams===null,
-        warehouse:{id:warehouseId,name:text(place.warehouse_name,150),province:placeName(place.province),city:placeName(place.city),district:placeName(place.district)},category:code,details,images,qty});
+      for(const candidate of candidates){
+        const variant=candidate.name?publicName(candidate.name,suppliers,100):null,key=candidate.id?variantKey(rank,candidate.id):String(rank);
+        const choice=candidate.name?variantLabel(candidate.name):null;
+        const name=variant?`${base} - ${variant}`:base;
+        const prefix=`images/${folder}/`,file=candidate.image?.startsWith(prefix)?candidate.image.slice(prefix.length):null;
+        // An explicitly absent variant photo uses the real shared cover; never fabricate
+        // variant-specific imagery or omit an otherwise sellable physical variant.
+        const image=candidate.id?(file&&/^var-\d+\.webp$/.test(file)?aliases.get(file)??null:candidate.image===null?images[0]:null):null;
+        if(candidate.id&&!image){skip('variant-image-missing');continue;}
+        stocks.set(key,{rank,key,name:text(name,200),title:publicName(text(row.name,500),suppliers,500,fallback,true),variant,choice,hpp:candidate.hpp,stock:candidate.stock,
+          unitGrams:grams??FALLBACK_UNIT_GRAMS,weightDefaulted:grams===null,
+          warehouse:{id:warehouseId,name:text(place.warehouse_name,150),province:placeName(place.province),city:placeName(place.city),district:placeName(place.district)},
+          category:code,details,images, image,qty});
+      }
     }catch{skip('invalid-record');}
   }
   const offers:OfferSource[]=[];
   const imageAlt=(name:string,index:number)=>index?`${name}, foto ${index+1}`:name;
-  for(const item of [...stocks.values()].sort((a,b)=>a.rank-b.rank)){
+  for(const item of [...stocks.values()].sort((a,b)=>a.rank-b.rank||a.key.localeCompare(b.key))){
     if(item.qty*item.hpp>=PRICE){skip('hpp-at-or-above-price');continue;}
     if(item.stock<item.qty){skip('insufficient-stock');continue;}
     const grams=item.qty*item.unitGrams;if(grams>MAX_PARCEL_GRAMS){skip('parcel-too-heavy');continue;}
     const kind=item.qty===1?'unit':'multipack';
     const name=publicName(kind==='unit'?item.name:`Paket ${item.qty} pcs ${item.name}`,[],NAME_LIMIT);
-    offers.push({key:String(item.rank),name,kind,label:kind==='unit'?'Satuan':`Paket ${item.qty} pcs`,category:item.category,warehouse:item.warehouse.id,grams,
-      description:`Isi paket: ${item.qty} pcs ${item.name}.\nHarga Rp99.000 untuk satu paket lengkap.`,parts:[{rank:item.rank,quantity:item.qty}],
-      images:item.images.map((image,index)=>({rank:item.rank,file:image.file,alt:imageAlt(name,index)}))});
+    const gallery=(item.image?[item.image,...item.images.filter((i)=>i!==item.image)]:item.images).slice(0,20);
+    offers.push({key:item.key,productKey:String(item.rank),name,kind,choice:item.choice,label:item.choice?kind==='unit'?item.choice:`${item.choice} · Paket ${item.qty} pcs`:kind==='unit'?'Satuan':`Paket ${item.qty} pcs`,
+      category:item.category,warehouse:item.warehouse.id,grams,
+      description:`Isi paket: ${item.qty} pcs ${item.name}.\nHarga Rp99.000 untuk satu paket lengkap.`,parts:[{rank:item.rank,stock:item.key,quantity:item.qty}],
+      images:gallery.map((image,index)=>({rank:item.rank,file:image.file,alt:imageAlt(name,index)})),image:item.image?{rank:item.rank,file:item.image.file}:null});
   }
   const occurrences=new Map<string,number>();
   for(const value of array(curated.curated_cross_sku_bundles,(v)=>v,0,500)){
@@ -181,9 +194,10 @@ export function readBerlapakSource(directory:string){
       const bundle=rec(value);const code=text(bundle.code,20);if(!/^BND-\d{2,3}$/.test(code)) throw invalid();
       const seen=(occurrences.get(code)??0)+1;occurrences.set(code,seen);const key=seen>1?`${code}-${seen}`:code;
       if(bundle.selling_price!==PRICE) throw invalid();
-      const parts=array(bundle.items,(v)=>{const i=rec(v);return {rank:integer(i.rank,1,99999),quantity:integer(i.qty,1,50)};},2,20);
+      const parts=array(bundle.items,(v)=>{const i=rec(v);const rank=integer(i.rank,1,99999);return {rank,stock:String(rank),quantity:integer(i.qty,1,50)};},2,20);
       if(new Set(parts.map((p)=>p.rank)).size!==parts.length) throw invalid();
-      const components=parts.map((p)=>stocks.get(p.rank));
+      // Bundles retain the historically selected physical variant, never whichever has most stock now.
+      const components=parts.map((p)=>stocks.get(p.stock));
       if(components.some((c)=>!c)){skip('bundle-rank-unresolved');continue;}
       const resolved=components as StockSource[];
       if(new Set(resolved.map((c)=>c.warehouse.id)).size!==1){skip('bundle-mixed-warehouse');continue;}
@@ -193,13 +207,13 @@ export function readBerlapakSource(directory:string){
       const storefront=text(rec(bundle.google_catalog).storefront_category,200);const category=categories.find((c)=>c.name===storefront);
       if(!category){skip('bundle-category-unmapped');continue;}
       const name=publicName(text(bundle.title,300).replace(/\s*\([^)]*\)\s*$/,''),suppliers,NAME_LIMIT);
-      offers.push({key,name,kind:'bundle',label:`Paket ${parts.reduce((n,p)=>n+p.quantity,0)} barang`,category:category.code,warehouse:resolved[0].warehouse.id,grams,
+      offers.push({key,productKey:key,name,kind:'bundle',choice:null,label:`Paket ${parts.reduce((n,p)=>n+p.quantity,0)} barang`,category:category.code,warehouse:resolved[0].warehouse.id,grams,
         description:`Isi paket:\n${parts.map((p,i)=>`- ${p.quantity} pcs ${resolved[i].name}`).join('\n')}\nHarga Rp99.000 untuk satu paket lengkap.`,parts,
-        images:resolved.slice(0,4).map((c)=>({rank:c.rank,file:c.images[0].file,alt:c.name.slice(0,500)}))});
+        images:resolved.slice(0,4).map((c)=>({rank:c.rank,file:c.images[0].file,alt:c.name.slice(0,500)})),image:null});
     }catch{skip('bundle-invalid');}
   }
-  const used=new Set(offers.flatMap((o)=>o.parts.map((p)=>p.rank)));
-  const selected=[...stocks.values()].filter((s)=>used.has(s.rank));
+  const used=new Set(offers.flatMap((o)=>o.parts.map((p)=>p.stock)));
+  const selected=[...stocks.values()].filter((s)=>used.has(s.key));
   return {snapshot,imagesRoot,categories,stocks:selected,offers,skipped,weightDefaulted:selected.filter((s)=>s.weightDefaulted).length,supplierNames:[...supplierNames]};
 }
 
@@ -247,19 +261,19 @@ export async function importBerlapak(request:Request,identity:LocalAuth,target:T
         return warehouseId;
       });
     }
-    const stocks:Record<number,string>={};let received=0;let imagesCopied=0;
+    const stocks:Record<string,string>={};let received=0;let imagesCopied=0;
     for(const item of source.stocks){
-      signal?.throwIfAborted();const sku=`BL_${NS}_${item.rank}`;let [stored]=await identity.sql`select id,name from app.stock_item where sku=${sku}`;
-      if(!stored) stored=await createStockItem(command(`stock:${item.rank}`),identity,principal,{sku,name:item.name});
-      stocks[item.rank]=stored.id;
+      signal?.throwIfAborted();const sku=`BL_${NS}_${item.key.replaceAll('-','_')}`;let [stored]=await identity.sql`select id,name from app.stock_item where sku=${sku}`;
+      if(!stored) stored=await createStockItem(command(`stock:${item.key}`),identity,principal,{sku,name:item.name});
+      stocks[item.key]=stored.id;
       if(!(await identity.sql`select id from app.component_cost_version where stock_item_id=${stored.id} limit 1`).length)
-        await appendCostVersion(command(`cost:${item.rank}`),identity,principal,'component',stored.id,{expected_version:0,unit_cost:item.hpp,effective_from:null,source:`Local supplier snapshot ${source.snapshot}`,reason:'Initialize private component HPP from local snapshot'});
+        await appendCostVersion(command(`cost:${item.key}`),identity,principal,'component',stored.id,{expected_version:0,unit_cost:item.hpp,effective_from:null,source:`Local supplier snapshot ${source.snapshot}`,reason:'Initialize private component HPP from local snapshot'});
       const warehouseId=warehouses[item.warehouse.id];
       received+=await identity.sql.begin(async(tx)=>{
         await owner(tx,principal);const balanceId=await ensurePosition(tx,warehouseId,stored.id,null);
         const [balance]=await tx`select revision from app.inventory_balance where id=${balanceId} for update`;if(balance.revision!==0) return 0;
         const quantity=Math.min(item.stock,ON_HAND_CAP);if(!quantity) return 0;
-        await postMovement(tx,{balanceId,kind:'receive',quantity,onHand:quantity,reserved:0,quarantined:0,sourceRef:`berlapak:${namespace}:${item.rank}`,actorId:principal.id,reason:'Initialize local physical supply from snapshot (capped)'});
+        await postMovement(tx,{balanceId,kind:'receive',quantity,onHand:quantity,reserved:0,quarantined:0,sourceRef:`berlapak:${namespace}:${item.key}`,actorId:principal.id,reason:'Initialize local physical supply from snapshot (capped)'});
         await tx`insert into app.audit_event (actor_id,action,subject_id,outcome,reason) values (${principal.id},'local_fixture.inventory',${balanceId},'allowed','Initialize local snapshot position through actual movement')`;
         return 1;
       });
@@ -275,32 +289,62 @@ export async function importBerlapak(request:Request,identity:LocalAuth,target:T
       }
     }
     const products:Record<string,{product_id:string;offer_id:string;warehouse_id:string;publication_id:string|null;preserved:boolean}>={};const blocked:Record<string,number>={};let published=0;
-    const names=new Map(source.stocks.map((s)=>[s.rank,s.name]));
-    for(const offer of source.offers){
-      signal?.throwIfAborted();await identity.sql.begin((tx)=>owner(tx,principal));const sku=`BL_${NS}_${offer.key}_OFFER`;
-      const contents=offer.parts.map((p)=>({stock_item_id:stocks[p.rank],name:names.get(p.rank) as string,quantity:p.quantity})).sort((a,b)=>a.stock_item_id.localeCompare(b.stock_item_id));
-      const images=offer.images.map((image)=>{const stock=source.stocks.find((s)=>s.rank===image.rank) as StockSource;const size=stock.images.find((i)=>i.file===image.file) as Image;
-        return {url:`${config.origin}/catalog-local/${image.rank}/${image.file}`,alt:image.alt,width:size.width,height:size.height};});
-      const side=cube(offer.grams);const warehouseId=warehouses[offer.warehouse];
-      const definition={sku,label:offer.label,attributes:[],offer_kind:offer.kind,weight_grams:offer.grams,length_mm:side,width_mm:side,height_mm:side,default_warehouse_id:warehouseId,contents};
-      let [stored]=await identity.sql`select id,product_id from app.offer where sku=${sku}`;
-      if(!stored){const created=await createProduct(command(`product:${offer.key}`),identity,principal,{name:offer.name,description:offer.description,category_id:categories[offer.category],images,variants:[definition]});stored={id:created.variants[0].id,product_id:created.id};}
-      let draft=await readCatalogRevision(identity.sql,stored.product_id);const current=draft.variants.find((v)=>v.id===stored.id);
-      if(draft.version===1&&current!==undefined&&!current.retired&&!isDeepStrictEqual(draft.images,images)){
-        await patchProduct(command(`product-images:${offer.key}:${draft.version}`),identity,principal,stored.product_id,{expected_version:draft.version,images,reason:'Refresh local snapshot product images'});
-        draft=await readCatalogRevision(identity.sql,stored.product_id);
+    const names=new Map(source.stocks.map((s)=>[s.key,s.name]));
+    for(const [productKey,offers] of Map.groupBy(source.offers,(o)=>o.productKey)){
+      signal?.throwIfAborted();await identity.sql.begin((tx)=>owner(tx,principal));
+      const offer=offers[0],stock=source.stocks.find((s)=>s.key===offer.parts[0].stock) as StockSource;
+      const name=offer.kind==='bundle'||!stock.variant?offer.name:publicName(offer.kind==='unit'?stock.title:`Paket ${stock.qty} pcs ${stock.title}`,[],NAME_LIMIT);
+      const description=offer.kind==='bundle'||!stock.variant?offer.description:
+        `Pilihan paket:\n${offers.map((o)=>`- ${o.label}`).join('\n')}\nHarga Rp99.000 untuk satu paket lengkap sesuai pilihan varian.`;
+      const refs=[...offers.flatMap((o)=>o.image?[{...o.image,alt:o.label}]:[]),...offers.flatMap((o)=>o.images.filter((i)=>!o.image||i.file.startsWith('img-')))];
+      const seen=new Set<string>();
+      const images=refs.flatMap((image)=>{
+        const key=`${image.rank}/${image.file}`;if(seen.has(key)) return [];seen.add(key);
+        const size=source.stocks.filter((s)=>s.rank===image.rank).flatMap((s)=>s.images).find((i)=>i.file===image.file) as Image;
+        return [{url:`${config.origin}/catalog-local/${key}`,alt:image.alt,width:size.width,height:size.height}];
+      }).slice(0,20);
+      const definitions=offers.map((o)=>{const side=cube(o.grams);
+        const contents=o.parts.map((p)=>({stock_item_id:stocks[p.stock],name:names.get(p.stock) as string,quantity:p.quantity})).sort((a,b)=>a.stock_item_id.localeCompare(b.stock_item_id));
+        return {sku:`BL_${NS}_${o.key}_OFFER`,label:o.label,attributes:[],offer_kind:o.kind,weight_grams:o.grams,length_mm:side,width_mm:side,height_mm:side,
+          default_warehouse_id:warehouses[o.warehouse],contents,...(o.image?{image:images.find((i)=>i.url.endsWith(`/${o.image?.rank}/${o.image?.file}`))}:{})};});
+      const fields={name,description,category_id:categories[offer.category],images};
+      const existing=await identity.sql`select id,product_id from app.offer where sku in ${identity.sql(definitions.map((d)=>d.sku))}`;
+      if(new Set(existing.map((o)=>o.product_id)).size>1) throw new Error(`Local snapshot offers for ${productKey} belong to different products.`);
+      let productId=existing[0]?.product_id as string|undefined;
+      if(!productId){const created=await createProduct(command(`product:${productKey}`),identity,principal,{...fields,variants:definitions});productId=created.id as string;}
+      let draft=await readCatalogRevision(identity.sql,productId);
+      const owned=(await identity.sql`select 1 from app.product_revision where product_id=${productId} and revision=${draft.version}
+        and reason in ('Create inactive product draft','Refresh local snapshot product images','Refresh local snapshot variant offers')`).length>0;
+      const current=new Map(draft.variants.filter((v)=>!v.retired).map((v)=>[v.sku,v]));
+      const values=(v:typeof draft.variants[number])=>({sku:v.sku,label:v.label,attributes:v.attributes,offer_kind:v.offer_kind,weight_grams:v.weight_grams,length_mm:v.length_mm,
+        width_mm:v.width_mm,height_mm:v.height_mm,default_warehouse_id:v.default_warehouse_id,contents:v.contents,image:v.image});
+      const changes=definitions.map(({sku,...definition})=>{
+        const v=current.get(sku);if(!v) return {operation:'create' as const,create:{sku,...definition}};
+        return isDeepStrictEqual(values(v),{sku,...definition,image:definition.image??null})?null:{operation:'update' as const,variant_id:v.id,update:definition};
+      }).filter((c)=>c!==null);
+      const matches=!changes.length&&draft.name===name&&draft.description===description&&draft.category_id===fields.category_id&&isDeepStrictEqual(draft.images,images);
+      const pristine=owned&&!draft.variants.some((v)=>v.retired&&definitions.some((d)=>d.sku===v.sku));
+      if(pristine&&!matches){
+        await patchProduct(command(`product-variants:${productKey}:${draft.version}`),identity,principal,productId,{...fields,expected_version:draft.version,
+          ...(changes.length?{variant_changes:changes}:{}),reason:'Refresh local snapshot variant offers'});
+        draft=await readCatalogRevision(identity.sql,productId);
       }
-      const pristine=draft.name===offer.name&&draft.description===offer.description&&draft.category_id===categories[offer.category]&&isDeepStrictEqual(draft.images,images)&&draft.variants.length===1&&current!==undefined&&!current.retired&&
-        isDeepStrictEqual({sku:current.sku,label:current.label,attributes:current.attributes,offer_kind:current.offer_kind,weight_grams:current.weight_grams,length_mm:current.length_mm,width_mm:current.width_mm,height_mm:current.height_mm,default_warehouse_id:current.default_warehouse_id,contents:current.contents},definition);
-      if(pristine&&!(await identity.sql`select id from app.offer_cost_assumption_version where offer_id=${stored.id} limit 1`).length)
-        await appendCostVersion(command(`assumption:${offer.key}`),identity,principal,'assumption',stored.id,{expected_version:0,effective_from:null,...DEFAULT_OFFER_ASSUMPTIONS,source:'TEST-ONLY local import assumptions',reason:'Initialize per-offer variable cost estimates; preserve later edits'});
-      let state=await readPublicationState(identity,principal,stored.product_id);
-      if(pristine&&!state.current&&state.latest_version===0&&state.ready){
-        await publishProduct(command(`publish:${offer.key}`),identity,principal,stored.product_id,{expected_version:draft.version,expected_publication_version:0,reason:'Guarded local snapshot initial publication; no exception'});
-        state=await readPublicationState(identity,principal,stored.product_id);
+      for(const definition of definitions){
+        const v=draft.variants.find((v)=>v.sku===definition.sku);
+        if(pristine&&v&&!(await identity.sql`select id from app.offer_cost_assumption_version where offer_id=${v.id} limit 1`).length)
+          await appendCostVersion(command(`assumption:${definition.sku}`),identity,principal,'assumption',v.id,{expected_version:0,effective_from:null,...DEFAULT_OFFER_ASSUMPTIONS,source:'TEST-ONLY local import assumptions',reason:'Initialize per-offer variable cost estimates; preserve later edits'});
+      }
+      let state=await readPublicationState(identity,principal,productId);
+      // A withdrawn product (no current publication after an earlier one) stays withdrawn.
+      if(pristine&&state.ready&&(state.current||state.latest_version===0)&&state.current?.product_revision!==draft.version){
+        await publishProduct(command(`publish:${productKey}:${draft.version}:${state.latest_version}`),identity,principal,productId,{expected_version:draft.version,expected_publication_version:state.latest_version,reason:'Guarded local snapshot publication; no exception'});
+        state=await readPublicationState(identity,principal,productId);
       }
       if(state.current) published++;else for(const code of new Set(state.blockers.map((b)=>b.code))) blocked[code]=(blocked[code]??0)+1;
-      products[offer.key]={product_id:stored.product_id,offer_id:stored.id,warehouse_id:warehouseId,publication_id:state.current?.id??null,preserved:!pristine};
+      for(const o of offers){
+        const v=draft.variants.find((v)=>v.sku===`BL_${NS}_${o.key}_OFFER`);if(!v) continue;
+        products[o.key]={product_id:productId,offer_id:v.id,warehouse_id:warehouses[o.warehouse],publication_id:state.current?.id??null,preserved:!pristine};
+      }
     }
     signal?.throwIfAborted();await identity.sql.begin(async(tx)=>{await owner(tx,principal);await tx`insert into app.audit_event (actor_id,action,subject_id,outcome,reason,details)
       values (${principal.id},'local_fixture.berlapak',${namespace},'allowed','Non-destructive local snapshot import through real domain guards',${JSON.stringify({stocks:source.stocks.length,offers:source.offers.length,published})}::jsonb)`;});

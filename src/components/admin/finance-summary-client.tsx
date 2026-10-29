@@ -23,7 +23,6 @@ import { FormField, SegmentedControl } from "./form";
 import { KpiGrid } from "./kpi-card";
 import { DetailSection } from "./page-blocks";
 import { ErrorState, LoadingState } from "./states";
-import { StatusBadge } from "./status";
 
 const DAY_MS = 86_400_000;
 const MAX_WINDOW_MS = 366 * DAY_MS;
@@ -257,84 +256,98 @@ export function FinanceSummaryClient() {
 
 				{summary && (
 					<p
-						className="text-xs text-muted-foreground"
+						className="text-xs text-muted-foreground tabular-nums"
 						data-testid="summary-window-meta"
 					>
-						Periode {formatWib(summary.from)} s/d {formatWib(summary.to)} WIB
+						Periode {formatWib(summary.from)} s/d {formatWib(summary.to)}
 						{summary.generated_at
 							? ` · Dihitung ${formatWib(summary.generated_at)}`
-							: ""}{" "}
-						· Nilai dengan sumber biaya yang belum lengkap ditampilkan sebagai{" "}
-						<strong>Belum lengkap</strong>, tidak pernah dianggap Rp0.
+							: ""}
 					</p>
 				)}
 			</div>
 
 			{status.kind === "loading" && !summary ? (
-				<LoadingState label="Memuat laporan keuangan…" lines={6} columns={4} />
+				<LoadingState label="Memuat laporan keuangan…" lines={6} columns={3} />
 			) : status.kind === "error" ? (
 				<ErrorState message={status.message} onRetry={status.onRetry} />
 			) : (
 				<>
 					{hasIncomplete && (
-						<Alert role="status" data-testid="summary-incomplete-alert">
-							<CircleAlert aria-hidden="true" />
+						<Alert
+							role="status"
+							data-testid="summary-incomplete-alert"
+							className="border-warning/40 bg-warning-surface"
+						>
+							<CircleAlert aria-hidden="true" className="text-warning" />
 							<AlertDescription className="text-foreground">
-								Sebagian pos kontribusi atau margin pada periode ini{" "}
-								<strong>Belum lengkap</strong> karena HPP komponen, asumsi biaya
-								penawaran, atau rekonsiliasi pencairan belum tercatat. Lengkapi sumber
-								biaya atau rekonsiliasi terlebih dahulu; angka yang belum lengkap tidak
-								ditampilkan sebagai Rp0.
+								Sebagian pos kontribusi atau margin belum bisa dihitung karena HPP komponen,
+								asumsi biaya penawaran, atau rekonsiliasi pencairan belum tercatat. Pos itu
+								ditandai <strong>Belum lengkap</strong>, bukan Rp0. Lengkapi sumber yang
+								tercantum di tiap baris.
 							</AlertDescription>
 						</Alert>
 					)}
 
 					{moneyMetrics.length > 0 && (
-						<DetailSection
-							id="summary-dashboard-heading"
-							title="Metrik keuangan ruang kerja"
-							description="Ringkasan posisi COD, kewajiban, dan kontribusi dari dasbor keuangan."
-							testId="summary-dashboard-metrics"
+						// Cards sit directly under the heading: no second card frame around them.
+						<section
+							aria-labelledby="summary-dashboard-heading"
+							data-testid="summary-dashboard-metrics"
+							className="flex min-w-0 flex-col gap-3"
 						>
+							<div className="flex flex-col gap-0.5">
+								<h2 id="summary-dashboard-heading" className="text-base font-semibold">
+									Metrik keuangan ruang kerja
+								</h2>
+								<p className="text-xs text-muted-foreground">
+									Posisi COD, kewajiban, dan kontribusi dari dasbor keuangan.
+								</p>
+							</div>
 							<KpiGrid money>
-								{moneyMetrics.map((m) => (
-									<li
-										key={m.key}
-										data-testid={`summary-kpi-${m.key}`}
-										data-complete={m.complete ? "true" : "false"}
-										className="flex min-w-0 flex-col justify-between gap-2 rounded-lg border bg-card p-3.5"
-									>
-										<div className="flex items-start justify-between gap-2">
-											<span className="text-xs font-medium text-muted-foreground">
-												{DASHBOARD_METRIC_LABELS[m.key] ?? m.key}
-											</span>
-											{m.complete && BASIS_LABELS[m.financial_basis] ? (
-												<Badge variant="outline">
-													{BASIS_LABELS[m.financial_basis]}
-												</Badge>
-											) : (
-												<StatusBadge tone="problem">Belum lengkap</StatusBadge>
-											)}
-										</div>
-										<p
-											data-testid={`summary-kpi-value-${m.key}`}
-											className={
-												m.complete && m.amount !== null
-													? "text-lg font-semibold tabular-nums"
-													: "text-base font-semibold text-warning"
-											}
+								{moneyMetrics.map((m) => {
+									const known = m.complete && m.amount !== null;
+									return (
+										<li
+											key={m.key}
+											data-testid={`summary-kpi-${m.key}`}
+											data-complete={m.complete ? "true" : "false"}
+											className="flex min-w-0 flex-col gap-2 rounded-lg border bg-card p-3"
 										>
-											{formatDashboardMoney(m)}
-										</p>
-										<p className="text-xs text-muted-foreground">
-											{m.complete
-												? m.definition
-												: "Sebagian sumber biaya belum tercatat, jadi nilai tidak dihitung sebagai Rp0."}
-										</p>
-									</li>
-								))}
+											<div className="flex items-start justify-between gap-2">
+												<span className="text-xs font-medium text-muted-foreground">
+													{DASHBOARD_METRIC_LABELS[m.key] ?? m.key}
+												</span>
+												{known && BASIS_LABELS[m.financial_basis] && (
+													<Badge variant="outline">
+														{BASIS_LABELS[m.financial_basis]}
+													</Badge>
+												)}
+											</div>
+											{/* One "Belum lengkap" per card: the value itself, marked by icon and tone. */}
+											<p
+												data-testid={`summary-kpi-value-${m.key}`}
+												className={
+													known
+														? "text-xl font-semibold whitespace-nowrap tabular-nums"
+														: "flex items-center gap-1 text-base font-semibold text-warning"
+												}
+											>
+												{!known && (
+													<CircleAlert aria-hidden="true" className="size-4 shrink-0" />
+												)}
+												{formatDashboardMoney(m)}
+											</p>
+											<p className="text-xs text-muted-foreground">
+												{known
+													? m.definition
+													: "Sumber biaya belum tercatat semua, jadi nilai tidak dihitung."}
+											</p>
+										</li>
+									);
+								})}
 							</KpiGrid>
-						</DetailSection>
+						</section>
 					)}
 
 					<DetailSection
@@ -404,41 +417,32 @@ function StatementTable({
 					),
 				},
 				{
-					id: "completeness",
-					header: "Kelengkapan",
-					stack: "status",
-					className: "md:w-px",
-					cell: (row) => (
-						<StatusBadge
-							tone={row.section.complete ? "success" : "problem"}
-							testId={`summary-status-${row.key}`}
-							data-status={row.section.complete ? "complete" : "incomplete"}
-						>
-							{row.section.complete ? "Lengkap" : "Belum lengkap"}
-						</StatusBadge>
-					),
-				},
-				{
+					// One completeness signal per row: the value itself (amount, or icon + "Belum lengkap").
 					id: "amount",
 					header: "Nilai",
 					stack: "aside",
 					className: "text-right whitespace-nowrap tabular-nums md:w-px",
-					cell: (row) => (
-						<span
-							data-testid={`summary-value-${row.key}`}
-							className={
-								row.section.complete && row.section.amount !== null
-									? "font-semibold tabular-nums"
-									: "font-semibold text-warning"
-							}
-						>
-							{formatStatementAmount(row.section)}
-						</span>
-					),
+					cell: (row) => {
+						const known = row.section.complete && row.section.amount !== null;
+						return (
+							<span
+								data-testid={`summary-value-${row.key}`}
+								data-status={known ? "complete" : "incomplete"}
+								className={
+									known
+										? "font-semibold tabular-nums"
+										: "inline-flex items-center gap-1 font-semibold text-warning"
+								}
+							>
+								{!known && <CircleAlert aria-hidden="true" className="size-4 shrink-0" />}
+								{formatStatementAmount(row.section)}
+							</span>
+						);
+					},
 				},
 				{
 					id: "missing",
-					header: "Sumber yang belum lengkap",
+					header: "Yang perlu dilengkapi",
 					className: "whitespace-normal [overflow-wrap:anywhere]",
 					cellClassName: "max-md:flex-col max-md:items-start max-md:text-left",
 					cell: (row) =>
@@ -450,12 +454,7 @@ function StatementTable({
 								data-testid={`summary-missing-${row.key}`}
 							>
 								{row.section.missing_inputs.map((input) => (
-									<li key={input}>
-										<span>{missingInputLabel(input)}</span>{" "}
-										<span className="font-mono text-muted-foreground">
-											({input})
-										</span>
-									</li>
+									<li key={input}>{missingInputLabel(input)}</li>
 								))}
 							</ul>
 						),

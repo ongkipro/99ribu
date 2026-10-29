@@ -192,6 +192,7 @@ test("S134 owner creates a SKU, appends HPP versions, sees the domain refuse a b
 		await again.getByRole("button", { name: "Tambah SKU" }).click();
 		await expect(again.getByRole("alert")).toContainText("sudah dipakai");
 		await again.getByRole("button", { name: "Batal" }).click();
+		await page.getByRole("alertdialog", { name: "Buang perubahan?" }).getByRole("button", { name: "Buang" }).click();
 
 		// First HPP version.
 		await page.getByTestId(`stock-item-hpp-${sku}`).click();
@@ -219,6 +220,7 @@ test("S134 owner creates a SKU, appends HPP versions, sees the domain refuse a b
 		await expect(past.getByRole("alert")).toContainText("RETROACTIVE_COST_FORBIDDEN");
 		await expect(past.getByRole("alert")).toContainText("tidak boleh di masa lalu");
 		await past.getByRole("button", { name: "Batal" }).click();
+		await page.getByRole("alertdialog", { name: "Buang perubahan?" }).getByRole("button", { name: "Buang" }).click();
 		await expect(panel.getByTestId("hpp-row-2")).toHaveCount(0);
 
 		// A version written elsewhere after this dialog opened makes the submit a conflict, not an overwrite.
@@ -239,6 +241,7 @@ test("S134 owner creates a SKU, appends HPP versions, sees the domain refuse a b
 		await stale.getByRole("button", { name: "Simpan versi" }).click();
 		await expect(stale.getByRole("alert")).toContainText("VERSION_CONFLICT");
 		await stale.getByRole("button", { name: "Batal" }).click();
+		await page.getByRole("alertdialog", { name: "Buang perubahan?" }).getByRole("button", { name: "Buang" }).click();
 		await expect(panel.getByTestId("hpp-row-2")).toContainText("Rp12.800");
 		await expect(panel.getByTestId("hpp-row-3")).toHaveCount(0);
 		await page.screenshot({ path: join(renders, "stock-items-owner-1440.png"), fullPage: false });
@@ -366,7 +369,7 @@ test("S134 owner creates a category with an attribute rule; a repeated slug is r
 		await expect(page.getByTestId("category-notice")).toContainText(`Kategori UI ${run} dibuat`);
 		const row = page.getByTestId(`category-row-${slug}`);
 		await expect(row).toContainText("Belum dipakai produk");
-		await expect(row).toContainText("Ukuran *");
+		await expect(row).toContainText("Ukuran (wajib)");
 		// The same slug again: the API's conflict is shown in the dialog.
 		await page.getByTestId("category-new").click();
 		const again = page.getByRole("dialog", { name: "Tambah kategori" });
@@ -374,7 +377,16 @@ test("S134 owner creates a category with an attribute rule; a repeated slug is r
 		await again.getByTestId("category-slug").fill(slug);
 		await again.getByRole("button", { name: "Tambah kategori" }).click();
 		await expect(again.getByRole("alert")).toContainText("Slug ini sudah dipakai");
+		// Closing a changed form asks first; "Lanjut mengedit" keeps the entered values and the refusal.
 		await again.getByRole("button", { name: "Batal" }).click();
+		const discard = page.getByRole("alertdialog", { name: "Buang perubahan?" });
+		await expect(discard.getByRole("button", { name: "Lanjut mengedit" })).toBeFocused();
+		await discard.getByRole("button", { name: "Lanjut mengedit" }).click();
+		await expect(again.getByTestId("category-slug")).toHaveValue(slug);
+		await expect(again.getByRole("alert")).toContainText("Slug ini sudah dipakai");
+		await again.getByRole("button", { name: "Batal" }).click();
+		await discard.getByRole("button", { name: "Buang" }).click();
+		await expect(again).toHaveCount(0);
 		await page.screenshot({ path: join(renders, "categories-owner-1440.png"), fullPage: false });
 		assert.deepEqual(view.errors, []);
 	} finally {
@@ -430,7 +442,7 @@ test("S134 warehouse list and detail follow scope: pickup profile, calendar view
 		await expect(calendar).toContainText(`Berlaku ${year}`);
 		await expect(ownerView.page.getByTestId("calendar-values")).toContainText("Senin, Selasa, Rabu, Kamis, Jumat");
 		await expect(ownerView.page.getByTestId("calendar-values")).toContainText("14:30");
-		await expect(ownerView.page.getByTestId("calendar-values")).toContainText(`${year}-12-25`);
+		await expect(ownerView.page.getByTestId("calendar-values")).toContainText(`25 Des ${year}`);
 		await expect(ownerView.page.getByTestId("pickup-values")).toContainText("Budi Uji");
 		await ownerView.page.screenshot({ path: join(renders, "warehouse-detail-owner-1440.png"), fullPage: true });
 		assert.deepEqual([...adminView.errors, ...staffView.errors, ...ownerView.errors], []);

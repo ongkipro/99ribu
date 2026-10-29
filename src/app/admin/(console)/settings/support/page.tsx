@@ -35,8 +35,7 @@ export default async function SettingsSupportPage() {
 		<AdminPage testId="settings-support-page">
 			<PageHeader
 				title="Balasan & Tag CS"
-				description="Kelola template balasan tersimpan dan tag klasifikasi internal untuk kotak masuk pelanggan. Setiap perubahan versi menyimpan snapshot di log audit; placeholder balasan dibatasi pada data konteks percakapan yang diizinkan."
-				meta={<span>Waktu dalam WIB</span>}
+				description="Template balasan tersimpan dan tag internal untuk kotak masuk pelanggan. Setiap versi tercatat di log audit."
 			/>
 			<SettingsSupportClient canWrite={canWrite} />
 		</AdminPage>

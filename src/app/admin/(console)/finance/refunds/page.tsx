@@ -10,7 +10,7 @@ import { readStaffAccess } from "../../staff-roles";
 
 export const dynamic = "force-dynamic";
 export const metadata = {
-	title: "Refund · Admin 99ribu",
+	title: "Pengembalian Dana · Admin 99ribu",
 	robots: { index: false, follow: false },
 };
 
@@ -27,7 +27,7 @@ export default async function FinanceRefundsPage({
 	const access = financeAccess(roles, permissions);
 	if (!access.refundRead) {
 		return (
-			<AccessDenied title="Refund" heading="Akses refund diperlukan">
+			<AccessDenied title="Pengembalian Dana" heading="Akses pengembalian dana diperlukan">
 				Halaman ini untuk Super Admin atau staf keuangan dengan izin baca refund
 				(finance.refunds.read) dan verifikasi dua langkah aktif.
 			</AccessDenied>
@@ -39,7 +39,7 @@ export default async function FinanceRefundsPage({
 	return (
 		<AdminPage testId="refunds-screen">
 			<PageHeader
-				title="Refund"
+				title="Pengembalian Dana"
 				description="Kewajiban pengembalian dana dari klaim retur yang disetujui. Rekonsiliasi hasil pengiriman dana yang tertahan atau coba ulang kegagalan yang terbukti tanpa dana keluar."
 			/>
 			<RefundsListClient

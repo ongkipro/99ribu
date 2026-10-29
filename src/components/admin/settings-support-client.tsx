@@ -263,7 +263,7 @@ function SavedRepliesSection({
 							<p className="text-xs font-semibold text-muted-foreground">
 								Riwayat versi {row.title} ({row.history?.length ?? 1} versi)
 							</p>
-							<ol className="flex flex-col gap-2">
+							<ol className="flex flex-col divide-y">
 								{(
 									row.history ?? [
 										{
@@ -281,7 +281,7 @@ function SavedRepliesSection({
 									<li
 										key={ver.version}
 										data-testid={`saved-reply-version-${row.id}-${ver.version}`}
-										className="flex flex-col gap-0.5 border-l-2 pl-3"
+										className="flex flex-col gap-0.5 py-2 first:pt-0 last:pb-0"
 									>
 										<div className="flex flex-wrap items-center gap-2">
 											<span className="font-medium tabular-nums">
@@ -723,7 +723,7 @@ function SupportTagsSection({
 							<p className="text-xs font-semibold text-muted-foreground">
 								Riwayat versi {row.label} ({row.history?.length ?? 1} versi)
 							</p>
-							<ol className="flex flex-col gap-2">
+							<ol className="flex flex-col divide-y">
 								{(
 									row.history ?? [
 										{
@@ -739,7 +739,7 @@ function SupportTagsSection({
 									<li
 										key={ver.version}
 										data-testid={`support-tag-version-${row.id}-${ver.version}`}
-										className="flex flex-col gap-0.5 border-l-2 pl-3"
+										className="flex flex-col gap-0.5 py-2 first:pt-0 last:pb-0"
 									>
 										<div className="flex flex-wrap items-center gap-2">
 											<span className="font-medium tabular-nums">

@@ -1,8 +1,9 @@
 "use client";
 
-import { Search } from "lucide-react";
+import { Clock, Search } from "lucide-react";
 import Link from "next/link";
 import { useRef, useState } from "react";
+import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import {
@@ -69,7 +70,7 @@ type View =
 	| { kind: "loading" }
 	| { kind: "done"; result: Result }
 	| { kind: "error"; message: string }
-	| { kind: "denied" }
+	| { kind: "denied"; reason: "session" | "role" }
 	| { kind: "limited"; message: string };
 
 const KINDS = [
@@ -123,7 +124,8 @@ async function lookup(kind: Kind, value: string): Promise<View> {
 				}`,
 			};
 		}
-		if (res.status === 401 || res.status === 403) return { kind: "denied" };
+		if (res.status === 401) return { kind: "denied", reason: "session" };
+		if (res.status === 403) return { kind: "denied", reason: "role" };
 		return { kind: "error", message: failureText(await readFailure(res)) };
 	} catch {
 		return { kind: "error", message: failureText(describeFailure(0)) };
@@ -169,7 +171,8 @@ function OrdersTable({
 }) {
 	return (
 		<section aria-label="Pesanan" className="flex flex-col gap-2">
-			<h3 className="text-sm font-semibold">Pesanan ({account.orders.length})</h3>
+			{/* No count without access: "Pesanan (0)" would read as a buyer with no orders. */}
+			<h3 className="text-sm font-semibold">{access === "none" ? "Pesanan" : `Pesanan (${account.orders.length})`}</h3>
 			<DataTable
 				testId="customer-orders-table"
 				caption={`Pesanan akun ${account.display_name}, terbaru di atas`}
@@ -218,7 +221,7 @@ function OrdersTable({
 						id: "created",
 						header: "Dibuat",
 						stack: "meta",
-						className: "whitespace-nowrap tabular-nums",
+						kind: "datetime",
 						cell: (row) => formatWib(row.created_at),
 					},
 					{
@@ -278,20 +281,13 @@ function TicketsTable({ account }: { account: Account }) {
 						</p>
 					)
 				}
+				// The opening time leads: the ticket id is no link (the inbox has no per-ticket address yet), so it is reference only.
 				columns={[
 					{
-						id: "ticket",
-						header: "Tiket",
-						stack: "title",
-						cell: (row) => (
-							<span className="font-mono text-xs break-all">{row.id}</span>
-						),
-					},
-					{
 						id: "created",
-						header: "Dibuka",
-						stack: "meta",
-						className: "whitespace-nowrap tabular-nums",
+						header: "Dibuka (WIB)",
+						stack: "title",
+						kind: "datetime",
 						cell: (row) => formatWib(row.created_at),
 					},
 					{
@@ -311,9 +307,18 @@ function TicketsTable({ account }: { account: Account }) {
 					},
 					{
 						id: "last",
-						header: "Pesan terakhir",
-						className: "whitespace-nowrap tabular-nums",
+						header: "Pesan terakhir (WIB)",
+						kind: "datetime",
 						cell: (row) => formatWib(row.last_message_at),
+					},
+					{
+						id: "ticket",
+						header: "ID tiket",
+						hideBelow: "6xl",
+						cellClassName: "whitespace-normal",
+						cell: (row) => (
+							<span className="font-mono text-xs break-all text-muted-foreground">{row.id}</span>
+						),
 					},
 				]}
 			/>
@@ -334,7 +339,7 @@ function AccountCard({
 			className="flex flex-col gap-4 rounded-lg border bg-card p-4"
 		>
 			<header className="flex min-w-0 flex-col gap-3">
-				<h2 className="text-lg font-semibold break-words">
+				<h2 className="text-base font-semibold break-words">
 					{account.display_name}
 				</h2>
 				<dl className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
@@ -410,6 +415,7 @@ export function CustomerLookupClient() {
 					<FormField
 						id="customer-value"
 						label={kind === "phone" ? "Nomor HP pembeli" : "Email pembeli"}
+						invalid={!!problem}
 						hint={
 							problem ??
 							(kind === "phone"
@@ -465,14 +471,17 @@ export function CustomerLookupClient() {
 					<ErrorState message={view.message} onRetry={() => void submit()} />
 				)}
 				{view.kind === "limited" && (
-					<div data-testid="customer-limited">
-						<DeniedState>{view.message}</DeniedState>
-					</div>
+					// A rate limit is a wait, not a missing permission: the typed value stays for the retry.
+					<Alert data-testid="customer-limited" className="border-warning/40 bg-warning-surface">
+						<Clock aria-hidden="true" />
+						<AlertDescription className="text-foreground">{view.message}</AlertDescription>
+					</Alert>
 				)}
 				{view.kind === "denied" && (
 					<DeniedState>
-						Pencarian akun pembeli hanya untuk Super Admin dan staf layanan
-						pelanggan dengan verifikasi dua langkah (MFA) aktif.
+						{view.reason === "session"
+							? "Sesi staf Anda berakhir. Masuk lagi dengan kode autentikator, lalu ulangi pencarian."
+							: "Peran Anda tidak membuka pencarian akun pembeli. Fitur ini untuk Super Admin dan staf layanan pelanggan dengan verifikasi dua langkah (MFA) aktif; minta Super Admin menambahkan peran bila perlu."}
 					</DeniedState>
 				)}
 				{view.kind === "done" &&

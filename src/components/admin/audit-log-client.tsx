@@ -90,10 +90,11 @@ function validate(filters: Filters) {
 	if (filters.object && !ID.test(filters.object))
 		problems.object =
 			"ID objek hanya berisi huruf, angka, titik, titik dua, garis bawah, atau tanda hubung (maks. 120).";
-	if (filters.from && filters.to && filters.to < filters.from)
-		problems.to = "Tanggal akhir tidak boleh sebelum tanggal awal.";
+	if (rangeInvalid(filters)) problems.to = RANGE_ERROR;
 	return problems;
 }
+const RANGE_ERROR = "Tanggal akhir tidak boleh sebelum tanggal awal.";
+const rangeInvalid = (filters: Filters) => !!filters.from && !!filters.to && filters.to < filters.from;
 
 function flatten(
 	value: Record<string, unknown>,
@@ -154,6 +155,8 @@ export function AuditLogClient({ scope }: { scope: AuditScope }) {
 		(row) => row.id,
 	);
 	const filtered = Object.values(applied).some(Boolean);
+	// Checked while typing: the range error shows at once, "Terapkan" waits and no stale result shows.
+	const badRange = rangeInvalid(draft);
 	const choices = FAMILIES.filter(
 		([prefix]) => scope === "all" || MONEY_FAMILIES.includes(prefix),
 	);
@@ -181,6 +184,7 @@ export function AuditLogClient({ scope }: { scope: AuditScope }) {
 						id="audit-actor"
 						label="Pelaku (ID akun)"
 						hint={problems.actor ?? "ID akun staf atau pembeli, sama persis."}
+						invalid={!!problems.actor}
 					>
 						<Input
 							id="audit-actor"
@@ -213,6 +217,7 @@ export function AuditLogClient({ scope }: { scope: AuditScope }) {
 						id="audit-object"
 						label="Objek (ID)"
 						hint={problems.object ?? "Pesanan, produk, pembayaran, dan sejenisnya."}
+						invalid={!!problems.object}
 					>
 						<Input
 							id="audit-object"
@@ -224,30 +229,35 @@ export function AuditLogClient({ scope }: { scope: AuditScope }) {
 							onChange={(event) => set("object")(event.target.value.trim())}
 						/>
 					</FormField>
-					<FormField id="audit-from" label="Dari tanggal (WIB)">
+					<FormField id="audit-from" label="Dari tanggal (WIB)" invalid={badRange}>
 						<Input
 							id="audit-from"
 							type="date"
+							lang="id"
 							value={draft.from}
+							aria-invalid={badRange || undefined}
+							aria-describedby={badRange ? "audit-to-hint" : undefined}
 							onChange={(event) => set("from")(event.target.value)}
 						/>
 					</FormField>
 					<FormField
 						id="audit-to"
 						label="Sampai tanggal (WIB)"
-						hint={problems.to}
+						hint={badRange ? RANGE_ERROR : undefined}
+						invalid={badRange}
 					>
 						<Input
 							id="audit-to"
 							type="date"
+							lang="id"
 							value={draft.to}
-							aria-invalid={problems.to ? true : undefined}
-							aria-describedby={problems.to ? "audit-to-hint" : undefined}
+							aria-invalid={badRange || undefined}
+							aria-describedby={badRange ? "audit-to-hint" : undefined}
 							onChange={(event) => set("to")(event.target.value)}
 						/>
 					</FormField>
 					<div className="flex gap-2 md:col-span-2 xl:col-span-1 xl:pt-6">
-						<Button type="submit" className="max-md:flex-1">
+						<Button type="submit" className="max-md:flex-1" disabled={badRange}>
 							<Search aria-hidden="true" />
 							Terapkan
 						</Button>
@@ -268,104 +278,106 @@ export function AuditLogClient({ scope }: { scope: AuditScope }) {
 					</div>
 				</form>
 			</search>
-			<DataTable
-				testId="audit-table"
-				caption="Log audit, terbaru di atas"
-				rows={list.rows}
-				rowKey={(row) => row.id}
-				rowTestId={() => "audit-row"}
-				status={list.status}
-				loadingLabel="Memuat log audit…"
-				empty={
-					filtered
-						? "Tidak ada catatan yang cocok dengan filter ini. Ubah atau hapus filter."
-						: scope === "all"
-							? "Belum ada catatan audit."
-							: "Belum ada catatan tindakan keuangan."
-				}
-				emptyTestId="audit-empty"
-				stack
-				paging={{
-					...list.paging,
-					testId: "audit-more",
-					summary: `${list.rows.length} catatan ditampilkan`,
-				}}
-				columns={[
-					{
-						id: "time",
-						header: "Waktu",
-						stack: "meta",
-						className: "whitespace-nowrap tabular-nums",
-						cell: (row) => formatWib(row.occurred_at),
-					},
-					{
-						id: "action",
-						header: "Tindakan",
-						stack: "title",
-						cell: (row) => (
-							<span className="flex min-w-0 flex-col">
-								<span className="font-medium">
-									{FAMILIES.find(([prefix]) => row.action.startsWith(prefix))?.[1] ??
-										"Tindakan lain"}
-								</span>
-								<span className="font-mono text-xs font-normal break-all text-muted-foreground">
-									{row.action}
-								</span>
-								{row.reason && (
-									<span className="text-xs font-normal text-muted-foreground">
-										{row.reason}
+			{!badRange && (
+				<DataTable
+					testId="audit-table"
+					caption="Log audit, terbaru di atas"
+					rows={list.rows}
+					rowKey={(row) => row.id}
+					rowTestId={() => "audit-row"}
+					status={list.status}
+					loadingLabel="Memuat log audit…"
+					empty={
+						filtered
+							? "Tidak ada catatan yang cocok dengan filter ini. Ubah atau hapus filter."
+							: scope === "all"
+								? "Belum ada catatan audit."
+								: "Belum ada catatan tindakan keuangan."
+					}
+					emptyTestId="audit-empty"
+					stack
+					paging={{
+						...list.paging,
+						testId: "audit-more",
+						summary: `${list.rows.length} catatan ditampilkan`,
+					}}
+					columns={[
+						{
+							id: "time",
+							header: "Waktu",
+							stack: "meta",
+							kind: "datetime",
+							cell: (row) => formatWib(row.occurred_at),
+						},
+						{
+							id: "action",
+							header: "Tindakan",
+							stack: "title",
+							cell: (row) => (
+								<span className="flex min-w-0 flex-col">
+									<span className="font-medium">
+										{FAMILIES.find(([prefix]) => row.action.startsWith(prefix))?.[1] ??
+											"Tindakan lain"}
 									</span>
-								)}
-							</span>
-						),
-					},
-					{
-						id: "actor",
-						header: "Pelaku",
-						cell: (row) =>
-							row.actor_id === null ? (
-								"Sistem"
-							) : (
-								<span className="flex min-w-0 flex-col md:items-start">
-									{row.actor_name && <span>{row.actor_name}</span>}
-									<span className="font-mono text-xs break-all text-muted-foreground">
-										{row.actor_id}
+									<span className="font-mono text-xs font-normal break-all text-muted-foreground">
+										{row.action}
 									</span>
+									{row.reason && (
+										<span className="text-xs font-normal text-muted-foreground">
+											{row.reason}
+										</span>
+									)}
 								</span>
 							),
-					},
-					{
-						id: "object",
-						header: "Objek",
-						className: "md:max-lg:hidden",
-						cell: (row) =>
-							row.subject_id ? (
-								<span className="font-mono text-xs break-all">
-									{row.subject_id}
-								</span>
-							) : (
-								"—"
-							),
-					},
-					{
-						id: "outcome",
-						header: "Hasil",
-						stack: "aside",
-						cell: (row) =>
-							row.outcome === "allowed" ? (
-								<StatusBadge tone="success">Diizinkan</StatusBadge>
-							) : (
-								<StatusBadge tone="danger">Ditolak</StatusBadge>
-							),
-					},
-					{
-						id: "details",
-						header: "Rincian",
-						stack: "plain",
-						cell: (row) => <Details row={row} />,
-					},
-				]}
-			/>
+						},
+						{
+							id: "actor",
+							header: "Pelaku",
+							cell: (row) =>
+								row.actor_id === null ? (
+									"Sistem"
+								) : (
+									<span className="flex min-w-0 flex-col md:items-start">
+										{row.actor_name && <span>{row.actor_name}</span>}
+										<span className="font-mono text-xs break-all text-muted-foreground">
+											{row.actor_id}
+										</span>
+									</span>
+								),
+						},
+						{
+							id: "object",
+							header: "Objek",
+							className: "md:max-lg:hidden",
+							cell: (row) =>
+								row.subject_id ? (
+									<span className="font-mono text-xs break-all">
+										{row.subject_id}
+									</span>
+								) : (
+									"—"
+								),
+						},
+						{
+							id: "outcome",
+							header: "Hasil",
+							stack: "aside",
+							cell: (row) =>
+								row.outcome === "allowed" ? (
+									<StatusBadge tone="success">Diizinkan</StatusBadge>
+								) : (
+									<StatusBadge tone="danger">Ditolak</StatusBadge>
+								),
+						},
+						{
+							id: "details",
+							header: "Rincian",
+							stack: "plain",
+							cell: (row) => <Details row={row} />,
+						},
+					]}
+				/>
+			)}
 		</div>
 	);
 }

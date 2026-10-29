@@ -479,6 +479,8 @@ test("S130 label templates, advertising & support screens: version history, crea
 				await ownerView.page.screenshot({
 					path: join(renders, `settings-${slug}-${width}.png`),
 					fullPage: true,
+					// The sidebar animates its width after a resize; capture the settled layout.
+					animations: "disabled",
 				});
 			}
 		}

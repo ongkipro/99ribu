@@ -55,7 +55,7 @@ try {
   } else if (command === "withdraw" && ["local", "test"].includes(args[0]) && (args.length === 1 || (args.length === 2 && args[1] === "--apply"))) {
     const { readCatalogDocument, summarizeCandidates, withdrawCandidates, withdrawalCandidates } = await import("../src/modules/catalog/dataset.ts");
     const { defaultDatasetDir } = await import("../src/modules/local/berlapak-dataset.ts");
-    const keep = (() => { try { return readCatalogDocument(defaultDatasetDir).products.map((p) => p.offer.sku); } catch (error) { return visible(error); } })();
+    const keep = (() => { try { return readCatalogDocument(defaultDatasetDir).products.flatMap((p) => p.offers.map((o) => o.sku)); } catch (error) { return visible(error); } })();
     const target = args[0] as "local" | "test";
     if (args[1] !== "--apply") {
       // Dry run is a read-only query: no temporary operator, no write.

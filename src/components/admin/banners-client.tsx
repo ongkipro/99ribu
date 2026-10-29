@@ -215,8 +215,9 @@ export function BannersClient() {
 		{
 			id: "schedule",
 			header: "Jadwal (WIB)",
+			kind: "datetime",
 			cell: (b) => (
-				<span className="flex flex-col tabular-nums whitespace-nowrap">
+				<span className="flex flex-col">
 					<span>{wibDateTime(b.starts_at)}</span>
 					<span className="text-muted-foreground">s.d. {wibDateTime(b.ends_at)}</span>
 				</span>
@@ -226,6 +227,7 @@ export function BannersClient() {
 			id: "recorded",
 			header: "Perubahan terakhir",
 			stack: "meta",
+			hideBelow: "6xl",
 			cell: (b) => (
 				<span className="text-xs text-muted-foreground">
 					Versi {b.version} · {wibDateTime(b.recorded_at)}
@@ -285,7 +287,7 @@ export function BannersClient() {
 	return (
 		<div className="flex flex-col gap-6">
 			{notice && (
-				<Alert ref={noticeRef} tabIndex={-1} role="status" className="outline-none" data-testid="banners-notice">
+				<Alert ref={noticeRef} tabIndex={-1} role="status" className="border-success/30 bg-success-surface outline-none" data-testid="banners-notice">
 					<CircleCheck aria-hidden="true" />
 					<AlertDescription className="text-foreground">{notice}</AlertDescription>
 				</Alert>
@@ -295,7 +297,7 @@ export function BannersClient() {
 			</p>
 			<section aria-labelledby="banners-list-heading" className="flex flex-col gap-4">
 				<div className="flex flex-wrap items-center justify-between gap-3">
-					<h2 id="banners-list-heading" className="text-lg font-semibold">
+					<h2 id="banners-list-heading" className="text-base font-semibold">
 						Daftar banner
 					</h2>
 					<Button type="button" data-testid="banners-create" disabled={!!order} onClick={() => setEditing("new")} className="max-md:w-full">
@@ -327,7 +329,7 @@ export function BannersClient() {
 					empty={
 						current
 							? "Belum ada banner di daftar ini, jadi beranda menampilkan kartu bawaan (Paket campuran, Otomotif, Fashion Pria). Setelah ada banner, hanya banner dari daftar ini yang tampil sesuai jadwalnya."
-							: "Belum ada banner yang diarsipkan."
+							: "Belum ada banner yang diarsipkan. Banner yang diarsipkan dari daftar Aktif & terjadwal muncul di sini."
 					}
 				/>
 				{order && (
@@ -440,7 +442,9 @@ function BannerEditor({
 	onClose: () => void;
 	onDone: (banner: AdminBanner, created: boolean) => void;
 }) {
-	const [draft, setDraft] = useState<Draft>(() => draftOf(banner));
+	const [initial] = useState<Draft>(() => draftOf(banner));
+	const [draft, setDraft] = useState<Draft>(initial);
+	const dirty = JSON.stringify(draft) !== JSON.stringify(initial);
 	const [error, setError] = useState<string | null>(null);
 	const [pending, setPending] = useState(false);
 	const [uploading, setUploading] = useState(false);
@@ -512,6 +516,7 @@ function BannerEditor({
 			pending={pending || uploading}
 			error={error}
 			submitLabel={banner ? "Simpan versi baru" : "Simpan banner"}
+			dirty={dirty}
 			onClose={onClose}
 			onSubmit={() => void submit()}
 			className="sm:max-w-4xl md:max-h-[92dvh] md:overflow-y-auto"
@@ -589,10 +594,10 @@ function BannerEditor({
 					</div>
 					<div className="grid gap-4 sm:grid-cols-2">
 						<FormField id={field("starts")} label="Mulai tayang (WIB)" hint={startsAt ? wibDateTime(startsAt) : "Tanggal dan jam WIB."}>
-							<Input id={field("starts")} data-testid="banner-starts" type="datetime-local" value={draft.starts} onChange={set("starts")} aria-describedby={`${field("starts")}-hint`} />
+							<Input id={field("starts")} data-testid="banner-starts" type="datetime-local" lang="id" value={draft.starts} onChange={set("starts")} aria-describedby={`${field("starts")}-hint`} />
 						</FormField>
 						<FormField id={field("ends")} label="Berakhir (WIB)" hint={endsAt ? `${wibDateTime(endsAt)}, tidak tampil lagi sejak waktu ini.` : "Tanggal dan jam WIB."}>
-							<Input id={field("ends")} data-testid="banner-ends" type="datetime-local" value={draft.ends} onChange={set("ends")} aria-describedby={`${field("ends")}-hint`} />
+							<Input id={field("ends")} data-testid="banner-ends" type="datetime-local" lang="id" value={draft.ends} onChange={set("ends")} aria-describedby={`${field("ends")}-hint`} />
 						</FormField>
 					</div>
 					<label className="flex min-h-11 items-center gap-2 text-sm font-medium" htmlFor={field("active")}>
@@ -675,6 +680,8 @@ function RetireDialog({ banner, onClose, onDone }: { banner: AdminBanner; onClos
 			pending={pending}
 			error={error}
 			submitLabel="Arsipkan banner"
+			destructive
+			dirty={Boolean(reason.trim() || password)}
 			onClose={onClose}
 			onSubmit={() => void submit()}
 		>
@@ -708,6 +715,7 @@ function OrderDialog({ banners, onClose, onDone }: { banners: AdminBanner[]; onC
 			pending={pending}
 			error={error}
 			submitLabel="Simpan urutan"
+			dirty={Boolean(reason.trim() || password)}
 			onClose={onClose}
 			onSubmit={() => void submit()}
 		>
@@ -733,7 +741,7 @@ function HistoryDialog({ banner, onClose }: { banner: AdminBanner; onClose: () =
 					<DialogDescription>Setiap versi tersimpan permanen, terbaru di atas.</DialogDescription>
 				</DialogHeader>
 				{state.kind === "loading" && <LoadingState label="Memuat riwayat…" lines={2} />}
-				{state.kind === "error" && <ErrorState message={state.message} />}
+				{state.kind === "error" && <ErrorState message={`Riwayat banner gagal dimuat. ${state.message}`} />}
 				{state.kind === "ready" && (
 					<ol className="flex flex-col divide-y rounded-md border pb-0 max-md:mb-4">
 						{state.rows.map((v) => (

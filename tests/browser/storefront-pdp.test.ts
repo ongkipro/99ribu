@@ -59,9 +59,9 @@ test.before(async()=>{
  for(const position of positions)if(position.available>0){await move(position.id,'quarantine',position.available);quarantined.push({id:position.id,quantity:position.available});}
  paths.oos=`/produk/${await slugOf(cream.id)}`;
  // Real catalog photos for the other states: a product with photos, the largest bundle (seven items, long text), the longest title.
- paths.default=await catalogPath('10 pcs Lem Perekat Super Kuat, 20ml');
+ paths.default=await catalogPath('10 pcs Lem Perekat Super Kuat');
  paths.bundle=await catalogPath('Paket Borongan Solusi Rumah Tangga');
- paths.long=await catalogPath('4 pcs Pengharum Ruangan Botol Apel, Black Coffee');
+ paths.long=await catalogPath('4 pcs Summerspring Parfum Mobil Kopi Bali, 30ml');
  paths.unavailable=`${paths.default}?offer=${randomUUID()}`;
 });
 test.after(async()=>{
@@ -90,7 +90,7 @@ for(const width of [390,768,1440])test(`PDP states render without overflow or co
   for(const state of ['default','bundle','multi','oos','unavailable','long'] as const){
    await open(f.page,paths[state]);
    if(state==='oos'){await expect(f.page.getByText('Stok pilihan belum tersedia',{exact:true})).toBeVisible();await expect(f.page.getByRole('button',{name:'Tambah ke keranjang',exact:true})).toBeDisabled();await expect(f.page.getByRole('button',{name:'Tambah jumlah',exact:true})).toBeDisabled();await expect(f.page.getByRole('button',{name:'Kurangi jumlah',exact:true})).toBeDisabled();await expect(f.page.locator('.buy-bar')).toHaveCount(0);await expect(f.page.getByRole('link',{name:'Cari produk tersedia',exact:true})).toHaveAttribute('href',/availability=available/);}
-   if(state==='unavailable'){await expect(f.page.getByRole('heading',{name:'Pilihan belum ditemukan',exact:true})).toBeVisible();await expect(f.page.locator('.detail-price')).toHaveText(/Rp99\.000/);await expect(f.page.locator('.offer-picker a')).toHaveCount(1);await expect(f.page.locator('.offer-picker a[aria-current]')).toHaveCount(0);await expect(f.page.locator('.buy-box .cart-advisory').filter({hasText:'Belum ada pilihan'})).toHaveCount(0);}
+   if(state==='unavailable'){await expect(f.page.getByRole('heading',{name:'Pilihan belum ditemukan',exact:true})).toBeVisible();await expect(f.page.locator('.detail-price')).toHaveText(/Rp99\.000/);assert.ok(await f.page.locator('.offer-picker a').count()>=1,'an unknown offer still lists the product\'s own options');await expect(f.page.locator('.offer-picker a[aria-current]')).toHaveCount(0);await expect(f.page.locator('.buy-box .cart-advisory').filter({hasText:'Belum ada pilihan'})).toHaveCount(0);}
    if(state==='multi'){await expect(f.page.locator('.offer-picker a')).toHaveCount(2);await expect(f.page.locator('.offer-picker .field-label')).toContainText('Isi 1 kaos');}
    if(state==='bundle'){await expect(f.page.locator('.offer-detail li')).toHaveCount(7);await expect(f.page.locator('.read-more')).toHaveCount(1);}
    if(['default','bundle','long'].includes(state)){await expect(f.page.locator('.related-shelf .product').first()).toBeVisible();}

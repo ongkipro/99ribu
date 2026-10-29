@@ -57,22 +57,22 @@ const EXPECTED: [string, Role[], string[], (string | string[])[][]][] = [
 	["owner", ["owner"], [], [
 		["Ruang Kerja", LENSES],
 		["Operasional", ["Pesanan", "Pengiriman Manual", "Pusat Cetak Label", "Masalah Pengiriman", "Retur & Penggantian", "Kotak Masuk Pelanggan", "Akun Pembeli"]],
-		["Katalog & Stok", ["Produk", "SKU Fisik", "Kategori", "Stok Gudang", "Transfer Stok", "Gudang"]],
+		["Katalog & Stok", ["Produk", "SKU Fisik", "Kategori", "Stok Gudang", "Transfer Stok", "Daftar Gudang"]],
 		["Pemasaran", ["Promo Ongkir", "Banner Beranda", "Segmen Pembeli", "Afiliasi"]],
-		["Keuangan", ["Pembayaran", "Setoran COD", "Rekonsiliasi", "Pembayaran Komisi", "Refund", "Laporan Keuangan"]],
+		["Keuangan", ["Pembayaran Masuk", "Setoran COD", "Rekonsiliasi", "Pembayaran Komisi", "Pengembalian Dana", "Laporan Keuangan"]],
 		["Pengaturan", ["Log Audit", "Kesehatan Sistem", "Staf & Peran", "Pembayaran & Biaya COD", "Kebijakan Komersial", "Template Label", "Integrasi Iklan", "Balasan & Tag CS"]],
 	]],
 	// One-item groups join their neighbour (visibleGroups): Template Label (read for ecommerce_admin, warehouse) has no group of its own.
 	["ecommerce_admin", ["ecommerce_admin"], ["orders.history.read"], [
 		["Ruang Kerja", ["Admin E-Commerce"]],
 		["Operasional", ["Pesanan", "Pengiriman Manual", "Pusat Cetak Label"]],
-		["Katalog & Stok", ["Produk", "SKU Fisik", "Kategori", "Stok Gudang", "Transfer Stok", "Gudang"]],
+		["Katalog & Stok", ["Produk", "SKU Fisik", "Kategori", "Stok Gudang", "Transfer Stok", "Daftar Gudang"]],
 		["Pemasaran", ["Promo Ongkir", "Banner Beranda", "Segmen Pembeli", "Template Label"]],
 	]],
 	["warehouse", ["warehouse"], [], [
 		["Ruang Kerja", ["Gudang"]],
 		["Operasional", ["Pengiriman Manual", "Pusat Cetak Label", "Masalah Pengiriman", "Retur & Penggantian"]],
-		["Katalog & Stok", ["Produk", "Stok Gudang", "Transfer Stok", "Gudang", "Template Label"]],
+		["Katalog & Stok", ["Produk", "Stok Gudang", "Transfer Stok", "Daftar Gudang", "Template Label"]],
 	]],
 	["customer_service", ["customer_service"], ["orders.history.read"], [
 		["Ruang Kerja", ["Layanan Pelanggan"]],
@@ -82,14 +82,14 @@ const EXPECTED: [string, Role[], string[], (string | string[])[][]][] = [
 	["finance", ["finance"], ["orders.history.read", "finance.reconciliation.read", "finance.refunds.read", "finance.costs.read"], [
 		["Ruang Kerja", ["Keuangan"]],
 		["Operasional", ["Pesanan", "Masalah Pengiriman", "Retur & Penggantian", "Produk", "Afiliasi"]],
-		["Keuangan", ["Pembayaran", "Setoran COD", "Rekonsiliasi", "Pembayaran Komisi", "Refund"]],
+		["Keuangan", ["Pembayaran Masuk", "Setoran COD", "Rekonsiliasi", "Pembayaran Komisi", "Pengembalian Dana"]],
 		["Pengaturan", ["Log Audit", "Pembayaran & Biaya COD", "Kebijakan Komersial", "Template Label"]],
 	]],
 	// A multi-role user sees the union; the order grant comes in through customer_service.
 	["warehouse+customer_service", ["warehouse", "customer_service"], ["orders.history.read"], [
 		["Ruang Kerja", ["Gudang", "Layanan Pelanggan"]],
 		["Operasional", ["Pesanan", "Pengiriman Manual", "Pusat Cetak Label", "Masalah Pengiriman", "Retur & Penggantian", "Kotak Masuk Pelanggan", "Akun Pembeli"]],
-		["Katalog & Stok", ["Produk", "Stok Gudang", "Transfer Stok", "Gudang"]],
+		["Katalog & Stok", ["Produk", "Stok Gudang", "Transfer Stok", "Daftar Gudang"]],
 		["Pengaturan", ["Template Label", "Balasan & Tag CS"]],
 	]],
 ];

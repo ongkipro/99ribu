@@ -114,6 +114,7 @@ test("S102 ops screens: inventory search and labels, movement actor, transfer la
 		assert.equal((await call(handlePromotions, keeper, "GET", "/shipping-promotions")).status, 403, "warehouse staff do not configure promotions");
 	} finally {
 		await cleanup(identity, users);
+		await identity.sql`update app.warehouse set active = false where id in (${a.id}, ${b.id})`;
 		await identity.sql.end();
 	}
 });

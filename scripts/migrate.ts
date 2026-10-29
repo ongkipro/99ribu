@@ -1,4 +1,5 @@
 import { setTimeout } from "node:timers/promises";
+import { readMigrationFiles } from "drizzle-orm/migrator";
 import { migrate } from "drizzle-orm/postgres-js/migrator";
 import { connectDatabase } from "../src/db/client.ts";
 
@@ -7,9 +8,25 @@ if ((target !== "local" && target !== "test" && target !== "production") || extr
   throw new Error("Use migrate.ts local|test|production; other targets are refused.");
 }
 const { db, sql } = connectDatabase(target, "owner");
+// Drizzle uses only the latest timestamp to decide what to apply. Validate the complete
+// prefix first so changed history, missing rows and older images fail before SQL or grants.
+const migrations = readMigrationFiles({ migrationsFolder: "./migrations" });
+for (const [index, migration] of migrations.entries()) {
+  if (!Number.isSafeInteger(migration.folderMillis) || migration.folderMillis < 0 ||
+    (index > 0 && migration.folderMillis <= migrations[index - 1].folderMillis)) {
+    throw new Error("Migration files must have strictly increasing safe timestamps.");
+  }
+}
 const applied = async () => {
   const [journal] = await sql`select to_regclass('drizzle.__drizzle_migrations') is not null as present`;
-  return journal.present ? (await sql`select count(*)::int as count from drizzle.__drizzle_migrations`)[0].count as number : 0;
+  const rows = journal.present
+    ? await sql`select hash, created_at from drizzle.__drizzle_migrations order by id`
+    : [];
+  if (rows.length > migrations.length || rows.some((row, index) =>
+    row.hash !== migrations[index]?.hash || String(row.created_at) !== String(migrations[index]?.folderMillis))) {
+    throw new Error("Migration history mismatch: applied rows must match the release prefix. Restore the matching release; do not rewrite applied history.");
+  }
+  return rows.length;
 };
 const lock = await sql.reserve();
 try {

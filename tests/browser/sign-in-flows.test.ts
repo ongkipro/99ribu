@@ -42,7 +42,7 @@ test("modal over a storefront page: focus stays inside, Escape and close return 
 		const modal = page.getByRole("dialog", { name: "Masuk" });
 		await modal.waitFor();
 		assert.equal(page.url(), `${origin}/masuk?next=%2Fakun`);
-		assert.equal(await page.locator("main .notice-panel").count(), 1, "The page under the modal stays rendered");
+		assert.equal(await page.locator("main [data-testid=buyer-account-root]").count(), 1, "The page under the modal stays rendered");
 		assert.ok(await focused(page, "#signin-email"), "Focus starts in the email field");
 		assert.equal(await modal.getByLabel("Email").getAttribute("autocomplete"), "username");
 		assert.equal(await modal.getByLabel("Kata sandi").getAttribute("autocomplete"), "current-password");
@@ -84,7 +84,7 @@ test("buyer signs in from the modal and returns to the page under it (?next=)", 
 		assert.equal(await modal.getByLabel("Kata sandi").getAttribute("aria-invalid"), "true");
 		await modal.getByLabel("Kata sandi").fill(buyer.password);
 		await modal.getByRole("button", { name: "Masuk", exact: true }).click();
-		await page.waitForURL(`${origin}/akun`);
+		await page.waitForURL(`${origin}/akun/pesanan`);
 		await page.getByTestId("sign-out-button").first().waitFor();
 		assert.ok(await session(page));
 	} finally { await browser.close(); }
@@ -136,7 +136,7 @@ test("without JavaScript the page posts a plain form: errors, rate-limit copy, b
 		await page.getByLabel("Email").fill(buyer.email);
 		await page.getByLabel("Kata sandi").fill(buyer.password);
 		await page.getByRole("button", { name: "Masuk", exact: true }).click();
-		await page.waitForURL(`${origin}/akun`);
+		await page.waitForURL(`${origin}/akun/pesanan`);
 		assert.ok(await session(page));
 		await context.clearCookies();
 		// Staff: password, then the TOTP step as its own page, then the console deep link.

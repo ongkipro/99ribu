@@ -14,7 +14,8 @@ test('guest order recovery sends one request per submit and reports a lost conne
   await page.route('**/api/v1/guest-order-access/challenges',async route=>{calls++;sent=route.request().postDataJSON();await held;await route.abort('internetdisconnected');});
   await page.goto(`${origin}/akun`);
   // The visible heading is the accessible name (no aria-label that hides it).
-  await expect(page.getByRole('heading',{level:1,name:'Akun opsional',exact:true})).toBeVisible();
+  await expect(page.getByRole('heading',{level:1,name:'Akun',exact:true})).toBeVisible();
+  await page.getByTestId('guest-order-recovery-section').locator('summary').click();
   await page.getByTestId('guest-recovery-order-id').fill(' 99-ab12cd34ef56gh78 ');
   await page.getByTestId('guest-recovery-contact').fill('+6281200000000');
   const submit=page.getByTestId('guest-recovery-request-button');

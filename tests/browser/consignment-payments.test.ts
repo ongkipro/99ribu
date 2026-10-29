@@ -687,6 +687,7 @@ test("S92 built browser: COD checkout discloses the frozen 3.33% fee line and th
 		await expect(dialog.getByLabel(`Nominal tertagih ${s91.number}`)).toHaveValue(String(s91.codDue));
 		await captureBoth(page, "s92-cod-settlements-dialog");
 		await dialog.getByRole("button", { name: "Batal" }).click();
+		await page.getByRole("alertdialog", { name: "Buang perubahan?" }).getByRole("button", { name: "Buang" }).click();
 		await expect(dialog).toHaveCount(0);
 		assert.equal((await sql`select count(*)::int n from app.cod_remittance_line where shipment_id=${s91.shipment}`)[0].n, 0, "viewing records no statement");
 		assert.deepEqual(desk.problems, []);

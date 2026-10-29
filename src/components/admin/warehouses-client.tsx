@@ -14,7 +14,7 @@ import { formatWib } from "./format";
 import { FormDialog, FormField } from "./form";
 import { send, useOperationKey } from "./ops-api";
 import { AdminPage, DetailSection, PageHeader } from "./page-blocks";
-import { ErrorState } from "./states";
+import { ErrorState, LoadingState } from "./states";
 import { StatusBadge, type StatusTone } from "./status";
 import { useKeysetList } from "./use-keyset-list";
 import { adminPath } from "@/modules/access/admin-paths";
@@ -46,7 +46,11 @@ export function WarehousesClient({ all }: { all: boolean }) {
 				rowTestId={(row) => `warehouse-row-${row.name}`}
 				status={list.status}
 				loadingLabel="Memuat gudang…"
-				empty={all ? "Belum ada gudang aktif." : "Belum ada gudang yang ditugaskan kepada Anda. Minta Super Admin menambahkannya di Staf & Peran."}
+				empty={
+					all
+						? "Belum ada gudang aktif. Gudang muncul di sini setelah ditambahkan lewat impor katalog."
+						: "Belum ada gudang yang ditugaskan kepada Anda. Minta Super Admin menambahkannya di Staf & Peran."
+				}
 				emptyTestId="warehouses-empty"
 				stack
 				paging={{ ...list.paging, testId: "warehouses-more", summary: `${list.rows.length} gudang dimuat` }}
@@ -63,7 +67,7 @@ export function WarehousesClient({ all }: { all: boolean }) {
 						),
 					},
 					{ id: "city", header: "Kota", stack: "meta", cell: (row) => row.city },
-					{ id: "tz", header: "Zona waktu", className: "tabular-nums", cell: (row) => row.timezone },
+					{ id: "tz", header: "Zona waktu", hideBelow: "5xl", cell: (row) => row.timezone },
 					{
 						id: "actions",
 						header: <span className="sr-only">Tindakan</span>,
@@ -103,15 +107,15 @@ export function WarehouseDetailClient({ warehouseId, profileAccess, owner }: { w
 	if (state.kind === "loading")
 		return (
 			<AdminPage>
-				<PageHeader title="Memuat gudang…" back={back} />
-				<Skeleton className="h-32 w-full" />
+				<PageHeader title="Gudang" back={back} />
+				<LoadingState label="Memuat gudang…" lines={3} className="h-28 w-full rounded-lg" />
 			</AdminPage>
 		);
 	if (state.kind === "missing")
 		return (
 			<AdminPage testId="warehouse-missing">
 				<PageHeader title="Gudang tidak ditemukan" back={back} />
-				<p className="text-sm">Gudang ini tidak ada, sudah nonaktif, atau di luar gudang yang ditugaskan kepada Anda.</p>
+				<p className="text-sm">Gudang ini tidak ada, sudah nonaktif, atau di luar gudang yang ditugaskan kepada Anda. Kembali ke daftar Gudang untuk memilih gudang lain.</p>
 			</AdminPage>
 		);
 	if (state.kind === "error")
@@ -217,7 +221,7 @@ function PickupProfile({ warehouse }: { warehouse: Warehouse }) {
 						<StatusBadge tone={profile.readiness === "complete" ? "success" : "problem"} data-status={profile.readiness}>
 							{profile.readiness === "complete" ? "Lengkap" : "Belum lengkap"}
 						</StatusBadge>
-						<StatusBadge tone="closed">{profile.mode === "mengantar_api" ? "Mode otomatis" : "Mode manual"}</StatusBadge>
+						<StatusBadge tone="neutral">{profile.mode === "mengantar_api" ? "Mode otomatis" : "Mode manual"}</StatusBadge>
 						<span className="text-xs text-muted-foreground">
 							Versi {profile.version}
 							{profile.updated_at ? ` · ${formatWib(profile.updated_at)}` : ""}
@@ -271,6 +275,13 @@ function ProfileDialog({ profile, onClose, onStale, onDone }: { profile: Profile
 	const [error, setError] = useState<string | null>(null);
 	const [pending, setPending] = useState(false);
 	const set = (field: keyof typeof form) => (value: string) => setForm((current) => ({ ...current, [field]: value }));
+	const dirty =
+		form.street !== (profile.street_address ?? "") ||
+		form.pic !== (profile.pic_name ?? "") ||
+		form.phone !== localPhone(profile.pic_phone) ||
+		form.lat !== (profile.pinpoint ? String(profile.pinpoint.latitude) : "") ||
+		form.lng !== (profile.pinpoint ? String(profile.pinpoint.longitude) : "") ||
+		form.reason.trim() !== "";
 	async function submit() {
 		if (!form.reason.trim()) return setError("Alasan perubahan wajib diisi.");
 		if ((form.lat.trim() === "") !== (form.lng.trim() === "")) return setError("Isi lintang dan bujur sekaligus, atau kosongkan keduanya.");
@@ -305,6 +316,7 @@ function ProfileDialog({ profile, onClose, onStale, onDone }: { profile: Profile
 			pending={pending}
 			error={error}
 			submitLabel="Simpan profil"
+			dirty={dirty}
 			onClose={onClose}
 			onSubmit={() => void submit()}
 		>
@@ -342,6 +354,12 @@ const CALENDAR_STATE: Record<"current" | "outdated" | "missing", [string, Status
 	current: ["Berlaku", "success"],
 	outdated: ["Tahun lama", "problem"],
 	missing: ["Belum diatur", "danger"],
+};
+// Holiday keys are local calendar dates (YYYY-MM-DD); read in UTC so the day never shifts.
+const holidayFormat = new Intl.DateTimeFormat("id-ID", { timeZone: "UTC", day: "numeric", month: "short", year: "numeric" });
+const holiday = (date: string) => {
+	const [y, m, d] = date.split("-").map(Number);
+	return y && m && d ? holidayFormat.format(new Date(Date.UTC(y, m - 1, d))) : date;
 };
 
 function CalendarView({ warehouse }: { warehouse: Warehouse }) {
@@ -388,7 +406,7 @@ function CalendarView({ warehouse }: { warehouse: Warehouse }) {
 							<dt className="text-muted-foreground">Batas jam harian</dt>
 							<dd className="tabular-nums">{current.values.cutoff_local}</dd>
 							<dt className="text-muted-foreground">Hari libur</dt>
-							<dd className="break-words">{current.values.closed_dates.length ? current.values.closed_dates.join(", ") : "Tidak ada"}</dd>
+							<dd className="break-words tabular-nums">{current.values.closed_dates.length ? current.values.closed_dates.map(holiday).join(", ") : "Tidak ada"}</dd>
 						</dl>
 					) : (
 						<p className="text-sm">Gudang ini belum punya kalender. Tenggat resi pesanan dari gudang ini belum bisa dihitung.</p>
@@ -396,16 +414,16 @@ function CalendarView({ warehouse }: { warehouse: Warehouse }) {
 					{history.data.length > 1 && (
 						<details className="text-sm">
 							<summary className="min-h-9 cursor-pointer text-muted-foreground pointer-coarse:flex pointer-coarse:min-h-11 pointer-coarse:items-center">Riwayat versi ({history.latest_version})</summary>
-							<ol className="mt-2 flex flex-col gap-2" aria-label="Riwayat kalender" data-testid="warehouse-calendar-history">
+							<ol className="mt-2 flex flex-col divide-y" aria-label="Riwayat kalender" data-testid="warehouse-calendar-history">
 								{history.data.map((version) => (
-									<li key={version.id} className="border-l-2 pl-3">
+									<li key={version.id} className="flex flex-col gap-0.5 py-2 first:pt-0 last:pb-0">
 										<span className="font-medium">
 											Versi {version.version} · tahun {version.values.year}
 										</span>
-										<span className="block text-xs text-muted-foreground">
+										<span className="text-xs text-muted-foreground">
 											Berlaku {formatWib(version.effective_at)} · {version.values.working_weekdays.length} hari kerja, batas {version.values.cutoff_local}
 										</span>
-										<span className="block text-xs break-words">{version.reason}</span>
+										<span className="text-xs break-words">{version.reason}</span>
 									</li>
 								))}
 							</ol>

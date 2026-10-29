@@ -103,7 +103,7 @@ export function PaymentsClient({
 			)}
 			<section aria-labelledby="transfers-heading" className="flex flex-col gap-4">
 				<div className="flex items-start justify-between gap-3">
-					<h2 id="transfers-heading" className="text-lg font-semibold">
+					<h2 id="transfers-heading" className="text-base font-semibold">
 						Transfer bank manual
 					</h2>
 					<Button variant="outline" className="shrink-0" onClick={() => void list.reload()}>
@@ -126,7 +126,11 @@ export function PaymentsClient({
 					status={list.status}
 					paging={{ ...list.paging, testId: "manual-transfers-more" }}
 					loadingLabel="Memuat transfer…"
-					empty={state === "open" ? "Tidak ada transfer yang menunggu konfirmasi." : "Belum ada transfer yang dicatat."}
+					empty={
+						state === "open"
+							? "Tidak ada transfer yang menunggu konfirmasi. Pesanan transfer bank baru muncul di sini sampai batas waktunya."
+							: "Belum ada transfer yang dicatat. Transfer yang dikonfirmasi pindah ke tab ini."
+					}
 					testId="manual-transfers"
 					caption={state === "open" ? "Transfer yang menunggu konfirmasi" : "Transfer yang sudah dicatat"}
 					stack
@@ -252,6 +256,7 @@ function ConfirmDialog({ transfer, onClose, onDone }: { transfer: Transfer; onCl
 			pending={pending}
 			error={error}
 			submitLabel="Simpan konfirmasi"
+			dirty={!!(form.reference || form.time || form.late || form.evidence || form.reason || form.password) || form.amount !== String(transfer.expected_amount)}
 			onClose={onClose}
 			onSubmit={() => void submit()}
 		>
@@ -333,7 +338,7 @@ function AutolarisPayments({
 			{/* Same section header as the transfers: title left, "Muat ulang" top right at every width. */}
 			<div className="flex items-start justify-between gap-3">
 				<div className="flex flex-col gap-1">
-					<h2 id="autolaris-heading" className="text-lg font-semibold">
+					<h2 id="autolaris-heading" className="text-base font-semibold">
 						Virtual Account / QRIS (AutoLaris, simulasi lokal)
 					</h2>
 					<p className="max-w-prose text-sm text-muted-foreground">
@@ -360,7 +365,11 @@ function AutolarisPayments({
 				status={list.status}
 				paging={{ ...list.paging, testId: "autolaris-payments-more" }}
 				loadingLabel="Memuat pembayaran…"
-				empty="Tidak ada pembayaran AutoLaris."
+				empty={
+					state === "open"
+						? "Tidak ada pembayaran Virtual Account atau QRIS yang belum final."
+						: "Belum ada pembayaran Virtual Account atau QRIS yang final."
+				}
 				testId="autolaris-payments"
 				caption={state === "open" ? "Pembayaran AutoLaris yang belum final" : "Pembayaran AutoLaris yang sudah final"}
 				stack
@@ -444,10 +453,11 @@ function AutolarisConfirmDialog({ payment, onClose, onDone }: { payment: Autolar
 	return (
 		<FormDialog
 			title={`Konfirmasi manual ${payment.order_number}`}
-			description={`Gunakan hanya setelah memeriksa dashboard AutoLaris (transaksi ${payment.trx_id}). Nominal berbeda dari ${rupiah(payment.expected_amount)} dicatat dan masuk tinjauan.`}
+			description={`Gunakan hanya setelah memeriksa dasbor AutoLaris (transaksi ${payment.trx_id}). Nominal berbeda dari ${rupiah(payment.expected_amount)} dicatat dan masuk tinjauan.`}
 			pending={pending}
 			error={error}
 			submitLabel="Simpan konfirmasi"
+			dirty={!!(form.time || form.evidence || form.reason || form.password) || form.amount !== String(payment.expected_amount)}
 			onClose={onClose}
 			onSubmit={() => void submit()}
 		>
@@ -457,7 +467,7 @@ function AutolarisConfirmDialog({ payment, onClose, onDone }: { payment: Autolar
 			<FormField id="autolaris-time" label="Waktu bayar (WIB)">
 				<Input id="autolaris-time" type="datetime-local" value={form.time} onChange={set("time")} />
 			</FormField>
-			<FormField id="autolaris-evidence" label="Bukti dari dashboard">
+			<FormField id="autolaris-evidence" label="Bukti dari dasbor AutoLaris">
 				<Textarea id="autolaris-evidence" value={form.evidence} maxLength={500} onChange={set("evidence")} />
 			</FormField>
 			<FormField id="autolaris-reason" label="Alasan">

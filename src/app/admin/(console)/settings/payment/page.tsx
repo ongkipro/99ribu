@@ -28,8 +28,7 @@ export default async function SettingsPaymentPage() {
 		<AdminPage testId="settings-payment-page">
 			<PageHeader
 				title="Pembayaran & Biaya COD"
-				description="Atur biaya layanan COD yang ditanggung pembeli dan daftar rekening bank untuk transfer manual. Setiap perubahan menambah versi baru dengan autentikasi ulang Super Admin; pesanan yang sudah dibuat tetap memakai ketentuan saat pesanan dibuat."
-				meta={<span>Waktu dalam WIB</span>}
+				description="Biaya COD pembeli dan rekening transfer manual. Pesanan lama tetap memakai ketentuan saat dibuat."
 			/>
 			<SettingsPaymentClient canWrite={roles.includes("owner")} />
 		</AdminPage>

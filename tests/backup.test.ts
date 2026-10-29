@@ -263,3 +263,44 @@ test("every savePrivateArtifact() call site under src/ is a writer named in the 
   assert.deepEqual(sites.sort(), ARTIFACT_KEY_COLUMNS.map((entry) => entry.writer).sort(),
     "savePrivateArtifact() call sites changed: add the table/column that stores the new key (with its writer) to ARTIFACT_KEY_COLUMNS in scripts/backup.ts, or remove the stale entry, so the restore drill checks those files.");
 });
+
+
+test("backup and restore use verified external TLS and reject ambiguous URL overrides", async () => {
+  const { directPg } = await import("../scripts/backup.ts");
+  for (const name of ["BACKUP_DATABASE_URL", "RESTORE_ADMIN_URL"] as const) {
+    const parse = (url: string) => directPg(name, { [name]: url });
+    for (const suffix of ["", "?sslmode=disable", "?sslmode=require", "?sslmode=prefer"]) {
+      assert.throws(() => parse(`postgres://probe:synthetic@db.example.com/probe${suffix}`), /DATABASE_SSL/);
+    }
+    for (const query of ["host=elsewhere", "user=other", "sslmode=verify-full&sslmode=disable", "sslmode=verify-full&ssl=false"]) {
+      assert.throws(() => parse(`postgres://probe:synthetic@localhost/probe?${query}`), /only one sslmode/);
+    }
+    for (const [host, suffix, expected] of [["db.example.com", "?sslmode=verify-full", "verify-full"], ["127.0.0.1", "", false], ["[::1]", "", false]] as const) {
+      const pg = parse(`postgres://probe:synthetic@${host}:5432/probe${suffix}`);
+      const sql = pg.connect("probe"); // Lazy pool: no network or real credential access.
+      try {
+        assert.equal(sql.options.ssl, expected);
+        assert.equal(sql.options.host[0], host.replace(/^\[|\]$/g, ""));
+        assert.equal(sql.options.database, "probe");
+        assert.equal(pg.database, "probe");
+      } finally { await sql.end(); }
+    }
+    for (const database of ["host=attacker sslmode=disable", "postgres://attacker/other"]) {
+      assert.throws(() => parse(`postgres://probe:synthetic@localhost/${encodeURIComponent(database)}`), /plain database identifier/);
+    }
+    assert.throws(() => parse("malformed-synthetic-url"), /valid PostgreSQL URL/);
+  }
+});
+
+
+test("backup libpq tools receive the same explicit endpoint and TLS mode", async () => {
+  const { directPg } = await import("../scripts/backup.ts");
+  const directory = await mkdtemp(join(tmpdir(), "99ribu-pg-tool-"));
+  try {
+    const output = join(directory, "probe.json");
+    await writeFile(join(directory, "pg_dump"), `#!${process.execPath}\nprocess.stdout.write(JSON.stringify({host:process.env.PGHOST,port:process.env.PGPORT,user:process.env.PGUSER,ssl:process.env.PGSSLMODE,ca:process.env.PGSSLROOTCERT}));\n`, { mode: 0o700 });
+    const pg = directPg("BACKUP_DATABASE_URL", { PATH: directory, BACKUP_DATABASE_URL: "postgres://probe:synthetic@db.example.com:5440/probe?sslmode=verify-full" });
+    await pg.tool("pg_dump", [], { stdout: output });
+    assert.deepEqual(JSON.parse(await readFile(output, "utf8")), { host: "db.example.com", port: "5440", user: "probe", ssl: "verify-full", ca: "system" });
+  } finally { await rm(directory, { recursive: true, force: true }); }
+});

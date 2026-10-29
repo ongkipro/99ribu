@@ -80,7 +80,7 @@ export function ShippingPromotionsClient({ services, regions }: { services: Opti
 		<AdminPage testId="shipping-promotions-page">
 			<PageHeader
 				title="Promo Ongkir"
-				description="Subsidi ongkir yang dipotong saat checkout. Setiap perubahan disimpan sebagai versi baru dengan alasan; pesanan yang sudah dibuat tetap memakai promo saat itu."
+				description="Subsidi ongkir yang dipotong saat pembeli membayar pesanan. Setiap perubahan disimpan sebagai versi baru dengan alasan; pesanan yang sudah dibuat tetap memakai promo saat itu."
 				actions={
 					<Button data-testid="promotion-create" onClick={() => setDialog({ kind: "create" })}>
 						<Plus data-icon="inline-start" aria-hidden="true" />
@@ -96,7 +96,7 @@ export function ShippingPromotionsClient({ services, regions }: { services: Opti
 			)}
 			<section aria-labelledby="promotions-heading" className="flex flex-col gap-4">
 				<div className="flex items-start justify-between gap-3">
-					<h2 id="promotions-heading" className="text-lg font-semibold">
+					<h2 id="promotions-heading" className="text-base font-semibold">
 						Daftar promo
 					</h2>
 					<Button variant="outline" className="shrink-0" onClick={() => void list.reload()}>
@@ -110,7 +110,7 @@ export function ShippingPromotionsClient({ services, regions }: { services: Opti
 					status={list.status}
 					paging={{ ...list.paging, testId: "promotions-more" }}
 					loadingLabel="Memuat promo…"
-					empty="Belum ada promo ongkir. Buat promo untuk memberi potongan ongkir saat checkout."
+					empty="Belum ada promo ongkir. Pilih Buat promo untuk memberi potongan ongkir pada pesanan baru."
 					testId="shipping-promotions"
 					rowTestId={(p) => `promotion-row-${p.id}`}
 					caption="Promo ongkir"
@@ -144,8 +144,13 @@ export function ShippingPromotionsClient({ services, regions }: { services: Opti
 							id: "period",
 							header: "Periode",
 							stack: "meta",
-							cellClassName: "whitespace-normal",
-							cell: (p) => `${wibDateTime(p.starts_at)} – ${wibDateTime(p.ends_at)}`,
+							kind: "datetime",
+							cell: (p) => (
+								<span className="flex flex-col max-md:flex-row max-md:flex-wrap max-md:gap-x-1">
+									<span>{wibDateTime(p.starts_at)}</span>
+									<span className="text-muted-foreground">s.d. {wibDateTime(p.ends_at)}</span>
+								</span>
+							),
 						},
 						{
 							id: "status",
@@ -159,7 +164,7 @@ export function ShippingPromotionsClient({ services, regions }: { services: Opti
 						{
 							id: "rules",
 							header: "Berlaku untuk",
-							className: "md:max-xl:hidden",
+							hideBelow: "7xl",
 							cellClassName: "whitespace-normal text-xs md:max-w-60",
 							cell: (p) =>
 								`${p.payment_methods.map((m) => METHODS[m] ?? m).join(" dan ")} · ${label(regions, p.region_ids, "semua wilayah")} · ${label(services, p.service_ids, "semua layanan")}${p.minimum_merchandise ? ` · min. belanja ${rupiah(p.minimum_merchandise)}` : ""}`,
@@ -230,7 +235,7 @@ function PromotionDialog({
 	onClose: () => void;
 	onDone: (message: string) => void;
 }) {
-	const [form, setForm] = useState(() => ({
+	const [initial] = useState(() => ({
 		name: row?.name ?? "",
 		active: row?.active ?? true,
 		starts: row ? wibInput(row.starts_at) : "",
@@ -248,6 +253,8 @@ function PromotionDialog({
 		priority: row ? String(row.priority) : "0",
 		reason: "",
 	}));
+	const [form, setForm] = useState(initial);
+	const dirty = JSON.stringify(form) !== JSON.stringify(initial);
 	const [error, setError] = useState<string | null>(null);
 	const [pending, setPending] = useState(false);
 	const key = useOperationKey();
@@ -319,10 +326,11 @@ function PromotionDialog({
 	return (
 		<FormDialog
 			title={row ? `Ubah promo ${row.name}` : "Buat promo ongkir"}
-			description={row ? `Versi ${row.version}. Perubahan berlaku untuk checkout berikutnya. Anggaran minimal ${rupiah(used)} (sudah dipesan atau terpakai).` : "Potongan dibayar toko dari anggaran promo dan dibatasi per pesanan dan per pembeli."}
+			description={row ? `Versi ${row.version}. Perubahan berlaku untuk pesanan berikutnya. Anggaran minimal ${rupiah(used)} (sudah dipesan atau terpakai).` : "Potongan dibayar toko dari anggaran promo dan dibatasi per pesanan dan per pembeli."}
 			pending={pending}
 			error={error}
 			submitLabel={row ? "Simpan versi baru" : "Buat promo"}
+			dirty={dirty}
 			onClose={onClose}
 			onSubmit={() => void submit()}
 		>
@@ -331,14 +339,14 @@ function PromotionDialog({
 			</FormField>
 			<label className="flex min-h-9 items-center gap-2 text-sm pointer-coarse:min-h-11">
 				<input type="checkbox" className="size-4 accent-primary" checked={form.active} onChange={(e) => setForm({ ...form, active: e.target.checked })} />
-				Aktif (berlaku di checkout selama periode)
+				Aktif (berlaku untuk pesanan baru selama periode)
 			</label>
 			<div className="grid gap-3 sm:grid-cols-2">
 				<FormField id="promo-starts" label="Mulai (WIB)">
-					<Input id="promo-starts" type="datetime-local" value={form.starts} onChange={set("starts")} />
+					<Input id="promo-starts" type="datetime-local" lang="id" value={form.starts} onChange={set("starts")} />
 				</FormField>
 				<FormField id="promo-ends" label="Selesai (WIB)">
-					<Input id="promo-ends" type="datetime-local" value={form.ends} onChange={set("ends")} />
+					<Input id="promo-ends" type="datetime-local" lang="id" value={form.ends} onChange={set("ends")} />
 				</FormField>
 			</div>
 			<div className="grid gap-3 sm:grid-cols-2">
@@ -409,10 +417,12 @@ function EndDialog({ row, onClose, onDone }: { row: Promotion; onClose: () => vo
 	return (
 		<FormDialog
 			title={`Akhiri promo ${row.name}`}
-			description="Promo tidak lagi dipakai di checkout berikutnya. Potongan yang sudah dipesan pembeli tetap berlaku; riwayat versi tetap tersimpan."
+			description="Promo tidak lagi dipakai untuk pesanan berikutnya. Potongan yang sudah dipesan pembeli tetap berlaku; riwayat versi tetap tersimpan. Untuk memakainya lagi, aktifkan lewat Ubah."
 			pending={pending}
 			error={error}
 			submitLabel="Akhiri promo"
+			destructive
+			dirty={Boolean(reason.trim())}
 			onClose={onClose}
 			onSubmit={() => void submit()}
 		>
@@ -438,7 +448,7 @@ function HistoryDialog({ row, onClose }: { row: Promotion; onClose: () => void }
 					status={list.status}
 					paging={{ ...list.paging, testId: "promotion-history-more" }}
 					loadingLabel="Memuat riwayat…"
-					empty="Belum ada versi."
+					empty="Riwayat versi promo ini belum tersedia. Muat ulang daftar promo lalu buka lagi."
 					testId="promotion-history"
 					caption="Riwayat versi promo"
 					stack
@@ -458,7 +468,7 @@ function HistoryDialog({ row, onClose }: { row: Promotion; onClose: () => void }
 							),
 						},
 						{ id: "budget", header: "Anggaran", stack: "aside", className: "text-right tabular-nums", cell: (p) => rupiah(p.budget) },
-						{ id: "when", header: "Dicatat", stack: "meta", cell: (p) => wibDateTime(p.recorded_at) },
+						{ id: "when", header: "Dicatat", stack: "meta", kind: "datetime", cell: (p) => wibDateTime(p.recorded_at) },
 						{ id: "benefit", header: "Potongan", cellClassName: "whitespace-normal text-xs", cell: benefit },
 					]}
 				/>

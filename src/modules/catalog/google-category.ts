@@ -6,7 +6,7 @@ import type { Sql } from "postgres";
 // column; S106 persists the category per product and replaces this module.
 type Dataset = {
 	categories: { slug: string; google_product_category?: number }[];
-	products: { google_product_category?: number; offer: { sku: string } }[];
+	products: { google_product_category?: number; offers: { sku: string }[] }[];
 };
 let maps: Promise<{ bySlug: Map<string, string>; bySku: Map<string, string> }> | null = null;
 const load = () =>
@@ -14,7 +14,7 @@ const load = () =>
 		const dataset = raw as Dataset;
 		return {
 			bySlug: new Map(dataset.categories.flatMap((c) => (c.google_product_category ? [[c.slug, String(c.google_product_category)] as const] : []))),
-			bySku: new Map(dataset.products.flatMap((p) => (p.google_product_category ? [[p.offer.sku, String(p.google_product_category)] as const] : []))),
+			bySku: new Map(dataset.products.flatMap((p) => (p.google_product_category ? p.offers.map((o) => [o.sku, String(p.google_product_category)] as const) : []))),
 		};
 	});
 

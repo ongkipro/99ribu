@@ -864,6 +864,31 @@ test("S132 RateIntent dialog safety: uncertain response freezes idempotency key 
 	);
 	assert.equal(conflictFirst.code, "VERSION_CONFLICT");
 	assert.equal(conflictFirst.uncertain, false);
+
+	// A definitive 409 rolled back on the server: the corrected retry is a new request (new key, rebuilt body),
+	// keeps the mount-frozen expected_version and reuses the still-valid proof (no second proof call).
+	const conflictKey = calls[calls.length - 1].key;
+	const before = calls.length;
+	const conflictRetry = await intent.send<{ version: number }>(
+		"/api/v1/admin/affiliates/00000000-0000-4000-8000-000000000099/rates",
+		() => ({
+			basis_points: 1300,
+			effective_at: null,
+			expected_version: capturedVersion,
+			reason: "Konflik versi, dicoba lagi",
+		}),
+		{
+			password: "secret-password",
+			affiliateId: "00000000-0000-4000-8000-000000000099",
+			fetch: fakeFetch,
+		},
+	);
+	assert.equal(conflictRetry.code, "VERSION_CONFLICT");
+	assert.equal(calls.length, before + 1, "No second proof call after a version conflict");
+	const retried = calls[calls.length - 1];
+	assert.notEqual(retried.key, conflictKey, "Idempotency-Key rotates after a definitive 409");
+	assert.equal(retried.body.expected_version, capturedVersion);
+	assert.equal(retried.body.basis_points, 1300, "The body is rebuilt from the current fields");
 });
 
 test("S132 cached owner or finance principal cannot read affiliates after role, MFA, verified email or session is revoked in DB", async () => {

@@ -1,6 +1,6 @@
 "use client";
 
-import { CircleAlert, Search } from "lucide-react";
+import { CircleAlert, Search, X } from "lucide-react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useCallback, useEffect, useState } from "react";
@@ -11,14 +11,20 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { type ApiFailure, failureText, getJson } from "./admin-errors";
 import { DataTable } from "./data-table";
 import { formatWib, rupiah } from "./format";
+import { FilterSheet, FormField, nativeSelectClass, SegmentedControl } from "./form";
 import {
+	FULFILLMENT_STATUS,
 	HISTORY_KIND,
 	historyStatus,
+	ORDER_FILTER_KEYS,
+	ORDER_FILTERS,
 	ORDER_STATUS,
 	ORDER_TONE,
-	PAYMENT_STATUS,
-	PAYMENT_TONE,
+	type OrderFilterKey,
+	type OrderFilters,
+	paymentLabel,
 	paymentText,
+	paymentTone,
 	SHIPMENT_STATUS,
 	SHIPMENT_TONE,
 	searchQuery,
@@ -42,9 +48,10 @@ type Summary = {
 };
 type Page<T> = { data: T[]; pagination: { next_cursor: string | null } };
 
-const selectClass =
-	"h-9 w-full rounded-md border border-input bg-background px-3 text-sm shadow-xs focus-visible:border-ring focus-visible:ring-[3px] focus-visible:ring-ring/50 outline-none";
-
+const selectClass = `${nativeSelectClass} w-full`;
+// Tabs follow the fulfillment axis (where the parcels are); the other axes are selects.
+const FULFILLMENT_TABS = [["", "Semua"], ...Object.entries(FULFILLMENT_STATUS)] as const;
+const SELECT_FILTERS = ORDER_FILTER_KEYS.filter((key) => key !== "kirim");
 const KIND_LABELS: Record<SearchKind, { label: string; hint: string; placeholder: string }> = {
 	nomor: {
 		label: "Nomor pesanan",
@@ -53,7 +60,7 @@ const KIND_LABELS: Record<SearchKind, { label: string; hint: string; placeholder
 	},
 	resi: {
 		label: "Nomor resi",
-		hint: "Resi persis seperti di dashboard Mengantar; spasi diabaikan. Resi lama yang sudah dikoreksi tetap ditemukan.",
+		hint: "Resi persis seperti di dasbor Mengantar; spasi diabaikan. Resi lama yang sudah dikoreksi tetap ditemukan.",
 		placeholder: "JP1234567890",
 	},
 	hp: {
@@ -84,22 +91,26 @@ function failureMessage(failure: ApiFailure) {
 export function OrderSearchClient({
 	initialKind,
 	initialTerm,
+	initialFilters,
 	companyWide,
 }: {
 	initialKind: SearchKind;
 	initialTerm: string;
+	initialFilters: OrderFilters;
 	companyWide: boolean;
 }) {
 	const router = useRouter();
 	const [kind, setKind] = useState<SearchKind>(initialKind);
 	const [term, setTerm] = useState(initialTerm);
 	const [applied, setApplied] = useState({ kind: initialKind, term: initialTerm.trim() });
+	const [filters, setFilters] = useState<OrderFilters>(initialFilters);
 	const [fieldError, setFieldError] = useState<string | null>(null);
 	const [rows, setRows] = useState<Summary[]>([]);
 	const [cursor, setCursor] = useState<string | null>(null);
-	const [state, setState] = useState<"loading" | "ready" | "error">("loading");
+	const [state, setState] = useState<"loading" | "ready" | "error" | "denied">("loading");
 	const [error, setError] = useState("");
 	const [more, setMore] = useState(false);
+	const [moreError, setMoreError] = useState<string | null>(null);
 
 	const query = useCallback(
 		(next: string | null) => {
@@ -109,12 +120,17 @@ export function OrderSearchClient({
 					applied.kind === "hp" ? "phone_suffix" : "reference",
 					applied.kind === "resi" ? applied.term.replace(/\s+/g, "") : applied.term,
 				);
+			for (const key of ORDER_FILTER_KEYS) {
+				const value = filters[key];
+				if (value) params.set(ORDER_FILTERS[key].api, value);
+			}
 			if (next) params.set("cursor", next);
 			return getJson<Page<Summary>>(`/api/v1/admin/orders?${params}`);
 		},
-		[applied],
+		[applied, filters],
 	);
 	const load = useCallback(async () => {
+		setMoreError(null);
 		if (validate(applied.kind, applied.term)) {
 			setRows([]);
 			setCursor(null);
@@ -129,25 +145,30 @@ export function OrderSearchClient({
 			setState("ready");
 		} else {
 			setError(failureMessage(result.failure));
-			setState("error");
+			setState(result.failure.status === 403 ? "denied" : "error");
 		}
 	}, [applied, query]);
 	useEffect(() => {
 		void load();
 	}, [load]);
 
+	// A failed next page keeps the rows already shown and says so under them.
 	const loadMore = async () => {
 		if (!cursor) return;
 		setMore(true);
+		setMoreError(null);
 		const result = await query(cursor);
 		setMore(false);
 		if (!result.ok) {
-			setError(failureMessage(result.failure));
-			setState("error");
+			setMoreError(`Pesanan berikutnya gagal dimuat. ${failureMessage(result.failure)}`);
 			return;
 		}
 		setRows((current) => [...current, ...result.data.data]);
 		setCursor(result.data.pagination.next_cursor);
+	};
+	const navigate = (nextKind: SearchKind, nextTerm: string, nextFilters: OrderFilters) => {
+		const params = searchQuery(nextKind, nextTerm, nextFilters);
+		router.replace(`/admin/orders${params.size ? `?${params}` : ""}`, { scroll: false });
 	};
 	const submit = (nextKind: SearchKind, nextTerm: string) => {
 		const clean = nextTerm.trim();
@@ -155,12 +176,22 @@ export function OrderSearchClient({
 		setFieldError(problem);
 		if (problem) return;
 		setApplied({ kind: nextKind, term: clean });
-		const params = searchQuery(nextKind, clean);
-		router.replace(`/admin/orders${params.size ? `?${params}` : ""}`, { scroll: false });
+		navigate(nextKind, clean, filters);
 	};
-	const back = searchQuery(applied.kind, applied.term).toString();
+	const setFilter = (key: OrderFilterKey, value: string) => {
+		const next = { ...filters, [key]: value || undefined };
+		setFilters(next);
+		navigate(applied.kind, applied.term, next);
+	};
+	const active = SELECT_FILTERS.filter((key) => filters[key]);
+	const filtered = ORDER_FILTER_KEYS.some((key) => filters[key]);
+	const clearFilters = () => {
+		setFilters({});
+		navigate(applied.kind, applied.term, {});
+	};
+	const back = searchQuery(applied.kind, applied.term, filters).toString();
 	const label = KIND_LABELS[kind];
-
+	const hintId = fieldError ? "order-search-error" : "order-search-hint";
 	return (
 		<AdminPage>
 			<PageHeader
@@ -217,10 +248,10 @@ export function OrderSearchClient({
 						placeholder={label.placeholder}
 						onChange={(e) => setTerm(e.target.value)}
 						aria-invalid={fieldError ? true : undefined}
-						aria-describedby={fieldError ? "order-search-error" : "order-search-hint"}
+						aria-describedby={hintId}
 					/>
 					{fieldError ? (
-						<p id="order-search-error" className="text-sm text-destructive">
+						<p id="order-search-error" role="alert" className="text-sm text-destructive">
 							{fieldError}
 						</p>
 					) : (
@@ -229,7 +260,7 @@ export function OrderSearchClient({
 						</p>
 					)}
 				</div>
-				<div className="flex gap-2 md:pt-6">
+				<div className="flex gap-2 md:pt-6 max-md:*:flex-1">
 					<Button type="submit">
 						<Search aria-hidden="true" />
 						Cari
@@ -251,11 +282,62 @@ export function OrderSearchClient({
 			</search>
 
 			<section aria-labelledby="orders-result-heading" className="flex flex-col gap-3">
-				<h2 id="orders-result-heading" className="text-lg font-semibold">
+				<h2 id="orders-result-heading" className="text-base font-semibold">
 					{applied.term
 						? `Hasil untuk ${KIND_LABELS[applied.kind].label.toLowerCase()} ${applied.kind === "hp" ? `…${applied.term}` : applied.term}`
 						: "Pesanan terbaru"}
 				</h2>
+				<SegmentedControl
+					legend="Tahap pengiriman"
+					value={filters.kirim ?? ""}
+					options={FULFILLMENT_TABS}
+					onChange={(value) => setFilter("kirim", value)}
+					testId={(key) => `orders-tab-${key || "all"}`}
+				/>
+				<div className="grid gap-3 md:grid-cols-3 md:max-w-3xl">
+					<FilterSheet active={active.length}>
+						{SELECT_FILTERS.map((key) => (
+							<FormField key={key} id={`orders-filter-${key}`} label={ORDER_FILTERS[key].label}>
+								<select
+									id={`orders-filter-${key}`}
+									className={selectClass}
+									value={filters[key] ?? ""}
+									onChange={(e) => setFilter(key, e.target.value)}
+								>
+									<option value="">Semua</option>
+									{Object.entries(ORDER_FILTERS[key].options).map(([value, text]) => (
+										<option key={value} value={value}>
+											{text}
+										</option>
+									))}
+								</select>
+							</FormField>
+						))}
+					</FilterSheet>
+				</div>
+				{active.length > 0 && (
+					<ul aria-label="Filter aktif" className="flex flex-wrap items-center gap-2" data-testid="orders-active-filters">
+						{active.map((key) => (
+							<li key={key}>
+								<Button
+									type="button"
+									variant="outline"
+									size="sm"
+									aria-label={`Hapus filter ${ORDER_FILTERS[key].label.toLowerCase()}: ${ORDER_FILTERS[key].options[filters[key] ?? ""]}`}
+									onClick={() => setFilter(key, "")}
+								>
+									{ORDER_FILTERS[key].label}: {ORDER_FILTERS[key].options[filters[key] ?? ""]}
+									<X data-icon="inline-end" aria-hidden="true" />
+								</Button>
+							</li>
+						))}
+						<li>
+							<Button type="button" variant="ghost" size="sm" onClick={clearFilters}>
+								Hapus semua filter
+							</Button>
+						</li>
+					</ul>
+				)}
 				<DataTable
 					rows={rows}
 					rowKey={(row) => row.id}
@@ -264,14 +346,25 @@ export function OrderSearchClient({
 							? { kind: "loading" }
 							: state === "error"
 								? { kind: "error", message: error, onRetry: () => void load() }
-								: { kind: "ready" }
+								: state === "denied"
+									? { kind: "denied", message: error }
+									: { kind: "ready" }
 					}
 					loadingLabel="Memuat pesanan…"
 					emptyTestId="orders-empty"
 					empty={
-						applied.term
-							? "Tidak ada pesanan yang cocok dalam cakupan Anda. Periksa kembali isian atau ganti jenis pencarian."
-							: "Belum ada pesanan dalam cakupan Anda."
+						applied.term ? (
+							"Tidak ada pesanan yang cocok dalam cakupan Anda. Periksa kembali isian atau ganti jenis pencarian."
+						) : filtered ? (
+							<>
+								Tidak ada pesanan dengan filter ini dalam cakupan Anda.{" "}
+								<Button type="button" variant="link" className="h-auto p-0" onClick={clearFilters}>
+									Hapus semua filter
+								</Button>
+							</>
+						) : (
+							"Belum ada pesanan dalam cakupan Anda. Pesanan baru muncul di sini setelah pembeli membuat pesanan."
+						)
 					}
 					testId="orders-table"
 					caption="Daftar pesanan, terbaru di atas"
@@ -301,12 +394,13 @@ export function OrderSearchClient({
 							id: "created",
 							header: "Dibuat",
 							stack: "meta",
+							kind: "datetime",
 							className: "md:max-xl:hidden",
 							cell: (row) => formatWib(row.created_at),
 						},
 						{
 							id: "status",
-							header: "Status",
+							header: "Status pesanan",
 							stack: "status",
 							cell: (row) => (
 								<StatusBadge tone={ORDER_TONE[row.status] ?? "open"}>
@@ -315,9 +409,20 @@ export function OrderSearchClient({
 							),
 						},
 						{
+							// The method is plain text, the state a badge: a collected COD order never reads "Lunas".
 							id: "payment",
 							header: "Pembayaran",
-							cell: (row) => paymentText(row.payment_method, row.payment_status),
+							stack: "status",
+							cell: (row) => (
+								<span className="inline-flex flex-wrap items-center gap-1.5">
+									<span className="text-xs text-muted-foreground">
+										{row.payment_method === "cod" ? "COD" : "Prabayar"}
+									</span>
+									<StatusBadge tone={paymentTone(row.payment_method, row.payment_status)}>
+										{paymentLabel(row.payment_method, row.payment_status)}
+									</StatusBadge>
+								</span>
+							),
 						},
 						{
 							// Before the COD fee or transfer code; the detail page shows both totals.
@@ -328,7 +433,13 @@ export function OrderSearchClient({
 							cell: (row) => rupiah(row.buyer_total),
 						},
 					]}
-					paging={{ hasMore: cursor !== null, loading: more, onMore: () => void loadMore() }}
+					paging={{
+						hasMore: cursor !== null,
+						loading: more,
+						onMore: () => void loadMore(),
+						error: moreError,
+						summary: `${rows.length} pesanan ditampilkan`,
+					}}
 				/>
 			</section>
 		</AdminPage>
@@ -494,10 +605,25 @@ export function OrderDetailClient({
 		return (
 			<AdminPage>
 				<PageHeader back={back} title="Detail pesanan" />
-				<div className="flex flex-col gap-3" aria-live="polite">
+				{/* Same shape as the loaded page: payment first on phones, the right column from lg. */}
+				<div className="flex flex-col gap-3" aria-live="polite" aria-busy="true">
 					<p className="text-sm text-muted-foreground">Memuat detail pesanan…</p>
-					<Skeleton className="h-8 w-64 bg-border/70" />
-					<Skeleton className="h-40 w-full bg-border/70" />
+					<div aria-hidden="true" className="grid gap-5 md:gap-6 lg:grid-cols-[minmax(0,1fr)_22rem] lg:items-start">
+						<div className="flex flex-col gap-3 rounded-lg border p-4 lg:col-start-2 lg:row-start-1">
+							<Skeleton className="h-5 w-28 bg-border/70" />
+							{[0, 1, 2, 3].map((i) => (
+								<Skeleton key={i} className="h-4 w-full bg-border/70" />
+							))}
+						</div>
+						<div className="flex flex-col gap-5 md:gap-6 lg:col-start-1 lg:row-start-1">
+							{["items", "shipments", "history"].map((section) => (
+								<div key={section} className="flex flex-col gap-3 rounded-lg border p-4">
+									<Skeleton className="h-5 w-32 bg-border/70" />
+									<Skeleton className="h-12 w-full bg-border/70" />
+								</div>
+							))}
+						</div>
+					</div>
 				</div>
 			</AdminPage>
 		);
@@ -539,7 +665,7 @@ export function OrderDetailClient({
 				meta={
 					<>
 						<StatusBadge tone={ORDER_TONE[o.status] ?? "open"}>{ORDER_STATUS[o.status] ?? o.status}</StatusBadge>
-						<StatusBadge tone={PAYMENT_TONE[o.payment_status] ?? "open"}>
+						<StatusBadge tone={paymentTone(o.payment_method, o.payment_status)}>
 							{paymentText(o.payment_method, o.payment_status)}
 						</StatusBadge>
 						<span className="text-sm">Dibuat {formatWib(o.created_at)}</span>
@@ -560,7 +686,7 @@ export function OrderDetailClient({
 						</div>
 						<div className="flex justify-between gap-4">
 							<dt className="text-muted-foreground">Status</dt>
-							<dd className="text-right">{PAYMENT_STATUS[o.payment_status] ?? o.payment_status}</dd>
+							<dd className="text-right">{paymentLabel(o.payment_method, o.payment_status)}</dd>
 						</div>
 						<Money label="Barang" value={rupiah(o.merchandise_total)} />
 						<Money label="Ongkos kirim" value={rupiah(o.shipping_total)} />

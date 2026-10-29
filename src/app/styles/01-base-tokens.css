@@ -1,0 +1,1121 @@
+/* Inter 4.1 (SIL OFL, see public/fonts/inter-4.1/LICENSE.txt). The storefront loads a 44KB Latin
+   subset made with fontTools 4.55.3 from the full variable file (pyftsubset: Latin ranges below,
+   default features plus tnum; varLib.instancer: opsz axis dropped, pinned to its 14pt default, wght
+   kept 100-900). The full 352KB file is only fetched for characters outside the subset. */
+@font-face {
+	font-family: Inter;
+	src: url("/fonts/inter-4.1/InterVariable.woff2") format("woff2");
+	font-style: normal;
+	font-weight: 100 900;
+	font-display: swap;
+}
+/* Declared last so it wins inside its unicode-range (later faces are tried first). */
+@font-face {
+	font-family: Inter;
+	src: url("/fonts/inter-4.1/InterVariable-latin.woff2") format("woff2");
+	font-style: normal;
+	font-weight: 100 900;
+	font-display: swap;
+	unicode-range: U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+2000-206F, U+20AC, U+2122, U+2190-2193, U+2212, U+2215, U+FEFF, U+FFFD;
+}
+/* ===== Design tokens =====
+   The single source for storefront colour, type scale, spacing and department tints;
+   DESIGN.md (repo root) documents each token. Component rules reference these tokens
+   instead of repeating literals. */
+:root {
+	font-family: Inter, system-ui, sans-serif;
+	color: var(--ink);
+	background: var(--surface);
+	font-synthesis: none;
+	/* Colour (shop.com measured 2026-10-25: text #000, page canvas oklch(.988 0 0), surfaces #fff).
+	   Muted and caption pass WCAG AA on both canvas and surface (4.72/4.84:1 and 4.90/4.93:1). */
+	--ink: #000;
+	--purple: #5b35d5;
+	--purple-hover: #4823b6;
+	--yellow: #f6c945;
+	--store-muted: oklch(0.552 0.026 290.5);
+	--muted: var(--store-muted);
+	--caption: rgba(0, 0, 0, 0.56);
+	--canvas: #fcfcfc;
+	--surface: #fff;
+	--line: #d8d8df;
+	/* shop.com's hairline edge on white surfaces (chips, cards, popovers, banners). */
+	--hairline: rgba(5, 41, 77, 0.1);
+	/* Form-field boundary (3:1 on white). */
+	--field-border: #85858e;
+	--error: #8b241d;
+	--error-surface: #fff4f2;
+	--warning: #9c3f0a;
+	--warning-surface: #fff5ed;
+	/* Department tints (pills, category tiles, banner cutouts); names map in category-pills.tsx. */
+	--tint-rose: #fde8ec;
+	--tint-amber: #fdf0d5;
+	--tint-green: #e2f3e5;
+	--tint-blue: #e2ecfb;
+	--tint-violet: #ede7fd;
+	--tint-teal: #ddf3ef;
+	--tint-slate: #ececef;
+	/* Type scale (shop.com roles measured 2026-10-25; Inter variable stands in for the licensed GT
+	   Standard). Size/leading pairs; tracking -1px from 20px up, -0.5px at 16-18px, -0.2px at 12-14px. */
+	--caption-size: 0.75rem; /* 12/16: card price, captions, field labels, breadcrumb */
+	--caption-leading: 1rem;
+	--small-size: 0.875rem; /* 14/18: card title, chips, secondary text (14/20 in running text) */
+	--small-leading: 1.125rem;
+	--body-size: 1rem; /* 16/22: body, inputs, buttons (16/20) */
+	--body-leading: 1.375rem;
+	--subtitle-size: 1.125rem; /* 18/20: phone section heading, sheet title, card headline */
+	--subtitle-leading: 1.25rem;
+	--title-size: 1.25rem; /* 20/22: section heading (h2), PDP section heading */
+	--title-leading: 1.375rem;
+	--heading-size: 1.5rem; /* 24/26: category section heading; PDP title 24/28 */
+	--heading-leading: 1.625rem;
+	--page-size: 2.25rem; /* 36/38 800: page heading (h1); 28/30 on phones */
+	--page-leading: 2.375rem;
+	--hero-size: 4rem; /* 64/58 800: home hero; 36/38 on phones */
+	--hero-leading: 3.625rem;
+	--tracking-tight: -1px;
+	--tracking-body: -0.5px;
+	--tracking-small: -0.2px;
+	/* Layout: the phone dock height (0 without a dock) and the page gutter. shop.com gutters
+	   (observed 2026-10-23): 16px to 1023px, 32px from 1024px, 48px from 1440px, 64px from
+	   1920px, 96px from 2560px. Content caps at 1250px (owner decision, narrower than
+	   shop.com's full-width pages), so the larger gutters only matter below that. */
+	--bottom: 0px;
+	--gutter: 16px;
+}
+@media (min-width: 1024px) {
+	:root {
+		--gutter: 32px;
+	}
+}
+@media (min-width: 1440px) {
+	:root {
+		--gutter: 48px;
+	}
+}
+@media (min-width: 1920px) {
+	:root {
+		--gutter: 64px;
+	}
+}
+@media (min-width: 2560px) {
+	:root {
+		--gutter: 96px;
+	}
+}
+@media (max-width: 700px) {
+	:root {
+		--bottom: calc(64px + env(safe-area-inset-bottom, 0px));
+		--page-size: 1.75rem;
+		--page-leading: 1.875rem;
+		--title-size: var(--subtitle-size);
+		--title-leading: var(--subtitle-leading);
+	}
+}
+:where(.stock-status, .cart-feedback, .cart-form-error) svg {
+	width: 1.25em;
+	height: 1.25em;
+	flex: none;
+}
+:where(.cart-form-error) > span {
+	min-width: 0;
+	overflow-wrap: anywhere;
+}
+* {
+	box-sizing: border-box;
+}
+body {
+	margin: 0;
+}
+h1,
+h2,
+h3,
+p {
+	margin: 0;
+}
+h1,
+h2,
+h3 {
+	font-weight: 600;
+	letter-spacing: var(--tracking-tight);
+	font-variant-ligatures: none;
+}
+h1 {
+	font-size: var(--page-size);
+	line-height: var(--page-leading);
+	font-weight: 800;
+}
+h2 {
+	font-size: var(--title-size);
+	line-height: var(--title-leading);
+}
+h3,
+:is(.cart-warning, .cart-line, .cart-feedback) h2 {
+	font-size: var(--body-size);
+	line-height: var(--body-leading);
+	letter-spacing: var(--tracking-body);
+}
+.cart-warning :is(h2, h3) {
+	margin-bottom: 4px;
+}
+a {
+	color: inherit;
+	text-decoration: none;
+}
+button,
+input,
+select {
+	font: inherit;
+}
+button,
+a,
+summary,
+input,
+select {
+	-webkit-tap-highlight-color: transparent;
+}
+button {
+	cursor: pointer;
+}
+/* Hover underline stays for operator/admin surfaces only; the storefront, checkout,
+   receipt and sign-in shells give UI links colour feedback instead (see the
+   interaction contract at the end of this file). */
+:where(body:not(:has(> .store-header, > .checkout-header, > .receipt-shell))) a:hover {
+	text-decoration: underline;
+	text-underline-offset: 4px;
+}
+button:focus-visible,
+a:focus-visible,
+input:focus-visible,
+select:focus-visible,
+summary:focus-visible {
+	outline: 3px solid var(--purple);
+	outline-offset: 4px;
+}
+html {
+	scroll-padding-bottom: calc(var(--bottom) + 20px);
+}
+.wrap {
+	width: min(1250px, calc(100% - 2 * var(--gutter)));
+	margin-inline: auto;
+}
+.sr-only {
+	position: absolute;
+	width: 1px;
+	height: 1px;
+	padding: 0;
+	margin: -1px;
+	overflow: hidden;
+	clip-path: inset(50%);
+	white-space: nowrap;
+	border: 0;
+}
+.skip {
+	clip-path: inset(50%);
+	position: fixed;
+	top: 10px;
+	left: 10px;
+	z-index: 40;
+	transform: translateY(-200%);
+	background: #fff;
+	padding: 16px;
+}
+.skip:focus {
+	clip-path: none;
+	transform: none;
+}
+.header-main {
+	display: flex;
+	align-items: center;
+	padding-block: 16px;
+}
+.brand {
+	font-size: 2.1rem;
+	font-weight: 900;
+	letter-spacing: -0.06em;
+	white-space: nowrap;
+	color: var(--purple);
+	display: inline-flex;
+	align-items: baseline;
+}
+.brand > span:not(.grow) {
+	font-size: 0.56em;
+	font-weight: 800;
+	letter-spacing: var(--tracking-tight);
+	line-height: 1;
+	margin-left: 1px;
+}
+.brand i {
+	font-style: normal;
+	color: var(--yellow);
+	font-size: 0.72em;
+	line-height: 1;
+	margin-left: 1px;
+}
+.search-region {
+	flex: 1;
+	min-width: 0;
+}
+/* shop.com parity R1: near-white storefront canvas, white raised surfaces (checkout and receipt stay white). */
+:root:has(body > .store-header),
+body:has(> .store-header) {
+	background: var(--canvas);
+}
+.utilities {
+	display: flex;
+	font-size: var(--small-size);
+}
+.utilities a {
+	position: relative;
+	display: flex;
+	gap: 8px;
+	align-items: center;
+	min-height: 44px;
+}
+/* The cart count sits on the icon, so a count never changes the header widths
+   (the search pill keeps one width on every page). */
+.utilities .utility-count {
+	position: absolute;
+	top: 2px;
+	left: 14px;
+}
+.utilities a[aria-current] {
+	color: var(--purple);
+	font-weight: 600;
+}
+
+.shopping-tabs,
+.shopping-tabs-space {
+	display: none;
+}
+
+/* The admin banner preview renders this markup inside the console, whose shadcn tokens redefine --muted as a surface colour. */
+.home-main {
+	--muted: var(--store-muted);
+}
+:where(.filters summary) svg {
+	width: 1em;
+	height: 1em;
+}
+:where(.filters[open] summary) svg {
+	transform: rotate(180deg);
+}
+.product-grid {
+	list-style: none;
+	display: grid;
+	padding: 0;
+	margin: 0;
+}
+/* Each card spans four shared rows (media, title, price, stock note) through
+   subgrid, so prices line up across a row whatever the title length. */
+.product {
+	min-width: 0;
+	display: grid;
+	grid-row: span 4;
+	grid-template-rows: subgrid;
+	row-gap: 0;
+}
+.photo-slot {
+	aspect-ratio: 1;
+	background: #f4f3f8;
+	border-radius: 20px;
+	display: flex;
+	flex-direction: column;
+	align-items: center;
+	justify-content: center;
+	text-align: center;
+	padding: 20px;
+	overflow-wrap: anywhere;
+	color: #55515f;
+}
+.photo-slot > span {
+	font-size: var(--caption-size);
+	line-height: 1.25rem;
+	font-weight: 600;
+	letter-spacing: normal;
+	margin-bottom: 0.5rem;
+}
+.photo-slot small {
+	font-size: var(--caption-size);
+	line-height: 1.125rem;
+	color: #64606e;
+}
+.product-image {
+	display: block;
+	aspect-ratio: 1;
+	object-fit: contain;
+	width: 100%;
+	height: auto;
+	/* Observed shop.com product media: white, 20px radius, one soft 2px/8px
+	   shadow, no border; the slot surface shows until a lazy image paints. */
+	background: #fff;
+	border-radius: 20px;
+	box-shadow: 0 2px 8px rgba(0, 0, 0, 0.06);
+}
+.unavailable {
+	justify-self: start;
+	align-self: start;
+	font-size: var(--caption-size);
+	line-height: 1.125rem;
+	margin-top: 8px;
+	padding: 2px 10px;
+	border-radius: 10px;
+	background: #f1eee6;
+	color: #5c4f37;
+}
+/* R9: brand + note left, labelled link column right (shop.com footer rhythm). */
+.listing-main h1 {
+	margin-bottom: 16px;
+	overflow-wrap: anywhere;
+}
+/* R4: filters sit above a full-width result grid (shop.com chip row + sheet). */
+.listing-layout {
+	display: grid;
+	grid-template-columns: minmax(0, 1fr);
+	gap: 24px;
+}
+.filters {
+	justify-self: start;
+	max-width: 100%;
+}
+.filters:where([open]) {
+	justify-self: stretch;
+	background: #fff;
+	border-radius: 20px;
+	padding: 12px 20px 20px;
+	border: 1px solid var(--hairline);
+}
+.filters summary {
+	font-size: var(--small-size);
+	font-weight: 600;
+	cursor: pointer;
+	min-height: 44px;
+	padding: 8px 16px 8px 20px;
+	border-radius: 9999px;
+	background: #fff;
+	border: 1px solid rgba(0, 0, 0, 0.1);
+	list-style: none;
+	display: flex;
+	align-items: center;
+	gap: 12px;
+	width: fit-content;
+	justify-content: flex-start;
+}
+.filters:where([open]) summary {
+	border-color: var(--ink);
+	box-shadow: inset 0 0 0 0.5px var(--ink);
+}
+.filters form {
+	display: flex;
+	flex-wrap: wrap;
+	align-items: flex-end;
+	gap: 16px;
+	padding-top: 16px;
+}
+.filters form + form {
+	margin-top: 16px;
+	border-top: 1px solid rgba(0, 0, 0, 0.08);
+}
+.filter-field {
+	display: grid;
+	gap: 6px;
+	/* Four filters: one row of four from 1024px, two by two below it (never three plus one). */
+	flex: 1 1 calc(25% - 12px);
+	min-width: min(100%, 10rem);
+}
+@media (max-width: 1023px) {
+	.filter-field {
+		flex-basis: calc(50% - 8px);
+	}
+}
+.filters label {
+	font-size: var(--small-size);
+	font-weight: 600;
+}
+.filters select {
+	width: 100%;
+	color: inherit;
+	font-size: var(--small-size);
+}
+.filter-actions {
+	display: flex;
+	flex-wrap: wrap;
+	align-items: center;
+	gap: 8px 20px;
+	flex: 1 1 100%;
+}
+.button {
+	display: inline-flex;
+	align-items: center;
+	justify-content: center;
+	min-height: 48px;
+	border: 1px solid var(--purple);
+	border-radius: 9999px;
+	background: var(--purple);
+	color: #fff;
+	padding: 12px 20px;
+	font-size: var(--body-size);
+	line-height: 1.25rem;
+	font-weight: 600;
+	letter-spacing: var(--tracking-body);
+	text-align: center;
+}
+.button:hover {
+	text-decoration: none;
+	background: var(--purple-hover);
+}
+.secondary,
+.button-secondary {
+	background: white;
+	color: var(--purple);
+}
+.secondary:hover,
+.button-secondary:hover {
+	background: #f2eefc;
+}
+:where(.button:disabled) {
+	background: #efedf3;
+	border-color: #d8d8df;
+	color: #64606e;
+	cursor: not-allowed;
+}
+.reset-link {
+	font-size: var(--small-size);
+	text-decoration: underline;
+	min-height: 44px;
+	display: flex;
+	align-items: center;
+	justify-content: flex-start;
+}
+/* Reset pairs with Apply as a white outline pill (shop.com sheet Reset/Done). */
+.filter-actions > .reset-link {
+	padding: 8px 20px;
+	border-radius: 9999px;
+	border: 1px solid rgba(0, 0, 0, 0.16);
+	background: #fff;
+	color: var(--ink);
+	font-weight: 600;
+	text-decoration: none;
+}
+/* R8: centred empty and recovery states, as in shop.com's empty cart. */
+.empty-state {
+	padding-block: 64px;
+	min-height: 320px;
+	display: flex;
+	flex-direction: column;
+	align-items: center;
+	justify-content: center;
+	text-align: center;
+	gap: 16px;
+}
+.empty-state p {
+	max-width: 540px;
+	color: var(--muted);
+}
+/* Same text-to-action spacing as the cart's .session-actions (16px gap + 24px). */
+:where(.empty-state) > .button {
+	margin-top: 24px;
+}
+.pagination {
+	margin-block: 40px;
+	text-align: center;
+}
+.pagination p {
+	font-size: var(--caption-size);
+	color: var(--muted);
+	margin-top: 12px;
+}
+@media (max-width: 700px) {
+	html {
+		scroll-padding-bottom: max(4.25rem, calc(14rem - 25vw));
+	}
+	.header-main {
+		padding-block: 12px;
+	}
+	.brand {
+		font-size: 1.8rem;
+	}
+	.utilities {
+		margin-left: auto;
+	}
+	.active-filters li {
+		flex: 0 1 auto;
+		max-width: 100%;
+	}
+	.photo-slot {
+		padding: 12px 8px;
+	}
+	.listing-layout {
+		gap: 20px;
+	}
+	.filters:where([open]) {
+		padding: 8px 16px 16px;
+		border-radius: 20px;
+	}
+	.filter-field {
+		flex-basis: 100%;
+	}
+	.filters select {
+		font-size: var(--body-size);
+	}
+	.empty-state {
+		padding-block: 40px;
+		min-height: 300px;
+	}
+	.empty-state p {
+		font-size: var(--small-size);
+	}
+}
+@media (prefers-reduced-motion: reduce) {
+	* {
+		scroll-behavior: auto;
+	}
+}
+
+/* Facet values as pill choices; the native checkbox stays visible and operable. */
+.facet {
+	display: flex;
+	flex-wrap: wrap;
+	gap: 8px;
+	flex: 1 1 100%;
+	min-width: 0;
+	margin: 0;
+	padding: 0;
+	border: 0;
+}
+.facet legend {
+	float: left;
+	width: 100%;
+	padding: 0;
+	font-size: var(--small-size);
+	font-weight: 600;
+	margin-bottom: 2px;
+}
+.facet .facet-option {
+	display: flex;
+	align-items: center;
+	gap: 8px;
+	min-height: 44px;
+	margin: 0;
+	padding: 4px 16px 4px 12px;
+	border: 1px solid rgba(0, 0, 0, 0.12);
+	border-radius: 9999px;
+	background: #fff;
+	font-size: var(--small-size);
+	font-weight: 500;
+	overflow-wrap: anywhere;
+	cursor: pointer;
+}
+.facet .facet-option:has(:checked) {
+	border-color: var(--ink);
+	box-shadow: inset 0 0 0 0.5px var(--ink);
+}
+.facet input {
+	accent-color: var(--purple);
+	width: 18px;
+	height: 18px;
+	margin: 0;
+	flex-shrink: 0;
+}
+
+.product-link {
+	display: grid;
+	grid-row: span 4;
+	grid-template-rows: subgrid;
+	row-gap: 0;
+	align-content: start;
+	min-width: 0;
+}
+.product-link:hover {
+	text-decoration: none;
+}
+.filters summary::-webkit-details-marker {
+	display: none;
+}
+.active-filters {
+	display: flex;
+	flex-wrap: wrap;
+	list-style: none;
+	padding: 0;
+	margin: 0 0 20px;
+	gap: 8px 12px;
+}
+.active-filters a {
+	display: flex;
+	align-items: center;
+	min-height: 44px;
+	min-width: 0;
+	padding: 6px 12px 6px 16px;
+	border-radius: 9999px;
+	background: #fff;
+	border: 1px solid rgba(0, 0, 0, 0.12);
+	overflow-wrap: anywhere;
+	font-size: var(--small-size);
+	font-weight: 500;
+	color: var(--ink);
+}
+.active-filters a:hover {
+	text-decoration: none;
+	border-color: var(--ink);
+}
+.active-filters svg {
+	width: 1em;
+	height: 1em;
+	vertical-align: -0.125em;
+}
+.filter-tail {
+	white-space: nowrap;
+}
+.filter-tail > span {
+	white-space: normal;
+}
+.categories-main,
+.help-main {
+	padding-block: 32px;
+}
+.categories-main > p {
+	font-size: var(--small-size);
+	color: var(--muted);
+	margin-block: 12px 28px;
+}
+/* R11: centred help column with policy topic cards (help.shop.app). */
+.wrap.help-main {
+	max-width: 45rem;
+}
+.help-main p {
+	font-size: var(--body-size);
+	margin-block: 16px 28px;
+}
+.help-main .help-lead {
+	margin-block: 12px 32px;
+	color: var(--muted);
+}
+.help-topics {
+	display: grid;
+	grid-template-columns: repeat(auto-fit, minmax(min(100%, 18rem), 1fr));
+	gap: 16px;
+	margin-bottom: 40px;
+}
+.help-topics > section {
+	background: #fff;
+	border-radius: 20px;
+	padding: 20px clamp(16px, 5vw, 24px);
+	border: 1px solid var(--hairline);
+	scroll-margin-top: 16px;
+	/* Cards in one row share a height (round 57). */
+	align-self: stretch;
+}
+.help-topics > #privacy {
+	grid-column: 1 / -1;
+}
+.help-topics h2 {
+	font-size: var(--subtitle-size);
+	line-height: var(--subtitle-leading);
+	letter-spacing: var(--tracking-body);
+}
+.help-topics p {
+	font-size: var(--body-size);
+	color: var(--muted);
+	margin-block: 8px 0;
+}
+
+@media (max-width: 700px) {
+	.utilities {
+		display: none;
+	}
+}
+
+@media (max-width: 700px) {
+	/* Dock (owner 2026-10-28, shop.com mobile tab bar as the base): white, 28px top radius, a 2% ink ring and a
+	   0 -4px 24px shadow, 64px tall plus the safe area. Five equal icon-only columns: Beranda, Kategori, Cari,
+	   Keranjang, Akun (the names stay as visually hidden text). Inactive: outline icon in --muted (4.8:1); active:
+	   the filled icon in ink inside a rounded lavender pill. Cari is the primary action: a 52px purple disc raised
+	   above the bar with a white ring (a notch against the page) and a white icon. */
+	.shopping-tabs {
+		position: fixed;
+		bottom: 0;
+		left: 0;
+		right: 0;
+		z-index: 10;
+		display: grid;
+		grid-auto-flow: column;
+		grid-auto-columns: minmax(0, 1fr);
+		padding: 0 4px env(safe-area-inset-bottom, 0px);
+		background: #fff;
+		border-radius: 28px 28px 0 0;
+		box-shadow:
+			0 0 0 1px rgba(16, 10, 31, 0.02),
+			0 -4px 24px rgba(16, 10, 31, 0.12);
+	}
+	/* The dock clearance continues the white footer band. */
+	.shopping-tabs-space {
+		display: block;
+		height: calc(64px + env(safe-area-inset-bottom, 0px));
+		background: var(--surface);
+	}
+	.shopping-tabs a {
+		position: relative;
+		display: grid;
+		place-items: center;
+		min-height: 64px;
+		color: var(--muted);
+		-webkit-tap-highlight-color: transparent;
+	}
+	.shopping-tabs a[aria-current] {
+		color: var(--ink);
+	}
+	.shopping-tabs .tab-icon {
+		display: grid;
+		place-items: center;
+		width: 60px;
+		height: 44px;
+		border-radius: 9999px;
+		transition:
+			background-color 160ms cubic-bezier(0.4, 0, 0.2, 1),
+			transform 120ms cubic-bezier(0.4, 0, 0.2, 1);
+	}
+	.shopping-tabs a[aria-current] .tab-icon {
+		background: var(--tint-violet);
+	}
+	.shopping-tabs a:active .tab-icon {
+		transform: scale(0.92);
+	}
+	.shopping-tabs .tab-outline,
+	.shopping-tabs .tab-filled {
+		display: grid;
+	}
+	.shopping-tabs a:not([aria-current]) .tab-filled,
+	.shopping-tabs a[aria-current] .tab-outline {
+		display: none;
+	}
+	.shopping-tabs svg {
+		width: 24px;
+		height: 24px;
+	}
+	/* No visible text: the label stays in the DOM as the accessible name. */
+	.shopping-tabs .tab-label {
+		position: absolute;
+		width: 1px;
+		height: 1px;
+		margin: -1px;
+		padding: 0;
+		overflow: hidden;
+		clip-path: inset(50%);
+		white-space: nowrap;
+	}
+	/* Cari: the raised primary action. The transform lifts the disc without changing the column's layout. */
+	.shopping-tabs .tab-search,
+	.shopping-tabs .tab-search[aria-current] {
+		color: var(--purple);
+	}
+	.shopping-tabs .tab-fab {
+		display: grid;
+		place-items: center;
+		width: 52px;
+		height: 52px;
+		border-radius: 50%;
+		background: var(--purple);
+		color: #fff;
+		translate: 0 -14px;
+		box-shadow:
+			0 0 0 5px #fff,
+			0 6px 14px rgba(91, 53, 213, 0.32);
+		transition: transform 120ms cubic-bezier(0.4, 0, 0.2, 1);
+	}
+	.shopping-tabs .tab-fab svg {
+		width: 26px;
+		height: 26px;
+	}
+	.shopping-tabs .tab-search[aria-current] .tab-fab {
+		box-shadow:
+			0 0 0 3px var(--yellow),
+			0 0 0 5px #fff,
+			0 6px 14px rgba(91, 53, 213, 0.32);
+	}
+	.shopping-tabs .tab-search:active .tab-fab {
+		transform: scale(0.94);
+	}
+	.shopping-tabs a:focus-visible {
+		outline-offset: -3px;
+		border-radius: 24px;
+	}
+	.shopping-tabs .tab-search:focus-visible {
+		outline: none;
+	}
+	.shopping-tabs .tab-search:focus-visible .tab-fab {
+		outline: 3px solid var(--ink);
+		outline-offset: 3px;
+	}
+}
+@media (max-width: 700px) {
+	/* Phones while typing in the header search field: the keyboard is up, so the dock steps aside. */
+	body:has(#site-search:focus) .shopping-tabs {
+		display: none;
+	}
+	html:has(dialog.search-sheet[open]) {
+		overflow: hidden;
+	}
+}
+@media (max-width: 700px) and (prefers-reduced-motion: reduce) {
+	.shopping-tabs .tab-icon,
+	.shopping-tabs .tab-fab {
+		transition: none;
+	}
+}
+
+/* Search sheet (the dock's Cari action): a full-screen native modal <dialog> with the search pill, catalog
+   suggestions and the departments. 16px input text keeps iOS from zooming on focus. */
+.search-sheet {
+	margin: 0;
+	padding: 0;
+	border: 0;
+	width: 100%;
+	max-width: none;
+	height: 100%;
+	max-height: none;
+	background: var(--canvas);
+	color: var(--ink);
+}
+.search-sheet[open] {
+	display: flex;
+	flex-direction: column;
+	animation: sheet-up 240ms cubic-bezier(0.22, 1, 0.36, 1);
+}
+@keyframes sheet-up {
+	from {
+		opacity: 0;
+		transform: translateY(24px);
+	}
+}
+@media (prefers-reduced-motion: reduce) {
+	.search-sheet[open] {
+		animation: none;
+	}
+}
+.sheet-search {
+	display: flex;
+	align-items: center;
+	gap: 4px;
+	padding: calc(12px + env(safe-area-inset-top, 0px)) 8px 8px 16px;
+}
+.sheet-field {
+	display: flex;
+	flex: 1;
+	align-items: center;
+	gap: 8px;
+	min-width: 0;
+	min-height: 56px;
+	padding: 0 6px 0 16px;
+	border-radius: 28px;
+	background: #fff;
+	box-shadow:
+		0 0 0 1px var(--hairline),
+		0 2px 8px rgba(0, 0, 0, 0.06);
+}
+.sheet-field > svg {
+	flex: none;
+	color: var(--muted);
+}
+.sheet-field input[type="search"] {
+	flex: 1;
+	min-width: 0;
+	min-height: 44px;
+	padding: 0;
+	border: 0;
+	outline: 0;
+	background: transparent;
+	box-shadow: none;
+	font: inherit;
+	font-size: var(--body-size);
+	letter-spacing: var(--tracking-body);
+	color: var(--ink);
+	appearance: none;
+}
+.sheet-field input[type="search"]::placeholder {
+	color: var(--muted);
+}
+.sheet-field input[type="search"]::-webkit-search-cancel-button,
+.sheet-field input[type="search"]::-webkit-search-decoration {
+	appearance: none;
+	display: none;
+}
+.sheet-clear {
+	display: grid;
+	flex: none;
+	place-items: center;
+	width: 44px;
+	height: 44px;
+	margin-right: -8px;
+	border: 0;
+	background: none;
+	color: var(--muted);
+}
+.sheet-go {
+	display: grid;
+	flex: none;
+	place-items: center;
+	width: 44px;
+	height: 44px;
+	border: 0;
+	border-radius: 50%;
+	background: var(--purple);
+	color: #fff;
+}
+.sheet-close {
+	flex: none;
+	min-height: 44px;
+	padding: 0 8px;
+	border: 0;
+	background: none;
+	color: var(--ink);
+	font: inherit;
+	font-size: var(--small-size);
+	font-weight: 600;
+}
+.sheet-body {
+	flex: 1;
+	min-height: 0;
+	overflow-y: auto;
+	overscroll-behavior: contain;
+	padding: 8px 16px calc(24px + env(safe-area-inset-bottom, 0px));
+}
+.sheet-body h2 {
+	margin: 16px 0 4px;
+	font-size: var(--small-size);
+	line-height: var(--small-leading);
+	font-weight: 500;
+	letter-spacing: var(--tracking-small);
+	color: var(--muted);
+}
+.sheet-body ul {
+	margin: 0;
+	padding: 0;
+	list-style: none;
+}
+.sheet-row {
+	display: flex;
+	align-items: center;
+	gap: 12px;
+	min-height: 52px;
+	color: var(--ink);
+	font-size: var(--body-size);
+	letter-spacing: var(--tracking-body);
+	text-decoration: none;
+}
+.sheet-row > svg {
+	flex: none;
+	color: var(--muted);
+}
+.sheet-chips {
+	display: flex;
+	flex-wrap: wrap;
+	gap: 8px;
+}
+.sheet-chip {
+	min-height: 44px;
+	padding: 0 16px;
+	border-radius: 22px;
+	background: #fff;
+	box-shadow: 0 0 0 1px var(--hairline);
+	font-size: var(--small-size);
+	font-weight: 500;
+	letter-spacing: var(--tracking-small);
+}
+
+.cart-count {
+	display: inline-block;
+	font-size: var(--caption-size);
+	font-weight: 600;
+	line-height: 1.5;
+	min-width: 1.5em;
+	text-align: center;
+	padding: 0 3px;
+	border-radius: 1em;
+	background: var(--purple);
+	color: #fff;
+}
+.cart-mutation label {
+	display: grid;
+	gap: 8px;
+	font-size: var(--small-size);
+	font-weight: 600;
+	min-width: 0;
+}
+.cart-advisory {
+	color: var(--muted);
+	font-size: var(--small-size);
+}
+.cart-mutation {
+	display: flex;
+	flex-wrap: wrap;
+	align-items: end;
+	gap: 12px;
+	min-width: 0;
+}
+.cart-mutation input[type="number"] {
+	font: inherit;
+	font-size: var(--body-size);
+	color: inherit;
+	background: #fff;
+	border: 1px solid rgba(0, 0, 0, 0.16);
+	border-radius: 9999px;
+	min-height: 48px;
+	padding: 12px 16px;
+	text-align: center;
+	max-width: 100%;
+	width: 7rem;
+}
+.cart-warning > .button {
+	margin-top: 16px;
+}
+.cart-mutation .button {
+	flex: 1 1 auto;
+	gap: 6px;
+}
+.cart-mutation .button:disabled {
+	background: #efedf3;
+	border-color: #d8d8df;
+	color: #64606e;
+	cursor: not-allowed;
+}
+:where(.cart-feedback, .cart-warning) a:not(.button) {
+	text-decoration: underline;
+	color: var(--purple);
+}
+.cart-warning {
+	border-left: 3px solid var(--warning);
+	padding: 12px 16px;
+	background: var(--warning-surface);
+	margin-block: 12px;
+	font-size: var(--small-size);
+	overflow-wrap: anywhere;
+}
+/* Standalone UI links (one rule for the role): purple, 600, no underline. */
+.detail-help {
+	display: inline-flex;
+	align-items: center;
+	min-height: 44px;
+	color: var(--purple);
+	font-weight: 600;
+	line-height: 1.25rem;
+	font-size: var(--small-size);
+}
+.cart-page {
+	padding-top: 32px;
+}
+.cart-heading {
+	display: flex;
+	flex-wrap: wrap;
+	align-items: center;
+	justify-content: space-between;
+	gap: 16px;
+	margin-bottom: 24px;
+}
+.cart-heading > a {
+	color: var(--purple);
+	font-size: var(--small-size);
+	font-weight: 600;
+	min-height: 44px;
+	display: inline-flex;
+	align-items: center;
+}

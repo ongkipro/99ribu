@@ -69,7 +69,7 @@ export function runCommerceFixture(target:Target,namespace:string,storefront=fal
 export async function withdrawTestPublications(target:Target,since:string){
   const {readCatalogDocument,summarizeCandidates,withdrawCandidates,withdrawalCandidates}=await import('../catalog/dataset.ts');
   const {defaultDatasetDir}=await import('./berlapak-dataset.ts');
-  const keep=readCatalogDocument(defaultDatasetDir).products.map((p)=>p.offer.sku);
+  const keep=readCatalogDocument(defaultDatasetDir).products.flatMap((p)=>p.offers.map((o)=>o.sku));
   const probe=createLocalAuth(target);let pending:number;
   try{pending=(await withdrawalCandidates(probe.sql,keep,{since,syntheticOnly:true})).length;}finally{await probe.sql.end();}
   if(!pending) return {candidates:0,by_group:{},withdrawn:0,skipped:{}};

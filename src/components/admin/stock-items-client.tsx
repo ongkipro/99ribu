@@ -85,7 +85,13 @@ export function StockItemsClient({ costs, costsWrite }: { costs: boolean; costsW
 				rowTestId={(row) => `stock-item-row-${row.sku}`}
 				status={list.status}
 				loadingLabel="Memuat SKU…"
-				empty={needle ? "Tidak ada SKU yang cocok di baris yang sudah dimuat." : "Belum ada SKU fisik. Tambah SKU pertama dengan tombol di atas."}
+				empty={
+					needle
+						? list.paging.hasMore
+							? "Tidak ada SKU yang cocok di baris yang sudah dimuat. Muat baris berikutnya atau ubah kata kunci."
+							: "Tidak ada SKU yang cocok. Ubah kata kunci atau kosongkan pencarian."
+						: "Belum ada SKU fisik. Tambah SKU pertama dengan tombol Tambah SKU."
+				}
 				emptyTestId="stock-items-empty"
 				stack
 				paging={{ ...list.paging, testId: "stock-items-more", summary: `${list.rows.length} SKU dimuat` }}
@@ -100,7 +106,7 @@ export function StockItemsClient({ costs, costsWrite }: { costs: boolean; costsW
 							costs ? (
 								<Button type="button" variant="outline" size="sm" data-testid={`stock-item-hpp-${row.sku}`} onClick={() => setOpen(row)}>
 									<ReceiptText aria-hidden="true" />
-									{costsWrite ? "HPP" : "Lihat HPP"}
+									{costsWrite ? "Atur HPP" : "Lihat HPP"}
 									<span className="sr-only"> {row.sku}</span>
 								</Button>
 							) : null,
@@ -158,6 +164,7 @@ function CreateDialog({ onClose, onDone }: { onClose: () => void; onDone: (row: 
 		if (!SKU_FORMAT.test(sku)) found.sku = "SKU hanya berisi huruf besar A–Z, angka, garis bawah atau tanda hubung (maks. 100).";
 		if (!name.trim()) found.name = "Nama wajib diisi.";
 		setProblem(found);
+		setError(null);
 		if (found.sku || found.name) return;
 		setPending(true);
 		setError(null);
@@ -173,6 +180,7 @@ function CreateDialog({ onClose, onDone }: { onClose: () => void; onDone: (row: 
 			pending={pending}
 			error={error}
 			submitLabel="Tambah SKU"
+			dirty={Boolean(sku || name.trim())}
 			onClose={onClose}
 			onSubmit={() => void submit()}
 		>

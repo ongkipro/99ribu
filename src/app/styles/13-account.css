@@ -1,0 +1,497 @@
+/* Account page */
+.account-page {
+	--account-info: #153d72;
+	--account-success: #19582c;
+	padding-top: 8px;
+}
+.account-status {
+	display: block;
+	padding: 12px 16px;
+	border: 1px solid var(--line);
+	border-radius: 12px;
+	background: var(--surface);
+	overflow-wrap: anywhere;
+}
+.account-header {
+	max-width: 56rem;
+	display: flex;
+	flex-wrap: wrap;
+	align-items: center;
+	gap: 16px;
+	padding-bottom: 8px;
+}
+.account-avatar {
+	display: grid;
+	place-items: center;
+	flex: none;
+	width: 56px;
+	height: 56px;
+	border-radius: 50%;
+	background: var(--tint-violet);
+	color: var(--purple);
+	font-size: var(--heading-size);
+	font-weight: 600;
+}
+.account-identity {
+	flex: 1 1 12rem;
+	min-width: 0;
+	overflow-wrap: anywhere;
+}
+:where(.account-identity h1) {
+	margin: 0 0 4px;
+	font-size: var(--heading-size);
+	line-height: 1.2;
+}
+.account-meta {
+	margin: 0;
+	color: var(--muted);
+	font-size: var(--small-size);
+	line-height: 1.5;
+	letter-spacing: var(--tracking-small);
+}
+.account-actions {
+	display: flex;
+	flex-wrap: wrap;
+	align-items: center;
+	gap: 8px;
+	min-width: 0;
+}
+:where(.account-page .button) {
+	min-height: 44px;
+	max-width: 100%;
+	white-space: normal;
+	text-align: center;
+}
+/* Three account pages (Pesanan, Profil, Pengaturan) under one tab row, Shopify customer accounts
+   style: an underlined current tab, one column of cards no wider than a comfortable reading width. */
+.account-navigation {
+	display: flex;
+	gap: 4px;
+	min-width: 0;
+	max-width: 56rem;
+	margin: 8px 0 24px;
+	border-bottom: 1px solid var(--hairline);
+	overflow-x: auto;
+}
+.account-nav-link {
+	flex: 0 0 auto;
+	display: flex;
+	align-items: center;
+	min-height: 44px;
+	padding: 10px 16px;
+	margin-bottom: -1px;
+	border-bottom: 2px solid transparent;
+	font-weight: 600;
+	color: var(--muted);
+}
+.account-nav-link:where(:hover) {
+	color: var(--ink);
+	text-decoration: none;
+}
+.account-nav-link:where([aria-current="page"]) {
+	border-bottom-color: var(--purple);
+	color: var(--ink);
+}
+.account-content {
+	display: grid;
+	gap: 24px;
+	min-width: 0;
+	max-width: 56rem;
+}
+.account-section-head {
+	display: flex;
+	align-items: center;
+	justify-content: space-between;
+	gap: 12px;
+	margin-bottom: 16px;
+}
+.account-section-head > h2 {
+	margin: 0;
+}
+.account-facts {
+	display: grid;
+	gap: 12px;
+	margin: 0;
+}
+.account-facts > div {
+	display: grid;
+	grid-template-columns: minmax(6rem, 10rem) minmax(0, 1fr);
+	gap: 12px;
+}
+.account-facts dt {
+	color: var(--muted);
+}
+.account-facts dd {
+	margin: 0;
+	overflow-wrap: anywhere;
+}
+.account-section {
+	min-width: 0;
+	padding: 24px;
+	border: 1px solid var(--hairline);
+	border-radius: 20px;
+	background: var(--surface);
+	scroll-margin-top: 24px;
+	overflow-wrap: anywhere;
+}
+/* Class specificity on purpose: a :where() rule lost to the global h2 reset on some sections. */
+.account-section > h2 {
+	margin: 0 0 16px;
+}
+:where(.account-section summary) {
+	min-height: 44px;
+	padding-block: 12px;
+	cursor: pointer;
+}
+/* One chevron instead of the browser's triangle (as the guest lookup summary does). */
+.account-section details > summary {
+	display: flex;
+	align-items: center;
+	gap: 8px;
+	list-style: none;
+}
+.account-section details > summary::-webkit-details-marker {
+	display: none;
+}
+.account-section details > summary::after {
+	content: "";
+	flex: none;
+	width: 8px;
+	height: 8px;
+	margin-left: auto;
+	border-right: 2px solid var(--muted);
+	border-bottom: 2px solid var(--muted);
+	transform: rotate(45deg);
+}
+.account-section details[open] > summary::after {
+	transform: rotate(-135deg);
+}
+/* An empty optional field reads as quiet text, a filled one as a badge. */
+.account-empty-state {
+	color: var(--muted);
+	font-size: var(--small-size);
+}
+/* Checkbox rows: one height and rhythm for promo and order-update choices, each hint right under its row. */
+.account-section .checkout-charges,
+.account-promo {
+	display: grid;
+	gap: 8px;
+}
+.account-promo label,
+.account-section .checkout-charges > label {
+	display: flex;
+	align-items: center;
+	gap: 8px;
+	min-height: 44px;
+}
+.account-promo label + .checkout-hint {
+	margin-top: -8px;
+}
+/* Label above its control: one 6px label gap and the hint right under the field on every row
+   (Data diri form and Keamanan), so no label sits on an input border. */
+.account-field {
+	display: grid;
+	grid-template-columns: minmax(0, 1fr);
+	gap: 6px;
+	min-width: 0;
+}
+.account-field-label {
+	font-size: var(--small-size);
+	font-weight: 600;
+	letter-spacing: var(--tracking-small);
+}
+.account-field-value {
+	display: flex;
+	flex-wrap: wrap;
+	align-items: center;
+	gap: 8px;
+	margin: 0;
+}
+/* Verified contact: check icon plus text, never colour alone. */
+.account-verified {
+	display: inline-flex;
+	align-items: center;
+	gap: 4px;
+	margin-left: 8px;
+	color: var(--account-success);
+	font-size: var(--small-size);
+	font-weight: 600;
+}
+.account-field-value > .account-verified {
+	margin-left: 0;
+}
+/* Keamanan: field and hint, then the actions with room between them. */
+.account-section > .account-field + .account-actions {
+	margin-top: 16px;
+}
+:where(.account-promo) {
+	margin-block: 24px;
+}
+:where(.account-profile-details > h3, .account-promo > h3) {
+	margin-bottom: 8px;
+}
+.account-address-editor {
+	margin-top: 16px;
+}
+.account-filter-rail {
+	display: flex;
+	min-width: 0;
+	border: 0;
+	gap: 8px;
+	overflow-x: auto;
+	padding: 4px;
+	margin: -4px -4px 16px;
+}
+.account-chip {
+	flex: 0 0 auto;
+	min-height: 44px;
+	max-width: 16rem;
+	padding: 10px 16px;
+	border: 1px solid var(--hairline);
+	border-radius: 9999px;
+	background: var(--surface);
+	color: var(--ink);
+	font: inherit;
+	font-size: var(--small-size);
+	font-weight: 600;
+	text-align: center;
+	cursor: pointer;
+}
+.account-chip:where([aria-pressed="true"]) {
+	background: var(--ink);
+	color: var(--surface);
+}
+.account-search {
+	margin-bottom: 12px;
+}
+:where(.account-search input) {
+	min-height: 44px;
+	border: 1px solid var(--field-border);
+	border-radius: 12px;
+	background: var(--surface);
+}
+:where(.account-search input:focus) {
+	outline: 3px solid var(--purple);
+	outline-offset: 2px;
+}
+.account-order-list {
+	display: grid;
+	gap: 0;
+	list-style: none;
+	margin: 16px 0 0;
+	padding: 0;
+}
+.account-order {
+	min-width: 0;
+	padding-block: 24px;
+	border-top: 1px solid var(--hairline);
+}
+:where(.account-order:last-child) {
+	padding-bottom: 0;
+}
+.account-order-top {
+	display: flex;
+	flex-wrap: wrap;
+	justify-content: space-between;
+	align-items: start;
+	gap: 12px;
+}
+.account-order-number {
+	margin: 0 0 4px;
+	font-size: var(--body-size);
+	line-height: 1.5;
+	letter-spacing: var(--tracking-body);
+}
+.account-order-badge {
+	display: inline-flex;
+	align-items: center;
+	gap: 6px;
+	padding: 6px 12px;
+	border-radius: 9999px;
+	background: var(--tint-slate);
+	color: var(--ink);
+	font-size: var(--small-size);
+	font-weight: 600;
+}
+.account-order-badge:where([data-stage="unpaid"]) {
+	background: var(--warning-surface);
+	color: var(--warning);
+}
+.account-order-badge:where([data-stage="processing"], [data-stage="shipped"]) {
+	background: var(--tint-blue);
+	color: var(--account-info);
+}
+.account-order-badge:where([data-stage="delivered"]) {
+	background: var(--tint-green);
+	color: var(--account-success);
+}
+.account-order-detail {
+	margin: 12px 0;
+	font-size: var(--small-size);
+}
+.account-order-items {
+	display: flex;
+	flex-wrap: wrap;
+	gap: 8px;
+	list-style: none;
+	margin: 16px 0;
+	padding: 0;
+}
+.account-order-item {
+	flex: 0 0 auto;
+}
+.account-order-photo {
+	display: block;
+	width: 64px;
+	height: 64px;
+	border: 1px solid var(--hairline);
+	border-radius: 8px;
+	object-fit: cover;
+}
+.account-order-placeholder {
+	display: grid;
+	place-items: center;
+	background: var(--canvas);
+	color: var(--muted);
+}
+.account-order-overflow {
+	display: grid;
+	place-items: center;
+	min-width: 44px;
+	min-height: 44px;
+	font-weight: 600;
+}
+.account-order-bottom {
+	display: flex;
+	flex-wrap: wrap;
+	justify-content: space-between;
+	align-items: end;
+	gap: 16px;
+}
+.account-order-total {
+	display: grid;
+	gap: 4px;
+	margin: 0;
+}
+:where(.account-order-total strong) {
+	font-size: var(--subtitle-size);
+	font-weight: 600;
+	font-variant-numeric: tabular-nums;
+}
+.account-reorder-form {
+	margin: 0;
+}
+.account-reorder-message {
+	margin-top: 16px;
+	padding: 12px;
+	border-radius: 8px;
+	background: var(--error-surface);
+	color: var(--error);
+}
+.account-empty {
+	display: grid;
+	justify-items: start;
+	gap: 16px;
+	padding-block: 16px;
+}
+:where(.account-empty p) {
+	margin: 0;
+}
+.account-signed-out {
+	display: grid;
+	grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+	align-items: start;
+	gap: 48px;
+	padding-block: 24px;
+}
+.account-intro {
+	padding-block: 16px;
+	min-width: 0;
+}
+:where(.account-intro h1) {
+	margin-top: 0;
+}
+.account-benefits {
+	display: grid;
+	gap: 16px;
+	list-style: none;
+	padding: 0;
+	margin: 32px 0;
+}
+:where(.account-benefits li) {
+	display: flex;
+	align-items: start;
+	gap: 12px;
+}
+:where(.account-benefits svg, .account-guest-summary svg) {
+	flex: none;
+}
+.account-guest-details {
+	min-width: 0;
+	border: 1px solid var(--hairline);
+	border-radius: 20px;
+	background: var(--surface);
+	padding: 24px;
+}
+.account-guest-summary {
+	display: flex;
+	justify-content: space-between;
+	align-items: center;
+	gap: 12px;
+	min-height: 44px;
+	list-style: none;
+	cursor: pointer;
+}
+:where(.account-guest-summary::-webkit-details-marker) {
+	display: none;
+}
+:where(.account-guest-summary h2) {
+	margin: 0;
+}
+.account-guest-content {
+	padding-top: 12px;
+}
+@media (min-width: 701px) {
+	/* Native disclosure on phones; always expose the guest form on desktop, without a hydration shift. */
+	.account-guest-details::details-content {
+		content-visibility: visible;
+	}
+	:where(.account-guest-summary svg) {
+		display: none;
+	}
+}
+@media (max-width: 700px) {
+	.account-header {
+		gap: 12px;
+	}
+	.account-navigation {
+		margin-bottom: 16px;
+	}
+	.account-nav-link {
+		flex: 1 1 0;
+		justify-content: center;
+		padding-inline: 8px;
+	}
+	.account-facts > div {
+		grid-template-columns: minmax(0, 1fr);
+		gap: 2px;
+	}
+	.account-section {
+		padding: 16px;
+	}
+	:where(.account-content :is(input, select, textarea, button, summary, a)) {
+		scroll-margin-block: 1rem 2rem;
+	}
+	.account-order-photo {
+		width: 48px;
+		height: 48px;
+	}
+	.account-signed-out {
+		grid-template-columns: minmax(0, 1fr);
+		gap: 24px;
+		padding-top: 0;
+	}
+	.account-guest-details {
+		padding: 16px;
+	}
+}

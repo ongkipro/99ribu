@@ -1,0 +1,510 @@
+/* ===== Category pill row (shop.com, observed 2026-10-23, round 21; re-measured 2026-10-28) =====
+   Navigation under the header: one horizontally scrolling row, hidden scrollbar, snap to
+   each pill's start, centred while it fits ("safe center"), edge bleed. Each pill is a tinted
+   circle with the department photo, then the label; the row ends with a grid icon linking to
+   every category. Links keep a 44px target. shop.com 1440: 36px circle, 16/20 600 -0.5px label,
+   32px from a label to the next circle; up to 1023px: 32px circle, 14/18 600 -0.2px label, 24px. */
+.category-pills ul {
+	display: flex;
+	gap: 24px;
+	justify-content: safe center;
+	list-style: none;
+	margin: 0;
+	/* 6px above: room for the 2px focus ring and its 2px offset inside the scroller. */
+	/* +2px at the start so a focused first pill's ring clears the gutter edge. */
+	padding: 6px max(var(--gutter), calc((100% - 1250px) / 2)) 12px calc(max(var(--gutter), calc((100% - 1250px) / 2)) + 2px);
+	/* Same start offset as the padding: a 2px mismatch made the row snap (scroll) on load. */
+	scroll-padding-inline: calc(max(var(--gutter), calc((100% - 1250px) / 2)) + 2px) max(var(--gutter), calc((100% - 1250px) / 2));
+	overflow-x: auto;
+	scroll-snap-type: x mandatory;
+	scroll-behavior: smooth;
+	scrollbar-width: none;
+	overscroll-behavior-x: contain;
+}
+.category-pills ul::-webkit-scrollbar {
+	display: none;
+}
+.category-pills li {
+	flex: none;
+	scroll-snap-align: start;
+}
+.category-pills a {
+	display: flex;
+	align-items: center;
+	gap: 8px;
+	min-height: 44px;
+	padding-block: 4px;
+	padding-inline-end: 8px;
+	border-radius: 9999px;
+	color: var(--ink);
+	font-size: var(--body-size);
+	line-height: 1.25rem;
+	font-weight: 600;
+	letter-spacing: var(--tracking-body);
+	white-space: nowrap;
+}
+.category-pills a:hover {
+	text-decoration: none;
+}
+.category-pills a:focus-visible {
+	outline: 2px solid var(--ink);
+	outline-offset: 2px;
+}
+.pill-art {
+	position: relative;
+	display: block;
+	flex: none;
+	width: 36px;
+	height: 36px;
+	border-radius: 24px;
+	overflow: hidden;
+}
+/* shop.com's 0.5px edge, drawn over the photo. */
+.pill-art::after {
+	content: "";
+	position: absolute;
+	inset: 0;
+	border: 0.5px solid rgba(24, 59, 78, 0.12);
+	border-radius: inherit;
+}
+.pill-art img {
+	display: block;
+	width: 100%;
+	height: 100%;
+	/* Whole curated photo (no crop, so no merchant text is cut), its white ground multiplied
+	   into the tint. */
+	object-fit: cover;
+	mix-blend-mode: multiply;
+	transition: scale 150ms ease-out;
+}
+.category-pills a:is(:hover, :focus-visible) .pill-art img {
+	scale: 1.08;
+}
+/* Department tints behind the photo (and the whole circle when a department has none). */
+.pill-art[data-tint="rose"] {
+	background: var(--tint-rose);
+	color: #9f1239;
+}
+.pill-art[data-tint="amber"] {
+	background: var(--tint-amber);
+	color: #92400e;
+}
+.pill-art[data-tint="green"] {
+	background: var(--tint-green);
+	color: #166534;
+}
+.pill-art[data-tint="blue"] {
+	background: var(--tint-blue);
+	color: #1e40af;
+}
+.pill-art[data-tint="violet"] {
+	background: var(--tint-violet);
+	color: #5b21b6;
+}
+.pill-art[data-tint="teal"] {
+	background: var(--tint-teal);
+	color: #115e59;
+}
+.pill-art[data-tint="slate"] {
+	background: var(--tint-slate);
+	color: #3f3f46;
+}
+/* Current department (owner, round 35): the header's soft lavender current fill on the pill, with
+   no underline and no border change (shop.com's home pills have no selected state to copy). */
+.category-pills a[aria-current] {
+	background: rgba(91, 53, 213, 0.08);
+}
+.category-pills .pill-all {
+	justify-content: center;
+	width: 44px;
+	padding-inline-end: 0;
+}
+:where(.pill-all svg) {
+	width: 24px;
+	height: 24px;
+}
+.category-pills .pill-all[aria-current] {
+	background: rgba(91, 53, 213, 0.08);
+}
+@media (prefers-reduced-motion: reduce) {
+	.pill-art img {
+		transition: none;
+	}
+	.category-pills a:is(:hover, :focus-visible) .pill-art img {
+		scale: none;
+	}
+}
+/* Phones and tablets (shop.com 390/768): 32px circles, 14/18 labels, 24px from a label to the next circle. */
+@media (max-width: 1023px) {
+	.category-pills ul {
+		gap: 16px;
+	}
+	.category-pills a {
+		font-size: var(--small-size);
+		line-height: var(--small-leading);
+		letter-spacing: var(--tracking-small);
+	}
+	.pill-art {
+		width: 32px;
+		height: 32px;
+	}
+}
+/* Phones: the header ends 16px under the 32px circles (142px down), so the first section can sit 24px
+   under them, as shop.com's hero does at 390 (circles 150-181, hero 205). */
+@media (max-width: 700px) {
+	.category-pills ul {
+		padding-bottom: 10px;
+	}
+}
+
+/* ===== Omnibox (shop.com header search, observed 2026-10-23, round 21) =====
+   The form keeps one fixed height. The glass surface (.omnibox-panel) sits behind the field
+   at exactly the field's height and grows downward over the page into "Saran pencarian"
+   when the combobox opens, so opening never moves the layout. */
+.search-form {
+	--field: max(44px, calc(1.375rem + 22px));
+	position: relative;
+	max-width: 512px;
+	margin-inline: auto;
+	height: calc(var(--field) + 20px);
+}
+.search-form[data-open] {
+	z-index: 30;
+}
+.omnibox-field {
+	position: relative;
+	z-index: 1;
+	padding: 10px;
+}
+:where(.omnibox-field > svg) {
+	position: absolute;
+	top: 10px;
+	left: 10px;
+	height: var(--field);
+	padding-inline: 10px;
+	color: var(--muted);
+	stroke-width: 2.67;
+	pointer-events: none;
+}
+/* The field itself is bare in every state (rest, hover, focus, typing, autofill): no UA search
+   chrome, border, radius, background, shadow or outline. Focus shows on the outer surface. */
+#site-search,
+#site-search:is(:hover, :focus, :focus-visible, :autofill) {
+	appearance: none;
+	border: 0;
+	border-radius: 0;
+	background: transparent;
+	box-shadow: none;
+	outline: none;
+}
+#site-search:autofill {
+	-webkit-text-fill-color: var(--ink);
+	transition: background-color 600000s 0s;
+}
+#site-search {
+	display: block;
+	width: 100%;
+	height: var(--field);
+	padding: 0 54px 0 46px;
+	color: var(--ink);
+	font-size: var(--body-size);
+	line-height: var(--body-leading);
+	letter-spacing: var(--tracking-body);
+	text-overflow: ellipsis;
+}
+#site-search::placeholder {
+	color: var(--muted);
+}
+/* No native clear glyph (a blue UA "x" beside the submit arrow); Escape and select-all still clear. */
+#site-search::-webkit-search-cancel-button,
+#site-search::-webkit-search-decoration,
+#site-search::-webkit-search-results-button,
+#site-search::-webkit-search-results-decoration {
+	appearance: none;
+	display: none;
+}
+.omnibox-field button {
+	position: absolute;
+	top: 10px;
+	right: 10px;
+	display: grid;
+	place-items: center;
+	height: var(--field);
+	border: 0;
+	border-radius: 9999px;
+	background: var(--purple);
+	color: #fff;
+}
+.omnibox-field button:hover {
+	background: var(--purple-hover);
+}
+.omnibox-panel {
+	position: absolute;
+	top: 0;
+	inset-inline: 0;
+	/* One surface: the field sits over its top; the body row animates 0fr -> 1fr (no JS measuring). */
+	display: grid;
+	grid-template-rows: 0fr;
+	padding-top: calc(var(--field) + 20px);
+	overflow: hidden;
+	border-radius: 32px;
+	background: #fff;
+	box-shadow:
+		0 0 1px rgba(0, 0, 0, 0.12),
+		0 12px 64px rgba(0, 0, 0, 0.2);
+	transition:
+		grid-template-rows 320ms cubic-bezier(0.2, 0, 0, 1),
+		inset 320ms cubic-bezier(0.2, 0, 0, 1),
+		box-shadow 320ms cubic-bezier(0.2, 0, 0, 1);
+}
+@supports (backdrop-filter: blur(16px)) or (-webkit-backdrop-filter: blur(16px)) {
+	.omnibox-panel {
+		background: rgba(255, 255, 255, 0.75);
+		-webkit-backdrop-filter: blur(16px);
+		backdrop-filter: blur(16px);
+	}
+}
+/* Focus (WCAG 2.4.7): focusing the field opens the surface (it expands under the caret), which is
+   the cue, as on shop.com; the surface also takes shop.com's deeper open shadow. No dark border, and
+   the field inside never draws its own ring. */
+.search-form:focus-within .omnibox-panel {
+	box-shadow:
+		0 0 1px rgba(0, 0, 0, 0.12),
+		0 12px 64px rgba(0, 0, 0, 0.24);
+}
+.omnibox-body {
+	min-height: 0;
+	overflow: hidden;
+}
+.omnibox-scroll {
+	/* h-fit: the surface is as tall as its suggestions, up to 45dvh minus the field row. */
+	max-height: calc(45dvh - var(--field) - 20px);
+	overflow-y: auto;
+	overscroll-behavior: contain;
+	scrollbar-width: none;
+	padding: 4px 16px 16px;
+	/* Top fade: content scrolled under the field row fades out; at rest it covers padding only. */
+	-webkit-mask-image: linear-gradient(to bottom, transparent 0, #000 4px);
+	mask-image: linear-gradient(to bottom, transparent 0, #000 4px);
+	opacity: 0;
+	translate: 0 -6px;
+	transition:
+		opacity 120ms ease-out,
+		translate 120ms ease-out;
+}
+.omnibox-scroll mark {
+	background: none;
+	color: inherit;
+	font-weight: 600;
+}
+.search-form[data-open] .omnibox-panel {
+	grid-template-rows: 1fr;
+}
+.search-form[data-open] .omnibox-scroll {
+	opacity: 1;
+	translate: 0 0;
+	transition:
+		opacity 200ms ease-out 60ms,
+		translate 200ms ease-out 60ms;
+}
+.omnibox-caption {
+	margin: 4px 0 8px;
+	color: rgba(0, 0, 0, 0.56);
+	font-size: var(--caption-size);
+	line-height: var(--caption-leading);
+	font-weight: 500;
+}
+/* Suggestions are wrapping chips (owner's shop.com open-state DOM): w-fit, rounded-max, a 4% dark
+   overlay, 14/18 text, 8px apart; 44px tall for the target-size rule (shop.com's are 34px). */
+.omnibox-panel [role="listbox"] {
+	display: flex;
+	flex-wrap: wrap;
+	gap: 8px;
+}
+.omnibox-panel [role="option"] {
+	display: inline-flex;
+	align-items: center;
+	max-width: 100%;
+	min-height: 44px;
+	padding: 0 16px;
+	border-radius: 9999px;
+	background: rgba(0, 0, 0, 0.04);
+	font-size: var(--small-size);
+	line-height: var(--small-leading);
+	cursor: pointer;
+}
+:where(.omnibox-panel [role="option"] span) {
+	min-width: 0;
+	overflow: hidden;
+	text-overflow: ellipsis;
+	white-space: nowrap;
+}
+@media (hover: hover) {
+	.omnibox-panel [role="option"]:hover {
+		opacity: 0.6;
+	}
+}
+.omnibox-panel [role="option"][aria-selected="true"] {
+	box-shadow: inset 0 0 0 2px var(--ink);
+}
+/* Desktop: the open surface also widens 32px each side, as shop.com's does (512 to 576). */
+@media (min-width: 1051px) {
+	.search-form[data-open] .omnibox-panel {
+		inset-inline: -32px;
+	}
+}
+@media (min-width: 768px) {
+	.omnibox-scroll {
+		padding-inline: 20px;
+	}
+}
+@media (max-width: 700px) {
+	.search-form {
+		max-width: none;
+	}
+	/* Phones (shop.com mobile open state): the field becomes a filled white pill with shadow-m
+	   inside the open surface. */
+	.omnibox-field {
+		border-radius: 32px;
+		transition:
+			background-color 320ms cubic-bezier(0.2, 0, 0, 1),
+			box-shadow 320ms cubic-bezier(0.2, 0, 0, 1);
+	}
+	.search-form[data-open] .omnibox-field {
+		background: #fff;
+		box-shadow: 0 4px 24px rgba(0, 0, 0, 0.12);
+	}
+	@supports (backdrop-filter: blur(10px)) or (-webkit-backdrop-filter: blur(10px)) {
+		.search-form[data-open] .omnibox-panel {
+			background: rgba(255, 255, 255, 0.9);
+			-webkit-backdrop-filter: blur(10px);
+			backdrop-filter: blur(10px);
+		}
+	}
+}
+@media (prefers-reduced-motion: reduce) {
+	.omnibox-panel,
+	.omnibox-field,
+	.omnibox-scroll,
+	.search-form[data-open] .omnibox-scroll {
+		transition: none;
+	}
+}
+
+/* ===== Category switcher (shop.com home, observed 2026-10-23, round 21; rhythm re-measured 2026-10-29) =====
+   Very large department names in one scrolling row (96/96 weight 800 at -1px, 64px apart;
+   42/42 and 40px on phones), the selected one in ink with a product medallion (shop.com 156px / 68px
+   over the name; ours 112px / 56px above it, round 21 legibility deviation), the others in grey. No
+   scroll snap (shop.com has none, and a name wider than the row would snap its centre past the start).
+   The edges fade over 120px (40px). 2026-10-29 capture: shop.com's 240px strip (132px on phones) puts
+   roughly 32-37px under the name's line box (read from glyph baselines), then the panel shelf 24px (16px) below. Inactive names
+   use #858585 (3.7:1, large text) instead of shop.com's #b0b0b0, which fails contrast. */
+.switcher-row {
+	position: relative;
+	display: flex;
+	gap: 64px;
+	/* Room above the names for the medallion (112px plus its 8px lift plus 8px), which sits over the
+	   selected name rather than on it. The first name starts clear of the 120px edge fade; half-width
+	   end padding lets later names centre when chosen. */
+	padding: 128px 50% 36px 120px;
+	overflow-x: auto;
+	scrollbar-width: none;
+	overscroll-behavior-x: contain;
+	-webkit-mask-image: linear-gradient(90deg, transparent 0, #000 120px, #000 calc(100% - 120px), transparent 100%);
+	mask-image: linear-gradient(90deg, transparent 0, #000 120px, #000 calc(100% - 120px), transparent 100%);
+}
+.switcher-row::-webkit-scrollbar {
+	display: none;
+}
+.switcher-row > :is(a, button) {
+	position: relative;
+	flex: none;
+	padding: 0;
+	border: 0;
+	border-radius: 8px;
+	background: none;
+	color: #858585;
+	font: inherit;
+	font-size: 6rem;
+	line-height: 6rem;
+	font-weight: 800;
+	letter-spacing: var(--tracking-tight);
+	white-space: nowrap;
+	cursor: pointer;
+	transition: color 300ms cubic-bezier(0.16, 1, 0.3, 1);
+}
+.switcher-row > :is(a, button):hover {
+	color: var(--muted);
+	text-decoration: none;
+}
+.switcher-row > :is([aria-selected="true"], [aria-current]) {
+	color: var(--ink);
+}
+.switcher-label {
+	position: relative;
+}
+.switcher-art {
+	position: absolute;
+	z-index: 1;
+	bottom: calc(100% + 8px);
+	left: 50%;
+	width: 112px;
+	height: 112px;
+	translate: -50% 0;
+	transform-origin: 50% 100%;
+	scale: 0;
+	opacity: 0;
+	pointer-events: none;
+	transition:
+		opacity 300ms cubic-bezier(0.16, 1, 0.3, 1),
+		scale 300ms cubic-bezier(0.16, 1, 0.3, 1);
+}
+.switcher-row > :is([aria-selected="true"], [aria-current]) .switcher-art {
+	scale: 1;
+	opacity: 1;
+}
+:where(.switcher-art img) {
+	width: 100%;
+	height: 100%;
+	object-fit: cover;
+	border-radius: 50%;
+	background: #fff;
+	box-shadow: 0 12px 32px rgba(0, 0, 0, 0.18);
+}
+.switcher-panel {
+	margin-top: 24px;
+}
+/* 701-1023px: an intermediate 64px label, so the next name shows beside the selected one. */
+@media (min-width: 701px) and (max-width: 1023px) {
+	.switcher-row > :is(a, button) {
+		font-size: 4rem;
+		line-height: 4rem;
+	}
+}
+@media (max-width: 700px) {
+	.switcher-row {
+		gap: 40px;
+		padding: 72px 50% 24px 40px;
+		-webkit-mask-image: linear-gradient(90deg, transparent 0, #000 40px, #000 calc(100% - 40px), transparent 100%);
+		mask-image: linear-gradient(90deg, transparent 0, #000 40px, #000 calc(100% - 40px), transparent 100%);
+	}
+	.switcher-row > :is(a, button) {
+		/* Capped to the screen so the selected name fits at enlarged text (320px at 200%). */
+		font-size: min(2.625rem, 11vw);
+		line-height: 1;
+	}
+	.switcher-art {
+		width: 56px;
+		height: 56px;
+	}
+	.switcher-panel {
+		margin-top: 16px;
+	}
+}
+@media (prefers-reduced-motion: reduce) {
+	.switcher-row > :is(a, button),
+	.switcher-art {
+		transition: none;
+	}
+}
+

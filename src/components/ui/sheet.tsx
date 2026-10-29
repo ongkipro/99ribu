@@ -113,7 +113,8 @@ function SheetTitle({
   return (
     <SheetPrimitive.Title
       data-slot="sheet-title"
-      className={cn("font-medium text-foreground", className)}
+      // Local change (admin review 2026-10-28): same title role as DialogTitle, clear of the close button.
+      className={cn("pr-10 text-base leading-snug font-semibold break-words text-foreground", className)}
       {...props}
     />
   )

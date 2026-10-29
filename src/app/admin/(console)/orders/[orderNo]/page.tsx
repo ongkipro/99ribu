@@ -1,5 +1,5 @@
 import { AccessDenied } from "../../../../../components/admin/access-denied";
-import { canReadOrders } from "../../../../../components/admin/order-model";
+import { canReadOrders, readOrderFilters } from "../../../../../components/admin/order-model";
 import { OrderDetailClient } from "../../../../../components/admin/orders-client";
 import { carrySearch } from "@/modules/access/admin-number";
 import { resolveAdminId } from "@/modules/access/admin-number-page";
@@ -32,7 +32,7 @@ export default async function AdminOrderDetailPage({
 			</AccessDenied>
 		);
 	const orderId = await resolveAdminId("order", orderNo, carrySearch(query, ["dari"]));
-	// `dari` carries the list search back (only the known search keys survive).
+	// `dari` carries the list search and filters back (only the known keys and values survive).
 	const from = new URLSearchParams(typeof query.dari === "string" ? query.dari : "");
 	const back = new URLSearchParams();
 	for (const key of ["jenis", "cari"]) {
@@ -41,6 +41,7 @@ export default async function AdminOrderDetailPage({
 	}
 	// Never carry phone digits back into a URL, even from a hand-made link.
 	if (back.get("jenis") === "hp") back.delete("cari");
+	for (const [key, value] of Object.entries(readOrderFilters((k) => from.get(k)))) if (value) back.set(key, value);
 	return (
 		<OrderDetailClient
 			key={orderId}

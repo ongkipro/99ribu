@@ -258,7 +258,7 @@ export function SettingsCommercialClient({ canWrite }: { canWrite: boolean }) {
 						Riwayat versi kebijakan komersial
 					</h2>
 					<p className="text-sm text-muted-foreground">
-						Setiap versi bersifat tetap (append-only) dan tercatat di log audit.
+						Setiap versi tidak dapat diubah dan tercatat di log audit.
 					</p>
 				</div>
 				<DataTable
@@ -549,7 +549,7 @@ function CommercialPolicyDialog({
 						<Input
 							id={`${id}-at`}
 							data-testid="commercial-effective-at"
-							type="datetime-local"
+							type="datetime-local" lang="id"
 							aria-describedby={`${id}-at-hint`}
 							value={at}
 							onChange={(e) => setAt(e.target.value)}

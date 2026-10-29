@@ -255,7 +255,7 @@ test("access: non-permitted roles see AccessDenied across B16–B19 without trig
 				"Akses rekonsiliasi keuangan diperlukan",
 			],
 			["/admin/finance/payouts", "Akses pembayaran komisi diperlukan"],
-			["/admin/finance/refunds", "Akses refund diperlukan"],
+			["/admin/finance/refunds", "Akses pengembalian dana diperlukan"],
 			["/admin/finance/summary", "Akses laporan keuangan diperlukan"],
 		] as const) {
 			await page.goto(`${origin}${path}`);
@@ -267,7 +267,7 @@ test("access: non-permitted roles see AccessDenied across B16–B19 without trig
 				"/admin/finance/reconciliation",
 				"Akses rekonsiliasi keuangan diperlukan",
 			],
-			["/admin/finance/refunds", "Akses refund diperlukan"],
+			["/admin/finance/refunds", "Akses pengembalian dana diperlukan"],
 			["/admin/finance/summary", "Akses laporan keuangan diperlukan"],
 		] as const) {
 			await finPage.page.goto(`${origin}${path}`);
@@ -599,6 +599,8 @@ test("B17 affiliate payouts: queue list and claim -> upload evidence -> verify -
 		await page.screenshot({
 			path: join(renders, "payout-detail-1280.png"),
 			fullPage: true,
+			// The badge colour transitions from the previous tone; capture the settled state.
+			animations: "disabled",
 		});
 		assert.deepEqual(errors, []);
 	} finally {
@@ -778,6 +780,18 @@ test("B18 refunds & B19 finance summary: unknown refund hides retry, summary sho
 			path: join(renders, "finance-summary-1280.png"),
 			fullPage: true,
 		});
+		// The value column must stay readable on narrower screens too (clipping fix 2026-10-28).
+		for (const width of [1024, 768, 390]) {
+			await page.setViewportSize({ width, height: 900 });
+			await expect(
+				page.getByTestId("summary-value-realized_contribution"),
+			).toHaveText("Belum lengkap");
+			assert.equal(await overflow(page), 0, `finance summary at ${width}px`);
+			await page.screenshot({
+				path: join(renders, `finance-summary-${width}.png`),
+				fullPage: true,
+			});
+		}
 		assert.deepEqual(errors, []);
 	} finally {
 		await close();

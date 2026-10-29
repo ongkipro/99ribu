@@ -8,7 +8,7 @@
     "start": "node --env-file=.env.example scripts/run-local.ts start",
     "lint": "biome lint src scripts tests next.config.ts drizzle.config.ts --error-on-warnings",
     "typecheck": "node --env-file=.env.example node_modules/next/dist/bin/next typegen && tsc --noEmit",
-    "test": "node --test tests/config.test.ts tests/launcher.test.ts tests/runner.test.ts tests/backup.test.ts tests/container.test.ts tests/admin-wib.test.ts tests/home-banners.test.ts tests/sign-up.test.ts tests/contact.test.ts tests/product-description.test.ts tests/home-safe.test.ts",
+    "test": "node --test tests/config.test.ts tests/launcher.test.ts tests/runner.test.ts tests/backup.test.ts tests/container.test.ts tests/admin-wib.test.ts tests/home-banners.test.ts tests/sign-up.test.ts tests/contact.test.ts tests/product-description.test.ts tests/home-safe.test.ts tests/account-orders.test.ts",
     "test:smoke": "node --test tests/smoke.test.ts",
     "check": "npm run lint && npm run typecheck && npm test",
     "db:up": "node --env-file=.env.example scripts/database.ts up",
@@ -35,14 +35,14 @@
     "catalog:withdraw": "node --env-file=.env.example scripts/catalog.ts withdraw"
   },
   "dependencies": {
-    "better-auth": "1.7.10",
+    "better-auth": "1.7.14",
     "class-variance-authority": "0.7.1",
     "cn": "0.4.0",
     "drizzle-orm": "0.45.4",
-    "lucide-react": "1.52.0",
-    "next": "16.4.1",
+    "lucide-react": "1.63.0",
+    "next": "16.4.3",
     "postgres": "3.4.9",
-    "radix-ui": "1.7.0",
+    "radix-ui": "1.8.1",
     "react": "19.3.1",
     "react-dom": "19.3.1"
   },
@@ -54,7 +54,7 @@
     "@types/react": "19.3.0",
     "@types/react-dom": "19.3.0",
     "drizzle-kit": "0.31.11",
-    "shadcn": "4.21.4",
+    "shadcn": "4.23.0",
     "tailwindcss": "4.3.3",
     "tw-animate-css": "1.4.0",
     "typescript": "5.9.3"

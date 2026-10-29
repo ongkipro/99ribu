@@ -4,14 +4,7 @@ import { CircleCheck, Plus, RefreshCw } from "lucide-react";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
-import {
-	Dialog,
-	DialogContent,
-	DialogDescription,
-	DialogFooter,
-	DialogHeader,
-	DialogTitle,
-} from "@/components/ui/dialog";
+import { FormDialog } from "./form";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { rupiah, wibDate, wibInput, wibInputToIso } from "@/modules/storefront/format";
@@ -190,7 +183,11 @@ export function CodSettlementsClient({ canWrite }: { canWrite: boolean }) {
 							: { kind: "ready" }
 				}
 				loadingLabel="Memuat setoran…"
-				empty="Belum ada setoran COD Mengantar yang dicatat."
+				empty={
+					canWrite
+						? "Belum ada setoran COD Mengantar yang dicatat. Catat laporan saldo COD pertama lewat tombol Catat setoran COD."
+						: "Belum ada setoran COD Mengantar yang dicatat."
+				}
 				testId="cod-statements"
 				caption="Setoran COD Mengantar yang dicatat, terbaru di atas"
 				stack
@@ -207,10 +204,11 @@ export function CodSettlementsClient({ canWrite }: { canWrite: boolean }) {
 							</>
 						),
 					},
-					{ id: "date", header: "Tanggal laporan", stack: "meta", cell: (row) => wibDate(row.statement_at) },
+					{ id: "date", header: "Tanggal laporan", stack: "meta", className: "whitespace-nowrap tabular-nums", cell: (row) => wibDate(row.statement_at) },
 					{ id: "gross", header: "Tertagih", className: "text-right tabular-nums", cell: (row) => rupiah(row.gross_amount) },
-					{ id: "net", header: "Diterima", className: "text-right tabular-nums", cell: (row) => rupiah(row.net_amount) },
-					{ id: "expected", header: "Perkiraan bersih", className: "text-right tabular-nums", cell: (row) => rupiah(row.expected_net_amount) },
+					{ id: "net", header: "Diterima", stack: "aside", className: "text-right tabular-nums", cell: (row) => rupiah(row.net_amount) },
+					// The flags already name a gap to the estimate; the estimate itself gives way first at 768.
+					{ id: "expected", header: "Perkiraan bersih", hideBelow: "6xl", className: "text-right tabular-nums", cell: (row) => rupiah(row.expected_net_amount) },
 					{
 						id: "status",
 						header: "Status",
@@ -221,7 +219,8 @@ export function CodSettlementsClient({ canWrite }: { canWrite: boolean }) {
 									{SETTLEMENT_LABELS[row.settlement?.status ?? "pending"] ?? row.settlement?.status}
 								</StatusBadge>
 								{row.flags.map((flag) => (
-									<StatusBadge key={flag} tone="danger">
+									// A gap to review is uncertain (problem); a failed recording step is danger.
+									<StatusBadge key={flag} tone={flag.endsWith("_FAILED") ? "danger" : "problem"}>
 										{FLAG_LABELS[flag] ?? flag}
 									</StatusBadge>
 								))}
@@ -340,29 +339,24 @@ function RecordDialog({
 	const set = (field: keyof typeof form) => (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) =>
 		setForm({ ...form, [field]: e.target.value });
 
+	const dirty =
+		chosen.length > 0 ||
+		!!(form.reference || form.statementAt || form.net || form.evidence || form.reason || form.password) ||
+		form.shipping !== "0" ||
+		form.codFee !== "0" ||
+		form.other !== "0";
 	return (
-		<Dialog
-			open
-			onOpenChange={(next) => {
-				if (!next && !pending) onClose();
-			}}
+		<FormDialog
+			title="Catat setoran COD Mengantar"
+			description="Salin dari laporan saldo COD di dasbor Mengantar. Selisih nominal atau total ditandai untuk ditinjau, tidak diterima diam-diam."
+			className="sm:max-w-2xl"
+			pending={pending}
+			error={error}
+			submitLabel="Simpan setoran"
+			dirty={dirty}
+			onClose={onClose}
+			onSubmit={() => void submit()}
 		>
-			<DialogContent className="max-h-[90vh] overflow-y-auto sm:max-w-2xl">
-				<form
-					noValidate
-					className="flex flex-col gap-4"
-					onSubmit={(e) => {
-						e.preventDefault();
-						void submit();
-					}}
-				>
-					<DialogHeader>
-						<DialogTitle>Catat setoran COD Mengantar</DialogTitle>
-						<DialogDescription>
-							Salin dari laporan saldo COD di dashboard Mengantar. Selisih
-							nominal atau total ditandai untuk ditinjau, tidak diterima diam-diam.
-						</DialogDescription>
-					</DialogHeader>
 					<fieldset className="flex flex-col gap-2">
 						<legend className="text-sm font-medium">Paket COD dalam laporan</legend>
 						{parcels === null && !error && (
@@ -378,7 +372,7 @@ function RecordDialog({
 								<input
 									type="checkbox"
 									id={`cod-${p.shipment_id}`}
-									className="size-4"
+									className="size-4 accent-primary"
 									checked={p.shipment_id in amounts}
 									onChange={(e) => {
 										const next = { ...amounts };
@@ -387,9 +381,9 @@ function RecordDialog({
 										setAmounts(next);
 									}}
 								/>
-								<label htmlFor={`cod-${p.shipment_id}`} className="min-w-40 text-sm">
+								<label htmlFor={`cod-${p.shipment_id}`} className="min-w-40 flex-1 text-sm pointer-coarse:min-h-11">
 									{p.order_number}
-									<span className="block font-mono text-xs text-muted-foreground">
+									<span className="block font-mono text-xs text-muted-foreground tabular-nums">
 										{p.tracking_number ?? "—"} · tagihan saat ini {rupiah(p.cod_due)}
 									</span>
 								</label>
@@ -397,7 +391,7 @@ function RecordDialog({
 									<Input
 										aria-label={`Nominal tertagih ${p.order_number}`}
 										inputMode="numeric"
-										className="w-36"
+										className="w-36 text-right tabular-nums"
 										value={amounts[p.shipment_id]}
 										onChange={(e) =>
 											setAmounts({ ...amounts, [p.shipment_id]: e.target.value.replace(/\D/g, "") })
@@ -474,21 +468,6 @@ function RecordDialog({
 							onChange={set("password")}
 						/>
 					</div>
-					{error && (
-						<p role="alert" className="text-sm text-destructive">
-							{error}
-						</p>
-					)}
-					<DialogFooter>
-						<Button type="button" variant="outline" disabled={pending} onClick={onClose}>
-							Batal
-						</Button>
-						<Button type="submit" disabled={pending}>
-							{pending ? "Menyimpan…" : "Simpan setoran"}
-						</Button>
-					</DialogFooter>
-				</form>
-			</DialogContent>
-		</Dialog>
+		</FormDialog>
 	);
 }

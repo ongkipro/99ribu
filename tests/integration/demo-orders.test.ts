@@ -102,6 +102,6 @@ test('demo-orders fixture creates every order state through the real flows, idem
   assert.equal((await sql`select count(*)::int n from app.audit_event where actor_id=${`local-demo-orders:${namespace}`} and action='local_fixture.demo_order'`)[0].n,16);
  }finally{
   try{if(written&&(await readTerms()).latest_version===written)await writeTerms(original,'SYNTHETIC demo-orders fixture finished; restore previous payment terms');}
-  finally{await cleanup(identity,[owner]).catch(()=>{});await sql.end();}
+  finally{await cleanup(identity,[owner]).catch(()=>{});await sql`update app.warehouse set active=false where active and id in (select warehouse_id from app.local_fixture_warehouse where namespace=${namespace})`;await sql.end();}
  }
 });

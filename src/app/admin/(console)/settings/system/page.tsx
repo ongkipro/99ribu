@@ -22,7 +22,7 @@ export default async function SystemHealthPage() {
 		<AdminPage testId="system-health-page">
 			<PageHeader
 				title="Kesehatan Sistem"
-				description="Jumlah pekerjaan latar belakang (antrean outbox) per jenis dan keadaan, serta tugas pembersihan data. Halaman ini hanya membaca; isi pekerjaan tidak ditampilkan."
+				description="Jumlah pekerjaan latar belakang per jenis dan keadaan, serta tugas pembersihan data. Hanya baca."
 			/>
 			<SystemHealthClient />
 		</AdminPage>

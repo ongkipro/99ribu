@@ -25,11 +25,9 @@ export default async function BannersPage() {
 				title="Banner Beranda"
 				description={
 					<>
-						Kartu &ldquo;Temukan pilihan&rdquo; di beranda toko. Banner tampil hanya saat aktif dan dalam jadwalnya (WIB), urut
-						sesuai daftar ini. Setiap perubahan meminta kata sandi dan tercatat di riwayat.
+						Kartu &ldquo;Temukan pilihan&rdquo; di beranda. Banner tampil saat aktif dan dalam jadwal (WIB), urut sesuai daftar.
 					</>
 				}
-				meta={<span>Semua waktu dalam WIB (UTC+7)</span>}
 			/>
 			<BannersClient />
 		</AdminPage>

@@ -10,7 +10,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { Textarea } from "@/components/ui/textarea";
 import { type ApiFailure, describeFailure, failureText, getJson, readFailure } from "./admin-errors";
 import { formatWib, rupiah } from "./format";
-import { FormDialog, FormField, nativeSelectClass } from "./form";
+import { FormDialog, FormField, nativeSelectClass, useFormDialogErrorId } from "./form";
 import { AdminPage, DetailSection, PageHeader, StickyActions } from "./page-blocks";
 import {
 	CLAIM,
@@ -151,10 +151,24 @@ export function ReturnDetailClient({ caseId, access, canOrders }: { caseId: stri
 		return (
 			<AdminPage>
 				<PageHeader back={back} title="Detail retur" />
+				{/* Same shape as the loaded case: items and evidence left, next step and history right from lg. */}
 				<div className="flex flex-col gap-3" aria-live="polite" aria-busy="true">
 					<p className="text-sm text-muted-foreground">Memuat detail retur…</p>
-					<Skeleton className="h-8 w-64 bg-border/70" />
-					<Skeleton className="h-40 w-full bg-border/70" />
+					<div aria-hidden="true" className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_22rem] lg:items-start">
+						<div className="flex flex-col gap-4">
+							{["items", "evidence"].map((section) => (
+								<div key={section} className="flex flex-col gap-3 rounded-lg border p-4">
+									<Skeleton className="h-5 w-40 bg-border/70" />
+									<Skeleton className="h-16 w-full bg-border/70" />
+								</div>
+							))}
+						</div>
+						<div className="flex flex-col gap-3 rounded-lg border p-4">
+							<Skeleton className="h-5 w-36 bg-border/70" />
+							<Skeleton className="h-4 w-full bg-border/70" />
+							<Skeleton className="h-9 w-full bg-border/70" />
+						</div>
+					</div>
 				</div>
 			</AdminPage>
 		);
@@ -182,7 +196,15 @@ export function ReturnDetailClient({ caseId, access, canOrders }: { caseId: stri
 			<Button key="approve" data-testid="return-approve" onClick={() => setDialog({ kind: "decide", decision: "approve" })}>
 				Setujui<span className="max-md:sr-only"> {d.requested_resolution === "refund" ? "refund" : "ganti barang"}</span>
 			</Button>,
-			<Button key="evidence" variant="outline" data-testid="return-request-evidence" disabled={d.status === "reviewing"} onClick={() => setDialog({ kind: "decide", decision: "request_evidence" })}>
+			<Button
+				key="evidence"
+				variant="outline"
+				data-testid="return-request-evidence"
+				disabled={d.status === "reviewing"}
+				// The visible hint above says why: the buyer was already asked.
+				aria-describedby={d.status === "reviewing" ? "return-next-hint" : undefined}
+				onClick={() => setDialog({ kind: "decide", decision: "request_evidence" })}
+			>
 				Minta bukti
 			</Button>,
 			<Button key="reject" variant="destructive" data-testid="return-reject" onClick={() => setDialog({ kind: "decide", decision: "reject" })}>
@@ -354,7 +376,7 @@ export function ReturnDetailClient({ caseId, access, canOrders }: { caseId: stri
 				</div>
 				<div className="flex min-w-0 flex-col gap-4">
 					<DetailSection id="return-next-heading" title="Tindakan berikutnya" testId="return-next">
-						<p className="text-sm text-muted-foreground">{nextHint(d, actions.length > 0 || replacements.some((r) => { const next = replacementNext(r.status); return !!next && (next.who === "review" ? access.review : access.warehouse); }))}</p>
+						<p id="return-next-hint" className="text-sm text-muted-foreground">{nextHint(d, actions.length > 0 || replacements.some((r) => { const next = replacementNext(r.status); return !!next && (next.who === "review" ? access.review : access.warehouse); }))}</p>
 						{actions.length > 0 && <StickyActions className="md:flex-col md:items-stretch">{actions}</StickyActions>}
 					</DetailSection>
 					<HistorySection detail={d} />
@@ -394,14 +416,18 @@ function EvidenceSection({ detail }: { detail: ReturnCase }) {
 			{!detail.items_complete ? (
 				<p className="text-sm text-muted-foreground">Bukti hanya terlihat oleh staf yang melihat semua barang retur ini.</p>
 			) : files.length === 0 ? (
-				<p className="text-sm text-muted-foreground">Pembeli belum melampirkan foto atau video.</p>
+				<p className="text-sm text-muted-foreground">
+					{detail.status === "reviewing"
+						? "Pembeli belum mengunggah bukti tambahan yang diminta. Klaim tetap bisa diputuskan."
+						: "Pembeli tidak melampirkan foto atau video. Putuskan dari alasan dan keterangan barang di atas, atau minta bukti."}
+				</p>
 			) : (
-				<ul className="grid grid-cols-2 gap-2 sm:grid-cols-3">
+				<ul className="grid grid-cols-2 gap-3 sm:grid-cols-3">
 					{files.map((file, index) => {
 						const href = `/api/v1/admin/returns/${detail.id}/evidence/${file.id}`;
 						const label = `Bukti ${index + 1} dari ${files.length}, diunggah ${formatWib(file.created_at)}`;
 						return (
-							<li key={file.id}>
+							<li key={file.id} className="flex flex-col gap-1">
 								<a
 									href={href}
 									target="_blank"
@@ -419,6 +445,10 @@ function EvidenceSection({ detail }: { detail: ReturnCase }) {
 										</span>
 									)}
 								</a>
+								{/* The upload time is visible, not only in the link's accessible name. */}
+								<span aria-hidden="true" className="text-xs text-muted-foreground tabular-nums">
+									Bukti {index + 1} · {formatWib(file.created_at)}
+								</span>
 							</li>
 						);
 					})}
@@ -432,12 +462,12 @@ function HistorySection({ detail }: { detail: ReturnCase }) {
 	const events = [...(detail.events ?? [])].reverse();
 	return (
 		<DetailSection id="return-history-heading" title="Riwayat" description="Terbaru di atas. Setiap langkah tercatat di log audit." testId="return-history">
-			<ol className="flex flex-col gap-3">
+			<ol className="flex flex-col gap-3 border-l pl-4">
 				{events.map((event) => {
 					const [label, tone] = RETURN_STATUS[event.status];
 					const who = event.actor === "buyer" ? "Pembeli" : event.actor === "staff" ? event.actor_name || "Staf" : "Sistem";
 					return (
-						<li key={event.version} className="flex flex-col gap-1 border-l-2 pl-3" data-testid="return-history-event">
+						<li key={event.version} className="flex flex-col gap-1" data-testid="return-history-event">
 							<div className="flex flex-wrap items-center gap-2">
 								<span className="text-sm font-medium">{EVENT[event.kind] ?? event.kind}</span>
 								<StatusBadge tone={tone}>{label}</StatusBadge>
@@ -475,6 +505,12 @@ function useSubmit() {
 	return { pending, error, setError, run, setPending };
 }
 
+/** Inside a FormDialog: hands the dialog's error alert id to a field (aria-describedby). */
+function WithErrorId({ children }: { children: (errorId: string | undefined) => ReactNode }) {
+	return <>{children(useFormDialogErrorId())}</>;
+}
+const describedBy = (...ids: (string | undefined)[]) => ids.filter(Boolean).join(" ") || undefined;
+
 function DecideDialog({ detail, decision, onClose, onDone }: DialogProps & { decision: "approve" | "reject" | "request_evidence" }) {
 	const [reason, setReason] = useState("");
 	const [requiresGoods, setRequiresGoods] = useState(true);
@@ -493,17 +529,22 @@ function DecideDialog({ detail, decision, onClose, onDone }: DialogProps & { dec
 		const result = await submit.run<{ status: keyof typeof RETURN_STATUS }>(`/api/v1/admin/returns/${detail.id}/decisions`, body);
 		if (result) onDone(`Keputusan tersimpan. Status: ${RETURN_STATUS[result.status][0]}.`);
 	}
+	const reject = decision === "reject";
 	return (
 		<FormDialog
 			title={title}
 			description={
 				approve
 					? "Persetujuan mengikuti permintaan pembeli. Nominal refund dihitung server, bukan diisi di sini."
-					: "Alasan ini ditampilkan ke pembeli di halaman pesanannya."
+					: reject
+						? "Alasan ini ditampilkan ke pembeli di halaman pesanannya. Klaim yang ditolak selesai dan tidak bisa dibuka lagi dari konsol."
+						: "Alasan ini ditampilkan ke pembeli di halaman pesanannya."
 			}
 			pending={submit.pending}
 			error={submit.error}
-			submitLabel={approve ? "Setujui" : decision === "reject" ? "Tolak klaim" : "Kirim permintaan"}
+			submitLabel={approve ? "Setujui" : reject ? "Tolak klaim" : "Kirim permintaan"}
+			destructive={reject}
+			dirty={reason.trim() !== ""}
 			onClose={onClose}
 			onSubmit={() => void send()}
 		>
@@ -525,7 +566,19 @@ function DecideDialog({ detail, decision, onClose, onDone }: DialogProps & { dec
 				</label>
 			)}
 			<FormField id="decide-reason" label="Alasan (wajib)">
-				<Textarea id="decide-reason" value={reason} maxLength={2000} rows={3} onChange={(e) => setReason(e.target.value)} />
+				<WithErrorId>
+					{(errorId) => (
+						<Textarea
+							id="decide-reason"
+							value={reason}
+							maxLength={2000}
+							rows={3}
+							aria-invalid={errorId && !reason.trim() ? true : undefined}
+							aria-describedby={errorId}
+							onChange={(e) => setReason(e.target.value)}
+						/>
+					)}
+				</WithErrorId>
 			</FormField>
 		</FormDialog>
 	);
@@ -583,13 +636,14 @@ function InspectDialog({ detail, onClose, onDone }: DialogProps) {
 			pending={submit.pending}
 			error={submit.error}
 			submitLabel="Simpan inspeksi"
+			dirty={reason.trim() !== ""}
 			onClose={onClose}
 			onSubmit={() => void send()}
 		>
 			<fieldset className="flex flex-col gap-2">
 				<legend className="mb-1 text-sm font-medium">Hasil</legend>
 				{results.map(([value, label, hint]) => (
-					<label key={value} className="flex items-start gap-2 text-sm">
+					<label key={value} className="flex items-start gap-2 text-sm pointer-coarse:min-h-11">
 						<input type="radio" name="inspect-result" className="mt-0.5 size-4 accent-primary" value={value} checked={result === value} onChange={() => setResult(value)} />
 						<span>
 							{label}
@@ -601,7 +655,7 @@ function InspectDialog({ detail, onClose, onDone }: DialogProps) {
 			{items.map((item) => (
 				<fieldset key={item.id} className="flex flex-col gap-2 rounded-md border p-3" data-testid="inspect-item">
 					<legend className="sr-only">{item.product_name}</legend>
-					<label className="flex items-start gap-2 text-sm font-medium">
+					<label className="flex items-start gap-2 text-sm font-medium pointer-coarse:min-h-11">
 						<input type="checkbox" className="mt-0.5 size-4 accent-primary" checked={intake[item.id].include} onChange={(e) => set(item, { include: e.target.checked })} />
 						<span>
 							{item.product_name}
@@ -626,7 +680,7 @@ function InspectDialog({ detail, onClose, onDone }: DialogProps) {
 										value={row.quantity}
 										onChange={(e) => set(item, { goods: { ...intake[item.id].goods, [component.balance_id]: { ...row, quantity: e.target.value } } })}
 									/>
-									<label className="col-span-2 flex items-center gap-2 text-xs text-muted-foreground">
+									<label className="col-span-2 flex items-center gap-2 text-xs text-muted-foreground pointer-coarse:min-h-11">
 										<input
 											type="checkbox"
 											className="size-4 accent-primary"
@@ -641,7 +695,19 @@ function InspectDialog({ detail, onClose, onDone }: DialogProps) {
 				</fieldset>
 			))}
 			<FormField id="inspect-reason" label="Catatan inspeksi (wajib)">
-				<Textarea id="inspect-reason" value={reason} maxLength={2000} rows={3} onChange={(e) => setReason(e.target.value)} />
+				<WithErrorId>
+					{(errorId) => (
+						<Textarea
+							id="inspect-reason"
+							value={reason}
+							maxLength={2000}
+							rows={3}
+							aria-invalid={errorId && !reason.trim() ? true : undefined}
+							aria-describedby={errorId}
+							onChange={(e) => setReason(e.target.value)}
+						/>
+					)}
+				</WithErrorId>
 			</FormField>
 		</FormDialog>
 	);
@@ -680,22 +746,37 @@ function RefundDialog({ detail, onClose, onDone }: DialogProps) {
 			pendingLabel="Mengajukan…"
 			error={submit.error}
 			submitLabel="Ajukan refund"
+			dirty={reason.trim() !== "" || password !== ""}
 			onClose={onClose}
 			onSubmit={() => void send()}
 		>
-			<FormField id="refund-reason" label="Alasan (wajib)">
-				<Input id="refund-reason" value={reason} maxLength={500} onChange={(e) => setReason(e.target.value)} />
-			</FormField>
-			<FormField id="refund-password" label="Konfirmasi kata sandi" hint="Diperlukan untuk setiap refund; berlaku hanya untuk retur ini.">
-				<Input
-					id="refund-password"
-					type="password"
-					autoComplete="current-password"
-					aria-describedby="refund-password-hint"
-					value={password}
-					onChange={(e) => setPassword(e.target.value)}
-				/>
-			</FormField>
+			<WithErrorId>
+				{(errorId) => (
+					<>
+						<FormField id="refund-reason" label="Alasan (wajib)">
+							<Input
+								id="refund-reason"
+								value={reason}
+								maxLength={500}
+								aria-invalid={errorId && !reason.trim() ? true : undefined}
+								aria-describedby={errorId}
+								onChange={(e) => setReason(e.target.value)}
+							/>
+						</FormField>
+						<FormField id="refund-password" label="Konfirmasi kata sandi" hint="Diperlukan untuk setiap refund; berlaku hanya untuk retur ini.">
+							<Input
+								id="refund-password"
+								type="password"
+								autoComplete="current-password"
+								aria-invalid={errorId && !password ? true : undefined}
+								aria-describedby={describedBy("refund-password-hint", errorId)}
+								value={password}
+								onChange={(e) => setPassword(e.target.value)}
+							/>
+						</FormField>
+					</>
+				)}
+			</WithErrorId>
 		</FormDialog>
 	);
 }
@@ -725,13 +806,14 @@ function ReplaceDialog({ detail, onClose, onDone }: DialogProps) {
 			pending={submit.pending}
 			error={submit.error}
 			submitLabel="Buat penggantian"
+			dirty={reason.trim() !== ""}
 			onClose={onClose}
 			onSubmit={() => void send()}
 		>
 			<fieldset className="flex flex-col gap-2">
 				<legend className="mb-1 text-sm font-medium">Barang yang diganti</legend>
 				{eligible.map((item) => (
-					<label key={item.id} className="flex items-start gap-2 text-sm">
+					<label key={item.id} className="flex items-start gap-2 text-sm pointer-coarse:min-h-11">
 						<input
 							type="checkbox"
 							className="mt-0.5 size-4 accent-primary"
@@ -755,7 +837,18 @@ function ReplaceDialog({ detail, onClose, onDone }: DialogProps) {
 				</select>
 			</FormField>
 			<FormField id="replace-reason" label="Alasan (wajib)">
-				<Input id="replace-reason" value={reason} maxLength={500} onChange={(e) => setReason(e.target.value)} />
+				<WithErrorId>
+					{(errorId) => (
+						<Input
+							id="replace-reason"
+							value={reason}
+							maxLength={500}
+							aria-invalid={errorId && !reason.trim() ? true : undefined}
+							aria-describedby={errorId}
+							onChange={(e) => setReason(e.target.value)}
+						/>
+					)}
+				</WithErrorId>
 			</FormField>
 		</FormDialog>
 	);
@@ -798,17 +891,38 @@ function ReplacementActionDialog({
 			pending={submit.pending}
 			error={submit.error}
 			submitLabel={ACTION_LABEL[action]}
+			dirty={reason.trim() !== "" || reference.trim() !== ""}
 			onClose={onClose}
 			onSubmit={() => void send()}
 		>
-			{action === "handover" && (
-				<FormField id="replacement-reference" label="Bukti serah terima" hint="Mis. nama kurir dan jam penjemputan.">
-					<Input id="replacement-reference" aria-describedby="replacement-reference-hint" value={reference} maxLength={200} onChange={(e) => setReference(e.target.value)} />
-				</FormField>
-			)}
-			<FormField id="replacement-reason" label="Alasan (wajib)">
-				<Input id="replacement-reason" value={reason} maxLength={500} onChange={(e) => setReason(e.target.value)} />
-			</FormField>
+			<WithErrorId>
+				{(errorId) => (
+					<>
+						{action === "handover" && (
+							<FormField id="replacement-reference" label="Bukti serah terima" hint="Mis. nama kurir dan jam penjemputan.">
+								<Input
+									id="replacement-reference"
+									aria-invalid={errorId && !reference.trim() ? true : undefined}
+									aria-describedby={describedBy("replacement-reference-hint", errorId)}
+									value={reference}
+									maxLength={200}
+									onChange={(e) => setReference(e.target.value)}
+								/>
+							</FormField>
+						)}
+						<FormField id="replacement-reason" label="Alasan (wajib)">
+							<Input
+								id="replacement-reason"
+								value={reason}
+								maxLength={500}
+								aria-invalid={errorId && !reason.trim() ? true : undefined}
+								aria-describedby={errorId}
+								onChange={(e) => setReason(e.target.value)}
+							/>
+						</FormField>
+					</>
+				)}
+			</WithErrorId>
 		</FormDialog>
 	);
 }

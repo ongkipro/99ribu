@@ -15,7 +15,7 @@ export default function AccountSecurityPage() {
 			<PageHeader
 				back={{ href: "/admin/account", label: "Profil" }}
 				title="Keamanan akun"
-				description="Kata sandi, verifikasi dua langkah, dan perangkat yang sedang masuk ke akun Anda. Setiap perubahan meminta kata sandi dan tercatat di riwayat audit."
+				description="Kata sandi, verifikasi dua langkah, dan perangkat yang masuk ke akun Anda. Setiap perubahan tercatat di log audit."
 			/>
 			<AccountSecurityClient />
 		</AdminPage>

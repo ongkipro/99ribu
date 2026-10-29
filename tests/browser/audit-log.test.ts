@@ -84,8 +84,11 @@ test("S135 owner filters, pages and reads redacted details", async () => {
 		await view.page.getByRole("button", { name: "Terapkan" }).click();
 		await expect(view.page.getByTestId("audit-empty")).toContainText("Tidak ada catatan yang cocok");
 		await view.page.getByLabel("Sampai tanggal (WIB)").fill("2029-01-01");
-		await view.page.getByRole("button", { name: "Terapkan" }).click();
+		// An invalid range is shown as you type: both fields invalid, "Terapkan" disabled, no results shown.
 		await expect(view.page.getByText("Tanggal akhir tidak boleh sebelum tanggal awal.")).toBeVisible();
+		await expect(view.page.getByRole("button", { name: "Terapkan" })).toBeDisabled();
+		await expect(view.page.getByLabel("Sampai tanggal (WIB)")).toHaveAttribute("aria-invalid", "true");
+		await expect(view.page.getByTestId("audit-empty")).toHaveCount(0);
 		await view.page.screenshot({ path: join(renders, "audit-owner-1440.png"), fullPage: true });
 		assert.deepEqual(view.errors, []);
 	} finally {

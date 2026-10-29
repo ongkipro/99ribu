@@ -219,7 +219,7 @@ export function SettingsLabelTemplatesClient({
 								<p className="text-xs font-semibold text-muted-foreground">
 									Riwayat versi {row.name} ({row.history?.length ?? 1} versi)
 								</p>
-								<ol className="flex flex-col gap-2">
+								<ol className="flex flex-col divide-y">
 									{(
 										row.history ?? [
 											{
@@ -236,7 +236,7 @@ export function SettingsLabelTemplatesClient({
 										<li
 											key={ver.version}
 											data-testid={`label-template-version-${row.id}-${ver.version}`}
-											className="flex flex-col gap-0.5 border-l-2 pl-3"
+											className="flex flex-col gap-0.5 py-2 first:pt-0 last:pb-0"
 										>
 											<div className="flex flex-wrap items-center gap-2">
 												<span className="font-medium tabular-nums">
@@ -290,11 +290,14 @@ export function SettingsLabelTemplatesClient({
 						{
 							id: "brand",
 							header: "Mode merek",
+							// Lower-priority columns give way so "Privasi telepon" never slides under the pinned actions.
+							hideBelow: "5xl",
 							cell: (row) => BRAND_LABELS[row.brand_mode] ?? row.brand_mode,
 						},
 						{
 							id: "privacy",
 							header: "Privasi telepon",
+							cellClassName: "whitespace-normal",
 							cell: (row) =>
 								PRIVACY_LABELS[row.privacy_mode] ?? row.privacy_mode,
 						},
@@ -313,7 +316,8 @@ export function SettingsLabelTemplatesClient({
 							id: "updated",
 							header: "Diperbarui (WIB)",
 							stack: "meta",
-							className: "tabular-nums",
+							kind: "datetime",
+							hideBelow: "6xl",
 							cell: (row) => formatWib(row.updated_at),
 						},
 						{

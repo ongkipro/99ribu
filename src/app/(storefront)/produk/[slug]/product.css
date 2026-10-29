@@ -29,7 +29,16 @@ main.product-detail {
 	padding-top: 32px;
 }
 main.product-detail .detail-layout > :first-child {
-	top: 32px;
+	top: 102px;
+}
+/* Columns (shop.com 2026-10-29 measure, 1440): the media column ends 40px before a 464px buy box (media 112–900,
+   buy box 940–1404). Tablets keep the half/half split: shop.com's 768 media is a 192px-wide portrait card, which
+   for 99ribu's square photos would shrink them to about 230px. */
+@media (min-width: 1051px) {
+	main.product-detail .detail-layout {
+		grid-template-columns: minmax(0, 1fr) minmax(18rem, 29rem);
+		gap: 40px;
+	}
 }
 @media (max-width: 1050px) {
 	main.product-detail {
@@ -225,10 +234,20 @@ main.product-detail .gallery-count {
 }
 
 /* ---- Sections: Deskripsi (open, clamped with "Baca selengkapnya"), shipping/payment rows. ---- */
-/* shop.com pdp-sections (2026-10-25): 8px under the actions (24px buy-box gap − 16px), 24px below; hairlines
-   only between sections (none above the first, none under the last); 16px chevrons. */
+/* shop.com pdp-sections (2026-10-29 measure, 390/768/1440): the first section header starts 32px under the last
+   action row (24px buy-box gap + 8px), 24px below; hairlines only between sections (none above the first, none
+   under the last), measured rgb(237,239,241) on the #fbfbfb canvas = the hairline ink at 6%; 52px headers
+   18/20 600 -0.5px at every width; 16px chevrons. */
 main.product-detail .product-sections {
-	margin: -16px 0 24px;
+	margin: 8px 0 24px;
+}
+main.product-detail .product-policy {
+	border-bottom-color: color-mix(in srgb, var(--hairline) 60%, transparent);
+}
+main.product-detail .product-policy > summary {
+	font-size: var(--subtitle-size);
+	line-height: var(--subtitle-leading);
+	letter-spacing: var(--tracking-body);
 }
 main.product-detail .product-policy:last-child {
 	border-bottom: 0;
@@ -287,6 +306,8 @@ main.product-detail .read-more[open] .more-show,
 main.product-detail .read-more:not([open]) .more-hide {
 	display: none;
 }
+/* Delivery rows (shop.com "Delivery & Returns", 1440): 14/18 text on a 30px pitch (12px apart), a 16px icon
+   12px before the text, centred on the first line. */
 main.product-detail .policy-rows {
 	display: grid;
 	gap: 12px;
@@ -294,18 +315,19 @@ main.product-detail .policy-rows {
 	padding: 0 0 16px;
 	list-style: none;
 	font-size: var(--small-size);
-	line-height: 1.25rem;
+	line-height: var(--small-leading);
 	letter-spacing: var(--tracking-small);
 }
 main.product-detail .policy-rows li {
 	display: grid;
-	grid-template-columns: 1.25rem minmax(0, 1fr);
+	grid-template-columns: 1rem minmax(0, 1fr);
 	gap: 12px;
 	align-items: start;
 }
 main.product-detail .policy-rows svg {
-	width: 1.25rem;
-	height: 1.25rem;
+	width: 1rem;
+	height: 1rem;
+	margin-top: calc((var(--small-leading) - 1rem) / 2);
 	color: var(--muted);
 	transform: none;
 }
@@ -316,8 +338,11 @@ main.product-detail .quantity-stepper button > svg {
 	height: 1.25rem;
 }
 
-/* Related grid (shop.com "You might also like"): 5 equal columns, 32px column gaps on desktop (S139), 3 on tablets,
-   2 on phones. No discount badge or rating: 99ribu has no compare-at price or reviews behind them. */
+/* Related grid (shop.com "You might also like", 2026-10-29 measure): 5 columns with 32px column gaps on desktop
+   (1440: 5 × 228 + 4 × 32); 3 columns on tablets (owner review 2026-10-25, BUILD-LOG "related 5/3/2-column grid";
+   shop.com 768 shows 2) and 2 on phones, 16px apart both ways at both (390: 2 × 171, 16px). The heading line box is
+   the text (20/22, phones 18/20) with the 44px link target overhanging it; the grid starts 24px under it (16px on
+   phones). No discount badge or rating: 99ribu has no compare-at price or reviews. */
 main.product-detail .related-shelf .product-grid {
 	grid-template-columns: repeat(5, minmax(0, 1fr));
 	gap: 16px 32px;
@@ -331,11 +356,21 @@ main.product-detail .related-shelf .product-grid {
 @media (max-width: 700px) {
 	main.product-detail .related-shelf .product-grid {
 		grid-template-columns: repeat(2, minmax(0, 1fr));
-		gap: 8px;
 	}
 }
 main.product-detail .related-shelf {
 	margin-top: 64px;
+}
+main.product-detail .related-shelf .shelf-heading {
+	margin-bottom: 24px;
+}
+main.product-detail .related-shelf .shelf-heading a {
+	margin-block: calc((44px - var(--title-leading)) / -2);
+}
+@media (max-width: 700px) {
+	main.product-detail .related-shelf .shelf-heading {
+		margin-bottom: 16px;
+	}
 }
 
 /* Action row (shop.com pdp-actions): two equal 50% pills, 8px apart; add to cart (first in the DOM) sits on the
@@ -358,6 +393,10 @@ main.product-detail .purchase-region .purchase-actions > .button {
 		font-size: var(--small-size);
 		letter-spacing: var(--tracking-small);
 	}
+}
+/* Quantity pill → action row 24px (shop.com 1440: pill ends 352, "Add to cart" starts 376). */
+main.product-detail .purchase-region .cart-mutation {
+	gap: 24px;
 }
 
 /* ---- "Beli sekarang" (DEC-020): shop.com's secondary action under the purple add pill — the same 52px

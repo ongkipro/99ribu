@@ -45,6 +45,7 @@ import { rateLimit } from "../access/rate-limit.ts";
 import { invalid, object, text } from "../catalog/validation.ts";
 import { normalizePhone } from "../shipping/address.ts";
 import { isValidEmail, maskedPhone } from "../storefront/contact.ts";
+import { maskedEmail } from "./masking.ts";
 
 export const CUSTOMER_LOOKUP_PATH = "/api/v1/admin/customers/lookup";
 export const CUSTOMER_LOOKUP_ACTION = "support.customer_lookup";
@@ -99,16 +100,6 @@ export type LookupResult = {
 	accounts: LookupAccount[];
 	accounts_truncated: boolean;
 };
-
-/** `a•••@domain` for a local part of 3 or more characters, `•••@domain` below that (one letter would be the whole name). */
-export function maskedEmail(stored: string | null | undefined) {
-	if (!stored) return null;
-	const at = stored.lastIndexOf("@");
-	if (at < 1) return "•••";
-	const local = stored.slice(0, at);
-	const head = Array.from(local).length >= 3 ? Array.from(local)[0] : "";
-	return `${head}•••${stored.slice(at)}`;
-}
 
 /** The exact value to compare: E.164 phone, or trimmed lower-case NFC email. Anything else is a 400/422. */
 export function parseLookup(body: unknown): { kind: LookupKind; value: string } {

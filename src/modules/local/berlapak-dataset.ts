@@ -12,6 +12,7 @@ import {appendCostVersion} from '../finance/costs.ts';
 import {createMovement} from '../inventory/positions.ts';
 import {createTransfer,getTransfer,receiveTransfer,resolveTransfer} from '../inventory/transfers.ts';
 import {cube,DEFAULT_OFFER_ASSUMPTIONS,readBerlapakSource,readContained,supplierPatterns} from './berlapak.ts';
+import {stockSku} from './berlapak-identities.ts';
 
 // DEC-005 generator (host-only): raw Berlapak snapshot -> committed, sanitized catalog dataset.
 // Selection and public naming reuse the S69 reader; only public catalog facts are written (no
@@ -314,7 +315,7 @@ const LOWER=new Set(['dan','atau','di','ke','dari','untuk','dengan','yang','pada
 // Short words supplier titles shout, and lower-case acronyms; other capitals stay (KLX, CRF).
 const SHOUTED=new Set(['bag','box','tas','rak','air','big','hot','oil','pot','set','isi','bio','dr','one','key','gun','bra','lem','man','up','abu','eye','as','pas','aki']);
 const ACRONYM=new Set(['led','usb','lcd','uv','gps','cctv','hd','tv','hp','tws','cob','pu','ph','aha','dna','ac','dc','edp','sd']);
-const DANGLING=/^(?:dan|atau|di|ke|dari|untuk|dengan|yang|pada|tanpa|anti|bukan|tapi|tetapi|kalau|kalo|jika|jangan|itu|ini|kamu|ada|alat|dia|tetap|hanya|kita|masih|aja|tidak|cuma|bisa|perlu|sebatas|seorang|mencerahkan|&|\+|-|\/|x|in|for|the|with|and|of|to|model|isi|max)$/iu;
+const DANGLING=/^(?:dan|atau|di|ke|dari|untuk|dengan|yang|pada|tanpa|anti|bukan|tapi|tetapi|kalau|kalo|jika|jangan|itu|ini|kamu|ada|alat|dia|tetap|hanya|kita|masih|aja|tidak|cuma|bisa|perlu|sebatas|seorang|mencerahkan|nempel|tempel|alas|&|\+|-|\/|x|in|for|the|with|and|of|to|model|isi|max)$/iu;
 function tokenCase(word:string,first:boolean){
   const lower=word.toLowerCase(),plain=word.replace(/[^\p{L}]/gu,'');
   if(/^\d+in\d+$/i.test(word)) return lower;
@@ -494,6 +495,20 @@ const TITLE_OVERRIDES:Readonly<Record<string,{expect:string;title:string;evidenc
   // One word over the limit; the brand goes, the claim stays.
   'BND-21':{expect:'Paket Sabun & Deterjen Organik Ramah Bayi',title:'Paket Sabun & Deterjen Ramah Bayi 4-in-1'},
 };
+// A product with variant offers is titled without its variant values: the option labels name
+// them. Words that differ between the labels (sizes, colours, model codes; not words every label
+// shares, nor bare numbers) leave the seller's name, with the joiners between them ("60ml & 20ml")
+// and a "Size"/"Ukuran" label before them. Filler goes first, so "Size S sampai 5XL" stays one phrase.
+const JOINER=/^(?:&|\/|,|\+|-|x|dan|atau)$/iu,LABEL=/^(?:size|ukuran|warna)$/iu;
+export function withoutVariants(full:string,choices:readonly string[]){
+  if(choices.length<2) return full;
+  const sets=choices.map((c)=>new Set(c.split(/[\s/]+/u).map(squash).filter(Boolean)));
+  const varying=new Set(sets.flatMap((set)=>[...set]).filter((t)=>!/^\d+$/.test(t)&&!sets.every((set)=>set.has(t))));
+  let v=full;for(const pattern of NOISE) v=v.replace(pattern,' ');
+  const list=words(v);
+  const gone=list.map((w)=>{const parts=w.split(/[/&,+]/u).map(squash).filter(Boolean);return parts.length>0&&parts.every((t)=>varying.has(t));});
+  return list.filter((w,i)=>!gone[i]&&!(JOINER.test(w)&&(gone[i-1]||gone[i+1]))&&!(LABEL.test(w)&&gone[i+1])).join(' ');
+}
 // Unique words of each same-title listing (first run), so a collision reads e.g. "Grape".
 function distinguishing(group:readonly string[]){
   const tokens=group.map((t)=>words(tidy(t)));
@@ -504,9 +519,10 @@ function distinguishing(group:readonly string[]){
 // Card title per offer key. Refuses a word the public name does not contain and two equal
 // titles in one category (each needs a real distinguishing attribute or a reviewed override).
 export function cardTitles(source:Pick<ReturnType<typeof readBerlapakSource>,'stocks'|'offers'>,departmentOf:(key:string)=>string=(key)=>source.offers.find((o)=>o.key===key)?.category??''){
-  const stocks=new Map(source.stocks.map((s)=>[s.rank,s]));
-  const input=source.offers.map((o)=>{const stock=o.kind==='bundle'?undefined:stocks.get(o.parts[0].rank);
-    return {key:o.key,category:departmentOf(o.key),full:stock?.title??o.name,variant:stock?.variant??null,count:o.kind==='multipack'?o.parts[0].quantity:undefined,item:o.kind!=='bundle'};});
+  const stocks=new Map(source.stocks.map((s)=>[s.key,s]));
+  const input=source.offers.map((o)=>{const stock=o.kind==='bundle'?undefined:stocks.get(o.parts[0].stock);
+    const full=stock?.title??o.name,choices=stock?.image?source.stocks.filter((s)=>s.rank===stock.rank&&s.image).map((s)=>s.choice??s.variant??''):[];
+    return {key:o.key,category:departmentOf(o.key),full,name:withoutVariants(full,choices),variant:stock?.variant??null,count:o.kind==='multipack'?o.parts[0].quantity:undefined,item:o.kind!=='bundle',hasVariants:!!stock?.image};});
   type Input=(typeof input)[number];
   // A unit or multipack title keeps the product-type phrase its department was chosen by; the
   // attribute gives way first, and a title that still loses it needs a reviewed override.
@@ -514,19 +530,20 @@ export function cardTitles(source:Pick<ReturnType<typeof readBerlapakSource>,'st
   const keeps=(x:Input,title:string)=>{const term=x.item?headTerm(`${x.full} ${x.variant??''}`):null;return !term||squash(title).includes(squash(tidy(term)));};
   const make=(x:Input,extra?:string)=>{const override=TITLE_OVERRIDES[x.key];
     if(!override){
-      const title=cardTitle(x.full,{variant:x.variant,count:x.count,item:x.item,extra});if(keeps(x,title)) return title;
+      const title=cardTitle(x.name,{variant:x.variant,count:x.count,item:x.item,extra,...(x.hasVariants?{attribute:false as const}:{})});if(keeps(x,title)) return title;
       const bare=cardTitle(x.full,{count:x.count,item:x.item,extra,attribute:false});if(keeps(x,bare)) return bare;
       lost.push(`${x.key} "${title}" (${headTerm(`${x.full} ${x.variant??''}`)})`);return title;
     }
     if(!x.full.startsWith(override.expect)) throw new Error(`Title override ${x.key} no longer matches its product; review TITLE_OVERRIDES.`);
     // The override's own ", attribute" survives tidying.
-    const [name,attr='']=override.title.split(', ');const tail=attr?`, ${tidy(attr)}`:'';
-    return `${cardTitle(name,{count:x.count,item:x.item,limit:(override.limit??TITLE_LIMIT)-tail.length,attribute:false})}${tail}`;};
+    const [name,attr='']=override.title.split(', ');const tail=!x.hasVariants&&attr?`, ${tidy(attr)}`:'';
+    const base=x.hasVariants?words(name).filter((w)=>squash(x.full).includes(squash(w))).join(' '):name;
+    return `${cardTitle(base,{count:x.count,item:x.item,limit:(override.limit??TITLE_LIMIT)-tail.length,attribute:false})}${tail}`;};
   const titles=new Map(input.map((x)=>[x.key,make(x)]));
   const groupKey=(x:Input)=>`${x.category}\n${(titles.get(x.key) as string).toLowerCase()}`;
   const groups=Map.groupBy(input,groupKey);
   for(const group of groups.values()) if(group.length>1){
-    const extras=distinguishing(group.map((x)=>`${x.full} ${x.variant??''}`));
+    const extras=distinguishing(group.map((x)=>`${x.name} ${x.variant??''}`));
     group.forEach((x,i)=>{if(!TITLE_OVERRIDES[x.key]&&extras[i]) titles.set(x.key,make(x,extras[i]));});
   }
   // Only titles still in use count (a collision re-titles its group).
@@ -612,8 +629,8 @@ export function classifyOffers(source:Pick<ReturnType<typeof readBerlapakSource>
     return [c.code,SUPPLIER_PRIOR[c.slug]];}));
   const keys=new Set(source.offers.map((o)=>o.key));
   if(options.requireOverrides!==false) for(const key of Object.keys(CATEGORY_OVERRIDES)) if(!keys.has(key)) throw new Error(`Category override ${key} names no offer in the snapshot; review CATEGORY_OVERRIDES.`);
-  const stocks=new Map(source.stocks.map((s)=>[s.rank,s]));
-  const named=(rank:number)=>{const s=stocks.get(rank) as (typeof source.stocks)[number];return {text:`${s.title} ${s.variant??''}`.trim(),found:classifyName(`${s.title} ${s.variant??''}`,priors.get(s.category)??null)};};
+  const stocks=new Map(source.stocks.map((s)=>[s.key,s]));
+  const named=(key:string)=>{const s=stocks.get(key) as (typeof source.stocks)[number];return {text:`${s.title} ${s.variant??''}`.trim(),found:classifyName(`${s.title} ${s.variant??''}`,priors.get(s.category)??null)};};
   const result=new Map<string,{slug:Department;by:'rule'|'prior'|'bundle'|'override';google:number}>();const unclassified:string[]=[];
   for(const o of source.offers){
     const prior=priors.get(o.category)??null,override=CATEGORY_OVERRIDES[o.key];
@@ -623,11 +640,11 @@ export function classifyOffers(source:Pick<ReturnType<typeof readBerlapakSource>
       result.set(o.key,{slug:override.slug,by:'override',google:fallback(override.slug)});continue;
     }
     if(o.kind!=='bundle'){
-      const {text,found}=named(o.parts[0].rank);if(!found){unclassified.push(`${o.key} ${o.name}`);continue;}
+      const {text,found}=named(o.parts[0].stock);if(!found){unclassified.push(`${o.key} ${o.name}`);continue;}
       result.set(o.key,{slug:found.slug,by:found.by,google:googleFor(found.slug,text)??fallback(found.slug)});continue;
     }
     const weight=new Map<Department,number>();
-    for(const part of o.parts){const {found}=named(part.rank);if(found) weight.set(found.slug,(weight.get(found.slug)??0)+part.quantity);}
+    for(const part of o.parts){const {found}=named(part.stock);if(found) weight.set(found.slug,(weight.get(found.slug)??0)+part.quantity);}
     const top=Math.max(0,...weight.values()),tied=[...weight].filter(([,n])=>n===top).map(([slug])=>slug);
     const own=classifyName(o.name,prior)?.slug;
     const slug=tied.length===1?tied[0]:own&&tied.includes(own)?own:null;
@@ -638,11 +655,15 @@ export function classifyOffers(source:Pick<ReturnType<typeof readBerlapakSource>
   return result;
 }
 
+export type BerlapakDataset={catalog:CatalogDocument;text:string;manifest:ManifestDocument;photos:Map<string,{bytes:Buffer;width:number;height:number}>;skipped:Record<string,number>};
 // `minimumPerCategory`/`requireOverrides` exist for small synthetic snapshots in tests only; the
 // catalog command always uses the defaults.
-export function buildBerlapakDataset(sourceDir:string,options:{minimumPerCategory?:number;requireOverrides?:boolean}={}){
+export function buildBerlapakDataset(sourceDir:string,options:{minimumPerCategory?:number;requireOverrides?:boolean}={}):BerlapakDataset{
   const source=readBerlapakSource(sourceDir);
-  const departments=classifyOffers(source,options);
+  const groups=Map.groupBy(source.offers,(o)=>o.productKey);
+  const products=[...groups].map(([key,offers])=>({...offers[0],key}));
+  const productSource={...source,offers:products};
+  const departments=classifyOffers(productSource,options);
   const counts=new Map<string,number>();for(const d of departments.values()) counts.set(d.slug,(counts.get(d.slug)??0)+1);
   const thin=[...counts].filter(([,n])=>n<(options.minimumPerCategory??MIN_CATEGORY_PRODUCTS));
   if(thin.length) throw new Error(`Departments below the minimum of ${options.minimumPerCategory??MIN_CATEGORY_PRODUCTS} products: ${thin.map(([slug,n])=>`${slug} (${n})`).join(', ')}; merge or drop them in DEPARTMENTS.`);
@@ -650,16 +671,18 @@ export function buildBerlapakDataset(sourceDir:string,options:{minimumPerCategor
   checkGoogleTaxonomy(join(sourceDir,'data-json','google-product-taxonomy-en-US.txt'));
   for(const d of DEPARTMENTS) if(!Object.hasOwn(GOOGLE_CATEGORIES,d.google)) throw new Error(`Google product category ${d.google} is not in the pinned taxonomy snapshot; add it from the official file.`);
   const slug=(key:string)=>(departments.get(key) as {slug:Department}).slug;
-  const titles=cardTitles(source,slug);
+  const titles=cardTitles({...productSource,stocks:source.stocks.map((s)=>s.image?{...s,variant:null}:s)},slug);
   // The pre-shortening public name stays readable on the product page: unit and multipack
   // descriptions already name the stock item; a shortened bundle's description gains its name.
   // Product page text: the offer contents, then the tidied supplier details of the item. A bundle
   // adds each component's details under its name only when all of them fit DETAILS_LIMIT.
   const suppliers=supplierPatterns(source.supplierNames),warehouseNames=[...new Set(source.stocks.map((s)=>s.warehouse.name.toLowerCase()))];
-  const details=new Map(source.stocks.map((s)=>[s.rank,cleanDetails(s.details,{suppliers,names:[s.title,s.name],warehouses:warehouseNames})]));
+  const details=new Map(source.stocks.map((s)=>[s.key,cleanDetails(s.details,{suppliers,names:[s.title,s.name],warehouses:warehouseNames})]));
   const describe=(o:(typeof source.offers)[number])=>{
-    const head=o.kind==='bundle'&&titles.get(o.key)!==o.name?`${o.name}\n${o.description}`:o.description;
-    const parts=o.parts.map((p)=>({name:(source.stocks.find((s)=>s.rank===p.rank) as (typeof source.stocks)[number]).name,text:details.get(p.rank)?.text??''})).filter((p)=>p.text);
+    const variants=groups.get(o.productKey) as (typeof source.offers);
+    const head=o.kind==='bundle'&&titles.get(o.key)!==o.name?`${o.name}\n${o.description}`:o.kind==='bundle'||!variants.some((v)=>v.image)?o.description:
+      `Pilihan paket:\n${variants.map((v)=>`- ${v.label}`).join('\n')}\nHarga Rp99.000 untuk satu paket lengkap sesuai pilihan varian.`;
+    const parts=o.parts.map((p)=>({name:(source.stocks.find((s)=>s.key===p.stock) as (typeof source.stocks)[number]).name,text:details.get(p.stock)?.text??''})).filter((p)=>p.text);
     const body=o.kind==='bundle'?parts.map((p)=>`${p.name}\n${p.text}`).join('\n\n'):parts[0]?.text??'';
     const full=body?`${head}\n\n${body}`:head;
     return full.length<=DETAILS_LIMIT?full:o.kind==='bundle'?head:(()=>{throw new Error(`Product ${o.key} details exceed ${DETAILS_LIMIT} characters; tighten cleanDetails.`);})();
@@ -668,16 +691,16 @@ export function buildBerlapakDataset(sourceDir:string,options:{minimumPerCategor
   // the second photo; a bundle photo names the component it shows. Claim terms and anything past
   // 125 characters are left out.
   const stockByRank=new Map(source.stocks.map((s)=>[s.rank,s]));
-  const componentTitle=(rank:number)=>{const s=stockByRank.get(rank) as (typeof source.stocks)[number];
+  const componentTitle=(rank:number)=>{const s=source.stocks.find((s)=>s.key===String(rank))??stockByRank.get(rank) as (typeof source.stocks)[number];
     try{return cardTitle(s.title,{variant:s.variant,item:true});}catch{return fit(tidy(s.name,{item:true}),TITLE_LIMIT);}};
   const altText=(o:(typeof source.offers)[number],rank:number,index:number)=>{
     const base=o.kind==='bundle'?componentTitle(rank):titles.get(o.key) as string;
     const clean=base.replace(ALT_CLAIMS,' ').replace(/\s+/g,' ').replace(/\s+,/g,',').replace(/\s+[&+]\s*$/,'').trim();
     const alt=o.kind!=='bundle'&&index?`${clean}, foto ${index+1}`:clean;return alt.length<=125?alt:fit(alt,125);};
-  const sku=(rank:number)=>`B99_${rank}`;
   const photos=new Map<string,{bytes:Buffer;width:number;height:number}>();const byFile=new Map<string,string>();
   const photo=(rank:number,file:string)=>{
-    const stock=source.stocks.find((s)=>s.rank===rank);const image=stock?.images.find((i)=>i.file===file);
+    const candidates=source.stocks.filter((s)=>s.rank===rank);
+    const image=candidates.flatMap((s)=>[...s.images,...(s.image?[s.image]:[])]).find((i)=>i.file===file);
     if(!image) throw new Error(`Berlapak photo reference missing: ${rank}/${file}`);
     const known=byFile.get(image.source);if(known) return known;
     const bytes=readContained(source.imagesRoot,image.source,IMAGE_LIMIT);let checked:ReturnType<typeof catalogMediaName>;
@@ -696,12 +719,26 @@ export function buildBerlapakDataset(sourceDir:string,options:{minimumPerCategor
   const warehouses:OriginWarehouse[]=numbered.sort((a,b)=>byKey(a.place,b.place)||a.n-b.n).map((w)=>w.warehouse);
   const catalog:CatalogDocument={format:CATALOG_FORMAT,source:'berlapak',source_snapshot:source.snapshot,price_idr:99000,
     categories:DEPARTMENTS.filter((d)=>counts.has(d.slug)).map((d)=>({slug:d.slug,name:d.name,google_product_category:d.google})).sort((a,b)=>byKey(a.slug,b.slug)),warehouses,
-    stock_items:[...source.stocks].sort((a,b)=>a.rank-b.rank).map((s)=>({sku:sku(s.rank),name:s.name})),
-    products:[...source.offers].sort((a,b)=>byKey(a.key,b.key)).map((o)=>{const side=cube(o.grams);return {key:o.key,name:titles.get(o.key) as string,description:describe(o),
-      category:slug(o.key),...(()=>{const d=departments.get(o.key) as {slug:Department;google:number};
-        return d.google===DEPARTMENTS.find((x)=>x.slug===d.slug)?.google?{}:{google_product_category:d.google};})(),photos:o.images.map((i,index)=>({sha256:photo(i.rank,i.file),alt:altText(o,i.rank,index)})),
-      offer:{sku:`B99_${o.key}_OFFER`,label:o.label,kind:o.kind,warehouse:originKey(o.warehouse),weight_grams:o.grams,length_mm:side,width_mm:side,height_mm:side,
-        contents:o.parts.map((p)=>({stock_item:sku(p.rank),quantity:p.quantity})).sort((a,b)=>byKey(a.stock_item,b.stock_item))}};})};
+    stock_items:[...source.stocks].sort((a,b)=>a.rank-b.rank||byKey(a.key,b.key)).map((s)=>({sku:stockSku(s.key),name:s.name})),
+    products:[...products].sort((a,b)=>byKey(a.key,b.key)).map((o)=>{
+      const offers=groups.get(o.key) as (typeof source.offers);
+      // Every sold variant photo precedes the shared gallery. Hash deduplication keeps the
+      // photo in its first position; each offer points to that same frozen gallery image.
+      const candidates:{rank:number;file:string;choice?:string}[]=[...offers.flatMap((v)=>v.image?[{...v.image,...(v.choice?{choice:v.choice}:{})}]:[]),...offers.flatMap((v)=>v.images.filter((i)=>!v.image||i.file.startsWith('img-')))];
+      const seen=new Set<string>();
+      const gallery=candidates.flatMap((i)=>{const sha256=photo(i.rank,i.file);if(seen.has(sha256)) return [];seen.add(sha256);
+        const alt=i.choice?`${titles.get(o.key) as string}, ${i.choice}`.replace(ALT_CLAIMS,' ').replace(/\s+/g,' ').replace(/\s+,/g,',').trim():altText(o,i.rank,seen.size-1);
+        return [{sha256,alt:alt.length<=125?alt:fit(alt,125)}];}).slice(0,20);
+      const definitions=offers.map((offer)=>{const side=cube(offer.grams);return {
+        sku:`B99_${offer.key}_OFFER`,label:offer.label,kind:offer.kind,image:offer.image?photo(offer.image.rank,offer.image.file):null,
+        warehouse:originKey(offer.warehouse),weight_grams:offer.grams,length_mm:side,width_mm:side,height_mm:side,
+        contents:offer.parts.map((p)=>({stock_item:stockSku(p.stock),quantity:p.quantity})).sort((a,b)=>byKey(a.stock_item,b.stock_item))};});
+      if(definitions.some((v)=>v.image&&!gallery.some((p)=>p.sha256===v.image))) throw new Error(`Product ${o.key} has too many variant photos for the 20-photo gallery.`);
+      return {key:o.key,name:titles.get(o.key) as string,description:describe(o),category:slug(o.key),
+        ...(()=>{const d=departments.get(o.key) as {slug:Department;google:number};
+          return d.google===DEPARTMENTS.find((x)=>x.slug===d.slug)?.google?{}:{google_product_category:d.google};})(),photos:gallery,offers:definitions};})};
+  const referenced=new Set(catalog.products.flatMap((p)=>p.photos.map((i)=>i.sha256)));
+  for(const hash of photos.keys()) if(!referenced.has(hash)) photos.delete(hash);
   parseCatalog(catalog);
   const text=`${JSON.stringify(catalog,null,2)}\n`;
   // Sanitization gate: refuse output that names a supplier or a supplier warehouse in public
@@ -723,10 +760,10 @@ export function writeBerlapakDataset(sourceDir:string,outDir=defaultDatasetDir,o
   for(const [hash,p] of built.photos) if(write(join(photoDir,`${hash}.webp`),p.bytes)) written++;
   // Only generator-owned hash-named photos that the new manifest no longer references.
   for(const name of readdirSync(photoDir)) if(PHOTO.test(name)&&!built.photos.has(name.slice(0,64))){unlinkSync(join(photoDir,name));removed++;}
-  write(join(outDir,'catalog.json'),built.text);write(join(outDir,'manifest.json'),`${JSON.stringify(built.manifest,null,2)}\n`);
+  const catalogWritten=write(join(outDir,'catalog.json'),built.text),manifestWritten=write(join(outDir,'manifest.json'),`${JSON.stringify(built.manifest,null,2)}\n`);
   return {dir:outDir,catalog_sha256:built.manifest.catalog_sha256,categories:built.catalog.categories.length,warehouses:built.catalog.warehouses.length,stock_items:built.catalog.stock_items.length,
-    products:built.catalog.products.length,bundles:built.catalog.products.filter((p)=>p.offer.kind==='bundle').length,photos:built.photos.size,
-    photo_bytes:[...built.photos.values()].reduce((n,p)=>n+p.bytes.length,0),photos_written:written,photos_removed:removed,skipped:built.skipped};
+    products:built.catalog.products.length,offers:built.catalog.products.reduce((n,p)=>n+p.offers.length,0),bundles:built.catalog.products.filter((p)=>p.offers[0].kind==='bundle').length,photos:built.photos.size,
+    photo_bytes:[...built.photos.values()].reduce((n,p)=>n+p.bytes.length,0),catalog_written:catalogWritten,manifest_written:manifestWritten,photos_written:written,photos_removed:removed,skipped:built.skipped};
 }
 
 // DEC-005 operator step: initial physical stock and component HPP for the imported catalog,
@@ -751,19 +788,25 @@ export async function loadInitialStock(request:Request,identity:LocalAuth,option
     const [lock]=await reserved`select pg_try_advisory_lock(hashtextextended(${lockKey},0)) as ok`;
     if(!lock.ok) throw new CatalogDatasetError('Another initial stock load is running; retry after it finishes.');
     try{
-      // Generator contract: a dataset stock item SKU ends in `_<snapshot rank>`.
-      const byRank=new Map(catalog.stock_items.map((s)=>[Number(s.sku.slice(s.sku.lastIndexOf('_')+1)),s.sku]));
-      const items=source.stocks.filter((s)=>byRank.has(s.rank)).map((s)=>({...s,sku:byRank.get(s.rank) as string}));
-      if(items.length!==catalog.stock_items.length) throw new CatalogDatasetError(`Raw snapshot resolves ${items.length} of ${catalog.stock_items.length} catalog stock items; regenerate the dataset first.`);
-      const offerSkus=catalog.products.map((p)=>p.offer.sku);const origins=stockOrigins(catalog);
+      // Resolve the opaque per-variant key, never a suffix parsed as a product rank. Test
+      // datasets may namespace the B99 prefix, but retain the complete identity suffix.
+      const byKey=new Map(source.stocks.map((s)=>[stockSku(s.key).slice(4),s]));
+      const items=catalog.stock_items.map((s)=>{const key=s.sku.slice(s.sku.indexOf('_')+1),item=byKey.get(key);
+        if(!item) throw new CatalogDatasetError(`Raw snapshot cannot resolve catalog stock item ${s.sku}; regenerate the dataset first.`);
+        return {...item,sku:s.sku};});
+      const offerSkus=catalog.products.flatMap((p)=>p.offers.map((o)=>o.sku));const origins=stockOrigins(catalog);
       const warehouses=await readOriginWarehouses(identity.sql,catalog.warehouses);
       const stocks=new Map((await identity.sql`select id,sku from app.stock_item where sku in ${identity.sql(items.map((s)=>s.sku))}`).map((r)=>[r.sku as string,r.id as string]));
       const offers=await identity.sql`select id,sku from app.offer where sku in ${identity.sql(offerSkus)}`;
-      if(warehouses.size!==catalog.warehouses.length||stocks.size!==items.length||offers.length!==offerSkus.length) throw new CatalogDatasetError(`Catalog not imported yet (${warehouses.size}/${catalog.warehouses.length} origin warehouses, ${stocks.size}/${items.length} stock items, ${offers.length}/${offerSkus.length} offers); run catalog:import first.`);
+      // A product the import preserved (operator-edited) keeps its existing offers and gets no new
+      // variant offers; those are reported, not fatal. A product with no imported offer is not imported.
+      const imported=new Set(offers.map((o)=>o.sku as string));
+      const notImported=catalog.products.filter((p)=>p.offers.some((o)=>imported.has(o.sku))).flatMap((p)=>p.offers.filter((o)=>!imported.has(o.sku)).map((o)=>o.sku));
+      if(warehouses.size!==catalog.warehouses.length||stocks.size!==items.length||offers.length+notImported.length!==offerSkus.length) throw new CatalogDatasetError(`Catalog not imported yet (${warehouses.size}/${catalog.warehouses.length} origin warehouses, ${stocks.size}/${items.length} stock items, ${offers.length}/${offerSkus.length} offers); run catalog:import first.`);
       const command=(step:string)=>{const next=new Request(`${config.origin}/api/v1/admin/catalog-initial-stock`,{method:'POST',headers:request.headers});
         next.headers.set('idempotency-key',createHash('sha256').update(`catalog-initial-stock:${source.snapshot}:${step}`).digest('hex'));return next;};
       const summary={snapshot:source.snapshot,warehouses:warehouses.size,stock_items:items.length,
-        receive:{received:0,units:0,existing:0,capped:0,differs_from_snapshot:0,outside_origin:0},hpp:{appended:0,existing:0,differs_from_snapshot:0},assumptions:{appended:0,existing:0}};
+        receive:{received:0,units:0,existing:0,capped:0,differs_from_snapshot:0,outside_origin:0},hpp:{appended:0,existing:0,differs_from_snapshot:0},assumptions:{appended:0,existing:0},offers_not_imported:notImported};
       for(const item of items){
         signal?.throwIfAborted();const stockId=stocks.get(item.sku) as string;const warehouseId=warehouses.get(origins.get(item.sku) as string) as string;
         const [history]=await identity.sql`select count(*) filter (where revision>0)::int as touched,coalesce(sum(on_hand),0)::int as on_hand,
@@ -838,12 +881,12 @@ export async function planOriginTransition(sql:Sql|TransactionSql,catalog:Catalo
         and exists (select 1 from app.audit_event a where a.action=${IMPORT_ACTION} and a.actor_id=r.actor_id)) as owned
     from app.offer o join app.product p on p.id=o.product_id
     join app.offer_revision v on v.product_id=p.id and v.revision=p.revision and v.offer_id=o.id
-    left join app.warehouse w on w.id=v.default_warehouse_id where o.sku in ${sql(catalog.products.map((p)=>p.offer.sku))}`;
-  const wanted=new Map(catalog.products.map((p)=>[p.offer.sku,p.offer.warehouse]));
+    left join app.warehouse w on w.id=v.default_warehouse_id where o.sku in ${sql(catalog.products.flatMap((p)=>p.offers.map((o)=>o.sku)))}`;
+  const wanted=new Map(catalog.products.flatMap((p)=>p.offers.map((o)=>[o.sku,o.warehouse] as const)));
   const moved=offers.filter((o)=>o.origin_key!==wanted.get(o.sku));
   return {warehouses:{catalog:catalog.warehouses.length,existing:existing.length,to_create:catalog.warehouses.length-existing.length,conflicts},
     stock_items:stock,units,from,open_transfers:open.length,
-    offers:{catalog:catalog.products.length,imported:offers.length,at_origin:offers.length-moved.length,to_rebind:moved.filter((o)=>o.owned).length,
+    offers:{catalog:wanted.size,imported:offers.length,at_origin:offers.length-moved.length,to_rebind:moved.filter((o)=>o.owned).length,
       preserved:moved.filter((o)=>!o.owned).map((o)=>o.sku).sort(byKey)},
     moves,open};
 }

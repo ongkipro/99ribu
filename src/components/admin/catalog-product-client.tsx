@@ -14,7 +14,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Input } from "@/components/ui/input";
 import { ClaimBadge } from "./catalog-list-client";
-import { FormDialog, FormField } from "./form";
+import { FormDialog, FormField, useFormDialogErrorId } from "./form";
 import { send, useOperationKey } from "./ops-api";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -28,12 +28,12 @@ import {
 } from "@/components/ui/dialog";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Textarea } from "@/components/ui/textarea";
-import { rupiah, wibDateTime } from "@/modules/storefront/format";
+import { rupiah, wibDate, wibDateTime } from "@/modules/storefront/format";
 import { failureText, getJson, readFailure } from "./admin-errors";
 import { DataTable } from "./data-table";
 import { ASSUMPTION_LABELS, type AssumptionField, CostDisclosure } from "./cost-versions";
 import { AdminPage, DetailSection, PageHeader, StickyActions } from "./page-blocks";
-import { ErrorState } from "./states";
+import { ErrorState, LoadingState } from "./states";
 import { StatusBadge } from "./status";
 import {
 	BLOCKER_LABELS,
@@ -364,7 +364,7 @@ export function CatalogProductClient({
 									<CircleAlert aria-hidden="true" />
 									<AlertDescription className="text-foreground">
 										Perlu tinjauan klaim (DEC-013): nama atau foto memuat klaim khasiat, pelangsing atau pemutih. Ganti nama
-										atau foto sebelum go-live; produk tetap tampil di pencarian, tidak di etalase beranda.
+										atau foto sebelum toko dibuka untuk umum; produk tetap tampil di pencarian, tidak di etalase beranda.
 									</AlertDescription>
 								</Alert>
 							)}
@@ -439,7 +439,7 @@ export function CatalogProductClient({
 								description="Saldo fisik komponen dari pencatatan gudang. Tersedia = fisik − dipesan − karantina."
 							>
 								{stock.state === "loading" ? (
-									<Skeleton className="h-24 w-full" />
+									<LoadingState label="Memuat stok…" lines={3} columns={4} />
 								) : stock.state === "error" ? (
 									<SectionError
 										label="Stok"
@@ -488,11 +488,12 @@ export function CatalogProductClient({
 												id: "lot",
 												header: "Lot",
 												className: "md:max-xl:hidden",
-												cellClassName: "text-xs",
+												cellClassName: "tabular-nums",
 												cell: (row) => (
 													<>
 														{row.lot_code ?? "—"}
-														{row.expires_on && ` · ${row.expired ? "kedaluwarsa" : "s.d."} ${row.expires_on}`}
+														{row.expires_on &&
+															` · ${row.expired ? "kedaluwarsa" : "s.d."} ${wibDate(`${row.expires_on}T00:00:00+07:00`)}`}
 													</>
 												),
 											},
@@ -509,7 +510,7 @@ export function CatalogProductClient({
 								description="Estimasi berdasarkan versi biaya yang berlaku sekarang. Nilai kosong tidak dihitung sebagai Rp0."
 							>
 								{costs.state === "loading" ? (
-									<Skeleton className="h-32 w-full" />
+									<LoadingState label="Memuat biaya…" lines={2} className="h-40 w-full rounded-md" />
 								) : costs.state === "error" ? (
 									<SectionError
 										label="Biaya"
@@ -535,15 +536,11 @@ export function CatalogProductClient({
 															{variantName(o.offer_id) ?? "Varian"}
 														</h3>
 														{!o.complete ? (
-															<Badge variant="warning">
-																Data biaya belum lengkap
-															</Badge>
+															<StatusBadge tone="problem">Data biaya belum lengkap</StatusBadge>
 														) : o.below_floor ? (
-															<Badge variant="warning">
-																Di bawah batas minimum
-															</Badge>
+															<StatusBadge tone="danger">Di bawah batas minimum</StatusBadge>
 														) : (
-															<Badge variant="success">Memenuhi batas</Badge>
+															<StatusBadge tone="success">Memenuhi batas</StatusBadge>
 														)}
 													</div>
 													<dl className="grid grid-cols-[1fr_auto] gap-x-4 gap-y-1 text-sm">
@@ -615,7 +612,7 @@ export function CatalogProductClient({
 							description="Produk hanya tampil di toko setelah terbit. Riwayat versi terbit sebelumnya belum tersedia di konsol."
 						>
 							{pub.state === "loading" ? (
-								<Skeleton className="h-24 w-full" />
+								<LoadingState label="Memuat status penerbitan…" lines={3} className="h-5 w-full" />
 							) : pub.state === "error" ? (
 								<SectionError
 									label="Status penerbitan"
@@ -746,7 +743,7 @@ function VariantItem({
 				<div className="flex flex-wrap items-center gap-2">
 					<h3 className="text-sm font-semibold">{v.label}</h3>
 					<Badge variant="outline">{OFFER_KIND_LABELS[v.offer_kind]}</Badge>
-					<Badge variant={stockShort ? "warning" : "success"}>
+					<StatusBadge tone={stockShort ? "problem" : "success"}>
 						{readsStock
 							? stockShort
 								? "Stok belum lengkap"
@@ -754,7 +751,7 @@ function VariantItem({
 							: stockShort
 								? "Stok belum siap"
 								: "Stok siap"}
-					</Badge>
+					</StatusBadge>
 				</div>
 				<p className="text-xs text-muted-foreground">
 					SKU <span className="font-mono">{v.sku}</span> ·{" "}
@@ -1324,6 +1321,11 @@ function ContentAction({
 
 const TITLE_CARD_LIMIT = 40;
 
+/** Hands the open FormDialog's error id to a field, so the refusal is read with the control. */
+function DialogErrorId({ children }: { children: (errorId: string | undefined) => React.ReactNode }) {
+	return children(useFormDialogErrorId());
+}
+
 function ContentDialog({
 	base,
 	product,
@@ -1364,18 +1366,30 @@ function ContentDialog({
 		});
 	};
 	const length = Array.from(name.trim()).length;
+	// Field the last client-side refusal points at (aria-invalid on it).
+	const [invalid, setInvalid] = useState<"name" | "alt" | "reason" | null>(null);
+	const dirty =
+		name !== product.name ||
+		description !== product.description ||
+		reason.trim() !== "" ||
+		JSON.stringify(images) !== JSON.stringify(product.images);
+	const refuse = (field: "name" | "alt" | "reason" | null, message: string) => {
+		setInvalid(field);
+		setError(message);
+	};
 	async function submit() {
-		if (!name.trim()) return setError("Judul wajib diisi.");
-		if (images.some((img) => !img.alt.trim())) return setError("Setiap foto perlu teks alternatif.");
-		if (!reason.trim()) return setError("Alasan wajib diisi.");
+		if (!name.trim()) return refuse("name", "Judul wajib diisi.");
+		if (images.some((img) => !img.alt.trim())) return refuse("alt", "Setiap foto perlu teks alternatif.");
+		if (!reason.trim()) return refuse("reason", "Alasan wajib diisi.");
 		const cleaned = images.map((img) => ({ ...img, alt: img.alt.trim() }));
 		const changes = {
 			...(name.trim() !== product.name ? { name: name.trim() } : {}),
 			...(description !== product.description ? { description } : {}),
 			...(JSON.stringify(cleaned) !== JSON.stringify(product.images) ? { images: cleaned } : {}),
 		};
-		if (!Object.keys(changes).length) return setError("Belum ada perubahan.");
+		if (!Object.keys(changes).length) return refuse(null, "Belum ada perubahan. Ubah judul, deskripsi atau foto, lalu simpan.");
 		setPending(true);
+		setInvalid(null);
 		setError(null);
 		const result = await send<CatalogProduct>("PATCH", base, { ...changes, expected_version: product.version, reason: reason.trim() }, key);
 		setPending(false);
@@ -1392,6 +1406,7 @@ function ContentDialog({
 			pending={pending}
 			error={error}
 			submitLabel="Simpan draf"
+			dirty={dirty}
 			onClose={onClose}
 			onSubmit={() => void submit()}
 		>
@@ -1400,7 +1415,18 @@ function ContentDialog({
 				label="Judul"
 				hint={`${length} karakter${length > TITLE_CARD_LIMIT ? `; kartu produk menampilkan ±${TITLE_CARD_LIMIT} karakter pertama` : ""}. Tanpa klaim khasiat atau kata promosi.`}
 			>
-				<Input id="content-name" maxLength={200} aria-describedby="content-name-hint" value={name} onChange={(e) => setName(e.target.value)} />
+				<DialogErrorId>
+					{(errorId) => (
+						<Input
+							id="content-name"
+							maxLength={200}
+							aria-describedby={invalid === "name" && errorId ? `content-name-hint ${errorId}` : "content-name-hint"}
+							aria-invalid={invalid === "name" || undefined}
+							value={name}
+							onChange={(e) => setName(e.target.value)}
+						/>
+					)}
+				</DialogErrorId>
 			</FormField>
 			<FormField id="content-description" label="Deskripsi">
 				<Textarea id="content-description" rows={6} maxLength={10000} value={description} onChange={(e) => setDescription(e.target.value)} />
@@ -1421,6 +1447,7 @@ function ContentDialog({
 										<Input
 											id={`content-alt-${i}`}
 											maxLength={500}
+											aria-invalid={(invalid === "alt" && !img.alt.trim()) || undefined}
 											value={img.alt}
 											onChange={(e) => setImages(images.map((x, j) => (j === i ? { ...x, alt: e.target.value } : x)))}
 										/>
@@ -1461,7 +1488,18 @@ function ContentDialog({
 				</p>
 			</fieldset>
 			<FormField id="content-reason" label="Alasan" hint="Contoh: ganti klaim di judul, urutkan foto sampul.">
-				<Input id="content-reason" maxLength={500} aria-describedby="content-reason-hint" value={reason} onChange={(e) => setReason(e.target.value)} />
+				<DialogErrorId>
+					{(errorId) => (
+						<Input
+							id="content-reason"
+							maxLength={500}
+							aria-describedby={invalid === "reason" && errorId ? `content-reason-hint ${errorId}` : "content-reason-hint"}
+							aria-invalid={invalid === "reason" || undefined}
+							value={reason}
+							onChange={(e) => setReason(e.target.value)}
+						/>
+					)}
+				</DialogErrorId>
 			</FormField>
 		</FormDialog>
 	);

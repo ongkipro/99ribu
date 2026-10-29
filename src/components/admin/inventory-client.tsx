@@ -148,7 +148,7 @@ export function InventoryClient({ canTransfer, canReceiveNew }: { canTransfer: b
 			)}
 			<section aria-labelledby="stock-heading" className="flex flex-col gap-4 md:rounded-lg md:border md:bg-card md:p-5">
 				<div className="flex items-start justify-between gap-3">
-					<h2 id="stock-heading" className="text-lg font-semibold">
+					<h2 id="stock-heading" className="text-base font-semibold">
 						Saldo stok
 					</h2>
 					<Button variant="outline" className="shrink-0" onClick={() => void list.reload()}>
@@ -202,7 +202,7 @@ export function InventoryClient({ canTransfer, canReceiveNew }: { canTransfer: b
 					empty={
 						filtered ? (
 							<>
-								<p>Tidak ada stok yang cocok dengan filter ini.</p>
+								<p>Tidak ada stok yang cocok dengan filter ini. Ubah kata kunci atau pilih gudang lain.</p>
 								<Button
 									type="button"
 									variant="outline"
@@ -216,7 +216,9 @@ export function InventoryClient({ canTransfer, canReceiveNew }: { canTransfer: b
 								</Button>
 							</>
 						) : (
-							"Belum ada saldo stok di gudang Anda."
+							canReceiveNew
+								? "Belum ada saldo stok di gudang Anda. Catat barang masuk lewat Terima barang baru."
+								: "Belum ada saldo stok di gudang Anda. Saldo muncul setelah Admin E-Commerce mencatat barang masuk."
 						)
 					}
 					testId="inventory-positions"
@@ -292,6 +294,7 @@ export function InventoryClient({ canTransfer, canReceiveNew }: { canTransfer: b
 							header: "Tindakan",
 							className: "text-right",
 							cell: (row) => (
+								<div className="flex flex-col items-end gap-1 max-md:w-full max-md:items-stretch">
 								<div className="flex justify-end gap-2 max-md:w-full">
 									<Button size="sm" data-testid={`inventory-move-${row.sku}`} onClick={() => setDialog({ kind: "movement", row })}>
 										Catat stok
@@ -300,10 +303,22 @@ export function InventoryClient({ canTransfer, canReceiveNew }: { canTransfer: b
 										Riwayat
 									</Button>
 									{canTransfer && (
-										<Button size="sm" variant="outline" disabled={row.available < 1} onClick={() => setDialog({ kind: "transfer", row })}>
+										<Button
+											size="sm"
+											variant="outline"
+											disabled={row.available < 1}
+											aria-describedby={row.available < 1 ? `transfer-none-${row.id}` : undefined}
+											onClick={() => setDialog({ kind: "transfer", row })}
+										>
 											Transfer
 										</Button>
 									)}
+								</div>
+								{canTransfer && row.available < 1 && (
+									<span id={`transfer-none-${row.id}`} className="text-xs text-muted-foreground">
+										Transfer perlu stok tersedia.
+									</span>
+								)}
 								</div>
 							),
 						},
@@ -373,6 +388,7 @@ function MovementDialog({
 			pending={pending}
 			error={error}
 			submitLabel="Simpan pergerakan"
+			dirty={Boolean(amount.trim() || reason.trim())}
 			onClose={onClose}
 			onSubmit={() => void submit()}
 		>
@@ -419,7 +435,7 @@ function HistoryDialog({ row, warehouse, onClose }: { row: Position; warehouse: 
 					status={list.status}
 					paging={{ ...list.paging, testId: "inventory-history-more" }}
 					loadingLabel="Memuat riwayat…"
-					empty="Belum ada pergerakan untuk saldo ini."
+					empty="Belum ada pergerakan untuk saldo ini. Pergerakan muncul setelah stok dicatat lewat Catat stok atau transfer."
 					testId="inventory-history"
 					caption="Riwayat pergerakan stok"
 					stack
@@ -443,7 +459,8 @@ function HistoryDialog({ row, warehouse, onClose }: { row: Position; warehouse: 
 							className: "text-right tabular-nums",
 							cell: (m) => delta(m.on_hand_delta),
 						},
-						{ id: "when", header: "Waktu", stack: "meta", cell: (m) => `${wibDateTime(m.created_at)} · ${m.actor_name ?? "Sistem"}` },
+						{ id: "when", header: "Waktu", stack: "meta", kind: "datetime", cell: (m) => wibDateTime(m.created_at) },
+						{ id: "actor", header: "Oleh", stack: "meta", cellClassName: "whitespace-normal", cell: (m) => m.actor_name ?? "Sistem" },
 						{
 							id: "other",
 							header: "Dipesan / karantina",
@@ -501,6 +518,7 @@ function TransferDialog({
 			pending={pending}
 			error={error}
 			submitLabel="Buat transfer"
+			dirty={Boolean(amount.trim() || reason.trim())}
 			onClose={onClose}
 			onSubmit={() => void submit()}
 		>
@@ -607,6 +625,7 @@ function ReceiveNewDialog({
 			pending={pending}
 			error={error ?? loadError}
 			submitLabel="Simpan penerimaan"
+			dirty={Boolean(form.item.trim() || form.amount.trim() || form.lot.trim() || form.expires || form.reason.trim())}
 			onClose={onClose}
 			onSubmit={() => void submit()}
 		>
@@ -635,7 +654,7 @@ function ReceiveNewDialog({
 					<Input id="receive-lot" maxLength={100} value={form.lot} onChange={set("lot")} />
 				</FormField>
 				<FormField id="receive-expires" label="Kedaluwarsa (opsional)">
-					<Input id="receive-expires" type="date" value={form.expires} onChange={set("expires")} />
+					<Input id="receive-expires" type="date" lang="id" value={form.expires} onChange={set("expires")} />
 				</FormField>
 			</div>
 			<FormField id="receive-reason" label="Alasan" hint="Contoh: surat jalan pemasok SJ-0412.">

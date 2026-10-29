@@ -2,13 +2,10 @@ import {ProductLink} from '../navigation';
 import {ShelfArrows} from './shelf-arrows';
 import {CatalogImage} from './media';
 import {matchingVariant,type CatalogQuery,type PublicProduct} from '../../../modules/storefront/catalog';
-import {rupiah} from '../../../modules/storefront/format';
+import {rupiah,sameOrigin} from '../../../modules/storefront/format';
 
 export {rupiah} from '../../../modules/storefront/format';
 export const isSampleUrl=(url:string|undefined)=>/^http:\/\/127\.0\.0\.1:3099\/fixtures\/(shirt|cream|mixed|bag)\.svg$/.test(url??'');
-// Stored local media URLs are absolute loopback URLs; serve them origin-relative so they also load on the
-// opt-in tailnet origin. Remote URLs stay untouched.
-export const sameOrigin=(url:string)=>url.startsWith('http://127.0.0.1:3099/')?url.slice('http://127.0.0.1:3099'.length):url;
 export const isSampleProduct=(product:PublicProduct)=>isSampleUrl(product.images[0]?.url);
 export function contentName(product:PublicProduct,name:string){
  if(!isSampleUrl(product.images[0]?.url)) return name;

@@ -90,7 +90,15 @@ function useCloseOnNavigate() {
 	};
 }
 
-/** Spec 10: tablet (md–lg) starts as an icon rail; desktop starts expanded. */
+/**
+ * Spec 10: tablet (md–lg) starts as an icon rail; desktop starts expanded; phones get the drawer.
+ * First paint is already final (admin review 2026-10-28, finding 1): the server renders the
+ * expanded sidebar with `data-rail="auto"`, and the `sidebar-icon` variant (admin.css) draws the
+ * 48px rail from the tablet media query alone, so neither width depends on this effect. The effect
+ * then sets the same state in React, and sidebar.tsx has no width transition, so nothing moves
+ * after hydration or on a later resize. A toggle lasts for the session (state lives in this
+ * layout); a reload starts again from the viewport.
+ */
 function TabletRail() {
 	const { setOpen } = useSidebar();
 	useEffect(() => {
@@ -260,7 +268,7 @@ function AccountMenu({ account }: { account: ConsoleAccount }) {
 			// Signed-out preview (local/test only; the production profile redirects to /masuk in the layout).
 			<SidebarMenu data-testid="admin-account">
 				<SidebarMenuItem>
-					<p className="px-2 pb-1 text-xs text-muted-foreground group-data-[collapsible=icon]:sr-only">
+					<p className="px-2 pb-1 text-xs text-muted-foreground sidebar-icon:sr-only">
 						Pratinjau tanpa sesi staf.
 					</p>
 					<SidebarMenuButton asChild tooltip="Masuk sebagai staf">
@@ -308,7 +316,7 @@ function AccountMenu({ account }: { account: ConsoleAccount }) {
 							>
 								{initials(account.name, account.email)}
 							</span>
-							<span className="grid min-w-0 flex-1 leading-tight group-data-[collapsible=icon]:hidden">
+							<span className="grid min-w-0 flex-1 leading-tight sidebar-icon:hidden">
 								<span className="truncate font-medium">{name}</span>
 								<span className="truncate text-xs text-muted-foreground">
 									{account.email}
@@ -316,7 +324,7 @@ function AccountMenu({ account }: { account: ConsoleAccount }) {
 							</span>
 							<ChevronsUpDown
 								aria-hidden="true"
-								className="ml-auto group-data-[collapsible=icon]:hidden"
+								className="ml-auto sidebar-icon:hidden"
 							/>
 						</SidebarMenuButton>
 					</DropdownMenuTrigger>
@@ -389,6 +397,8 @@ export function AdminShell({
 	account: ConsoleAccount;
 	children: React.ReactNode;
 }) {
+	// null until TabletRail decides on the client (first paint follows the viewport in CSS).
+	const [open, setOpen] = useState<boolean | null>(null);
 	// Same grants the destination pages enforce server-side; this only hides dead ends.
 	// Spec 17 groups and order; a screen that is not built yet has no item until its slice merges.
 	const access = consoleAccess(roles, permissions);
@@ -478,7 +488,7 @@ export function AdminShell({
 				},
 				{
 					href: "/admin/warehouses",
-					label: "Gudang",
+					label: "Daftar Gudang",
 					icon: Warehouse,
 					// Same rule as the warehouses page guard (S134).
 					show: access.inventory,
@@ -521,7 +531,7 @@ export function AdminShell({
 			items: [
 				{
 					href: "/admin/payments",
-					label: "Pembayaran",
+					label: "Pembayaran Masuk",
 					icon: Landmark,
 					show: access.reconcileRead,
 				},
@@ -545,7 +555,7 @@ export function AdminShell({
 				},
 				{
 					href: "/admin/finance/refunds",
-					label: "Refund",
+					label: "Pengembalian Dana",
 					icon: Undo2,
 					show: fin.refundRead,
 				},
@@ -625,15 +635,19 @@ export function AdminShell({
 
 	return (
 		<TooltipProvider>
-			<SidebarProvider>
+			<SidebarProvider
+				open={open ?? true}
+				onOpenChange={setOpen}
+				data-rail={open === null ? "auto" : undefined}
+			>
 				<TabletRail />
 				<Sidebar collapsible="icon">
-					<SidebarHeader className="border-b border-sidebar-border px-4 py-3 group-data-[collapsible=icon]:px-1 group-data-[collapsible=icon]:py-3">
-						<p className="flex flex-col group-data-[collapsible=icon]:items-center">
-							<span className="text-lg font-bold tracking-tight group-data-[collapsible=icon]:text-sm">
+					<SidebarHeader className="border-b border-sidebar-border px-4 py-3 sidebar-icon:px-1 sidebar-icon:py-3">
+						<p className="flex flex-col sidebar-icon:items-center">
+							<span className="text-lg font-bold tracking-tight sidebar-icon:text-sm">
 								99<span className="text-primary">rb</span>
 							</span>
-							<span className="text-xs font-medium text-muted-foreground group-data-[collapsible=icon]:sr-only">
+							<span className="text-xs font-medium text-muted-foreground sidebar-icon:sr-only">
 								Konsol Operasional
 							</span>
 						</p>
@@ -660,7 +674,7 @@ export function AdminShell({
 					</SidebarFooter>
 				</Sidebar>
 				<SidebarInset id="main" className="min-w-0">
-					<div className="sticky top-0 z-10 flex h-12 items-center gap-2 border-b bg-background/95 px-4 backdrop-blur">
+					<div className="sticky top-0 z-10 flex h-12 items-center gap-2 border-b bg-background px-4">
 						<SidebarTrigger />
 						<Separator orientation="vertical" className="h-5 md:hidden" />
 						<span className="truncate text-sm font-semibold md:hidden">

@@ -23,7 +23,7 @@ export default async function StaffRolesPage() {
 		<AdminPage testId="staff-page">
 			<PageHeader
 				title="Staf & Peran"
-				description="Atur peran, izin tambahan, dan cakupan gudang setiap staf, atau reset verifikasi dua langkah yang hilang. Setiap perubahan meminta kata sandi dan kode MFA yang masih berlaku (maksimal 5 menit), mengakhiri semua sesi akun itu, dan tercatat di log audit."
+				description="Peran, izin tambahan, cakupan gudang, dan reset verifikasi dua langkah. Setiap perubahan mengakhiri sesi staf itu."
 			/>
 			<StaffRolesClient />
 		</AdminPage>

@@ -94,7 +94,7 @@ li{border-top:1px solid #e7e5e4;padding-top:.5rem;word-break:break-word}
 				${workspace.orders
 					.map(
 						(o) =>
-							`<li data-testid="order-row-${o.id}"><a href="/pesanan/${o.id}">${o.number}</a> · ${o.status}</li>`,
+							`<li data-testid="order-row-${o.id}"><a href="/pesanan/${o.id}">${o.number}</a> · ${o.stage_label}</li>`,
 					)
 					.join("")}
 			</ul>

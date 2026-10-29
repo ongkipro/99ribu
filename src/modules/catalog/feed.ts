@@ -42,7 +42,7 @@ export async function catalogFeed(sql:Sql,productIds?:readonly string[]){
   // Google product category by offer SKU (product override) or by department slug (default).
   const dataset=readCatalogDocument(defaultCatalogDatasetDir);
   const bySlug=new Map(dataset.categories.flatMap(c=>c.google_product_category?[[c.slug,String(c.google_product_category)] as const]:[]));
-  const bySku=new Map(dataset.products.flatMap(p=>p.google_product_category?[[p.offer.sku,String(p.google_product_category)] as const]:[]));
+  const bySku=new Map(dataset.products.flatMap(p=>p.google_product_category?p.offers.map(o=>[o.sku,String(p.google_product_category)] as const):[]));
   const google=(categoryId:string,sku:string)=>{let c=categories.get(categoryId);while(c?.parent_id) c=categories.get(c.parent_id);return bySku.get(sku)??(c?bySlug.get(c.slug as string):undefined)??null;};
   const path=(id:string)=>{const names:string[]=[];for(let c=categories.get(id);c;c=categories.get(c.parent_id)) names.unshift(c.name);return names.join(' > ');};
   // lazy: one transaction scans every current publication head; page by product id

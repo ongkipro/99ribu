@@ -25,7 +25,7 @@ export default async function CustomersPage() {
 		<AdminPage testId="customers-page">
 			<PageHeader
 				title="Akun Pembeli"
-				description="Cari akun dengan satu nomor HP atau email yang sama persis. Kontak tampil tersamar dan alamat lengkap tidak ditampilkan di sini; buka pesanannya untuk konteks pengiriman. Setiap pencarian dicatat di log audit tanpa menyimpan nomor atau email yang dicari."
+				description="Cari akun dengan nomor HP atau email yang sama persis. Kontak tampil tersamar; setiap pencarian dicatat tanpa menyimpan kata kunci."
 			/>
 			<CustomerLookupClient />
 		</AdminPage>

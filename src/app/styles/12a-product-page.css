@@ -1,0 +1,292 @@
+/* ===== Product page (shop.com PDP observed 2026-10-24, S111 phase 2b, re-measured 2026-10-29; DESIGN.md "Product page") =====
+   Desktop: a wide media column (48px thumbnail strip + one scrolling row of 20px-radius photo cards, a grey
+   frame behind a contained photo, with round 44px previous/next buttons, sticky while the buy box scrolls)
+   40px before a 464px buy box: breadcrumb, title 24/28 -1px, price, field labels 12/16 600, option pills,
+   the quantity pill, the 52px action pills, then 52px accordions (18/20 600 -0.5px) between hairlines.
+   Phones: one full-width square photo per view from the top edge; the buy box follows. */
+.product-detail {
+	padding-top: 8px;
+}
+.product-detail .detail-layout {
+	display: grid;
+	grid-template-columns: minmax(0, 1fr) minmax(20rem, 29rem);
+	gap: 56px;
+	align-items: start;
+}
+.product-detail .detail-layout > :first-child {
+	position: sticky;
+	top: 24px;
+	min-width: 0;
+}
+.product-detail .product-gallery {
+	display: grid;
+	grid-template-columns: minmax(0, 1fr);
+	gap: 16px;
+}
+.product-detail .product-gallery:has(.gallery-thumbs) {
+	grid-template-columns: 48px minmax(0, 1fr);
+}
+.product-detail .gallery-thumbs {
+	display: grid;
+	align-content: start;
+	gap: 6px;
+	margin: 0;
+	padding: 0;
+	list-style: none;
+}
+/* biome-ignore lint/style/noDescendingSpecificity: PDP-only elements; the earlier selector styles other elements. */
+.product-detail .gallery-thumbs img {
+	display: block;
+	width: 100%;
+	height: 100%;
+	object-fit: cover;
+	mix-blend-mode: multiply;
+}
+.product-detail .gallery-stage {
+	position: relative;
+	min-width: 0;
+}
+.product-detail .gallery-row {
+	display: grid;
+	grid-auto-flow: column;
+	grid-auto-columns: 100%;
+	gap: 20px;
+	margin: 0;
+	padding: 0 0 8px;
+	list-style: none;
+	overflow-x: auto;
+	scroll-snap-type: x mandatory;
+	scroll-behavior: smooth;
+	scrollbar-width: none;
+	overscroll-behavior-x: contain;
+}
+.product-detail .gallery-row::-webkit-scrollbar {
+	display: none;
+}
+.product-detail .gallery-row > li {
+	scroll-snap-align: start;
+}
+/* biome-ignore lint/style/noDescendingSpecificity: PDP-only elements; the earlier selector styles other elements. */
+.product-detail .gallery-row .product-image,
+.product-detail .product-media :is(.photo-slot, .product-image) {
+	display: block;
+	width: 100%;
+	height: auto;
+	aspect-ratio: 1;
+	object-fit: contain;
+	border-radius: 20px;
+	background: #fff;
+	box-shadow: 0 2px 8px rgba(0, 0, 0, 0.06);
+}
+/* shop.com photo card (2026-10-29 measure, 390/768/1440): a neutral rgb(239,239,239) frame behind a contained
+   photo, no shadow. Gallery photos only (the sample slot keeps white behind its caption). The photo is not
+   cropped or blended (round 30: merchant photos show whole), so the frame shows where a photo is not square. */
+.product-detail .gallery-row .product-image {
+	background: #efefef;
+	box-shadow: none;
+}
+/* Arrows: shop.com's 44px white circles with the 0 4px 24px shadow, centred on the photo edges. */
+.product-detail .gallery-stage .shelf-arrow {
+	top: calc(50% - 4px);
+}
+@media (min-width: 701px) and (hover: hover) {
+	.product-detail .gallery-stage:is(:hover, :focus-within) .shelf-arrow:not(:disabled) {
+		opacity: 1;
+	}
+}
+.product-detail .gallery-stage .shelf-arrow[data-side="previous"] {
+	left: 12px;
+}
+.product-detail .gallery-stage .shelf-arrow[data-side="next"] {
+	right: 12px;
+}
+.product-detail .product-media {
+	margin: 0;
+	min-width: 0;
+}
+.product-detail .product-media figcaption {
+	padding-block: 12px;
+	color: var(--muted);
+	font-size: var(--small-size);
+	line-height: var(--small-leading);
+	letter-spacing: var(--tracking-small);
+}
+
+.product-detail .buy-box {
+	display: grid;
+	gap: 24px;
+	min-width: 0;
+	padding-top: 8px;
+}
+.product-detail .buy-box > * {
+	min-width: 0;
+}
+/* Breadcrumb (S143): "Beranda › <Kategori>", 12/16 500 in the caption ink, the last crumb in ink, a
+   14px chevron (aria-hidden) kept with the crumb after it so a wrapped line never ends on it. Each link
+   keeps a 44px target while the row takes one 16px line (the negative block margin). */
+.breadcrumb ol {
+	display: flex;
+	flex-wrap: wrap;
+	align-items: center;
+	gap: 0 4px;
+	margin: 0;
+	padding: 0;
+	list-style: none;
+	color: var(--caption);
+	font-size: var(--caption-size);
+	line-height: var(--caption-leading);
+	font-weight: 500;
+	letter-spacing: var(--tracking-small);
+}
+/* biome-ignore lint/style/noDescendingSpecificity: breadcrumb-only elements; the earlier selectors style other elements. */
+.breadcrumb li {
+	display: inline-flex;
+	align-items: center;
+	gap: 4px;
+	min-width: 0;
+}
+/* biome-ignore lint/style/noDescendingSpecificity: breadcrumb-only elements; the earlier selectors style other elements. */
+.breadcrumb a {
+	display: inline-flex;
+	align-items: center;
+	min-height: 44px;
+	margin-block: -14px;
+	overflow-wrap: anywhere;
+}
+.breadcrumb li:last-child a {
+	color: var(--ink);
+}
+/* biome-ignore lint/style/noDescendingSpecificity: breadcrumb-only elements; the earlier selectors style other elements. */
+.breadcrumb a:hover {
+	color: var(--purple);
+}
+:where(.breadcrumb svg) {
+	flex: none;
+	width: 14px;
+	height: 14px;
+}
+.product-detail .buy-box h1 {
+	margin: 0;
+	font-size: var(--heading-size);
+	line-height: 1.75rem;
+	font-weight: 600;
+	overflow-wrap: anywhere;
+}
+.product-detail .detail-price {
+	font-size: var(--body-size);
+	line-height: var(--body-leading);
+	font-weight: 600;
+	letter-spacing: var(--tracking-body);
+}
+/* Field labels (shop.com "Color", "Quantity"): 12/16 600 -0.2px. */
+/* biome-ignore lint/style/noDescendingSpecificity: PDP-only elements; the earlier selector styles other elements. */
+.product-detail .cart-quantity > label {
+	font-size: var(--caption-size);
+	line-height: var(--caption-leading);
+	font-weight: 600;
+	letter-spacing: var(--tracking-small);
+}
+.product-detail .offer-detail {
+	display: grid;
+	gap: 8px;
+}
+.product-detail .offer-detail ul {
+	margin: 0;
+	padding-left: 20px;
+	font-size: var(--small-size);
+	line-height: 1.25rem;
+	letter-spacing: var(--tracking-small);
+	overflow-wrap: anywhere;
+}
+.product-detail .purchase-region {
+	display: grid;
+	gap: 16px;
+	margin-top: 16px;
+}
+.product-detail .stock-status {
+	display: flex;
+	align-items: center;
+	gap: 8px;
+	font-size: var(--small-size);
+	line-height: var(--small-leading);
+	font-weight: 600;
+	letter-spacing: var(--tracking-small);
+}
+.product-detail .purchase-region .cart-advisory {
+	font-size: var(--caption-size);
+	line-height: var(--caption-leading);
+	letter-spacing: var(--tracking-small);
+}
+.product-detail .purchase-region .cart-mutation {
+	display: grid;
+	gap: 16px;
+}
+/* Quantity: shop.com's 40px pill (1px 10% ink edge, white) with minus and plus around the value. */
+.product-detail .cart-quantity {
+	display: grid;
+	justify-items: start;
+	gap: 8px;
+}
+.product-detail .quantity-stepper {
+	display: inline-flex;
+	align-items: center;
+	min-height: 44px;
+	border: 1px solid rgba(0, 0, 0, 0.1);
+	border-radius: 9999px;
+	background: #fff;
+}
+.product-detail .quantity-stepper button {
+	display: grid;
+	place-items: center;
+	width: 44px;
+	height: 42px;
+	padding: 0;
+	border: 0;
+	border-radius: 9999px;
+	background: transparent;
+	color: var(--ink);
+}
+.product-detail .quantity-stepper button:hover {
+	background: rgba(0, 0, 0, 0.04);
+}
+.product-detail .purchase-region .quantity-stepper input[type="number"] {
+	width: 3rem;
+	min-height: 42px;
+	padding: 0;
+	border: 0;
+	border-radius: 0;
+	background: transparent;
+	box-shadow: none;
+	font-size: var(--small-size);
+	font-weight: 600;
+	text-align: center;
+	appearance: textfield;
+}
+.product-detail .quantity-stepper input::-webkit-inner-spin-button,
+.product-detail .quantity-stepper input::-webkit-outer-spin-button {
+	appearance: none;
+	margin: 0;
+}
+.product-detail .quantity-stepper:focus-within {
+	border-color: var(--ink);
+	box-shadow: 0 0 0 3px rgba(0, 0, 0, 0.12);
+}
+/* Primary: shop.com's 52px pill with an inner highlight and a soft brand glow (PDP and sign-in). */
+.product-detail .purchase-region .cart-mutation .button,
+.signin-card .signin-submit {
+	width: 100%;
+	min-height: 52px;
+	padding: 16px;
+	font-size: var(--body-size);
+	line-height: 1.25rem;
+	letter-spacing: var(--tracking-body);
+	box-shadow:
+		inset -0.5px -0.5px 1px rgba(255, 255, 255, 0.32),
+		inset 1px 1px 0.5px rgba(255, 255, 255, 0.32),
+		0 4px 24px rgba(91, 53, 213, 0.24);
+}
+.product-detail .purchase-region .cart-mutation .button:disabled,
+.signin-card .signin-submit:disabled {
+	box-shadow: none;
+}
+/* The resend pill is the secondary one (resting shadow, no glow); while the cooldown runs it reads as disabled. */

@@ -302,7 +302,7 @@ export function SettingsPaymentClient({ canWrite }: { canWrite: boolean }) {
 						Riwayat versi ketentuan pembayaran
 					</h2>
 					<p className="text-sm text-muted-foreground">
-						Setiap versi bersifat tetap (append-only) dan dirujuk oleh pesanan
+						Setiap versi tidak dapat diubah dan dirujuk oleh pesanan
 						yang dibuat saat versi tersebut berlaku.
 					</p>
 				</div>
@@ -558,7 +558,7 @@ function PaymentPolicyDialog({
 						<Input
 							id={`${id}-at`}
 							data-testid="payment-effective-at"
-							type="datetime-local"
+							type="datetime-local" lang="id"
 							aria-describedby={`${id}-at-hint`}
 							value={at}
 							onChange={(e) => setAt(e.target.value)}

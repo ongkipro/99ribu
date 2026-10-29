@@ -57,7 +57,10 @@ test('current quantity-scoped readers hide other warehouses and preserve separat
   const queue={return_case_id:other.id,expected_version:2,reason:'SYNTHETIC scoped reader obligation',reauthentication_proof:(await proofResponse.json()).proof},queueRequest=f.finance.browser.request('/api/v1/admin/refunds',queue);queueRequest.headers.set('idempotency-key',randomUUID());
   const refund=await queueRefund(queueRequest,f.identity,f.financePrincipal,queue) as {id:string};
   const read=await readAdminRefund(f.identity,financePrincipal,refund.id);assert.equal(read.status,'awaiting_destination');assert.equal(typeof read.amount,'number');
-  const buyerRefund=await readBuyerRefund(f.client.request(`${root}/refunds/${refund.id}`),f.identity,buyer,f.order.id,refund.id);assert.deepEqual(buyerRefund,read);
+  const buyerRefund=await readBuyerRefund(f.client.request(`${root}/refunds/${refund.id}`),f.identity,buyer,f.order.id,refund.id);
+  // S145: admin reads add admin-only numbers; the buyer's projection is the same refund without them.
+  const {admin_no:_n,order_admin_no:_o,return_admin_no:_r,...shared}=read as typeof read&{admin_no?:number;order_admin_no?:number;return_admin_no?:number};
+  assert.deepEqual(buyerRefund,shared);for(const field of ['admin_no','order_admin_no','return_admin_no'])assert.equal(field in buyerRefund,false,`buyer refund carries no ${field}`);
   await assert.rejects(queueRefund(queueRequest,f.identity,financePrincipal,queue),{code:'FORBIDDEN'});
   for(const field of ['signature','recipient','proof','original_payment_operation_id','destination_source_id','obligation_transaction_id'])assert.equal(JSON.stringify(read).includes(`"${field}"`),false);
   const admin=await actor(f.identity,'ecommerce_admin',[f.parcels[0].warehouse_id,f.parcels[1].warehouse_id]);users.push(admin);await enroll(admin.browser,admin.password);const adminPrincipal=await getPrincipal(admin.browser.request('/api/v1/me'),f.identity);

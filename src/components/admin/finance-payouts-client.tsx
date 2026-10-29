@@ -1,6 +1,7 @@
 "use client";
 
 import { CircleAlert, CircleCheck, RefreshCw, Upload } from "lucide-react";
+import { cn } from "cn";
 import Link from "next/link";
 import { type ReactNode, useCallback, useEffect, useRef, useState } from "react";
 import { Alert, AlertDescription } from "@/components/ui/alert";
@@ -144,7 +145,8 @@ export function PayoutsListClient({
 					{
 						id: "claim",
 						header: "Klaim aktif",
-						className: "font-mono text-xs md:max-lg:hidden",
+						className: "font-mono text-xs",
+						hideBelow: "5xl",
 						cell: (row) =>
 							row.transfer_claim_id ? row.transfer_claim_id.slice(0, 8) : "—",
 					},
@@ -186,7 +188,7 @@ export function PayoutDetailClient({ payoutId }: { payoutId: string }) {
 	const [failure, setFailure] = useState<ApiFailure | null>(null);
 	const [notFound, setNotFound] = useState(false);
 	const [dialog, setDialog] = useState<PayoutDialog | null>(null);
-	const [notice, setNotice] = useState<string | null>(null);
+	const [notice, setNotice] = useState<{ text: string; warn?: boolean } | null>(null);
 	const noticeRef = useRef<HTMLDivElement>(null);
 
 	const load = useCallback(async () => {
@@ -366,19 +368,26 @@ export function PayoutDetailClient({ payoutId }: { payoutId: string }) {
 					ref={noticeRef}
 					tabIndex={-1}
 					role="status"
-					className="outline-none"
+					className={cn("outline-none", notice.warn && "border-warning/40 bg-warning-surface")}
 					data-testid="payout-notice"
+					data-tone={notice.warn ? "warning" : "success"}
 				>
-					<CircleCheck aria-hidden="true" />
-					<AlertDescription className="text-foreground">
-						{notice}
-					</AlertDescription>
+					{notice.warn ? (
+						<CircleAlert aria-hidden="true" className="text-warning" />
+					) : (
+						<CircleCheck aria-hidden="true" />
+					)}
+					<AlertDescription className="text-foreground">{notice.text}</AlertDescription>
 				</Alert>
 			)}
 
 			{payout.status === "unknown" && (
-				<Alert role="alert" data-testid="payout-unknown">
-					<CircleAlert aria-hidden="true" />
+				<Alert
+					role="alert"
+					data-testid="payout-unknown"
+					className="border-warning/40 bg-warning-surface"
+				>
+					<CircleAlert aria-hidden="true" className="text-warning" />
 					<AlertDescription className="text-foreground">
 						Hasil pengiriman dana belum pasti; dana tetap dicadangkan tanpa pengiriman ulang.
 						Jangan melakukan transfer bank kedua ke rekening mitra sebelum mutasi bank diperiksa.
@@ -450,9 +459,9 @@ export function PayoutDetailClient({ payoutId }: { payoutId: string }) {
 							uploaded={uploaded}
 							onUploaded={(ev) => {
 								setUploaded(ev);
-								setNotice(
-									`Bukti transfer ${ev.file_name} (${ev.size_bytes} byte) tersimpan. Lanjutkan dengan Verifikasi transfer selesai.`,
-								);
+								setNotice({
+									text: `Bukti transfer ${ev.file_name} (${ev.size_bytes} byte) tersimpan. Lanjutkan dengan Verifikasi transfer selesai.`,
+								});
 							}}
 						/>
 					)}
@@ -494,9 +503,9 @@ export function PayoutDetailClient({ payoutId }: { payoutId: string }) {
 						setDialog(null);
 						setPayout(claimed.payout);
 						setBeneficiary(claimed.beneficiary_snapshot);
-						setNotice(
-							`Klaim eksklusif berhasil dicatat. Rekening tujuan: ${claimed.beneficiary_snapshot.bank_code} ${claimed.beneficiary_snapshot.account_number} a.n. ${claimed.beneficiary_snapshot.account_holder_name}.`,
-						);
+						setNotice({
+							text: `Klaim eksklusif berhasil dicatat. Rekening tujuan: ${claimed.beneficiary_snapshot.bank_code} ${claimed.beneficiary_snapshot.account_number} a.n. ${claimed.beneficiary_snapshot.account_holder_name}.`,
+						});
 					}}
 				/>
 			)}
@@ -511,9 +520,9 @@ export function PayoutDetailClient({ payoutId }: { payoutId: string }) {
 					onDone={(verified) => {
 						setDialog(null);
 						setPayout(verified);
-						setNotice(
-							`Transfer komisi ${rupiah(verified.amount)} berhasil diverifikasi dan dijurnal.`,
-						);
+						setNotice({
+							text: `Transfer komisi ${rupiah(verified.amount)} berhasil diverifikasi dan dijurnal.`,
+						});
 					}}
 				/>
 			)}
@@ -527,9 +536,10 @@ export function PayoutDetailClient({ payoutId }: { payoutId: string }) {
 					onDone={(updated) => {
 						setDialog(null);
 						setPayout(updated);
-						setNotice(
-							"Status pencairan dicatat sebagai hasil belum pasti (unknown); dana tetap dicadangkan tanpa pengiriman ulang.",
-						);
+						setNotice({
+							text: "Status pencairan dicatat sebagai hasil belum pasti; dana tetap dicadangkan tanpa pengiriman ulang.",
+							warn: true,
+						});
 					}}
 				/>
 			)}
@@ -921,7 +931,7 @@ function ReconcilePayoutDialog({
 	return (
 		<FormDialog
 			title="Rekonsiliasi status pencairan komisi"
-			description="Menandai pencairan sebagai hasil belum pasti (unknown) sambil mempertahankan cadangan dana komisi tanpa melakukan pengiriman ulang."
+			description="Menandai pencairan sebagai hasil belum pasti sambil mempertahankan cadangan dana komisi tanpa melakukan pengiriman ulang."
 			pending={intent.pending}
 			pendingLabel="Memproses…"
 			error={intent.error}

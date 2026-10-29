@@ -6,6 +6,7 @@ import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
 import { symmetricDecrypt } from "better-auth/crypto";
 import postgres, { type Sql, type TransactionSql } from "postgres";
+import { databaseTls } from "../src/config/runtime.ts";
 import { privateDirectory, readLocalConfig } from "../src/config/local.ts";
 import {
   BACKUP_FORMAT, BACKUP_OBJECTS, type BackupObject, type Digest, FILE_ROOTS, type Manifest, SET_ID,
@@ -75,22 +76,39 @@ function composePg(database: string): Pg {
 
 // production / disposable server: libpq tools from the image over TCP. The URL is split into libpq
 // environment variables for the child only, so the password never appears in argv.
-function directPg(name: "BACKUP_DATABASE_URL" | "RESTORE_ADMIN_URL"): Pg {
-  const raw = env[name];
+export function directPg(name: "BACKUP_DATABASE_URL" | "RESTORE_ADMIN_URL", values: Record<string, string | undefined> = env): Pg {
+  const raw = values[name];
   if (!raw) throw new Error(`${name} is not configured.`);
-  const url = new URL(raw);
-  if (!["postgres:", "postgresql:"].includes(url.protocol) || !url.hostname || !url.username) throw new Error(`${name} must be postgres://user:password@host:port/database.`);
+  let url: URL;
+  try { url = new URL(raw); } catch { throw new Error(`${name} must be a valid PostgreSQL URL.`); }
+  if (!["postgres:", "postgresql:"].includes(url.protocol) || !url.hostname || !url.username || url.hash) {
+    throw new Error(`${name} must be postgres://user:password@host:port/database.`);
+  }
+  // Both clients receive the same parsed endpoint. URL query overrides could otherwise send
+  // postgres.js and libpq to different hosts/users/databases or weaken one client's TLS.
+  if ([...url.searchParams.keys()].some((key) => key !== "sslmode") || url.searchParams.getAll("sslmode").length > 1) {
+    throw new Error(`${name} accepts only one sslmode query parameter.`);
+  }
+  const host = url.hostname.replace(/^\[|\]$/g, "");
+  const ssl = databaseTls(host, url.searchParams.get("sslmode") ?? undefined);
   const database = decodeURIComponent(url.pathname.slice(1)) || "postgres";
+  // libpq treats dbname containing '=' or a URI prefix as a connection string.
+  // Project/disposable databases use plain identifiers, never a second connection URL.
+  if (!/^[A-Za-z0-9_][A-Za-z0-9_-]{0,62}$/.test(database)) throw new Error(`${name} must name a plain database identifier.`);
+  const username = decodeURIComponent(url.username), password = decodeURIComponent(url.password);
+  const port = url.port || "5432";
+  if (!/^[1-9]\d{0,4}$/.test(port) || Number(port) > 65535) throw new Error(`${name} has an invalid port.`);
   const childEnv: Record<string, string | undefined> = {
-    PATH: env.PATH, LANG: "C.UTF-8", PGHOST: url.hostname, PGPORT: url.port || "5432", PGUSER: decodeURIComponent(url.username),
-    PGPASSWORD: decodeURIComponent(url.password), PGAPPNAME: "99ribu-backup", PGCONNECT_TIMEOUT: "10",
-    ...(url.searchParams.get("sslmode") ? { PGSSLMODE: url.searchParams.get("sslmode") as string } : {}),
+    PATH: values.PATH, LANG: "C.UTF-8", PGHOST: host, PGPORT: port, PGUSER: username,
+    PGPASSWORD: password, PGAPPNAME: "99ribu-backup", PGCONNECT_TIMEOUT: "10", PGSSLMODE: ssl || "disable",
+    ...(ssl === "verify-full" ? { PGSSLROOTCERT: "system" } : {}),
   };
   return {
     database,
-    endpoint: `${url.hostname}:${url.port || "5432"}`,
+    endpoint: `${host}:${port}`,
     tool: (tool, args, io) => run(tool, args, childEnv, io),
-    connect: (db) => postgres(raw, { database: db, max: 1, connect_timeout: 10, onnotice: () => {} }),
+    // Runtime supports arrays; installed scalar-only types lag the driver. Preserve IPv6 colons.
+    connect: (db) => postgres({ host: [host] as unknown as string, port: [Number(port)] as unknown as number, username, password, ssl, database: db, max: 1, connect_timeout: 10, onnotice: () => {} }),
   };
 }
 
@@ -215,8 +233,8 @@ async function prune(apply: boolean) {
 // a call site appears that this list does not name.
 export const ARTIFACT_KEY_COLUMNS = [
   { table: "return_evidence", column: "storage_key", writer: "src/modules/accounts/service.ts" }, // update ... set storage_key ('' while pending_upload)
-  { table: "shipping_label_artifact", column: "storage_key", writer: "src/modules/documents/labels.ts" }, // insert ... storage_key
-  { table: "support_attachment", column: "storage_key", writer: "src/modules/support/service.ts" }, // insert ... storage_key
+  { table: "shipping_label_artifact", column: "storage_key", writer: "src/modules/documents/label-artifacts.ts" }, // insert ... storage_key
+  { table: "support_attachment", column: "storage_key", writer: "src/modules/support/attachments.ts" }, // insert ... storage_key
   { table: "affiliate_payout_evidence", column: "artifact_id", writer: "src/modules/payouts/service.ts" }, // update ... set artifact_id
 ] as const;
 

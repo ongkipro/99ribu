@@ -1,0 +1,481 @@
+/* ===== Listing page top (shop.com /search/results, measured 2026-10-28, review 20261029-shop-parity-listing) =====
+   shop.com starts its result page 24px below the top edge at 768 and 1440; the listing takes the same 24px under
+   the store header at every width (phones were already 24px; shop.com's phone 12px has no header above it, T-17). */
+.listing-main {
+	padding-top: 24px;
+}
+
+/* ===== Listing filters (shop.com observed 2026-10-24, S111 phase 2a; DESIGN.md "Filters") =====
+   Row: one horizontally scrolling chip rail, hidden scrollbar, no snap; 8px apart (4px on phones),
+   bleeding to the screen edge on phones with the gutter as inner padding. Each edge fades over 32px
+   only while there is more to scroll that way (shop.com's --filter-rail-fade-*, 200ms).
+   Chip: 1px hairline, 0 2px 8px rgba(0,0,0,.06), 14/16 600 -0.2px, 8px 8px 8px 16px, 4px gap,
+   15px chevron at stroke 2.67; filled #121212 while open or holding a value. 44px tall for the
+   target rule (shop.com's are 40px). */
+@property --fade-start {
+	syntax: "<length>";
+	inherits: false;
+	initial-value: 0px;
+}
+@property --fade-end {
+	syntax: "<length>";
+	inherits: false;
+	initial-value: 0px;
+}
+.filter-chips {
+	display: flex;
+	align-items: center;
+	gap: 8px;
+	min-width: 0;
+	min-height: 52px;
+	margin: 0 -8px 16px;
+	padding: 4px 8px 8px;
+	border: 0;
+	overflow-x: auto;
+	overscroll-behavior-x: contain;
+	scrollbar-width: none;
+	scroll-padding-inline: 8px;
+	-webkit-mask-image: linear-gradient(90deg, transparent, #000 var(--fade-start), #000 calc(100% - var(--fade-end)), transparent);
+	mask-image: linear-gradient(90deg, transparent, #000 var(--fade-start), #000 calc(100% - var(--fade-end)), transparent);
+	transition:
+		--fade-start 0.2s,
+		--fade-end 0.2s;
+}
+.filter-chips::-webkit-scrollbar {
+	display: none;
+}
+.filter-chips[data-fade-start] {
+	--fade-start: 32px;
+}
+.filter-chips[data-fade-end] {
+	--fade-end: 32px;
+}
+/* Phones: the rail ends 16px above the grid (8px padding + 8px margin), shop.com's 390px heading-to-grid
+   distance (desktop and tablet keep 24px = 8 + 16, also measured). */
+@media (max-width: 700px) {
+	.filter-chips {
+		gap: 4px;
+		margin-inline: calc(-1 * var(--gutter));
+		margin-bottom: 8px;
+		padding-inline: var(--gutter);
+		scroll-padding-inline: var(--gutter);
+	}
+}
+@media (scripting: none) {
+	.filter-chips {
+		display: none;
+	}
+}
+.filter-chip-item {
+	flex: none;
+	display: flex;
+	max-width: 100%;
+	min-width: 0;
+}
+.filter-chip {
+	display: inline-flex;
+	align-items: center;
+	gap: 4px;
+	min-width: 0;
+	min-height: 44px;
+	padding: 6px 8px 6px 16px;
+	border: 1px solid var(--hairline);
+	border-radius: 22px;
+	background: #fff;
+	box-shadow: 0 2px 8px rgba(0, 0, 0, 0.06);
+	color: var(--ink);
+	font: inherit;
+	font-size: var(--small-size);
+	line-height: 1rem;
+	font-weight: 600;
+	letter-spacing: var(--tracking-small);
+	text-align: start;
+	white-space: normal;
+	cursor: pointer;
+}
+/* Enlarged text (review 54): the label wraps inside the pill instead of outgrowing the row. */
+.filter-chips .filter-chip[type="button"] > svg {
+	flex: none;
+	width: max(15px, 0.9375em);
+	height: max(15px, 0.9375em);
+	stroke-width: 2.67;
+}
+.filter-chip:is([data-active], [aria-expanded="true"]) {
+	border-color: #121212;
+	background: #121212;
+	color: #fff;
+}
+.filter-chips .filter-chip[type="button"][aria-expanded="true"] > svg {
+	transform: rotate(180deg);
+}
+/* An active chip carries its own remove control, joined to its right (round 46). */
+.filter-chip[data-active]:has(+ .filter-chip-clear) {
+	padding-right: 8px;
+	border-radius: 22px 0 0 22px;
+}
+.filter-chip-clear {
+	display: grid;
+	place-items: center;
+	width: 40px;
+	min-height: 44px;
+	border: 1px solid #121212;
+	border-left-color: rgba(255, 255, 255, 0.24);
+	border-radius: 0 9999px 9999px 0;
+	background: #121212;
+	color: #fff;
+}
+.filter-chip-clear:hover {
+	background: #000;
+}
+/* biome-ignore lint/style/noDescendingSpecificity: different elements (not the chip chevron); order is irrelevant. */
+.filter-chips .filter-chip-clear[href] > svg {
+	width: 16px;
+	height: 16px;
+}
+.filter-clear-all {
+	flex: none;
+	display: inline-flex;
+	align-items: center;
+	min-height: 44px;
+	padding: 0 8px;
+	color: var(--ink);
+	font-size: var(--small-size);
+	font-weight: 600;
+	letter-spacing: var(--tracking-small);
+	text-decoration: underline;
+	text-underline-offset: 3px;
+	white-space: nowrap;
+}
+
+/* Dropdown (desktop): shop.com's 300px popover centred 5px under its chip (script, whole pixels,
+   kept 16px inside the viewport, flipped above near the bottom): white, 28px radius, 1px #f6f6f6
+   edge, 0 2px 8px rgba(0,0,0,.06), 12px padding, no scrim, no visible title. Rows 44px, 16px radius,
+   16/22 text left and a 20px radio right (selected: #121212 fill with a 4px white inset); hover
+   4% ink. Reset and Done pills end it. Phones: the same panel as a bottom sheet 16px from the sides
+   and bottom with a title row and close button, 0 8px 40px rgba(0,0,0,.24) and a 40% scrim. */
+.filter-pop {
+	box-sizing: border-box;
+	width: 300px;
+	max-width: calc(100vw - 32px);
+	max-height: min(480px, calc(100dvh - 32px));
+	margin: 0;
+	padding: 12px;
+	overflow: hidden auto;
+	overscroll-behavior: contain;
+	border: 1px solid #f6f6f6;
+	border-radius: 28px;
+	background: #fff;
+	color: var(--ink);
+	box-shadow: 0 2px 8px rgba(0, 0, 0, 0.06);
+	opacity: 1;
+	translate: 0 0;
+	transition:
+		opacity 150ms cubic-bezier(0.4, 0, 0.2, 1),
+		translate 150ms cubic-bezier(0.4, 0, 0.2, 1),
+		overlay 150ms allow-discrete,
+		display 150ms allow-discrete;
+}
+.filter-pop[style*="top"] {
+	inset: auto;
+}
+@starting-style {
+	.filter-pop:popover-open {
+		opacity: 0;
+		translate: 0 -4px;
+	}
+}
+.filter-pop-head {
+	display: none;
+}
+.filter-pop ul {
+	list-style: none;
+	margin: 0;
+	padding: 0;
+}
+.filter-option {
+	display: flex;
+	align-items: center;
+	gap: 8px;
+	min-height: 44px;
+	padding: 6px 6px 6px 8px;
+	border-radius: 16px;
+	color: inherit;
+	font-size: var(--body-size);
+	line-height: var(--body-leading);
+	letter-spacing: var(--tracking-body);
+	outline: none;
+	cursor: pointer;
+}
+.filter-pop .filter-option > span:first-child {
+	flex: 1;
+	min-width: 0;
+}
+.filter-option:is(:hover, :focus) {
+	background: rgba(0, 0, 0, 0.04);
+	text-decoration: none;
+}
+.filter-option:focus-visible {
+	box-shadow: inset 0 0 0 2px var(--ink);
+}
+.filter-radio {
+	flex: none;
+	width: 20px;
+	height: 20px;
+	border: 1px solid rgba(0, 0, 0, 0.2);
+	border-radius: 9999px;
+	transition:
+		background-color 0.2s,
+		border-color 0.2s,
+		box-shadow 0.2s;
+}
+.filter-option[aria-current] .filter-radio {
+	border-color: #121212;
+	background: #121212;
+	box-shadow: inset 0 0 0 4px #fff;
+}
+/* Multi-choice facets: a rounded check box instead of the radio. */
+.filter-pop[data-multi] .filter-radio {
+	display: grid;
+	place-items: center;
+	border-radius: 8px;
+	color: #fff;
+}
+.filter-pop[data-multi] .filter-option[aria-current] .filter-radio {
+	box-shadow: none;
+}
+/* biome-ignore lint/style/noDescendingSpecificity: different elements (not the chip chevron); order is irrelevant. */
+.filter-pop .filter-radio > svg {
+	width: 14px;
+	height: 14px;
+	stroke-width: 3;
+}
+.filter-pop-actions {
+	display: flex;
+	gap: 8px;
+	margin-top: 4px;
+}
+.filter-pop-actions > * {
+	flex: 1;
+	display: inline-flex;
+	align-items: center;
+	justify-content: center;
+	min-height: 44px;
+	padding: 12px;
+	border: 0;
+	border-radius: 9999px;
+	font: inherit;
+	font-size: var(--body-size);
+	line-height: 1.25rem;
+	font-weight: 600;
+	letter-spacing: var(--tracking-body);
+	text-decoration: none;
+	cursor: pointer;
+}
+.filter-reset {
+	background: #eef0f1;
+	color: var(--ink);
+}
+.filter-reset:disabled {
+	color: rgba(0, 0, 0, 0.4);
+	cursor: default;
+}
+.filter-done {
+	background: #121212;
+	color: #fff;
+}
+:is(.filter-reset, .filter-done):hover {
+	text-decoration: none;
+}
+.filter-done:hover {
+	background: #000;
+}
+.filter-reset:not(:disabled):hover {
+	background: #e3e6e8;
+}
+@media (max-width: 700px) {
+	.filter-pop {
+		inset: auto 16px 16px;
+		width: auto;
+		max-width: none;
+		max-height: 80dvh;
+		padding: 0 0 16px;
+		border: 0;
+		box-shadow: 0 8px 40px rgba(0, 0, 0, 0.24);
+	}
+	@starting-style {
+		.filter-pop:popover-open {
+			translate: 0 16px;
+		}
+	}
+	.filter-pop::backdrop {
+		background: rgba(0, 0, 0, 0.4);
+	}
+	.filter-pop-head {
+		display: flex;
+		align-items: center;
+		justify-content: space-between;
+		gap: 8px;
+		padding: 6px 4px 0 16px;
+	}
+	.filter-pop ul,
+	.filter-pop-actions {
+		padding-inline: 16px;
+	}
+}
+.filter-pop-title {
+	margin: 0;
+	font-size: var(--subtitle-size);
+	line-height: var(--subtitle-leading);
+	font-weight: 600;
+	letter-spacing: var(--tracking-body);
+}
+.filter-pop-close {
+	display: grid;
+	place-items: center;
+	width: 44px;
+	height: 44px;
+	padding: 0;
+	border: 0;
+	background: transparent;
+}
+/* biome-ignore lint/style/noDescendingSpecificity: different elements (not the chip chevron); order is irrelevant. */
+:is(.filter-pop, .signin-sheet) .filter-pop-close > svg {
+	width: 20px;
+	height: 20px;
+	padding: 4px;
+	border-radius: 9999px;
+	background: rgba(0, 0, 0, 0.56);
+	color: #fff;
+	stroke-width: 3;
+}
+@media (prefers-reduced-motion: reduce) {
+	.filter-pop,
+	.filter-chips,
+	.filter-radio {
+		transition: none;
+	}
+}
+.active-filters .clear-filters {
+	border-color: transparent;
+	background: transparent;
+	text-decoration: underline;
+	text-underline-offset: 3px;
+}
+
+/* ===== Listing infinite scroll (round 43) =====
+   One grid for the first page and every appended page: the page lists are display: contents,
+   so cards from all pages share one set of columns and rows (24 per page fills whole rows at
+   6/4/3/2 columns). */
+.listing-grid {
+	display: grid;
+	grid-template-columns: repeat(6, minmax(0, 1fr));
+	gap: 16px;
+}
+@media (max-width: 1023px) {
+	.listing-grid {
+		grid-template-columns: repeat(4, minmax(0, 1fr));
+	}
+}
+@media (max-width: 767px) {
+	.listing-grid {
+		grid-template-columns: repeat(3, minmax(0, 1fr));
+		gap: 8px;
+	}
+}
+@media (max-width: 700px) {
+	.listing-grid {
+		grid-template-columns: repeat(auto-fill, minmax(min(100%, 8rem), 1fr));
+	}
+}
+.listing-grid .product-grid,
+.listing-more {
+	display: contents;
+}
+.listing-more > :not(ul) {
+	grid-column: 1 / -1;
+}
+.listing-sentinel {
+	height: 1px;
+}
+.listing-end {
+	margin-block: 24px 8px;
+	text-align: center;
+}
+.listing-results .listing-end p {
+	margin-bottom: 12px;
+	color: var(--muted);
+	font-size: var(--small-size);
+}
+.listing-skeleton .product-frame {
+	background: #efedf3;
+	box-shadow: none;
+}
+.skeleton-line {
+	display: block;
+	height: 14px;
+	margin-top: 12px;
+	border-radius: 7px;
+	background: #efedf3;
+}
+.skeleton-line.short {
+	width: 40%;
+	height: 12px;
+	margin-top: 6px;
+}
+/* With the island running, the crawlable next link stays in the DOM but out of view. */
+.listing-results:has(.listing-more[data-mounted]) .pagination {
+	position: absolute;
+	width: 1px;
+	height: 1px;
+	overflow: hidden;
+	clip-path: inset(50%);
+	white-space: nowrap;
+}
+
+/* Enlarged text: the pill row's end fade widens with it, and the omnibox search icon scales. */
+@media (max-width: 1023px) {
+	.category-pills ul {
+		-webkit-mask-image: linear-gradient(90deg, #000 calc(100% - clamp(64px, 6rem, 25%)), transparent);
+		mask-image: linear-gradient(90deg, #000 calc(100% - clamp(64px, 6rem, 25%)), transparent);
+	}
+}
+/* biome-ignore lint/style/noDescendingSpecificity: different elements (not the chip chevron); order is irrelevant. */
+.search-form .omnibox-field > svg {
+	width: calc(1.25rem + 20px);
+}
+
+/* Round 47 (review 46). Enlarged text: the omnibox submit stays a circle and its arrow scales with
+   the field. "Lihat produk lainnya"/"Coba lagi" use the white hairline pill of the chips (R3). The
+   PDP shows "Spesifikasi" only when the product has spec data. */
+.search-form .omnibox-field button {
+	width: var(--field);
+}
+/* biome-ignore lint/style/noDescendingSpecificity: the submit arrow, not the chip chevron. */
+.search-form .omnibox-field button > svg {
+	width: calc(0.75rem + 8px);
+	height: calc(0.75rem + 8px);
+}
+.search-form #site-search {
+	padding-left: calc(1.25rem + 26px);
+	padding-right: calc(var(--field) + 10px);
+}
+.listing-more-button {
+	display: inline-flex;
+	align-items: center;
+	min-height: 44px;
+	padding: 0 20px;
+	border: 1px solid var(--hairline);
+	border-radius: 9999px;
+	background: #fff;
+	box-shadow: 0 2px 8px rgba(0, 0, 0, 0.06);
+	color: var(--ink);
+	font: inherit;
+	font-size: var(--body-size);
+	font-weight: 600;
+	letter-spacing: var(--tracking-body);
+	cursor: pointer;
+}
+.listing-more-button:hover {
+	border-color: rgba(5, 41, 77, 0.24);
+}
+

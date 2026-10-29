@@ -134,7 +134,9 @@ function DialogTitle({
   return (
     <DialogPrimitive.Title
       data-slot="dialog-title"
-      className={cn("leading-none font-medium", className)}
+      // Local change (admin review 2026-10-28): titles read as titles (16px semibold) and stay clear of
+      // the corner close button (44px on touch + its 16px inset), wrapping long words instead.
+      className={cn("pr-12 text-base leading-snug font-semibold break-words", className)}
       {...props}
     />
   )

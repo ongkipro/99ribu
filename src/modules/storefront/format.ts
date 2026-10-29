@@ -21,3 +21,6 @@ export function wibInputToIso(value:string):string|null{
 export function wibInput(value:string|number|Date,seconds=false){
  return new Date(new Date(value).getTime()+WIB_MS).toISOString().slice(0,seconds?19:16);
 }
+
+// Stored local media uses a loopback origin; preserve remote URLs and rebase local photos.
+export const sameOrigin=(url:string)=>url.startsWith('http://127.0.0.1:3099/')?url.slice('http://127.0.0.1:3099'.length):url;

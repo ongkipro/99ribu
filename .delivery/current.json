@@ -1,14 +1,14 @@
 {
   "activeRun": null,
   "lastRun": {
-    "finishedAt": "2026-10-23T17:45:05Z",
+    "finishedAt": "2026-10-28T17:28:58Z",
     "result": "BLOCKED",
-    "runId": "RUN-20261023T083839Z-5689a721"
+    "runId": "RUN-20261028T170126Z-eea2bab4"
   },
-  "observedHead": "410c2a4c93133815f439b3ca7af0950a1a8a00fc",
-  "observedState": "READY_FOR_LOCAL_ACCEPTANCE",
+  "observedHead": "5aec286f33102d16e1e63ffc99f5c11681e00334",
+  "observedState": "BLOCKED",
   "project": "99ribu",
   "schemaVersion": 1,
   "statusAuthority": "STATUS.md",
-  "updatedAt": "2026-10-23T17:45:05Z"
+  "updatedAt": "2026-10-28T17:28:59Z"
 }

@@ -2,6 +2,7 @@
 
 import { CircleAlert, CircleCheck } from "lucide-react";
 import Link from "next/link";
+import { cn } from "cn";
 import { type ReactNode, useCallback, useEffect, useRef, useState } from "react";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
@@ -65,7 +66,7 @@ export function ExceptionDetailClient({
 	const [failure, setFailure] = useState<ApiFailure | null>(null);
 	const [refunds, setRefunds] = useState<RefundsState>({ kind: "loading" });
 	const [dialog, setDialog] = useState<Dialog | null>(null);
-	const [notice, setNotice] = useState<string | null>(null);
+	const [notice, setNotice] = useState<{ text: string; warn: boolean } | null>(null);
 	const noticeRef = useRef<HTMLDivElement>(null);
 
 	const loadRefunds = useCallback(async () => {
@@ -127,14 +128,19 @@ export function ExceptionDetailClient({
 
 	const d = detail;
 	const [statusLabel, statusTone] = STATUS[d.status];
-	const done = (text: string) => {
+	const done = (text: string, warn = false) => {
 		setDialog(null);
-		setNotice(text);
+		setNotice({ text, warn });
 		void load();
 	};
 	// The answer of a write was lost: refresh behind the open dialog, keep its intent.
 	const uncertain = () => void load();
 
+	// Same rule as the refund card's buttons, so this column never says "no action" beside one.
+	const refundActionable =
+		access.refundWrite &&
+		refunds.kind === "ready" &&
+		refunds.refunds.some((r) => ["queued", "processing", "unknown", "failed"].includes(r.status));
 	const apply = access.review && canApply(d);
 	const actions: ReactNode[] = [];
 	if (apply)
@@ -207,9 +213,16 @@ export function ExceptionDetailClient({
 				}
 			/>
 			{notice && (
-				<Alert ref={noticeRef} tabIndex={-1} role="status" className="outline-none" data-testid="exception-notice">
-					<CircleCheck aria-hidden="true" />
-					<AlertDescription className="text-foreground">{notice}</AlertDescription>
+				<Alert
+					ref={noticeRef}
+					tabIndex={-1}
+					role="status"
+					className={cn("outline-none", notice.warn && "border-warning/40 bg-warning-surface")}
+					data-testid="exception-notice"
+					data-tone={notice.warn ? "warning" : "success"}
+				>
+					{notice.warn ? <CircleAlert aria-hidden="true" className="text-warning" /> : <CircleCheck aria-hidden="true" />}
+					<AlertDescription className="text-foreground">{notice.text}</AlertDescription>
 				</Alert>
 			)}
 			{failure && (
@@ -279,7 +292,13 @@ export function ExceptionDetailClient({
 							{d.explanation}
 						</p>
 						<p className="text-sm">{REFUND_NEXT[d.status]}</p>
-						{actions.length === 0 && <p className="text-xs text-muted-foreground">Tidak ada tindakan untuk peran Anda pada tahap ini.</p>}
+						{actions.length === 0 && (
+							<p className="text-xs text-muted-foreground">
+								{refundActionable
+									? "Tindakan Anda ada di kartu refund pada bagian Refund pemulihan."
+									: "Tidak ada tindakan untuk peran Anda pada tahap ini."}
+							</p>
+						)}
 						{actions.length > 0 && <StickyActions className="md:flex-col md:items-stretch">{actions}</StickyActions>}
 					</DetailSection>
 				</div>

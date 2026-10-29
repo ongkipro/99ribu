@@ -28,8 +28,7 @@ export default async function SettingsCommercialPage() {
 		<AdminPage testId="settings-commercial-page">
 			<PageHeader
 				title="Kebijakan Komersial"
-				description="Atur tarif komisi afiliasi bawaan, batas minimum pencairan komisi, dan lantai kontribusi margin untuk publikasi katalog. Harga penawaran lengkap tetap Rp99.000; perubahan kebijakan berlaku ke depan dengan autentikasi ulang Super Admin."
-				meta={<span>Waktu dalam WIB</span>}
+				description="Komisi afiliasi bawaan, minimum pencairan, dan batas margin publikasi katalog. Perubahan berlaku ke depan."
 			/>
 			<SettingsCommercialClient canWrite={roles.includes("owner")} />
 		</AdminPage>

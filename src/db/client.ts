@@ -22,6 +22,8 @@ export function connectDatabase(target: DatabaseTarget, access: "app" | "owner" 
     : { path: join(privateDirectory("pgsocket"), ".s.PGSQL.5432") };
   const sql = postgres({
     ...endpoint,
+    // postgres.js accepts arrays at runtime but its types only declare scalars. Arrays preserve IPv6 colons.
+    ...("host" in endpoint ? { host: [endpoint.host] as unknown as string, port: [endpoint.port] as unknown as number } : {}),
     database: `99ribu_${target}`,
     username: `99ribu_${target}_${access}`,
     max: 5,

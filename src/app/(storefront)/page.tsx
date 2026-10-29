@@ -1,14 +1,14 @@
 import Link from 'next/link';
 import {Shell} from '../../components/storefront/shell';
 import {Icon} from '../../components/storefront/ui/icon';
-import {ProductGrid,sameOrigin} from '../../components/storefront/ui/product-card';
+import {ProductGrid} from '../../components/storefront/ui/product-card';
 import {CategorySwitcher} from '../../components/storefront/sections/category-switcher';
 import {HomeHero} from '../../components/storefront/sections/home-hero';
 import {CategoryGrid} from '../../components/storefront/sections/category-grid';
 import {PromoBanners,type Banner} from '../../components/storefront/sections/promo-banners';
 import {currentHomeBanners,homeBanners} from '../../modules/storefront/banners';
 import {activeShippingPromotions,bundleOffers,promotionSummary} from '../../modules/storefront/promotions';
-import {rupiah} from '../../modules/storefront/format';
+import {rupiah,sameOrigin} from '../../modules/storefront/format';
 import {departmentTint} from '../../components/storefront/sections/category-pills';
 import {storefrontRequest} from '../../modules/storefront/browser';
 import {departmentPhotos,heroPhotos as curatedHero,homeSafe} from '../../modules/storefront/department-photos';
@@ -26,7 +26,7 @@ export function generateMetadata(){return publicMetadata(siteConfig(),{path:'/',
 export default async function Home(){
  const identity=getLocalAuth();
  // Independent reads in parallel; only the five switcher departments need a product listing.
- const [newest,departments]=await Promise.all([featuredProducts(identity,16),featuredDepartments(identity,10)]);
+ const [newest,departments]=await Promise.all([featuredProducts(identity,40),featuredDepartments(identity,10)]);
  const products=newest.filter(homeSafe).slice(0,8);
  const seen=new Set(products.map(p=>p.id));
  const media=(image:{url:string;width:number;height:number}|undefined)=>image?{src:sameOrigin(image.url),width:image.width,height:image.height}:null;

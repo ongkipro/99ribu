@@ -1,7 +1,7 @@
 "use client";
 
 import { cn } from "cn";
-import { CircleAlert, RefreshCw } from "lucide-react";
+import { CircleAlert, CircleX, RefreshCw } from "lucide-react";
 import { useCallback, useEffect, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { wibDateTime } from "@/modules/storefront/format";
@@ -42,28 +42,38 @@ const MEANING: Record<State, string> = {
 	unknown: "Sudah dikirim ke adaptor tetapi hasilnya belum terkonfirmasi; menunggu rekonsiliasi.",
 	failed: "Ditolak permanen sebelum percobaan habis.",
 	dead: "Gagal setelah seluruh percobaan terpakai.",
-	completed: "Selesai.",
+	completed: "Berhasil dijalankan; tidak perlu tindakan.",
 };
-// States someone has to look at when non-zero.
+// States someone has to look at when non-zero: failed outcomes in red, unresolved ones in amber.
 const ATTENTION: readonly State[] = ["lease_expired", "unknown", "failed", "dead"];
+const FAILED: readonly State[] = ["failed", "dead"];
 
 const total = (counts: Counts) => STATES.reduce((sum, state) => sum + counts[state], 0);
 const needsLook = (counts: Counts) => ATTENTION.some((state) => counts[state] > 0);
 
 function StatCard({ state, value }: { state: State; value: number }) {
 	const attention = ATTENTION.includes(state) && value > 0;
+	const failed = attention && FAILED.includes(state);
+	const Icon = failed ? CircleX : CircleAlert;
 	return (
 		<li
 			data-testid={`health-total-${state}`}
 			data-tone={attention ? "attention" : value === 0 ? "idle" : "neutral"}
+			data-severity={attention ? (failed ? "failed" : "uncertain") : undefined}
 			className={cn(
 				"flex min-w-0 flex-col gap-1 rounded-lg border bg-card p-3",
-				attention && "border-l-4 border-l-warning bg-warning-surface",
+				// Like the KPI cards: the border, icon and label carry attention, no tinted fill.
+				attention && (failed ? "border-destructive/50" : "border-warning/50"),
 				!attention && value === 0 && "bg-muted/40",
 			)}
 		>
-			<h3 className={cn("flex items-center gap-1 text-xs font-medium", attention ? "text-warning" : "text-muted-foreground")}>
-				{attention && <CircleAlert aria-hidden="true" className="size-3.5 shrink-0" />}
+			<h3
+				className={cn(
+					"flex items-center gap-1 text-xs font-medium",
+					attention ? (failed ? "text-destructive" : "text-warning") : "text-muted-foreground",
+				)}
+			>
+				{attention && <Icon aria-hidden="true" className="size-3.5 shrink-0" />}
 				{LABEL[state]}
 			</h3>
 			<p data-testid={`health-total-value-${state}`} className={cn("text-xl font-semibold tabular-nums", !attention && value === 0 && "text-muted-foreground")}>
@@ -76,17 +86,31 @@ function StatCard({ state, value }: { state: State; value: number }) {
 function Count({ state, value }: { state: State; value: number }) {
 	const attention = ATTENTION.includes(state) && value > 0;
 	return (
-		<span className={cn("tabular-nums", value === 0 && "text-muted-foreground", attention && "font-semibold text-warning")}>
+		<span
+			className={cn(
+				"tabular-nums",
+				value === 0 && "text-muted-foreground",
+				attention && (FAILED.includes(state) ? "font-semibold text-destructive" : "font-semibold text-warning"),
+			)}
+		>
 			{value}
 		</span>
 	);
 }
+
+// Healthy states (finished, waiting, running) hide first when the table frame is narrow.
+const HIDE_BELOW: Partial<Record<State, DataTableColumn<Kind>["hideBelow"]>> = {
+	completed: "7xl",
+	scheduled: "6xl",
+	leased: "6xl",
+};
 
 const columns: DataTableColumn<Kind>[] = [
 	{
 		id: "kind",
 		header: "Jenis pekerjaan",
 		stack: "title",
+		cellClassName: "whitespace-normal md:min-w-40",
 		cell: (row) => (
 			<span className="flex flex-col">
 				<span className="font-mono text-xs break-all">{row.kind}</span>
@@ -100,15 +124,18 @@ const columns: DataTableColumn<Kind>[] = [
 			header: LABEL[state],
 			className: "text-right",
 			cellClassName: "text-right",
+			// States that need no action give way first; the totals above keep every state.
+			hideBelow: HIDE_BELOW[state],
 			cell: (row) => <Count state={state} value={row.counts[state]} />,
 		}),
 	),
 	{
 		id: "oldest",
 		header: "Jatuh tempo tertua",
+		kind: "datetime",
 		className: "text-right",
 		cellClassName: "text-right",
-		cell: (row) => (row.oldest_due_at ? <span className="text-xs">{wibDateTime(row.oldest_due_at)}</span> : <span className="text-muted-foreground">-</span>),
+		cell: (row) => (row.oldest_due_at ? wibDateTime(row.oldest_due_at) : <span className="text-muted-foreground">—</span>),
 	},
 ];
 
@@ -150,7 +177,7 @@ export function SystemHealthClient() {
 			</div>
 			{health && status.kind === "ready" && (
 				<DetailSection id="health-totals-heading" title="Antrean pekerjaan" description="Jumlah seluruh jenis pekerjaan menurut keadaan.">
-					<KpiGrid testId="health-totals">
+					<KpiGrid testId="health-totals" className="max-sm:grid-cols-2">
 						{STATES.map((state) => (
 							<StatCard key={state} state={state} value={health.totals[state]} />
 						))}

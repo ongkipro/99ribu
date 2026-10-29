@@ -167,14 +167,14 @@ export function ExceptionListClient({
 					{
 						id: "units",
 						header: "Unit",
-						className: "md:max-lg:hidden",
+						hideBelow: "5xl",
 						cell: (row) =>
 							row.units.length ? `${row.units.length} unit${row.units[0].product_name ? ` · ${row.units[0].product_name}` : ""}` : "Tanpa unit",
 					},
 					{
 						id: "warehouse",
 						header: "Gudang",
-						className: "md:max-xl:hidden",
+						hideBelow: "6xl",
 						cell: (row) => [...new Set(row.units.map((u) => u.warehouse_name).filter(Boolean))].join(", ") || "—",
 					},
 					{

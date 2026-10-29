@@ -1,0 +1,251 @@
+/* ===== Home promo banners (shop.com editorial rail, observed 2026-10-24; converged round 48) =====
+   shop.com "Discover something you love": 410x520 photo-led cards, 10px apart, 28px radius, caption
+   attached at the bottom. Here the photos fill the card edge to edge (one large photo over two, or
+   one photo filling the media area) and the caption with a visible action pill is attached below on
+   white: no tint slab, no tilt. 80% wide on phones. Rounded with clip-path so enlarged text can grow
+   the card; nothing autoplays (native scroll, snap and the shelf arrows). */
+.banner-row {
+	list-style: none;
+	margin: 0;
+	padding: 0 0 8px;
+	display: grid;
+	grid-auto-flow: column;
+	grid-auto-columns: 410px;
+	gap: 10px;
+	overflow-x: auto;
+	scroll-snap-type: x mandatory;
+	scroll-behavior: smooth;
+	scrollbar-width: none;
+	overscroll-behavior-x: contain;
+}
+.banner-row::-webkit-scrollbar {
+	display: none;
+}
+.banner {
+	scroll-snap-align: start;
+	/* Cards in one rail share a height and their actions share a baseline (round 63). */
+	display: grid;
+}
+.banner-card {
+	display: grid;
+	grid-template-rows: auto 1fr;
+	min-height: 520px;
+	clip-path: inset(0 round 28px);
+	border-radius: 28px;
+	background: #fff;
+	box-shadow: inset 0 0 0 1px var(--hairline);
+	color: var(--ink);
+}
+.banner-card:hover {
+	text-decoration: none;
+}
+.banner-card:focus-visible {
+	outline: 3px solid var(--purple);
+	outline-offset: 4px;
+}
+.banner-media {
+	display: grid;
+	grid-template-columns: 1fr 1fr;
+	grid-template-rows: 3fr 2fr;
+	height: 330px;
+	gap: 2px;
+	background: rgba(5, 41, 77, 0.08);
+}
+.home-main .home-banners .banner-media img[alt] {
+	width: 100%;
+	height: 100%;
+	min-height: 0;
+	object-fit: cover;
+	background: #fff;
+}
+.home-main .home-banners .banner-media img[alt]:first-child {
+	grid-column: 1 / -1;
+}
+.home-main .home-banners .banner-media[data-count="1"] img[alt]:first-child,
+.home-main .home-banners .banner-media[data-count="2"] img[alt] {
+	grid-row: 1 / -1;
+}
+.home-main .home-banners .banner-media[data-count="2"] img[alt]:first-child {
+	grid-column: auto;
+}
+.banner-caption {
+	display: grid;
+	grid-template-rows: auto auto 1fr;
+	justify-items: start;
+	gap: 6px;
+	padding: 20px 24px 24px;
+	min-width: 0;
+}
+.home-main .home-banners .banner-caption strong {
+	font-weight: 600;
+	letter-spacing: var(--tracking-body);
+}
+.home-main .home-banners .banner-caption > span:not(.banner-action) {
+	font-size: var(--body-size);
+	line-height: var(--body-leading);
+	color: var(--muted);
+}
+.home-main .home-banners .banner-action {
+	align-self: end;
+	display: inline-flex;
+	align-items: center;
+	gap: 6px;
+	min-height: 44px;
+	margin-top: 8px;
+	padding: 8px 16px 8px 20px;
+	background: var(--ink);
+	color: #fff;
+	font-size: var(--body-size);
+	font-weight: 600;
+	letter-spacing: var(--tracking-body);
+	max-width: 100%;
+	white-space: normal;
+	overflow-wrap: break-word;
+	border-radius: 22px;
+}
+.home-main .home-banners .banner-card .banner-action > svg {
+	flex: none;
+	width: 1.125em;
+	height: 1.125em;
+}
+.banner-card:hover .banner-action {
+	background: #000;
+}
+.banner-shelf .shelf-arrow {
+	top: 50%;
+}
+@media (max-width: 700px) {
+	.banner-row {
+		margin-inline: calc(-1 * var(--gutter));
+		padding-inline: var(--gutter);
+		scroll-padding-inline: var(--gutter);
+		/* At least 14em, so enlarged text widens the card (full width at 320/200%), as the shelf does. */
+		grid-auto-columns: max(min(80%, 410px), min(85%, 14em));
+	}
+	.banner-card {
+		min-height: 0;
+	}
+	.banner-media {
+		height: auto;
+		aspect-ratio: 410 / 330;
+	}
+	.banner-caption {
+		padding: 16px 20px 20px;
+	}
+}
+@media (prefers-reduced-motion: reduce) {
+	.banner-row {
+		scroll-behavior: auto;
+	}
+}
+
+/* Lone-banner layout (review 48; the caption's min-width: 0 and the wrapping action pill keep
+   enlarged text inside the card): a lone banner spans the container
+   from 701px with its photos on the left and the caption on the right (phones keep the rail card). */
+@media (min-width: 701px) {
+	.banner:only-child .banner-card {
+		grid-template-columns: minmax(0, 7fr) minmax(0, 5fr);
+		grid-template-rows: auto;
+		min-height: 400px;
+	}
+	.banner:only-child .banner-media {
+		height: 400px;
+	}
+	.banner:only-child .banner-caption {
+		grid-template-rows: none;
+		align-content: center;
+		padding: 40px;
+	}
+}
+/* The card's single column may shrink below the caption's min-content (pill padding plus the longest
+   word at 200% text), so lines wrap inside the card instead of widening it. */
+.banner-card {
+	grid-template-columns: minmax(0, 1fr);
+}
+/* A lone banner has nothing to peek at: on phones it takes the full row width. */
+.banner-row:has(> .banner:only-child) {
+	grid-auto-columns: 100%;
+}
+/* A banner without a photo (a shipping promotion) is its tint with ink text. */
+.banner-card:not(:has(.banner-media)) {
+	background: var(--banner-tint, #efeafd);
+	grid-template-rows: 1fr;
+	align-content: end;
+}
+/* The action pill sits at the card bottom, so the pills of one row align whatever the body length. */
+.banner-card > .banner-caption {
+	grid-template-rows: auto auto 1fr;
+}
+.home-main .home-banners .banner-card .banner-action {
+	align-self: end;
+}
+
+/* 320px with enlarged text: the rail keeps a peek of the next card (85% wide), so the arrow in the
+   action pill steps aside to let the caption fit. */
+@media (max-width: 359px) {
+	.home-main .home-banners .banner-card .banner-action > svg {
+		display: none;
+	}
+	.banner-caption {
+		padding-inline: 16px;
+	}
+}
+
+/* Cut-out product photos (white ground) sit contained on a brand tint (the pill/tile tokens), blended
+   with multiply so the white cut-out edges disappear into the tint; edge-to-edge photos stay as they are. */
+.banner-media[data-cutout="amber"] { background: var(--tint-amber); }
+.banner-media[data-cutout="slate"] { background: var(--tint-slate); }
+.banner-media[data-cutout="rose"] { background: var(--tint-rose); }
+.banner-media[data-cutout="blue"] { background: var(--tint-blue); }
+.banner-media[data-cutout="green"] { background: var(--tint-green); }
+.banner-media[data-cutout="violet"] { background: var(--tint-violet); }
+.banner-media[data-cutout="teal"] { background: var(--tint-teal); }
+.home-main .home-banners .banner-media[data-cutout] img[alt] {
+	box-sizing: border-box;
+	padding: 28px;
+	object-fit: contain;
+	background: transparent;
+	mix-blend-mode: multiply;
+}
+@media (max-width: 700px) {
+	.home-main .home-banners .banner-media[data-cutout] img[alt] {
+		padding: 16px;
+	}
+}
+/* The rail heading (20px; the 88px poster from 1024px) outranks the card titles (18px). */
+.home-main .home-banners .banner-card .banner-caption strong {
+	font-size: var(--subtitle-size);
+	line-height: 1.375rem;
+}
+/* shop.com's editorial rail at 1440 (2026-10-29 capture, read from pixels: the probe did not report
+   it): a centred weight-800 poster heading, 65px cap height (about 88px type) on an 85px line pitch,
+   about 120px under the previous block and about 40px over the 410x520 rail. The owner's wording
+   "Temukan pilihan" (round 52) stays; only its size and rhythm follow. The 390 and 768 captures show
+   no editorial rail, so phones and tablets keep the section heading. */
+@media (min-width: 1024px) {
+	.home-main > .home-banners {
+		margin-top: 108px;
+	}
+	.home-main .home-banners > .shelf-heading {
+		margin-bottom: 40px;
+		font-size: 5.5rem;
+		line-height: 5.25rem;
+		font-weight: 800;
+		letter-spacing: var(--tracking-tight);
+		text-align: center;
+		text-wrap: balance;
+	}
+}
+/* Round 57 (review 56). Storefront secondary buttons are the
+   white hairline pill (R3), the same as the chips and "Lihat produk lainnya"; admin keeps its own. */
+:where(body:has(> .store-header, > .checkout-header, > .receipt-shell)) :is(.button.secondary, .button.button-secondary) {
+	border-color: var(--hairline);
+	background: #fff;
+	color: var(--ink);
+	box-shadow: 0 2px 8px rgba(0, 0, 0, 0.06);
+}
+:where(body:has(> .store-header, > .checkout-header, > .receipt-shell)) :is(.button.secondary, .button.button-secondary):hover {
+	border-color: rgba(5, 41, 77, 0.24);
+	background: #fff;
+}
+

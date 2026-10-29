@@ -37,7 +37,8 @@ export type RefundsState =
 
 type DialogProps = {
 	onClose: () => void;
-	onDone: (text: string) => void;
+	/** `warn`: the saved result still needs attention (refund outcome unknown or failed). */
+	onDone: (text: string, warn?: boolean) => void;
 	onUncertain: () => void;
 };
 
@@ -130,6 +131,7 @@ export function RefundActionDialog({
 				retry
 					? `Percobaan baru untuk refund ${rupiah(saved.amount)} masuk antrean. Status: ${REFUND_STATUS[saved.status][0]}.`
 					: `Rekonsiliasi dijalankan. Status refund: ${REFUND_STATUS[saved.status][0]}.`,
+				saved.status === "unknown" || saved.status === "failed",
 			);
 	}
 	return (
@@ -175,8 +177,8 @@ function RefundCard({
 			</div>
 			<p className="text-sm">{refund.explanation}</p>
 			{refund.status === "unknown" && (
-				<Alert role="alert" data-testid="refund-unknown">
-					<CircleAlert aria-hidden="true" />
+				<Alert role="alert" data-testid="refund-unknown" className="border-warning/40 bg-warning-surface">
+					<CircleAlert aria-hidden="true" className="text-warning" />
 					<AlertDescription className="text-foreground">
 						Hasil pengiriman dana belum pasti; dana mungkin sudah keluar dari bank. Jangan mengajukan refund lagi dan jangan
 						coba ulang. Rekonsiliasi memeriksa hasil refund yang sama.

@@ -1,5 +1,5 @@
 import { AccessDenied } from "../../../../components/admin/access-denied";
-import { canReadOrders } from "../../../../components/admin/order-model";
+import { canReadOrders, readOrderFilters } from "../../../../components/admin/order-model";
 import { OrderSearchClient, type SearchKind } from "../../../../components/admin/orders-client";
 import { readStaffAccess } from "../staff-roles";
 
@@ -33,6 +33,7 @@ export default async function AdminOrdersPage({
 			initialKind={KINDS.includes(kind) ? kind : "nomor"}
 			// A phone suffix never arrives through the URL (see searchQuery).
 			initialTerm={kind === "hp" ? "" : one("cari").slice(0, 100)}
+			initialFilters={readOrderFilters(one)}
 			companyWide={roles.includes("owner")}
 		/>
 	);

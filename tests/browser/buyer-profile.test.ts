@@ -19,9 +19,9 @@ import { closeFulfillmentActor } from "../integration/fulfillment-fixture.ts";
 import { resetBrowserAuthLimits } from "../integration/storefront-http-fixture.ts";
 import { RENDERS } from "../render-root.ts";
 
-// S126 / DEC-017 on the built web (127.0.0.1:3099) and the LOCAL database: the /akun "Lengkapi profil" card
-// (progress, one reason per field, edit and delete), separate unticked WhatsApp/email promo opt-ins that grant
-// and withdraw with an audit record, checkout prefilled from the main address, and the admin counts-only screen.
+// Buyer optional details on /akun, address editing in Alamat, and separate unticked WhatsApp/email
+// promo opt-ins that grant and withdraw with an audit record. Checkout prefills the main address;
+// the admin screen shows counts only.
 // Renders at 390 touch, 768 and 1440 with no horizontal scroll and no console errors. Synthetic users are removed.
 const origin = "http://127.0.0.1:3099";
 const identity = createLocalAuth("local");
@@ -123,7 +123,7 @@ after(async () => {
 	}
 });
 
-test("/akun Lengkapi profil: progress, reasons, edit and delete each field, unticked promo opt-ins that grant and withdraw", {
+test("/akun: optional details, address editing and unticked promo opt-ins that grant and withdraw", {
 	timeout: 120_000,
 }, async () => {
 	const buyer = await actor(identity, "buyer", []);
@@ -134,15 +134,14 @@ test("/akun Lengkapi profil: progress, reasons, edit and delete each field, unti
 		true,
 	);
 	try {
+		// Signed in, /akun opens on Pesanan; optional details live on Profil, promo consent on Pengaturan.
 		await page.goto(`${origin}/akun`);
+		await page.waitForURL(`${origin}/akun/pesanan`);
+		await page.goto(`${origin}/akun/profil`);
 		const card = page.getByTestId("profile-completion");
-		await card.getByRole("heading", { name: "Lengkapi profil" }).waitFor();
-		await expect(card.getByTestId("completion-count")).toHaveText(
-			"0 dari 5 terisi",
-		);
+		await card.getByRole("heading", { name: "Data tambahan" }).waitFor();
+		await expect(page.locator("progress")).toHaveCount(0);
 		for (const reason of [
-			"Checkout langsung terisi",
-			"Untuk kabar pesanan",
 			"Untuk voucher ulang tahun",
 			"Untuk rekomendasi produk",
 			"Untuk promo kategori",
@@ -158,6 +157,7 @@ test("/akun Lengkapi profil: progress, reasons, edit and delete each field, unti
 		);
 
 		// Promo consent: both unticked; WhatsApp needs a number first; nothing is recorded by opening the page.
+		await page.goto(`${origin}/akun/pengaturan`);
 		const consents = page.getByTestId("promo-consents");
 		await expect(consents.getByTestId("consent-whatsapp")).not.toBeChecked();
 		await expect(consents.getByTestId("consent-email")).not.toBeChecked();
@@ -171,6 +171,7 @@ test("/akun Lengkapi profil: progress, reasons, edit and delete each field, unti
 		);
 
 		// Birthday without a year.
+		await page.goto(`${origin}/akun/profil`);
 		await card.getByTestId("completion-birthday").locator("summary").click();
 		await card.getByTestId("birthday-save").click();
 		await expect(page.getByTestId("account-status-banner")).toHaveText(
@@ -184,9 +185,6 @@ test("/akun Lengkapi profil: progress, reasons, edit and delete each field, unti
 		);
 		await expect(card.getByTestId("completion-state-birthday")).toHaveText(
 			"Terisi",
-		);
-		await expect(card.getByTestId("completion-count")).toHaveText(
-			"1 dari 5 terisi",
 		);
 
 		// Gender: the explicit "Tidak ingin menyebutkan" answer counts as filled.
@@ -210,11 +208,11 @@ test("/akun Lengkapi profil: progress, reasons, edit and delete each field, unti
 		).toHaveText("Terisi");
 
 		// Main address through the address book.
-		await card
+		await page
 			.getByTestId("completion-main-address")
 			.locator("summary")
 			.click();
-		const form = card.getByTestId("main-address-form");
+		const form = page.getByTestId("main-address-form");
 		await form.getByLabel("Nomor HP penerima").fill("+62 812-3456-0010");
 		await expect(form.getByLabel("Nomor HP penerima")).toHaveValue(
 			"081234560010",
@@ -229,11 +227,8 @@ test("/akun Lengkapi profil: progress, reasons, edit and delete each field, unti
 		await expect(page.getByTestId("account-status-banner")).toHaveText(
 			"Alamat utama disimpan.",
 		);
-		await expect(card.getByTestId("completion-state-main_address")).toHaveText(
+		await expect(page.getByTestId("completion-state-main_address")).toHaveText(
 			"Terisi",
-		);
-		await expect(card.getByTestId("completion-count")).toHaveText(
-			"4 dari 5 terisi",
 		);
 		await expect(page.getByTestId("address-book-list")).toContainText(
 			"Jl. Contoh No. 26 RT 01",
@@ -252,21 +247,19 @@ test("/akun Lengkapi profil: progress, reasons, edit and delete each field, unti
 		);
 
 		// Email promo: tick grants (with policy version), untick withdraws; both leave records.
+		await page.goto(`${origin}/akun/pengaturan`);
 		await consents.getByTestId("consent-email").click();
 		await expect(consents.getByTestId("consent-email")).toBeChecked();
 		await expect(consents.getByTestId("consent-email-state")).toContainText(
 			"Disetujui",
 		);
-		await expect(consents.getByTestId("consent-email-state")).toContainText(
-			"local-privacy-v1",
-		);
+		// The policy version stays on the record (asserted below), not in the visible line.
+		await expect(consents.getByTestId("consent-email-state")).not.toContainText("local-privacy-v1");
 		assert.ok(await noOverflow(page), "390 touch: no horizontal page scroll");
 		await capture(page, "akun-profile-390-touch");
 		await consents.getByTestId("consent-email").click();
 		await expect(consents.getByTestId("consent-email")).not.toBeChecked();
-		await expect(consents.getByTestId("consent-email-state")).toHaveText(
-			"Belum disetujui.",
-		);
+		await expect(consents.getByTestId("consent-email-state")).toContainText("Belum disetujui");
 		const records =
 			await identity.sql`select channel, policy_version, source, withdrawn_at is not null as withdrawn from app.marketing_consent where user_id=${buyer.id}`;
 		assert.deepEqual(
@@ -286,6 +279,9 @@ test("/akun Lengkapi profil: progress, reasons, edit and delete each field, unti
 		);
 
 		// Delete: one field, then everything optional; reload keeps the result.
+		await page.goto(`${origin}/akun/profil`);
+		// A fresh page load shows the disclosures closed.
+		await card.getByTestId("completion-birthday").locator("summary").click();
 		await card.getByTestId("birthday-delete").click();
 		await expect(card.getByTestId("completion-state-birthday")).toHaveText(
 			"Belum diisi",
@@ -295,9 +291,8 @@ test("/akun Lengkapi profil: progress, reasons, edit and delete each field, unti
 			"Tanggal lahir, jenis kelamin, dan kategori favorit dihapus.",
 		);
 		await page.reload();
-		await expect(page.getByTestId("completion-count")).toHaveText(
-			"1 dari 5 terisi",
-		);
+		await expect(page.getByTestId("completion-state-birthday")).toHaveText("Belum diisi");
+		await expect(page.getByTestId("completion-state-main_address")).toHaveText("Terisi");
 		assert.deepEqual(errors, []);
 	} finally {
 		await close();
@@ -393,7 +388,14 @@ test("/akun and admin Segmen Pembeli render at 390 touch, 768 and 1440 without o
 	] as const) {
 		const account = await open(buyer, viewport, touch);
 		try {
-			await account.page.goto(`${origin}/akun`);
+			// Each of the three account pages renders without page scroll; Profil with an open disclosure.
+			for (const tab of ["pesanan", "pengaturan"] as const) {
+				await account.page.goto(`${origin}/akun/${tab}`);
+				await account.page.getByRole("navigation", { name: "Halaman akun" }).waitFor();
+				assert.ok(await noOverflow(account.page), `akun/${tab} ${suffix}: no horizontal page scroll`);
+				await capture(account.page, `akun-${tab}-${suffix}`);
+			}
+			await account.page.goto(`${origin}/akun/profil`);
 			await account.page.getByTestId("profile-completion").waitFor();
 			await account.page
 				.getByTestId("completion-birthday")

@@ -76,15 +76,17 @@ export type Replacement = {
 	items: unknown[];
 };
 
+// Tones follow status.tsx: waiting = open, work under way = progress, uncertain = problem,
+// failed = danger. "Needs my decision" is a waiting state, not a warning.
 export const RETURN_STATUS: Record<ReturnStatus, [string, StatusTone]> = {
-	requested: ["Menunggu keputusan", "problem"],
+	requested: ["Menunggu keputusan", "open"],
 	reviewing: ["Menunggu bukti pembeli", "open"],
-	approved: ["Disetujui, siap refund", "problem"],
+	approved: ["Disetujui, siap refund", "open"],
 	rejected: ["Ditolak", "closed"],
 	awaiting_goods: ["Menunggu barang retur", "open"],
-	inspecting: ["Diperiksa gudang", "problem"],
-	refunding: ["Refund diproses", "open"],
-	replacing: ["Penggantian berjalan", "open"],
+	inspecting: ["Diperiksa gudang", "progress"],
+	refunding: ["Refund diproses", "progress"],
+	replacing: ["Penggantian berjalan", "progress"],
 	resolved: ["Selesai", "success"],
 };
 export const RESOLUTION: Record<string, string> = { refund: "Refund", replacement: "Ganti barang" };
@@ -127,19 +129,19 @@ export const STAFF_REASON_KINDS = new Set(["decision", "inspection", "refund_que
 export const REFUND_STATUS: Record<string, [string, StatusTone]> = {
 	awaiting_destination: ["Menunggu rekening pembeli", "open"],
 	queued: ["Dalam antrean", "open"],
-	processing: ["Diproses", "open"],
+	processing: ["Diproses", "progress"],
 	unknown: ["Hasil belum pasti", "problem"],
 	succeeded: ["Berhasil", "success"],
 	failed: ["Gagal", "danger"],
 };
 export const REPLACEMENT_STATUS: Record<string, [string, StatusTone]> = {
-	awaiting_stock: ["Menunggu stok", "problem"],
+	awaiting_stock: ["Menunggu stok", "open"],
 	ready: ["Stok siap", "open"],
-	picking: ["Disiapkan gudang", "open"],
-	booking_pending: ["Menunggu resi", "open"],
+	picking: ["Disiapkan gudang", "progress"],
+	booking_pending: ["Menunggu resi", "progress"],
 	booking_unknown: ["Pemesanan kurir belum pasti", "problem"],
 	booking_failed: ["Pemesanan kurir gagal", "danger"],
-	packed: ["Siap diserahkan", "problem"],
+	packed: ["Siap diserahkan", "open"],
 	handed_over: ["Diserahkan ke kurir", "done"],
 	partially_delivered: ["Sebagian diterima", "open"],
 	delivered: ["Diterima pembeli", "success"],

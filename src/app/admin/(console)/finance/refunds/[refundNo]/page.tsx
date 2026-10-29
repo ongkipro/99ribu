@@ -7,7 +7,7 @@ import { readStaffAccess } from "../../../staff-roles";
 
 export const dynamic = "force-dynamic";
 export const metadata = {
-	title: "Detail Refund · Admin 99ribu",
+	title: "Detail Pengembalian Dana · Admin 99ribu",
 	robots: { index: false, follow: false },
 };
 
@@ -24,7 +24,7 @@ export default async function FinanceRefundDetailPage({
 	const access = financeAccess(roles, permissions);
 	if (!access.refundRead) {
 		return (
-			<AccessDenied title="Detail Refund" heading="Akses refund diperlukan">
+			<AccessDenied title="Detail Pengembalian Dana" heading="Akses pengembalian dana diperlukan">
 				Detail refund dapat dibuka oleh Super Admin atau staf keuangan dengan izin baca refund
 				(finance.refunds.read) dan verifikasi dua langkah aktif.
 			</AccessDenied>

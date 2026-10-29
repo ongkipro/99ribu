@@ -13,12 +13,14 @@ import { useKeysetList } from "./use-keyset-list";
 import { adminPath } from "@/modules/access/admin-paths";
 
 const PAGE_SIZE = 20;
+// Each tab is a filter of all cases: an empty tab says so and points at "Semua"; only "Semua"
+// empty means no buyer has filed a return yet.
 const EMPTY: Record<ReturnTab, string> = {
-	decide: "Tidak ada klaim yang menunggu keputusan.",
-	goods: "Tidak ada barang retur yang ditunggu atau diperiksa.",
-	progress: "Tidak ada refund atau penggantian yang berjalan.",
+	decide: "Tidak ada klaim yang menunggu keputusan. Klaim lain ada di tab Semua.",
+	goods: "Tidak ada barang retur yang ditunggu atau diperiksa. Klaim lain ada di tab Semua.",
+	progress: "Tidak ada refund atau penggantian yang berjalan. Klaim lain ada di tab Semua.",
 	done: "Belum ada retur yang selesai atau ditolak.",
-	all: "Belum ada pengajuan retur.",
+	all: "Belum ada pengajuan retur dalam cakupan Anda. Pengajuan pembeli muncul di sini.",
 };
 
 const reasons = (row: ReturnCase) => {
@@ -92,11 +94,11 @@ export function ReturnListClient({ initialTab }: { initialTab: ReturnTab }) {
 						id: "created",
 						header: "Diajukan",
 						stack: "meta",
-						className: "whitespace-nowrap tabular-nums",
+						kind: "datetime",
 						cell: (row) => formatWib(row.created_at),
 					},
-					{ id: "reason", header: "Alasan", className: "md:max-lg:hidden", cell: reasons },
-					{ id: "warehouse", header: "Gudang", className: "md:max-xl:hidden", cell: warehouses },
+					{ id: "reason", header: "Alasan", hideBelow: "5xl", cell: reasons },
+					{ id: "warehouse", header: "Gudang", hideBelow: "6xl", cell: warehouses },
 					{
 						id: "actions",
 						header: <span className="sr-only">Tindakan</span>,

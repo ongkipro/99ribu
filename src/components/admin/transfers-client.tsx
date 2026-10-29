@@ -46,7 +46,7 @@ type Transfer = {
 type Status = "requested" | "dispatched" | "received" | "exception" | "cancelled";
 const STATUS: Record<Status, [string, StatusTone]> = {
 	requested: ["Menunggu dikirim", "open"],
-	dispatched: ["Dalam perjalanan", "open"],
+	dispatched: ["Dalam perjalanan", "progress"],
 	received: ["Diterima", "success"],
 	exception: ["Diterima sebagian", "problem"],
 	cancelled: ["Dibatalkan", "closed"],
@@ -86,7 +86,7 @@ export function TransfersClient({ owner }: { owner: boolean }) {
 			)}
 			<section aria-labelledby="transfers-heading" className="flex flex-col gap-4">
 				<div className="flex items-start justify-between gap-3">
-					<h2 id="transfers-heading" className="text-lg font-semibold">
+					<h2 id="transfers-heading" className="text-base font-semibold">
 						Daftar transfer
 					</h2>
 					<Button variant="outline" className="shrink-0" onClick={() => void list.reload()}>
@@ -124,7 +124,12 @@ export function TransfersClient({ owner }: { owner: boolean }) {
 								.
 							</>
 						) : (
-							"Tidak ada transfer dengan status ini."
+							<>
+								<p>Tidak ada transfer berstatus {STATUS[filter][0].toLowerCase()}.</p>
+								<Button type="button" variant="outline" size="sm" onClick={() => setFilter("all")}>
+									Tampilkan semua transfer
+								</Button>
+							</>
 						)
 					}
 					testId="transfers"
@@ -150,8 +155,9 @@ export function TransfersClient({ owner }: { owner: boolean }) {
 							header: "Rute",
 							stack: "meta",
 							cellClassName: "whitespace-normal",
-							cell: (row) => `${row.from_warehouse_name ?? "Gudang asal"} → ${row.to_warehouse_name ?? "Gudang tujuan"} · ${wibDateTime(row.created_at)}`,
+							cell: (row) => `${row.from_warehouse_name ?? "Gudang asal"} → ${row.to_warehouse_name ?? "Gudang tujuan"}`,
 						},
+						{ id: "created", header: "Dibuat", stack: "meta", kind: "datetime", hideBelow: "5xl", cell: (row) => wibDateTime(row.created_at) },
 						{
 							id: "status",
 							header: "Status",
@@ -255,11 +261,13 @@ function ResolveDialog({
 			description={
 				action === "dispatch"
 					? `Stok keluar dari ${row.from_warehouse_name ?? "gudang asal"} sekarang dan masuk ke ${row.to_warehouse_name ?? "gudang tujuan"} setelah diterima di sana.`
-					: "Stok yang dipesan untuk transfer ini kembali tersedia di gudang asal."
+					: "Stok yang dipesan untuk transfer ini kembali tersedia di gudang asal. Transfer yang dibatalkan tidak bisa dilanjutkan; buat transfer baru dari Stok Gudang bila masih perlu."
 			}
 			pending={pending}
 			error={error}
 			submitLabel={action === "dispatch" ? "Kirim sekarang" : "Batalkan transfer"}
+			destructive={action === "cancel"}
+			dirty={Boolean(reason.trim())}
 			onClose={onClose}
 			onSubmit={() => void submit()}
 		>
@@ -322,6 +330,7 @@ function ReceiveDialog({ row, onClose, onDone }: { row: Transfer; onClose: () =>
 			pending={pending}
 			error={error}
 			submitLabel="Simpan penerimaan"
+			dirty={Boolean(reason.trim()) || open.some((a) => form[a.source_balance_id].received !== String(a.quantity - a.received_quantity) || form[a.source_balance_id].damaged !== "0")}
 			onClose={onClose}
 			onSubmit={() => void submit()}
 		>

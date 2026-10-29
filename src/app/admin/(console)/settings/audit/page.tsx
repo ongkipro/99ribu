@@ -31,10 +31,9 @@ export default async function AuditLogPage() {
 				title="Log Audit"
 				description={
 					scope === "all"
-						? "Catatan tindakan staf dan sistem, terbaru di atas. Data pribadi dan rahasia (kode OTP, token, bukti, nomor rekening) tidak ditampilkan. Setiap pembukaan log ini ikut dicatat."
-						: "Catatan tindakan keuangan: rekonsiliasi, pembayaran komisi, refund, dan perubahan biaya. Tindakan lain hanya terlihat oleh Super Admin. Setiap pembukaan log ini ikut dicatat."
+						? "Tindakan staf dan sistem, terbaru di atas. Data pribadi dan rahasia tidak ditampilkan; pembukaan log ikut dicatat."
+						: "Tindakan keuangan: rekonsiliasi, komisi, refund, dan perubahan biaya. Pembukaan log ikut dicatat."
 				}
-				meta={<span>Waktu dalam WIB</span>}
 			/>
 			<AuditLogClient scope={scope} />
 		</AdminPage>

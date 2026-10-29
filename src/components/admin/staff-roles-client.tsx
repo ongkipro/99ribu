@@ -335,7 +335,7 @@ function RoleBadges({ roles }: { roles: string[] }) {
 	return (
 		<span className="flex flex-wrap gap-1">
 			{roles.map((role) => (
-				<StatusBadge key={role} tone={role === "owner" ? "open" : "done"}>
+				<StatusBadge key={role} tone="neutral">
 					{roleLabel(role)}
 				</StatusBadge>
 			))}
@@ -355,7 +355,8 @@ function MemberActions({
 	onReset: (member: StaffMember) => void;
 }) {
 	return (
-		<span className="flex flex-wrap gap-2 max-md:*:flex-1">
+		// One line from md: two stacked buttons doubled the row height.
+		<span className="flex flex-wrap gap-2 max-md:*:flex-1 md:flex-nowrap md:justify-end">
 			<Button type="button" size="sm" variant="outline" data-testid="staff-edit" onClick={() => onEdit(member)}>
 				<UserCog data-icon="inline-start" aria-hidden="true" />
 				{member.roles.includes("owner") ? "Turunkan" : "Atur peran"}
@@ -508,6 +509,8 @@ export function StaffRolesClient() {
 						id: "name",
 						header: "Staf",
 						stack: "title",
+						// The long sign-in email wraps instead of widening the table.
+						cellClassName: "whitespace-normal md:min-w-56",
 						cell: (row) => (
 							<span className="flex min-w-0 flex-col">
 								<span className="font-medium">
@@ -522,6 +525,7 @@ export function StaffRolesClient() {
 					{
 						id: "permissions",
 						header: "Izin tambahan",
+						cellClassName: "whitespace-normal",
 						cell: (row) =>
 							row.permissions.length ? (
 								<span className="text-xs">{row.permissions.map(permissionLabel).join(", ")}</span>
@@ -532,6 +536,7 @@ export function StaffRolesClient() {
 					{
 						id: "warehouses",
 						header: "Gudang",
+						cellClassName: "whitespace-normal",
 						cell: (row) =>
 							row.roles.includes("owner") ? (
 								"Semua gudang"
@@ -558,12 +563,14 @@ export function StaffRolesClient() {
 						id: "last",
 						header: "Sesi terakhir",
 						stack: "meta",
-						className: "whitespace-nowrap tabular-nums",
+						kind: "datetime",
+						hideBelow: "5xl",
 						cell: (row) => (row.last_sign_in_at ? formatWib(row.last_sign_in_at) : "Tidak ada sesi aktif"),
 					},
 					{
 						id: "actions",
 						header: <span className="sr-only">Aksi</span>,
+						className: "text-right",
 						cell: (row) => <MemberActions member={row} self={row.user_id === selfId} onEdit={setEditing} onReset={setResetting} />,
 					},
 				]}

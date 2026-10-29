@@ -74,7 +74,7 @@ test("modal sign-up from /akun: name and email only, uniform check-email, the em
 		const modal = page.getByRole("dialog", { name: "Masuk atau daftar" });
 		await modal.getByRole("heading", { name: "Buat akun 99ribu" }).waitFor();
 		assert.equal(page.url(), `${origin}/masuk?langkah=daftar&next=%2Fakun`);
-		assert.equal(await page.locator("main .notice-panel").count(), 1, "The page under the modal stays rendered");
+		assert.equal(await page.locator("main [data-testid=buyer-account-root]").count(), 1, "The page under the modal stays rendered");
 		assert.equal(await modal.getByRole("link", { name: "Daftar", exact: true }).getAttribute("aria-current"), "page");
 		assert.ok(await focused(page, "#signup-name"), "Focus starts in the name field");
 		assert.equal(await modal.getByLabel("Kata sandi").count(), 0, "Sign-up asks no password (owner decision 2026-10-25)");
@@ -154,11 +154,14 @@ test("modal sign-up from /akun: name and email only, uniform check-email, the em
 		await field.fill(password);
 		await expect(page.locator("#set-password-hint")).toHaveText("Panjang kata sandi sudah cukup.");
 		await page.getByRole("button", { name: "Buat kata sandi" }).click();
-		await page.waitForURL(`${origin}/akun`);
+		await page.waitForURL(`${origin}/akun/pesanan`);
 		await page.getByTestId("sign-out-button").first().waitFor();
 		assert.equal((await identity.sql`select email_verified from app.auth_user where email=${email}`)[0].email_verified, true);
-		// /akun shows the sign-up WhatsApp number masked (stored +62…, shown 08…) and edits it.
+		// Profil shows the sign-up WhatsApp number masked (stored +62…, shown 08…); "Ubah" opens the form.
+		await page.getByRole("link", { name: "Profil", exact: true }).click();
+		await page.waitForURL(`${origin}/akun/profil`);
 		await expect(page.getByTestId("profile-phone")).toHaveText("08••••••7890");
+		await page.getByTestId("profile-edit-button").click();
 		await page.getByTestId("profile-phone-edit").click();
 		await page.getByTestId("profile-phone-input").fill("+6281299990000");
 		await expect(page.getByTestId("profile-phone-input")).toHaveValue("081299990000");
@@ -236,7 +239,7 @@ test("without JavaScript: the switch is a link, sign-up and resend post to /masu
 		await page.getByLabel("Email").fill(email);
 		await page.getByLabel("Kata sandi").fill(password);
 		await page.getByRole("button", { name: "Masuk", exact: true }).click();
-		await page.waitForURL(`${origin}/akun`);
+		await page.waitForURL(`${origin}/akun/pesanan`);
 		// A used link shows the invalid state with a resend form.
 		await page.goto(link);
 		await page.getByRole("heading", { level: 1, name: "Tautan tidak berlaku" }).waitFor();

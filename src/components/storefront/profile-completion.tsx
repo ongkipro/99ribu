@@ -7,6 +7,7 @@ import type {
 	MarketingConsentResponse,
 	ProfileDetailsResponse,
 } from "@/modules/accounts/profile-completion";
+import { maskedEmail } from "@/modules/accounts/masking";
 import type {
 	BuyerAddressListResponse,
 	BuyerProfileResponse,
@@ -19,8 +20,8 @@ import {
 } from "@/modules/storefront/contact";
 import { filterContact } from "./ui/contact-fields";
 
-// S126 / DEC-017 "Lengkapi profil" and the promo opt-ins on /akun. Every field is optional, says why it is asked,
-// and can be changed or deleted. Promo consent is per channel, never prefilled, and saved only when the buyer ticks it.
+// Optional buyer details and channel-specific promo consent on /akun.
+// Every field can be changed or deleted; promo consent is never prefilled.
 
 export type Destination = {
 	id: string;
@@ -98,26 +99,40 @@ function useBusy(onStatus: (message: string) => void) {
 	return { busy, run };
 }
 
-export function ProfileCompletion({
+export function ProfileAddress({
 	profile,
 	addresses,
+	destinations,
 	onAddresses,
+	onStatus,
+}: Pick<Props, "profile" | "addresses" | "destinations" | "onAddresses" | "onStatus">) {
+	const main = addresses?.data.find((item) => item.is_default) ?? null;
+	return (
+		<details className="account-address-editor" data-testid="completion-main-address">
+			<summary>
+				<strong>{main ? "Ubah alamat utama" : "Tambah alamat utama"}</strong>{" "}
+				<span
+					className={main ? "receipt-badge" : "account-empty-state"}
+					data-tone={main ? "active" : undefined}
+					data-testid="completion-state-main_address"
+				>
+					{main ? "Terisi" : "Belum diisi"}
+				</span>
+			</summary>
+			<p className="checkout-hint">Checkout langsung terisi dari alamat utama.</p>
+			<AddressForm key={main ? `${main.id}-${main.version}` : "new"} main={main} addresses={addresses} destinations={destinations} profile={profile} onAddresses={onAddresses} onStatus={onStatus} />
+		</details>
+	);
+}
+
+export function ProfileCompletion({
 	onStatus,
 	details: initial,
 	categories,
-	destinations,
-}: Props) {
+}: Pick<Props, "details" | "categories" | "onStatus">) {
 	const [details, setDetails] = useState(initial);
 	const { busy, run } = useBusy(onStatus);
-	const main = addresses?.data.find((item) => item.is_default) ?? null;
-	// Address and WhatsApp live in their own resources; the progress reflects what this page shows now.
-	const fields = {
-		...details.completion.fields,
-		main_address: Boolean(main),
-		whatsapp: Boolean(profile.phone),
-	};
-	const completed = Object.values(fields).filter(Boolean).length;
-	const total = Object.keys(fields).length;
+	const fields = details.completion.fields;
 
 	const [day, setDay] = useState(String(initial.birth_day ?? ""));
 	const [month, setMonth] = useState(String(initial.birth_month ?? ""));
@@ -197,8 +212,9 @@ export function ProfileCompletion({
 	}
 
 	const rowsDone = (key: keyof typeof fields) => (
+		// A badge only for a filled field; an empty one is quiet text, so four empty rows do not shout.
 		<span
-			className="receipt-badge"
+			className={fields[key] ? "receipt-badge" : "account-empty-state"}
 			data-tone={fields[key] ? "active" : undefined}
 			data-testid={`completion-state-${key}`}
 		>
@@ -208,61 +224,12 @@ export function ProfileCompletion({
 
 	return (
 		<section
-			className="receipt-card"
+			className="account-section account-profile-details"
 			aria-labelledby="profile-completion-heading"
 			data-testid="profile-completion"
 		>
-			<h2 id="profile-completion-heading">Lengkapi profil</h2>
-			<p className="checkout-hint">
-				Semua isian opsional dan bisa diubah atau dihapus kapan saja. Belanja
-				tetap bisa tanpa mengisinya.
-			</p>
-			<div>
-				<label
-					htmlFor="profile-completion-progress"
-					style={{ fontWeight: 600 }}
-				>
-					<span data-testid="completion-count">
-						{completed} dari {total} terisi
-					</span>
-				</label>
-				<progress
-					id="profile-completion-progress"
-					value={completed}
-					max={total}
-					style={{ width: "100%", height: "8px", accentColor: "var(--purple)" }}
-				/>
-			</div>
-
-			<details data-testid="completion-main-address">
-				<summary>
-					<strong>Alamat utama</strong> {rowsDone("main_address")}
-				</summary>
-				<p className="checkout-hint">
-					Checkout langsung terisi dan ongkir bisa dihitung tanpa mengetik
-					ulang.
-				</p>
-				<AddressForm
-					key={main ? `${main.id}-${main.version}` : "new"}
-					main={main}
-					addresses={addresses}
-					destinations={destinations}
-					profile={profile}
-					onAddresses={onAddresses}
-					onStatus={onStatus}
-				/>
-			</details>
-
-			<details data-testid="completion-whatsapp">
-				<summary>
-					<strong>Nomor WhatsApp</strong> {rowsDone("whatsapp")}
-				</summary>
-				<p className="checkout-hint">
-					Untuk kabar pesanan, dan promo WhatsApp hanya bila Anda menyetujuinya
-					di bagian Promo.{" "}
-					<a href="#account-profile-heading">Ubah di bagian Profil</a>.
-				</p>
-			</details>
+			<h2 id="profile-completion-heading">Data tambahan</h2>
+			<p className="checkout-hint">Opsional. Bisa diubah atau dihapus kapan saja.</p>
 
 			<details data-testid="completion-birthday">
 				<summary>
@@ -520,15 +487,9 @@ export function ProfileCompletion({
 				</form>
 			</details>
 
-			<div className="checkout-hint" data-testid="profile-programs">
-				<p>
-					<strong>Voucher ulang tahun dan promo kategori:</strong> ketentuannya
-					sedang disiapkan dan akan diumumkan di sini.
-				</p>
-				<p>
-					<strong>Doorprize:</strong> segera.
-				</p>
-			</div>
+			<p className="checkout-hint" data-testid="profile-programs">
+				<strong>Doorprize:</strong> segera.
+			</p>
 			{(details.birth_day !== null ||
 				details.gender !== null ||
 				details.favourite_category_ids.length > 0) && (
@@ -787,24 +748,25 @@ export function PromoConsents({
 	}
 
 	const label: Record<ConsentChannel, string> = {
-		whatsapp: profile.phone
-			? `Promo lewat WhatsApp ke ${maskedPhone(profile.phone)}`
-			: "Promo lewat WhatsApp",
-		email: profile.email
-			? `Promo lewat email ke ${profile.email}`
-			: "Promo lewat email",
+		whatsapp: "Promo lewat WhatsApp",
+		email: "Promo lewat email",
+	};
+	// The contact a channel would use, shown under its checkbox (short label, masked phone).
+	const destination: Record<ConsentChannel, string | null> = {
+		whatsapp: profile.phone ? maskedPhone(profile.phone) : null,
+		email: maskedEmail(profile.email),
 	};
 	return (
 		<section
-			className="receipt-card"
+			className="account-promo"
 			aria-labelledby="promo-consent-heading"
 			data-testid="promo-consents"
 		>
-			<h2 id="promo-consent-heading">Promo</h2>
+			<h3 id="promo-consent-heading">Promo</h3>
 			<p className="checkout-hint">
 				Kami mengirim promo hanya lewat saluran yang Anda centang. Kabar pesanan
 				tetap terkirim tanpa persetujuan ini. Bisa dibatalkan kapan saja.{" "}
-				<a href="/privasi">Kebijakan privasi</a> ({consents.policy_version}).
+				<a href="/privasi">Kebijakan privasi</a>.
 			</p>
 			{consents.channels.map((item) => (
 				<div key={item.channel}>
@@ -824,10 +786,11 @@ export function PromoConsents({
 						className="checkout-hint"
 						data-testid={`consent-${item.channel}-state`}
 					>
+						{/* The policy version is kept on the consent record and in the history, not in this line. */}
 						{item.granted && item.granted_at
-							? `Disetujui ${date(item.granted_at)} (kebijakan ${item.policy_version}).`
+							? `Disetujui ${date(item.granted_at)}${destination[item.channel] ? ` · ${destination[item.channel]}` : ""}.`
 							: item.contact_available
-								? "Belum disetujui."
+								? `Belum disetujui${destination[item.channel] ? ` · ${destination[item.channel]}` : ""}.`
 								: item.channel === "whatsapp"
 									? "Tambahkan nomor WhatsApp di bagian Profil untuk memilih ini."
 									: "Promo email hanya dikirim ke email akun yang sudah terverifikasi."}

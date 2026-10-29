@@ -172,7 +172,7 @@ export function WarehouseCalendarPanel() {
 				Hanya Super Admin yang menyetujui dan menulis kalender gudang. Uji lokal: kalender masih tersimpan sebagai TEST-ONLY sampai kalender produksi diaktifkan.
 			</p>
 			{notice && (
-				<Alert ref={noticeRef} tabIndex={-1} role="status" className="outline-none" data-testid="calendar-notice">
+				<Alert ref={noticeRef} tabIndex={-1} role="status" className="border-success/30 bg-success-surface outline-none" data-testid="calendar-notice">
 					<CircleCheck aria-hidden="true" />
 					<AlertDescription className="text-foreground">{notice}</AlertDescription>
 				</Alert>
@@ -255,13 +255,13 @@ function History({ warehouseId }: { warehouseId: string }) {
 			r.ok ? setVersions(r.data.data) : setError(failureText(r.failure)),
 		);
 	}, [warehouseId]);
-	if (error) return <p className="text-sm text-destructive">{error}</p>;
+	if (error) return <ErrorState message={`Riwayat kalender gagal dimuat. ${error}`} />;
 	if (!versions) return <LoadingState label="Memuat riwayat kalender…" lines={1} />;
-	if (!versions.length) return <p className="text-sm text-muted-foreground">Gudang ini belum punya versi kalender.</p>;
+	if (!versions.length) return <p className="text-sm text-muted-foreground">Gudang ini belum punya versi kalender. Pilih Atur untuk membuat versi pertama.</p>;
 	return (
-		<ol className="flex flex-col gap-2" aria-label="Riwayat kalender" data-testid="calendar-history">
+		<ol className="flex flex-col divide-y" aria-label="Riwayat kalender" data-testid="calendar-history">
 			{versions.map((v) => (
-				<li key={v.id} className="border-l-2 pl-3 text-sm">
+				<li key={v.id} className="flex flex-col gap-0.5 py-2 text-sm first:pt-0 last:pb-0">
 					<span className="font-medium">
 						Versi {v.version} · tahun {v.values.year}
 					</span>
@@ -282,6 +282,7 @@ function BulkDialog({ warehouses, onClose, onDone }: { warehouses: Coverage[]; o
 	const [pending, setPending] = useState(false);
 	const [error, setError] = useState<string | null>(null);
 	const key = useRef(crypto.randomUUID());
+	const dirty = Boolean(reason.trim() || password) || JSON.stringify(draft) !== JSON.stringify(draftOf(DEFAULT));
 	async function submit() {
 		const parsed = parseDraft(draft);
 		if (parsed.error) return setError(parsed.error);
@@ -313,6 +314,7 @@ function BulkDialog({ warehouses, onClose, onDone }: { warehouses: Coverage[]; o
 			pendingLabel="Menerapkan…"
 			error={error}
 			submitLabel="Terapkan"
+			dirty={dirty}
 			onClose={onClose}
 			onSubmit={() => void submit()}
 		>
@@ -343,6 +345,10 @@ function EditDialog({ warehouse, onClose, onDone }: { warehouse: Coverage; onClo
 	const [error, setError] = useState<string | null>(null);
 	const key = useRef(crypto.randomUUID());
 	const year = when === "now" ? warehouse.local_year : warehouse.local_year + 1;
+	const dirty =
+		Boolean(reason.trim() || password) ||
+		when !== "now" ||
+		JSON.stringify(draft) !== JSON.stringify(draftOf(warehouse.current?.values ?? DEFAULT));
 	async function submit() {
 		const parsed = parseDraft(draft);
 		if (parsed.error) return setError(parsed.error);
@@ -381,16 +387,17 @@ function EditDialog({ warehouse, onClose, onDone }: { warehouse: Coverage; onClo
 			pending={pending}
 			error={error}
 			submitLabel="Simpan kalender"
+			dirty={dirty}
 			onClose={onClose}
 			onSubmit={() => void submit()}
 		>
 			<fieldset className="flex flex-col gap-2">
 				<legend className="mb-1 text-sm font-medium">Berlaku</legend>
-				<label className="flex items-center gap-2 text-sm">
+				<label className="flex min-h-9 items-center gap-2 text-sm pointer-coarse:min-h-11">
 					<input type="radio" name="calendar-when" className="size-4 accent-primary" checked={when === "now"} onChange={() => setWhen("now")} />
 					Sekarang, untuk tahun {warehouse.local_year}
 				</label>
-				<label className="flex items-center gap-2 text-sm">
+				<label className="flex min-h-9 items-center gap-2 text-sm pointer-coarse:min-h-11">
 					<input type="radio" name="calendar-when" className="size-4 accent-primary" checked={when === "next"} onChange={() => setWhen("next")} />
 					Mulai 1 Januari {warehouse.local_year + 1}
 				</label>

@@ -27,7 +27,7 @@ export default async function CodSettlementsPage() {
 				title="Setoran COD Mengantar"
 				description={
 					<>
-						Catat laporan saldo COD dari dashboard Mengantar. Penerimaan per paket dan
+						Catat laporan saldo COD dari dasbor Mengantar. Penerimaan per paket dan
 						dana masuk dicocokkan otomatis; selisih ditandai untuk ditinjau.
 					</>
 				}

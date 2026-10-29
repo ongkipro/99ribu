@@ -6,24 +6,17 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import {
-	Dialog,
-	DialogContent,
-	DialogDescription,
-	DialogFooter,
-	DialogHeader,
-	DialogTitle,
-} from "@/components/ui/dialog";
+import { FormDialog } from "./form";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { describeFailure, failureText, getJson, readFailure } from "./admin-errors";
 import { DataTable, type DataTableColumn } from "./data-table";
 import { wibInputToIso } from "@/modules/storefront/format";
 import { formatCm, formatKg, formatWib, rupiah } from "./format";
-import { FilterSheet, segmentedItemClass, segmentedListClass } from "./form";
+import { FilterSheet, nativeSelectClass, segmentedItemClass, segmentedListClass } from "./form";
 import { Disclosure } from "./page-blocks";
 import { WarehouseCalendarPanel } from "./warehouse-calendar-panel";
-import { DEADLINE_GROUPS, Deadline, deadlineGroup, useNow } from "./status";
+import { DEADLINE_GROUPS, Deadline, deadlineGroup, StatusBadge, type StatusTone, useNow } from "./status";
 import { useIsMobile } from "@/components/ui/use-mobile";
 import { adminPath } from "@/modules/access/admin-paths";
 
@@ -45,6 +38,13 @@ const TRACKING_LABELS: Record<string, string> = {
 	in_transit: "Dalam perjalanan",
 	delivered: "Terkirim",
 	failed: "Gagal kirim, dicoba ulang",
+};
+// Courier tracking: picked up / in transit is work under way, a failed attempt needs a look.
+const TRACKING_TONE: Record<string, StatusTone> = {
+	picked_up: "progress",
+	in_transit: "progress",
+	delivered: "success",
+	failed: "problem",
 };
 const CODE_MESSAGES: Record<string, string> = {
 	INVALID_COURIER: "Pilih kurir dari daftar.",
@@ -162,8 +162,7 @@ async function post(url: string, body: unknown, key: string) {
 	}
 }
 
-const selectClass =
-	"h-9 w-full rounded-md border border-input bg-background px-3 text-sm shadow-xs focus-visible:border-ring focus-visible:ring-[3px] focus-visible:ring-ring/50 outline-none";
+const selectClass = `${nativeSelectClass} w-full`;
 
 function Field({
 	id,
@@ -303,10 +302,15 @@ const shippedColumns: DataTableColumn<Row>[] = [
 	{
 		id: "status",
 		header: "Status",
+		stack: "status",
 		cell: (row) =>
-			row.manual?.tracking_status
-				? TRACKING_LABELS[row.manual.tracking_status]
-				: "Menunggu pembaruan kurir",
+			row.manual?.tracking_status ? (
+				<StatusBadge tone={TRACKING_TONE[row.manual.tracking_status] ?? "open"}>
+					{TRACKING_LABELS[row.manual.tracking_status]}
+				</StatusBadge>
+			) : (
+				<StatusBadge tone="open">Menunggu pembaruan kurir</StatusBadge>
+			),
 	},
 ];
 
@@ -438,7 +442,7 @@ export function ManualFulfillmentClient({
 				<p className="max-w-prose text-sm text-muted-foreground">
 					Pesanan lunas (prabayar) dan COD terkonfirmasi dari gudang mode
 					manual, urut batas resi terdekat lalu pesanan terlama. Pesan kurir
-					di dashboard Mengantar 99ribu, lalu catat kurir dan resinya di sini.
+					di dasbor Mengantar 99ribu, lalu catat kurir dan resinya di sini.
 				</p>
 				<p
 					className="max-w-prose text-sm text-muted-foreground"
@@ -451,7 +455,7 @@ export function ManualFulfillmentClient({
 			</Disclosure>
 			<section aria-labelledby="manual-queue-heading" className="flex flex-col gap-4">
 				<div className="flex flex-wrap items-end justify-between gap-3">
-					<h2 id="manual-queue-heading" className="text-lg font-semibold">
+					<h2 id="manual-queue-heading" className="text-base font-semibold">
 						Antrean pengiriman
 					</h2>
 					<div className="flex flex-wrap items-end gap-2 max-md:w-full max-md:*:flex-1">
@@ -522,9 +526,11 @@ export function ManualFulfillmentClient({
 					}
 					loadingLabel="Memuat antrean…"
 					empty={
-						queue === "to_book"
-							? "Tidak ada paket yang menunggu dipesan kurir."
-							: "Tidak ada paket yang menunggu status terkirim."
+						warehouseId
+							? `Tidak ada paket di gudang ${warehouses.find((w) => w.id === warehouseId)?.name ?? "ini"} pada tahap ini. Pilih Semua gudang saya untuk melihat gudang lain.`
+							: queue === "to_book"
+								? "Tidak ada paket yang menunggu dipesan kurir. Pesanan lunas dan COD terkonfirmasi dari gudang manual muncul di sini."
+								: "Tidak ada paket yang menunggu status terkirim. Paket yang resinya dicatat muncul di sini."
 					}
 					testId="manual-queue"
 					caption={
@@ -681,7 +687,7 @@ function ActionDialog({
 		else if (kind === "status" && !wibInputToIso(occurred))
 			next.occurred = "Waktu status tidak valid.";
 		if (kind === "status" && !evidence.trim())
-			next.evidence = "Tulis bukti dari dashboard Mengantar.";
+			next.evidence = "Tulis bukti dari dasbor Mengantar.";
 		setErrors(next);
 		if (Object.keys(next).length) return;
 		setPending(true);
@@ -750,32 +756,25 @@ function ActionDialog({
 			: quoted.code
 				? `Pilihan pembeli: ${quoted.courier_name} · ${quoted.service_name}. Ganti hanya bila layanan itu tidak tersedia di Mengantar.`
 				: `Pilihan pembeli: ${quoted.courier_name} · ${quoted.service_name}. Pilih kurir yang dipesan di Mengantar.`;
+	const dirty = !!(resi.trim() || reference.trim() || reason.trim() || occurred || evidence.trim());
 	return (
-		<Dialog
-			open
-			onOpenChange={(next) => {
-				if (!next && !pending) onClose();
-			}}
+		<FormDialog
+			title={titles[kind]}
+			description={
+				kind === "ship"
+					? "Pastikan pengiriman sudah dipesan di dasbor Mengantar 99ribu dengan penjemputan di gudang penjual. Menyimpan resi menandai paket dikirim dan stok berkurang."
+					: kind === "correct"
+						? "Resi lama tetap tersimpan di riwayat audit. Pembeli melihat resi terbaru."
+						: "Gunakan bila pembaruan otomatis dari kurir tidak tersedia. Status hanya bisa maju dan tercatat di audit."
+			}
+			className="sm:max-w-lg"
+			pending={pending}
+			error={error}
+			submitLabel="Simpan"
+			dirty={dirty}
+			onClose={onClose}
+			onSubmit={() => void submit()}
 		>
-			<DialogContent className="max-h-[calc(100dvh-2rem)] overflow-y-auto sm:max-w-lg">
-				<form
-					noValidate
-					className="flex flex-col gap-4"
-					onSubmit={(e) => {
-						e.preventDefault();
-						void submit();
-					}}
-				>
-					<DialogHeader>
-						<DialogTitle>{titles[kind]}</DialogTitle>
-						<DialogDescription>
-							{kind === "ship"
-								? "Pastikan pengiriman sudah dipesan di dashboard Mengantar 99ribu dengan penjemputan di gudang seller. Menyimpan resi menandai paket dikirim dan stok berkurang."
-								: kind === "correct"
-									? "Resi lama tetap tersimpan di riwayat audit. Pembeli melihat resi terbaru."
-									: "Gunakan bila pembaruan otomatis dari kurir tidak tersedia. Status hanya bisa maju dan tercatat di audit."}
-						</DialogDescription>
-					</DialogHeader>
 					{kind === "ship" && <BookingSheet row={row} />}
 					{kind !== "status" && (
 						<>
@@ -860,7 +859,7 @@ function ActionDialog({
 							<Field
 								id="manual-occurred"
 								label="Waktu status (WIB)"
-								hint="Jam WIB seperti di dashboard Mengantar, tidak boleh di masa depan."
+								hint="Jam WIB seperti di dasbor Mengantar, tidak boleh di masa depan."
 								error={errors.occurred}
 							>
 								<Input
@@ -874,7 +873,7 @@ function ActionDialog({
 									}
 								/>
 							</Field>
-							<Field id="manual-evidence" label="Bukti dari dashboard Mengantar" error={errors.evidence}>
+							<Field id="manual-evidence" label="Bukti dari dasbor Mengantar" error={errors.evidence}>
 								<Textarea
 									id="manual-evidence"
 									value={evidence}
@@ -900,22 +899,7 @@ function ActionDialog({
 							aria-describedby={describe("manual-reason")}
 						/>
 					</Field>
-					{error && (
-						<p role="alert" className="text-sm text-destructive">
-							{error}
-						</p>
-					)}
-					<DialogFooter>
-						<Button type="button" variant="outline" disabled={pending} onClick={onClose}>
-							Batal
-						</Button>
-						<Button type="submit" disabled={pending}>
-							{pending ? "Menyimpan…" : "Simpan"}
-						</Button>
-					</DialogFooter>
-				</form>
-			</DialogContent>
-		</Dialog>
+		</FormDialog>
 	);
 }
 
@@ -951,8 +935,8 @@ function BookingSheet({ row }: { row: Row }) {
 						{`${formatKg(b.parcel.weight_grams)} · ${formatCm(b.parcel.length_mm)} × ${formatCm(b.parcel.width_mm)} × ${formatCm(b.parcel.height_mm)} cm`}
 						<span className="block text-xs text-muted-foreground" data-testid="booking-weight-note">
 							{b.cancelled_units > 0
-								? `Hitungan saat checkout; ${b.cancelled_units} unit sudah dibatalkan. Timbang ulang paket sebelum memesan.`
-								: "Hitungan saat checkout. Pastikan sesuai timbangan."}
+								? `Hitungan saat pesanan dibuat; ${b.cancelled_units} unit sudah dibatalkan. Timbang ulang paket sebelum memesan.`
+								: "Hitungan saat pesanan dibuat. Pastikan sesuai timbangan."}
 						</span>
 					</>,
 				)}
@@ -1120,9 +1104,9 @@ function PickupProfiles({ warehouses }: { warehouses: Warehouse[] }) {
 					}}
 				>
 					<div className="flex flex-wrap items-center gap-2 md:col-span-2">
-						<Badge variant={profile.readiness === "complete" ? "default" : "outline"}>
+						<StatusBadge tone={profile.readiness === "complete" ? "success" : "open"}>
 							{profile.readiness === "complete" ? "Lengkap" : "Belum lengkap"}
-						</Badge>
+						</StatusBadge>
 						<Badge variant="outline">
 							{profile.mode === "mengantar_api" ? "Mode otomatis" : "Mode manual"}
 						</Badge>

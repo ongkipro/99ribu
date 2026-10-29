@@ -26,8 +26,7 @@ export default async function SettingsAdvertisingPage() {
 		<AdminPage testId="settings-advertising-page">
 			<PageHeader
 				title="Integrasi Iklan"
-				description="Kelola tujuan sinyal iklan (Meta CAPI, Google Ads Offline Clicks, TikTok Events API), pantau rekonsiliasi uang terhadap sinyal yang terkirim, jeda atau lanjutkan pengiriman, dan kirim ulang kejadian terverifikasi."
-				meta={<span>Waktu dalam WIB</span>}
+				description="Tujuan sinyal Meta, Google Ads, dan TikTok: rekonsiliasi, jeda pengiriman, dan kirim ulang kejadian terverifikasi."
 			/>
 			<SettingsAdvertisingClient canWrite={roles.includes("owner")} />
 		</AdminPage>

@@ -1,0 +1,889 @@
+/* Checkout uses the global type scale; rem-based columns also stack with enlarged text. */
+.checkout-wrap {
+	max-width: 1128px;
+	margin-inline: auto;
+	padding-inline: 24px;
+}
+.checkout-header {
+	display: flex;
+	align-items: center;
+	justify-content: space-between;
+	flex-wrap: wrap;
+	gap: 12px;
+	padding-block: 16px;
+	border-bottom: 1px solid var(--line);
+}
+:where(.checkout-header button) {
+	border: 0;
+	background: transparent;
+	padding: 0;
+	color: inherit;
+	cursor: pointer;
+}
+.checkout-back,
+.checkout-help-link {
+	display: inline-flex;
+	align-items: center;
+	gap: 8px;
+	min-height: 44px;
+}
+:where(.checkout-back svg) {
+	width: 20px;
+	height: 20px;
+}
+.checkout-help-link {
+	min-width: 44px;
+	justify-content: center;
+}
+.checkout-help-link,
+.checkout-text-button {
+	color: var(--purple);
+	text-decoration: underline;
+	text-underline-offset: 3px;
+}
+.checkout-title {
+	margin-block: 32px 24px;
+}
+.checkout-layout {
+	display: flex;
+	flex-direction: row-reverse;
+	flex-wrap: wrap;
+	gap: 32px;
+	align-items: flex-start;
+}
+.checkout-fields {
+	flex: 1.27 1 28rem;
+	min-width: 0;
+}
+.checkout-summary {
+	flex: 1 1 22rem;
+	min-width: 0;
+	background: #f7f7f9;
+	border: 1px solid var(--line);
+	border-radius: 20px;
+}
+.checkout-summary summary {
+	display: flex;
+	align-items: center;
+	gap: 12px;
+	min-height: 64px;
+	padding: 16px;
+	cursor: pointer;
+	list-style: none;
+}
+.checkout-summary summary::-webkit-details-marker {
+	display: none;
+}
+.checkout-summary summary > span:first-child {
+	flex: 1;
+	min-width: 0;
+}
+:where(.checkout-summary summary small) {
+	display: block;
+	color: var(--muted);
+	font-size: var(--small-size);
+}
+.checkout-summary summary > strong {
+	font-size: var(--subtitle-size);
+	line-height: var(--subtitle-leading);
+	white-space: nowrap;
+	font-weight: 600;
+}
+:where(.summary-chevron svg) {
+	width: 20px;
+	height: 20px;
+	transform: rotate(-90deg);
+}
+:where(.checkout-summary details[open] .summary-chevron svg) {
+	transform: rotate(90deg);
+}
+/* The disclosure title (16/22, weight 400 as the owner asked) for the phone toggle and the desktop heading. */
+.summary-desktop-title,
+.summary-toggle-label {
+	font-size: var(--body-size);
+	line-height: var(--body-leading);
+	font-weight: 400;
+}
+.summary-desktop-title {
+	display: none;
+}
+.checkout-summary .summary-hide,
+.checkout-summary details[open] .summary-show {
+	display: none;
+}
+.checkout-summary details[open] .summary-hide {
+	display: inline;
+}
+.checkout-summary-body {
+	padding: 8px 20px 20px;
+}
+.checkout-summary-lines {
+	padding: 0;
+	margin: 20px 0;
+	list-style: none;
+	display: grid;
+	gap: 20px;
+}
+.checkout-summary-lines > li {
+	min-width: 0;
+	padding-bottom: 20px;
+	border-bottom: 1px solid var(--line);
+}
+.checkout-summary-parent {
+	display: flex;
+	flex-wrap: wrap;
+	align-items: baseline;
+	gap: 4px 16px;
+}
+.checkout-summary-parent > strong:first-child {
+	min-width: 0;
+	flex: 1 1 8rem;
+}
+.checkout-summary-parent > strong:last-child {
+	white-space: nowrap;
+	font-weight: 600;
+	margin-inline-start: auto;
+}
+.checkout-summary-lines > li > span {
+	display: block;
+	color: var(--muted);
+}
+.checkout-content-label {
+	font-size: var(--small-size);
+	margin-top: 8px;
+	color: var(--muted);
+}
+.checkout-contents {
+	padding-left: 20px;
+	margin: 4px 0 0;
+	font-size: var(--small-size);
+	overflow-wrap: anywhere;
+	/* Filled bullets at the same 20px inset as the cart's list (.cart-contents); a list inside the summary's lists would otherwise get hollow circles. */
+	list-style: disc;
+}
+.checkout-progress {
+	display: flex;
+	flex-wrap: wrap;
+	gap: 8px 20px;
+	list-style: none;
+	margin: 0 0 24px;
+	padding: 0;
+	color: var(--muted);
+	font-size: var(--small-size);
+}
+.checkout-progress [aria-current="step"] {
+	font-weight: 600;
+	color: var(--purple);
+}
+.checkout-fields > h2 {
+	margin-bottom: 20px;
+}
+.checkout-controls {
+	border: 0;
+	padding: 0;
+	margin: 0;
+	min-width: 0;
+	display: grid;
+	gap: 20px;
+}
+.checkout-step-notice {
+	margin-bottom: 16px;
+}
+.checkout-total-change {
+	margin-bottom: 16px;
+}
+.checkout-field {
+	display: grid;
+	grid-template-columns: minmax(0, 1fr);
+	gap: 8px;
+	min-width: 0;
+}
+/* The size container that drives the narrow-field fallback below. A field that directly holds a <select> is
+   never its own container: Chromium leaves an inline-size container that directly holds a <select> at 0
+   height once React re-renders it after a server action (the checkout "Wilayah pengiriman" vanished after
+   "Hitung ongkir"; a wrapper re-created with the field fails the same way). Its container is the persistent
+   checkout form instead (queries against a fieldset container never matched in Chromium), as wide as the field. */
+.checkout-field:not(.checkout-field-select),
+#checkout-form {
+	container: checkout-field / inline-size;
+}
+/* S141 floating labels (CSS only, no JS). The <label for> stays the accessible name; it sits in the same
+   grid cell as its control, inside the field: 16/22 at rest and on focus, 12/16 at the top once the control
+   has a value (typed, autofilled or server-prefilled). Text controls carry a blank placeholder so
+   :placeholder-shown means "empty"; a select counts as empty on its "" option. A control without the blank
+   placeholder simply keeps the small label. Sizes are rem and the label may wrap; when the field is narrower than 13em (where even the shrunk label could wrap)
+   (320px at 200% text) the labels fall back to the plain label above the control, so nothing clips or overlaps. */
+.checkout-field > :is(label, input, select, textarea) {
+	grid-area: 1 / 1;
+}
+.checkout-field > label {
+	z-index: 1;
+	align-self: start;
+	padding: 1.0625rem 13px 0;
+	color: var(--muted);
+	font-size: var(--body-size);
+	line-height: var(--body-leading);
+	font-weight: 400;
+	overflow-wrap: anywhere;
+	pointer-events: none;
+	transition:
+		padding-top 0.15s cubic-bezier(0.4, 0, 0.2, 1),
+		font-size 0.15s cubic-bezier(0.4, 0, 0.2, 1),
+		color 0.15s cubic-bezier(0.4, 0, 0.2, 1);
+}
+.checkout-field:where(:has(> select)) > label {
+	padding-right: 40px;
+}
+.checkout-field:where(
+		:is(
+			:has(> :is(input, textarea):not(:placeholder-shown)),
+			:has(> :is(input, select, textarea):autofill),
+			:has(> :is(input, select, textarea):-webkit-autofill),
+			:has(> select > option:checked:not([value=""]))
+		)
+	)
+	> label {
+	padding-top: 0.5rem;
+	font-size: var(--caption-size);
+	line-height: var(--caption-leading);
+	font-weight: 500;
+}
+.checkout-field:where(:has(> :focus)) > label {
+	color: var(--ink);
+}
+.checkout-field:where(:has(> [aria-invalid="true"])) > label {
+	color: var(--error);
+}
+.checkout-field :is(input, select, textarea) {
+	width: 100%;
+	min-width: 0;
+	min-height: 3.5rem;
+	border: 1px solid var(--field-border);
+	border-radius: 12px;
+	padding: 1.5rem 12px 0.375rem;
+	/* background-color only: the shorthand would erase the select chevron set in a :where() rule. */
+	background-color: #fff;
+	color: inherit;
+	font: inherit;
+	line-height: 1.5;
+}
+/* An empty select shows its label where the "Pilih ..." option text is; the open list keeps normal text. */
+.checkout-field > select:has(> option:checked[value=""]) {
+	color: transparent;
+}
+.checkout-field select option {
+	color: var(--ink);
+}
+.checkout-field textarea {
+	resize: vertical;
+}
+/* A long text scrolls under the shrunk label; this strip keeps the label readable (not over the scrollbar). */
+.checkout-field:has(> textarea:not(:placeholder-shown))::before {
+	content: "";
+	grid-area: 1 / 1;
+	z-index: 1;
+	align-self: start;
+	height: 1.75rem;
+	margin: 1px 16px 0 1px;
+	border-radius: 11px 0 0;
+	background: #fff;
+	pointer-events: none;
+}
+.checkout-field [aria-invalid="true"] {
+	border-color: var(--error);
+	box-shadow: inset 0 0 0 1px var(--error);
+}
+@container checkout-field (max-width: 13em) {
+	.checkout-field > label {
+		grid-area: 1 / 1;
+		padding: 0;
+		color: var(--ink);
+		font-size: var(--body-size);
+		line-height: var(--body-leading);
+		font-weight: 500;
+		transition: none;
+	}
+	.checkout-field:where(:has(> [aria-invalid="true"])) > label {
+		color: var(--error);
+	}
+	.checkout-field > :is(input, select, textarea) {
+		grid-area: 2 / 1;
+		min-height: 3rem;
+		padding: 11px 12px;
+	}
+	.checkout-field > select:has(> option:checked[value=""]) {
+		color: inherit;
+	}
+	.checkout-field:has(> textarea:not(:placeholder-shown))::before {
+		display: none;
+	}
+}
+@media (prefers-reduced-motion: reduce) {
+	.checkout-field > label {
+		transition: none;
+	}
+}
+.checkout-contact-row {
+	display: flex;
+	flex-wrap: wrap;
+	gap: 20px;
+}
+.checkout-contact-row > .checkout-field {
+	flex: 1 1 12rem;
+}
+.checkout-search {
+	display: flex;
+	flex-wrap: wrap;
+	gap: 8px;
+	min-width: 0;
+}
+.checkout-search > .checkout-field {
+	flex: 1 1 12rem;
+}
+.checkout-query {
+	display: grid;
+	gap: 8px;
+	min-width: 0;
+}
+.checkout-search > button {
+	flex: 0 1 auto;
+}
+.checkout-hint {
+	color: var(--muted);
+	font-size: var(--small-size);
+}
+.checkout-field-error {
+	color: var(--error);
+	display: flex;
+	gap: 8px;
+	align-items: start;
+	overflow-wrap: anywhere;
+}
+:where(
+	.checkout-field-error svg,
+	.checkout-feedback > svg,
+	.checkout-payment-status > svg,
+	.checkout-caution > svg
+) {
+	width: 20px;
+	height: 20px;
+	flex: none;
+	margin-top: 3px;
+}
+.checkout-feedback {
+	display: flex;
+	align-items: start;
+	gap: 12px;
+	border-left: 3px solid var(--purple);
+	background: #f7f5fd;
+	padding: 16px;
+	margin-bottom: 20px;
+}
+.checkout-feedback ul {
+	padding-left: 20px;
+	margin: 8px 0 0;
+}
+.checkout-feedback a {
+	text-decoration: underline;
+	display: inline-flex;
+	align-items: center;
+	min-height: 44px;
+}
+.checkout-feedback.checkout-error {
+	border-color: var(--error);
+	background: var(--error-surface);
+}
+.checkout-methods {
+	border: 1px solid var(--line);
+	border-radius: 8px;
+	padding: 16px;
+	min-width: 0;
+}
+.checkout-methods[aria-invalid="true"] {
+	border-color: var(--error);
+	box-shadow: inset 0 0 0 1px var(--error);
+}
+#checkout-destination_id:valid ~ .checkout-destination-prompt {
+	display: none;
+}
+.checkout-methods legend {
+	padding-inline: 4px;
+	margin-inline-start: 12px;
+	font-weight: 500;
+}
+.checkout-methods label {
+	display: flex;
+	align-items: center;
+	gap: 12px;
+	min-height: 48px;
+	padding-block: 8px;
+}
+.checkout-methods input {
+	flex: none;
+	font: inherit;
+	width: 1.25em;
+	height: 1.25em;
+	min-width: 20px;
+	min-height: 20px;
+	accent-color: var(--purple);
+}
+.checkout-methods p {
+	margin-bottom: 8px;
+}
+.checkout-text-button {
+	min-height: 44px;
+	padding: 8px 0;
+	border: 0;
+	background: transparent;
+	font: inherit;
+	text-align: left;
+	cursor: pointer;
+}
+.checkout-address-review {
+	display: grid;
+	gap: 8px;
+	overflow-wrap: anywhere;
+}
+.checkout-choices {
+	border: 0;
+	padding: 0;
+	margin: 0;
+	min-width: 0;
+	display: grid;
+	gap: 8px;
+}
+.checkout-choices legend {
+	padding: 0;
+	margin: 0 0 8px;
+	font-weight: 500;
+}
+.checkout-choices label {
+	min-height: 44px;
+	display: flex;
+	align-items: start;
+	gap: 12px;
+	padding: 12px;
+	border: 1px solid var(--line);
+	border-radius: 8px;
+	min-width: 0;
+	cursor: pointer;
+}
+.checkout-choices label:has(input:checked) {
+	border-color: var(--purple);
+}
+.checkout-choices input {
+	flex: none;
+	font: inherit;
+	width: 1.25em;
+	height: 1.25em;
+	min-width: 20px;
+	min-height: 20px;
+	margin-top: 3px;
+	accent-color: var(--purple);
+}
+.checkout-choices label > span {
+	flex: 1 1 auto;
+	min-width: 0;
+	display: grid;
+	gap: 4px;
+	overflow-wrap: anywhere;
+}
+:where(.checkout-choices strong) {
+	font-weight: 500;
+}
+.checkout-parcels {
+	display: grid;
+	gap: 24px;
+}
+.checkout-parcel {
+	border: 1px solid var(--line);
+	padding: 16px;
+	margin: 0;
+	min-width: 0;
+	border-radius: 8px;
+	display: grid;
+	gap: 12px;
+}
+.checkout-parcel > legend {
+	padding-inline: 4px;
+	margin-inline-start: 12px;
+	font-weight: 600;
+	max-width: 100%;
+}
+.checkout-parcel > ul {
+	list-style: none;
+	padding: 0;
+	margin: 0;
+	display: grid;
+	gap: 16px;
+}
+.checkout-parcel > ul > li > span {
+	display: block;
+	color: var(--muted);
+}
+.checkout-charges {
+	display: grid;
+	gap: 12px;
+	margin: 16px 0;
+}
+:where(.checkout-charges > div) {
+	display: flex;
+	flex-wrap: wrap;
+	justify-content: space-between;
+	align-items: baseline;
+	gap: 8px 16px;
+}
+.checkout-charges dd {
+	margin: 0;
+	margin-inline-start: auto;
+	font-weight: 500;
+	white-space: nowrap;
+}
+.checkout-total {
+	padding-top: 12px;
+	border-top: 1px solid var(--line);
+	font-weight: 600;
+}
+.checkout-total dd {
+	font-weight: 600;
+}
+.checkout-actions {
+	display: grid;
+	gap: 12px;
+	padding-top: 20px;
+}
+.checkout-actions .button {
+	width: 100%;
+	white-space: normal;
+}
+.checkout-help {
+	border-top: 1px solid var(--line);
+	margin-top: 40px;
+	padding-top: 24px;
+	scroll-margin-top: 16px;
+}
+.checkout-help h2 {
+	margin-bottom: 16px;
+}
+.checkout-help details {
+	border-bottom: 1px solid var(--line);
+}
+.checkout-help summary {
+	display: flex;
+	align-items: start;
+	gap: 0.5em;
+	list-style: none;
+	cursor: pointer;
+	min-height: 48px;
+	padding-block: 12px;
+	font-weight: 500;
+}
+.checkout-help summary::-webkit-details-marker {
+	display: none;
+}
+:where(.checkout-help summary > svg) {
+	flex: none;
+	width: 1em;
+	height: 1em;
+	margin-top: 0.3em;
+	transform: rotate(-90deg);
+}
+.checkout-help details[open] > summary > svg {
+	transform: rotate(90deg);
+}
+.checkout-help > .checkout-text-button {
+	display: none;
+	margin-top: 12px;
+}
+.checkout-help:target > .checkout-text-button {
+	display: inline-flex;
+	align-items: center;
+}
+.checkout-help details p {
+	padding-bottom: 16px;
+	color: var(--muted);
+}
+.checkout-recovery > .checkout-help {
+	width: 100%;
+	margin-top: 0;
+}
+.checkout-conflict {
+	margin-bottom: 20px;
+}
+.checkout-conflict p + p {
+	margin-top: 8px;
+}
+.checkout-conflict a {
+	display: inline-flex;
+	align-items: center;
+	min-height: 44px;
+	margin-top: 8px;
+	text-decoration: underline;
+	text-underline-offset: 3px;
+}
+.checkout-conflict a.button {
+	text-decoration: none;
+	justify-content: center;
+}
+.checkout-footer {
+	padding-block: 32px;
+	margin-top: 32px;
+	border-top: 1px solid var(--line);
+	font-size: var(--small-size);
+	color: var(--muted);
+}
+.checkout-footer nav {
+	display: flex;
+	flex-wrap: wrap;
+	gap: 8px 24px;
+	margin-top: 12px;
+}
+.checkout-footer a {
+	display: inline-flex;
+	align-items: center;
+	min-height: 44px;
+	text-decoration: underline;
+}
+.checkout-recovery {
+	display: grid;
+	justify-items: start;
+	gap: 20px;
+	padding-block: 40px;
+	max-width: 40rem;
+}
+.checkout-payment-wrap {
+	max-width: calc(40rem + 48px);
+}
+.checkout-payment {
+	max-width: 40rem;
+	margin-inline: auto;
+	padding-top: 32px;
+	display: grid;
+	gap: 20px;
+	overflow-wrap: anywhere;
+}
+.checkout-layout > .checkout-recovery {
+	padding-block: 0;
+}
+.checkout-order-reference {
+	color: var(--muted);
+	font-variant-numeric: tabular-nums;
+}
+.checkout-next-step {
+	display: grid;
+	justify-items: start;
+	gap: 12px;
+}
+.checkout-payment-status {
+	display: flex;
+	align-items: start;
+	gap: 12px;
+	padding: 16px;
+	background: #f7f7f9;
+	border-left: 3px solid var(--line);
+}
+.checkout-payment-status[data-phase="success"] {
+	border-color: var(--purple);
+	background: #f7f5fd;
+}
+.checkout-payment-status:is([data-phase="unknown"], [data-phase="closed"]),
+.checkout-caution {
+	border-left: 3px solid var(--warning);
+	background: var(--warning-surface);
+}
+.checkout-payment-status[data-phase="error"] {
+	border-color: var(--error);
+	background: var(--error-surface);
+}
+.checkout-caution {
+	display: flex;
+	align-items: start;
+	gap: 12px;
+	padding: 16px;
+}
+.checkout-payment .checkout-charges {
+	margin: 0;
+}
+.checkout-cod-parcels,
+.checkout-payment-instructions,
+.checkout-payment-action {
+	display: grid;
+	gap: 12px;
+}
+.checkout-payment-instructions {
+	padding: 16px;
+	border: 1px solid var(--line);
+	border-radius: 8px;
+}
+.checkout-payment-action > .button,
+.checkout-status-refresh {
+	justify-self: start;
+	white-space: normal;
+}
+.checkout-allocation details > summary {
+	min-height: 44px;
+	padding-block: 12px;
+	cursor: pointer;
+	color: var(--purple);
+	text-decoration: underline;
+	text-underline-offset: 3px;
+}
+.checkout-allocation details > div {
+	display: grid;
+	gap: 8px;
+}
+.checkout-allocation-rows {
+	padding: 0;
+	margin: 4px 0;
+	display: grid;
+	gap: 8px;
+}
+.checkout-allocation-difference {
+	font-weight: 500;
+}
+:where(.checkout-allocation-rows > span) {
+	display: flex;
+	flex-wrap: wrap;
+	align-items: baseline;
+	gap: 4px 12px;
+}
+.checkout-allocation-rows > span > span:first-child {
+	flex: 1 1 14em;
+	min-width: 0;
+}
+.checkout-allocation-rows > span > span:last-child {
+	flex: 0 0 auto;
+	margin-inline-start: auto;
+	text-align: end;
+	white-space: nowrap;
+	font-variant-numeric: tabular-nums;
+}
+.checkout-selection-warning,
+.checkout-parcel-pending,
+.checkout-allocation-pending {
+	display: none;
+}
+.checkout-allocation-action {
+	display: none;
+}
+.checkout-controls:has(
+		.checkout-allocation input[data-issued-selected="false"]:checked
+	)
+	.checkout-allocation-action {
+	display: inline;
+}
+.checkout-controls:has(
+		.checkout-allocation input[data-issued-selected="false"]:checked
+	)
+	.checkout-service-action {
+	display: none;
+}
+.checkout-fields:has(
+		.checkout-choices input[data-issued-selected="false"]:checked
+	)
+	> p.checkout-step-notice[data-phase="success"] {
+	display: none;
+}
+.checkout-controls:has(
+		.checkout-choices input[data-issued-selected="false"]:checked
+	)
+	> .checkout-selection-warning {
+	display: flex;
+}
+.checkout-fields:has(
+		.checkout-choices input[data-issued-selected="false"]:checked
+	)
+	> .checkout-total-change {
+	display: none;
+}
+.checkout-controls:has(
+		.checkout-allocation input[data-issued-selected="false"]:checked
+	)
+	> .checkout-allocation-pending {
+	display: block;
+}
+.checkout-controls:has(
+		.checkout-allocation input[data-issued-selected="false"]:checked
+	)
+	> .checkout-parcels {
+	display: none;
+}
+.checkout-parcel:has(input[data-issued-selected="false"]:checked)
+	> .checkout-parcel-pending {
+	display: block;
+}
+.checkout-parcel:has(input[data-issued-selected="false"]:checked)
+	> .checkout-charges {
+	display: none;
+}
+.checkout-controls .button:disabled {
+	background: #efedf3;
+	border-color: #d8d8df;
+	color: #64606e;
+	cursor: wait;
+}
+.checkout-controls:disabled .checkout-choices label {
+	color: var(--muted);
+	cursor: wait;
+}
+.checkout-controls:disabled .checkout-text-button {
+	color: var(--muted);
+	text-decoration: none;
+	cursor: wait;
+}
+.checkout-controls :is(input, select, textarea):disabled {
+	background: #f7f7f9;
+	color: var(--muted);
+}
+:where(.checkout-wrap)
+	:is(a, button, input, select, textarea, summary):focus-visible {
+	outline: 3px solid var(--purple);
+	outline-offset: 3px;
+}
+@media (max-width: 600px) {
+	.checkout-wrap {
+		padding-inline: 16px;
+	}
+	.checkout-title {
+		margin-top: 24px;
+	}
+	.checkout-layout {
+		gap: 24px;
+	}
+	.checkout-summary-body {
+		padding-inline: 16px;
+	}
+}
+@media (max-width: 22rem) {
+	.checkout-back svg {
+		display: none;
+	}
+	/* Back and Help fill the second row exactly at 320px/200% text (152 + 124 of 288px), so the
+	   column gap narrows to keep them on one row. */
+	.checkout-header {
+		column-gap: 8px;
+	}
+	.checkout-header .brand {
+		order: -1;
+		flex-basis: 100%;
+	}
+	.checkout-summary summary {
+		flex-wrap: wrap;
+	}
+	.checkout-summary summary > span:first-child {
+		flex-basis: 100%;
+	}
+	.checkout-summary summary > strong {
+		white-space: normal;
+	}
+}
+
+@media (min-width: 1024px) {
+	.summary-toggle-label {
+		display: none;
+	}
+	.summary-desktop-title {
+		display: inline;
+	}
+}
+

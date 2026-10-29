@@ -250,6 +250,7 @@ test("S62.2: rerunnable seedCommerce on the same namespace preserves identities 
 		assert.equal(activeHolds.n, 0);
 	} finally {
 		await cleanup(identity, [owner]);
+		await identity.sql`update app.warehouse set active = false where active and id in (select warehouse_id from app.local_fixture_warehouse where namespace = ${ns})`;
 		await identity.sql.end();
 	}
 });
