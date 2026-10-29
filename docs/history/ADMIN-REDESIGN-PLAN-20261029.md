@@ -500,6 +500,7 @@ Each port is checked by `npm run check`, the browser tests per role, renders at 
 | D11 | Narrow the owner's server-side catalog/operations write permissions to match the monitor role (R4 IAM) — later; UI-only in this programme |
 | D12 | Internal and external accounts strictly separate (§4.6): staff accounts cannot shop or be affiliates; mixed grants refused — recommended yes |
 | D13 | **Accepted 2026-10-29 (owner):** internal console on its own host in production; external users stay on `https://99ribu.com` (`/akun`, `/afiliasi`, checkout, cart). Host: **`admin.99ribu.com` — locked by the owner 2026-10-29** (`konsol.`, `app.` and `master.` considered and rejected). Same single Next.js app: `src/proxy.ts` serves the console by host and answers `99ribu.com/admin/*` with 308 to the admin host; separate host-only cookies; console-wide `noindex`, stricter CSP and the option of network access control (Cloudflare Access / IP allowlist). **Supersedes RELEASE.md OD-1** ("admin stays under /admin on the same host") when implemented; RELEASE.md is updated by that slice, not now. Local development is unchanged (`127.0.0.1:3099/admin`, tailnet). |
+| D14 | Local DB rebuild after verification (§11) — ask the owner at execution time |
 | D10 | ~~Admin route slugs~~ — **answered 2026-10-29: Indonesian slugs like tokophi** (§4.2) |
 
 Build order after Gate 0: **S-U1 → S-V1 → S-H1**, then S-P1 / S-A0 / S-N1 in parallel worktrees (disjoint paths), then S-A1, S-C1. S-R1 only on D8.
@@ -540,3 +541,38 @@ The owner ordered the whole programme to run in parallel without further questio
 Migration numbers are reserved up front so parallel slices do not collide: **0042 = S-A0 Persetujuan**, **0043 = S-C1 Toko Online**. No other slice adds a migration.
 
 Execution: **S-U1 → S-V1** run sequentially and are merged into local `main`. Then **S-H1, S-P1, S-A0, S-N1, S-A1, S-C1** run in parallel worktrees, each with an independent review, and are merged one at a time. Then serial verification (build, integration, browser) and an admin design review. Nothing is pushed until the owner has seen the result.
+
+
+## 11. Second wave (owner 2026-10-29: "jalankan paralel termasuk db dipresisikan, bangun halaman yang belum ada, rapikan halaman yang sudah ada")
+
+Runs as a second workflow after S-V1 is merged. It works on branches only. Merges happen after the first workflow has finished its own verification, followed by one combined verification.
+
+| Slice | Scope | Owned paths | Risk |
+|---|---|---|---|
+| **S-T1** tidy Pesanan area | Existing pages `pesanan` list/detail, `pesanan/kirim`, `pesanan/cetak-label`, `pesanan/kendala`, `pesanan/retur`, `antrian` moved onto the S-V1 blocks: PageHeader, TabStrip tabs (§4.3), ResponsiveTable cards on phones, status tones, concise Indonesian copy, empty/error states | those route folders + their `src/components/admin/{order,manual-fulfillment,print-center,exception,return,queue}-*` files | R2 |
+| **S-T2** tidy Produk area | `produk` list, `produk/kategori`, `produk/sku`, `produk/inventori`, `produk/inventori/transfer`, `produk/gudang` (+detail) — **not** `produk/[no]` or `produk/baru` (S-P1) | those folders + `{catalog-list,categories,cost-versions,inventory,warehouses,warehouse-calendar}-*` | R2 |
+| **S-T3** tidy Keuangan area | `keuangan`, `keuangan/{pembayaran,cod,rekonsiliasi,refund,komisi}` (+details) | those folders + `{finance-*,payments,cod-settlements}-*` | R2 |
+| **S-T4** tidy Pengaturan & others | `pengaturan/*` pages, `pemasaran/iklan`, `promo/ongkir`, `banner`, `afiliasi`, `pelanggan`, `pelanggan/segmen`, `obrolan`, `akun/*` | those folders + matching `settings-*`, `staff-roles`, `audit-log`, `system-health`, `shipping-promotions`, `banners`, `affiliates`, `customer-lookup`, `account-security` clients | R2 |
+| **S-O1** owner oversight | New `/admin/pantauan` hub + `pantauan/{katalog,stok,kendala}` read-only pages (§4.1); owner read-only mode on operational screens is applied **after** S-T1..S-T4 merge (it touches the same files) | `src/app/admin/(console)/pantauan/**`, `src/components/admin/oversight-*` | R3 |
+| **S-K1 → S-K2** accounts + admin host | §4.6 then D13. S-K1 owns `src/app/(storefront)/{masuk,akun,afiliasi}/**`, `src/components/storefront/sign-in-form.tsx`, `src/modules/access/*` grant rules, new `src/app/admin/masuk/**`. It does not edit `src/components/storefront/shell.tsx` (it reports the header change). S-K2: host-based routing in `src/proxy.ts`, `ADMIN_ORIGIN` config, with unchanged behaviour when unset | as listed | R4 |
+| **S-D1** DB precision | See below | test fixtures, `src/modules/reporting/**` query paths, `src/modules/storefront/catalog.ts` `listProducts`/`publicProduct` batching only (not search), migration **0044** | R3 |
+
+**S-D1 facts (2026-10-29, `99ribu_local`):**
+- 1,544 products, 956 withdrawals; the real catalog is 394.
+- 433 warehouses, 389 active; the real number is 49 origins.
+- 552 categories; the real number is 14.
+- 1,504 auth users; the fixtures are 8.
+- `99ribu_test` has 3,592 warehouses.
+- 185 foreign keys have no supporting index.
+- 8 money-like columns are `integer`, the rest are `bigint`.
+
+**S-D1 scope:**
+1. Fix the fixture leaks at the source: integration and browser suites must deactivate or remove what they create (`shippingFixture().close()`, `berlapak-import.test.ts`, browser fixtures that create categories, warehouses and users in `99ribu_local`). Add a test that asserts the counts before and after.
+2. Add indexes only for foreign keys used by admin list and dashboard queries, chosen by `EXPLAIN` on the real queries (migration 0044, expand-only, `CREATE INDEX` on the empty production tables).
+3. Profile `/admin` (13 s in dev) and the reporting queries, and remove N+1 patterns. Batch `publicProduct` loading in `listProducts`.
+4. Audit the 8 `integer` money columns against the maximum values they can reach. Change a column only through an expand-only migration when a real overflow risk exists; otherwise document why `integer` is enough.
+5. Report a local data rebuild plan.
+
+**Local DB rebuild (destructive):** backup → recreate `99ribu_local` and `99ribu_test` → migrate → commercial/payment terms → `catalog:import` → `catalog:initial-stock` → `catalog:import` → `fixture -- login local` (README procedure). This is **not run by the workflow**. The main session runs it only after all verification passes and only with the owner's explicit confirmation at that moment.
+
+Migration reservations: 0042 S-A0, 0043 S-C1, **0044 S-D1**, 0045 S-K1 if a constraint is needed.
