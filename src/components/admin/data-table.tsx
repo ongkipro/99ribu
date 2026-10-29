@@ -17,10 +17,11 @@ import { DeniedState, EmptyState, ErrorState, LoadingState } from "./states";
 // S113: the one list surface of the admin console (shadcn Table). Every list screen passes its
 // columns, its load state (states.tsx) and, when it has them, keyset paging, row selection and a
 // mobile card. Detail pages use it too (order items, stock per warehouse, cost history).
-// Below md a list either renders its own `card`, or with `stack` the same row and cells as a
-// labelled card (one DOM, so row/cell locators and accessible names hold at every width).
-// Otherwise the table scrolls: the first column stays pinned (a 1px line once columns pass under
-// it) and a fade marks the right edge while more columns follow. The "actions" column scrolls with
+// Below md a list either renders its own `card`, or (the default, S-V1 tokophi ResponsiveTable)
+// `stack`s the same row and cells as a labelled card (one DOM, so row/cell locators and accessible
+// names hold at every width). From md the table scrolls: the first column stays pinned (a 1px line
+// once columns pass under it) and a fade marks the right edge while more columns follow. Nothing is
+// pinned on the right: the old sticky action column covered data (2026-10-28 P2). The "actions" column scrolls with
 // its row (admin review 2026-10-28, finding 2): a pinned right column covered dates and labels at
 // 768-1440, so low-priority columns give way first (`hideBelow`) and the rest stay readable.
 // Admin mobile pass: a stacked row and a custom card share one anatomy (`stack` roles and the
@@ -117,7 +118,10 @@ export type DataTableProps<T> = {
 	/** Mobile card: when set the table shows from `md` and these cards below it. */
 	card?: (row: T) => ReactNode;
 	cardTestId?: (row: T) => string;
-	/** Below md every row becomes a card of its own cells, each labelled with its header. */
+	/**
+	 * Below md every row becomes a card of its own cells, each labelled with its header. Default on
+	 * unless `card` is set (S-V1, tokophi ResponsiveTable): no list scrolls sideways on a phone.
+	 */
 	stack?: boolean;
 	/**
 	 * Group label of a row (rows arrive in group order, e.g. by deadline); a label row with the
@@ -158,12 +162,13 @@ export function DataTable<T>({
 	expanded,
 	card,
 	cardTestId,
-	stack = false,
+	stack: stackProp,
 	group,
 	selection,
 	paging,
 	footer,
 }: DataTableProps<T>) {
+	const stack = stackProp ?? !card;
 	const scrollRef = useRef<HTMLDivElement>(null);
 	const [edges, setEdges] = useState({ start: false, end: false });
 	const ready = status.kind === "ready" && rows.length > 0;

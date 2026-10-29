@@ -12,7 +12,9 @@ import { CardMeta, CardStatus, CardTitle, DataTable } from "./data-table";
 import { FilterSheet, nativeSelectClass } from "./form";
 import {
 	blockerLabel,
+	CATALOG_TABS,
 	type CatalogStatus,
+	catalogTabKey,
 	type Category,
 	categoryPath,
 	type catalogAccess,
@@ -26,15 +28,10 @@ import {
 } from "./catalog-model";
 import { StatusBadge } from "./status";
 import { AdminPage, PageHeader } from "./page-blocks";
+import { TabStrip } from "./tab-strip";
 import { adminPath } from "@/modules/access/admin-paths";
 
 const PAGE_SIZE = 25;
-const STATUSES: CatalogStatus[] = [
-	"published",
-	"withdrawn",
-	"ready",
-	"blocked",
-];
 
 type Filters = { q: string; category: string; status: CatalogStatus | ""; review: boolean };
 type Access = ReturnType<typeof catalogAccess>;
@@ -123,7 +120,7 @@ export function CatalogListClient({
 	const urlState = {
 		q: query,
 		kategori: filters.category,
-		status: filters.status,
+		tab: filters.status ? catalogTabKey(filters.status) : "",
 		tinjauan: filters.review ? "klaim" : "",
 		hal: page > 1 ? String(page) : "",
 		kursor: chain,
@@ -141,9 +138,17 @@ export function CatalogListClient({
 		setFilters((prev) => ({ ...prev, ...patch }));
 		setCursors([null]);
 	};
-	const filtered = Boolean(query || filters.category || filters.status || filters.review);
-	const activeFilters =
-		Number(Boolean(filters.category)) + Number(Boolean(filters.status)) + Number(filters.review);
+	const filtered = Boolean(query || filters.category || filters.review);
+	const activeFilters = Number(Boolean(filters.category)) + Number(filters.review);
+	// A tab keeps the search and the other filters, and opens on page 1.
+	const tabHref = (key: string) => {
+		const params = new URLSearchParams(
+			Object.entries({ q: query, kategori: filters.category, tinjauan: urlState.tinjauan, tab: key === "semua" ? "" : key }).filter(
+				([, v]) => v,
+			),
+		);
+		return `/admin/produk${params.size ? `?${params}` : ""}`;
+	};
 	const categoryLabel = (id: string) =>
 		categoryPath(id, categories) ?? categories.find((c) => c.id === id)?.name ?? "Kategori terpilih";
 	// The applied filters as removable chips (same values as the fields and the URL).
@@ -152,12 +157,9 @@ export function CatalogListClient({
 		...(filters.category
 			? [{ key: "category", label: `Kategori: ${categoryLabel(filters.category)}`, clear: { category: "" } }]
 			: []),
-		...(filters.status
-			? [{ key: "status", label: `Status: ${STATUS_LABELS[filters.status]}`, clear: { status: "" as const } }]
-			: []),
 		...(filters.review ? [{ key: "review", label: "Perlu tinjauan klaim", clear: { review: false } }] : []),
 	];
-	const clearAll = () => update({ q: "", category: "", status: "", review: false });
+	const clearAll = () => update({ q: "", category: "", review: false });
 	const detailHref = (adminNo: number) =>
 		`${adminPath("product", adminNo)}${urlQuery ? `?dari=${encodeURIComponent(urlQuery)}` : ""}`;
 	// Readers without stock access get readiness flags, never quantities.
@@ -258,6 +260,12 @@ export function CatalogListClient({
 				<h2 id="catalog-list-heading" className="sr-only">
 					Daftar produk
 				</h2>
+				<TabStrip
+					label="Status penerbitan"
+					active={catalogTabKey(filters.status)}
+					tabs={CATALOG_TABS.map(([key, label]) => ({ key, label, href: tabHref(key) }))}
+					testId={(key) => `catalog-tab-${key}`}
+				/>
 				<search className="grid gap-3 md:grid-cols-2 xl:grid-cols-[minmax(0,2fr)_repeat(3,minmax(0,1fr))]">
 					<div className="flex flex-col gap-1.5">
 						<label htmlFor="catalog-search" className="text-sm font-medium">
@@ -303,26 +311,6 @@ export function CatalogListClient({
 											{c.label}
 										</option>
 									))}
-							</select>
-						</div>
-						<div className="flex flex-col gap-1.5">
-							<label htmlFor="catalog-status" className="text-sm font-medium">
-								Status penerbitan
-							</label>
-							<select
-								id="catalog-status"
-								value={filters.status}
-								onChange={(e) =>
-									update({ status: e.target.value as CatalogStatus | "" })
-								}
-								className={`${nativeSelectClass} w-full`}
-							>
-								<option value="">Semua status</option>
-								{STATUSES.map((s) => (
-									<option key={s} value={s}>
-										{STATUS_LABELS[s]}
-									</option>
-								))}
 							</select>
 						</div>
 						<div className="flex flex-col gap-1.5">
@@ -396,6 +384,8 @@ export function CatalogListClient({
 									Hapus filter
 								</Button>
 							</>
+						) : filters.status ? (
+							`Tidak ada produk berstatus ${STATUS_LABELS[filters.status].toLowerCase()}.`
 						) : access.company ? (
 							"Katalog belum berisi produk. Produk muncul di sini setelah impor katalog."
 						) : (

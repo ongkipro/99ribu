@@ -1,8 +1,9 @@
 import type { Viewport } from "next";
-import { headers } from "next/headers";
+import { cookies, headers } from "next/headers";
 import { redirect } from "next/navigation";
 import "./admin.css";
 import { AdminShell } from "../../../components/admin/admin-shell";
+import { LENS_COOKIE } from "../../../components/admin/admin-nav";
 import type { CanonicalWorkspace } from "../../../components/admin/admin-workspaces-client";
 import { readRuntimeConfig } from "../../../config/runtime";
 import { getLocalAuth } from "../../../modules/access/auth";
@@ -45,7 +46,7 @@ export default async function AdminConsoleLayout({
 		requestHeaders.get(CONSOLE_PATH_HEADER),
 	);
 	if (signIn) redirect(signIn);
-	const { roles, permissions } = await readStaffAccess();
+	const [{ roles, permissions }, jar] = await Promise.all([readStaffAccess(), cookies()]);
 	// Owner and the signed-out local preview see every workspace (unchanged S08 behavior).
 	const workspaces =
 		roles.length === 0 || roles.includes("owner")
@@ -58,6 +59,7 @@ export default async function AdminConsoleLayout({
 				roles={roles}
 				permissions={permissions}
 				account={user && { name: user.name, email: user.email }}
+				storedLens={jar.get(LENS_COOKIE)?.value ?? null}
 			>
 				{children}
 			</AdminShell>

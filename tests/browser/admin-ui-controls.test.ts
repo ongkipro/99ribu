@@ -218,10 +218,11 @@ test("staff inbox: console shell, noindex, claim once per double click, visible 
 		assert.equal(response?.status(), 200);
 		await expect(page.locator('meta[name="robots"]')).toHaveAttribute("content", /noindex/);
 		await expect(page.getByRole("navigation", { name: "Navigasi Operator" })).toBeVisible();
-		await expect(page.getByRole("link", { name: "Kotak Masuk Pelanggan" })).toHaveAttribute("aria-current", "page");
-		// S113 review: the way back to the console is the sidebar workspace link (no duplicate header button).
+		const nav = page.getByRole("navigation", { name: "Navigasi Operator" });
+		await expect(nav.getByRole("link", { name: /^Obrolan/ })).toHaveAttribute("aria-current", "page");
+		// S113 review: the way back to the console is the sidebar Beranda row (no duplicate header button).
 		await expect(page.getByRole("link", { name: "Ke Konsol Operasional" })).toHaveCount(0);
-		await expect(page.getByTestId("workspace-tab-customer_service")).toHaveAttribute("href", "/admin?workspace=customer_service");
+		await expect(nav.getByRole("link", { name: "Beranda" })).toHaveAttribute("href", "/admin");
 		await expect(page.locator("main")).toHaveCount(1);
 
 		// S113: the inbox lists the printed order number, never the raw order id.
@@ -255,14 +256,17 @@ test("staff inbox: console shell, noindex, claim once per double click, visible 
 	}
 });
 
-test("sidebar: ecommerce_admin and warehouse see Pusat Cetak Label, finance does not", async () => {
-	for (const [role, shown] of [["ecommerce_admin", true], ["warehouse", true], ["finance", false]] as const) {
+test("sidebar: warehouse sees Cetak Label, finance does not (ecommerce_admin prints from the print center URL)", async () => {
+	for (const [role, shown] of [["ecommerce_admin", false], ["warehouse", true], ["finance", false]] as const) {
 		const user = await staff(role, role === "finance" ? ["finance.reconciliation.read"] : []);
 		const { page, close } = await open(user);
 		try {
 			await page.goto(`${origin}/admin`);
 			const nav = page.getByRole("navigation", { name: "Navigasi Operator" });
-			await expect(nav.getByRole("link", { name: "Pusat Cetak Label" })).toHaveCount(shown ? 1 : 0);
+			// Plan §4.1: Cetak Label is a child of the warehouse Pesanan group (collapsed on the home page).
+			const toggle = nav.getByRole("button", { name: "Buka Pesanan" });
+			if (await toggle.count()) await toggle.click();
+			await expect(nav.getByRole("link", { name: "Cetak Label" })).toHaveCount(shown ? 1 : 0);
 		} finally {
 			await close();
 		}

@@ -1,7 +1,7 @@
 // Shapes of the admin catalog APIs (src/modules/catalog, finance, inventory)
 // and their Indonesian presentation labels. Read-only; servers enforce access.
 
-import { type ApiFailure, getJson } from "./admin-errors";
+import { type ApiFailure, getJson } from "./admin-errors.ts";
 
 export type CatalogImage = {
 	url: string;
@@ -160,6 +160,26 @@ export const STATUS_LABELS: Record<CatalogStatus, string> = {
 	ready: "Draf siap terbit",
 	blocked: "Diblokir",
 };
+/**
+ * List tabs (plan §4.3), one per publication state the products API filters on (`state`). The API
+ * returns no totals, so the tabs carry no counts; it has no sort, so the list keeps its API order.
+ */
+export const CATALOG_TABS: readonly (readonly [key: string, label: string, status: CatalogStatus | ""])[] = [
+	["semua", "Semua", ""],
+	["terbit", "Terbit", "published"],
+	["siap", "Siap Terbit", "ready"],
+	["diblokir", "Diblokir", "blocked"],
+	["ditarik", "Ditarik", "withdrawn"],
+];
+/** Status of a `?tab=` (or the older `?status=`) value; "" for Semua. */
+export function catalogTabStatus(tab: string, legacyStatus: string): CatalogStatus | "" {
+	const byTab = CATALOG_TABS.find(([key]) => key === tab);
+	if (byTab) return byTab[2];
+	return CATALOG_TABS.find(([, , status]) => status && status === legacyStatus)?.[2] ?? "";
+}
+export const catalogTabKey = (status: CatalogStatus | "") =>
+	CATALOG_TABS.find(([, , s]) => s === status)?.[0] ?? "semua";
+
 /** StatusBadge tones (status.tsx). */
 export const STATUS_TONE: Record<CatalogStatus, "success" | "closed" | "open" | "problem"> = {
 	published: "success",
