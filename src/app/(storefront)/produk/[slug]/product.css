@@ -23,13 +23,10 @@ main.product-detail .detail-price {
 	line-height: 1.5rem;
 	letter-spacing: -0.5px;
 }
-/* Space under the store header (measured 8px before): 32px desktop like shop.com's section rhythm and
-   sticky offset, 24px tablet, 16px phone. */
+/* Space under the store header (measured 8px before): 32px desktop like shop.com's section rhythm,
+   24px tablet, 16px phone. */
 main.product-detail {
 	padding-top: 32px;
-}
-main.product-detail .detail-layout > :first-child {
-	top: 102px;
 }
 /* Columns (shop.com 2026-10-29 measure, 1440): the media column ends 40px before a 464px buy box (media 112–900,
    buy box 940–1404). Tablets keep the half/half split: shop.com's 768 media is a 192px-wide portrait card, which
@@ -134,20 +131,44 @@ main.product-detail .stock-status:not([data-available]) {
 }
 
 /* ---- Gallery: server-rendered thumbnail links (no column shift on hydration). ---- */
+/* shop.com thumbnails (scanned 2026-10-29, 1440): 48px white tiles, 8px radius, 6px apart; the ring sits inside
+   the tile, so it is never clipped by the scrolling rail and neighbouring rings never meet. shop.com uses one 2px
+   ink ring for hover and current; the owner asked for thinner lines and distinct states: 1px light hairline at
+   rest, 1px darker on hover, 1.5px ink on the current photo. Drawn on ::after so the photo never covers it. */
 main.product-detail .gallery-thumbs a {
+	position: relative;
 	display: block;
 	width: 48px;
 	height: 48px;
 	overflow: hidden;
 	border-radius: 8px;
 	background: #fff;
+}
+main.product-detail .gallery-thumbs a::after {
+	content: "";
+	position: absolute;
+	inset: 0;
+	border-radius: inherit;
 	box-shadow: inset 0 0 0 1px var(--hairline);
+	pointer-events: none;
+	transition: box-shadow 150ms ease-out;
 }
-main.product-detail .gallery-thumbs a[aria-current] {
-	box-shadow: inset 0 0 0 2px #121212;
+main.product-detail .gallery-thumbs a:hover::after {
+	box-shadow: inset 0 0 0 1px rgba(0, 0, 0, 0.35);
 }
-main.product-detail .gallery-thumbs a:hover:not([aria-current]) {
-	box-shadow: inset 0 0 0 1px var(--field-border);
+main.product-detail .gallery-thumbs a[aria-current]::after {
+	box-shadow: inset 0 0 0 1.5px var(--ink);
+}
+main.product-detail .gallery-thumbs a:focus-visible {
+	outline: none;
+}
+main.product-detail .gallery-thumbs a:focus-visible::after {
+	box-shadow: inset 0 0 0 2px var(--purple);
+}
+@media (prefers-reduced-motion: reduce) {
+	main.product-detail .gallery-thumbs a::after {
+		transition: none;
+	}
 }
 /* shop.com media (2026-10-25 reference): the 48px rail sits centred beside the photo on desktop; the photo
    card has a 20px radius. Tablets get the same thumbnails as a horizontal row under the photo. */
@@ -164,7 +185,6 @@ main.product-detail .gallery-thumbs {
 		gap: 6px;
 		overflow-x: auto;
 		scrollbar-width: none;
-		padding: 2px;
 	}
 }
 /* Photo size follows the viewport height like shop.com's carousel (84vh desktop, 65vh capped at 760px on
@@ -192,7 +212,6 @@ main.product-detail .gallery-thumbs {
 		align-self: center;
 		max-height: min(100cqw - 64px, 100svh - 12.5rem);
 		margin-bottom: 8px;
-		padding: 2px;
 		overflow-y: auto;
 		overscroll-behavior: contain;
 		scrollbar-width: none;

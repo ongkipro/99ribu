@@ -26,7 +26,7 @@ export function generateMetadata(){return publicMetadata(siteConfig(),{path:'/',
 export default async function Home(){
  const identity=getLocalAuth();
  // Independent reads in parallel; only the five switcher departments need a product listing.
- const [newest,departments]=await Promise.all([featuredProducts(identity,40),featuredDepartments(identity,10)]);
+ const [newest,departments]=await Promise.all([featuredProducts(identity,16),featuredDepartments(identity,10)]);
  const products=newest.filter(homeSafe).slice(0,8);
  const seen=new Set(products.map(p=>p.id));
  const media=(image:{url:string;width:number;height:number}|undefined)=>image?{src:sameOrigin(image.url),width:image.width,height:image.height}:null;
@@ -34,12 +34,13 @@ export default async function Home(){
  // medallion and the hero. featuredDepartments only returns departments with published products.
  const curated=await departmentPhotos(identity,departments);
  const groups=departments.map((department,index)=>{const photo=media(curated.get(department.id));return {department,tint:departmentTint(department.name,index),tile:photo,photo};});
- // Five departments of seven cards (one full desktop row; 40 read so seven survive the homeSafe and Terbaru filters) keep the server HTML and its RSC payload small (every panel is
- // server-rendered for progressive enhancement and serialised again for hydration).
+ // Five departments of seven cards (one full desktop row) keep the server HTML and its RSC payload small (every panel is
+ // server-rendered for progressive enhancement and serialised again for hydration). listProducts loads each candidate
+ // serially, so read only 14 (twice the row, for the homeSafe filter) and fill with Terbaru items rather than show a short row.
  const shelves=await Promise.all(groups.slice(0,5).map(async group=>{
-  const {data:listed}=await listProducts(identity,catalogQuery(new URLSearchParams({category_id:group.department.id,sort:'newest',limit:'40'})));
-  const data=listed.filter(homeSafe),fresh=data.filter(p=>!seen.has(p.id));
-  return {...group,products:(fresh.length?fresh:data).slice(0,7)};
+  const {data:listed}=await listProducts(identity,catalogQuery(new URLSearchParams({category_id:group.department.id,sort:'newest',limit:'14'})));
+  const data=listed.filter(homeSafe);
+  return {...group,products:[...data.filter(p=>!seen.has(p.id)),...data.filter(p=>seen.has(p.id))].slice(0,7)};
  })).then(all=>all.filter(s=>s.products.length));
  // Hero: its own curated photos only, so it does not repeat the tiles and pills below.
  const heroPhotos=(await curatedHero(identity)).map(photo=>media(photo)).filter(x=>x!==null);

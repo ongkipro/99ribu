@@ -171,27 +171,11 @@
    Tablet and desktop: three columns (1fr | omnibox | 1fr), so the omnibox centre is the
    viewport centre at every width; brand left, icon-only actions right (shop.com keeps
    cart and account as bare 24px icons in round 56px hit areas). Phones keep their own
-   composition: search in the top sticky bar, cart and account in the bottom dock.
-   Sticky (owner 2026-10-29, mirroring shop.com): `.store-header` holds the omnibox row
-   and stays pinned at top:0 (`z-index: 30`) while `.category-pills` scrolls away with the
-   page. A soft canvas fade backs the row so scrolled content never collides with the brand
-   or utility icons, without a nested backdrop-filter that would clip `.omnibox-panel`. */
-.store-header {
-	position: sticky;
-	top: 0;
-	z-index: 30;
-	background: linear-gradient(
-		to bottom,
-		var(--canvas) 78%,
-		color-mix(in oklch, var(--canvas) 88%, transparent) 92%,
-		transparent
-	);
-}
-:where(html:has(body > .store-header)) {
-	scroll-padding-top: 92px;
-}
+   composition: search in the top bar, cart and account in the bottom dock.
+   Not sticky (owner 2026-10-29): the header scrolls away with the page. */
+/* Owner 2026-10-29: more air than shop.com's 16px between the search and the pill row, and below the row. */
 .header-main {
-	padding-block: 16px 6px;
+	padding-block: 16px 12px;
 }
 @media (min-width: 701px) {
 	.header-main {
@@ -237,7 +221,7 @@
 	.header-main {
 		flex-wrap: wrap;
 		gap: 8px 16px;
-		padding-block: 12px 6px;
+		padding-block: 12px 10px;
 	}
 	.header-main > .search-region {
 		order: 0;
