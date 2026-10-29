@@ -30,6 +30,9 @@ for(const method of ['cod','prepaid'] as const)test(`committed ${method} fulfill
    }
    const issued=await simulateWaybillIssue(sql,'test',booking.id);await f.run(await ingestWaybillEvent(sql,issued));
    const filterPath=`/api/v1/admin/orders?reference=${f.order.number}&fulfillment_status=packed`,matching=await handleOrderHistory(f.owner.browser.request(filterPath),f.identity);assert.equal(matching.status,200);assert.deepEqual((await matching.json()).data.map((o:{id:string})=>o.id),[f.order.id]);
+   // S-V1 Perlu Dikirim: fulfillment_group=due lists an order while any parcel waits for handover (fulfillments_due predicate).
+   const due=await handleOrderHistory(f.owner.browser.request(`/api/v1/admin/orders?reference=${f.order.number}&fulfillment_group=due`),f.identity);assert.equal(due.status,200);assert.deepEqual((await due.json()).data.map((o:{id:string})=>o.id),[f.order.id]);
+   assert.equal((await handleOrderHistory(f.owner.browser.request('/api/v1/admin/orders?fulfillment_group=all'),f.identity)).status,400);
    const packed=await f.fulfillmentCall(`${root}/packing`,{expected_version:version+1});assert.equal(packed.response.status,201);
    await sql`update app.local_fixture_namespace set clock=clock+interval '31 minutes',revision=revision+1 where name=${f.namespace}`;
    const handed=await f.fulfillmentCall(`${root}/handover`,{expected_version:version+2,shipment_id:parcel.shipment_id,handover_reference:`SYNTHETIC committed ${index}`});assert.equal(handed.response.status,201);assert.equal(handed.payload.status,'handed_over');

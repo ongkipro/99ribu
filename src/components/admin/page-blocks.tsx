@@ -8,16 +8,19 @@ import { Button } from "@/components/ui/button";
 // header, one detail section, one disclosure and one sticky action bar on every screen.
 // Server-safe (no hooks): server pages and client screens both use them.
 
-/** Page frame: phone gutters 16px, desktop 32px. */
+/** Page frame: phone gutters 16px, 24px from sm (tokophi `main p-4 sm:p-6`). */
 export function AdminPage({ children, className, testId }: { children: ReactNode; className?: string; testId?: string }) {
 	return (
-		<div data-testid={testId} className={cn("flex flex-col gap-4 px-4 py-4 md:gap-6 md:px-8 md:py-6", className)}>
+		<div data-testid={testId} className={cn("flex flex-col gap-4 p-4 sm:p-6 md:gap-5", className)}>
 			{children}
 		</div>
 	);
 }
 
-/** The one page title block: optional back link, title, badges, description and actions. */
+/**
+ * The one page title block (S-V1, tokophi `page-header.tsx`): optional back link, title 24/bold/tight
+ * clamped to two lines, muted 14px description, actions right-aligned (wrapping, full width on phones).
+ */
 export function PageHeader({
 	title,
 	titleTestId,
@@ -41,8 +44,8 @@ export function PageHeader({
 	actions?: ReactNode;
 }) {
 	return (
-		<header className="flex flex-col gap-3 border-b pb-4 md:flex-row md:flex-wrap md:items-end md:justify-between md:gap-4 md:pb-5">
-			<div className="flex min-w-0 flex-col gap-1.5">
+		<header className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between sm:gap-4">
+			<div className="flex min-w-0 flex-1 flex-col gap-1">
 				{back && (
 					<Button asChild variant="ghost" size="sm" className="-ml-2 self-start">
 						<Link href={back.href}>
@@ -54,7 +57,7 @@ export function PageHeader({
 				{badge}
 				<h1
 					data-testid={titleTestId}
-					className={cn("text-xl font-semibold tracking-tight md:text-2xl", mono && "font-mono break-all")}
+					className={cn("line-clamp-2 text-2xl font-bold tracking-tight break-words", mono && "font-mono break-all")}
 				>
 					{title}
 				</h1>
@@ -62,7 +65,7 @@ export function PageHeader({
 				{meta && <div className="flex flex-wrap items-center gap-2 text-xs text-muted-foreground">{meta}</div>}
 			</div>
 			{actions && (
-				<div className="flex flex-wrap items-end gap-2 max-md:*:flex-1">{actions}</div>
+				<div className="flex shrink-0 flex-wrap items-center gap-2 max-sm:*:flex-1">{actions}</div>
 			)}
 		</header>
 	);

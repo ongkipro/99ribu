@@ -19,9 +19,13 @@ import {
 	ORDER_FILTER_KEYS,
 	ORDER_FILTERS,
 	ORDER_STATUS,
+	ORDER_TABS,
 	ORDER_TONE,
+	orderFilterParams,
 	type OrderFilterKey,
 	type OrderFilters,
+	type OrderTab,
+	PERLU_DIKIRIM_STAGES,
 	paymentLabel,
 	paymentText,
 	paymentTone,
@@ -32,6 +36,7 @@ import {
 } from "./order-model";
 import { StatusBadge } from "./status";
 import { AdminPage, DetailSection, PageHeader } from "./page-blocks";
+import { TabStrip } from "./tab-strip";
 import { adminPath } from "@/modules/access/admin-paths";
 
 export type SearchKind = "nomor" | "resi" | "hp";
@@ -49,9 +54,13 @@ type Summary = {
 type Page<T> = { data: T[]; pagination: { next_cursor: string | null } };
 
 const selectClass = `${nativeSelectClass} w-full`;
-// Tabs follow the fulfillment axis (where the parcels are); the other axes are selects.
-const FULFILLMENT_TABS = [["", "Semua"], ...Object.entries(FULFILLMENT_STATUS)] as const;
-const SELECT_FILTERS = ORDER_FILTER_KEYS.filter((key) => key !== "kirim");
+// Tabs (plan §4.3) are saved filters; "Perlu Dikirim" shows every stage or one stage (chips). The axes
+// a tab does not fix stay selects.
+const ALL_STAGES = "semua";
+const STAGE_CHIPS = [
+	[ALL_STAGES, "Semua tahap"] as const,
+	...PERLU_DIKIRIM_STAGES.map((stage) => [stage, FULFILLMENT_STATUS[stage]] as const),
+];
 const KIND_LABELS: Record<SearchKind, { label: string; hint: string; placeholder: string }> = {
 	nomor: {
 		label: "Nomor pesanan",
@@ -89,11 +98,13 @@ function failureMessage(failure: ApiFailure) {
 }
 
 export function OrderSearchClient({
+	tab,
 	initialKind,
 	initialTerm,
 	initialFilters,
 	companyWide,
 }: {
+	tab: OrderTab;
 	initialKind: SearchKind;
 	initialTerm: string;
 	initialFilters: OrderFilters;
@@ -120,14 +131,11 @@ export function OrderSearchClient({
 					applied.kind === "hp" ? "phone_suffix" : "reference",
 					applied.kind === "resi" ? applied.term.replace(/\s+/g, "") : applied.term,
 				);
-			for (const key of ORDER_FILTER_KEYS) {
-				const value = filters[key];
-				if (value) params.set(ORDER_FILTERS[key].api, value);
-			}
+			for (const [name, value] of orderFilterParams(tab, filters)) params.set(name, value);
 			if (next) params.set("cursor", next);
 			return getJson<Page<Summary>>(`/api/v1/admin/orders?${params}`);
 		},
-		[applied, filters],
+		[applied, filters, tab],
 	);
 	const load = useCallback(async () => {
 		setMoreError(null);
@@ -166,8 +174,10 @@ export function OrderSearchClient({
 		setRows((current) => [...current, ...result.data.data]);
 		setCursor(result.data.pagination.next_cursor);
 	};
+	const fixed = ORDER_TABS[tab].fixed;
+	const selectFilters = ORDER_FILTER_KEYS.filter((key) => key !== "kirim" && !(key in fixed));
 	const navigate = (nextKind: SearchKind, nextTerm: string, nextFilters: OrderFilters) => {
-		const params = searchQuery(nextKind, nextTerm, nextFilters);
+		const params = searchQuery(nextKind, nextTerm, nextFilters, tab);
 		router.replace(`/admin/pesanan${params.size ? `?${params}` : ""}`, { scroll: false });
 	};
 	const submit = (nextKind: SearchKind, nextTerm: string) => {
@@ -183,13 +193,21 @@ export function OrderSearchClient({
 		setFilters(next);
 		navigate(applied.kind, applied.term, next);
 	};
-	const active = SELECT_FILTERS.filter((key) => filters[key]);
-	const filtered = ORDER_FILTER_KEYS.some((key) => filters[key]);
+	const active = selectFilters.filter((key) => filters[key]);
+	const filtered = active.length > 0;
+	// Clearing keeps the tab's own filter (and the Perlu Dikirim stage).
+	const kept: OrderFilters = { ...fixed, ...(tab === "perlu_dikirim" ? { kirim: filters.kirim } : {}) };
 	const clearFilters = () => {
-		setFilters({});
-		navigate(applied.kind, applied.term, {});
+		setFilters(kept);
+		navigate(applied.kind, applied.term, kept);
 	};
-	const back = searchQuery(applied.kind, applied.term, filters).toString();
+	const back = searchQuery(applied.kind, applied.term, filters, tab).toString();
+	// Switching tabs keeps the search and the select filters the next tab does not fix.
+	const tabHref = (key: string) => {
+		const carry = Object.fromEntries(active.filter((k) => !(k in ORDER_TABS[key].fixed)).map((k) => [k, filters[k]]));
+		const params = searchQuery(applied.kind, applied.term, carry, key);
+		return `/admin/pesanan${params.size ? `?${params}` : ""}`;
+	};
 	const label = KIND_LABELS[kind];
 	const hintId = fieldError ? "order-search-error" : "order-search-hint";
 	return (
@@ -282,21 +300,29 @@ export function OrderSearchClient({
 			</search>
 
 			<section aria-labelledby="orders-result-heading" className="flex flex-col gap-3">
+				<TabStrip
+					label="Tampilan pesanan"
+					active={tab}
+					tabs={Object.entries(ORDER_TABS).map(([key, { label }]) => ({ key, label, href: tabHref(key) }))}
+					testId={(key) => `orders-tab-${key}`}
+				/>
 				<h2 id="orders-result-heading" className="text-base font-semibold">
 					{applied.term
 						? `Hasil untuk ${KIND_LABELS[applied.kind].label.toLowerCase()} ${applied.kind === "hp" ? `…${applied.term}` : applied.term}`
 						: "Pesanan terbaru"}
 				</h2>
-				<SegmentedControl
-					legend="Tahap pengiriman"
-					value={filters.kirim ?? ""}
-					options={FULFILLMENT_TABS}
-					onChange={(value) => setFilter("kirim", value)}
-					testId={(key) => `orders-tab-${key || "all"}`}
-				/>
+				{tab === "perlu_dikirim" && (
+					<SegmentedControl
+						legend="Tahap pengiriman"
+						value={filters.kirim ?? ALL_STAGES}
+						options={STAGE_CHIPS}
+						onChange={(value) => setFilter("kirim", value === ALL_STAGES ? "" : value)}
+						testId={(key) => `orders-stage-${key}`}
+					/>
+				)}
 				<div className="grid gap-3 md:grid-cols-3 md:max-w-3xl">
 					<FilterSheet active={active.length}>
-						{SELECT_FILTERS.map((key) => (
+						{selectFilters.map((key) => (
 							<FormField key={key} id={`orders-filter-${key}`} label={ORDER_FILTERS[key].label}>
 								<select
 									id={`orders-filter-${key}`}
@@ -362,6 +388,8 @@ export function OrderSearchClient({
 									Hapus semua filter
 								</Button>
 							</>
+						) : tab !== "semua" ? (
+							`Tidak ada pesanan di tampilan ${ORDER_TABS[tab].label} dalam cakupan Anda.`
 						) : (
 							"Belum ada pesanan dalam cakupan Anda. Pesanan baru muncul di sini setelah pembeli membuat pesanan."
 						)

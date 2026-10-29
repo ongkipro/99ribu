@@ -19,16 +19,17 @@
 @custom-variant dark (&:is(.dark *));
 
 /*
- * Sidebar icon rail (spec 10). Collapsed by state, or, before the first client effect has
- * settled the state (`data-rail="auto"` on the sidebar wrapper, admin-shell.tsx), by the tablet
- * media query, so the server's first paint at 768-1023px is already the rail.
+ * Sidebar icon rail (spec 10, S-V1). The sidebar's width comes from its `data-rail` attribute and
+ * the viewport alone (rules at the end of this file), so the server's first paint is the final
+ * width: "auto" is the rail at 768-1023px and full from 1024px; a toggle sets "collapsed" or
+ * "expanded" for the session. `rail:` styles the sidebar's content while it is a rail.
  */
-@custom-variant sidebar-icon {
-	&:is(:where([data-slot="sidebar"])[data-collapsible="icon"] *) {
+@custom-variant rail {
+	&:where([data-slot="admin-sidebar"][data-rail="collapsed"] *) {
 		@slot;
 	}
 	@media (width >= 48rem) and (width < 64rem) {
-		&:is(:where([data-rail="auto"]) [data-slot="sidebar"] *) {
+		&:where([data-slot="admin-sidebar"][data-rail="auto"] *) {
 			@slot;
 		}
 	}
@@ -53,6 +54,12 @@
 	--accent-foreground: oklch(0.483 0.226 285);
 	--destructive: oklch(0.425 0.14 28.4);
 	--destructive-surface: oklch(0.975 0.012 29.9);
+	/* Plan §3 tones: error = destructive (#8b241d on #fff4f2), warning amber, success green. */
+	--error: var(--destructive);
+	--error-surface: var(--destructive-surface);
+	/* Brand yellow #f6c945: fill only, always with ink text (yellow text on white fails contrast). */
+	--highlight: oklch(0.857 0.146 88.6);
+	--highlight-foreground: oklch(0.21 0.006 285.9);
 	--warning: oklch(0.488 0.137 43.9);
 	--warning-surface: oklch(0.976 0.015 61.3);
 	--success: oklch(0.448 0.108 151.3);
@@ -61,6 +68,15 @@
 	/* Form-control border keeps the 3:1 non-text contrast of the old #85858e. */
 	--input: oklch(0.62 0.013 286);
 	--ring: oklch(0.483 0.226 285);
+	/* Charts (plan §3): purple, teal, green, amber, rose; every series also carries a label or marker.
+	   WCAG 2.x contrast measured 2026-10-29 (OKLCH -> sRGB relative luminance), vs --card / --background;
+	   all clear the 3:1 non-text minimum: 1 = 7.19/7.00, 2 = 3.75/3.66, 3 = 7.13/6.95, 4 = 6.70/6.53,
+	   5 = 4.65/4.53. Teal (2) is the floor: never use it for text or thin 1px strokes. */
+	--chart-1: oklch(0.483 0.226 285);
+	--chart-2: oklch(0.6 0.1 185);
+	--chart-3: oklch(0.448 0.108 151.3);
+	--chart-4: oklch(0.488 0.137 43.9);
+	--chart-5: oklch(0.586 0.2 12);
 	--sidebar: oklch(0.973 0.003 264.5);
 	--sidebar-foreground: oklch(0.21 0.006 285.9);
 	--sidebar-primary: oklch(0.483 0.226 285);
@@ -93,6 +109,15 @@
 	--color-warning-surface: var(--warning-surface);
 	--color-success: var(--success);
 	--color-success-surface: var(--success-surface);
+	--color-error: var(--error);
+	--color-error-surface: var(--error-surface);
+	--color-highlight: var(--highlight);
+	--color-highlight-foreground: var(--highlight-foreground);
+	--color-chart-1: var(--chart-1);
+	--color-chart-2: var(--chart-2);
+	--color-chart-3: var(--chart-3);
+	--color-chart-4: var(--chart-4);
+	--color-chart-5: var(--chart-5);
 	--color-border: var(--border);
 	--color-input: var(--input);
 	--color-ring: var(--ring);
@@ -151,8 +176,6 @@ body :is(button, a, input, select, textarea, summary):focus-visible {
 		:is(
 			[data-slot="button"],
 			[data-slot="input"],
-			[data-slot="sidebar-menu-button"],
-			[data-slot="sidebar-trigger"],
 			[data-slot="dialog-close"],
 			[data-slot="sheet-close"],
 			[data-slot="sheet-trigger"],
@@ -163,14 +186,6 @@ body :is(button, a, input, select, textarea, summary):focus-visible {
 		min-height: 44px;
 		min-width: 44px;
 	}
-	/*
-	 * Widen the collapsed icon rail so 44px menu buttons plus the group's 8px
-	 * side padding still fit (44 + 16 = 60px). Set on the sidebar itself so it
-	 * overrides the value inherited from SidebarProvider's inline style.
-	 */
-	body [data-slot="sidebar"] {
-		--sidebar-width-icon: 3.75rem;
-	}
 }
 
 /* Admin mobile pass: a sticky bottom bar (page-blocks.tsx StickyActions, the DataTable bulk bar)
@@ -180,14 +195,27 @@ body :is(button, a, input, select, textarea, summary):focus-visible {
 		scroll-padding-bottom: calc(6rem + env(safe-area-inset-bottom));
 	}
 	/* The page's last content scrolls clear of the fixed bar (44px button + padding + inset). */
-	[data-slot="sidebar-inset"]:has([data-sticky-bar]) {
+	[data-slot="admin-main"]:has([data-sticky-bar]) {
 		padding-bottom: calc(4.5rem + env(safe-area-inset-bottom));
 	}
 }
 
 /* The console layout sets viewport-fit=cover: keep content clear of notches and the home indicator. */
-[data-slot="sidebar-inset"] {
+[data-slot="admin-main"] {
 	padding-left: env(safe-area-inset-left);
 	padding-right: env(safe-area-inset-right);
 	padding-bottom: env(safe-area-inset-bottom);
+}
+
+/* S-V1 sidebar widths (see the `rail` variant above): full 16rem, rail 4rem (44px targets + padding). */
+[data-slot="admin-sidebar"] {
+	width: 16rem;
+}
+[data-slot="admin-sidebar"][data-rail="collapsed"] {
+	width: 4rem;
+}
+@media (width >= 48rem) and (width < 64rem) {
+	[data-slot="admin-sidebar"][data-rail="auto"] {
+		width: 4rem;
+	}
 }

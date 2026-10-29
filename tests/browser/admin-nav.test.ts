@@ -8,9 +8,9 @@ import type { Role } from "../../src/modules/access/policy.ts";
 import { actor, cleanup, enroll } from "../contract/access-fixture.ts";
 import { RENDERS } from "../render-root.ts";
 
-// S128 console navigation (spec 17 "Admin console — information architecture") on the built web: the
-// sidebar item set per role and for a multi-role user, the longest-match active item, and the account
-// menu that replaced the session bar. Read-only: only the synthetic staff users are written and removed.
+// S128 + S-V1 console navigation (redesign plan §4.1, tokophi seller-admin shell) on the built web: the
+// sidebar rows per role lens, the role chip of a multi-role user, exactly one active row, the topbar
+// account menu and the settings index. Read-only: only the synthetic staff users are written and removed.
 // The production sign-in redirect is a pure rule (tests/admin-wib.test.ts); this suite proves the local
 // preview stays.
 const origin = "http://127.0.0.1:3099";
@@ -19,7 +19,7 @@ const sql = identity.sql;
 type User = Awaited<ReturnType<typeof actor>>;
 const users: User[] = [];
 let browser: Browser;
-const renders = join(RENDERS, "s128");
+const renders = join(RENDERS, "s-v1");
 
 async function staff(roles: Role[], permissions: string[] = []) {
 	const user = await actor(identity, roles[0], []);
@@ -39,58 +39,55 @@ async function open(user: User | null, viewport = { width: 1440, height: 1000 },
 	page.on("request", (request) => assert.equal(new URL(request.url()).origin, origin, "No external browser request"));
 	return { page, errors, close: () => context.close() };
 }
-/** [group label, item labels][] as rendered in the operator navigation. */
-async function navGroups(page: Page) {
-	const nav = page.getByRole("navigation", { name: "Navigasi Operator" });
-	await expect(nav.getByTestId("role-workspace-switcher")).toBeVisible();
-	return nav.locator('[data-slot="sidebar-group"]').evaluateAll((groups) =>
-		groups.map((g) => [
-			g.querySelector('[data-slot="sidebar-group-label"]')?.textContent?.trim() ?? "",
-			[...g.querySelectorAll('[data-slot="sidebar-menu-button"]')].map((b) => b.textContent?.trim() ?? ""),
+/** [row label, child labels][] as rendered in the operator navigation, every group opened. */
+async function navRows(page: Page) {
+	const nav = page.getByRole("navigation", { name: "Navigasi Operator" }).first();
+	await expect(nav).toBeVisible();
+	for (const toggle of await nav.getByRole("button", { name: /^Buka / }).all()) await toggle.click();
+	return nav.locator("li[data-nav-row]").evaluateAll((rows) =>
+		rows.map((row) => [
+			row.getAttribute("data-nav-row") ?? "",
+			[...row.querySelectorAll("ul a")].map((a) => a.textContent?.trim() ?? ""),
 		]),
 	);
 }
 const overflow = (page: Page) => page.evaluate(() => document.documentElement.scrollWidth - document.documentElement.clientWidth);
 
-const LENSES = ["Super Admin", "Admin E-Commerce", "Gudang", "Layanan Pelanggan", "Keuangan"];
-const EXPECTED: [string, Role[], string[], (string | string[])[][]][] = [
+// Plan §4.1 per lens; the same rules as the page guards hide what a grant does not open (unit-tested
+// in tests/admin-nav-model.test.ts). Unbuilt pages (Persetujuan, Analitik, Tambah Produk, ...) never show.
+const SETTINGS = ["Staf & Peran", "Kebijakan Komersial", "Pembayaran & COD", "Tarif Afiliasi", "Gudang", "Integrasi Iklan", "Log Audit", "Kesehatan Sistem"];
+const EXPECTED: [string, Role[], string[], [string, string[]][]][] = [
 	["owner", ["owner"], [], [
-		["Ruang Kerja", LENSES],
-		["Operasional", ["Pesanan", "Pengiriman Manual", "Pusat Cetak Label", "Masalah Pengiriman", "Retur & Penggantian", "Kotak Masuk Pelanggan", "Akun Pembeli"]],
-		["Katalog & Stok", ["Produk", "SKU Fisik", "Kategori", "Stok Gudang", "Transfer Stok", "Daftar Gudang"]],
-		["Pemasaran", ["Promo Ongkir", "Banner Beranda", "Segmen Pembeli", "Afiliasi"]],
-		["Keuangan", ["Pembayaran Masuk", "Setoran COD", "Rekonsiliasi", "Pembayaran Komisi", "Pengembalian Dana", "Laporan Keuangan"]],
-		["Pengaturan", ["Log Audit", "Kesehatan Sistem", "Staf & Peran", "Pembayaran & Biaya COD", "Kebijakan Komersial", "Template Label", "Integrasi Iklan", "Balasan & Tag CS"]],
+		["Beranda", []],
+		["Pantauan", ["Pesanan", "Produk", "Stok", "Kendala Pengiriman", "Retur"]],
+		["Keuangan", ["Laporan Keuangan", "Rekonsiliasi", "Komisi Afiliasi"]],
+		["Pengaturan", SETTINGS],
 	]],
-	// One-item groups join their neighbour (visibleGroups): Template Label (read for ecommerce_admin, warehouse) has no group of its own.
 	["ecommerce_admin", ["ecommerce_admin"], ["orders.history.read"], [
-		["Ruang Kerja", ["Admin E-Commerce"]],
-		["Operasional", ["Pesanan", "Pengiriman Manual", "Pusat Cetak Label"]],
-		["Katalog & Stok", ["Produk", "SKU Fisik", "Kategori", "Stok Gudang", "Transfer Stok", "Daftar Gudang"]],
-		["Pemasaran", ["Promo Ongkir", "Banner Beranda", "Segmen Pembeli", "Template Label"]],
+		["Beranda", []],
+		["Pesanan", ["Semua Pesanan", "Input Resi", "Cetak Label"]],
+		["Produk", ["Kategori", "Inventori", "Transfer Stok"]],
+		["Promo", ["Banner", "Segmen Pembeli"]],
+		["Pengaturan", []],
 	]],
 	["warehouse", ["warehouse"], [], [
-		["Ruang Kerja", ["Gudang"]],
-		["Operasional", ["Pengiriman Manual", "Pusat Cetak Label", "Masalah Pengiriman", "Retur & Penggantian"]],
-		["Katalog & Stok", ["Produk", "Stok Gudang", "Transfer Stok", "Daftar Gudang", "Template Label"]],
+		["Beranda", []],
+		["Pesanan", ["Input Resi", "Cetak Label", "Kendala Pengiriman", "Retur"]],
+		["Produk", ["Transfer Stok"]],
+		["Pengaturan", []],
 	]],
 	["customer_service", ["customer_service"], ["orders.history.read"], [
-		["Ruang Kerja", ["Layanan Pelanggan"]],
-		["Operasional", ["Pesanan", "Masalah Pengiriman", "Retur & Penggantian", "Kotak Masuk Pelanggan", "Akun Pembeli", "Balasan & Tag CS"]],
+		["Beranda", []],
+		["Obrolan", []],
+		["Pesanan", ["Kendala Pengiriman", "Retur"]],
+		["Pelanggan", []],
+		["Pengaturan", []],
 	]],
-	// Finance without finance.summary.read has no Laporan Keuangan; Produk, Afiliasi and Log Audit join their neighbours.
 	["finance", ["finance"], ["orders.history.read", "finance.reconciliation.read", "finance.refunds.read", "finance.costs.read"], [
-		["Ruang Kerja", ["Keuangan"]],
-		["Operasional", ["Pesanan", "Masalah Pengiriman", "Retur & Penggantian", "Produk", "Afiliasi"]],
-		["Keuangan", ["Pembayaran Masuk", "Setoran COD", "Rekonsiliasi", "Pembayaran Komisi", "Pengembalian Dana"]],
-		["Pengaturan", ["Log Audit", "Pembayaran & Biaya COD", "Kebijakan Komersial", "Template Label"]],
-	]],
-	// A multi-role user sees the union; the order grant comes in through customer_service.
-	["warehouse+customer_service", ["warehouse", "customer_service"], ["orders.history.read"], [
-		["Ruang Kerja", ["Gudang", "Layanan Pelanggan"]],
-		["Operasional", ["Pesanan", "Pengiriman Manual", "Pusat Cetak Label", "Masalah Pengiriman", "Retur & Penggantian", "Kotak Masuk Pelanggan", "Akun Pembeli"]],
-		["Katalog & Stok", ["Produk", "Stok Gudang", "Transfer Stok", "Daftar Gudang"]],
-		["Pengaturan", ["Template Label", "Balasan & Tag CS"]],
+		["Beranda", []],
+		["Keuangan", ["Pembayaran Masuk", "Setoran COD", "Rekonsiliasi", "Pengembalian Dana", "Komisi Afiliasi", "Tarif Afiliasi"]],
+		["Pesanan", []],
+		["Pengaturan", []],
 	]],
 ];
 
@@ -107,39 +104,64 @@ after(async () => {
 	}
 });
 
-test("S128 sidebar shows exactly the items each role's grants open, grouped per spec 17", async () => {
+test("S-V1 sidebar shows each lens's plan §4.1 rows that the role's grants open; no Ruang Kerja group", async () => {
 	for (const [name, roles, permissions, expected] of EXPECTED) {
 		const user = await staff(roles, permissions);
 		const { page, close } = await open(user);
 		try {
 			await page.goto(`${origin}/admin/antrian`);
-			assert.deepEqual(await navGroups(page), expected, name);
-			// A settings link appears only with its built page (S135/S136/S137).
-			const nav = page.getByRole("navigation", { name: "Navigasi Operator" });
-			const settingsLabels = ["Log Audit", "Kesehatan Sistem", "Staf & Peran", "Pembayaran & Biaya COD", "Kebijakan Komersial", "Template Label", "Integrasi Iklan", "Balasan & Tag CS"];
-			const settings = expected.flatMap(([, items]) => items).filter((label) => settingsLabels.includes(label)).length;
-			await expect(nav.locator('a[href^="/admin/pengaturan"], a[href="/admin/pemasaran/iklan"]')).toHaveCount(settings);
+			assert.deepEqual(await navRows(page), expected, name);
+			await expect(page.getByText("Ruang Kerja", { exact: true })).toHaveCount(0);
+			// A single-role account has no role chip.
+			await expect(page.getByRole("button", { name: /^Ruang kerja:/ })).toHaveCount(0);
 		} finally {
 			await close();
 		}
 	}
 });
 
-test("S128 longest-match active item and the account menu (Lihat Toko, Keluar; account pages hidden until S129)", async () => {
+test("S-V1 multi-role account: the role chip switches the lens and the nav follows it", async () => {
+	const user = await staff(["warehouse", "customer_service"], ["orders.history.read"]);
+	const { page, close } = await open(user);
+	try {
+		await page.goto(`${origin}/admin?workspace=customer_service`);
+		const chip = page.getByRole("button", { name: /^Ruang kerja: Layanan Pelanggan/ });
+		await expect(chip).toBeVisible();
+		assert.deepEqual((await navRows(page)).map(([row]) => row), ["Beranda", "Obrolan", "Pesanan", "Pelanggan", "Pengaturan"]);
+		await chip.click();
+		await expect(page.getByTestId("workspace-tab-warehouse")).toHaveAttribute("href", "/admin?workspace=warehouse");
+		await page.getByTestId("workspace-tab-warehouse").click();
+		await expect(page.getByRole("button", { name: /^Ruang kerja: Gudang/ })).toBeVisible();
+		assert.deepEqual((await navRows(page)).map(([row]) => row), ["Beranda", "Pesanan", "Produk", "Pengaturan"]);
+		// The lens holds on other pages (remembered for the session's next documents too).
+		await page.goto(`${origin}/admin/pesanan/kirim`);
+		await expect(page.getByRole("button", { name: /^Ruang kerja: Gudang/ })).toBeVisible();
+		// Beranda keeps the lens instead of jumping back to the first role.
+		const nav = page.getByRole("navigation", { name: "Navigasi Operator" }).first();
+		await expect(nav.getByRole("link", { name: "Beranda" })).toHaveAttribute("href", "/admin?workspace=warehouse");
+	} finally {
+		await close();
+	}
+});
+
+test("S-V1 exactly one active row and the account menu (Profil, Keamanan, Lihat Toko, Keluar)", async () => {
 	const owner = await staff(["owner"]);
 	const { page, errors, close } = await open(owner);
 	try {
-		await page.goto(`${origin}/admin/produk/inventori/transfer`);
+		await page.goto(`${origin}/admin/pesanan/retur`);
 		const nav = page.getByRole("navigation", { name: "Navigasi Operator" });
-		await expect(nav.getByRole("link", { name: "Transfer Stok" })).toHaveAttribute("aria-current", "page");
-		await expect(nav.locator('[data-slot="sidebar-menu-button"][data-active="true"]')).toHaveText(["Transfer Stok"]);
+		await expect(nav.locator('[data-slot="nav-link"][data-active]')).toHaveText(["Retur"]);
+		await expect(nav.getByRole("link", { name: "Retur" })).toHaveAttribute("aria-current", "page");
+		// The Pantauan group is open because its active child is inside; the other groups stay closed.
+		await expect(nav.getByRole("button", { name: "Tutup Pantauan" })).toHaveAttribute("aria-expanded", "true");
+		await expect(nav.getByRole("button", { name: "Buka Pengaturan" })).toHaveAttribute("aria-expanded", "false");
 		await expect(page.getByTestId("admin-session-bar")).toHaveCount(0);
 
 		const account = page.getByTestId("admin-account");
-		await expect(account.getByText(owner.email)).toBeVisible();
 		await account.getByRole("button", { name: /^Menu akun/ }).click();
 		const menu = page.getByRole("menu");
-		await expect(menu.getByRole("menuitem")).toHaveText(["Profil", "Keamanan akun", "Lihat Toko", "Keluar"]);
+		await expect(menu.getByText(owner.email)).toBeVisible();
+		await expect(menu.getByRole("menuitem")).toHaveText(["Profil", "Keamanan", "Lihat Toko", "Keluar"]);
 		await expect(menu.getByRole("menuitem", { name: "Lihat Toko" })).toHaveAttribute("href", "/");
 		await page.screenshot({ path: join(renders, "account-menu-owner-1440.png") });
 		assert.equal(await overflow(page), 0);
@@ -151,6 +173,23 @@ test("S128 longest-match active item and the account menu (Lihat Toko, Keluar; a
 		assert.deepEqual(errors.filter((e) => !e.includes("ERR_INTERNET_DISCONNECTED")), []);
 	} finally {
 		await close();
+	}
+});
+
+test("S-V1 settings index lists only the cards the role opens", async () => {
+	const owner = await staff(["owner"]);
+	const cs = await staff(["customer_service"], ["orders.history.read"]);
+	for (const [user, cards] of [
+		[owner, ["Staf & Peran", "Kebijakan Komersial", "Pembayaran & COD", "Gudang", "Template Label", "Balasan CS", "Integrasi Iklan", "Log Audit", "Kesehatan Sistem"]],
+		[cs, ["Balasan CS"]],
+	] as const) {
+		const { page, close } = await open(user);
+		try {
+			await page.goto(`${origin}/admin/pengaturan`);
+			await expect(page.getByRole("list", { name: "Daftar pengaturan" }).locator("li .font-semibold")).toHaveText([...cards]);
+		} finally {
+			await close();
+		}
 	}
 });
 
@@ -169,7 +208,7 @@ test("S128 signed-out local preview keeps the shell with a sign-in entry (no red
 	}
 });
 
-test("S128 renders at 390 touch, 768 and 1440 with no overflow and no console errors", async () => {
+test("S-V1 renders at 390 touch, 768 and 1440 with no overflow, final sidebar width on first paint, no console errors", async () => {
 	const owner = await staff(["owner"]);
 	const finance = await staff(["finance"], ["orders.history.read", "finance.reconciliation.read", "finance.refunds.read", "finance.costs.read"]);
 	const warehouse = await staff(["warehouse"]);
@@ -184,26 +223,36 @@ test("S128 renders at 390 touch, 768 and 1440 with no overflow and no console er
 	for (const [file, user, viewport, touch, state] of shots) {
 		const { page, errors, close } = await open(user, viewport, touch);
 		try {
+			// Width before any script runs: the server's first paint is already final (2026-10-28 P2).
+			await page.route(/\/_next\/static\/.*\.js/, (route) => route.abort());
 			await page.goto(`${origin}/admin/antrian`);
-			await expect(page.locator("main, #main").first()).toBeVisible();
+			const sidebar = page.locator('[data-slot="admin-sidebar"]');
+			const width = viewport.width < 768 ? 0 : viewport.width < 1024 ? 64 : 256;
+			assert.equal(Math.round((await sidebar.boundingBox())?.width ?? 0), width, `${file} first paint`);
+			await page.unroute(/\/_next\/static\/.*\.js/);
+			await page.goto(`${origin}/admin/antrian`);
+			await expect(page.locator("main")).toBeVisible();
+			assert.equal(Math.round((await sidebar.boundingBox())?.width ?? 0), width, `${file} hydrated`);
 			if (state) {
-				await page.getByRole("button", { name: "Buka atau tutup navigasi" }).first().click();
+				await page.getByRole("button", { name: "Buka menu navigasi" }).click();
 				await expect(page.getByRole("dialog")).toBeVisible();
-				await expect(page.getByTestId("admin-account")).toBeVisible();
 				if (state === "account") {
+					await page.keyboard.press("Escape");
 					await page.getByRole("button", { name: /^Menu akun/ }).click();
 					await expect(page.getByRole("menuitem", { name: "Keluar" })).toBeVisible();
 				}
 			}
 			if (viewport.width === 768) {
-				// Tablet: icon rail; the account trigger stays reachable as an icon.
-				await expect(page.locator('[data-slot="sidebar"][data-collapsible="icon"]')).toHaveCount(1);
-				await expect(page.getByRole("button", { name: /^Menu akun/ })).toBeVisible();
+				// Tablet: icon rail with tooltips; the toggle widens it for the session.
+				await expect(sidebar).toHaveAttribute("data-rail", "auto");
+				await page.getByRole("button", { name: "Lebarkan navigasi" }).click();
+				assert.equal(Math.round((await sidebar.boundingBox())?.width ?? 0), 256, file);
+				await page.getByRole("button", { name: "Ciutkan navigasi" }).click();
 			}
 			await page.waitForLoadState("networkidle");
 			await page.screenshot({ path: join(renders, `${file}.png`) });
 			assert.equal(await overflow(page), 0, file);
-			assert.deepEqual(errors, [], file);
+			assert.deepEqual(errors.filter((e) => !e.includes("ERR_FAILED")), [], file);
 		} finally {
 			await close();
 		}

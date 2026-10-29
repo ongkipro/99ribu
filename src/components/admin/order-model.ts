@@ -16,8 +16,9 @@ export function canReadOrders(roles: readonly string[], permissions: readonly st
  * suffix is personal data: it never enters a URL (history, logs, Referer); only `jenis=hp`
  * survives, the digits stay in component state. Filters are fixed status keys (no personal data).
  */
-export function searchQuery(kind: "nomor" | "resi" | "hp", term: string, filters: OrderFilters = {}) {
+export function searchQuery(kind: "nomor" | "resi" | "hp", term: string, filters: OrderFilters = {}, tab?: string) {
 	const params = new URLSearchParams();
+	if (tab && tab !== "semua") params.set("tab", tab);
 	if (term) {
 		params.set("jenis", kind);
 		if (kind !== "hp") params.set("cari", term);
@@ -117,6 +118,54 @@ export function readOrderFilters(get: (key: string) => string | null | undefined
 	}
 	return filters;
 }
+/**
+ * List tabs (plan §4.3): each tab is a saved filter built only from what GET /api/v1/admin/orders
+ * filters on (no counts yet). "Perlu Dikirim" lists every order with a parcel not yet handed over
+ * (`fulfillment_group=due`, the fulfillments_due predicate) and narrows to one stage with chips
+ * (`kirim`). §4.3 is only partly delivered by S-V1; open gaps (recorded in STATUS by the merge, owned
+ * by S-T1 for the tabs and S-H1 for the counts): "Selesai" (every parcel delivered) and the combined
+ * "Retur/Batal" (open return or cancelled) need order-level API predicates, so "Dibatalkan" stands in
+ * and returns stay a filter; "Dikirim" is any parcel handed over, delivered ones included (not yet
+ * "handed over and not all delivered"); tabs carry no counts, and the Pesanan nav badge waits for an
+ * order-level "Perlu Dikirim" count (admin-nav.ts NavBadgeKey).
+ */
+export const PERLU_DIKIRIM_STAGES = ["ready", "picking", "packed", "handover_pending", "exception"] as const;
+export const ORDER_TABS: Record<string, { label: string; fixed: OrderFilters }> = {
+	semua: { label: "Semua", fixed: {} },
+	belum_bayar: { label: "Belum Bayar", fixed: { bayar: "pending" } },
+	perlu_dikirim: { label: "Perlu Dikirim", fixed: {} },
+	dikirim: { label: "Dikirim", fixed: { kirim: "handed_over" } },
+	dibatalkan: { label: "Dibatalkan", fixed: { status: "cancelled" } },
+};
+export type OrderTab = keyof typeof ORDER_TABS;
+const isStage = (value: string | undefined) => PERLU_DIKIRIM_STAGES.some((s) => s === value);
+/** The tab of a URL; links from before the tabs (`?kirim=…`) open the tab that holds that stage. */
+export function readOrderTab(tab: string, filters: OrderFilters): OrderTab {
+	if (Object.hasOwn(ORDER_TABS, tab)) return tab;
+	if (filters.kirim === "handed_over") return "dikirim";
+	if (isStage(filters.kirim)) return "perlu_dikirim";
+	return "semua";
+}
+/**
+ * The filters a tab sends: its fixed values win over the URL's; "Perlu Dikirim" keeps a valid stage
+ * (no stage = all stages); other tabs drop a parcel stage they do not own.
+ */
+export function tabFilters(tab: OrderTab, filters: OrderFilters): OrderFilters {
+	const { kirim, ...rest } = filters;
+	if (tab === "perlu_dikirim") return isStage(kirim) ? { ...rest, kirim } : rest;
+	return { ...rest, ...ORDER_TABS[tab].fixed };
+}
+/** API query pairs of a tab's filters (GET /api/v1/admin/orders). */
+export function orderFilterParams(tab: OrderTab, filters: OrderFilters): [string, string][] {
+	const pairs: [string, string][] = [];
+	for (const key of ORDER_FILTER_KEYS) {
+		const value = filters[key];
+		if (value) pairs.push([ORDER_FILTERS[key].api, value]);
+	}
+	if (tab === "perlu_dikirim") pairs.push(["fulfillment_group", "due"]);
+	return pairs;
+}
+
 /**
  * Payment label of one order. A confirmed COD order means the courier collected the money; it
  * reaches 99ribu only with the Mengantar remittance, so it never reads as "Lunas".

@@ -1,5 +1,5 @@
 import { AccessDenied } from "../../../../components/admin/access-denied";
-import { canReadOrders, readOrderFilters } from "../../../../components/admin/order-model";
+import { canReadOrders, readOrderFilters, readOrderTab, tabFilters } from "../../../../components/admin/order-model";
 import { OrderSearchClient, type SearchKind } from "../../../../components/admin/orders-client";
 import { readStaffAccess } from "../staff-roles";
 
@@ -28,12 +28,17 @@ export default async function AdminOrdersPage({
 		);
 	const one = (key: string) => (typeof params[key] === "string" ? (params[key] as string) : "");
 	const kind = one("jenis") as SearchKind;
+	const filters = readOrderFilters(one);
+	const tab = readOrderTab(one("tab"), filters);
+	// Keyed by tab: a tab link remounts the list with that tab's filters.
 	return (
 		<OrderSearchClient
+			key={tab}
+			tab={tab}
 			initialKind={KINDS.includes(kind) ? kind : "nomor"}
 			// A phone suffix never arrives through the URL (see searchQuery).
 			initialTerm={kind === "hp" ? "" : one("cari").slice(0, 100)}
-			initialFilters={readOrderFilters(one)}
+			initialFilters={tabFilters(tab, filters)}
 			companyWide={roles.includes("owner")}
 		/>
 	);

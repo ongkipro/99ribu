@@ -1,7 +1,7 @@
 "use client";
 
 import { cn } from "cn";
-import { ChevronRight, CircleAlert, ListFilter } from "lucide-react";
+import { ArrowDownRight, ArrowUpRight, ChevronRight, CircleAlert, ListFilter, type LucideIcon } from "lucide-react";
 import Link from "next/link";
 import type { ReactNode } from "react";
 import { Button } from "@/components/ui/button";
@@ -153,5 +153,114 @@ export function KpiGrid({
 		>
 			{children}
 		</ul>
+	);
+}
+
+// S-V1 port of tokophi `dashboard/kpi-tile.tsx` (S-H1 builds the money strip on it).
+// Rhythm, multiples of 4: 20px card padding, 12px between groups (header / figure / footnote), 8px
+// to a graphic that restates the figure, 4px inside a group (figure and caption). Hierarchy: value
+// 24/700/tabular, label 12/500 muted, caption 12/400 muted at 75%.
+
+/** `null >= 0` is true in JavaScript: no delta is "nothing to compare", never a rise. */
+export function deltaUp(delta: number | null): boolean | null {
+	return delta === null ? null : delta >= 0;
+}
+
+const PILL_TONE = {
+	neutral: "bg-muted text-muted-foreground",
+	good: "bg-success-surface text-success",
+	warning: "bg-warning-surface text-warning",
+	bad: "bg-error-surface text-error",
+} as const;
+export type PillTone = keyof typeof PILL_TONE;
+
+/** A small rounded verdict pill; every caller pairs the tone with a glyph and a word (WCAG 1.4.1). */
+export const pillClass = (tone: PillTone) =>
+	cn("inline-flex shrink-0 items-center gap-1 rounded-full px-2 py-0.5 text-xs font-semibold", PILL_TONE[tone]);
+
+const percent = new Intl.NumberFormat("id-ID", {
+	style: "percent",
+	maximumFractionDigits: 1,
+	signDisplay: "exceptZero",
+});
+
+/**
+ * Signed change against the previous period ("+6,4%", "-6,4%"); `delta` is a fraction (0.064).
+ * `null` means no previous period: a neutral dash, no arrow and no green.
+ */
+export function DeltaBadge({ delta }: { delta: number | null }) {
+	const up = deltaUp(delta);
+	return (
+		<span className={cn(pillClass(up === null ? "neutral" : up ? "good" : "bad"), "tabular-nums")}>
+			{up === null ? null : up ? (
+				<ArrowUpRight aria-hidden="true" className="size-3" />
+			) : (
+				<ArrowDownRight aria-hidden="true" className="size-3" />
+			)}
+			{delta === null ? "—" : percent.format(delta)}
+			<span className="sr-only">{up === null ? " tidak ada pembanding" : up ? " naik" : " turun"}</span>
+		</span>
+	);
+}
+
+export function KpiTile({
+	icon: Icon,
+	label,
+	badge,
+	value,
+	caption,
+	aside,
+	href,
+	testId,
+	children,
+}: {
+	icon: LucideIcon;
+	label: string;
+	/** Right of the header: `<DeltaBadge>` or a worded pill built on `pillClass`. */
+	badge?: ReactNode;
+	/** Money that is not complete passes "Belum lengkap", never Rp 0. */
+	value: ReactNode;
+	/** What the figure is measured against. */
+	caption?: ReactNode;
+	/** Right of the figure, baseline-aligned (a sparkline). */
+	aside?: ReactNode;
+	/** The list behind the number; the whole tile becomes the link. */
+	href?: string;
+	testId?: string;
+	/** Below the figure group (a bar restating the figure, a footnote). */
+	children?: ReactNode;
+}) {
+	const body = (
+		<>
+			<div className="flex items-center justify-between gap-2">
+				<span className="flex min-w-0 items-center gap-1.5 text-xs font-medium text-muted-foreground">
+					<Icon aria-hidden="true" className="size-3.5 shrink-0" />
+					<span className="truncate">{label}</span>
+				</span>
+				{badge}
+			</div>
+			<div className="mt-3 flex items-end justify-between gap-3">
+				<div className="min-w-0">
+					<div className="text-2xl leading-none font-bold tracking-tight tabular-nums">{value}</div>
+					{caption ? <div className="mt-1 text-xs text-muted-foreground">{caption}</div> : null}
+				</div>
+				{aside}
+			</div>
+			{children}
+		</>
+	);
+	const frame = "flex flex-col rounded-lg border bg-card p-5";
+	return href ? (
+		<Link
+			href={href}
+			data-testid={testId}
+			className={cn(frame, "outline-none transition-colors hover:border-primary/40 focus-visible:ring-2 focus-visible:ring-ring")}
+		>
+			{body}
+		</Link>
+	) : (
+		<div data-testid={testId} className={frame}>
+			{body}
+		</div>
 	);
 }
