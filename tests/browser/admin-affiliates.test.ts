@@ -22,7 +22,7 @@ import {
 import { closeFulfillmentActor } from "../integration/fulfillment-fixture.ts";
 import { RENDERS } from "../render-root.ts";
 
-// S132 Affiliates admin (/admin/affiliates and /admin/affiliates/[affiliateNo]) against the built server on
+// S132 Affiliates admin (/admin/afiliasi and /admin/afiliasi/[affiliateNo]) against the built server on
 // 127.0.0.1:3099. NOT executed by the worker agent: the coordinator runs browser suites serially
 // (`--case=admin-affiliates` in browser mode).
 const origin = "http://127.0.0.1:3099";
@@ -120,7 +120,7 @@ test("S132 owner filters affiliate list, opens detail, sees stale version refuse
 	const partner = await createAffiliate("A", `Mitra Browser ${marker}`);
 	const view = await open(owner);
 	try {
-		await view.page.goto(`${origin}/admin/affiliates`);
+		await view.page.goto(`${origin}/admin/afiliasi`);
 		await expect(
 			view.page.getByRole("heading", { name: "Afiliasi", level: 1 }),
 		).toBeVisible();
@@ -135,7 +135,7 @@ test("S132 owner filters affiliate list, opens detail, sees stale version refuse
 		await view.page.getByTestId(`affiliate-open-${partner.affiliateId}`).click();
 		await expect(view.page.getByTestId("affiliate-detail-page")).toBeVisible();
 		// The console addresses the partner by its admin number, never the UUID.
-		await expect(view.page).toHaveURL(`${origin}/admin/affiliates/${partner.adminNo}`);
+		await expect(view.page).toHaveURL(`${origin}/admin/afiliasi/${partner.adminNo}`);
 		await expect(view.page.getByTestId("affiliate-title")).toContainText(
 			`Mitra Browser ${marker}`,
 		);
@@ -226,13 +226,13 @@ test("S132 finance reads affiliate list and detail read-only without edit button
 	try {
 		// An old UUID link redirects once to the numeric URL.
 		await finView.page.goto(
-			`${origin}/admin/affiliates/${partner.affiliateId}`,
+			`${origin}/admin/afiliasi/${partner.affiliateId}`,
 		);
 		await expect(
 			finView.page.getByTestId("affiliate-detail-page"),
 		).toBeVisible();
-		await expect(finView.page).toHaveURL(`${origin}/admin/affiliates/${partner.adminNo}`);
-		await finView.page.goto(`${origin}/admin/affiliates/${partner.adminNo}`);
+		await expect(finView.page).toHaveURL(`${origin}/admin/afiliasi/${partner.adminNo}`);
+		await finView.page.goto(`${origin}/admin/afiliasi/${partner.adminNo}`);
 		await expect(
 			finView.page.getByTestId("affiliate-detail-page"),
 		).toBeVisible();
@@ -243,7 +243,7 @@ test("S132 finance reads affiliate list and detail read-only without edit button
 			0,
 		);
 		// Anything that is neither a canonical number nor a UUID is not found.
-		await finView.page.goto(`${origin}/admin/affiliates/007`);
+		await finView.page.goto(`${origin}/admin/afiliasi/007`);
 		await expect(finView.page.getByTestId("affiliate-detail-page")).toHaveCount(0);
 		await expect(finView.page.getByTestId("affiliate-missing")).toHaveCount(0);
 		assert.deepEqual(finView.errors, []);
@@ -253,14 +253,14 @@ test("S132 finance reads affiliate list and detail read-only without edit button
 
 	const ecoView = await open(ecommerce);
 	try {
-		await ecoView.page.goto(`${origin}/admin/affiliates`);
+		await ecoView.page.goto(`${origin}/admin/afiliasi`);
 		await expect(
 			ecoView.page.getByRole("heading", { name: "Akses afiliasi diperlukan" }),
 		).toBeVisible();
 		await expect(ecoView.page.getByTestId("affiliates-page")).toHaveCount(0);
 		// A valid number (or the old UUID) is denied exactly like the list: no lookup, no redirect, no row.
 		for (const target of [partner.adminNo, partner.affiliateId]) {
-			await ecoView.page.goto(`${origin}/admin/affiliates/${target}`);
+			await ecoView.page.goto(`${origin}/admin/afiliasi/${target}`);
 			await expect(
 				ecoView.page.getByRole("heading", { name: "Akses afiliasi diperlukan" }),
 			).toBeVisible();
@@ -282,7 +282,7 @@ test("S132 phone, tablet and desktop viewports: zero horizontal overflow on list
 	] as const) {
 		const view = await open(owner, viewport, touch);
 		try {
-			await view.page.goto(`${origin}/admin/affiliates`);
+			await view.page.goto(`${origin}/admin/afiliasi`);
 			await expect(view.page.getByTestId("affiliates-page")).toBeVisible();
 			const overflow = () =>
 				view.page.evaluate(
@@ -300,7 +300,7 @@ test("S132 phone, tablet and desktop viewports: zero horizontal overflow on list
 			});
 
 			await view.page.goto(
-				`${origin}/admin/affiliates/${partner.adminNo}`,
+				`${origin}/admin/afiliasi/${partner.adminNo}`,
 			);
 			await expect(
 				view.page.getByTestId("affiliate-detail-page"),

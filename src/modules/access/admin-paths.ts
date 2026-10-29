@@ -16,15 +16,15 @@ export type AdminNumberKind =
 	| "affiliate";
 
 const BASE: Record<AdminNumberKind, string> = {
-	order: "/admin/orders",
-	product: "/admin/catalog",
-	warehouse: "/admin/warehouses",
-	return: "/admin/returns",
-	refund: "/admin/finance/refunds",
-	exception: "/admin/exceptions",
-	payout: "/admin/finance/payouts",
-	reconciliation: "/admin/finance/reconciliation",
-	affiliate: "/admin/affiliates",
+	order: "/admin/pesanan",
+	product: "/admin/produk",
+	warehouse: "/admin/produk/gudang",
+	return: "/admin/pesanan/retur",
+	refund: "/admin/keuangan/refund",
+	exception: "/admin/pesanan/kendala",
+	payout: "/admin/keuangan/komisi",
+	reconciliation: "/admin/keuangan/rekonsiliasi",
+	affiliate: "/admin/afiliasi",
 };
 
 /**

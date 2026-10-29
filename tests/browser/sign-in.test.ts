@@ -25,7 +25,7 @@ test("return destination accepts only same-origin relative paths and routes by r
 	assert.equal(safeReturnPath("/pesanan/abc?tab=1#x"), "/pesanan/abc?tab=1#x");
 	assert.equal(signInDestination(null, true), "/admin");
 	assert.equal(signInDestination(null, false), "/akun");
-	assert.equal(signInDestination("/admin/print-center", false), "/akun");
+	assert.equal(signInDestination("/admin/pesanan/cetak-label", false), "/akun");
 	assert.equal(signInDestination("/afiliasi", false), "/afiliasi");
 });
 

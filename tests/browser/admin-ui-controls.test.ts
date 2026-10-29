@@ -93,14 +93,14 @@ test("finance read-only: confirm and record controls are disabled with a visible
 	const reader = await staff("finance", ["finance.reconciliation.read", "finance.summary.read"]);
 	const { page, errors, close } = await open(reader);
 	try {
-		await page.goto(`${origin}/admin/payments`);
+		await page.goto(`${origin}/admin/keuangan/pembayaran`);
 		await expect(page.getByTestId("payments-read-only")).toBeVisible();
 		for (const name of ["Konfirmasi transfer", "Konfirmasi manual"]) {
 			const buttons = page.getByRole("button", { name });
 			for (let i = 0; i < (await buttons.count()); i++) await expect(buttons.nth(i)).toBeDisabled();
 		}
 
-		await page.goto(`${origin}/admin/cod-settlements`);
+		await page.goto(`${origin}/admin/keuangan/cod`);
 		await expect(page.getByTestId("cod-record-open")).toBeDisabled();
 		await expect(page.getByTestId("cod-read-only")).toBeVisible();
 		await expect(page.getByRole("dialog")).toHaveCount(0);
@@ -123,7 +123,7 @@ test("finance read-only: confirm and record controls are disabled with a visible
 		await second.page.goto(`${origin}/admin?workspace=finance`);
 		await expect(second.page.getByTestId("workspace-heading")).toBeVisible();
 		await expect(
-			second.page.locator('a[href="/admin/payments"], a[href="/admin/cod-settlements"]'),
+			second.page.locator('a[href="/admin/keuangan/pembayaran"], a[href="/admin/keuangan/cod"]'),
 		).toHaveCount(0);
 	} finally {
 		await second.close();
@@ -160,7 +160,7 @@ test("payment terms: a double click sends one proof request and a network failur
 			(url, method) => method === "POST" && url.pathname === "/api/v1/admin/policy-versions",
 			(route) => problem(route, 409, "VERSION_CONFLICT"),
 		);
-		await page.goto(`${origin}/admin/settings/payment`);
+		await page.goto(`${origin}/admin/pengaturan/pembayaran`);
 		await page.getByTestId("payment-policy-new").click();
 		await page.getByLabel("Alasan perubahan").fill("Uji kontrol UI");
 		await page.getByLabel("Konfirmasi kata sandi").fill("bukan-kata-sandi");
@@ -214,7 +214,7 @@ test("staff inbox: console shell, noindex, claim once per double click, visible 
 				return json(route, { data: [] });
 			},
 		);
-		const response = await page.goto(`${origin}/admin/support`);
+		const response = await page.goto(`${origin}/admin/obrolan`);
 		assert.equal(response?.status(), 200);
 		await expect(page.locator('meta[name="robots"]')).toHaveAttribute("content", /noindex/);
 		await expect(page.getByRole("navigation", { name: "Navigasi Operator" })).toBeVisible();
@@ -247,7 +247,7 @@ test("staff inbox: console shell, noindex, claim once per double click, visible 
 	// Signed out (local preview): the console shell stays (sidebar, account block) with an access notice.
 	const anon = await open(null);
 	try {
-		await anon.page.goto(`${origin}/admin/support`);
+		await anon.page.goto(`${origin}/admin/obrolan`);
 		await expect(anon.page.locator("#access-denied-heading")).toBeVisible();
 		await expect(anon.page.getByTestId("admin-account").getByRole("link", { name: "Masuk sebagai staf" })).toBeVisible();
 	} finally {

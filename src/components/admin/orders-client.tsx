@@ -37,7 +37,7 @@ import { adminPath } from "@/modules/access/admin-paths";
 export type SearchKind = "nomor" | "resi" | "hp";
 type Summary = {
 	id: string;
-	/** Short admin handle: the order opens at `/admin/orders/{admin_no}`. */
+	/** Short admin handle: the order opens at `/admin/pesanan/{admin_no}`. */
 	admin_no: number;
 	number: string;
 	status: string;
@@ -168,7 +168,7 @@ export function OrderSearchClient({
 	};
 	const navigate = (nextKind: SearchKind, nextTerm: string, nextFilters: OrderFilters) => {
 		const params = searchQuery(nextKind, nextTerm, nextFilters);
-		router.replace(`/admin/orders${params.size ? `?${params}` : ""}`, { scroll: false });
+		router.replace(`/admin/pesanan${params.size ? `?${params}` : ""}`, { scroll: false });
 	};
 	const submit = (nextKind: SearchKind, nextTerm: string) => {
 		const clean = nextTerm.trim();

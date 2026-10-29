@@ -176,12 +176,12 @@ export const SNAPSHOT_METRICS = new Set<MetricKey>([
 // The existing screen where staff act on the number; null = the drilldown queue on the dashboard itself
 // (no dedicated screen exists yet: inventory screens are S102, returns screens S101).
 export const METRIC_ACTION_HREF: Partial<Record<MetricKey, string>> = {
-	manual_booking_pending: "/admin/fulfillment",
-	transfers_near_deadline: "/admin/payments",
-	autolaris_pending: "/admin/payments",
-	cod_receivable: "/admin/cod-settlements",
-	cod_remitted: "/admin/cod-settlements",
-	support_unassigned: "/admin/support",
+	manual_booking_pending: "/admin/pesanan/kirim",
+	transfers_near_deadline: "/admin/keuangan/pembayaran",
+	autolaris_pending: "/admin/keuangan/pembayaran",
+	cod_receivable: "/admin/keuangan/cod",
+	cod_remitted: "/admin/keuangan/cod",
+	support_unassigned: "/admin/obrolan",
 };
 
 export const PAYMENT_CHANNEL_LABELS: Record<string, string> = {

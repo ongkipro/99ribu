@@ -112,13 +112,13 @@ test("S128 sidebar shows exactly the items each role's grants open, grouped per 
 		const user = await staff(roles, permissions);
 		const { page, close } = await open(user);
 		try {
-			await page.goto(`${origin}/admin/queue`);
+			await page.goto(`${origin}/admin/antrian`);
 			assert.deepEqual(await navGroups(page), expected, name);
 			// A settings link appears only with its built page (S135/S136/S137).
 			const nav = page.getByRole("navigation", { name: "Navigasi Operator" });
 			const settingsLabels = ["Log Audit", "Kesehatan Sistem", "Staf & Peran", "Pembayaran & Biaya COD", "Kebijakan Komersial", "Template Label", "Integrasi Iklan", "Balasan & Tag CS"];
 			const settings = expected.flatMap(([, items]) => items).filter((label) => settingsLabels.includes(label)).length;
-			await expect(nav.locator('a[href^="/admin/settings"]')).toHaveCount(settings);
+			await expect(nav.locator('a[href^="/admin/pengaturan"], a[href="/admin/pemasaran/iklan"]')).toHaveCount(settings);
 		} finally {
 			await close();
 		}
@@ -129,7 +129,7 @@ test("S128 longest-match active item and the account menu (Lihat Toko, Keluar; a
 	const owner = await staff(["owner"]);
 	const { page, errors, close } = await open(owner);
 	try {
-		await page.goto(`${origin}/admin/inventory/transfers`);
+		await page.goto(`${origin}/admin/produk/inventori/transfer`);
 		const nav = page.getByRole("navigation", { name: "Navigasi Operator" });
 		await expect(nav.getByRole("link", { name: "Transfer Stok" })).toHaveAttribute("aria-current", "page");
 		await expect(nav.locator('[data-slot="sidebar-menu-button"][data-active="true"]')).toHaveText(["Transfer Stok"]);
@@ -157,9 +157,9 @@ test("S128 longest-match active item and the account menu (Lihat Toko, Keluar; a
 test("S128 signed-out local preview keeps the shell with a sign-in entry (no redirect outside production)", async () => {
 	const { page, close } = await open(null);
 	try {
-		const response = await page.goto(`${origin}/admin/orders`);
+		const response = await page.goto(`${origin}/admin/pesanan`);
 		assert.equal(response?.status(), 200);
-		assert.equal(new URL(page.url()).pathname, "/admin/orders");
+		assert.equal(new URL(page.url()).pathname, "/admin/pesanan");
 		const account = page.getByTestId("admin-account");
 		await expect(account.getByText("Pratinjau tanpa sesi staf.")).toBeVisible();
 		await expect(account.getByRole("link", { name: "Masuk sebagai staf" })).toHaveAttribute("href", "/masuk?next=%2Fadmin");
@@ -184,7 +184,7 @@ test("S128 renders at 390 touch, 768 and 1440 with no overflow and no console er
 	for (const [file, user, viewport, touch, state] of shots) {
 		const { page, errors, close } = await open(user, viewport, touch);
 		try {
-			await page.goto(`${origin}/admin/queue`);
+			await page.goto(`${origin}/admin/antrian`);
 			await expect(page.locator("main, #main").first()).toBeVisible();
 			if (state) {
 				await page.getByRole("button", { name: "Buka atau tutup navigasi" }).first().click();

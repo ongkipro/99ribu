@@ -17,7 +17,7 @@ import { useSettingsIntent } from "./settings-intent";
 import { StatusBadge } from "./status";
 
 // S130 / spec 17 B21 (DEC-018 Q3): payment terms (COD fee bps and manual bank accounts) moved out of
-// /admin/payments into Pengaturan. Owner writes new versions with payment_policy.version reauth proof;
+// /admin/keuangan/pembayaran into Pengaturan. Owner writes new versions with payment_policy.version reauth proof;
 // finance reads current terms and version history. Existing quotes and orders keep their frozen
 // payment_policy_version_id and cod_fee_bps.
 

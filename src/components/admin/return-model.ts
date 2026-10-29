@@ -1,5 +1,5 @@
-// S101: staff return/refund/replacement vocabulary and wire types (GET /admin/returns,
-// /admin/returns/{id}, /admin/refunds/{id}, /admin/replacements/{id}). Display only; every
+// S101: staff return/refund/replacement vocabulary and wire types (GET /api/v1/admin/returns,
+// /api/v1/admin/returns/{id}, /api/v1/admin/refunds/{id}, /api/v1/admin/replacements/{id}). Display only; every
 // action is re-authorized by the API. No "use client": the server pages read the role gates too.
 import type { StatusTone } from "./status";
 
@@ -37,7 +37,7 @@ export type ReturnEvent = {
 };
 export type ReturnCase = {
 	id: string;
-	/** Short admin handles: this case at `/admin/returns/{admin_no}`, its order at `/admin/orders/{order_admin_no}`. */
+	/** Short admin handles: this case at `/admin/pesanan/retur/{admin_no}`, its order at `/admin/pesanan/{order_admin_no}`. */
 	admin_no: number;
 	order_id: string;
 	order_admin_no: number;

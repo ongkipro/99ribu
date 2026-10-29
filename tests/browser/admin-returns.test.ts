@@ -94,7 +94,7 @@ test("returns list: tabs filter through the API, keep the tab in the URL and ope
 		const queries: string[] = [];
 		page.on("request", (r) => { const u = new URL(r.url()); if (u.pathname === "/api/v1/admin/returns") queries.push(u.searchParams.get("state") ?? "all"); });
 		await routes(page, state);
-		await page.goto(`${origin}/admin/returns`);
+		await page.goto(`${origin}/admin/pesanan/retur`);
 		const row = page.getByTestId("return-row-99-TEST0001");
 		await expect(row).toBeVisible();
 		await expect(row).toContainText("Menunggu keputusan");
@@ -116,7 +116,7 @@ test("decision: approve sends the read version and the goods choice once; reject
 	try {
 		const state = { detail: caseOf("requested"), posts: [] as { path: string; body: Record<string, unknown> }[] };
 		await routes(page, state);
-		await page.goto(`${origin}/admin/returns/${caseNo}`);
+		await page.goto(`${origin}/admin/pesanan/retur/${caseNo}`);
 		await expect(page.getByTestId("return-status")).toHaveText("Menunggu keputusan");
 		await page.getByTestId("return-reject").click();
 		await expect(page.getByRole("dialog")).toContainText("ditampilkan ke pembeli");
@@ -144,7 +144,7 @@ test("inspection and refund: components are sent by allocation, the refund issue
 	try {
 		const state = { detail: caseOf("awaiting_goods", { requires_goods: true, resolution: "refund", can_decide: true }), posts: [] as { path: string; body: Record<string, unknown> }[] };
 		await routes(page, state);
-		await page.goto(`${origin}/admin/returns/${caseNo}`);
+		await page.goto(`${origin}/admin/pesanan/retur/${caseNo}`);
 		await page.getByTestId("return-inspect").click();
 		const dialog = page.getByRole("dialog");
 		await dialog.getByLabel("Catatan inspeksi (wajib)").fill("Botol diterima, retak di tutup");
@@ -176,7 +176,7 @@ test("phone: the case screen has no horizontal overflow and its actions sit in t
 	const { page, errors, close } = await open(owner, { width: 390, height: 844 }, true);
 	try {
 		await routes(page, { detail: caseOf("requested"), posts: [] });
-		await page.goto(`${origin}/admin/returns/${caseNo}`);
+		await page.goto(`${origin}/admin/pesanan/retur/${caseNo}`);
 		await expect(page.getByTestId("return-approve")).toBeVisible();
 		assert.equal(await page.evaluate(() => document.documentElement.scrollWidth - document.documentElement.clientWidth), 0);
 		assert.equal(await page.getByTestId("return-approve").evaluate((el) => getComputedStyle(el.closest("[data-sticky-bar]") as Element).position), "fixed");
@@ -205,7 +205,7 @@ test("warehouse calendars: owner sees uncovered origin warehouses and applies th
 			if (path === "/api/v1/admin/warehouse-calendars") return json(route, { data: coverage, truncated: false });
 			return route.fallback();
 		});
-		await page.goto(`${origin}/admin/fulfillment`);
+		await page.goto(`${origin}/admin/pesanan/kirim`);
 		const panel = page.getByTestId("warehouse-calendars");
 		await panel.getByText("Kalender gudang", { exact: true }).click();
 		await expect(panel.getByTestId("calendar-test-only")).toContainText("TEST-ONLY");
@@ -226,14 +226,14 @@ test("warehouse calendars: owner sees uncovered origin warehouses and applies th
 	const warehouse = await staff("warehouse");
 	const other = await open(warehouse);
 	try {
-		await other.page.goto(`${origin}/admin/fulfillment`);
+		await other.page.goto(`${origin}/admin/pesanan/kirim`);
 		await expect(other.page.getByRole("heading", { name: "Pengiriman Manual" })).toBeVisible();
 		await expect(other.page.getByTestId("warehouse-calendars")).toHaveCount(0);
 	} finally { await other.close(); }
 	// DEC-018 Q2: the e-commerce admin manages pickup profiles on this page but never calendars.
 	const ecommerce = await open(await staff("ecommerce_admin"));
 	try {
-		await ecommerce.page.goto(`${origin}/admin/fulfillment`);
+		await ecommerce.page.goto(`${origin}/admin/pesanan/kirim`);
 		await expect(ecommerce.page.getByRole("heading", { name: "Pengiriman Manual" })).toBeVisible();
 		await expect(ecommerce.page.getByTestId("warehouse-calendars")).toHaveCount(0);
 	} finally { await ecommerce.close(); }

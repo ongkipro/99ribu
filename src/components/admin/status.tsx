@@ -165,7 +165,7 @@ export function OrderNumberLink({
 	const href =
 		adminNo != null
 			? adminPath("order", adminNo)
-			: `/admin/orders?${new URLSearchParams({ jenis: "nomor", cari: number })}`;
+			: `/admin/pesanan?${new URLSearchParams({ jenis: "nomor", cari: number })}`;
 	return (
 		<Link
 			href={href}

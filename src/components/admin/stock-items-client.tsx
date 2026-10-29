@@ -37,7 +37,7 @@ export function StockItemsClient({ costs, costsWrite }: { costs: boolean; costsW
 		<AdminPage testId="stock-items-page">
 			<PageHeader
 				title="SKU Fisik"
-				back={{ href: "/admin/catalog", label: "Produk" }}
+				back={{ href: "/admin/produk", label: "Produk" }}
 				description="Barang fisik yang menjadi isi paket. SKU dibuat sekali dan tidak diubah; stok dan HPP dicatat terpisah per SKU."
 				actions={
 					<Button type="button" data-testid="stock-item-new" onClick={() => setCreate(true)}>
@@ -115,11 +115,11 @@ export function StockItemsClient({ costs, costsWrite }: { costs: boolean; costsW
 			/>
 			<p className="text-xs text-muted-foreground">
 				SKU dipakai di isi paket pada{" "}
-				<Link href="/admin/catalog" className="text-primary underline-offset-4 hover:underline">
+				<Link href="/admin/produk" className="text-primary underline-offset-4 hover:underline">
 					detail produk
 				</Link>
 				; stok per gudang ada di{" "}
-				<Link href="/admin/inventory" className="text-primary underline-offset-4 hover:underline">
+				<Link href="/admin/produk/inventori" className="text-primary underline-offset-4 hover:underline">
 					Stok Gudang
 				</Link>
 				.

@@ -17,7 +17,7 @@ import {
 	fulfillmentFixture,
 } from "../integration/fulfillment-fixture.ts";
 
-// Stand-in page for /admin/print-center served from the isolated TEST database. It mirrors the
+// Stand-in page for /admin/pesanan/cetak-label served from the isolated TEST database. It mirrors the
 // real PrintCenterClient contract (src/components/admin/print-center-client.tsx): the same test
 // ids, the same API calls and the same Indonesian notices, so the label, print, reprint, batch and
 // template rules are proven against the real handlers. The built page itself reads the LOCAL
@@ -239,7 +239,7 @@ test("S55 browser: admin shipping print center renders thermal/A4 label generati
 							: undefined,
 				});
 
-				if (url.pathname === "/admin/print-center") {
+				if (url.pathname === "/admin/pesanan/cetak-label") {
 					const ws = await readPrintCenterWorkspace(webReq, identity);
 					res.writeHead(200, { "content-type": "text/html; charset=utf-8" });
 					res.end(renderPrintCenterHtml(ws));
@@ -312,7 +312,7 @@ test("S55 browser: admin shipping print center renders thermal/A4 label generati
 			const page = await openAs(staff);
 			const banner = page.getByTestId("print-center-status-banner");
 
-			await page.goto(`${baseUrl}/admin/print-center`);
+			await page.goto(`${baseUrl}/admin/pesanan/cetak-label`);
 			await expect(page.getByTestId("print-center-heading")).toBeVisible();
 
 			// 1. Generate a single label for parcelA (issued waybill)
@@ -380,7 +380,7 @@ test("S55 browser: admin shipping print center renders thermal/A4 label generati
 			// 4. Template governance (owner-only API; the page lists templates): neutral_partner is
 			// rejected without partner_brand_name and disclosure_text, accepted with both, then listed.
 			const ownerPage = await openAs(f.owner);
-			await ownerPage.goto(`${baseUrl}/admin/print-center`);
+			await ownerPage.goto(`${baseUrl}/admin/pesanan/cetak-label`);
 			await expect(ownerPage.getByTestId("print-center-heading")).toBeVisible();
 			const tplName = `mitra-thermal-${randomUUID().slice(0, 6)}`;
 			const createTemplate = async (extra: Record<string, string>) =>
@@ -426,7 +426,7 @@ test("S55 browser: admin shipping print center renders thermal/A4 label generati
 				);
 				assert.ok(
 					overflow <= 1,
-					`Zero horizontal overflow on /admin/print-center at ${vp.width}x${vp.height} (overflow=${overflow})`,
+					`Zero horizontal overflow on /admin/pesanan/cetak-label at ${vp.width}x${vp.height} (overflow=${overflow})`,
 				);
 			}
 

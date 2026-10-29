@@ -55,7 +55,7 @@ export function ExceptionListClient({
 		const query = new URLSearchParams();
 		if (nextStatus) query.set("status", nextStatus);
 		if (nextKind) query.set("jenis", nextKind);
-		router.replace(`/admin/exceptions${query.size ? `?${query}` : ""}`, { scroll: false });
+		router.replace(`/admin/pesanan/kendala${query.size ? `?${query}` : ""}`, { scroll: false });
 	};
 
 	return (

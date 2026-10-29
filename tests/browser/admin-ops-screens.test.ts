@@ -71,7 +71,7 @@ test("Stok Gudang: search, reasoned movement on the row version, conflict copy, 
 	try {
 		let answer = { status: 201, body: { id: "00000000-0000-4000-8000-000000000001" } as unknown };
 		const posts = await mockMutations(page, () => answer);
-		await page.goto(`${origin}/admin/inventory`);
+		await page.goto(`${origin}/admin/produk/inventori`);
 		await expect(page.getByRole("heading", { name: "Stok Gudang" })).toBeVisible();
 		await page.getByLabel("Cari barang").fill(row.sku);
 		const item = page.getByTestId(`inventory-row-${row.sku}`);
@@ -107,7 +107,7 @@ test("Stok Gudang: search, reasoned movement on the row version, conflict copy, 
 	}
 	const phone = await open(owner, { width: 390, height: 844 }, true);
 	try {
-		await phone.page.goto(`${origin}/admin/inventory?`);
+		await phone.page.goto(`${origin}/admin/produk/inventori?`);
 		await phone.page.getByLabel("Cari barang").fill(row.sku);
 		await phone.page.getByTestId(`inventory-move-${row.sku}`).click();
 		const dialog = phone.page.getByRole("dialog");
@@ -126,14 +126,14 @@ test("Transfer Stok and Promo Ongkir: roles, filters and a WIB promotion body", 
 	const keeper = await staff("warehouse", [warehouse.id]);
 	const k = await open(keeper);
 	try {
-		await k.page.goto(`${origin}/admin/inventory`);
+		await k.page.goto(`${origin}/admin/produk/inventori`);
 		await expect(k.page.getByRole("heading", { name: "Stok Gudang" })).toBeVisible();
 		await expect(k.page.getByTestId("inventory-receive-new")).toHaveCount(0);
 		await k.page.getByRole("link", { name: "Buka Transfer Stok" }).click();
 		await expect(k.page.getByRole("heading", { name: "Transfer Stok" })).toBeVisible();
 		await k.page.getByTestId("transfers-filter-all").click();
 		await expect(k.page.getByTestId("transfers-filter-all")).toHaveAttribute("aria-pressed", "true");
-		await k.page.goto(`${origin}/admin/promotions/shipping`);
+		await k.page.goto(`${origin}/admin/promo/ongkir`);
 		await expect(k.page.getByRole("heading", { name: "Akses promo diperlukan" })).toBeVisible();
 		assert.deepEqual(k.errors, []);
 	} finally {
@@ -143,7 +143,7 @@ test("Transfer Stok and Promo Ongkir: roles, filters and a WIB promotion body", 
 	const a = await open(admin);
 	try {
 		const posts = await mockMutations(a.page, (request) => ({ status: 201, body: { ...request.postDataJSON(), id: "00000000-0000-4000-8000-000000000002", version: 1 } }));
-		await a.page.goto(`${origin}/admin/promotions/shipping`);
+		await a.page.goto(`${origin}/admin/promo/ongkir`);
 		await a.page.getByTestId("promotion-create").click();
 		const dialog = a.page.getByRole("dialog");
 		await dialog.getByLabel("Nama promo").fill("Gratis ongkir uji");
@@ -174,7 +174,7 @@ test("Katalog: DEC-013 claim filter, read-only Google category and content edit 
 	try {
 		const lists: string[] = [];
 		page.on("request", (r) => r.url().includes("/api/v1/admin/products?") && lists.push(r.url()));
-		await page.goto(`${origin}/admin/catalog?tinjauan=klaim`);
+		await page.goto(`${origin}/admin/produk?tinjauan=klaim`);
 		await expect(page.getByLabel("Tinjauan konten")).toHaveValue("klaim");
 		await expect.poll(() => lists.some((u) => new URL(u).searchParams.get("review") === "claim")).toBe(true);
 		const badges = page.getByTestId("claim-review-badge");
@@ -182,7 +182,7 @@ test("Katalog: DEC-013 claim filter, read-only Google category and content edit 
 		else await expect(badges.first()).toBeVisible();
 
 		const patches = await mockMutations(page, () => ({ status: 200, body: { version: Number(product.revision) + 1 } }));
-		await page.goto(`${origin}/admin/catalog/${(await sql`select admin_no::int as n from app.product where id = ${product.id}`)[0].n}`);
+		await page.goto(`${origin}/admin/produk/${(await sql`select admin_no::int as n from app.product where id = ${product.id}`)[0].n}`);
 		await expect(page.getByTestId("google-category")).toBeVisible();
 		await page.getByTestId("content-edit").click();
 		const dialog = page.getByRole("dialog");

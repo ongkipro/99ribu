@@ -332,7 +332,7 @@ export function AffiliateDetailClient({
 		if (notice) noticeRef.current?.focus();
 	}, [notice]);
 
-	const back = { href: "/admin/affiliates", label: "Afiliasi" };
+	const back = { href: "/admin/afiliasi", label: "Afiliasi" };
 
 	if (state.kind === "loading") {
 		return (

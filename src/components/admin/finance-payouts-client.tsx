@@ -232,7 +232,7 @@ export function PayoutDetailClient({ payoutId }: { payoutId: string }) {
 	}, [notice]);
 
 	const back = {
-		href: "/admin/finance/payouts",
+		href: "/admin/keuangan/komisi",
 		label: "Kembali ke antrean komisi",
 	};
 

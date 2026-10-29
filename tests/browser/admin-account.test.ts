@@ -75,7 +75,7 @@ test("S129 profile shows the caller's own account read-only and links to account
 	] as const) {
 		const view = await open(user, { width, height }, width < 500);
 		try {
-			await view.page.goto(`${origin}/admin/account`);
+			await view.page.goto(`${origin}/admin/akun/profil`);
 			await expect(view.page.getByRole("heading", { name: "Profil", level: 1 })).toBeVisible();
 			await expect(view.page.getByTestId("account-email")).toHaveText(user.email);
 			await expect(view.page.getByTestId("account-roles")).toContainText("Layanan Pelanggan");
@@ -92,9 +92,9 @@ test("S129 profile shows the caller's own account read-only and links to account
 	}
 	const view = await open(user);
 	try {
-		await view.page.goto(`${origin}/admin/account`);
+		await view.page.goto(`${origin}/admin/akun/profil`);
 		await view.page.getByTestId("account-security-link").click();
-		await expect(view.page).toHaveURL(`${origin}/admin/account/security`);
+		await expect(view.page).toHaveURL(`${origin}/admin/akun/keamanan`);
 		await expect(view.page.getByRole("heading", { name: "Keamanan akun", level: 1 })).toBeVisible();
 	} finally {
 		await view.context.close();
@@ -107,7 +107,7 @@ test("S129 a signed-out visitor gets a sign-in prompt, not account data", async 
 	const context = await browser.newContext();
 	try {
 		const page = await context.newPage();
-		await page.goto(`${origin}/admin/account`);
+		await page.goto(`${origin}/admin/akun/profil`);
 		await expect(page.getByTestId("account-signed-out")).toBeVisible();
 		await expect(page.getByTestId("account-email")).toHaveCount(0);
 	} finally {
@@ -124,7 +124,7 @@ test("S129 sessions: the list marks this device and ending other sessions needs 
 	] as const) {
 		const view = await open(user, { width, height }, width < 500);
 		try {
-			await view.page.goto(`${origin}/admin/account/security`);
+			await view.page.goto(`${origin}/admin/akun/keamanan`);
 			await expect(view.page.getByTestId("session-item")).toHaveCount(2);
 			await expect(view.page.locator('[data-testid="session-item"][data-current="true"]')).toHaveCount(1);
 			await expect(view.page.getByTestId("two-factor-status")).toContainText("Aktif");
@@ -139,7 +139,7 @@ test("S129 sessions: the list marks this device and ending other sessions needs 
 	}
 	const view = await open(user);
 	try {
-		await view.page.goto(`${origin}/admin/account/security`);
+		await view.page.goto(`${origin}/admin/akun/keamanan`);
 		await view.page.getByTestId("terminate-others-open").click();
 		await view.page.getByTestId("sessions-password").fill("kata-sandi-salah-123");
 		await view.page.getByRole("button", { name: "Akhiri sesi lain", exact: true }).click();
@@ -166,7 +166,7 @@ test("S129 backup codes are shown once after regeneration and never again", asyn
 	const user = await staff();
 	const view = await open(user);
 	try {
-		await view.page.goto(`${origin}/admin/account/security`);
+		await view.page.goto(`${origin}/admin/akun/keamanan`);
 		await expect(view.page.getByTestId("backup-codes-remaining")).toContainText("10");
 		await view.page.getByTestId("backup-codes-open").click();
 		await view.page.getByTestId("backup-password").fill(user.password);
@@ -195,7 +195,7 @@ test("S129 change password validates in the dialog, then ends other sessions and
 	const next = randomBytes(18).toString("base64url");
 	const view = await open(user);
 	try {
-		await view.page.goto(`${origin}/admin/account/security`);
+		await view.page.goto(`${origin}/admin/akun/keamanan`);
 		await view.page.getByTestId("change-password-open").click();
 		await view.page.getByTestId("password-current").fill(user.password);
 		await view.page.getByTestId("password-new").fill("pendek");

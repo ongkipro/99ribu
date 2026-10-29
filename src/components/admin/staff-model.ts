@@ -1,4 +1,4 @@
-// S137: vocabulary and rules of the staff & roles screen (/admin/settings/staff). Display only; the grant API
+// S137: vocabulary and rules of the staff & roles screen (/admin/pengaturan/staf). Display only; the grant API
 // re-checks every rule. No "use client": the server page and the client screen both read it. Role and permission
 // names come from the central lists in policy.ts, so a new permission shows up here as "Lainnya" until it is grouped.
 import { type Permission, permissions, staffRoles } from "@/modules/access/policy";

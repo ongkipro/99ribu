@@ -38,7 +38,7 @@ export function ReturnListClient({ initialTab }: { initialTab: ReturnTab }) {
 	const change = (next: ReturnTab) => {
 		setTab(next);
 		// The tab survives Back and reload; it carries no private data.
-		router.replace(`/admin/returns?tahap=${next}`, { scroll: false });
+		router.replace(`/admin/pesanan/retur?tahap=${next}`, { scroll: false });
 	};
 	return (
 		<div className="flex flex-col gap-4">

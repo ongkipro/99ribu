@@ -412,7 +412,7 @@ test("/akun and admin Segmen Pembeli render at 390 touch, 768 and 1440 without o
 		}
 		const admin = await open(owner, viewport, touch);
 		try {
-			await admin.page.goto(`${origin}/admin/buyer-segments`);
+			await admin.page.goto(`${origin}/admin/pelanggan/segmen`);
 			await admin.page
 				.getByRole("heading", { level: 1, name: "Segmen Pembeli" })
 				.waitFor();
@@ -450,7 +450,7 @@ test("/akun and admin Segmen Pembeli render at 390 touch, 768 and 1440 without o
 	}
 	const denied = await open(cs, { width: 1440, height: 900 });
 	try {
-		await denied.page.goto(`${origin}/admin/buyer-segments`);
+		await denied.page.goto(`${origin}/admin/pelanggan/segmen`);
 		await denied.page
 			.getByRole("heading", { name: "Akses pemasaran diperlukan" })
 			.waitFor();

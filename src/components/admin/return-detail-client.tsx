@@ -127,7 +127,7 @@ export function ReturnDetailClient({ caseId, access, canOrders }: { caseId: stri
 		if (notice) noticeRef.current?.focus();
 	}, [notice]);
 
-	const back = { href: "/admin/returns", label: "Kembali ke daftar retur" };
+	const back = { href: "/admin/pesanan/retur", label: "Kembali ke daftar retur" };
 	if (failure)
 		return (
 			<AdminPage>

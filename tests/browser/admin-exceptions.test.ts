@@ -10,7 +10,7 @@ import type { Role } from "../../src/modules/access/policy.ts";
 import { actor, cleanup, enroll } from "../contract/access-fixture.ts";
 import { RENDERS } from "../render-root.ts";
 
-// S133 Masalah Pengiriman (/admin/exceptions, /admin/exceptions/{id}) on the built web at the
+// S133 Masalah Pengiriman (/admin/pesanan/kendala, /admin/pesanan/kendala/{id}) on the built web at the
 // canonical origin. The signed-in synthetic staff users are real (the page guards read their
 // roles); the exception, fulfillment and inventory APIs are answered by Playwright routes with
 // fixed projections and every mutation is captured and fulfilled here, so no business state
@@ -160,7 +160,7 @@ test("list: filters go to the API and the address, pages append without a repeat
 	});
 	try {
 		await routes(page, s);
-		await page.goto(`${origin}/admin/exceptions`);
+		await page.goto(`${origin}/admin/pesanan/kendala`);
 		const rows = page.locator('[data-testid^="exception-row-"]');
 		await expect(rows).toHaveCount(1);
 		await expect(rows.first()).toContainText("Selisih stok");
@@ -198,10 +198,10 @@ test("access: roles without the exception authority see the denied screen, no AP
 	const s = state(exception("open"));
 	try {
 		await routes(page, s);
-		await page.goto(`${origin}/admin/exceptions`);
+		await page.goto(`${origin}/admin/pesanan/kendala`);
 		await expect(page.getByRole("heading", { name: "Akses kasus pengiriman diperlukan" })).toBeVisible();
 		await expect(page.getByTestId("exceptions-page")).toHaveCount(0);
-		await page.goto(`${origin}/admin/exceptions/${exNo}`);
+		await page.goto(`${origin}/admin/pesanan/kendala/${exNo}`);
 		await expect(page.getByRole("heading", { name: "Akses kasus pengiriman diperlukan" })).toBeVisible();
 		assert.equal(s.reads.filter((r) => r.startsWith(API)).length, 0);
 		assert.deepEqual(errors, []);
@@ -217,7 +217,7 @@ test("decide: customer service chooses among the kind's decisions; the read vers
 	s.answers[`${API}/${exId}/decisions`] = exception("escalated", { version: 4 });
 	try {
 		await routes(page, s);
-		await page.goto(`${origin}/admin/exceptions/${exNo}`);
+		await page.goto(`${origin}/admin/pesanan/kendala/${exNo}`);
 		await expect(page.getByTestId("exception-status")).toHaveText("Menunggu stok");
 		await expect(page.getByTestId("exception-unit")).toContainText("Botol Minum 1 L");
 		// Customer service neither counts stock nor receives goods nor queues money.
@@ -258,7 +258,7 @@ test("apply: only a buyer-accepted proposal in awaiting_source is applied, with 
 	s.answers[`${API}/${exId}/decisions`] = exception("ready_for_refund", { version: 4, proposal: retained });
 	try {
 		await routes(page, s);
-		await page.goto(`${origin}/admin/exceptions/${exNo}`);
+		await page.goto(`${origin}/admin/pesanan/kendala/${exNo}`);
 		await expect(page.getByTestId("exception-proposal")).toContainText("Batalkan unit terdampak");
 		await expect(page.getByTestId("exception-apply")).toHaveCount(0);
 		s.detail = exception("awaiting_source", { proposal: retained });
@@ -286,7 +286,7 @@ test("warehouse: count a parcel (new report) and recount a case; lots are addres
 	s.answers[API] = created;
 	try {
 		await routes(page, s);
-		await page.goto(`${origin}/admin/exceptions`);
+		await page.goto(`${origin}/admin/pesanan/kendala`);
 		await page.getByTestId("exception-report").click();
 		const dialog = page.getByRole("dialog");
 		await dialog.getByLabel("Paket", { exact: true }).selectOption(fulfillmentId);
@@ -301,7 +301,7 @@ test("warehouse: count a parcel (new report) and recount a case; lots are addres
 		await expect(dialog.getByRole("alert")).toContainText("harus 0–1");
 		await dialog.getByLabel("Jumlah kurang Botol 1 L").fill("1");
 		await dialog.getByRole("button", { name: "Simpan hitungan" }).click();
-		await expect(page).toHaveURL(new RegExp(`/admin/exceptions/${exNo}$`));
+		await expect(page).toHaveURL(new RegExp(`/admin/pesanan/kendala/${exNo}$`));
 		const report = s.posts.find((p) => p.path === API);
 		assert.deepEqual(report?.body, {
 			fulfillment_id: fulfillmentId,
@@ -337,7 +337,7 @@ test("intake: returned goods are sent per unit and lot; an unconfirmed identity 
 	s.answers[`${API}/${exId}/intakes`] = exception("resolved", { version: 4 });
 	try {
 		await routes(page, s);
-		await page.goto(`${origin}/admin/exceptions/${exNo}`);
+		await page.goto(`${origin}/admin/pesanan/kendala/${exNo}`);
 		await expect(page.getByTestId("exception-unit")).toContainText("Menunggu barang kembali");
 		await expect(page.getByTestId("exception-decide")).toHaveCount(0);
 		await page.getByTestId("exception-intake").click();
@@ -379,7 +379,7 @@ test("refund: finance queues with a subject-bound proof; read-only finance and c
 	s.answers[`${API}/${exId}/refunds`] = { exception_id: exId, version: 4, refunds: [refund("queued")] };
 	try {
 		await routes(a.page, s);
-		await a.page.goto(`${origin}/admin/exceptions/${exNo}`);
+		await a.page.goto(`${origin}/admin/pesanan/kendala/${exNo}`);
 		await expect(a.page.getByTestId("refunds-empty")).toBeVisible();
 		await a.page.getByTestId("exception-queue-refund").click();
 		const dialog = a.page.getByRole("dialog");
@@ -397,7 +397,7 @@ test("refund: finance queues with a subject-bound proof; read-only finance and c
 		assert.ok(s.posts.indexOf(proof as Post) < s.posts.indexOf(queued[0]));
 		// Read-only finance sees the refunds and no money action.
 		await routes(b.page, state(exception("ready_for_refund"), { refunds: [refund("queued")] }));
-		await b.page.goto(`${origin}/admin/exceptions/${exNo}`);
+		await b.page.goto(`${origin}/admin/pesanan/kendala/${exNo}`);
 		await expect(b.page.getByTestId("refund-card")).toBeVisible();
 		await expect(b.page.getByTestId("exception-queue-refund")).toHaveCount(0);
 		await expect(b.page.getByTestId("refund-reconcile")).toHaveCount(0);
@@ -419,7 +419,7 @@ test("unknown outcome: only reconcile is offered; a lost answer is repeated with
 	s.lose.add(path);
 	try {
 		await routes(page, s);
-		await page.goto(`${origin}/admin/exceptions/${exNo}`);
+		await page.goto(`${origin}/admin/pesanan/kendala/${exNo}`);
 		await expect(page.getByTestId("refund-status")).toHaveText("Hasil belum pasti");
 		await expect(page.getByTestId("refund-unknown")).toContainText("Jangan mengajukan refund lagi");
 		// No blind second money action: no retry, no new refund.
@@ -458,7 +458,7 @@ test("failed refund offers retry; waiting, settled and COD-waiting refunds offer
 	s.answers[path] = refund("queued", { id: failed.id, version: 5 });
 	try {
 		await routes(page, s);
-		await page.goto(`${origin}/admin/exceptions/${exNo}`);
+		await page.goto(`${origin}/admin/pesanan/kendala/${exNo}`);
 		await expect(page.getByTestId("refund-status")).toHaveText("Gagal, dana belum keluar");
 		await expect(page.getByTestId("refund-reconcile")).toHaveCount(0);
 		await page.getByTestId("refund-retry").click();
@@ -497,12 +497,12 @@ for (const [name, width, height, touch] of [
 		});
 		try {
 			await routes(page, s);
-			await page.goto(`${origin}/admin/exceptions`);
+			await page.goto(`${origin}/admin/pesanan/kendala`);
 			await expect(page.locator('[data-testid^="exception-row-"]')).toHaveCount(2);
 			assert.ok((await overflow(page)) <= 0, "list overflow");
 			if (touch) await expect(page.getByRole("button", { name: /^Filter/ })).toBeVisible();
 			await page.screenshot({ path: join(renders, `list-${width}.png`), fullPage: false });
-			await page.goto(`${origin}/admin/exceptions/${exNo}`);
+			await page.goto(`${origin}/admin/pesanan/kendala/${exNo}`);
 			await expect(page.getByTestId("exception-apply")).toBeVisible();
 			await expect(page.getByTestId("refund-card")).toBeVisible();
 			assert.ok((await overflow(page)) <= 0, "detail overflow");

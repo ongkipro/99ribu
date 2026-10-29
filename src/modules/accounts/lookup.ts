@@ -67,7 +67,7 @@ export type LookupKind = "phone" | "email";
 export type OrderAccess = "all" | "scoped" | "none";
 export type LookupOrder = {
 	id: string;
-	/** Short admin handle for `/admin/orders/{admin_no}`. */
+	/** Short admin handle for `/admin/pesanan/{admin_no}`. */
 	admin_no: number;
 	number: string;
 	status: string;

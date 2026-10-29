@@ -110,7 +110,7 @@ test("the route parameter resolves by number, redirects a UUID to its number, an
 	// A readable UUID (any case) redirects to the canonical numeric URL.
 	assert.deepEqual(await classifyAdminParam(identity.sql, principal, "warehouse", a.id), { kind: "redirect", adminNo: a.admin_no });
 	assert.deepEqual(await classifyAdminParam(identity.sql, principal, "warehouse", a.id.toUpperCase()), { kind: "redirect", adminNo: a.admin_no });
-	assert.equal(adminPath("warehouse", a.admin_no), `/admin/warehouses/${a.admin_no}`);
+	assert.equal(adminPath("warehouse", a.admin_no), `/admin/produk/gudang/${a.admin_no}`);
 	// An unknown number yields the reserved id; an unknown UUID passes through for the client's API 404.
 	assert.deepEqual(await classifyAdminParam(identity.sql, principal, "warehouse", "999999999999999"), { kind: "id", id: UNKNOWN_ADMIN_ID });
 	const stray = randomUUID();

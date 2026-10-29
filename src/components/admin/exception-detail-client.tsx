@@ -92,7 +92,7 @@ export function ExceptionDetailClient({
 		if (notice) noticeRef.current?.focus();
 	}, [notice]);
 
-	const back = { href: "/admin/exceptions", label: "Kembali ke daftar kasus" };
+	const back = { href: "/admin/pesanan/kendala", label: "Kembali ke daftar kasus" };
 	if (failure && !detail)
 		return (
 			<AdminPage>

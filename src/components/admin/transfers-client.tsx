@@ -75,7 +75,7 @@ export function TransfersClient({ owner }: { owner: boolean }) {
 		<AdminPage testId="transfers-page">
 			<PageHeader
 				title="Transfer Stok"
-				back={{ href: "/admin/inventory", label: "Stok Gudang" }}
+				back={{ href: "/admin/produk/inventori", label: "Stok Gudang" }}
 				description="Pindah stok antar gudang. Stok dipesan saat transfer dibuat, keluar dari gudang asal saat dikirim, dan masuk ke gudang tujuan saat diterima."
 			/>
 			{notice && (
@@ -118,7 +118,7 @@ export function TransfersClient({ owner }: { owner: boolean }) {
 						filter === "all" ? (
 							<>
 								Belum ada transfer. Transfer dibuat dari{" "}
-								<Link href="/admin/inventory" className="text-primary underline-offset-4 hover:underline">
+								<Link href="/admin/produk/inventori" className="text-primary underline-offset-4 hover:underline">
 									Stok Gudang
 								</Link>
 								.

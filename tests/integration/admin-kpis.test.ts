@@ -153,7 +153,7 @@ test('orders: active counts exclude terminal states; per payment method, near-de
   assert.ok(!active.some(r=>r.id===simulated.id));
   const placed=await drilldown(f.identity,f.owner,after,byMethod[1]);assert.ok(placed.some(r=>r.id===simulated.id));
   const open=await drilldown(f.identity,f.owner,after,metric(after,'autolaris_pending'));assert.ok(open.some(r=>r.id===auto.id)&&!open.some(r=>r.id===manual.id));
-  assert.equal(metric(after,'autolaris_pending').action_href,'/admin/payments');
+  assert.equal(metric(after,'autolaris_pending').action_href,'/admin/keuangan/pembayaran');
   // The two payment KPIs are exactly the finance queues (S92/S93), company-wide.
   const finance=await financeUser(f.identity,users);
   // Every page of the finance queue (S113 keyset paging): the KPI equals the whole list, not page one.
@@ -209,7 +209,7 @@ test('fulfillment: due excludes handed-over parcels, manual booking equals the S
   const s0=await dashboard(f.identity,f.owner,scope),booking0=metric(s0,'manual_booking_pending');
   assert.deepEqual((await drilldown(f.identity,f.owner,s0,booking0)).map(r=>r.id).sort(),await manualQueue(),'same parcels as "Perlu dipesan kurir"');
   assert.ok((await drilldown(f.identity,f.owner,s0,metric(s0,'fulfillments_due'))).some(r=>r.id===parcel.id));
-  assert.equal(booking0.action_href,'/admin/fulfillment');assert.equal(booking0.basis,'snapshot');
+  assert.equal(booking0.action_href,'/admin/pesanan/kirim');assert.equal(booking0.basis,'snapshot');
   const [{cod_due}]=await sql`select cod_due from app.order_shipment where id=${parcel.shipment_id}`,due=Number(cod_due);assert.ok(due>0);
 
   const ship=f.owner.browser.request(`/api/v1/admin/fulfillments/${parcel.id}/manual-shipment`,{expected_version:parcel.revision,courier:'jne',tracking_number:`JP${String(Date.now()).slice(-8)}03`});
@@ -230,7 +230,7 @@ test('fulfillment: due excludes handed-over parcels, manual booking equals the S
   const s2=await dashboard(f.identity,f.owner,scope);
   assert.equal(diff(s1,s2,'cod_receivable'),-due,'a parcel on a Mengantar statement is no longer outstanding');
   assert.equal(diff(s1,s2,'cod_remitted'),due);
-  assert.equal(metric(s2,'cod_remitted').action_href,'/admin/cod-settlements');
+  assert.equal(metric(s2,'cod_remitted').action_href,'/admin/keuangan/cod');
   assert.equal(metric(s2,'cod_receivable').basis,'snapshot');
   // Money is company-wide for owner/finance: the warehouse filter narrows counts only.
   const {warehouse_id:_scoped,...companyScope}=scope,company=await dashboard(f.identity,f.owner,companyScope);

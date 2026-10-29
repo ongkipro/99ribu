@@ -259,7 +259,7 @@ function TicketsTable({ account }: { account: Account }) {
 				</h3>
 				{account.tickets.length > 0 && (
 					<Button asChild variant="outline" size="sm">
-						<Link href="/admin/support">Buka Kotak Masuk</Link>
+						<Link href="/admin/obrolan">Buka Kotak Masuk</Link>
 					</Button>
 				)}
 			</div>

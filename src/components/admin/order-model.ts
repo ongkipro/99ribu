@@ -82,7 +82,7 @@ export const RETURN_CASE_STATUS: Record<string, string> = {
 };
 
 /**
- * The order list filters, one per status axis the API filters on (GET /admin/orders): the URL
+ * The order list filters, one per status axis the API filters on (GET /api/v1/admin/orders): the URL
  * key, its label and the accepted values. Order states exclude "preparing" (never listed).
  */
 export const ORDER_FILTERS = {

@@ -1,5 +1,5 @@
-// S129: vocabulary and wire types of the staff profile (/admin/account) and account security
-// (/admin/account/security). Display only; the APIs re-authorize every request. No "use client":
+// S129: vocabulary and wire types of the staff profile (/admin/akun/profil) and account security
+// (/admin/akun/keamanan). Display only; the APIs re-authorize every request. No "use client":
 // the server pages and the client screen both read it.
 
 export const ROLE_LABEL: Record<string, string> = {
