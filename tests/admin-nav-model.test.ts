@@ -13,7 +13,7 @@ import {
 	UNBUILT_PAGES,
 } from "../src/components/admin/admin-nav.ts";
 import { catalogTabKey, catalogTabStatus } from "../src/components/admin/catalog-model.ts";
-import { ORDER_TABS, readOrderTab, tabFilters } from "../src/components/admin/order-model.ts";
+import { ORDER_TABS, orderFilterParams, readOrderTab, tabFilters } from "../src/components/admin/order-model.ts";
 
 // S-V1 (redesign plan §4.1): the per-lens nav tree, filtered by the same rules as the page guards,
 // with the unbuilt pages behind the built flag list and exactly one active row.
@@ -56,7 +56,7 @@ test("S-V1 nav per role lens: exactly the plan §4.1 items each principal's gran
 			["ecommerce_admin", ["ecommerce_admin"], ["orders.history.read"]],
 			[
 				["Beranda", "/admin"],
-				["Pesanan", "/admin/pesanan?tab=perlu_dikirim", ["Semua Pesanan"]],
+				["Pesanan", "/admin/pesanan?tab=perlu_dikirim", ["Semua Pesanan", "Input Resi", "Cetak Label"]],
 				["Produk", "/admin/produk", ["Kategori", "Inventori", "Transfer Stok"]],
 				["Promo", "/admin/promo/ongkir", ["Banner", "Segmen Pembeli"]],
 				["Pengaturan", "/admin/pengaturan"],
@@ -157,6 +157,15 @@ test("S-V1 exactly one active row: longest path, query views, child over parent,
 	assert.deepEqual(highlightedRows(finance, at(finance, "/admin/keuangan/pembayaran")), ["Keuangan > Pembayaran Masuk"]);
 	assert.deepEqual(highlightedRows(owner, at(owner, "/admin/pesanan/7")), ["Pantauan > Pesanan"]);
 	assert.deepEqual(highlightedRows(ecommerce, at(ecommerce, "/admin/pesanan?tab=perlu_dikirim")), ["Pesanan"]);
+	// A query parent falls back to its path: the owner's warehouse lens lights Pesanan on other tabs and details.
+	const warehouseLens = navFor("warehouse", ["owner"], []);
+	assert.deepEqual(highlightedRows(warehouseLens, at(warehouseLens, "/admin/pesanan/1042")), ["Pesanan"]);
+	assert.deepEqual(highlightedRows(warehouseLens, at(warehouseLens, "/admin/pesanan?tab=dikirim")), ["Pesanan"]);
+	assert.deepEqual(highlightedRows(warehouseLens, at(warehouseLens, "/admin/pesanan/kirim")), ["Pesanan > Input Resi"]);
+	// Beranda carries the lens for multi-workspace accounts; a different or missing workspace still lights it.
+	const homeLens = [{ items: [{ label: "Beranda", href: "/admin?workspace=warehouse", icon: navFor("owner", [], [])[0].items[0].icon }] }];
+	assert.equal(at(homeLens, "/admin?workspace=owner"), "/admin?workspace=warehouse");
+	assert.equal(at(homeLens, "/admin/pesanan"), null);
 	// Every visible href of every lens highlights exactly one row.
 	for (const [lens, roles, permissions] of [
 		["owner", ["owner"], []],
@@ -178,9 +187,17 @@ test("S-V1 list tabs map to filters the APIs accept; old links open the matching
 	assert.equal(readOrderTab("", { kirim: "handed_over" }), "dikirim");
 	assert.equal(readOrderTab("bogus", {}), "semua");
 	assert.deepEqual(tabFilters("belum_bayar", { bayar: "confirmed", retur: "requested" }), { bayar: "pending", retur: "requested" });
-	assert.deepEqual(tabFilters("perlu_dikirim", {}), { kirim: "ready" });
+	// Perlu Dikirim defaults to every stage before handover (the fulfillments_due predicate); chips narrow it.
+	assert.deepEqual(tabFilters("perlu_dikirim", {}), {});
 	assert.deepEqual(tabFilters("perlu_dikirim", { kirim: "exception" }), { kirim: "exception" });
-	assert.deepEqual(tabFilters("perlu_dikirim", { kirim: "handed_over" }), { kirim: "ready" });
+	assert.deepEqual(tabFilters("perlu_dikirim", { kirim: "handed_over" }), {});
+	assert.deepEqual(orderFilterParams("perlu_dikirim", tabFilters("perlu_dikirim", {})), [["fulfillment_group", "due"]]);
+	assert.deepEqual(orderFilterParams("perlu_dikirim", { kirim: "packed", bayar: "pending" }), [
+		["payment_status", "pending"],
+		["fulfillment_status", "packed"],
+		["fulfillment_group", "due"],
+	]);
+	assert.deepEqual(orderFilterParams("dikirim", tabFilters("dikirim", {})), [["fulfillment_status", "handed_over"]]);
 	assert.deepEqual(tabFilters("semua", { kirim: "packed", status: "pending" }), { status: "pending" });
 	assert.deepEqual(tabFilters("dibatalkan", {}), { status: "cancelled" });
 	assert.equal(catalogTabStatus("diblokir", ""), "blocked");

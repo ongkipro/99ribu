@@ -21,6 +21,7 @@ import {
 	ORDER_STATUS,
 	ORDER_TABS,
 	ORDER_TONE,
+	orderFilterParams,
 	type OrderFilterKey,
 	type OrderFilters,
 	type OrderTab,
@@ -53,9 +54,13 @@ type Summary = {
 type Page<T> = { data: T[]; pagination: { next_cursor: string | null } };
 
 const selectClass = `${nativeSelectClass} w-full`;
-// Tabs (plan §4.3) are saved filters; "Perlu Dikirim" picks one parcel stage with chips. The axes a
-// tab does not fix stay selects.
-const STAGE_CHIPS = PERLU_DIKIRIM_STAGES.map((stage) => [stage, FULFILLMENT_STATUS[stage]] as const);
+// Tabs (plan §4.3) are saved filters; "Perlu Dikirim" shows every stage or one stage (chips). The axes
+// a tab does not fix stay selects.
+const ALL_STAGES = "semua";
+const STAGE_CHIPS = [
+	[ALL_STAGES, "Semua tahap"] as const,
+	...PERLU_DIKIRIM_STAGES.map((stage) => [stage, FULFILLMENT_STATUS[stage]] as const),
+];
 const KIND_LABELS: Record<SearchKind, { label: string; hint: string; placeholder: string }> = {
 	nomor: {
 		label: "Nomor pesanan",
@@ -126,14 +131,11 @@ export function OrderSearchClient({
 					applied.kind === "hp" ? "phone_suffix" : "reference",
 					applied.kind === "resi" ? applied.term.replace(/\s+/g, "") : applied.term,
 				);
-			for (const key of ORDER_FILTER_KEYS) {
-				const value = filters[key];
-				if (value) params.set(ORDER_FILTERS[key].api, value);
-			}
+			for (const [name, value] of orderFilterParams(tab, filters)) params.set(name, value);
 			if (next) params.set("cursor", next);
 			return getJson<Page<Summary>>(`/api/v1/admin/orders?${params}`);
 		},
-		[applied, filters],
+		[applied, filters, tab],
 	);
 	const load = useCallback(async () => {
 		setMoreError(null);
@@ -312,9 +314,9 @@ export function OrderSearchClient({
 				{tab === "perlu_dikirim" && (
 					<SegmentedControl
 						legend="Tahap pengiriman"
-						value={filters.kirim ?? PERLU_DIKIRIM_STAGES[0]}
+						value={filters.kirim ?? ALL_STAGES}
 						options={STAGE_CHIPS}
-						onChange={(value) => setFilter("kirim", value)}
+						onChange={(value) => setFilter("kirim", value === ALL_STAGES ? "" : value)}
 						testId={(key) => `orders-stage-${key}`}
 					/>
 				)}

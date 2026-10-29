@@ -119,10 +119,11 @@ export function readOrderFilters(get: (key: string) => string | null | undefined
 	return filters;
 }
 /**
- * List tabs (plan §4.3): each tab is a saved filter on one status axis, built only from what
- * GET /api/v1/admin/orders filters on (one value per axis, no counts). "Perlu Dikirim" spans five
- * parcel stages, so it shows one stage at a time (stage chips, `kirim`); "Selesai" and the combined
- * "Retur/Batal" view need API support and are not offered (returns stay a filter).
+ * List tabs (plan §4.3): each tab is a saved filter built only from what GET /api/v1/admin/orders
+ * filters on (no counts yet). "Perlu Dikirim" lists every order with a parcel not yet handed over
+ * (`fulfillment_group=due`, the fulfillments_due predicate) and narrows to one stage with chips
+ * (`kirim`). Open gap for a follow-up slice: "Selesai", the combined "Retur/Batal" view and the tab
+ * counts need API support; "Dibatalkan" stands in and returns stay a filter.
  */
 export const PERLU_DIKIRIM_STAGES = ["ready", "picking", "packed", "handover_pending", "exception"] as const;
 export const ORDER_TABS: Record<string, { label: string; fixed: OrderFilters }> = {
@@ -143,12 +144,22 @@ export function readOrderTab(tab: string, filters: OrderFilters): OrderTab {
 }
 /**
  * The filters a tab sends: its fixed values win over the URL's; "Perlu Dikirim" keeps a valid stage
- * (first stage by default); other tabs drop a parcel stage they do not own.
+ * (no stage = all stages); other tabs drop a parcel stage they do not own.
  */
 export function tabFilters(tab: OrderTab, filters: OrderFilters): OrderFilters {
 	const { kirim, ...rest } = filters;
-	if (tab === "perlu_dikirim") return { ...rest, kirim: isStage(kirim) ? kirim : PERLU_DIKIRIM_STAGES[0] };
+	if (tab === "perlu_dikirim") return isStage(kirim) ? { ...rest, kirim } : rest;
 	return { ...rest, ...ORDER_TABS[tab].fixed };
+}
+/** API query pairs of a tab's filters (GET /api/v1/admin/orders). */
+export function orderFilterParams(tab: OrderTab, filters: OrderFilters): [string, string][] {
+	const pairs: [string, string][] = [];
+	for (const key of ORDER_FILTER_KEYS) {
+		const value = filters[key];
+		if (value) pairs.push([ORDER_FILTERS[key].api, value]);
+	}
+	if (tab === "perlu_dikirim") pairs.push(["fulfillment_group", "due"]);
+	return pairs;
 }
 
 /**

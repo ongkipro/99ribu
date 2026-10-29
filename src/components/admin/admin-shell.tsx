@@ -32,26 +32,33 @@ function useTablet() {
 	return tablet;
 }
 
-/** Live nav counts for the lens, from the role-scoped dashboard API (hidden at zero, silent on failure). */
-function useNavCounts(lens: CanonicalWorkspace, keys: NavBadgeKey[], signedIn: boolean) {
+/**
+ * Live nav counts for the lens, from the role-scoped dashboard API (hidden at zero, silent on
+ * failure). Refetched on every navigation so a claimed chat does not leave a stale badge.
+ */
+function useNavCounts(lens: CanonicalWorkspace, keys: NavBadgeKey[], signedIn: boolean, pathname: string) {
 	const [counts, setCounts] = useState<NavCounts>({});
 	const wanted = keys.join(",");
+	// biome-ignore lint/correctness/useExhaustiveDependencies: pathname only triggers the refetch
 	useEffect(() => {
-		setCounts({});
-		if (!signedIn || !wanted) return;
+		if (!signedIn || !wanted) {
+			setCounts({});
+			return;
+		}
 		const controller = new AbortController();
 		const q = new URLSearchParams({ workspace: lens, window: "30d" });
 		fetch(`/api/v1/admin/dashboard?${q}`, { credentials: "include", cache: "no-store", signal: controller.signal })
 			.then((res) => (res.ok ? res.json() : null))
 			.then((body: { metrics?: { key: string; count: number | null }[] } | null) => {
+				if (!body) return;
 				const next: NavCounts = {};
-				for (const m of body?.metrics ?? [])
+				for (const m of body.metrics ?? [])
 					if (wanted.split(",").includes(m.key) && typeof m.count === "number") next[m.key as NavBadgeKey] = m.count;
 				setCounts(next);
 			})
 			.catch(() => {});
 		return () => controller.abort();
-	}, [lens, wanted, signedIn]);
+	}, [lens, wanted, signedIn, pathname]);
 	return counts;
 }
 
@@ -85,13 +92,20 @@ function Shell({
 		document.cookie = `${LENS_COOKIE}=${requested}; path=/admin; max-age=31536000; samesite=lax`;
 	}, [requested, remembered]);
 
-	const sections = useMemo(() => navFor(lens, roles, permissions), [lens, roles, permissions]);
+	// With several workspaces, Beranda keeps the current lens instead of falling back to the first role.
+	const multi = workspaces.length > 1;
+	const sections = useMemo(() => {
+		const tree = navFor(lens, roles, permissions);
+		if (!multi) return tree;
+		const home = `/admin?workspace=${lens}`;
+		return tree.map((s) => ({ ...s, items: s.items.map((i) => (i.href === "/admin" ? { ...i, href: home } : i)) }));
+	}, [lens, roles, permissions, multi]);
 	const active = activeHref(sections, pathname, search);
 	const badgeKeys = useMemo(
 		() => [...new Set(sections.flatMap((s) => s.items.flatMap((i) => (i.badge ? [i.badge] : []))))],
 		[sections],
 	);
-	const counts = useNavCounts(lens, badgeKeys, account !== null && roles.length > 0);
+	const counts = useNavCounts(lens, badgeKeys, account !== null && roles.length > 0, pathname);
 
 	const [rail, setRail] = useState<Rail>("auto");
 	const tablet = useTablet();

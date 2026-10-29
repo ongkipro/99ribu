@@ -36,11 +36,15 @@ import { returnAccess } from "./return-model.ts";
 /** Cookie that remembers the last lens outside the home page (display only; never an authority). */
 export const LENS_COOKIE = "admin_lens";
 
-/** Live counts a nav row can carry: dashboard metric keys (src/modules/reporting/shared.ts). */
-export type NavBadgeKey = "fulfillments_due" | "support_unassigned";
+/**
+ * Live counts a nav row can carry: dashboard metric keys (src/modules/reporting/shared.ts). A badge
+ * must equal the row count of the page its row opens (plan §2.2). The Pesanan rows carry none:
+ * fulfillments_due counts parcels while "Perlu Dikirim" lists orders, so it waits for an order-level
+ * metric (open gap, S-H1).
+ */
+export type NavBadgeKey = "support_unassigned";
 export type NavCounts = Partial<Record<NavBadgeKey, number>>;
 export const NAV_BADGE_LABELS: Record<NavBadgeKey, string> = {
-	fulfillments_due: "paket belum diserahkan",
 	support_unassigned: "chat belum diklaim",
 };
 
@@ -140,9 +144,11 @@ export const NAV_BY_LENS: Record<CanonicalWorkspace, NavSection[]> = {
 					label: "Pesanan",
 					href: "/admin/pesanan?tab=perlu_dikirim",
 					icon: ReceiptText,
-					badge: "fulfillments_due",
+					// Input Resi and Cetak Label stay for ecommerce_admin (UI-controls audit #9, kept by §10 D7).
 					children: [
 						{ label: "Semua Pesanan", href: "/admin/pesanan" },
+						{ label: "Input Resi", href: "/admin/pesanan/kirim" },
+						{ label: "Cetak Label", href: "/admin/pesanan/cetak-label" },
 						{ label: "Retur", href: "/admin/pesanan/retur" },
 					],
 				},
@@ -184,7 +190,6 @@ export const NAV_BY_LENS: Record<CanonicalWorkspace, NavSection[]> = {
 					label: "Pesanan",
 					href: "/admin/pesanan?tab=perlu_dikirim",
 					icon: ReceiptText,
-					badge: "fulfillments_due",
 					children: [
 						{ label: "Input Resi", href: "/admin/pesanan/kirim" },
 						{ label: "Cetak Label", href: "/admin/pesanan/cetak-label" },
@@ -355,13 +360,17 @@ export function navFor(
  * The one active href (port of tokophi `activeChildHref`, across the whole tree): the longest
  * matching path wins; a link with a query matches only when the URL carries it and then beats the
  * plain link of the same path (Pesanan `?tab=perlu_dikirim` vs Semua Pesanan); a child beats its
- * parent on a tie. Beranda matches only itself and the full work-queue page.
+ * parent on a tie. When nothing matches with its query, a query link falls back to its path alone,
+ * so other tabs and the detail pages still light their group (warehouse Pesanan, `?workspace=`
+ * Beranda). Beranda matches only itself and the full work-queue page.
  */
 export function activeHref(sections: NavSection[], pathname: string, search: URLSearchParams): string | null {
 	// Children before their parent: on an equal score the first candidate keeps the highlight.
 	const candidates = sections.flatMap((s) => s.items.flatMap((i) => [...(i.children ?? []).map((c) => c.href), i.href]));
 	let best: string | null = null;
 	let bestScore = -1;
+	let fallback: string | null = null;
+	let fallbackScore = -1;
 	for (const href of candidates) {
 		const [path, query = ""] = href.split("?");
 		const pathMatch =
@@ -370,14 +379,20 @@ export function activeHref(sections: NavSection[], pathname: string, search: URL
 				: pathname === path || pathname.startsWith(`${path}/`);
 		if (!pathMatch) continue;
 		const want = [...new URLSearchParams(query)];
-		if (want.some(([key, value]) => search.get(key) !== value)) continue;
+		if (want.some(([key, value]) => search.get(key) !== value)) {
+			if (path.length > fallbackScore) {
+				fallbackScore = path.length;
+				fallback = href;
+			}
+			continue;
+		}
 		const score = path.length * 100 + want.length;
 		if (score > bestScore) {
 			bestScore = score;
 			best = href;
 		}
 	}
-	return best;
+	return best ?? fallback;
 }
 
 /** A parent row lights up only when none of its children holds the same active link. */

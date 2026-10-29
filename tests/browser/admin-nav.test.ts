@@ -65,7 +65,7 @@ const EXPECTED: [string, Role[], string[], [string, string[]][]][] = [
 	]],
 	["ecommerce_admin", ["ecommerce_admin"], ["orders.history.read"], [
 		["Beranda", []],
-		["Pesanan", ["Semua Pesanan"]],
+		["Pesanan", ["Semua Pesanan", "Input Resi", "Cetak Label"]],
 		["Produk", ["Kategori", "Inventori", "Transfer Stok"]],
 		["Promo", ["Banner", "Segmen Pembeli"]],
 		["Pengaturan", []],
@@ -136,6 +136,9 @@ test("S-V1 multi-role account: the role chip switches the lens and the nav follo
 		// The lens holds on other pages (remembered for the session's next documents too).
 		await page.goto(`${origin}/admin/pesanan/kirim`);
 		await expect(page.getByRole("button", { name: /^Ruang kerja: Gudang/ })).toBeVisible();
+		// Beranda keeps the lens instead of jumping back to the first role.
+		const nav = page.getByRole("navigation", { name: "Navigasi Operator" }).first();
+		await expect(nav.getByRole("link", { name: "Beranda" })).toHaveAttribute("href", "/admin?workspace=warehouse");
 	} finally {
 		await close();
 	}

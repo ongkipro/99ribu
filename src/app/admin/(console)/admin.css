@@ -68,7 +68,10 @@
 	/* Form-control border keeps the 3:1 non-text contrast of the old #85858e. */
 	--input: oklch(0.62 0.013 286);
 	--ring: oklch(0.483 0.226 285);
-	/* Charts (plan §3): purple, teal, green, amber, rose; every series also carries a label or marker. */
+	/* Charts (plan §3): purple, teal, green, amber, rose; every series also carries a label or marker.
+	   WCAG 2.x contrast measured 2026-10-29 (OKLCH -> sRGB relative luminance), vs --card / --background;
+	   all clear the 3:1 non-text minimum: 1 = 7.19/7.00, 2 = 3.75/3.66, 3 = 7.13/6.95, 4 = 6.70/6.53,
+	   5 = 4.65/4.53. Teal (2) is the floor: never use it for text or thin 1px strokes. */
 	--chart-1: oklch(0.483 0.226 285);
 	--chart-2: oklch(0.6 0.1 185);
 	--chart-3: oklch(0.448 0.108 151.3);

@@ -242,7 +242,7 @@ export function KpiTile({
 			<div className="mt-3 flex items-end justify-between gap-3">
 				<div className="min-w-0">
 					<div className="text-2xl leading-none font-bold tracking-tight tabular-nums">{value}</div>
-					{caption ? <div className="mt-1 text-xs text-muted-foreground/75">{caption}</div> : null}
+					{caption ? <div className="mt-1 text-xs text-muted-foreground">{caption}</div> : null}
 				</div>
 				{aside}
 			</div>

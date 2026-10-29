@@ -256,14 +256,14 @@ test("staff inbox: console shell, noindex, claim once per double click, visible 
 	}
 });
 
-test("sidebar: warehouse sees Cetak Label, finance does not (ecommerce_admin prints from the print center URL)", async () => {
-	for (const [role, shown] of [["ecommerce_admin", false], ["warehouse", true], ["finance", false]] as const) {
+test("sidebar: warehouse and ecommerce_admin see Cetak Label (audit #9), finance does not", async () => {
+	for (const [role, shown] of [["ecommerce_admin", true], ["warehouse", true], ["finance", false]] as const) {
 		const user = await staff(role, role === "finance" ? ["finance.reconciliation.read"] : []);
 		const { page, close } = await open(user);
 		try {
 			await page.goto(`${origin}/admin`);
 			const nav = page.getByRole("navigation", { name: "Navigasi Operator" });
-			// Plan §4.1: Cetak Label is a child of the warehouse Pesanan group (collapsed on the home page).
+			// Cetak Label is a child of the Pesanan group (collapsed on the home page).
 			const toggle = nav.getByRole("button", { name: "Buka Pesanan" });
 			if (await toggle.count()) await toggle.click();
 			await expect(nav.getByRole("link", { name: "Cetak Label" })).toHaveCount(shown ? 1 : 0);
