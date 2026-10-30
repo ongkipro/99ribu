@@ -4,6 +4,7 @@ import {lstat,mkdir,open,opendir,rename,unlink,type FileHandle} from 'node:fs/pr
 import {dirname,join} from 'node:path';
 import type {TransactionSql} from 'postgres';
 import {privateDirectory} from '../../config/local.ts';
+import {runtimeTarget} from '../../config/runtime.ts';
 import type {LocalAuth} from '../access/auth.ts';
 import {assertOrigin} from '../access/http.ts';
 import {AccessError} from '../access/policy.ts';
@@ -87,7 +88,11 @@ async function scope<T>(request:Request,identity:LocalAuth,cartId:string,run:(co
   return run({cart,key,path:root?join(root,`${realm}.${key}.json`):null,legacy:root?join(root,`${key}.json`):null,root,realm,remaining,tx});
  });
 }
+// Drafts are buyer PII in private files under .local; production keeps none (no PII at rest in the storage volume or its
+// off-host backups). There checkout carries its state in the form and the quote: nothing is restored after a reload.
+export const checkoutDraftsEnabled=()=>runtimeTarget()!=='production';
 export async function readCheckoutDraft(request:Request,identity:LocalAuth,cartId:string):Promise<CheckoutDraftRead>{
+ if(!checkoutDraftsEnabled())return {kind:'empty',progress:null};
  return scope(request,identity,cartId,async context=>{
   const data=await scopedRead(context);if(!data)return {kind:'empty',progress:null};
   if(context.cart.state!=='open'||context.remaining<=0||Date.parse(data.expires_at)<=Date.now()){
@@ -98,6 +103,7 @@ export async function readCheckoutDraft(request:Request,identity:LocalAuth,cartI
 }
 export async function writeCheckoutDraft(request:Request,identity:LocalAuth,intent:CheckoutIntent,accepted?:{step:CheckoutState['step'];quote:string;allocation_id:string;packages:Selection[]}):Promise<CheckoutDraftWrite>{
  if(request.method!=='POST')throw invalid();
+ if(!checkoutDraftsEnabled())return {kind:'stale',revision:Number(intent.draft_revision)||0};
  const writer=id(intent.draft_writer),sequence=count(Number(intent.draft_sequence)),expected=count(Number(intent.draft_revision)),draft=fields(intent.draft),query=string(intent.query,100);
  return scope(request,identity,intent.cart,async context=>{
   if(context.cart.state!=='open'||context.remaining<=0)return {kind:'closed',revision:0};if(!context.path)throw new Error('Draft directory unavailable');
@@ -115,5 +121,6 @@ export async function writeCheckoutDraft(request:Request,identity:LocalAuth,inte
 }
 export async function clearCheckoutDraft(request:Request,identity:LocalAuth,cartId:string){
  if(request.method!=='POST')throw invalid();
+ if(!checkoutDraftsEnabled())return;
  await scope(request,identity,cartId,async context=>{if(context.path&&await scopedRead(context))await remove(context.path);});
 }

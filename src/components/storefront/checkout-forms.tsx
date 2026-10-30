@@ -50,7 +50,9 @@ function useDraftSave(form:React.RefObject<HTMLFormElement|null>,state:CheckoutS
   finally{inflight.current=false;if(queued.current&&!stopped.current)void save();}
  };
  const changed=()=>{
-  unsaved.current=true;if(conflict||state.draftConflict)return;setFeedback(stopped.current?'Draf belum tersimpan. Muat ulang untuk memeriksa sesi dan draf terbaru.':'Menyimpan draf…');
+  unsaved.current=true;
+  // No server drafts (production): nothing to save or report, but leaving still warns about the unsaved form.
+  if(!state.view.drafts)return;if(conflict||state.draftConflict)return;setFeedback(stopped.current?'Draf belum tersimpan. Muat ulang untuk memeriksa sesi dan draf terbaru.':'Menyimpan draf…');
   if(timer.current)clearTimeout(timer.current);if(!stopped.current)timer.current=setTimeout(()=>void save(),400);
  };
  const submit=(event:React.FormEvent<HTMLFormElement>)=>{

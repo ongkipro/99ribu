@@ -14,7 +14,7 @@ import {clean,normalizePhone} from '../shipping/address.ts';
 import {canonicalAddress,findDestination,initialDestinations,type Destination as ShippingDestination} from '../shipping/destinations.ts';
 import {readCartView,type BrowserCart} from './cart.ts';
 import {rupiah} from './format.ts';
-import {checkoutDraftFields,checkoutDraftLimits,readCheckoutDraft,type CheckoutProgress} from './checkout-draft.ts';
+import {checkoutDraftFields,checkoutDraftLimits,checkoutDraftsEnabled,readCheckoutDraft,type CheckoutProgress} from './checkout-draft.ts';
 import {displayPhone} from './contact.ts';
 
 export type CheckoutDraft={recipient_name:string;phone:string;email:string;destination_id:string;address_line:string;buyer_note:string;payment_method:string};
@@ -23,7 +23,7 @@ export type CheckoutOrder=Awaited<ReturnType<typeof projectOrder>>;
 export type Destination=ShippingDestination;
 export type CheckoutAllocation={id:string;shipping_total:number;packages:{id:string;origin_city:string;items:{name:string;variant:string;quantity:number;contents:string[]}[];service:string;service_name:string;alternatives:string[];shipping_amount:number}[];equivalent_count:number};
 export type CheckoutIntent={kind:'quote'|'shipping'|'order';key:string;cart:string;version:string;quote:string;allocation_id:string;query:string;draft:CheckoutDraft;packages:{package_id:string;shipping_option_id:string}[];navigate:string;draft_writer:string;draft_sequence:string;draft_revision:string};
-export type CheckoutView={kind:'ready'|'none'|'denied'|'unavailable';cart:BrowserCart|null;quote:CheckoutQuote|null;allocations:CheckoutAllocation[];quoteCurrent:boolean;draft:CheckoutDraft;progress:CheckoutProgress|null;draftExpired:boolean;destinations:Destination[];methods:string[];now:string|null;issue:'cart'|'expired'|'submitted'|null;code:string|null};
+export type CheckoutView={kind:'ready'|'none'|'denied'|'unavailable';cart:BrowserCart|null;quote:CheckoutQuote|null;allocations:CheckoutAllocation[];quoteCurrent:boolean;draft:CheckoutDraft;progress:CheckoutProgress|null;draftExpired:boolean;destinations:Destination[];methods:string[];drafts:boolean;now:string|null;issue:'cart'|'expired'|'submitted'|null;code:string|null};
 export type CheckoutState={phase:'idle'|'success'|'error'|'unknown';step:'contact'|'shipping'|'review';intent:CheckoutIntent;view:CheckoutView;errors:Partial<Record<keyof CheckoutDraft|'query',string>>;message:string;code:string|null;blocked:boolean;draftConflict:boolean;previousTotal?:number};
 const draftFields=checkoutDraftFields;
 const scalarFields=['kind','key','cart','version','quote','allocation_id','query','navigate','draft_writer','draft_sequence','draft_revision',...draftFields];
@@ -33,7 +33,7 @@ const DRAFT_METHODS={prepaid:'local-prepaid',transfer:'manual-bank',va:'autolari
 export const offeredMethods=()=>Object.entries(DRAFT_METHODS).filter(([,channel])=>offeredChannels().includes(channel)).map(([method])=>method);
 export const emptyCheckoutDraft=():CheckoutDraft=>({recipient_name:'',phone:'',email:'',destination_id:'',address_line:'',buyer_note:'',payment_method:offeredMethods().includes('prepaid')?'prepaid':''});
 export const initialCheckoutIntent=(values:Partial<CheckoutIntent>={}):CheckoutIntent=>({kind:'quote',key:randomUUID(),cart:'',version:'',quote:'',allocation_id:'',query:'',draft:emptyCheckoutDraft(),packages:[],navigate:'',draft_writer:randomUUID(),draft_sequence:'0',draft_revision:'0',...values});
-export const checkoutUnavailableView=():CheckoutView=>({kind:'unavailable',cart:null,quote:null,allocations:[],quoteCurrent:false,draft:emptyCheckoutDraft(),progress:null,draftExpired:false,destinations:[],methods:[],now:null,issue:null,code:'SERVICE_UNAVAILABLE'});
+export const checkoutUnavailableView=():CheckoutView=>({kind:'unavailable',cart:null,quote:null,allocations:[],quoteCurrent:false,draft:emptyCheckoutDraft(),progress:null,draftExpired:false,destinations:[],methods:[],drafts:false,now:null,issue:null,code:'SERVICE_UNAVAILABLE'});
 
 export function checkoutAllocationChoices(document:QuoteDocument,cart:BrowserCart,preferred:string){
  const groups=new Map<string,CheckoutAllocation>();let issuedKey='';
@@ -155,7 +155,7 @@ export async function readCheckout(request:Request,identity:LocalAuth,dispatch:t
  catch(error){return {...checkoutUnavailableView(),kind:error instanceof AccessError&&error.status<500?'denied':'unavailable',code:error instanceof AccessError?error.code:'SERVICE_UNAVAILABLE'};}
  if(!quote&&!progress)draft=await profileDraft(request,identity)??draft;
  const allocations=document?checkoutAllocationChoices(document,current.cart,progress?.allocation_id??quote?.selected_allocation_id??''):[];
- return {kind:'ready',cart:current.cart,quote,allocations,quoteCurrent:Boolean(quote&&quote.id===current.cart.active_quote_id&&quote.cart_version===current.cart.version&&Date.parse(quote.expires_at)>Date.parse(current.now)&&!issue),draft,progress,draftExpired,destinations:await initialDestinations(identity.sql,draft.destination_id),methods:offeredMethods(),now:current.now,issue,code:null};
+ return {kind:'ready',cart:current.cart,quote,allocations,quoteCurrent:Boolean(quote&&quote.id===current.cart.active_quote_id&&quote.cart_version===current.cart.version&&Date.parse(quote.expires_at)>Date.parse(current.now)&&!issue),draft,progress,draftExpired,destinations:await initialDestinations(identity.sql,draft.destination_id),methods:offeredMethods(),drafts:checkoutDraftsEnabled(),now:current.now,issue,code:null};
 }
 const messages:Record<string,string>={
  INVALID_INPUT:'Periksa isian sebelum melanjutkan.',INVALID_IDEMPOTENCY_KEY:'Muat ulang checkout sebelum mencoba lagi.',
