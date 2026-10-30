@@ -18,7 +18,9 @@ test('checkout milestones require current consent/native acceptance, dedupe retr
   await Promise.all([1,2,3].map(()=>captureCheckoutMilestones(request(),f.identity,entry)));assert.deepEqual((await events()).map(e=>e.name),['checkout_started']);
   const quoted=await mutateCheckout(request(),f.identity,{...intent,key:randomUUID()});assert.equal(quoted.state.phase,'success');const quote=quoted.state.view.quote;assert.ok(quote);
   const contact={...entry,stage:'contact' as const,quote:quote.id};await captureCheckoutMilestones(request(),f.identity,contact);await captureCheckoutMilestones(request(),f.identity,contact);
-  const selected=await mutateCheckout(request(),f.identity,{...quoted.state.intent,packages:quote.packages.map(p=>({package_id:p.id,shipping_option_id:p.selected_option_id}))});assert.equal(selected.state.step,'review');assert.ok(selected.state.view.quote);
+  assert.equal(quoted.state.intent.kind,'order');
+  // The single-page form applies a courier/split change as a 'shipping' intent (quote.select); an unchanged order press would place the order instead.
+  const selected=await mutateCheckout(request(),f.identity,{...quoted.state.intent,kind:'shipping',packages:quote.packages.map(p=>({package_id:p.id,shipping_option_id:p.selected_option_id}))});assert.equal(selected.state.step,'review');assert.equal(selected.order,null);assert.ok(selected.state.view.quote);
   const shipping={...entry,stage:'shipping' as const,quote:selected.state.view.quote.id};await captureCheckoutMilestones(request(),f.identity,shipping);await captureCheckoutMilestones(request(),f.identity,shipping);
   const accepted=await events();assert.deepEqual(accepted.map(e=>e.name),['address_validated','checkout_started','contact_validated','payment_method_selected','shipping_selected']);assert.ok(accepted.every(e=>Number(e.merchandise_amount)===0));
   const serialized=JSON.stringify(accepted);for(const value of Object.values(draft))if(value.length>10)assert.ok(!serialized.includes(value),'Typed checkout data cannot enter observed event fields');assert.ok(!serialized.includes(draft.destination_id));

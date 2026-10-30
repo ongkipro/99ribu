@@ -31,7 +31,8 @@ export async function captureCheckoutMilestones(request:Request,identity:LocalAu
     if(!input.quote)return;
     const {quote}=await ownedQuote(tx,request,identity,actor,input.quote);if(quote.cart_id!==cart.id)return;await assertQuoteCurrent(tx,cart,quote,input.version);
     const [operation]=await tx`select action,created_at from app.commerce_operation where id=${quote.operation_id} and resource_id=${quote.id}`;
-    if(!operation||operation.action!==(input.stage==='contact'?'quote.create':'quote.select'))return;acceptedAt=new Date(operation.created_at).toISOString();
+    // Single page: a created quote's issued couriers are the buyer's choice when it is ordered unchanged.
+    if(!operation||(input.stage==='contact'?operation.action!=='quote.create':!['quote.create','quote.select'].includes(operation.action)))return;acceptedAt=new Date(operation.created_at).toISOString();
    }
    const visitor=await readVisitor(tx,request,identity,actor,false);if(!visitor)return;
    const consent=await currentConsent(tx,visitor);if(!consent||!capturedPurpose(consent))return;

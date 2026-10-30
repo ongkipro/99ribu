@@ -185,6 +185,7 @@
 	margin: 0;
 	min-width: 0;
 	display: grid;
+	grid-template-columns: minmax(0, 1fr);
 	gap: 20px;
 }
 .checkout-step-notice {
@@ -888,3 +889,250 @@
 	}
 }
 
+
+/* Single-page checkout (owner 2026-10-31, after tokophi / Shopify checkout): flat sections, row-style radios with the
+   price on the right, a compact review box once rates exist, and a summary that sticks beside the form on desktop. */
+.checkout-section {
+	display: grid;
+	/* Grid items may shrink below their content (long split text at 200% zoom on a 320px screen). */
+	grid-template-columns: minmax(0, 1fr);
+	min-width: 0;
+	gap: 12px;
+	padding-block: 8px 24px;
+}
+.checkout-section + .checkout-section {
+	border-top: 1px solid var(--line);
+	padding-top: 24px;
+}
+.checkout-section > h2 {
+	margin: 0;
+	font-size: 1.125rem;
+	line-height: 1.4;
+}
+.checkout-placeholder {
+	margin: 0;
+	padding: 16px;
+	border: 1px dashed var(--line);
+	border-radius: 8px;
+	color: var(--store-muted);
+}
+.checkout-rows {
+	padding: 0;
+	overflow: hidden;
+}
+.checkout-rows label {
+	padding: 12px 16px;
+	align-items: flex-start;
+	cursor: pointer;
+}
+.checkout-rows label + label {
+	border-top: 1px solid var(--line);
+}
+.checkout-rows label:has(input:checked) {
+	background: #f4f0ff;
+}
+.checkout-rows input {
+	margin-top: 2px;
+}
+.checkout-rows label > span {
+	display: grid;
+	gap: 2px;
+}
+.checkout-rows small,
+.checkout-review-row small {
+	color: var(--store-muted);
+	font-size: 0.875rem;
+}
+.checkout-choice-price {
+	flex: none;
+	margin-left: auto;
+	font-weight: 600;
+	white-space: nowrap;
+}
+.checkout-choices label:has(input:checked) {
+	background: #f4f0ff;
+}
+.checkout-review-box {
+	min-width: 0;
+	margin: 0 0 8px;
+	border: 1px solid var(--line);
+	border-radius: 8px;
+	padding: 4px 16px;
+}
+.checkout-review-row {
+	display: grid;
+	grid-template-columns: 6.5rem minmax(0, 1fr) auto;
+	gap: 4px 12px;
+	align-items: baseline;
+	padding-block: 10px;
+}
+.checkout-review-row + .checkout-review-row {
+	border-top: 1px solid var(--line);
+}
+.checkout-review-row dt {
+	color: var(--store-muted);
+}
+.checkout-review-row dd {
+	margin: 0;
+	display: grid;
+	gap: 2px;
+	overflow-wrap: anywhere;
+}
+.checkout-review-row .checkout-text-button {
+	min-height: 44px;
+	padding: 0;
+	color: var(--purple);
+	text-decoration: underline;
+	text-underline-offset: 3px;
+}
+.checkout-destination-card {
+	display: flex;
+	gap: 12px;
+	align-items: flex-start;
+	margin: 8px 0 0;
+	padding: 12px;
+	border-radius: 8px;
+	background: #f4f0ff;
+}
+.checkout-destination-card small {
+	display: block;
+	color: var(--purple);
+	font-size: 0.75rem;
+	font-weight: 600;
+	letter-spacing: 0.04em;
+	text-transform: uppercase;
+}
+.checkout-suggestions {
+	list-style: none;
+	margin: 4px 0 0;
+	padding: 0;
+	border: 1px solid var(--line);
+	border-radius: 8px;
+	max-height: 18rem;
+	overflow-y: auto;
+}
+.checkout-suggestions li + li {
+	border-top: 1px solid var(--line);
+}
+.checkout-suggestions button {
+	display: grid;
+	gap: 2px;
+	width: 100%;
+	min-height: 48px;
+	padding: 10px 14px;
+	border: 0;
+	background: #fff;
+	font: inherit;
+	text-align: left;
+	cursor: pointer;
+}
+.checkout-suggestions button:hover,
+.checkout-suggestions button[aria-pressed="true"] {
+	background: #f4f0ff;
+}
+.checkout-suggestions button span {
+	color: var(--store-muted);
+	font-size: 0.875rem;
+}
+.checkout-summary-line {
+	display: flex;
+	gap: 12px;
+	align-items: flex-start;
+}
+.checkout-summary-lines > li > .checkout-summary-media {
+	position: relative;
+	flex: none;
+	display: grid;
+	place-items: center;
+	width: 64px;
+	height: 64px;
+	border: 1px solid var(--line);
+	border-radius: 8px;
+	background: #fff;
+}
+.checkout-summary-media img {
+	width: 100%;
+	height: 100%;
+	object-fit: cover;
+	border-radius: 7px;
+}
+.checkout-qty {
+	position: absolute;
+	top: -8px;
+	right: -8px;
+	min-width: 22px;
+	height: 22px;
+	padding-inline: 6px;
+	border-radius: 11px;
+	background: var(--ink);
+	color: #fff;
+	font-size: 0.75rem;
+	line-height: 22px;
+	text-align: center;
+}
+.checkout-summary-lines > li > .checkout-summary-text {
+	color: inherit;
+	flex: 1 1 auto;
+	min-width: 0;
+	display: grid;
+	gap: 2px;
+	overflow-wrap: anywhere;
+}
+.checkout-summary-text > span {
+	color: var(--store-muted);
+	font-size: 0.875rem;
+}
+.checkout-summary-contents {
+	font-size: 0.8125rem !important;
+}
+.checkout-summary-price {
+	flex: none;
+	white-space: nowrap;
+}
+.checkout-due {
+	display: flex;
+	flex-wrap: wrap;
+	gap: 4px 12px;
+	justify-content: space-between;
+	align-items: baseline;
+	padding-top: 16px;
+	border-top: 1px solid var(--line);
+	font-size: 1.125rem;
+}
+.checkout-due strong {
+	font-size: 1.375rem;
+}
+@media (min-width: 1024px) {
+	.checkout-layout {
+		margin-top: 24px;
+	}
+	.checkout-summary {
+		position: sticky;
+		top: 24px;
+	}
+}
+@media (max-width: 30rem) {
+	.checkout-review-row {
+		grid-template-columns: minmax(0, 1fr) auto;
+	}
+	.checkout-review-row dt {
+		grid-column: 1 / -1;
+	}
+	.checkout-choices label {
+		flex-wrap: wrap;
+	}
+	.checkout-choice-price {
+		white-space: normal;
+	}
+}
+/* Without JavaScript a checked courier or split that is not the quote's own is applied by the next press (no order):
+   the button says so and the old total is hidden. */
+.checkout-update-label {
+	display: none;
+}
+.checkout-controls:has(input[data-issued-selected="false"]:checked) .checkout-update-label {
+	display: inline;
+}
+.checkout-controls:has(input[data-issued-selected="false"]:checked) :is(.checkout-order-label, .checkout-due) {
+	display: none;
+}

@@ -161,9 +161,10 @@ async function fillContact(page: Page, method: RegExp) {
 	await page.getByLabel("Alamat lengkap", { exact: true }).fill("Jalan Contoh 12\nRT 01");
 	await page.getByRole("radio", { name: method }).check();
 	await page.getByRole("button", { name: "Hitung ongkir", exact: true }).click();
-	await expect(page.getByRole("heading", { name: "Pengiriman per paket", exact: true })).toBeVisible();
-	await page.getByRole("button", { name: "Tinjau pesanan", exact: true }).click();
-	await expect(page.getByRole("heading", { name: "Tinjau pesanan", exact: true })).toBeVisible();
+	// Single-page checkout: the quote opens the order step (review box, shipping choices, order button) directly.
+	await expect(page.locator("dl.checkout-review-box")).toBeVisible();
+	await expect(page.getByRole("heading", { name: "Pengiriman", exact: true })).toBeVisible();
+	await expect(page.getByRole("button", { name: /^Buat pesanan · Rp[0-9.]+$/ })).toBeVisible();
 }
 const parcelsOf = (orderId: string) =>
 	sql`select f.id,f.revision,f.handover_at,f.booking_id,s.id shipment_id,s.warehouse_id,s.cod_due from app.fulfillment f join app.order_shipment s on s.id=f.shipment_id where s.order_id=${orderId} order by s.id`;
@@ -495,7 +496,9 @@ test("S92 built browser: manual bank checkout adds the unique code and a 24 h de
 	try {
 		const { page } = buyer;
 		await page.goto(`${origin}/checkout`);
-		await expect(page.getByRole("radio", { name: "Transfer bank · dicek manual, batas 24 jam" })).toBeVisible();
+		// The payment row names the method, and its hint discloses the manual check and the 24 h deadline.
+		await expect(page.getByRole("radio", { name: /^Transfer bank/ })).toBeVisible();
+		await expect(page.getByText("Transfer ke rekening toko, dicek manual. Bayar dalam 24 jam.", { exact: true })).toBeVisible();
 		await fillContact(page, /^Transfer bank/);
 		await expect(page.getByText("Transfer bank", { exact: true }).first()).toBeVisible();
 		// The note lives in the order summary, collapsed on narrow screens: open it like a buyer would.
@@ -639,16 +642,22 @@ test("S92 built browser: COD checkout discloses the frozen 3.33% fee line and th
 	try {
 		const { page } = buyer;
 		await page.goto(`${origin}/checkout`);
-		await fillContact(page, /^COD/);
+		await fillContact(page, /^Bayar di tempat \(COD\)/);
 		const [quote] = await sql`select buyer_total,payment_charge_amount,cod_fee_bps,payment_method from app.checkout_quote where cart_id=${cart} order by created_at desc limit 1`;
 		assert.equal(quote.payment_method, "cod");
 		assert.equal(quote.cod_fee_bps, 333, "the quote freezes the rate in force");
 		await expect(page.getByText("Tarif pengiriman 1 paket").first()).toBeAttached();
 		const fee = Math.ceil((Number(quote.buyer_total) * 333) / 10000);
 		assert.equal(Number(quote.payment_charge_amount), fee, "per-parcel ceil(base × 333 / 10000)");
+		// The fee line lives in the order summary, collapsed on narrow screens: open it like a buyer would.
+		const summary = page.locator(".checkout-summary details");
+		if (!(await summary.evaluate((node) => (node as HTMLDetailsElement).open))) await summary.locator("summary").click();
 		const line = page.locator(".checkout-charges > div").filter({ has: page.getByText("Biaya COD (3,33%)", { exact: true }) });
 		await expect(line.filter({ visible: true }).first()).toContainText(rupiah(fee));
 		await expect(page.locator(".checkout-charges .checkout-total").filter({ visible: true }).first()).toContainText(rupiah(Number(quote.buyer_total) + fee));
+		// The total next to the order button is what the courier collects: the frozen fee is included there too.
+		await expect(page.locator(".checkout-due strong")).toHaveText(rupiah(Number(quote.buyer_total) + fee));
+		await expect(page.getByRole("button", { name: /^Buat pesanan/ })).toHaveAccessibleName(`Buat pesanan · ${rupiah(Number(quote.buyer_total) + fee)}`);
 		await captureBoth(page, "s92-checkout-cod-review", true);
 		assert.equal((await sql`select count(*)::int n from app.commerce_order where cart_id=${cart}`)[0].n, 0, "the review places no order");
 		assert.deepEqual(buyer.problems, []);

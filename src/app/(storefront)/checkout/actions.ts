@@ -52,6 +52,9 @@ export async function changeCheckout(_previous:CheckoutState,data:FormData):Prom
   if(intent.navigate==='cart'||intent.navigate==='home')redirect(intent.navigate==='cart'?'/keranjang':'/');
  }
  if(!intent.navigate)await captureCheckoutMilestones(request,identity,{cart:intent.cart,version:Number(intent.version),stage:'started'});
+ // Single page: a buyer who keeps the offered couriers never sends a 'shipping' intent; pressing "Buat pesanan" is
+ // their shipping and payment-method choice (deduplicated with an earlier change).
+ if(intent.kind==='order'&&!intent.navigate&&intent.quote)await captureCheckoutMilestones(request,identity,{cart:intent.cart,version:Number(intent.version),quote:intent.quote,stage:'shipping'});
  const reply=await mutateCheckout(request,identity,intent);
  if(reply.state.phase==='success'&&!reply.order&&reply.state.view.quoteCurrent&&reply.state.view.quote){
   const quote=reply.state.view.quote;

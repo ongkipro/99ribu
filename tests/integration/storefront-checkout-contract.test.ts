@@ -47,7 +47,13 @@ test('shipping form keeps paired parcel choices and rejects duplicate, unpaired 
  assert.throws(()=>checkoutFormInput(form({kind:'shipping',quote,packages:[packages[0],packages[0]]})),{code:'INVALID_INPUT'});
  const missing=form({kind:'shipping',quote,packages});missing.delete('shipping_option_id');assert.throws(()=>checkoutFormInput(missing),{code:'INVALID_INPUT'});
  assert.throws(()=>checkoutFormInput(form({kind:'shipping',quote,packages:Array.from({length:51},(_,i)=>({package_id:`parcel-${i}`,shipping_option_id:'regular'}))})),{code:'INVALID_INPUT'});
- assert.throws(()=>checkoutFormInput(form({kind:'order',quote,packages})),{code:'INVALID_INPUT'});
+ // Single-page checkout: an order may carry the visible parcel choices (applied server-side first when they differ), with the same pairing rules.
+ assert.deepEqual(checkoutFormInput(form({kind:'order',quote,packages})).packages,packages);
+ assert.throws(()=>checkoutFormInput(form({kind:'order',quote,packages:[packages[0],packages[0]]})),{code:'INVALID_INPUT'});
+ const orderMissing=form({kind:'order',quote,packages});orderMissing.delete('shipping_option_id');assert.throws(()=>checkoutFormInput(orderMissing),{code:'INVALID_INPUT'});
+ assert.throws(()=>checkoutFormInput(form({kind:'order',quote,packages:Array.from({length:51},(_,i)=>({package_id:`parcel-${i}`,shipping_option_id:'regular'}))})),{code:'INVALID_INPUT'});
+ // A quote request never carries parcel choices.
+ assert.throws(()=>checkoutFormInput(form({kind:'quote',quote,packages})),{code:'INVALID_INPUT'});
 });
 
 
@@ -60,5 +66,7 @@ test('native service radios pair each parcel independently and reject mixed, orp
  const duplicate=radios();duplicate.append('shipping_option:parcel-one','another');assert.throws(()=>checkoutFormInput(duplicate),{code:'INVALID_INPUT'});
  const missing=radios();missing.delete('shipping_option:parcel-two');assert.throws(()=>checkoutFormInput(missing),{code:'INVALID_INPUT'});
  const file=radios();file.set('shipping_option:parcel-one',new Blob(['file']),'option.txt');assert.throws(()=>checkoutFormInput(file),{code:'INVALID_INPUT'});
- const order=radios();order.set('kind','order');assert.throws(()=>checkoutFormInput(order),{code:'INVALID_INPUT'});
+ const order=radios();order.set('kind','order');assert.deepEqual(checkoutFormInput(order).packages,packages);
+ const orderDuplicate=radios();orderDuplicate.set('kind','order');orderDuplicate.append('shipping_option:parcel-one','another');assert.throws(()=>checkoutFormInput(orderDuplicate),{code:'INVALID_INPUT'});
+ const quoteRadios=radios();quoteRadios.set('kind','quote');assert.throws(()=>checkoutFormInput(quoteRadios),{code:'INVALID_INPUT'});
 });

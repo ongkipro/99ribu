@@ -1,5 +1,15 @@
 # Build log — Serba 99ribu
 
+## 2026-10-31 (early morning) — Single-page checkout (Shopify-like), run RUN-20261030T194056Z-29ac52c2
+
+Owner: adopt the sibling tokophi checkout UI/UX (Shopify-like) on 99ribu.com; plain storefront CSS (no Tailwind on public pages).
+
+- **Page:** one page instead of Alamat → Pengiriman → Tinjau. Before a quote: sections Kontak, Alamat pengiriman (live kelurahan suggestions from `/api/v1/destinations` with JavaScript; "Cari wilayah" + select without), Pembayaran (row radios with a hint per method; production offers transfer and COD), Pengiriman placeholder, "Hitung ongkir". After a quote: a review box (Kontak / Kirim ke / Pembayaran, each "Ubah"), parcel courier rows (courier, service + ETA, price right-aligned) and the package split, buyer note, Total and "Buat pesanan · Rp…" showing `amount_due` (COD fee included, as the summary). Summary lines carry a thumbnail with a quantity badge and one "Isi:" line.
+- **Server:** a quote lands on the order step; an order press whose checked couriers or split differ from the quote applies them first (derived idempotency key `<key>-sel`, no order) and shows the new total; a second press orders. `checkoutFormInput` accepts parcel fields on order intents. Drafts restore a split only for their own quote. The shipping/payment-method milestone is recorded on the order press too (created quotes count).
+- **Client:** with JavaScript a changed courier or split applies at once (only after a buyer change), focus returns to the used radio group; without JavaScript CSS `:has()` swaps the button to "Perbarui pengiriman" and hides the stale total. 320px/200% text reflows (grid `minmax(0,1fr)`, wrapping total row).
+- **Reviews:** a test-adaptation agent found five product bugs (COD total near the button, stale split from an old draft, missing shipping milestone for unchanged couriers, 320px overflow, keyboard focus loss), all fixed; independent review APPROVE WITH FIXES (shared idempotency key, COD totals in the bar/notice, no-JS stale label, draft-restored auto-apply, nits) → fixed → APPROVE.
+- **Checks:** typecheck, lint, unit 173/173, integration T-31 12/12, PR-4 14/14, PR-3 11/11, browser T-31 36/36, consignment-payments 4/4, T-33 35/35. One run had a transient 1440px timeout (`dl.checkout-review-box` not visible in 5 s); the same scenario passed 3/3 alone and in the final full run.
+
 ## 2026-10-31 (night) — Production rollout of S95, add-to-cart flight, production checkout fix
 
 Session: Claude Opus 5.5 via Claude Code; owner-approved deploys to 99ribu.com.

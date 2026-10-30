@@ -13,7 +13,7 @@ import {offeredChannels} from '../payments/methods.ts';
 import {clean,normalizePhone} from '../shipping/address.ts';
 import {canonicalAddress,findDestination,initialDestinations,type Destination as ShippingDestination} from '../shipping/destinations.ts';
 import {readCartView,type BrowserCart} from './cart.ts';
-import {rupiah} from './format.ts';
+import {rupiah,sameOrigin} from './format.ts';
 import {checkoutDraftFields,checkoutDraftLimits,checkoutDraftsEnabled,readCheckoutDraft,type CheckoutProgress} from './checkout-draft.ts';
 import {displayPhone} from './contact.ts';
 
@@ -23,7 +23,7 @@ export type CheckoutOrder=Awaited<ReturnType<typeof projectOrder>>;
 export type Destination=ShippingDestination;
 export type CheckoutAllocation={id:string;shipping_total:number;packages:{id:string;origin_city:string;items:{name:string;variant:string;quantity:number;contents:string[]}[];service:string;service_name:string;alternatives:string[];shipping_amount:number}[];equivalent_count:number};
 export type CheckoutIntent={kind:'quote'|'shipping'|'order';key:string;cart:string;version:string;quote:string;allocation_id:string;query:string;draft:CheckoutDraft;packages:{package_id:string;shipping_option_id:string}[];navigate:string;draft_writer:string;draft_sequence:string;draft_revision:string};
-export type CheckoutView={kind:'ready'|'none'|'denied'|'unavailable';cart:BrowserCart|null;quote:CheckoutQuote|null;allocations:CheckoutAllocation[];quoteCurrent:boolean;draft:CheckoutDraft;progress:CheckoutProgress|null;draftExpired:boolean;destinations:Destination[];methods:string[];drafts:boolean;now:string|null;issue:'cart'|'expired'|'submitted'|null;code:string|null};
+export type CheckoutView={kind:'ready'|'none'|'denied'|'unavailable';cart:BrowserCart|null;quote:CheckoutQuote|null;allocations:CheckoutAllocation[];quoteCurrent:boolean;draft:CheckoutDraft;progress:CheckoutProgress|null;draftExpired:boolean;destinations:Destination[];methods:string[];drafts:boolean;images:Record<string,{src:string;width:number;height:number}>;now:string|null;issue:'cart'|'expired'|'submitted'|null;code:string|null};
 export type CheckoutState={phase:'idle'|'success'|'error'|'unknown';step:'contact'|'shipping'|'review';intent:CheckoutIntent;view:CheckoutView;errors:Partial<Record<keyof CheckoutDraft|'query',string>>;message:string;code:string|null;blocked:boolean;draftConflict:boolean;previousTotal?:number};
 const draftFields=checkoutDraftFields;
 const scalarFields=['kind','key','cart','version','quote','allocation_id','query','navigate','draft_writer','draft_sequence','draft_revision',...draftFields];
@@ -33,7 +33,7 @@ const DRAFT_METHODS={prepaid:'local-prepaid',transfer:'manual-bank',va:'autolari
 export const offeredMethods=()=>Object.entries(DRAFT_METHODS).filter(([,channel])=>offeredChannels().includes(channel)).map(([method])=>method);
 export const emptyCheckoutDraft=():CheckoutDraft=>({recipient_name:'',phone:'',email:'',destination_id:'',address_line:'',buyer_note:'',payment_method:offeredMethods().includes('prepaid')?'prepaid':''});
 export const initialCheckoutIntent=(values:Partial<CheckoutIntent>={}):CheckoutIntent=>({kind:'quote',key:randomUUID(),cart:'',version:'',quote:'',allocation_id:'',query:'',draft:emptyCheckoutDraft(),packages:[],navigate:'',draft_writer:randomUUID(),draft_sequence:'0',draft_revision:'0',...values});
-export const checkoutUnavailableView=():CheckoutView=>({kind:'unavailable',cart:null,quote:null,allocations:[],quoteCurrent:false,draft:emptyCheckoutDraft(),progress:null,draftExpired:false,destinations:[],methods:[],drafts:false,now:null,issue:null,code:'SERVICE_UNAVAILABLE'});
+export const checkoutUnavailableView=():CheckoutView=>({kind:'unavailable',cart:null,quote:null,allocations:[],quoteCurrent:false,draft:emptyCheckoutDraft(),progress:null,draftExpired:false,destinations:[],methods:[],drafts:false,images:{},now:null,issue:null,code:'SERVICE_UNAVAILABLE'});
 
 export function checkoutAllocationChoices(document:QuoteDocument,cart:BrowserCart,preferred:string){
  const groups=new Map<string,CheckoutAllocation>();let issuedKey='';
@@ -56,10 +56,11 @@ export function checkoutAllocationChoices(document:QuoteDocument,cart:BrowserCar
 export function initialCheckoutState(view:CheckoutView):CheckoutState{
  const progress=view.progress,q=view.quote,wire=q?validateCheckoutDraft(view.draft,view.destinations).wire:null;
  const same=Boolean(q&&wire&&isDeepStrictEqual(q.address,wire.canonicalAddress)&&isDeepStrictEqual(q.contact,wire.contact)&&q.payment_method===wire.payment_method&&q.payment_channel===wire.payment_channel&&(!progress||progress.quote===q.id&&progress.cart_version===view.cart?.version));
- const step=view.quoteCurrent&&same&&!view.draftExpired&&progress?.step!=='contact'?progress?.step==='review'?'review':'shipping':'contact';
- const allocation=progress&&q?.allocation_options.some(p=>p.id===progress.allocation_id)?progress.allocation_id:q?.selected_allocation_id??'';
+ // Single-page checkout (owner 2026-10-31, Shopify-like): a current quote opens on the order step, where couriers stay editable.
+ const step=view.quoteCurrent&&same&&!view.draftExpired&&progress?.step!=='contact'?'review':'contact';
+ const allocation=progress&&q&&progress.quote===q.id&&q.allocation_options.some(p=>p.id===progress.allocation_id)?progress.allocation_id:q?.selected_allocation_id??'';
  const packages=progress&&q&&progress.quote===q.id?progress.packages.filter(p=>q.packages.some(parcel=>parcel.id===p.package_id&&parcel.options.some(o=>o.id===p.shipping_option_id))):[];
- return {phase:'idle',step,intent:initialCheckoutIntent({kind:step==='review'?'order':step==='shipping'?'shipping':'quote',cart:view.cart?.id??'',version:String(view.cart?.version??''),quote:q?.id??'',allocation_id:allocation,draft:view.draft,query:progress?.query??'',packages,draft_revision:String(progress?.revision??0)}),view,errors:{},message:view.draftExpired?'Draf sebelumnya sudah berakhir. Periksa isian sebelum melanjutkan.':'',code:null,blocked:view.kind!=='ready',draftConflict:false};
+ return {phase:'idle',step,intent:initialCheckoutIntent({kind:step==='review'?'order':'quote',cart:view.cart?.id??'',version:String(view.cart?.version??''),quote:q?.id??'',allocation_id:allocation,draft:view.draft,query:progress?.query??'',packages,draft_revision:String(progress?.revision??0)}),view,errors:{},message:view.draftExpired?'Draf sebelumnya sudah berakhir. Periksa isian sebelum melanjutkan.':'',code:null,blocked:view.kind!=='ready',draftConflict:false};
 }
 
 export function checkoutFormInput(data:FormData):CheckoutIntent{
@@ -84,7 +85,7 @@ export function checkoutFormInput(data:FormData):CheckoutIntent{
  const named=packageIds.some(value=>data.has(`shipping_option:${value}`));
  if(named&&data.has('shipping_option_id'))throw invalid();
  const options=named?packageIds.map(value=>{const choices=data.getAll(`shipping_option:${value}`);if(choices.length!==1)throw invalid();return choices[0];}):data.getAll('shipping_option_id');
- if(packageIds.length!==options.length||packageIds.length>50||values.kind!=='shipping'&&packageIds.length)throw invalid();
+ if(packageIds.length!==options.length||packageIds.length>50||values.kind==='quote'&&packageIds.length)throw invalid();
  const packages=packageIds.map((value,index)=>{if(typeof value!=='string'||typeof options[index]!=='string'||value.length>100||String(options[index]).length>100)throw invalid();return {package_id:value,shipping_option_id:String(options[index])};});
  if(new Set(packages.map(p=>p.package_id)).size!==packages.length)throw invalid();
  return {kind:values.kind as CheckoutIntent['kind'],key:values.key,cart,version:values.version,quote,allocation_id:values.allocation_id,query:values.query,navigate:values.navigate,draft:Object.fromEntries(draftFields.map(name=>[name,values[name]])) as CheckoutDraft,packages,draft_writer:writer,draft_sequence:values.draft_sequence||'0',draft_revision:values.draft_revision||'0'};
@@ -155,7 +156,7 @@ export async function readCheckout(request:Request,identity:LocalAuth,dispatch:t
  catch(error){return {...checkoutUnavailableView(),kind:error instanceof AccessError&&error.status<500?'denied':'unavailable',code:error instanceof AccessError?error.code:'SERVICE_UNAVAILABLE'};}
  if(!quote&&!progress)draft=await profileDraft(request,identity)??draft;
  const allocations=document?checkoutAllocationChoices(document,current.cart,progress?.allocation_id??quote?.selected_allocation_id??''):[];
- return {kind:'ready',cart:current.cart,quote,allocations,quoteCurrent:Boolean(quote&&quote.id===current.cart.active_quote_id&&quote.cart_version===current.cart.version&&Date.parse(quote.expires_at)>Date.parse(current.now)&&!issue),draft,progress,draftExpired,destinations:await initialDestinations(identity.sql,draft.destination_id),methods:offeredMethods(),drafts:checkoutDraftsEnabled(),now:current.now,issue,code:null};
+ return {kind:'ready',cart:current.cart,quote,allocations,quoteCurrent:Boolean(quote&&quote.id===current.cart.active_quote_id&&quote.cart_version===current.cart.version&&Date.parse(quote.expires_at)>Date.parse(current.now)&&!issue),draft,progress,draftExpired,destinations:await initialDestinations(identity.sql,draft.destination_id),methods:offeredMethods(),drafts:checkoutDraftsEnabled(),images:Object.fromEntries(current.lines.flatMap(l=>l.offer?.image?[[l.line.id,{src:sameOrigin(l.offer.image.url),width:l.offer.image.width,height:l.offer.image.height}]]:[])),now:current.now,issue,code:null};
 }
 const messages:Record<string,string>={
  INVALID_INPUT:'Periksa isian sebelum melanjutkan.',INVALID_IDEMPOTENCY_KEY:'Muat ulang checkout sebelum mencoba lagi.',
@@ -195,8 +196,8 @@ export async function mutateCheckout(request:Request,identity:LocalAuth,intent:C
    const picked=await findDestination(identity.sql,intent.draft.destination_id);
    const validation=validateCheckoutDraft(intent.draft,picked?[picked]:[]),wire=validation.wire,q=state.view.quote;
    const unchanged=Boolean(wire&&q&&isDeepStrictEqual(q.address,wire.canonicalAddress)&&isDeepStrictEqual(q.contact,wire.contact)&&q.payment_method===wire.payment_method&&q.payment_channel===wire.payment_channel);
-   state.step=['shipping','review'].includes(navigate)&&state.view.quoteCurrent&&unchanged?navigate==='review'&&sameQuote&&String(state.view.cart?.version)===intent.version?'review':'shipping':'contact';
-   state.intent.kind=state.step==='review'?'order':state.step==='shipping'?'shipping':'quote';
+   state.step=['shipping','review'].includes(navigate)&&state.view.quoteCurrent&&unchanged?'review':'contact';
+   state.intent.kind=state.step==='review'?'order':'quote';
    if(navigate==='lookup'){
     const query=intent.query.trim();
     state.view.destinations=query?(await call(`/api/v1/destinations?q=${encodeURIComponent(query)}&limit=20`)).data.items as Destination[]:await initialDestinations(identity.sql,intent.draft.destination_id);
@@ -214,20 +215,26 @@ export async function mutateCheckout(request:Request,identity:LocalAuth,intent:C
   const wire=validation.wire;
   if(intent.kind==='quote'){
    const reply=await call('/api/v1/checkout/quotes','POST',{cart_id:intent.cart,address:wire.address,contact:wire.contact,payment_method:wire.payment_method,payment_channel:wire.payment_channel},intent.key,intent.version);
-   const state=await acceptedQuote(reply.data as CheckoutQuote);return {state:{...state,phase:'success',step:'shipping',intent:{...state.intent,draft:intent.draft,kind:'shipping',query:intent.query},message:''},cookies,order:null};
+   const state=await acceptedQuote(reply.data as CheckoutQuote);return {state:{...state,phase:'success',step:'review',intent:{...state.intent,draft:intent.draft,kind:'order',query:intent.query},message:''},cookies,order:null};
   }
   const quote=(await call(`/api/v1/checkout/quotes/${intent.quote}`)).data as CheckoutQuote;
   if(!isDeepStrictEqual(quote.address,wire.canonicalAddress)||!isDeepStrictEqual(quote.contact,wire.contact)||quote.payment_method!==wire.payment_method||quote.payment_channel!==wire.payment_channel){
    const state=await fresh();return {state:{...state,phase:'error',step:'contact',intent:{...intent,key:randomUUID(),kind:'quote',packages:[]},message:'Alamat atau metode berubah. Gunakan Hitung ongkir untuk menghitung ulang.',code:'INVALID_INPUT'},cookies,order:null};
   }
-  if(intent.kind==='shipping'){
-   let packages=intent.packages;const allocationChanged=Boolean(intent.allocation_id&&intent.allocation_id!==quote.selected_allocation_id);
+  // An order submitted with couriers or a package split other than the quote's (e.g. radios changed without JavaScript)
+  // first applies that selection and shows the new total; the order itself needs a second, deliberate press.
+  const changedSelection=intent.kind==='order'&&(Boolean(intent.allocation_id&&intent.allocation_id!==quote.selected_allocation_id)||intent.packages.some(p=>quote.packages.find(parcel=>parcel.id===p.package_id)?.selected_option_id!==p.shipping_option_id));
+  if(intent.kind==='shipping'||changedSelection){
+   // No submitted parcels (e.g. the split radios only): keep the quote's own courier choices.
+   let packages=intent.packages.length?intent.packages:quote.packages.map(p=>({package_id:p.id,shipping_option_id:p.selected_option_id}));const allocationChanged=Boolean(intent.allocation_id&&intent.allocation_id!==quote.selected_allocation_id);
    if(allocationChanged){
     const actor=await commerceActor(request,identity);if(!actor)throw new AccessError(401,'UNAUTHENTICATED');
     packages=await identity.sql.begin(async tx=>{const {quote:owned}=await ownedQuote(tx,request,identity,actor,intent.quote);const plan=owned.document.plans.find(p=>p.id===intent.allocation_id);if(!plan)throw new AccessError(409,'SHIPPING_OPTION_UNAVAILABLE');return plan.packages.map(p=>({package_id:p.id,shipping_option_id:p.selected_option_id}));});
    }
-   const reply=await call(`/api/v1/checkout/quotes/${intent.quote}/selection`,'POST',{...(intent.allocation_id?{allocation_id:intent.allocation_id}:{}),packages},intent.key,intent.version);
-   const state=await acceptedQuote(reply.data as CheckoutQuote);return {state:{...state,phase:'success',step:allocationChanged?'shipping':'review',intent:{...state.intent,kind:allocationChanged?'shipping':'order',draft:intent.draft},message:allocationChanged?'Pembagian paket diperbarui.':'',...(state.view.quote?.buyer_total!==quote.buyer_total?{previousTotal:quote.buyer_total}:{})},cookies,order:null};
+   // An order press that only applies a changed selection uses its own derived key: the press's key stays free for the
+   // order, and a retried press after a lost reply replays this selection (the stale quote id diverts again) instead of ordering.
+   const reply=await call(`/api/v1/checkout/quotes/${intent.quote}/selection`,'POST',{...(intent.allocation_id?{allocation_id:intent.allocation_id}:{}),packages},changedSelection?`${intent.key}-sel`:intent.key,intent.version);
+   const state=await acceptedQuote(reply.data as CheckoutQuote);return {state:{...state,phase:'success',step:'review',intent:{...state.intent,kind:'order',draft:intent.draft},message:allocationChanged?'Pembagian paket diperbarui. Periksa total lalu buat pesanan.':changedSelection?'Pengiriman diperbarui. Periksa total lalu buat pesanan.':'',...(state.view.quote?.amount_due!==quote.amount_due?{previousTotal:quote.amount_due}:{})},cookies,order:null};
   }
   const reply=await call('/api/v1/orders','POST',{quote_id:intent.quote,...(wire.buyer_note?{buyer_note:wire.buyer_note}:{})},intent.key,intent.version);cookies.push(...reply.cookies);
   const order=reply.data.order as CheckoutOrder;
@@ -240,6 +247,6 @@ export async function mutateCheckout(request:Request,identity:LocalAuth,intent:C
   const lostScope=blocked||state.view.kind==='denied'||state.view.kind==='none'||!unknown&&Boolean(state.view.cart&&state.view.cart.id!==intent.cart);
   const safeIntent=lostScope?initialCheckoutIntent():unknown?intent:{...intent,key:randomUUID(),kind:'quote' as const,version:state.view.cart?.id===intent.cart?String(state.view.cart.version):intent.version,quote:state.view.quote?.id??'',packages:[],navigate:''};
   const errors:CheckoutState['errors']=lostScope||unknown?{}:navigate==='lookup'&&code==='INVALID_INPUT'?{query:'Periksa kata pencarian wilayah.'}:['COD_UNAVAILABLE','MANUAL_BANK_UNAVAILABLE','MANUAL_BANK_BUSY','MANUAL_BANK_OPEN_LIMIT'].includes(code)?{payment_method:messages[code]}:code==='NO_SUPPORTED_ROUTE'?{destination_id:messages[code]}:{};
-  return {state:{...state,phase:unknown?'unknown':'error',step:unknown?intent.kind==='order'?'review':intent.kind==='shipping'?'shipping':'contact':'contact',intent:safeIntent,view:lostScope?{...checkoutUnavailableView(),kind:'denied',code}:state.view.cart&&state.view.cart.id!==intent.cart?checkoutUnavailableView():state.view,errors,message:lostScope?'Sesi atau keranjang berubah. Hasil tindakan hanya dapat diperiksa melalui akses yang sah.':unknown?'Hasil tindakan belum diketahui. Ulangi tindakan yang sama untuk memeriksa hasilnya.':messages[code]??'Perubahan belum diterapkan. Periksa kembali pilihan dan coba lagi.',code,blocked:lostScope},cookies,order:null};
+  return {state:{...state,phase:unknown?'unknown':'error',step:unknown?intent.kind==='quote'?'contact':'review':'contact',intent:safeIntent,view:lostScope?{...checkoutUnavailableView(),kind:'denied',code}:state.view.cart&&state.view.cart.id!==intent.cart?checkoutUnavailableView():state.view,errors,message:lostScope?'Sesi atau keranjang berubah. Hasil tindakan hanya dapat diperiksa melalui akses yang sah.':unknown?'Hasil tindakan belum diketahui. Ulangi tindakan yang sama untuk memeriksa hasilnya.':messages[code]??'Perubahan belum diterapkan. Periksa kembali pilihan dan coba lagi.',code,blocked:lostScope},cookies,order:null};
  }
 }
