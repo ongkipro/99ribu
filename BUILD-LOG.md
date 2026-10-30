@@ -1,5 +1,14 @@
 # Build log — Serba 99ribu
 
+## 2026-10-31 (night) — Production rollout of S95, add-to-cart flight, production checkout fix
+
+Session: Claude Opus 5.5 via Claude Code; owner-approved deploys to 99ribu.com.
+
+- **Add to cart (owner request):** the "Keranjang diperbarui" box is gone (removed, not hidden); a successful add flies the product photo (from the gallery, or from the pressed button when the gallery is off screen, or a purple dot for a product without photo) to the visible cart link, which bumps; the count comes from the existing layout revalidation; reduced motion: no flight; errors and the unknown-result recovery still render. The feedback region carries `data-ack` (acknowledged intent key) so tests wait for the server instead of success text. `390f039`/`ef54780`; browser T-33 35/35, T-34 1/1.
+- **Production checkout:** checkout drafts were private files whose scope accepted only the local/test cookie realm, so every production `/checkout` read failed. Production keeps no server drafts now (read empty, write/clear no-op, `drafts:false` in the view, client skips autosave but still warns before leaving). Independent review APPROVE (its UX note on the leave warning applied). `7e33a14`; unit 173/173, integration T-31 11/11, browser T-31 33/33. `4eabcdd`: the "no ETA in the simulator" note shows only for simulated quotes.
+- **Deploy/env:** see RELEASE 10b and STATUS (incident: per-service blank Mengantar key refilled by Coolify, `migrate` refused, about 11 minutes of 503; `aeb5e88` gives every service the same shipping configuration). Coolify CLI `--build-time=false` sends a field Coolify 4.5.3 rejects; the variables were set runtime-only through the API.
+- **Live checks:** health 200 after each deploy, edge cache purged, destination search `source: mengantar`, synthetic guest quote Kediri → Tebet Barat with 9 couriers, payment choices transfer bank and COD, 0 CSP/page errors.
+
 ## 2026-10-31 — S95 live Mengantar shipping rates with 99ribu's own area catalogue (branch s95-mengantar-rates)
 
 Session: Claude Opus 5.5 via Claude Code, run `RUN-20261030T165518Z-ab191292` (R4). Owner: live Mengantar on the existing `MENGANTAR_*` account; then narrowed to rates only (consignment stock is not pushed to Mengantar; S94/S98 deferred) and asked for an own kecamatan database (DEC-024).
