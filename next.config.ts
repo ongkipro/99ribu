@@ -16,8 +16,32 @@ if (process.argv[1] && realpathSync(process.argv[1]) === realpathSync("node_modu
 // same tree strictly and pass. Loose matching for the dev server only; drop this when Next fixes dev matching.
 const devServer = process.env.NODE_ENV === "development";
 
+// Static CSP (no per-request nonce: anonymous catalog HTML is edge-cached for 60 s, so a nonce would be shared).
+// Next's inline RSC bootstrap needs 'unsafe-inline' scripts without a nonce; the policy still blocks framing,
+// plugins, base-tag hijack and cross-origin form posts. Cloudflare Web Analytics injects its beacon at the edge.
+const csp = [
+  "default-src 'self'",
+  `script-src 'self' 'unsafe-inline'${devServer ? " 'unsafe-eval'" : ""} https://static.cloudflareinsights.com`,
+  "style-src 'self' 'unsafe-inline'",
+  "img-src 'self' data: blob:",
+  "font-src 'self'",
+  "connect-src 'self' https://cloudflareinsights.com",
+  "frame-ancestors 'none'",
+  "base-uri 'self'",
+  "form-action 'self'",
+  "object-src 'none'",
+  ...(config.profile === "production" ? ["upgrade-insecure-requests"] : []),
+].join("; ");
+const securityHeaders = [
+  { key: "Content-Security-Policy", value: csp },
+  { key: "X-Frame-Options", value: "DENY" },
+  { key: "Referrer-Policy", value: "strict-origin-when-cross-origin" },
+  { key: "Permissions-Policy", value: "camera=(), microphone=(), geolocation=(), payment=()" },
+];
+
 const nextConfig: NextConfig = {
   poweredByHeader: false,
+  headers: async () => [{ source: "/:path*", headers: securityHeaders }],
   ...(devServer ? { deprecated: { looseRouteMatching: true } } : {}),
   // Built-in image optimization for the content-addressed catalog photos only (resized webp; see
   // src/components/storefront/ui/media.tsx). Widths are the candidates the storefront's srcset uses.
