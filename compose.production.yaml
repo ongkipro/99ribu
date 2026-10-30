@@ -33,10 +33,11 @@ services:
     command: ["node", "scripts/migrate.ts", "production"]
     healthcheck:
       disable: true
-    # The owner password is a host file mounted into this service only (0400, uid 10001), never an application
+    # The owner password is a host file mounted into this service only (0400, uid 10001; Coolify refuses a variable
+    # in a volume source, so the path is fixed), never an application
     # variable: Coolify writes every application variable into an env_file shared by all services (seen 2026-10-30).
     volumes:
-      - ${DATABASE_OWNER_PASSWORD_HOST_FILE:?}:/run/secrets/database-owner-password:ro
+      - /data/99ribu/secrets/database-owner-password:/run/secrets/database-owner-password:ro
     environment:
       <<: *env
       DATABASE_OWNER_PASSWORD_FILE: /run/secrets/database-owner-password
