@@ -18,7 +18,7 @@ export function HomeHero({photos,signedIn,video}:{photos:HeroPhoto[];signedIn:bo
   </div>
   <div className="hero-copy">
    <h1 id="offer-heading">Semua<br/><span className="hero-price">Rp99.000</span></h1>
-   <p>Harga tetap untuk setiap pilihan lengkap.<br/>Bayar transfer, VA/QRIS, atau COD.</p>
+   <p>Harga tetap untuk setiap pilihan lengkap.<br/>Bayar transfer bank atau COD.</p>
    <div className="hero-actions">
     {signedIn?<Link className="hero-primary" href="/cari">Lihat produk</Link>:<Link className="hero-primary" href="/masuk">Masuk</Link>}
     <Link className="hero-secondary" href="/bantuan"><span><Icon name="arrow"/>Bantuan belanja</span></Link>

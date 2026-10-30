@@ -63,7 +63,7 @@ test.before(async()=>{
  // same traits: several offers and a long description (default), exactly four photos (gallery) and a long title. The
  // several-item contents list comes from the owned fixture bundle (shirt and cream) instead of a catalog bundle.
  paths.default=await catalogPath('Tyeso Silicone Coaster TS-8102');
- paths.gallery=await catalogPath('Madu Hutan Liar Asli');
+ paths.gallery=await catalogPath('HY London Parfum Men Gentleman Series');
  paths.bundle=`/produk/${await slugOf(curated.products['shirt-cream'].id)}`;
  paths.long=await catalogPath('Tumbler Stainless Coffee Mug Egg Cangkir');
  paths.unavailable=`${paths.default}?offer=${randomUUID()}`;

@@ -158,10 +158,13 @@ export async function ensureOriginWarehouses(identity: LocalAuth, principal: Pri
 // the committed default dataset is scoped; a dataset directory passed to the command is imported as given.
 // Set LOCAL_OFFER_KINDS to null to import every kind again.
 export const LOCAL_OFFER_KINDS: readonly Offer["kind"][] | null = ["unit"];
+// Owner 2026-10-30: products dropped from the catalog (all four refused publication with BELOW_MARGIN_FLOOR on
+// production): Madu Hutan Liar Asli, Susu Kuda Gizigood, SR12 Gomilku Susu Kambing, Kampas Kopling Kain Klos.
+// Catalog rows are immutable, so an imported one stays an unpublished draft; the withdraw keep list leaves them out.
+export const DROPPED_PRODUCTS: readonly string[] = ["308", "310", "363", "420"];
 export function inLocalScope(catalog: CatalogDocument): CatalogDocument {
   const kinds = LOCAL_OFFER_KINDS;
-  if (!kinds) return catalog;
-  const products = catalog.products.filter((p) => p.offers.every((o) => kinds.includes(o.kind)));
+  const products = catalog.products.filter((p) => !DROPPED_PRODUCTS.includes(p.key) && (!kinds || p.offers.every((o) => kinds.includes(o.kind))));
   const offers = products.flatMap((p) => p.offers);
   const stock = new Set(offers.flatMap((o) => o.contents.map((c) => c.stock_item))), origins = new Set(offers.map((o) => o.warehouse));
   return { ...catalog, products, stock_items: catalog.stock_items.filter((s) => stock.has(s.sku)), warehouses: catalog.warehouses.filter((w) => origins.has(w.key)) };

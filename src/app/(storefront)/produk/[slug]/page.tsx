@@ -90,7 +90,7 @@ export default async function Product({params,searchParams}:Props){
    <details className="product-policy" open><summary>Pengiriman dan pembayaran<Icon name="chevron"/></summary><ul className="policy-rows">
     <li><Icon name="truck"/><span>Ongkir dihitung dari alamat dan paket, lalu ditampilkan sebelum konfirmasi.</span></li>
     <li><Icon name="clock"/><span>Hari libur tidak dihitung sebagai hari proses pengiriman.</span></li>
-    <li><Icon name="wallet"/><span>Bayar transfer bank, VA/QRIS, atau COD. Ketersediaan COD dicek saat checkout dan ada biaya COD.</span></li>
+    <li><Icon name="wallet"/><span>Bayar transfer bank atau COD. Ketersediaan COD dicek saat checkout dan ada biaya COD.</span></li>
    </ul></details>
    <details className="product-policy"><summary>Pengembalian<Icon name="chevron"/></summary><p>Ketentuan pengembalian belum diterbitkan.</p><Link className="detail-help" href="/bantuan#returns">Ketentuan pengembalian</Link></details>
   </div>
