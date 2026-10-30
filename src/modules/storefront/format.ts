@@ -23,4 +23,7 @@ export function wibInput(value:string|number|Date,seconds=false){
 }
 
 // Stored local media uses a loopback origin; preserve remote URLs and rebase local photos.
-export const sameOrigin=(url:string)=>url.startsWith('http://127.0.0.1:3099/')?url.slice('http://127.0.0.1:3099'.length):url;
+// Stored catalog image URLs embed the origin the import ran with (loopback locally, https://99ribu.com in production).
+// /media/catalog/ is only ever served by this app, so its path is used as is: relative URLs are what media.tsx resizes.
+export const sameOrigin=(url:string)=>url.startsWith('http://127.0.0.1:3099/')?url.slice('http://127.0.0.1:3099'.length)
+ :/^https?:\/\/[^/]+\/media\/catalog\//.test(url)?url.replace(/^https?:\/\/[^/]+/,''):url;

@@ -3,13 +3,12 @@ import { getLocalAuth } from "../../../modules/access/auth";
 import { AccessError } from "../../../modules/access/policy";
 import {
 	catalogQuery,
-	featuredDepartments,
 	listCategories,
-	listProducts,
 	type CatalogQuery,
 	type PublicCategory,
 	publicCategory,
 } from "../../../modules/storefront/catalog";
+import { publicDepartments, publicList } from "../../../modules/storefront/memo";
 import { isListingParam } from "../../../modules/storefront/navigation";
 import { Listing } from "./listing";
 import type { Collection } from "./category-collections";
@@ -51,9 +50,9 @@ async function collectionsFor(
 		catalogQuery(new URLSearchParams({ limit: "8", ...params }));
 	const bundle = query({ category_id: category.id, offer_kind: "bundle" });
 	const [newest, bundles, departments] = await Promise.all([
-		listProducts(identity, query({ category_id: category.id, sort: "newest" })),
-		listProducts(identity, bundle),
-		featuredDepartments(identity, 100),
+		publicList(identity, query({ category_id: category.id, sort: "newest" })),
+		publicList(identity, bundle),
+		publicDepartments(identity, 100),
 	]);
 	if (newest.data.length < 4) return [];
 	const cards: Collection[] = [
@@ -72,7 +71,7 @@ async function collectionsFor(
 			Math.max(at, 0) % Math.max(departments.length - 1, 1)
 		];
 		const other = next
-			? await listProducts(
+			? await publicList(
 					identity,
 					query({ category_id: next.id, sort: "newest" }),
 				)
@@ -129,7 +128,7 @@ export async function CatalogListing({
 		const input = catalogQuery(params),
 			identity = getLocalAuth();
 		const [result, categories] = await Promise.all([
-			listProducts(identity, input),
+			publicList(identity, input),
 			allCategories(identity),
 		]);
 		const category = input.category_id

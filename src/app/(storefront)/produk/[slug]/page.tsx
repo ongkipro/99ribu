@@ -12,7 +12,8 @@ import {ProductDescription} from '../../../../components/storefront/ui/product-d
 import {OfferPicker} from '../../../../components/storefront/offer-picker';
 import {CartForm,CartMutations} from '../../../../components/storefront/cart-forms';
 import {getLocalAuth} from '../../../../modules/access/auth';
-import {catalogQuery,listProducts,matchingVariant,publicProduct,publicCategory,resolveProductSegment,type PublicCategory} from '../../../../modules/storefront/catalog';
+import {catalogQuery,matchingVariant,publicProduct,publicCategory,resolveProductSegment,type PublicCategory} from '../../../../modules/storefront/catalog';
+import {publicList} from '../../../../modules/storefront/memo';
 import {initialCartIntent,initialCartMutation} from '../../../../modules/storefront/cart';
 import {DESCRIPTION_CLAMP_LINES,describeBlocks,descriptionLines} from '../../../../modules/storefront/description';
 import {currentBrowserCart} from '../../../../modules/storefront/browser';
@@ -42,8 +43,8 @@ export async function generateMetadata({params}:Props):Promise<Metadata>{
 // products of the same category, newest first, through the guarded public reader. Streamed after the
 // buy box (its own Suspense boundary), so it never delays the product, price or purchase action.
 async function RelatedShelf({product,category}:{product:string;category:PublicCategory}){
- let items:Awaited<ReturnType<typeof listProducts>>['data']=[];
- try{items=(await listProducts(getLocalAuth(),catalogQuery(new URLSearchParams({category_id:category.id,sort:'newest',limit:'26'})))).data.filter(p=>p.id!==product).slice(0,25);}catch{return null;}
+ let items:Awaited<ReturnType<typeof publicList>>['data']=[];
+ try{items=(await publicList(getLocalAuth(),catalogQuery(new URLSearchParams({category_id:category.id,sort:'newest',limit:'26'})))).data.filter(p=>p.id!==product).slice(0,25);}catch{return null;}
  if(items.length<2)return null;
  return <section className="home-shelf related-shelf" aria-labelledby="related-heading"><h2 id="related-heading" className="shelf-heading"><Link href={`/kategori/${category.slug}`}>Lainnya di {category.name}<Icon name="forward"/></Link></h2><div className="related-grid"><ProductGrid products={items}/><ListingMore next={null} step={1} rows={2} max={5} margin="0px"/></div></section>;
 }

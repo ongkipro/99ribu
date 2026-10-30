@@ -1,5 +1,6 @@
 import type {LocalAuth} from '../access/auth.ts';
-import {catalogQuery,listProducts} from './catalog.ts';
+import {catalogQuery} from './catalog.ts';
+import {publicList} from './memo.ts';
 import {homeSafe} from './department-photos.ts';
 
 // Public read of shipping promotions for /promo: the same activity rule checkout applies
@@ -15,7 +16,7 @@ export async function activeShippingPromotions(identity:LocalAuth,now=new Date()
 }
 // Mixed bundles only: an offer with at least two different items (a pack of one item is a multipack).
 export async function bundleOffers(identity:LocalAuth,limit=12){
- const {data}=await listProducts(identity,catalogQuery(new URLSearchParams({offer_kind:'bundle',sort:'newest',limit:'40'})));
+ const {data}=await publicList(identity,catalogQuery(new URLSearchParams({offer_kind:'bundle',sort:'newest',limit:'40'})));
  // Most varied bundles first (by distinct items), so the section is a curated view, not the catalog order.
  // Like the other curated surfaces, it leaves out claim names and photos (homeSafe).
  const variety=(p:(typeof data)[number])=>Math.max(0,...p.variants.filter(v=>v.offer_kind==='bundle').map(v=>new Set(v.contents.map(c=>c.name)).size));

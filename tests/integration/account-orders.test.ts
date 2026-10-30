@@ -96,6 +96,8 @@ test("account workspace keeps frozen thumbnails and verified guest ownership; re
     assert.equal(skipped.added, 0); assert.equal(skipped.state.phase, "error"); assert.equal(skipped.state.skipped.length, 1); assert.match(skipped.state.skipped[0].reason, /tidak dijual/);
     assert.equal((await f.identity.sql.begin(tx => summarizeAccountOrder(tx, placed.order.id))).can_reorder, false);
     assert.equal(sameOrigin("https://images.example.test/a.webp"), "https://images.example.test/a.webp");
+    // Production imports embed https://99ribu.com; catalog photos become relative so media.tsx resizes them.
+    assert.equal(sameOrigin("https://99ribu.com/media/catalog/a-0123456789ab.webp"), "/media/catalog/a-0123456789ab.webp");
     const data = new FormData(); data.set("order_id", placed.order.id); assert.equal(reorderFormInput(data), placed.order.id);
     data.append("order_id", placed.order.id); assert.throws(() => reorderFormInput(data));
   } finally { await closeFulfillmentActor(f.identity, buyer); await closeFulfillmentActor(f.identity, stranger); await f.close(); }

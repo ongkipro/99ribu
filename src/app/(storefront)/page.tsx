@@ -18,6 +18,7 @@ import {getPrincipal} from '../../modules/access/policy';
 import {getLocalAuth} from '../../modules/access/auth';
 import {catalogQuery,featuredDepartments,listProducts} from '../../modules/storefront/catalog';
 import {JsonLd} from '../../components/storefront/json-ld';
+import {catalogTtl,memo} from '../../modules/storefront/memo';
 import {siteConfig} from '../../config/site';
 import {homeDescription,homeTitle,jsonLdGraph,organizationJsonLd,publicMetadata,websiteJsonLd} from '../../modules/storefront/seo';
 export const dynamic='force-dynamic';
@@ -26,7 +27,8 @@ export function generateMetadata(){return publicMetadata(siteConfig(),{path:'/',
 // department highlight cards (shop.com's merchant cards), the category switcher (large department
 // names over that department's shelf), promo banners, then every newest product as a grid that
 // grows with "Lihat produk lainnya" (owner 2026-10-29).
-export default async function Home(){
+// Everything on the home except the visitor's own sign-in state; the same for every visitor (memo.ts).
+async function homeData(){
  const identity=getLocalAuth();
  // Independent reads in parallel; only the five switcher departments need a product listing.
  // 24 newest: CSS shows four rows (24/16/12/8 at 6/4/3/2 columns), the first "Lihat produk lainnya" shows the
@@ -70,7 +72,11 @@ export default async function Home(){
    :(await homeBanners(identity,{bundles:bundles.length,departments})).map(b=>({id:b.id,title:b.title,body:b.body,href:b.href,action:b.action,tint:'#efeafd',cutout:b.tint,images:[{src:sameOrigin(b.image.url),width:b.image.width,height:b.image.height,alt:''}]}))),
   ...promotions.map(p=>({id:`shipping-${p.id}`,title:p.name,body:promotionSummary(p,rupiah),href:'/promo',action:'Lihat promo',tint:'#fdf3d6',images:[]})),
  ].map(b=>({...b,stack:stack(b.href)}));
- let signedIn=false;try{await getPrincipal(await storefrontRequest('GET','/'),identity);signedIn=true;}catch{}
+ return {heroPhotos,groups,highlights,shelves,banners,latest,more};
+}
+export default async function Home(){
+ const {heroPhotos,groups,highlights,shelves,banners,latest,more}=await memo('home',catalogTtl(),homeData);
+ let signedIn=false;try{await getPrincipal(await storefrontRequest('GET','/'),getLocalAuth());signedIn=true;}catch{}
  return <Shell><JsonLd data={jsonLdGraph(organizationJsonLd(siteConfig()),websiteJsonLd(siteConfig()))}/><main id="main" className="wrap home-main"><HomeHero photos={heroPhotos} signedIn={signedIn}/>
   {groups.length>0&&<section className="home-shelf" aria-labelledby="categories-heading"><h2 id="categories-heading" className="shelf-heading"><Link href="/kategori">Kategori<Icon name="forward"/></Link></h2><CategoryGrid tiles={groups.map(({department,tint,tile})=>({department,tint,photo:tile}))}/></section>}
   {highlights.length>0&&<section className="home-shelf" aria-labelledby="highlights-heading"><h2 id="highlights-heading" className="sr-only">Sorotan kategori</h2><CategoryHighlights highlights={highlights}/></section>}
