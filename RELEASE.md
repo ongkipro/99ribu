@@ -8,7 +8,7 @@ Environment: production (https://99ribu.com, Coolify 99ribu-prod; deployed 2026-
 Declared-Risk: R3
 Rollback-Ref: 410c2a4
 Rollback-Command: pg_restore --clean --if-exists --no-owner --no-privileges -d <disposable_restore_db> <backup_artifact.dump>
-Backup-Proof: PASS (2026-10-21: `tests/integration/localhost-readiness.test.ts` subtest 3 runs real `pg_dump -Fc` and `pg_restore` into disposable database `99ribu_restore_<uuid>`, reseals creating-XID triggers, verifies table/row/ledger parity and immutability triggers, and drops the disposable DB on teardown)
+Backup-Proof: PASS production 2026-10-30 (off-host set `20261030T152437Z` on Vultr Object Storage blr with Object Lock; restore drill PASS from the owner's machine, see STATUS "Production deployment"). Earlier local proof: PASS (2026-10-21: `tests/integration/localhost-readiness.test.ts` subtest 3 runs real `pg_dump -Fc` and `pg_restore` into disposable database `99ribu_restore_<uuid>`, reseals creating-XID triggers, verifies table/row/ledger parity and immutability triggers, and drops the disposable DB on teardown)
 Status: DEPLOYED (catalog-only launch; off-host backup, rollback rehearsal and provider gates still open)
 Local-Acceptance: PASS 2026-10-24 (S01–S81, S90–S93 and post-audit gaps G1–G10 on the assembled localhost runtime; evidence in STATUS.md)
 Target: localhost production-mode application with synthetic data and simulated external effects
