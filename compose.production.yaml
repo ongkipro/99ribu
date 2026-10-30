@@ -19,6 +19,9 @@ x-runtime: &runtime
     DATABASE_PORT: ${DATABASE_PORT:-5432}
     DATABASE_SSL: ${DATABASE_SSL:-disable}
     DATABASE_APP_PASSWORD: ${DATABASE_APP_PASSWORD:?}
+    # Coolify hands every application variable to every service; this explicit empty value overrides that for
+    # web and worker, so only migrate (below) ever holds the owner password (verified with printenv, 2026-10-30).
+    DATABASE_OWNER_PASSWORD: ""
     PAYMENT_ADAPTER: disabled
     SHIPPING_ADAPTER: disabled
     ADS_ADAPTER: disabled
