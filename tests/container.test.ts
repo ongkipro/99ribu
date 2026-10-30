@@ -54,9 +54,10 @@ test("Dockerfile runtime stage: fixed non-root uid, node-only HEALTHCHECK, expli
   assert.equal(compose.match(/:\/run\/secrets\/database-owner-password:ro$/gm)?.length, 1);
   assert.match(compose, /migrate:\n(?:.*\n)*?\s+command: \["node", "scripts\/migrate\.ts", "production"\]/);
   assert.equal(compose.match(/condition: service_completed_successfully/g)?.length, 2);
-  // S95: only web receives the Mengantar key; migrate and worker override the shared env_file with empty values.
-  assert.equal(compose.match(/^\s+MENGANTAR_API_KEY: ""$/gm)?.length, 2);
-  assert.equal(compose.match(/^\s+SHIPPING_ADAPTER: disabled$/gm)?.length, 2);
+  // S95: one shipping configuration for every service (Coolify refills per-service overrides; a blanked key with the
+  // adapter disabled in one service while Coolify set the key made migrate refuse to start on 2026-10-31).
+  assert.equal(compose.match(/^\s+SHIPPING_ADAPTER: \$\{SHIPPING_ADAPTER:-disabled\}$/gm)?.length, 1);
+  assert.doesNotMatch(compose, /^\s+(SHIPPING_ADAPTER|MENGANTAR_[A-Z_]+): (disabled|"")$/m);
 });
 
 test(".dockerignore keeps private, test and design material out of the build context", () => {
