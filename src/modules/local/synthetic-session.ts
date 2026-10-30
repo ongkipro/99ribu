@@ -21,12 +21,14 @@ export function totp(uri:string){
   return ((digest.readUInt32BE(digest[19]&15)&0x7fffffff)%1000000).toString().padStart(6,'0');
 }
 
+// `base`/`headers`: the production operator session (access/operator.ts) sends the configured origin and the
+// headers the trusted proxy would add; local fixtures keep the loopback origin.
 export class BrowserSession{
   cookies=new Map<string,string>();
-  readonly identity:LocalAuth;
-  constructor(identity:LocalAuth){this.identity=identity;}
+  readonly identity:LocalAuth;readonly base:string;readonly headers:Record<string,string>;
+  constructor(identity:LocalAuth,base=origin,headers:Record<string,string>={}){this.identity=identity;this.base=base;this.headers=headers;}
   request(path:string,body?:Record<string,unknown>){
-    return new Request(`${origin}${path}`,{method:body?'POST':'GET',headers:{origin,'content-type':'application/json',
+    return new Request(`${this.base}${path}`,{method:body?'POST':'GET',headers:{...this.headers,origin:this.base,'content-type':'application/json',
       cookie:[...this.cookies].map(([name,value])=>`${name}=${value}`).join('; ')},body:body?JSON.stringify(body):undefined});
   }
   async auth(path:string,body?:Record<string,unknown>){

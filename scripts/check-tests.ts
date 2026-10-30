@@ -168,7 +168,7 @@ if (import.meta.main) {
       : selector === "--case=payment-methods"
       ? ["tests/integration/payment-methods.test.ts"]
       : selector === "--case=production-profile"
-      ? ["tests/integration/production-environment.test.ts", "tests/production-database.test.ts"]
+      ? ["tests/integration/production-environment.test.ts", "tests/production-database.test.ts", "tests/production-operator.test.ts"]
       : selector === "--case=autolaris-payments"
       ? ["tests/integration/autolaris-payments.test.ts"]
       : selector === "--case=backup-restore"

@@ -4,6 +4,7 @@ import {join} from 'node:path';
 import type {Sql,TransactionSql} from 'postgres';
 import {catalogMediaName} from '../../storage/catalog-media.ts';
 import {readLocalConfig} from '../../config/local.ts';
+import {readRuntimeConfig} from '../../config/runtime.ts';
 import type {LocalAuth} from '../access/auth.ts';
 import {assertOrigin} from '../access/http.ts';
 import {AccessError,getPrincipal} from '../access/policy.ts';
@@ -778,7 +779,7 @@ export function writeBerlapakDataset(sourceDir:string,outDir=defaultDatasetDir,o
 // generated from, or the catalog and its origin warehouses are not imported.
 const RECEIVE_LIMIT=1000000;
 export async function loadInitialStock(request:Request,identity:LocalAuth,options:{sourceDir:string;datasetDir?:string;signal?:AbortSignal;scope?:(catalog:CatalogDocument)=>CatalogDocument}){
-  const {signal}=options;signal?.throwIfAborted();const config=readLocalConfig(process.env);assertOrigin(request);
+  const {signal}=options;signal?.throwIfAborted();const config=readRuntimeConfig(process.env);assertOrigin(request);
   const catalog=(options.scope??((c:CatalogDocument)=>c))(readCatalogDocument(options.datasetDir??defaultDatasetDir)),source=readBerlapakSource(options.sourceDir);
   if(source.snapshot!==catalog.source_snapshot) throw new CatalogDatasetError(`Raw snapshot ${source.snapshot} is not the committed dataset snapshot ${catalog.source_snapshot}; run catalog:dataset and catalog:import first.`);
   const principal=await getPrincipal(request,identity);await identity.sql.begin((tx)=>lockOwner(tx,principal));

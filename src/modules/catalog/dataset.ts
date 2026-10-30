@@ -3,7 +3,7 @@ import { closeSync, constants, fstatSync, openSync, readFileSync } from "node:fs
 import { join } from "node:path";
 import { isDeepStrictEqual } from "node:util";
 import type { Sql, TransactionSql } from "postgres";
-import { readLocalConfig } from "../../config/local.ts";
+import { readRuntimeConfig } from "../../config/runtime.ts";
 import { CATALOG_MEDIA_LIMIT, catalogMediaFileName, catalogMediaName, saveCatalogMedia } from "../../storage/catalog-media.ts";
 import type { LocalAuth } from "../access/auth.ts";
 import { assertCurrentOwner } from "../access/grants.ts";
@@ -234,7 +234,7 @@ export type ImportSummary = {
 // missing); moving an existing offer to its origin is an ordinary new revision.
 export async function importCatalog(request: Request, identity: LocalAuth, dataset: CatalogDataset, options: { signal?: AbortSignal } = {}): Promise<ImportSummary> {
   const { signal } = options; signal?.throwIfAborted();
-  const config = readLocalConfig(process.env); assertOrigin(request);
+  const config = readRuntimeConfig(process.env); assertOrigin(request);
   const principal = await getPrincipal(request, identity); await identity.sql.begin((tx) => lockOwner(tx, principal));
   const { catalog, catalogSha256 } = dataset;
   const reserved = await identity.sql.reserve();
@@ -387,7 +387,7 @@ export function summarizeCandidates(candidates: readonly WithdrawalCandidate[]) 
 // Applies withdrawals one product at a time through the real publication service (own
 // transaction, audit and idempotency each). A product republished meanwhile is skipped.
 export async function withdrawCandidates(request: Request, identity: LocalAuth, candidates: readonly WithdrawalCandidate[], reason: string, signal?: AbortSignal) {
-  assertOrigin(request); const config = readLocalConfig(process.env);
+  assertOrigin(request); const config = readRuntimeConfig(process.env);
   const principal = await getPrincipal(request, identity); await identity.sql.begin((tx) => lockOwner(tx, principal));
   let withdrawn = 0; const skipped: Record<string, number> = {};
   for (const candidate of candidates) {
