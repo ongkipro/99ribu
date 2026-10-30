@@ -547,14 +547,15 @@
    only; timing in the rule below (100ms intent, 520ms staggered open, 200ms close). The logo sits in the header's left
    1fr column, so the omnibox stays centred; the reveal starts at 1024px, where that column fits
    the full name (111px wider, leaving at least 44px before the omnibox). Touch and screens below
-   1024px keep the static "99rb."; reduced motion swaps it without the transition. */
+   1024px keep the static "99rb."; reduced motion swaps it without the transition. Owner 2026-10-30: the same link
+   heads the sign-in forms (BrandLink), so the rules are not scoped to the header. */
 .brand-reveal .grow {
 	display: inline-grid;
 	grid-template-columns: 0fr;
 	vertical-align: baseline;
 	transition: grid-template-columns 200ms cubic-bezier(0.4, 0, 0.2, 1);
 }
-.store-header .brand-reveal .grow > span {
+.brand.brand-reveal .grow > span {
 	min-width: 0;
 	overflow: hidden;
 	white-space: pre;
@@ -574,7 +575,7 @@
 		grid-template-columns: 1fr;
 		transition: grid-template-columns 520ms cubic-bezier(0.22, 1, 0.36, 1) 100ms;
 	}
-	.store-header .brand-reveal:is(:hover, :focus-visible) .grow > span {
+	.brand-reveal:is(:hover, :focus-visible) .grow > span {
 		opacity: 1;
 		translate: 0 0;
 		filter: blur(0);
@@ -583,13 +584,18 @@
 			translate 420ms cubic-bezier(0.22, 1, 0.36, 1) 160ms,
 			filter 420ms cubic-bezier(0.22, 1, 0.36, 1) 160ms;
 	}
-	.store-header .brand-reveal:is(:hover, :focus-visible) > span > .grow:first-of-type > span {
+	/* Owner 2026-10-30: the tight tracking pulled the last "a" of "Serba" against the clip edge and the "99"; while open,
+	   the word keeps 0.12em of air (closed, the track is 0 wide, so "99rb." is unchanged). */
+	.brand-reveal:is(:hover, :focus-visible) > .grow > span {
+		padding-inline-end: 0.12em;
+	}
+	.brand-reveal:is(:hover, :focus-visible) > span > .grow:first-of-type > span {
 		transition-delay: 240ms;
 	}
-	.store-header .brand-reveal:is(:hover, :focus-visible) > span > .grow:last-of-type > span {
+	.brand-reveal:is(:hover, :focus-visible) > span > .grow:last-of-type > span {
 		transition-delay: 300ms;
 	}
-	.store-header .brand-reveal:is(:hover, :focus-visible) > i {
+	.brand-reveal:is(:hover, :focus-visible) > i {
 		animation: brand-dot-hop 520ms cubic-bezier(0.34, 1.56, 0.64, 1) 560ms both;
 	}
 }
@@ -605,12 +611,12 @@
 @media (prefers-reduced-motion: reduce) {
 	.brand-reveal .grow,
 	.brand-reveal:is(:hover, :focus-visible) .grow,
-	.store-header .brand-reveal .grow > span,
-	.store-header .brand-reveal:is(:hover, :focus-visible) .grow > span {
+	.brand.brand-reveal .grow > span,
+	.brand-reveal:is(:hover, :focus-visible) .grow > span {
 		transition: none;
 		filter: none;
 	}
-	.store-header .brand-reveal:is(:hover, :focus-visible) > i {
+	.brand-reveal:is(:hover, :focus-visible) > i {
 		animation: none;
 	}
 }

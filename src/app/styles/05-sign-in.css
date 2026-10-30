@@ -19,6 +19,11 @@
 	font-size: 2rem;
 	line-height: 2rem;
 }
+/* The mark is the home link (BrandLink): a logo, never an underlined text link (owner 2026-10-30). */
+a.signin-mark,
+a.signin-mark:hover {
+	text-decoration: none;
+}
 .signin-card :is(h1, h2) {
 	margin: 24px 0 0;
 	font-size: 2rem;
@@ -415,3 +420,164 @@ html:has(.signin-sheet[open]) {
 	margin-left: 4px;
 }
 
+
+/* Focused sign-in frame (owner 2026-10-30, shop.com login page; /masuk and the signed-out /akun): no store chrome. The
+   canvas fills the viewport; the close button back to the shop at the top right and the column centred in what remains
+   (no footer: the sign-up form names the terms and privacy policy). */
+:root:has(body > .auth-frame),
+body:has(> .auth-frame) {
+	background: var(--canvas);
+}
+.auth-frame {
+	display: grid;
+	grid-template-rows: auto 1fr;
+	min-height: 100dvh;
+}
+.auth-top {
+	display: flex;
+	justify-content: flex-end;
+	padding: 16px var(--gutter) 0;
+}
+/* Close (owner 2026-10-30, shop.com icon button): a 44px white circle with the medium shadow at the top right, a 20px
+   cross (2.67 stroke, round caps) that grows on hover; 10% ink on hover, pressed 96% and 60% opacity. */
+.auth-back {
+	display: grid;
+	place-items: center;
+	width: 44px;
+	height: 44px;
+	border-radius: 9999px;
+	background: #fff;
+	box-shadow:
+		0 2px 4px rgba(0, 0, 0, 0.04),
+		0 8px 24px rgba(0, 0, 0, 0.08);
+	color: var(--ink);
+	transition:
+		background-color 150ms ease-out,
+		scale 150ms ease-out,
+		opacity 150ms ease-out;
+}
+.auth-back svg {
+	width: 20px;
+	height: 20px;
+	stroke-width: 2.67;
+	transition: scale 150ms ease-in-out;
+}
+.auth-back:hover {
+	background: #e7e7e7;
+}
+.auth-back:hover svg {
+	scale: 1.1;
+}
+.auth-back:active {
+	scale: 0.96;
+	opacity: 0.6;
+}
+.auth-back:focus-visible {
+	outline: 2px solid var(--ink);
+	outline-offset: 2px;
+}
+@media (min-width: 1024px) {
+	.auth-top {
+		padding-top: 24px;
+	}
+}
+@media (prefers-reduced-motion: reduce) {
+	.auth-back,
+	.auth-back svg {
+		transition: none;
+	}
+}
+.auth-main {
+	display: grid;
+	place-items: center;
+	align-content: center;
+	padding: 0 var(--gutter) calc(24px + env(safe-area-inset-bottom, 0px));
+}
+/* Owner 2026-10-30 ("100vh, menyesuaikan ukuran device"): the whole sign-in fits one screen down to 375×667, so the
+   column is tighter here than on the earlier /masuk page: 24px mark, 28/30 heading, 14/18 lead, 12px between fields.
+   A shorter viewport (or enlarged text) still scrolls rather than clipping. */
+.auth-main .signin-mark {
+	font-size: 1.5rem;
+	line-height: 1.5rem;
+}
+.auth-main .signin-switch {
+	margin-top: 16px;
+}
+.auth-main .signin-card :is(h1, h2) {
+	margin-top: 16px;
+	font-size: 1.75rem;
+	line-height: 1.875rem;
+}
+.auth-main .signin-lead {
+	margin-top: 4px;
+	font-size: var(--small-size);
+	line-height: var(--small-leading);
+}
+.auth-main .signin-field,
+.auth-main .signin-lead + .signin-field {
+	margin-top: 12px;
+}
+.auth-main .account-guest-details {
+	margin-top: 12px;
+}
+/* Owner 2026-10-30: under the Masuk/Daftar switch the heading and lead are not shown (the switch names the task);
+   the heading stays for screen readers and as the form's name. The two-step code screens keep both visible. */
+.auth-main .signin-switch ~ :is(h1, h2),
+.auth-main .signin-switch ~ .signin-lead {
+	position: absolute;
+	width: 1px;
+	height: 1px;
+	overflow: hidden;
+	clip-path: inset(50%);
+	white-space: nowrap;
+}
+.auth-main .signin-switch ~ .signin-lead + .signin-field {
+	margin-top: 20px;
+}
+/* Short screens (laptops at 768, small phones): the lead stays for screen readers only and the rhythm tightens;
+   below 700px the mark goes too (the heading names the shop). Every target stays 44px. */
+@media (max-height: 780px) {
+	.auth-main .signin-lead {
+		position: absolute;
+		width: 1px;
+		height: 1px;
+		overflow: hidden;
+		clip-path: inset(50%);
+		white-space: nowrap;
+	}
+	.auth-main .signin-switch,
+	.auth-main .signin-card :is(h1, h2) {
+		margin-top: 12px;
+	}
+	.auth-main .signin-field,
+	.auth-main .signin-lead + .signin-field {
+		margin-top: 8px;
+	}
+	.auth-main .signin-card .signin-submit {
+		margin-top: 12px;
+	}
+	.auth-main .account-guest-details {
+		margin-top: 8px;
+	}
+	.auth-main .account-guest-summary {
+		min-height: 44px;
+	}
+}
+@media (max-height: 700px) {
+	.auth-main .signin-mark {
+		display: none;
+	}
+	.auth-main .signin-mark + .signin-switch {
+		margin-top: 0;
+	}
+}
+.auth-main > .signin-card,
+.auth-main > .signin-forms > .signin-card {
+	margin-inline: auto;
+}
+.auth-main .account-page {
+	width: 100%;
+}
+.auth-main .account-signed-out {
+	padding-block: 0;
+}

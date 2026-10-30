@@ -62,7 +62,7 @@ test.after(async () => {
 	} finally { await identity.sql.end(); }
 });
 
-test("modal sign-up from /akun: name and email only, uniform check-email, the emailed link creates the password and signs in back to /akun", async () => {
+test("sign-up on /akun (inline, owner 2026-10-29): name and email only, uniform check-email, the emailed link creates the password and signs in back to /akun", async () => {
 	const email = newEmail("modal");
 	const browser: Browser = await launch();
 	try {
@@ -70,19 +70,21 @@ test("modal sign-up from /akun: name and email only, uniform check-email, the em
 		const errors: string[] = [];
 		page.on("pageerror", (error) => errors.push(error.message));
 		await page.goto(`${origin}/akun`);
-		await page.locator("main").getByRole("link", { name: "Daftar", exact: true }).click();
-		const modal = page.getByRole("dialog", { name: "Masuk atau daftar" });
+		// The /masuk forms render on the page; the switch swaps to sign-up in place.
+		const modal = page.locator("main .signin-forms");
+		await modal.getByRole("heading", { level: 1, name: "Masuk ke 99ribu" }).waitFor();
+		await modal.getByRole("link", { name: "Daftar", exact: true }).click();
 		await modal.getByRole("heading", { name: "Buat akun 99ribu" }).waitFor();
-		assert.equal(page.url(), `${origin}/masuk?langkah=daftar&next=%2Fakun`);
-		assert.equal(await page.locator("main [data-testid=buyer-account-root]").count(), 1, "The page under the modal stays rendered");
+		assert.equal(page.url(), `${origin}/akun`);
+		assert.equal(await page.locator("main [data-testid=buyer-account-root]").count(), 1, "The account page holds the forms");
 		assert.equal(await modal.getByRole("link", { name: "Daftar", exact: true }).getAttribute("aria-current"), "page");
-		assert.ok(await focused(page, "#signup-name"), "Focus starts in the name field");
+		assert.ok(await focused(page, ".signin-switch [aria-current=\"page\"]"), "The in-place switch keeps focus on the current tab");
 		assert.equal(await modal.getByLabel("Kata sandi").count(), 0, "Sign-up asks no password (owner decision 2026-10-25)");
 		assert.equal(await modal.getByLabel("Email").getAttribute("autocomplete"), "email");
 		// The switch swaps forms in place (the modal stays open) and back.
 		await modal.getByRole("link", { name: "Masuk", exact: true }).click();
 		await modal.getByRole("heading", { name: "Masuk ke 99ribu" }).waitFor();
-		assert.equal(page.url(), `${origin}/masuk?langkah=daftar&next=%2Fakun`, "Switching does not navigate");
+		assert.equal(page.url(), `${origin}/akun`, "Switching does not navigate");
 		await modal.getByRole("link", { name: "Daftar", exact: true }).click();
 		await modal.getByRole("button", { name: "Daftar", exact: true }).click();
 		await modal.getByTestId("signup-error").getByText("Isi nama, email, dan nomor WhatsApp.").waitFor();

@@ -1,11 +1,60 @@
-/* Cart (Dawn structure): a heading row, a Produk / Jumlah / Total header, one row per line (photo, name with variant and
-   unit price, quantity, line total) and a flat estimated-total footer with the checkout button. Phones stack each row. */
+/* Cart (shop.com cart, observed 2026-10-29): one white card per seller (ours: the single 99ribu
+   store) with a 36px radius, hairline border and small shadow; a store row, then each line as an
+   80px photo beside the name, option and price, with the quantity pill and small pill actions
+   below; the subtotal and the full-width 52px checkout button close the card. From 1055px a
+   sticky "Mungkin Anda suka" rail sits beside it (3fr / 2fr); below 761px the rail is hidden. */
 .cart-layout {
 	display: grid;
+	gap: 20px;
+	max-width: 720px;
+	margin-inline: auto;
+}
+@media (min-width: 1055px) {
+	.cart-layout {
+		max-width: none;
+		grid-template-columns: minmax(0, 3fr) minmax(340px, 2fr);
+		align-items: start;
+	}
+}
+:is(.cart-card, .cart-rail) {
+	min-width: 0;
+	border: 1px solid var(--hairline);
+	border-radius: 36px;
+	background: #fff;
+	box-shadow: 0 1px 4px rgba(0, 0, 0, 0.06);
+}
+.cart-card {
+	padding: 20px 20px 24px;
+}
+.cart-store {
+	display: flex;
+	align-items: center;
 	gap: 8px;
 }
-.cart-columns {
-	display: none;
+.cart-store-mark {
+	display: grid;
+	flex: none;
+	place-items: center;
+	width: 44px;
+	height: 44px;
+	border-radius: 9999px;
+	background: var(--purple);
+	color: #fff;
+	font-weight: 800;
+	letter-spacing: var(--tracking-small);
+}
+.cart-store p {
+	margin: 0;
+}
+.cart-store-name {
+	font-size: var(--small-size);
+	line-height: var(--small-leading);
+	font-weight: 600;
+}
+.cart-store-note {
+	color: var(--muted);
+	font-size: var(--caption-size);
+	line-height: var(--caption-leading);
 }
 .cart-lines {
 	margin: 0;
@@ -14,84 +63,142 @@
 }
 .cart-line {
 	display: grid;
-	grid-template-columns: 5rem minmax(0, 1fr);
+	grid-template-columns: 80px minmax(0, 1fr) auto;
 	grid-template-areas:
-		"media details"
-		"warn warn"
-		"qty qty"
-		"total total";
-	gap: 12px 16px;
-	padding-block: 20px;
-	border-top: 1px solid var(--line);
-}
-.cart-line:last-child {
-	border-bottom: 1px solid var(--line);
+		"media details total"
+		"media qty qty"
+		"warn warn warn";
+	gap: 8px 12px;
+	padding-top: 24px;
 }
 .cart-line-media {
 	grid-area: media;
+	width: 80px;
 	min-width: 0;
-	max-width: 100%;
+}
+.cart-line-media img {
+	display: block;
+	width: 80px;
+	height: 80px;
+	border-radius: 20px;
+	object-fit: cover;
+	box-shadow: inset 0 0 0 1px var(--hairline);
 }
 .cart-line-media .photo-slot {
-	font-size: var(--caption-size);
-	padding: 12px 8px;
+	width: 80px;
 	min-height: 0;
 	aspect-ratio: 1;
+	padding: 12px 8px;
+	border-radius: 20px;
+	font-size: var(--caption-size);
 }
 .cart-line-media .photo-slot small {
 	display: none;
-}
-.cart-line-media img {
-	width: 100%;
-	height: auto;
 }
 .cart-line-details {
 	grid-area: details;
 	display: grid;
 	align-content: start;
-	gap: 4px;
+	gap: 2px;
 	min-width: 0;
 	font-size: var(--small-size);
 	overflow-wrap: anywhere;
 }
 .cart-line-details h2 {
-	font-size: var(--body-size);
-	line-height: var(--body-leading);
-}
-.line-variant,
-.line-unit {
-	margin: 0;
-	color: var(--muted);
-}
-.line-unit {
-	color: var(--ink);
-}
-.cart-contents {
-	padding-left: 20px;
+	display: -webkit-box;
+	overflow: hidden;
+	-webkit-box-orient: vertical;
+	-webkit-line-clamp: 2;
 	margin: 0;
 	font-size: var(--small-size);
+	line-height: var(--small-leading);
+	font-weight: 600;
+	letter-spacing: var(--tracking-small);
+}
+.line-variant {
+	margin: 0;
+	color: var(--muted);
+	font-size: var(--caption-size);
+	line-height: var(--caption-leading);
+}
+.cart-contents {
+	margin: 0;
+	padding-left: 18px;
+	font-size: var(--caption-size);
+	line-height: var(--caption-leading);
 	/* Same filled bullets as the PDP contents list, also inside the disclosure. */
 	list-style: disc;
+}
+.cart-line-details .contents-more summary {
+	font-size: var(--caption-size);
 }
 .cart-line > .cart-warning {
 	grid-area: warn;
 	margin: 0;
 }
+.line-total {
+	grid-area: total;
+	max-width: 9.5rem;
+	margin: 0;
+	text-align: right;
+}
+.line-total > strong {
+	display: block;
+	font-size: var(--small-size);
+	line-height: var(--small-leading);
+	font-weight: 600;
+	letter-spacing: var(--tracking-small);
+}
+.line-total > span {
+	display: block;
+	color: var(--muted);
+	font-size: var(--caption-size);
+	line-height: var(--caption-leading);
+}
+:where(.cart-summary > div) > .button {
+	width: 100%;
+	min-height: 52px;
+	border-radius: 9999px;
+}
+/* The pill already shows the quantity, so a row with one keeps the basis for screen readers only; a row
+   without a quantity cell (closed cart, row awaiting approval) shows it. */
+.cart-line:has(.cart-quantity) .line-total > span {
+	position: absolute;
+	width: 1px;
+	height: 1px;
+	overflow: hidden;
+	clip-path: inset(50%);
+	white-space: nowrap;
+}
 .cart-line-actions {
 	grid-area: qty;
 	display: flex;
 	flex-wrap: wrap;
-	align-items: flex-start;
-	gap: 4px 8px;
+	align-items: center;
+	gap: 8px;
 }
 .cart-line-actions .cart-mutation {
 	flex: 0 1 auto;
 }
-:where(.cart-line-actions) .cart-mutation .button {
+:where(.cart-line-actions, .cart-rail) .cart-mutation .button {
 	flex: 0 0 auto;
 	min-height: 44px;
-	padding-inline: 16px;
+	padding: 0 16px;
+	border: 1px solid var(--hairline);
+	background: #f5f5f5;
+	color: var(--ink);
+	box-shadow: none;
 	font-size: var(--small-size);
+	font-weight: 600;
+}
+:where(.cart-line-actions, .cart-rail) .cart-mutation .button:hover:not(:disabled) {
+	background: #ebebed;
+}
+/* An unsaved quantity turns its save pill primary (the form drops the secondary class). */
+:where(.cart-line-actions) .cart-mutation .button:not(.secondary, .quiet) {
+	border-color: var(--purple);
+	background: var(--purple);
+	color: #fff;
 }
 /* Quantity pill with minus and plus (the PDP's, scoped to the cart): the field's label is spoken, not shown. */
 .cart-line .cart-quantity {
@@ -101,9 +208,9 @@
 	display: inline-flex;
 	align-items: center;
 	min-height: 44px;
-	border: 1px solid rgba(0, 0, 0, 0.16);
+	border: 1px solid var(--hairline);
 	border-radius: 9999px;
-	background: #fff;
+	background: #f5f5f5;
 }
 :where(.cart-line .quantity-stepper) button {
 	display: grid;
@@ -118,14 +225,14 @@
 	cursor: pointer;
 }
 :where(.cart-line .quantity-stepper) button:hover:not(:disabled) {
-	background: rgba(0, 0, 0, 0.04);
+	background: rgba(0, 0, 0, 0.06);
 }
 :where(.cart-line .quantity-stepper) button:disabled {
 	color: var(--field-border);
 	cursor: not-allowed;
 }
 .cart-line .quantity-stepper input[type="number"] {
-	width: 2.75rem;
+	width: 2rem;
 	min-height: 42px;
 	padding: 0;
 	border: 0;
@@ -145,127 +252,144 @@
 	border-color: var(--ink);
 	box-shadow: 0 0 0 3px rgba(0, 0, 0, 0.12);
 }
-.line-total {
-	grid-area: total;
-	margin: 0;
-	display: flex;
-	flex-wrap: wrap;
-	flex-direction: row-reverse;
-	justify-content: space-between;
-	align-items: baseline;
-	gap: 12px;
-}
-.line-total > strong {
-	display: block;
-	font-size: var(--subtitle-size);
-	line-height: 1.5rem;
-	font-weight: 600;
-}
-.line-total > span {
-	color: var(--muted);
-	font-size: var(--small-size);
-}
 .cart-summary {
-	padding-top: 16px;
+	display: grid;
+	gap: 12px;
 	min-width: 0;
+	margin-top: 24px;
+	padding: 20px 4px 0;
+	border-top: 1px solid var(--hairline);
 }
 .cart-summary > div {
 	display: grid;
 	gap: 12px;
-	width: 100%;
-	max-width: 26rem;
-	margin-inline-start: auto;
 }
 .cart-total {
 	display: flex;
 	flex-wrap: wrap;
 	justify-content: space-between;
 	align-items: baseline;
-	gap: 16px;
+	gap: 12px;
 }
 .cart-summary h2 {
 	margin: 0;
-	font-size: var(--body-size);
-	line-height: var(--body-leading);
+	font-size: var(--small-size);
+	line-height: var(--small-leading);
+	font-weight: 600;
 }
 .cart-total-amount {
 	margin: 0;
-	font-size: var(--heading-size);
-	line-height: var(--heading-leading);
+	font-size: var(--subtitle-size);
+	line-height: var(--subtitle-leading);
 	font-weight: 600;
-	letter-spacing: var(--tracking-tight);
+	letter-spacing: var(--tracking-body);
 }
 .cart-summary p {
 	margin: 0;
+}
+.cart-summary .cart-advisory {
+	color: var(--muted);
+	font-size: var(--caption-size);
+	line-height: var(--caption-leading);
 }
 .cart-dirty {
 	flex-basis: 100%;
 	margin: 0;
 }
 .cart-summary > a {
-	display: flex;
-	width: 100%;
-	max-width: 26rem;
-	margin-inline-start: auto;
+	justify-self: start;
 }
-@media (min-width: 701px) {
-	.cart-columns,
-	.cart-line {
-		--cart-columns: 7rem minmax(0, 1fr) 17.5rem 7rem;
-	}
-	.cart-columns {
+.cart-rail {
+	display: none;
+}
+@media (min-width: 761px) {
+	.cart-rail {
 		display: grid;
-		grid-template-columns: var(--cart-columns);
-		gap: 0 24px;
-		padding-bottom: 12px;
-		font-size: var(--caption-size);
-		line-height: var(--caption-leading);
-		font-weight: 600;
-		letter-spacing: 0.04em;
-		text-transform: uppercase;
-		color: var(--muted);
-	}
-	.cart-columns > :first-child {
-		grid-column: 1 / 3;
-	}
-	.cart-columns > :last-child {
-		text-align: right;
-	}
-	.cart-line {
-		grid-template-columns: var(--cart-columns);
-		grid-template-areas:
-			"media details qty total"
-			"warn warn warn warn";
-		gap: 12px 24px;
-		align-items: start;
-		padding-block: 24px;
-	}
-	/* Quantity and unit price are already on the row, so desktop shows the total alone; a row without a quantity cell (closed cart, row awaiting approval) keeps the basis. */
-	.cart-line:has(.cart-quantity) .line-total > span {
-		position: absolute;
-		width: 1px;
-		height: 1px;
-		overflow: hidden;
-		clip-path: inset(50%);
-		white-space: nowrap;
-	}
-	.line-total {
-		display: block;
-		text-align: right;
+		gap: 16px;
+		padding: 24px 20px;
 	}
 }
-@media (min-width: 701px) and (max-width: 1023px) {
-	.cart-columns,
-	.cart-line {
-		--cart-columns: 5rem minmax(0, 1fr) 8.5rem 6rem;
+@media (min-width: 1055px) {
+	.cart-rail {
+		position: sticky;
+		top: 32px;
 	}
+}
+.cart-rail h2 {
+	margin: 0;
+}
+.cart-rail ul {
+	display: grid;
+	gap: 20px;
+	margin: 0;
+	padding: 0;
+	list-style: none;
+}
+.cart-rail-item {
+	display: grid;
+	grid-template-columns: 80px minmax(0, 1fr) auto;
+	grid-template-rows: auto 1fr;
+	column-gap: 12px;
+	row-gap: 8px;
+}
+.cart-rail-media {
+	grid-row: span 2;
+	width: 80px;
+	height: 80px;
+	overflow: hidden;
+	border-radius: 20px;
+	background: #f5f5f5;
+	box-shadow: inset 0 0 0 1px var(--hairline);
+}
+.cart-rail-media img {
+	display: block;
+	width: 100%;
+	height: 100%;
+	object-fit: cover;
+}
+.cart-rail-text {
+	min-width: 0;
+}
+.cart-rail-text h3 {
+	overflow: hidden;
+	margin: 0;
+	font-size: var(--small-size);
+	line-height: var(--small-leading);
+	font-weight: 600;
+	letter-spacing: var(--tracking-small);
+	white-space: nowrap;
+	text-overflow: ellipsis;
+}
+.cart-rail-text p,
+.cart-rail-price {
+	margin: 0;
+	font-size: var(--caption-size);
+	line-height: var(--caption-leading);
+}
+.cart-rail-text p {
+	color: var(--muted);
+}
+.cart-rail-price {
+	font-size: var(--small-size);
+	font-weight: 600;
+}
+.cart-rail-item > .cart-mutation {
+	grid-column: 2 / -1;
+	align-self: center;
 }
 @media (max-width: 700px) {
 	.cart-page {
 		padding-top: 24px;
 	}
-	.cart-summary > div {
-		max-width: none;
+	.cart-card {
+		padding: 16px 16px 20px;
+		border-radius: 28px;
+	}
+	.cart-line {
+		grid-template-areas:
+			"media details total"
+			"qty qty qty"
+			"warn warn warn";
 	}
 }
 
@@ -367,7 +491,7 @@
 	font-size: var(--small-size);
 }
 .cart-mutation input[readonly] {
-	background: #f4f3f7;
+	background: #f5f5f5;
 	color: var(--caption);
 }
 .contents-label {
@@ -476,4 +600,9 @@ main.empty-state > .session-actions > .button {
 	main.empty-state > h1 {
 		letter-spacing: var(--tracking-body);
 	}
+}
+
+/* Cart row actions sit side by side: each form's fieldset takes its content width, not the row. */
+.cart-line-actions .cart-fields {
+	width: auto;
 }

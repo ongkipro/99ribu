@@ -19766,6 +19766,13 @@ components:
           description: The printed order number; matched case-insensitively.
         order_id:
           $ref: '#/components/schemas/Id'
+        tracking_number:
+          type: string
+          minLength: 6
+          maxLength: 64
+          pattern: ^[A-Za-z0-9][A-Za-z0-9 -]{5,63}$
+          description: A parcel's resi (owner 2026-10-30); whitespace is removed and it is matched case-insensitively
+            against the order's shipments.
         contact:
           type: string
           minLength: 1
@@ -19777,8 +19784,10 @@ components:
         - order_number
       - required:
         - order_id
+      - required:
+        - tracking_number
       additionalProperties: false
-      description: Exactly one order reference. Contact must match the order server-side; an unknown order
+      description: Exactly one order reference (order number, order id or resi). Contact must match the order server-side; an unknown order
         or a mismatched contact gets the same 202 with a challenge that no code verifies, so the response
         never reveals whether the order exists.
     Challenge:

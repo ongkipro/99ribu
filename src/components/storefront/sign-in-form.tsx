@@ -4,7 +4,7 @@ import Link from "next/link";
 import { useEffect, useRef, useState } from "react";
 import { type AuthMode, authHref, codeInput, failureKind, failureMessage, type SignInStep, signInHref } from "./sign-in-copy";
 import { Icon } from "./ui/icon";
-import { Wordmark } from "./ui/brand";
+import { BrandLink } from "./ui/brand";
 
 type Field = "email" | "password" | "code";
 export type SignInError = { message: string; field: Field | null };
@@ -117,7 +117,7 @@ export function SignInForm({ next, step: initialStep = "password", error: initia
 		<form className="signin-card" method="post" action="/masuk/kirim" onSubmit={submit} noValidate aria-labelledby={headingId}>
 			<input type="hidden" name="step" value={step} />
 			{next && <input type="hidden" name="next" value={next} />}
-			<span className="brand signin-mark" aria-hidden="true"><Wordmark /></span>
+			<BrandLink className="signin-mark" />
 			{step === "password" && <AuthSwitch mode="masuk" next={next} onMode={onMode} />}
 			<Heading id={headingId}>{step === "password" ? "Masuk ke 99ribu" : "Verifikasi dua langkah"}</Heading>
 			<p className="signin-lead">
@@ -131,12 +131,12 @@ export function SignInForm({ next, step: initialStep = "password", error: initia
 				<>
 					<div className="signin-field">
 						<label htmlFor="signin-email">Email</label>
-						<input id="signin-email" name="email" type="email" inputMode="email" autoComplete="username" autoCapitalize="none" spellCheck={false} required maxLength={254} defaultValue={email ?? undefined}
+						<input id="signin-email" name="email" type="email" inputMode="email" autoComplete="username" autoCapitalize="none" spellCheck={false} placeholder="emailanda@gmail.com" required maxLength={254} defaultValue={email ?? undefined}
 							aria-invalid={invalid("email")} aria-describedby={described("email")} />
 					</div>
 					<div className="signin-field">
 						<label htmlFor="signin-password">Kata sandi</label>
-						<input id="signin-password" name="password" type="password" autoComplete="current-password" required maxLength={128}
+						<input id="signin-password" name="password" type="password" autoComplete="current-password" placeholder="Masukkan kata sandi" required maxLength={128}
 							aria-invalid={invalid("password")} aria-describedby={described("password")} />
 					</div>
 				</>

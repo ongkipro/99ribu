@@ -4,8 +4,8 @@
 }
 .signin-card .signin-resend .signin-submit:disabled {
 	border-color: var(--line);
-	background: #efedf3;
-	color: #64606e;
+	background: #efefef;
+	color: #707070;
 	box-shadow: none;
 }
 /* S123 contact inputs: the one-tap email typo fix ("Maksud Anda …?") under any email field, a 44px link-style

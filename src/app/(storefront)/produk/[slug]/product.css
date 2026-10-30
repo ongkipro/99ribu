@@ -47,11 +47,8 @@ main.product-detail .purchase-region .stock-exit {
 }
 /* Quantity locked with the action (out of stock, unknown result): the steps read as disabled too. */
 main.product-detail .quantity-stepper button:disabled {
-	color: var(--field-border);
+	color: rgba(18, 18, 18, 0.35);
 	cursor: not-allowed;
-}
-main.product-detail .quantity-stepper button:disabled:hover {
-	background: transparent;
 }
 main.product-detail .quantity-stepper:has(input[readonly]) input {
 	color: var(--muted);
@@ -68,7 +65,10 @@ main.product-detail .field-label > span {
 	font-weight: 400;
 }
 
-/* ---- Offer pills: links (switch at once, like shop.com's swatches). ---- */
+/* ---- Offer pills: links (switch at once). Owner 2026-10-30, shop.com size pills: 40px (44 on touch), full radius,
+   1.5px edge, 16px sides, 8px apart, 14/18 600, no fill or shadow. The current option has the ink edge; others the
+   line edge, ink on hover. Unavailable: no edge, 4% ink fill, muted struck-through label; "Belum tersedia" stays for
+   screen readers (the strike and the text, not colour alone). ---- */
 main.product-detail .offer-picker {
 	display: grid;
 	gap: 8px;
@@ -82,47 +82,62 @@ main.product-detail .offer-picker ul {
 	list-style: none;
 }
 main.product-detail .offer-picker a {
+	position: relative;
 	display: inline-flex;
-	flex-direction: column;
+	align-items: center;
 	justify-content: center;
+	box-sizing: border-box;
 	min-width: 0;
-	min-height: 44px;
-	padding: 8px 16px;
-	border: 1px solid var(--hairline);
-	border-radius: 22px;
-	background: #fff;
-	box-shadow: 0 2px 8px rgba(0, 0, 0, 0.06);
+	max-width: 100%;
+	min-height: 40px;
+	padding: 4px 16px;
+	border: 1.5px solid var(--line);
+	border-radius: 9999px;
+	background: transparent;
 	color: var(--ink);
 	font-size: var(--small-size);
 	line-height: var(--small-leading);
 	font-weight: 600;
 	letter-spacing: var(--tracking-small);
 	overflow-wrap: anywhere;
-	transition:
-		border-color 150ms cubic-bezier(0.4, 0, 0.2, 1),
-		box-shadow 150ms cubic-bezier(0.4, 0, 0.2, 1);
+	transition: border-color 100ms ease-out;
+}
+@media (pointer: coarse) {
+	main.product-detail .offer-picker a {
+		min-height: 44px;
+	}
 }
 main.product-detail .offer-picker a:hover {
-	border-color: var(--field-border);
-	color: var(--ink);
+	border-color: var(--ink);
+}
+main.product-detail .offer-picker a:active {
+	opacity: 0.5;
 }
 main.product-detail .offer-picker a[aria-current] {
 	border-color: var(--ink);
-	box-shadow: inset 0 0 0 1px var(--ink);
+	cursor: default;
 }
-/* Unavailable: still a link (its page explains and offers a way out), marked in text, not colour alone. */
 main.product-detail .offer-picker a:not([data-available]) {
-	background: var(--canvas);
+	border-color: transparent;
+	background: rgba(0, 0, 0, 0.04);
 	color: var(--muted);
+	text-decoration: line-through;
 }
-main.product-detail .offer-picker a:not([data-available])[aria-current] {
-	color: var(--ink);
+main.product-detail .offer-picker a:not([data-available]):is(:hover, [aria-current]) {
+	border-color: var(--ink);
 }
 main.product-detail .offer-picker small {
-	color: var(--muted);
-	font-size: var(--caption-size);
-	line-height: var(--caption-leading);
-	font-weight: 400;
+	position: absolute;
+	width: 1px;
+	height: 1px;
+	overflow: hidden;
+	clip-path: inset(50%);
+	white-space: nowrap;
+}
+@media (prefers-reduced-motion: reduce) {
+	main.product-detail .offer-picker a {
+		transition: none;
+	}
 }
 
 /* ---- Stock line: the unavailable state carries the warning colour beside its icon and text. ---- */
@@ -254,22 +269,23 @@ main.product-detail .gallery-count {
 
 /* ---- Sections: Deskripsi (open, clamped with "Baca selengkapnya"), shipping/payment rows. ---- */
 /* shop.com pdp-sections (2026-10-29 measure, 390/768/1440): the first section header starts 32px under the last
-   action row (24px buy-box gap + 8px), 24px below; hairlines only between sections (none above the first, none
-   under the last), measured rgb(237,239,241) on the #fbfbfb canvas = the hairline ink at 6%; 52px headers
+   action row (24px buy-box gap + 8px), 24px below; a line under every section (owner 2026-10-30, fading; shop.com has
+   none under the last), measured rgb(237,239,241) on the #fbfbfb canvas = the hairline ink at 6%; 52px headers
    18/20 600 -0.5px at every width; 16px chevrons. */
 main.product-detail .product-sections {
 	margin: 8px 0 24px;
 }
+/* Owner 2026-10-30: each section, the last ("Pengembalian") included, closes with a 1px line that fades from 14% ink
+   at the left to nothing at the right. */
 main.product-detail .product-policy {
-	border-bottom-color: color-mix(in srgb, var(--hairline) 60%, transparent);
+	border-style: solid;
+	border-width: 0 0 1px;
+	border-image: linear-gradient(90deg, rgba(18, 18, 18, 0.14), rgba(18, 18, 18, 0)) 1;
 }
 main.product-detail .product-policy > summary {
 	font-size: var(--subtitle-size);
 	line-height: var(--subtitle-leading);
 	letter-spacing: var(--tracking-body);
-}
-main.product-detail .product-policy:last-child {
-	border-bottom: 0;
 }
 main.product-detail .description-body {
 	padding-bottom: 16px;
@@ -353,8 +369,8 @@ main.product-detail .policy-rows svg {
 
 /* Step glyphs follow the text size (rem), as the stock icon does. */
 main.product-detail .quantity-stepper button > svg {
-	width: 1.25rem;
-	height: 1.25rem;
+	width: 20px;
+	height: 20px;
 }
 
 /* Related grid (shop.com "You might also like", 2026-10-29 measure): 5 columns with 32px column gaps on desktop
@@ -379,6 +395,26 @@ main.product-detail .related-shelf .product-grid {
 }
 main.product-detail .related-shelf {
 	margin-top: 64px;
+}
+/* Owner 2026-10-30: two rows first, one more per scroll to its end, five at most (listing-more rows=2 step=1 max=5); the static columns give the
+   first cap before the island runs (5/3/2 columns: 10/6/4 cards). Scripting disabled: every card shows. */
+@media (scripting: enabled) {
+	main.product-detail .related-grid li.product[data-later] {
+		display: none;
+	}
+	main.product-detail .related-grid:not(:has(.listing-more[data-rows])) .product-grid > li:nth-child(n + 11) {
+		display: none;
+	}
+	@media (max-width: 1050px) {
+		main.product-detail .related-grid:not(:has(.listing-more[data-rows])) .product-grid > li:nth-child(n + 7) {
+			display: none;
+		}
+	}
+	@media (max-width: 700px) {
+		main.product-detail .related-grid:not(:has(.listing-more[data-rows])) .product-grid > li:nth-child(n + 5) {
+			display: none;
+		}
+	}
 }
 main.product-detail .related-shelf .shelf-heading {
 	margin-bottom: 24px;
@@ -427,7 +463,7 @@ main.product-detail .purchase-region .cart-mutation .button.buy-now {
 	box-shadow: 0 2px 8px rgba(0, 0, 0, 0.12);
 }
 main.product-detail .purchase-region .cart-mutation .button.buy-now:hover {
-	background: #000;
+	background: var(--ink-hover);
 }
 main.product-detail .purchase-region .cart-mutation .button.buy-now:focus-visible {
 	outline: 2px solid var(--ink);

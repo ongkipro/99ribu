@@ -66,8 +66,10 @@ function CartControls({intent:base,label,subject,disabled=false,quantity=true,no
  // view so the feedback is seen.
  const submit=useRef<HTMLButtonElement>(null),fromBar=useRef(false),[barShown,setBarShown]=useState(false);
  // Enlarged text (root above 20px) keeps the bar off: wrapped, it would cover a third of the screen. The top 64px
- // belong to the fixed phone top bar, so a main button scrolled under it already counts as out of view.
- useEffect(()=>{const el=submit.current;if(!bar||!el)return;const observer=new IntersectionObserver(([entry])=>setBarShown(!entry.isIntersecting&&Number.parseFloat(getComputedStyle(document.documentElement).fontSize)<=20),{rootMargin:'-64px 0px 0px 0px'});observer.observe(el);return ()=>observer.disconnect();},[bar]);
+ // belong to the fixed phone top bar and the bottom to the phone dock (measured; 0 where it is hidden), so a main
+ // button under either already counts as out of view (owner 2026-10-30: it sat under the dock on the first screen).
+ useEffect(()=>{const el=submit.current;if(!bar||!el)return;const dock=Math.ceil(document.querySelector('.shopping-tabs')?.getBoundingClientRect().height??0);
+  const observer=new IntersectionObserver(([entry])=>setBarShown(!entry.isIntersecting&&Number.parseFloat(getComputedStyle(document.documentElement).fontSize)<=20),{rootMargin:`-64px 0px -${dock}px 0px`});observer.observe(el);return ()=>observer.disconnect();},[bar]);
  useEffect(()=>{if(!fromBar.current||state.phase==='idle')return;fromBar.current=false;submit.current?.closest('.purchase-region')?.scrollIntoView({block:'center',behavior:matchMedia('(prefers-reduced-motion: reduce)').matches?'auto':'smooth'});},[state]);
  const same=target(base)===target(state.intent);
  const [previous,setPrevious]=useState<Pick<CartMutationState,'phase'|'intent'|'message'|'blocked'|'code'>|null>(null);

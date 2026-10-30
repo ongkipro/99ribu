@@ -72,8 +72,11 @@ export default async function Categories({
 	return (
 		<Shell active="category">
 			<main id="main" className="wrap categories-main">
-				<h1>Kategori produk</h1>
-				<p>Pilih kategori untuk melihat isi dan harga setiap pilihan.</p>
+				{/* Owner 2026-10-30: the same header as a category page (centred from 701px, left on phones). */}
+				<header className="listing-header">
+					<h1>Kategori produk</h1>
+					<p className="listing-lead">Pilih kategori untuk melihat isi dan harga setiap pilihan.</p>
+				</header>
 				<CategoryGrid tiles={tiles} />
 				{others.length > 0 && (
 					<section

@@ -125,7 +125,7 @@
 	color: #fff;
 }
 .filter-chip-clear:hover {
-	background: #000;
+	background: var(--ink-hover);
 }
 /* biome-ignore lint/style/noDescendingSpecificity: different elements (not the chip chevron); order is irrelevant. */
 .filter-chips .filter-chip-clear[href] > svg {
@@ -287,7 +287,7 @@
 	text-decoration: none;
 }
 .filter-done:hover {
-	background: #000;
+	background: var(--ink-hover);
 }
 .filter-reset:not(:disabled):hover {
 	background: #e3e6e8;
@@ -407,7 +407,7 @@
 	font-size: var(--small-size);
 }
 .listing-skeleton .product-frame {
-	background: #efedf3;
+	background: #efefef;
 	box-shadow: none;
 }
 .skeleton-line {
@@ -415,18 +415,18 @@
 	height: 14px;
 	margin-top: 12px;
 	border-radius: 7px;
-	background: #efedf3;
+	background: #efefef;
 }
 .skeleton-line.short {
 	width: 40%;
 	height: 12px;
 	margin-top: 6px;
 }
-/* Home "Terbaru" (owner 2026-10-29): four rows at every width from the 24-card server page; two columns on
-   phones. Only with the island running (without JS every card shows); "Lihat produk lainnya" first shows the
-   rest (data-expanded), then appends pages. */
+/* Home "Terbaru" (owner 2026-10-29): four rows at every width from the 24-card server page; two columns on phones
+   (listings too). Only with the island running (without JS every card shows); "Lihat produk lainnya" first shows
+   the rest (data-expanded), then appends pages. */
 @media (max-width: 700px) {
-	.home-latest .listing-grid {
+	:is(.home-latest, .listing-results) .listing-grid {
 		grid-template-columns: repeat(2, minmax(0, 1fr));
 	}
 	.home-latest:has(.listing-more[data-mounted]:not([data-expanded])) .listing-grid > .product-grid > li:nth-child(n + 9) {
@@ -441,6 +441,30 @@
 @media (min-width: 768px) and (max-width: 1023px) {
 	.home-latest:has(.listing-more[data-mounted]:not([data-expanded])) .listing-grid > .product-grid > li:nth-child(n + 17) {
 		display: none;
+	}
+}
+/* Category and search listings (owner 2026-10-30): five rows at a time, then five more per scroll (listing-more
+   `step`). Before the island runs, the static columns give the first cap (2/3/4 columns: 10/15/20 cards; six
+   columns show the whole 30-card page); after it, cards past the current rows carry data-later. Scripting
+   disabled: every card and the rel="next" link show. */
+@media (scripting: enabled) {
+	.listing-results .listing-grid li.product[data-later] {
+		display: none;
+	}
+	@media (max-width: 700px) {
+		.listing-results:not(:has(.listing-more[data-rows])) .listing-grid > .product-grid > li:nth-child(n + 11) {
+			display: none;
+		}
+	}
+	@media (min-width: 701px) and (max-width: 767px) {
+		.listing-results:not(:has(.listing-more[data-rows])) .listing-grid > .product-grid > li:nth-child(n + 16) {
+			display: none;
+		}
+	}
+	@media (min-width: 768px) and (max-width: 1023px) {
+		.listing-results:not(:has(.listing-more[data-rows])) .listing-grid > .product-grid > li:nth-child(n + 21) {
+			display: none;
+		}
 	}
 }
 /* With the island running, the crawlable next link stays in the DOM but out of view. */
@@ -500,3 +524,173 @@
 	border-color: rgba(5, 41, 77, 0.24);
 }
 
+
+/* ===== Category page header and feed cards (shop.com category curation, observed 2026-10-29) =====
+   Header (owner 2026-10-30, shop.com feed header): the title and the breadcrumb only, no lead line; centred from
+   701px (40px above, 16px to the breadcrumb at 14/18, 36px below), left-aligned on phones (20px above and below,
+   breadcrumb 12/16). The top level is muted, the current category ink, 16px chevrons between.
+   Cards: 28px radius, hairline border, small shadow (medium on hover), 24px padding with the
+   carousel running to the bottom edge; title row 36px round arrow; two cards per row from
+   1025px (a lone last card spans the row), four products per card view (2.3 on phones). */
+.listing-header {
+	max-width: 640px;
+	margin: 0 auto;
+	padding: 40px 0 36px;
+	text-align: center;
+}
+.listing-main .listing-header h1 {
+	margin: 0;
+}
+.categories-main .listing-header h1 {
+	margin: 0;
+}
+.listing-lead {
+	margin: 12px 0 0;
+	color: var(--muted);
+	font-size: var(--body-size);
+	line-height: var(--body-leading);
+	letter-spacing: var(--tracking-body);
+}
+.listing-header .breadcrumb {
+	list-style: none;
+	margin: 16px 0 0;
+	padding: 0;
+	display: flex;
+	flex-wrap: wrap;
+	justify-content: center;
+	gap: 4px;
+	font-size: var(--small-size);
+	line-height: var(--small-leading);
+	letter-spacing: var(--tracking-small);
+}
+.listing-header .breadcrumb li {
+	display: flex;
+	align-items: center;
+	gap: 4px;
+}
+.listing-header .breadcrumb a {
+	color: var(--muted);
+	text-decoration: none;
+}
+.listing-header .breadcrumb a[aria-current="page"] {
+	color: var(--ink);
+}
+.listing-header .breadcrumb a:hover {
+	text-decoration: underline;
+}
+.listing-header .breadcrumb :where(svg) {
+	width: 16px;
+	height: 16px;
+	color: var(--muted);
+}
+.collection-row {
+	list-style: none;
+	margin: 0 0 40px;
+	padding: 0;
+	display: grid;
+	grid-template-columns: minmax(0, 1fr);
+	gap: 16px;
+}
+@media (min-width: 1025px) {
+	.collection-row {
+		grid-template-columns: repeat(2, minmax(0, 1fr));
+	}
+	.collection-row > .collection-card:last-child:nth-child(odd) {
+		grid-column: 1 / -1;
+	}
+}
+.collection-card {
+	min-width: 0;
+	padding: 24px 24px 0;
+	border: 1px solid var(--hairline);
+	border-radius: 28px;
+	overflow: hidden;
+	background: #fff;
+	box-shadow: 0 1px 4px rgba(0, 0, 0, 0.06);
+	transition: box-shadow 150ms ease-out;
+}
+.collection-card:hover {
+	box-shadow: 0 6px 24px rgba(0, 0, 0, 0.1);
+}
+.listing-main .collection-title {
+	margin: 0 0 24px;
+}
+.listing-main .collection-title a {
+	display: flex;
+	align-items: center;
+	justify-content: space-between;
+	gap: 16px;
+	color: var(--ink);
+	text-decoration: none;
+}
+.collection-arrow {
+	display: grid;
+	flex: none;
+	place-items: center;
+	width: 36px;
+	height: 36px;
+	border-radius: 9999px;
+	background: rgba(0, 0, 0, 0.04);
+}
+.collection-title .collection-arrow :where(svg) {
+	width: 16px;
+	height: 16px;
+}
+.collection-title a:hover .collection-arrow {
+	background: rgba(0, 0, 0, 0.08);
+}
+.collection-card .shelf {
+	margin-bottom: 24px;
+}
+.collection-card .shelf-row {
+	grid-auto-columns: calc((100% - 3 * 16px) / 4);
+	column-gap: 16px;
+}
+.collection-card .shelf-arrow {
+	top: calc((100cqw - 3 * 16px) / 8);
+}
+.collection-row > .collection-card:last-child:nth-child(odd) .shelf-row {
+	grid-auto-columns: calc((100% - 7 * 16px) / 8);
+}
+.collection-row > .collection-card:last-child:nth-child(odd) .shelf-arrow {
+	top: calc((100cqw - 7 * 16px) / 16);
+}
+.listing-main .listing-all-heading {
+	margin: 0 0 16px;
+}
+@media (max-width: 1024px) {
+	.collection-row > .collection-card:last-child:nth-child(odd) .shelf-row {
+		grid-auto-columns: calc((100% - 3 * 16px) / 4);
+	}
+	.collection-row > .collection-card:last-child:nth-child(odd) .shelf-arrow {
+		top: calc((100cqw - 3 * 16px) / 8);
+	}
+}
+@media (max-width: 700px) {
+	.listing-header {
+		max-width: none;
+		padding: 20px 0;
+		text-align: left;
+	}
+	.listing-header .breadcrumb {
+		justify-content: flex-start;
+		font-size: var(--caption-size);
+		line-height: var(--caption-leading);
+	}
+	.collection-card {
+		padding: 20px 16px 0;
+	}
+	.listing-main .collection-title {
+		margin-bottom: 16px;
+	}
+	.collection-card .shelf-row,
+	.collection-row > .collection-card:last-child:nth-child(odd) .shelf-row {
+		margin-inline: -16px;
+		padding-inline: 16px;
+		column-gap: 8px;
+		grid-auto-columns: calc((100% - 2 * 8px) / 2.6);
+	}
+	.collection-card .shelf {
+		margin-bottom: 16px;
+	}
+}

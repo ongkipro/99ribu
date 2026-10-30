@@ -5,10 +5,11 @@ import {FilterPanel} from './filter-panel';
 import {FilterChips,type FilterGroup} from './filter-chips';
 import {ListingMore} from './listing-more';
 import {Icon} from '../ui/icon';
+import {CategoryCollections,type Collection} from './category-collections';
 type Category={id:string;name:string;slug:string;parent_id:string|null};
 type Facet={key:string;label:string;values:string[]};
 const kinds:Record<string,string>={unit:'Satuan',multipack:'Paket barang yang sama',bundle:'Paket campuran'};
-export function Listing({input,products,next,categories,categoryName,facets,pinned}:{input:CatalogQuery;products:PublicProduct[];next:string|null;categories:Category[];categoryName?:string;facets:Facet[];pinned?:{id:string;path:string}}){
+export function Listing({input,products,next,categories,categoryName,facets,pinned,collections=[]}:{input:CatalogQuery;products:PublicProduct[];next:string|null;categories:Category[];categoryName?:string;facets:Facet[];pinned?:{id:string;path:string};collections?:Collection[]}){
  // On a category page, links that keep its category (pagination, filter removal) stay on /category/<slug>.
  const url=(override:Partial<CatalogQuery>={})=>{const value={...input,cursor:null,...override},onPage=pinned&&value.category_id===pinned.id,params=new URLSearchParams();
   for(const key of ['q','category_id','offer_kind','availability','sort','limit','cursor'] as const) if(value[key]&&!(onPage&&key==='category_id')) params.set(key,String(value[key]));
@@ -35,7 +36,13 @@ export function Listing({input,products,next,categories,categoryName,facets,pinn
   {key:'availability',label:'Ketersediaan',value:stockLabel,active:Boolean(input.availability),clear:url({availability:null}),options:[choice('Semua stok',url({availability:null}),!input.availability),choice('Tersedia',url({availability:'available'}),input.availability==='available'),choice('Belum tersedia',url({availability:'unavailable'}),input.availability==='unavailable')]},
   ...facets.filter(f=>f.values.length).map(f=>{const chosen=input.attributes[f.key]??[];return {key:`facet-${f.key}`,label:f.label,value:chosen.length?chosen.join(', '):'Semua',active:chosen.length>0,multi:true,clear:url({attributes:Object.fromEntries(Object.entries(input.attributes).filter(([k])=>k!==f.key))}),options:f.values.map(v=>{const on=chosen.includes(v),values=on?chosen.filter(x=>x!==v):[...chosen,v].sort(),attributes={...input.attributes};if(values.length)attributes[f.key]=values;else delete attributes[f.key];return choice(v,url({attributes}),on);})};}),
  ];
- return <main id="main" className="wrap listing-main"><h1>{input.q?`Hasil untuk “${input.q}”`:categoryName??'Semua produk'}</h1>
+ // Category page header (shop.com curation header, observed 2026-10-29): centred title, one line
+ // of what the page holds, and the breadcrumb back to all categories. Search keeps its plain title.
+ const header=pinned&&!input.q&&categoryName?<header className="listing-header"><h1>{categoryName}</h1>
+  <nav aria-label="Breadcrumb"><ol className="breadcrumb"><li><Link href="/kategori">Semua kategori</Link><Icon name="forward"/></li><li><Link href={pinned.path} aria-current="page">{categoryName}</Link></li></ol></nav></header>
+  :<h1>{input.q?`Hasil untuk “${input.q}”`:categoryName??'Semua produk'}</h1>;
+ return <main id="main" className="wrap listing-main">{header}
+  {collections.length>0&&<><section className="listing-collections" aria-label={`Koleksi ${categoryName??''}`.trim()}><CategoryCollections collections={collections}/></section><h2 className="listing-all-heading">Semua produk</h2></>}
   <FilterChips groups={groups} clearAll={active.length>1?resetHref:null}/>
   <p className="sr-only" role="status">{active.length?`Filter: ${active.map(f=>f.label).join(', ')}.`:'Tanpa filter.'}{input.sort==='newest'?' Urutan: publikasi terbaru.':''}</p>
   {/* Removable filter row for no-JS (the chip row carries removal and "Hapus semua" with JS). */}
@@ -57,7 +64,7 @@ export function Listing({input,products,next,categories,categoryName,facets,pinn
    <div className="filter-actions"><button className="button" type="submit">Terapkan filter</button><Link className="reset-link" href={resetHref}>Hapus filter</Link></div>
   </form></FilterPanel></div></noscript>
   <section className="listing-results" aria-label="Hasil produk">
-   {products.length?<><h2 className="sr-only">Daftar produk</h2><div className="listing-grid"><ProductGrid products={products} input={input} eager={2}/><ListingMore key={url({cursor:null})} next={next?url({cursor:next}):null}/></div></>:<div className="empty-state"><h2>{next?'Belum ada kecocokan di halaman ini':'Belum ada produk yang sesuai'}</h2><p>{next?'Lanjutkan pencarian pada halaman berikutnya dengan filter yang sama.':'Coba kata lain atau hapus filter untuk melihat pilihan lain.'}</p><Link className="button" href={next?url({cursor:next}):'/cari'}>{next?'Halaman berikutnya':'Lihat semua produk'}</Link></div>}
+   {products.length?<><h2 className="sr-only">Daftar produk</h2><div className="listing-grid"><ProductGrid products={products} input={input} eager={2}/><ListingMore key={url({cursor:null})} next={next?url({cursor:next}):null} step={5}/></div></>:<div className="empty-state"><h2>{next?'Belum ada kecocokan di halaman ini':'Belum ada produk yang sesuai'}</h2><p>{next?'Lanjutkan pencarian pada halaman berikutnya dengan filter yang sama.':'Coba kata lain atau hapus filter untuk melihat pilihan lain.'}</p><Link className="button" href={next?url({cursor:next}):'/cari'}>{next?'Halaman berikutnya':'Lihat semua produk'}</Link></div>}
    {next&&products.length>0&&<div className="pagination"><Link className="button secondary" href={url({cursor:next})} rel="next">Halaman berikutnya</Link><p>Stok dan publikasi diperiksa lagi pada setiap halaman.</p></div>}
   </section>
  </main>;

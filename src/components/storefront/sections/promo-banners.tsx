@@ -1,21 +1,26 @@
 import Link from 'next/link';
 import {ShelfArrows} from '../ui/shelf-arrows';
 import {CatalogImage} from '../ui/media';
-import {Icon} from '../ui/icon';
 
-// Home promo banners (shop.com editorial rail, observed 2026-10-24: 410x520 photo-led cards 10px
-// apart, 28px radius, caption bottom-left). The data is a plain `banners` array so an admin-managed
-// source (S110, storefront/banners.ts currentHomeBanners) replaces the real-data defaults. Each banner leads with its photos (a
-// tilted collage of up to three curated, seal-free item photos) and shows a visible action pill.
-// shop.com drifts its rail continuously; with one to a few banners this one does not autoplay
-// (WCAG 2.2.2): native scroll, snap and the shelf arrows.
-export type Banner={id:string;title:string;body:string;href:string;action:string;tint:string;cutout?:string;images:{src:string;width:number;height:number;alt:string}[]};
+// Home promo banners as shop.com curation cards (owner 2026-10-29; see 11-promo-banners.css for the
+// measured geometry): the first photo fills the card, the title and body sit bottom-left on a dark
+// gradient, and up to three product thumbnails stack bottom-right. The data is a plain `banners` array
+// so an admin-managed source (S110, storefront/banners.ts currentHomeBanners) replaces the real-data
+// defaults; the admin editor previews the same card. `action` is read by assistive tech only (the
+// whole card is the link, as on shop.com). shop.com drifts its rail continuously; this one does
+// not autoplay (WCAG 2.2.2): native scroll, snap and the shelf arrows.
+type Photo={src:string;width:number;height:number};
+export type Banner={id:string;title:string;body:string;href:string;action:string;tint:string;cutout?:string;images:(Photo&{alt:string})[];stack?:Photo[]};
 // One rail card; the admin banner editor previews the same markup (S110).
 export function BannerCard({banner:b}:{banner:Banner}){
- return <Link className="banner-card" href={b.href} style={{'--banner-tint':b.tint} as React.CSSProperties}>
-  {b.images.length>0&&<span className="banner-media" data-count={b.images.length} data-cutout={b.cutout}>{b.images.map(image=>
-   <CatalogImage key={image.src} src={image.src} sizes="(max-width: 700px) 85vw, 410px" max={1080} min={320} alt={image.alt} width={image.width} height={image.height} loading="lazy" decoding="async" fetchPriority="low"/>)}</span>}
-  <span className="banner-caption"><strong>{b.title}</strong>{b.body&&<span>{b.body}</span>}<span className="banner-action">{b.action}<Icon name="forward"/></span></span>
+ const backdrop=b.images[0],stack=(b.stack??[]).filter(p=>p.src!==backdrop?.src).slice(0,3);
+ return <Link className="banner-card" href={b.href}>
+  {backdrop&&<CatalogImage className="banner-backdrop" src={backdrop.src} sizes="(max-width: 700px) 265px, (max-width: 1210px) 362px, 410px" max={1080} min={320} alt="" width={backdrop.width} height={backdrop.height} loading="lazy" decoding="async" fetchPriority="low"/>}
+  <span className="banner-content">
+   <span className="banner-copy"><strong className="banner-title">{b.title}</strong>{b.body&&<span className="banner-subtitle">{b.body}</span>}<span className="sr-only">{b.action}</span></span>
+   {stack.length>0&&<span className="banner-stack" aria-hidden="true">{stack.map(p=><span key={p.src} className="banner-thumb">
+    <CatalogImage src={p.src} sizes="40px" max={128} min={64} alt="" width={p.width} height={p.height} loading="lazy" decoding="async"/></span>)}</span>}
+  </span>
  </Link>;
 }
 export function PromoBanners({banners}:{banners:Banner[]}){

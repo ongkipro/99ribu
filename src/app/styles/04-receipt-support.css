@@ -143,9 +143,9 @@
 	color: var(--warning);
 }
 .receipt-status-card .checkout-payment-status[data-phase="closed"] {
-	border-color: #d8d8df;
+	border-color: var(--line);
 	border-left-color: #9e9ca8;
-	background: #f4f3f7;
+	background: #f5f5f5;
 	color: var(--ink);
 }
 .receipt-status-card .checkout-payment-status[data-phase="closed"] > svg {
@@ -224,7 +224,7 @@
 	align-items: center;
 	justify-content: space-between;
 	gap: 8px 12px;
-	background: #f7f6fa;
+	background: #f5f5f5;
 	border: 1px solid var(--line);
 	border-radius: 8px;
 	padding: 12px 16px;
@@ -245,7 +245,7 @@
 	font-size: var(--small-size);
 	line-height: 1.2;
 	font-weight: 600;
-	color: #3f3d48;
+	color: #3f3f3f;
 	background: #fff;
 	border: 1px solid #c9c7d3;
 	border-radius: 8px;
@@ -297,7 +297,7 @@
 :where(.receipt-cod-hero > small) {
 	font-size: var(--small-size);
 	line-height: 1.45;
-	color: #3f3d48;
+	color: #3f3f3f;
 	font-weight: 500;
 }
 :where(.receipt-cod-hero > small > span) {
@@ -307,7 +307,7 @@
 	display: block;
 	font-weight: 500;
 	font-size: var(--small-size);
-	color: #3f3d48;
+	color: #3f3f3f;
 }
 :where(
 	.receipt-cod-panel[data-settled="false"]
@@ -316,7 +316,7 @@
 		dt
 		> span
 ) {
-	color: #3f3d48;
+	color: #3f3f3f;
 	font-weight: 500;
 }
 :where(
@@ -405,7 +405,7 @@
 	font-size: var(--small-size);
 	line-height: 1.4;
 	font-weight: 600;
-	background: #efedf4;
+	background: #efefef;
 	color: var(--ink);
 	border: 0;
 	max-width: 100%;
@@ -502,7 +502,7 @@
 	box-shadow: 0 0 0 3px #efeaf9;
 }
 :where(.receipt-timeline li[data-state="cancelled"])::before {
-	background: #efedf4;
+	background: #efefef;
 	border-color: #9e9ca8;
 }
 .receipt-step-head {
@@ -526,7 +526,7 @@
 		strong
 ) {
 	font-weight: 500;
-	color: #3f3d48;
+	color: #3f3f3f;
 }
 .receipt-step-tag {
 	font-size: var(--caption-size);
@@ -547,7 +547,7 @@
 	color: #fff;
 }
 :where(.receipt-timeline li[data-state="cancelled"] .receipt-step-tag) {
-	background: #efedf4;
+	background: #efefef;
 	color: var(--caption);
 }
 :where(.receipt-timeline > li > span) {
@@ -593,7 +593,7 @@
 	.receipt-summary-card .checkout-content-label,
 	.receipt-summary-card .checkout-contents
 ) {
-	color: #3f3d48;
+	color: #3f3f3f;
 }
 .receipt-summary-card .checkout-summary-lines {
 	margin: 0;
@@ -1033,7 +1033,7 @@
 	padding: 12px;
 	border: 1px solid var(--line);
 	border-radius: 8px;
-	background: #f7f6fa;
+	background: #f5f5f5;
 	font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
 	font-size: var(--small-size);
 	word-break: break-all;

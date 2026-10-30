@@ -8,19 +8,24 @@ import type {LocalAuth} from '../access/auth.ts';
 // /kategori grids and the home hero. A department without a pick, or whose picked photo is no
 // longer on a current publication in that department, shows its tint without a photo.
 // 2026-10-28: the seller's original photos replaced the AI studio covers, so every pick below was re-chosen by eye among
-// ALL photos of the department's products (cover or not). fashion-wanita, hewan-peliharaan and mainan-hobi have no
-// photo without a seller logo or text banner, so they show their tint until clean photos exist.
+// ALL photos of the department's products (cover or not). 2026-10-29: fashion-wanita, hewan-peliharaan and mainan-hobi got
+// picks whose only marks are the seller's small corner logo and a colour word; a department without a clean photo shows its tint.
+// 2026-10-30 (DEC-022, unit products only): dapur, elektronik, fashion-pria, ibu-anak, kesehatan and perkakas re-picked by eye
+// from their single products; hewan-peliharaan and mainan-hobi keep picks that show only while their products are published.
 export const DEPARTMENT_PHOTOS:Readonly<Record<string,{product:string;photo:string;reason:string}>>={
- dapur:{product:'164',photo:'9bff024f9858e2f94be1da678383cace0cf8e273cf44616ba1b02766d004b396',reason:'pastel knife set on a soft pink ground, no text or logo'},
- elektronik:{product:'268',photo:'696ab6951ef61eb5bc4c5aca1640cadf18b198b48caf786a2346f6bda2ecc759',reason:'four colour mini fans on white, no text'},
- 'fashion-pria':{product:'207',photo:'35dfdf54f9531805f4d88c20a65acd847912e4e8a1003556767cc90639330944',reason:'two tees laid flat on a plain purple ground, no text'},
+ dapur:{product:'296',photo:'a7bc066693637803711f0705f7717b162a97e2526572d6a8a59b5ed8f3c85600',reason:'navy insulated lunch bag on white, seller corner logo only'},
+ 'fashion-wanita':{product:'461',photo:'36a5290140a7fe233076f89052aece058a0a53da3a9a88deade51908a7327935',reason:'model carrying a black puffy tote, seller corner logo only, no text'},
+ 'hewan-peliharaan':{product:'198',photo:'fd36b184b36fa451cfd5bbfb1dd08a4dbf07bfcf8c8bd58c705074a75c141a18',reason:'green cat-toy ball with rope on white, colour word only'},
+ 'mainan-hobi':{product:'14',photo:'c8159b05aacb3c317355b51920f61d9ebc7130ea1eb196d64dbd3626ff1621af',reason:'four colour finger spinners on a plain grey ground, seller corner logo only, no text'},
+ elektronik:{product:'316',photo:'a8dafef657837c5e918c97f272ecdc2b4bda6680bb2e6335c3e2dc7258bbca42',reason:'flat antenna and cable on a wooden table, no text'},
+ 'fashion-pria':{product:'311',photo:'4553fe7c03214be4711035777cb2b7d2bfde7e9f9137dc4780feae86a3af8d30',reason:'dry bag held on a beach, no text'},
  ibadah:{product:'413',photo:'157a77faac08380900c3d9506140cae0e07a7169b8e76fd6a93e8e57ff3b35e7',reason:'model in sarung on a light panelled wall, no logo or claim'},
- 'ibu-anak':{product:'251',photo:'5f440796120ba4cb13baa2317a5649f6c990cf0c28ee2aaf30a5fee07126e10d',reason:'five girls\' dresses on white, no marks'},
+ 'ibu-anak':{product:'326',photo:'b9069d915e745b75782d2ea0ec05470dedaf003b4d37169a90fe9daf39c2c0e0',reason:'blue baby food container on a soft ground, colour word only'},
  kecantikan:{product:'325',photo:'1f90e888a06aae9fc61629fdd92ea6a2277af8598d75031e754e7459378c7054',reason:'makeup pouch with lipstick and perfume, small product mark only'},
- kesehatan:{product:'39',photo:'0f52541d8c2c0bf85e8bcdfc2b47913e9c8df41235061aab2590a3232d9cc53f',reason:'pair of ankle supports on white, no text'},
+ kesehatan:{product:'370',photo:'4f5f02907646297bbf959e0540762e7b0079155fc73a75d9ad551149bd58e62b',reason:'silver massager pen on white, small labels only'},
  'makanan-minuman':{product:'429',photo:'17905bcabc6b7fe18faee8e042badece8f9842bbdb7d669ff290ffe3bca3cd96',reason:'three rice packs with spices, product brand only'},
  otomotif:{product:'297',photo:'de97e4d64be04ef477d5e49bee4978ef8bbf0852ece15bd08b3dcef4ec3f28b6',reason:'spray cleaner and cloth on white, product brand only'},
- perkakas:{product:'83',photo:'6b307cc3e0f4c49ccf09597e4373c4cafa9d52b63a2fcbb622556a1aec1369a8',reason:'three pliers on white, no text'},
+ perkakas:{product:'348',photo:'be1a39ceba89ea4408b7c5b92b84b3ec3b98231253c242c6dce655d79d23ed79',reason:'socket set in its grey case on white, no text'},
  'rumah-tangga':{product:'417',photo:'bc8102543a0f',reason:'reed diffuser and box on a soft light ground, no text'},
 };
 // Catalog photo URLs are `/media/catalog/<title-slug>-<first 12 hex>.webp` (legacy `<sha256>.webp`):
@@ -49,15 +54,15 @@ export async function departmentPhotos(identity:LocalAuth,departments:readonly {
  return found;
 }
 
-// Hero photos: further clean picks that are not any department's photo, so the hero does not
+// Hero photos (unit products since 2026-10-30, DEC-022): further clean picks that are not any department's photo, so the hero does not
 // repeat the tiles and pills right below it. Shown in this order, only while still published.
 export const HERO_PHOTOS:readonly {product:string;photo:string;reason:string}[]=[
- {product:'180',photo:'6a0cc2b152321cce6a0eb5e32cad0d2b7c89d9f736563e3c1c1122e97b193c3b',reason:'hand-held LED torch on white, no text'},
  {product:'402',photo:'d30e3febe19c2e4c85eeccf6ec8b7dd05bfef84d9cb281d6caca2182c3fe9445',reason:'kids\' jersey front on white, tiny chest mark only'},
- {product:'190',photo:'239df681469c6e98011ed0d40a4219d11e6000b2d78d5279ba6f4801ec0022c1',reason:'stainless oil pot, lid and filter on a light counter, no text'},
- {product:'31',photo:'3c79b7b0d5787fb292cfa617a2f0b8fe2635b518a0c0f33f6e9d5dbfbede5429',reason:'pair of work gloves on white, no text'},
- {product:'150',photo:'c7ecdda78f2a1b4df0fac9fd1cc8e10c191680e5c04c8697c1fae69cf53331e7',reason:'lint remover in use on pink knit, no text'},
- {product:'155',photo:'49af0171cfb9bd28d1525cecfe04ee4bf1cda8b613edec826aec3745d813ef1b',reason:'colourful bed-sheet lifters on white, no text'},
+ {product:'335',photo:'67bbbd58fc1edd97f4db2229c0a942b0fd253da59466bdcf4e03f2f5f2fdbea6',reason:'quilted shoulder bag on a plain ground, no text'},
+ {product:'337',photo:'2cc000face4e3508d10debd286ebe876b22e1a61246f905d9586e152888aa273',reason:'two models in sarung on a light wall, small product mark only'},
+ {product:'416',photo:'f0f4335dd5d3465d1b72b985665fc03ad3e8ccb60e406451893c61369395e2f0',reason:'model with a crossbody bag, no text'},
+ {product:'418',photo:'2caee5c67247a64686d2486ae5eac401cb614a18748edea9e663314fc07edfe4',reason:'garden hose in use on a lawn, no text'},
+ {product:'428',photo:'42a156cbaeb741d49d4177993f897a3c6d343fab351684eb16086d89b7c0292d',reason:'bowls of spices on a light table, no text'}
 ];
 export const heroPhotos=(identity:LocalAuth)=>photosById(identity,HERO_PHOTOS.map(h=>h.photo));
 // Curated photos by content id (full sha256 or its first 12 hex), in the given order, only while a

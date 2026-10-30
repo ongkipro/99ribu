@@ -28,7 +28,8 @@ after(async()=>{
 });
 async function ownCategoryId(){const [row]=await identity.sql<{id:string}[]>`select id from app.category where slug=${`shop-${namespace}-busana`}`;assert.ok(row);return row.id;}
 async function ownHome(page:Page){
- for(const [index,name] of newest.entries()) await expect(page.locator('.product').nth(index).getByRole('heading',{level:3})).toHaveText(name);
+ // Home order (owner 2026-10-29): department highlights and the switcher come first; the newest lead the "Terbaru" feed.
+ for(const [index,name] of newest.entries()) await expect(page.locator('.home-latest .product').nth(index).getByRole('heading',{level:3})).toHaveText(name);
  // Live catalog photos are served same-origin by content hash; sample fixtures render labelled slots.
  // Same-origin catalog media only, directly or through the Next image optimizer (SEO name <title-slug>-<12 hex>, or the legacy sha256 name).
  for(const raw of await page.locator('img.product-image').evaluateAll(images=>images.map(i=>i.getAttribute('src')))){const src=raw?.startsWith('/_next/image?')?new URL(raw,origin).searchParams.get('url'):raw;assert.match(src??'',/^\/(?:media\/catalog\/(?:[a-z0-9-]+-[0-9a-f]{12}|[0-9a-f]{64})\.webp|fixtures\/)/);}
@@ -55,7 +56,7 @@ for(const width of [320,390,768,1440]) test(`built storefront home and category 
   assert.equal(await f.page.evaluate(()=>[...document.fonts].some(face=>face.family.replaceAll('"','')==='Inter'&&face.status==='loaded'&&face.unicodeRange.startsWith('U+0-FF,'))),true);
   await expect.poll(()=>f.page.evaluate(()=>document.documentElement.scrollWidth-document.documentElement.clientWidth),{message:'Page horizontal overflow delta'}).toBeLessThanOrEqual(1);
   const tabs=f.page.getByRole('navigation',{name:'Navigasi belanja'});if(width<=700){await expect(tabs).toBeVisible();await expect(tabs.getByRole('link')).toHaveCount(5);}else await expect(tabs).toBeHidden();
-  for(const [index,name] of newest.entries()) await expect(f.page.locator('.product').nth(index).getByRole('img',{name:`Slot foto ${name}; foto produk asli belum tersedia`})).toHaveCount(1);
+  for(const [index,name] of newest.entries()) await expect(f.page.locator('.home-latest .product').nth(index).getByRole('img',{name:`Slot foto ${name}; foto produk asli belum tersedia`})).toHaveCount(1);
   await mkdir(output,{recursive:true});await capture(f.page,`home-${width}.png`);
   await f.page.goto(origin+busana);await expect(f.page.getByRole('heading',{level:1,name:'Busana'})).toBeVisible();await expect(f.page.locator('.product')).toHaveCount(2);
   await expect.poll(()=>f.page.evaluate(()=>document.documentElement.scrollWidth-document.documentElement.clientWidth),{message:'Page horizontal overflow delta'}).toBeLessThanOrEqual(1);

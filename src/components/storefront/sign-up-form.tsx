@@ -8,7 +8,7 @@ import {
 	type SignInStep, type SignUpFailure, signInHref, signUpFailureField, signUpFailureKind, signUpFailureMessage,
 } from "./sign-in-copy";
 import { AuthSwitch, type ModeSwitch, post, SignInForm, type SignInError } from "./sign-in-form";
-import { Wordmark } from "./ui/brand";
+import { BrandLink } from "./ui/brand";
 import { EmailSuggestion, filterContact } from "./ui/contact-fields";
 import { Icon } from "./ui/icon";
 import { displayPhone, isValidEmail, looksLikeWhatsApp, normalizeEmailInput, WHATSAPP_PATTERN } from "../../modules/storefront/contact";
@@ -108,7 +108,7 @@ function SignUpForm({ next, sent: initialSent, error: initialError, resent, moda
 	if (sent) {
 		return (
 			<div className="signin-card" data-testid="signup-sent">
-				<span className="brand signin-mark" aria-hidden="true"><Wordmark /></span>
+				<BrandLink className="signin-mark" />
 				<span className="signin-sent-icon" aria-hidden="true"><Icon name="mail" size={28} /></span>
 				<Heading ref={headingRef} tabIndex={-1} id="signup-sent-heading">Cek email Anda untuk verifikasi</Heading>
 				<p className="signin-lead">
@@ -130,18 +130,18 @@ function SignUpForm({ next, sent: initialSent, error: initialError, resent, moda
 		<form className="signin-card" method="post" action="/masuk/kirim" onSubmit={submit} noValidate aria-labelledby="signup-heading">
 			<input type="hidden" name="step" value="signup" />
 			{next && <input type="hidden" name="next" value={next} />}
-			<span className="brand signin-mark" aria-hidden="true"><Wordmark /></span>
+			<BrandLink className="signin-mark" />
 			<AuthSwitch mode="daftar" next={next} onMode={onMode} />
 			<Heading id="signup-heading">Buat akun 99ribu</Heading>
 			<p className="signin-lead">Lacak pesanan, simpan alamat, dan lihat riwayat belanja.</p>
 			<div className="signin-field">
 				<label htmlFor="signup-name">Nama</label>
-				<input id="signup-name" name="name" type="text" autoComplete="name" required maxLength={NAME_MAX}
+				<input id="signup-name" name="name" type="text" autoComplete="name" placeholder="Nama lengkap" required maxLength={NAME_MAX}
 					value={name} onChange={(event) => setName(event.currentTarget.value)} aria-invalid={invalid("name")} aria-describedby={described("name")} />
 			</div>
 			<div className="signin-field">
 				<label htmlFor="signup-email">Email</label>
-				<input id="signup-email" name="email" type="email" inputMode="email" autoComplete="email" autoCapitalize="none" spellCheck={false} required maxLength={254}
+				<input id="signup-email" name="email" type="email" inputMode="email" autoComplete="email" autoCapitalize="none" spellCheck={false} placeholder="emailanda@gmail.com" required maxLength={254}
 					value={email} onChange={(event) => setEmail(event.currentTarget.value)} onBlur={() => setEmail(normalizeEmailInput(email))}
 					aria-invalid={invalid("email")} aria-describedby={described("email", "signup-email-hint")} />
 				<EmailSuggestion value={email} onPick={setEmail} />
@@ -253,7 +253,7 @@ export function SetPasswordForm({ token, activation, email, phone = null, next, 
 				{next && <input type="hidden" name="next" value={next} />}
 				{/* Lets a password manager store the new password under the right account. */}
 				{email && <input type="email" name="username" autoComplete="username" value={email} readOnly hidden />}
-				<span className="brand signin-mark" aria-hidden="true"><Wordmark /></span>
+				<BrandLink className="signin-mark" />
 				<h1 id="set-password-heading">{activation ? "Buat kata sandi" : "Atur kata sandi baru"}</h1>
 				<p className="signin-lead">
 					{activation ? "Satu langkah lagi untuk mengaktifkan akun" : "Kata sandi baru untuk akun"}
@@ -280,7 +280,7 @@ const TOKEN_MESSAGE = "Tautan ini sudah dipakai atau kedaluwarsa. Minta tautan b
 export function PasswordDone({ activation, next, headingRef }: { activation: boolean; next: string | null; headingRef?: React.Ref<HTMLHeadingElement> }) {
 	return (
 		<div className="signin-card" data-testid="set-password-done">
-			<span className="brand signin-mark" aria-hidden="true"><Wordmark /></span>
+			<BrandLink className="signin-mark" />
 			<span className="signin-sent-icon" aria-hidden="true"><Icon name="check" size={28} /></span>
 			<h1 ref={headingRef} tabIndex={-1}>{activation ? "Akun sudah aktif" : "Kata sandi tersimpan"}</h1>
 			<p className="signin-lead">Masuk dengan email dan kata sandi baru Anda.</p>

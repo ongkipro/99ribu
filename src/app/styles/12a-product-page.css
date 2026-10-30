@@ -221,7 +221,9 @@
 	display: grid;
 	gap: 16px;
 }
-/* Quantity: shop.com's 40px pill (1px 10% ink edge, white) with minus and plus around the value. */
+/* Quantity (owner 2026-10-30, shop.com QuantitySelector): a 40px pill (44 on touch), 1px line edge, white, 8px
+   inside; 20px minus and plus glyphs whose 44px hit area overhangs the pill (::after), the 16/22 600 value in a
+   2.8em slot between them. The glyphs grow on hover and press in; minus fades at the minimum. */
 .product-detail .cart-quantity {
 	display: grid;
 	justify-items: start;
@@ -230,37 +232,60 @@
 .product-detail .quantity-stepper {
 	display: inline-flex;
 	align-items: center;
-	min-height: 44px;
-	border: 1px solid rgba(0, 0, 0, 0.1);
+	box-sizing: border-box;
+	min-height: 40px;
+	padding: 0 8px;
+	border: 1px solid var(--line);
 	border-radius: 9999px;
 	background: #fff;
 }
+@media (pointer: coarse) {
+	.product-detail .quantity-stepper {
+		min-height: 44px;
+	}
+}
 .product-detail .quantity-stepper button {
+	position: relative;
 	display: grid;
 	place-items: center;
-	width: 44px;
-	height: 42px;
+	width: 24px;
+	height: 24px;
 	padding: 0;
 	border: 0;
 	border-radius: 9999px;
 	background: transparent;
 	color: var(--ink);
+	transition: transform 100ms ease-out;
 }
-.product-detail .quantity-stepper button:hover {
-	background: rgba(0, 0, 0, 0.04);
+.product-detail .quantity-stepper button::after {
+	content: "";
+	position: absolute;
+	inset: -10px;
+}
+.product-detail .quantity-stepper button:hover:not(:disabled) {
+	transform: scale(1.1);
+}
+.product-detail .quantity-stepper button:active:not(:disabled) {
+	transform: scale(0.95);
 }
 .product-detail .purchase-region .quantity-stepper input[type="number"] {
-	width: 3rem;
-	min-height: 42px;
+	width: 2.8em;
+	min-height: 22px;
 	padding: 0;
 	border: 0;
 	border-radius: 0;
 	background: transparent;
 	box-shadow: none;
-	font-size: var(--small-size);
+	font-size: var(--body-size);
+	line-height: var(--body-leading);
 	font-weight: 600;
 	text-align: center;
 	appearance: textfield;
+}
+@media (prefers-reduced-motion: reduce) {
+	.product-detail .quantity-stepper button {
+		transition: none;
+	}
 }
 .product-detail .quantity-stepper input::-webkit-inner-spin-button,
 .product-detail .quantity-stepper input::-webkit-outer-spin-button {

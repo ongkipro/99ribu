@@ -1,9 +1,10 @@
-/* ===== Home promo banners (shop.com editorial rail, observed 2026-10-24; converged round 48) =====
-   shop.com "Discover something you love": 410x520 photo-led cards, 10px apart, 28px radius, caption
-   attached at the bottom. Here the photos fill the card edge to edge (one large photo over two, or
-   one photo filling the media area) and the caption with a visible action pill is attached below on
-   white: no tint slab, no tilt. 80% wide on phones. Rounded with clip-path so enlarged text can grow
-   the card; nothing autoplays (native scroll, snap and the shelf arrows). */
+/* ===== Home promo banners: shop.com curation cards (owner 2026-10-29; measured on shop.com 1440) =====
+   410x520 cards 10px apart (362 to 1210px, 265 on phones; same 410:520 ratio), 28px radius, the photo
+   edge to edge with a 16% top scrim (to 32%) and a bottom gradient to 50% black behind the copy. Copy
+   bottom-left (36/20/20 padding): title 24/26 600 -1px white, subtitle 14/18 at 75% white. Bottom-right
+   a stack of three 40px product thumbnails: white 10px tiles tilted -8/0/8deg, overlapping by 13px,
+   the middle one 11px higher, with a soft 0 4px 24px shadow. The whole card is the link. shop.com drifts
+   the rail continuously; this one does not autoplay (WCAG 2.2.2): native scroll, snap and the arrows. */
 .banner-row {
 	list-style: none;
 	margin: 0;
@@ -22,19 +23,19 @@
 	display: none;
 }
 .banner {
-	scroll-snap-align: start;
-	/* Cards in one rail share a height and their actions share a baseline (round 63). */
 	display: grid;
+	scroll-snap-align: start;
 }
 .banner-card {
-	display: grid;
-	grid-template-rows: auto 1fr;
-	min-height: 520px;
-	clip-path: inset(0 round 28px);
+	position: relative;
+	isolation: isolate;
+	display: flex;
+	align-items: flex-end;
+	aspect-ratio: 410 / 520;
+	overflow: hidden;
 	border-radius: 28px;
-	background: #fff;
-	box-shadow: inset 0 0 0 1px var(--hairline);
-	color: var(--ink);
+	background: var(--banner-deep, #2f2466);
+	color: #fff;
 }
 .banner-card:hover {
 	text-decoration: none;
@@ -43,179 +44,151 @@
 	outline: 3px solid var(--purple);
 	outline-offset: 4px;
 }
-.banner-media {
-	display: grid;
-	grid-template-columns: 1fr 1fr;
-	grid-template-rows: 3fr 2fr;
-	height: 330px;
-	gap: 2px;
-	background: rgba(5, 41, 77, 0.08);
-}
-.home-main .home-banners .banner-media img[alt] {
+.banner-backdrop {
+	position: absolute;
+	inset: 0;
+	z-index: -1;
 	width: 100%;
 	height: 100%;
-	min-height: 0;
 	object-fit: cover;
-	background: #fff;
+	transition: transform 500ms ease-out;
 }
-.home-main .home-banners .banner-media img[alt]:first-child {
-	grid-column: 1 / -1;
+.banner-card::before {
+	content: "";
+	position: absolute;
+	inset: 0;
+	z-index: -1;
+	background: linear-gradient(rgba(0, 0, 0, 0.16) 0%, transparent 32%);
+	pointer-events: none;
 }
-.home-main .home-banners .banner-media[data-count="1"] img[alt]:first-child,
-.home-main .home-banners .banner-media[data-count="2"] img[alt] {
-	grid-row: 1 / -1;
+.banner-content {
+	display: flex;
+	align-items: flex-end;
+	gap: 16px;
+	width: 100%;
+	min-width: 0;
+	padding: 36px 20px 20px;
+	/* shop.com uses 50%; our photos are bright cut-outs on white, so 62% keeps the 14px subtitle at
+	   >= 4.5:1 over a white ground. */
+	background: linear-gradient(transparent, rgba(0, 0, 0, 0.62) 55%);
 }
-.home-main .home-banners .banner-media[data-count="2"] img[alt]:first-child {
-	grid-column: auto;
-}
-.banner-caption {
-	display: grid;
-	grid-template-rows: auto auto 1fr;
-	justify-items: start;
-	gap: 6px;
-	padding: 20px 24px 24px;
+.banner-copy {
+	display: flex;
+	flex: 1;
+	flex-direction: column;
+	gap: 4px;
 	min-width: 0;
 }
-.home-main .home-banners .banner-caption strong {
+.banner-title {
+	font-size: var(--heading-size);
+	line-height: var(--heading-leading);
 	font-weight: 600;
-	letter-spacing: var(--tracking-body);
-}
-.home-main .home-banners .banner-caption > span:not(.banner-action) {
-	font-size: var(--body-size);
-	line-height: var(--body-leading);
-	color: var(--muted);
-}
-.home-main .home-banners .banner-action {
-	align-self: end;
-	display: inline-flex;
-	align-items: center;
-	gap: 6px;
-	min-height: 44px;
-	margin-top: 8px;
-	padding: 8px 16px 8px 20px;
-	background: var(--ink);
-	color: #fff;
-	font-size: var(--body-size);
-	font-weight: 600;
-	letter-spacing: var(--tracking-body);
-	max-width: 100%;
-	white-space: normal;
+	letter-spacing: -1px;
+	text-wrap: balance;
 	overflow-wrap: break-word;
-	border-radius: 22px;
 }
-.home-main .home-banners .banner-card .banner-action > svg {
+.banner-subtitle {
+	color: rgba(255, 255, 255, 0.75);
+	font-size: var(--small-size);
+	line-height: var(--small-leading);
+	letter-spacing: var(--tracking-small);
+}
+.banner-stack {
+	display: flex;
 	flex: none;
-	width: 1.125em;
-	height: 1.125em;
+	padding-top: 11px;
 }
-.banner-card:hover .banner-action {
-	background: #000;
+.banner-thumb {
+	display: block;
+	width: 40px;
+	height: 40px;
+	overflow: hidden;
+	border-radius: 10px;
+	background: #fff;
+	box-shadow: 0 4px 24px rgba(0, 0, 0, 0.16);
+	transform: rotate(-8deg);
+}
+.banner-thumb + .banner-thumb {
+	margin-left: -13px;
+}
+.banner-thumb:nth-child(2) {
+	position: relative;
+	z-index: 1;
+	margin-top: -11px;
+	margin-bottom: 11px;
+	transform: none;
+}
+.banner-thumb:nth-child(3) {
+	position: relative;
+	z-index: 2;
+	transform: rotate(8deg);
+}
+:where(.banner-thumb img) {
+	display: block;
+	width: 100%;
+	height: 100%;
+	object-fit: cover;
+}
+@media (hover: hover) {
+	.banner-card:hover .banner-backdrop {
+		transform: scale(1.05);
+	}
 }
 .banner-shelf .shelf-arrow {
 	top: 50%;
+}
+@media (max-width: 1210px) {
+	.banner-row {
+		grid-auto-columns: 362px;
+	}
 }
 @media (max-width: 700px) {
 	.banner-row {
 		margin-inline: calc(-1 * var(--gutter));
 		padding-inline: var(--gutter);
 		scroll-padding-inline: var(--gutter);
-		/* At least 14em, so enlarged text widens the card (full width at 320/200%), as the shelf does. */
-		grid-auto-columns: max(min(80%, 410px), min(85%, 14em));
+		/* At least 14em, so enlarged text widens the card, as the shelf does. */
+		grid-auto-columns: max(265px, min(85%, 14em));
 	}
+	.banner-content {
+		padding: 28px 16px 16px;
+		gap: 12px;
+	}
+	.banner-title {
+		font-size: var(--subtitle-size);
+		line-height: var(--subtitle-leading);
+		letter-spacing: -0.5px;
+	}
+	/* A 265px card keeps the photo in view: two lines of body (the full text stays in the DOM). */
+	.banner-subtitle {
+		display: -webkit-box;
+		-webkit-box-orient: vertical;
+		-webkit-line-clamp: 2;
+		line-clamp: 2;
+		overflow: hidden;
+	}
+	.banner-thumb {
+		width: 32px;
+		height: 32px;
+		border-radius: 8px;
+	}
+	.banner-thumb + .banner-thumb {
+		margin-left: -10px;
+	}
+}
+/* Enlarged text: the card grows with its copy instead of clipping it. */
+@supports (height: max-content) {
 	.banner-card {
-		min-height: 0;
-	}
-	.banner-media {
-		height: auto;
-		aspect-ratio: 410 / 330;
-	}
-	.banner-caption {
-		padding: 16px 20px 20px;
+		min-height: max-content;
 	}
 }
 @media (prefers-reduced-motion: reduce) {
 	.banner-row {
 		scroll-behavior: auto;
 	}
-}
-
-/* Lone-banner layout (review 48; the caption's min-width: 0 and the wrapping action pill keep
-   enlarged text inside the card): a lone banner spans the container
-   from 701px with its photos on the left and the caption on the right (phones keep the rail card). */
-@media (min-width: 701px) {
-	.banner:only-child .banner-card {
-		grid-template-columns: minmax(0, 7fr) minmax(0, 5fr);
-		grid-template-rows: auto;
-		min-height: 400px;
+	.banner-backdrop {
+		transition: none;
 	}
-	.banner:only-child .banner-media {
-		height: 400px;
-	}
-	.banner:only-child .banner-caption {
-		grid-template-rows: none;
-		align-content: center;
-		padding: 40px;
-	}
-}
-/* The card's single column may shrink below the caption's min-content (pill padding plus the longest
-   word at 200% text), so lines wrap inside the card instead of widening it. */
-.banner-card {
-	grid-template-columns: minmax(0, 1fr);
-}
-/* A lone banner has nothing to peek at: on phones it takes the full row width. */
-.banner-row:has(> .banner:only-child) {
-	grid-auto-columns: 100%;
-}
-/* A banner without a photo (a shipping promotion) is its tint with ink text. */
-.banner-card:not(:has(.banner-media)) {
-	background: var(--banner-tint, #efeafd);
-	grid-template-rows: 1fr;
-	align-content: end;
-}
-/* The action pill sits at the card bottom, so the pills of one row align whatever the body length. */
-.banner-card > .banner-caption {
-	grid-template-rows: auto auto 1fr;
-}
-.home-main .home-banners .banner-card .banner-action {
-	align-self: end;
-}
-
-/* 320px with enlarged text: the rail keeps a peek of the next card (85% wide), so the arrow in the
-   action pill steps aside to let the caption fit. */
-@media (max-width: 359px) {
-	.home-main .home-banners .banner-card .banner-action > svg {
-		display: none;
-	}
-	.banner-caption {
-		padding-inline: 16px;
-	}
-}
-
-/* Cut-out product photos (white ground) sit contained on a brand tint (the pill/tile tokens), blended
-   with multiply so the white cut-out edges disappear into the tint; edge-to-edge photos stay as they are. */
-.banner-media[data-cutout="amber"] { background: var(--tint-amber); }
-.banner-media[data-cutout="slate"] { background: var(--tint-slate); }
-.banner-media[data-cutout="rose"] { background: var(--tint-rose); }
-.banner-media[data-cutout="blue"] { background: var(--tint-blue); }
-.banner-media[data-cutout="green"] { background: var(--tint-green); }
-.banner-media[data-cutout="violet"] { background: var(--tint-violet); }
-.banner-media[data-cutout="teal"] { background: var(--tint-teal); }
-.home-main .home-banners .banner-media[data-cutout] img[alt] {
-	box-sizing: border-box;
-	padding: 28px;
-	object-fit: contain;
-	background: transparent;
-	mix-blend-mode: multiply;
-}
-@media (max-width: 700px) {
-	.home-main .home-banners .banner-media[data-cutout] img[alt] {
-		padding: 16px;
-	}
-}
-/* The rail heading (20px; the 88px poster from 1024px) outranks the card titles (18px). */
-.home-main .home-banners .banner-card .banner-caption strong {
-	font-size: var(--subtitle-size);
-	line-height: 1.375rem;
 }
 /* shop.com's editorial rail at 1440 (2026-10-29 capture, read from pixels: the probe did not report
    it): a centred weight-800 poster heading, 65px cap height (about 88px type) on an 85px line pitch,

@@ -238,7 +238,8 @@ export function Topbar({
 				{search}
 			</div>
 			<div className="flex shrink-0 items-center gap-1 sm:gap-2">
-				{workspaces.length > 1 && <RoleChip workspaces={workspaces} lens={lens} />}
+				{/* S-V1 plan (role chip): only a multi-role account switches lenses; the owner (every workspace, one role) has none. */}
+				{roles.length > 1 && <RoleChip workspaces={workspaces} lens={lens} />}
 				<AccountMenu account={account} roles={roles} />
 			</div>
 		</header>

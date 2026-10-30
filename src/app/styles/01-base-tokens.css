@@ -27,22 +27,26 @@
 	color: var(--ink);
 	background: var(--surface);
 	font-synthesis: none;
-	/* Colour (shop.com measured 2026-10-25: text #000, page canvas oklch(.988 0 0), surfaces #fff).
-	   Muted and caption pass WCAG AA on both canvas and surface (4.72/4.84:1 and 4.90/4.93:1). */
-	--ink: #000;
+	/* Colour (shop.com measured 2026-10-25: text #000, secondary rgba(0,0,0,.56), page canvas oklch(.988 0 0),
+	   surfaces #fff, lines rgba(0,0,0,.1), 4% black fills). Owner 2026-10-30: no pure #000 text, the rest mirrors
+	   shop.com's neutrals: ink is shop.com's own near-black rgb(18,18,18), hover its rgb(40,40,40); muted and
+	   caption are the solid grey shop.com's .56 black gives on white (#707070: 4.95:1 on surface, 4.86:1 on canvas,
+	   4.54:1 on the 4% fill). Purple and yellow stay 99ribu's brand. */
+	--ink: #121212;
+	--ink-hover: #282828;
 	--purple: #5b35d5;
 	--purple-hover: #4823b6;
 	--yellow: #f6c945;
-	--store-muted: oklch(0.552 0.026 290.5);
+	--store-muted: #707070;
 	--muted: var(--store-muted);
-	--caption: rgba(0, 0, 0, 0.56);
+	--caption: #707070;
 	--canvas: #fcfcfc;
 	--surface: #fff;
-	--line: #d8d8df;
+	--line: rgba(0, 0, 0, 0.1);
 	/* shop.com's hairline edge on white surfaces (chips, cards, popovers, banners). */
 	--hairline: rgba(5, 41, 77, 0.1);
 	/* Form-field boundary (3:1 on white). */
-	--field-border: #85858e;
+	--field-border: #858585;
 	--error: #8b241d;
 	--error-surface: #fff4f2;
 	--warning: #9c3f0a;
@@ -338,7 +342,7 @@ body:has(> .store-header) {
 .photo-slot small {
 	font-size: var(--caption-size);
 	line-height: 1.125rem;
-	color: #64606e;
+	color: #707070;
 }
 .product-image {
 	display: block;
@@ -474,9 +478,9 @@ body:has(> .store-header) {
 	background: #f2eefc;
 }
 :where(.button:disabled) {
-	background: #efedf3;
-	border-color: #d8d8df;
-	color: #64606e;
+	background: #efefef;
+	border-color: var(--line);
+	color: #707070;
 	cursor: not-allowed;
 }
 .reset-link {
@@ -1073,9 +1077,9 @@ body:has(> .store-header) {
 	gap: 6px;
 }
 .cart-mutation .button:disabled {
-	background: #efedf3;
-	border-color: #d8d8df;
-	color: #64606e;
+	background: #efefef;
+	border-color: var(--line);
+	color: #707070;
 	cursor: not-allowed;
 }
 :where(.cart-feedback, .cart-warning) a:not(.button) {

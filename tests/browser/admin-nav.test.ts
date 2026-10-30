@@ -43,11 +43,16 @@ async function open(user: User | null, viewport = { width: 1440, height: 1000 },
 async function navRows(page: Page) {
 	const nav = page.getByRole("navigation", { name: "Navigasi Operator" }).first();
 	await expect(nav).toBeVisible();
-	for (const toggle of await nav.getByRole("button", { name: /^Buka / }).all()) await toggle.click();
+	// An opened group's toggle turns into "Tutup …", so positional handles shift; open the first closed one until none is left.
+	const closed = nav.getByRole("button", { name: /^Buka / });
+	for (let left = await closed.count(); left > 0; left = await closed.count()) {
+		await closed.first().click();
+		await expect(closed).toHaveCount(left - 1);
+	}
 	return nav.locator("li[data-nav-row]").evaluateAll((rows) =>
 		rows.map((row) => [
 			row.getAttribute("data-nav-row") ?? "",
-			[...row.querySelectorAll("ul a")].map((a) => a.textContent?.trim() ?? ""),
+			[...row.querySelectorAll(":scope ul a")].map((a) => a.textContent?.trim() ?? ""),
 		]),
 	);
 }

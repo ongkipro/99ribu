@@ -449,7 +449,7 @@ export function normalizeContactReference(raw: unknown): {
 // costs the same round trips as an unknown one.
 export async function findOrderContactMatch(
 	tx: TransactionSql,
-	where: { id: string } | { number: string },
+	where: { id: string } | { number: string } | { tracking: string },
 	contact: { channel: "phone" | "email"; value: string },
 ) {
 	const [row] = await tx<OrderContactRow[]>`
@@ -461,7 +461,13 @@ export async function findOrderContactMatch(
 			q.document->'contact'->>'email' as contact_email
 		from (select 1) seed
 		left join app.commerce_order o
-			on ${"id" in where ? tx`o.id = ${where.id}` : tx`o.number = ${where.number}`}
+			on ${"id" in where
+				? tx`o.id = ${where.id}`
+				: "number" in where
+					? tx`o.number = ${where.number}`
+					: // A resi belongs to one parcel; its shipment names the order.
+						tx`o.id = (select s.order_id from app.fulfillment f join app.order_shipment s on s.id = f.shipment_id
+							where upper(f.tracking_number) = ${where.tracking} limit 1)`}
 		left join app.checkout_quote q on q.id = o.quote_id
 	`;
 	return row?.id && orderContactMatches(row, contact) ? row : null;

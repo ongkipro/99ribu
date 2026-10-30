@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useEffect, useRef, useState } from "react";
+import { useRef, useState } from "react";
 import { maskedEmail } from "@/modules/accounts/masking";
 import type { AccountOrder } from "@/modules/accounts/order-summary";
 import type {
@@ -40,6 +40,8 @@ type Props = {
 	initialOrders: AccountOrder[];
 	// S126: null when signed out or when the completion read failed (the rest of the account still works).
 	initialCompletion?: CompletionData | null;
+	/** Signed out: the sign-in/sign-up forms (`SignInPanel`), rendered on the page instead of behind a button. */
+	entry?: React.ReactNode;
 };
 
 export function BuyerAccountClient({
@@ -51,6 +53,7 @@ export function BuyerAccountClient({
 	initialNotifications,
 	initialOrders,
 	initialCompletion = null,
+	entry = null,
 }: Props) {
 	const [profile, setProfile] = useState(initialProfile);
 	const [addresses, setAddresses] = useState(initialAddresses);
@@ -100,17 +103,6 @@ export function BuyerAccountClient({
 	const [guestChallengeId, setGuestChallengeId] = useState<string | null>(null);
 	const [guestOtp, setGuestOtp] = useState("");
 	const [recoveredOrderId, setRecoveredOrderId] = useState<string | null>(null);
-	const guestPanel = useRef<HTMLDetailsElement>(null);
-	useEffect(() => {
-		if (initialAuthenticated) return;
-		const desktop = window.matchMedia("(min-width: 701px)");
-		const syncDisclosure = () => {
-			if (guestPanel.current) guestPanel.current.open = desktop.matches;
-		};
-		syncDisclosure();
-		desktop.addEventListener("change", syncDisclosure);
-		return () => desktop.removeEventListener("change", syncDisclosure);
-	}, [initialAuthenticated]);
 
 	async function handleProfileSaveRun(e: React.FormEvent) {
 		e.preventDefault();
@@ -304,13 +296,16 @@ export function BuyerAccountClient({
 				"content-type": "application/json",
 				"idempotency-key": crypto.randomUUID(),
 			},
-			// S118: buyers hold the printed number (99-…); an order id still works for old links.
+			// S118: buyers hold the printed number (99-…); an order id still works for old links. Owner 2026-10-30:
+			// anything else is a parcel's resi (tracking_number); the contact must match the order either way.
 			body: JSON.stringify({
 				...(/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(
 					guestOrderId.trim(),
 				)
 					? { order_id: guestOrderId.trim() }
-					: { order_number: guestOrderId.trim() }),
+					: /^99-/i.test(guestOrderId.trim())
+						? { order_number: guestOrderId.trim() }
+						: { tracking_number: guestOrderId.trim() }),
 				contact: guestContact.trim(),
 			}),
 		});
@@ -319,7 +314,7 @@ export function BuyerAccountClient({
 			setGuestChallengeId(data.challenge_id);
 			setStatusMsg("Kode verifikasi akses pesanan tamu telah dikirim.");
 		} else {
-			setStatusMsg("Gagal memverifikasi nomor pesanan dan kontak tamu.");
+			setStatusMsg("Gagal memeriksa nomor pesanan atau resi dan kontak.");
 		}
 	}
 
@@ -788,83 +783,42 @@ export function BuyerAccountClient({
 							{statusMsg}
 						</output>
 					)}
-					<div className="account-signed-out">
-						<section
-							className="account-intro"
-							aria-labelledby="account-heading"
-						>
-							<h1 id="account-heading">Akun</h1>
-							<p>Simpan alamat dan cek pesanan di satu tempat.</p>
-							<ul
-								className="account-benefits"
-								data-testid="account-signup-value"
-							>
-								<li>
-									<Icon name="truck" size={22} />
-									<span>Pantau pengiriman</span>
-								</li>
-								<li>
-									<Icon name="home" size={22} />
-									<span>Pakai alamat tersimpan saat checkout</span>
-								</li>
-								<li>
-									<Icon name="cart" size={22} />
-									<span>Beli lagi dari riwayat pesanan</span>
-								</li>
-							</ul>
-							<div className="account-actions">
-								<Link
-									className="button"
-									href="/masuk?langkah=daftar&next=%2Fakun"
-								>
-									Daftar
-								</Link>
-								<Link
-									className="button button-secondary"
-									href="/masuk?next=%2Fakun"
-								>
-									Masuk
-								</Link>
-							</div>
-						</section>
+					{/* Signed out (owner 2026-10-29, Shopify customer-account sign-in): one compact card that fits the
+					    first screen: the sign-in/sign-up forms, then the guest order lookup folded on its last row. */}
+					<div className="account-signed-out account-entry">
+						{entry}
 						<details
-							ref={guestPanel}
 							className="account-guest-details"
 							data-testid="guest-order-recovery-section"
 						>
-							{/* biome-ignore lint/a11y/noStaticElementInteractions: Native summary handles keyboard activation; only desktop collapsing is prevented. */}
-							<summary
-								className="account-guest-summary"
-								onClick={(event) => {
-									if (window.matchMedia("(min-width: 701px)").matches)
-										event.preventDefault();
-								}}
-							>
-								<h2 id="guest-recovery-heading">Cek pesanan tanpa akun</h2>
+							<summary className="account-guest-summary">
+								<h2 id="guest-recovery-heading">
+									<span>Pesan tanpa akun?</span> Cek pesanan
+								</h2>
 								<Icon name="down" size={20} />
 							</summary>
 							<div className="account-guest-content">
 								<p id="guest-recovery-help" className="checkout-hint">
-									Masukkan nomor pesanan dari tanda terima dan kontak yang
-									dipakai saat memesan. Kami kirim kode untuk membuka pesanan.
+									Masukkan nomor pesanan atau nomor resi, lalu email atau nomor
+									HP yang dipakai saat memesan. Kami kirim kode untuk membuka pesanan.
 								</p>
 								<form
 									onSubmit={handleRequestGuestRecovery}
 									aria-describedby="guest-recovery-help"
 								>
-									<label htmlFor="guest-order-id">Nomor pesanan</label>
+									<label htmlFor="guest-order-id">Nomor pesanan atau resi</label>
 									<input
 										id="guest-order-id"
 										data-testid="guest-recovery-order-id"
 										type="text"
 										value={guestOrderId}
 										onChange={(e) => setGuestOrderId(e.target.value)}
-										placeholder="99-XXXXXXXXXXXXXXXX"
+										placeholder="99-… atau nomor resi"
 										autoComplete="off"
 										required
 									/>
 									<label htmlFor="guest-order-contact">
-										Email atau nomor HP pesanan
+										Email atau nomor HP/WhatsApp
 									</label>
 									<input
 										id="guest-order-contact"
@@ -876,7 +830,7 @@ export function BuyerAccountClient({
 										maxLength={254}
 										value={guestContact}
 										onChange={(e) => setGuestContact(filterContact(e, true))}
-										placeholder="08… atau nama@email.com"
+										placeholder="emailanda@gmail.com atau 08…"
 										required
 									/>
 									<EmailSuggestion

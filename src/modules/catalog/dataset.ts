@@ -152,6 +152,21 @@ export async function ensureOriginWarehouses(identity: LocalAuth, principal: Pri
 }
 
 // catalog.json alone (no photo verification): enough to know which offers are the live catalog.
+// Owner 2026-10-30 (temporary): the local catalog carries single products only. Multipacks ("2 pcs") and bundles
+// stay in the committed dataset but the local seeding commands (import, initial stock, withdraw keep list, rehome)
+// see only products whose every offer is a `unit`, with the stock items and origin warehouses those offers use. Only
+// the committed default dataset is scoped; a dataset directory passed to the command is imported as given.
+// Set LOCAL_OFFER_KINDS to null to import every kind again.
+export const LOCAL_OFFER_KINDS: readonly Offer["kind"][] | null = ["unit"];
+export function inLocalScope(catalog: CatalogDocument): CatalogDocument {
+  const kinds = LOCAL_OFFER_KINDS;
+  if (!kinds) return catalog;
+  const products = catalog.products.filter((p) => p.offers.every((o) => kinds.includes(o.kind)));
+  const offers = products.flatMap((p) => p.offers);
+  const stock = new Set(offers.flatMap((o) => o.contents.map((c) => c.stock_item))), origins = new Set(offers.map((o) => o.warehouse));
+  return { ...catalog, products, stock_items: catalog.stock_items.filter((s) => stock.has(s.sku)), warehouses: catalog.warehouses.filter((w) => origins.has(w.key)) };
+}
+
 export function readCatalogDocument(directory: string): CatalogDocument {
   let bytes: Buffer;
   try { const fd = openSync(join(directory, "catalog.json"), constants.O_RDONLY | constants.O_NOFOLLOW);

@@ -23,7 +23,7 @@ const origin='http://127.0.0.1:3099',output=`${RENDERS}/s139`;
 const identity=createLocalAuth('local'),namespace=`s139-pdp-${randomUUID().slice(0,8)}`;
 let owner:Awaited<ReturnType<typeof actor>>|undefined,seeded:Awaited<ReturnType<typeof seedCommerce>>|undefined;
 const quarantined:{id:string;quantity:number}[]=[];
-const paths:Record<'default'|'bundle'|'multi'|'oos'|'unavailable'|'long',string>={default:'',bundle:'',multi:'',oos:'',unavailable:'',long:''};
+const paths:Record<'default'|'bundle'|'gallery'|'multi'|'oos'|'unavailable'|'long',string>={default:'',bundle:'',gallery:'',multi:'',oos:'',unavailable:'',long:''};
 let multiAlternate='';
 
 async function move(id:string,kind:'quarantine'|'release_quarantine',quantity:number){
@@ -59,9 +59,13 @@ test.before(async()=>{
  for(const position of positions)if(position.available>0){await move(position.id,'quarantine',position.available);quarantined.push({id:position.id,quantity:position.available});}
  paths.oos=`/produk/${await slugOf(cream.id)}`;
  // Real catalog photos for the other states: a product with photos, the largest bundle (seven items, long text), the longest title.
- paths.default=await catalogPath('10 pcs Lem Perekat Super Kuat');
- paths.bundle=await catalogPath('Paket Borongan Solusi Rumah Tangga');
- paths.long=await catalogPath('4 pcs Summerspring Parfum Mobil Kopi Bali, 30ml');
+ // DEC-022 (2026-10-30): the local catalog holds single (`unit`) products only, so these are unit products with the
+ // same traits: several offers and a long description (default), exactly four photos (gallery) and a long title. The
+ // several-item contents list comes from the owned fixture bundle (shirt and cream) instead of a catalog bundle.
+ paths.default=await catalogPath('Tyeso Silicone Coaster TS-8102');
+ paths.gallery=await catalogPath('Madu Hutan Liar Asli');
+ paths.bundle=`/produk/${await slugOf(curated.products['shirt-cream'].id)}`;
+ paths.long=await catalogPath('Tumbler Stainless Coffee Mug Egg Cangkir');
  paths.unavailable=`${paths.default}?offer=${randomUUID()}`;
 });
 test.after(async()=>{
@@ -92,8 +96,9 @@ for(const width of [390,768,1440])test(`PDP states render without overflow or co
    if(state==='oos'){await expect(f.page.getByText('Stok pilihan belum tersedia',{exact:true})).toBeVisible();await expect(f.page.getByRole('button',{name:'Tambah ke keranjang',exact:true})).toBeDisabled();await expect(f.page.getByRole('button',{name:'Tambah jumlah',exact:true})).toBeDisabled();await expect(f.page.getByRole('button',{name:'Kurangi jumlah',exact:true})).toBeDisabled();await expect(f.page.locator('.buy-bar')).toHaveCount(0);await expect(f.page.getByRole('link',{name:'Cari produk tersedia',exact:true})).toHaveAttribute('href',/availability=available/);}
    if(state==='unavailable'){await expect(f.page.getByRole('heading',{name:'Pilihan belum ditemukan',exact:true})).toBeVisible();await expect(f.page.locator('.detail-price')).toHaveText(/Rp99\.000/);assert.ok(await f.page.locator('.offer-picker a').count()>=1,'an unknown offer still lists the product\'s own options');await expect(f.page.locator('.offer-picker a[aria-current]')).toHaveCount(0);await expect(f.page.locator('.buy-box .cart-advisory').filter({hasText:'Belum ada pilihan'})).toHaveCount(0);}
    if(state==='multi'){await expect(f.page.locator('.offer-picker a')).toHaveCount(2);await expect(f.page.locator('.offer-picker .field-label')).toContainText('Isi 1 kaos');}
-   if(state==='bundle'){await expect(f.page.locator('.offer-detail li')).toHaveCount(7);await expect(f.page.locator('.read-more')).toHaveCount(1);}
-   if(['default','bundle','long'].includes(state)){await expect(f.page.locator('.related-shelf .product').first()).toBeVisible();}
+   if(state==='bundle'){await expect(f.page.locator('.offer-detail li')).toHaveCount(2);}
+   if(state==='default'){await expect(f.page.locator('.read-more')).toHaveCount(1);}
+   if(['default','long'].includes(state)){await expect(f.page.locator('.related-shelf .product').first()).toBeVisible();}
    // Phones: the buy bar shows while the main button is out of view (touch, the first screen).
    if(width===390&&state!=='oos'&&state!=='unavailable'){await f.page.evaluate(()=>window.scrollTo(0,0));
     const main=f.page.getByRole('button',{name:'Tambah ke keranjang',exact:true});if(!await main.evaluate(el=>{const r=el.getBoundingClientRect();return r.top<innerHeight&&r.bottom>0;}))await expect(f.page.locator('.buy-bar')).toBeVisible();
@@ -105,11 +110,14 @@ for(const width of [390,768,1440])test(`PDP states render without overflow or co
  }finally{await f.browser.close();}
 });
 
-test('S143: a men\'s grooming bundle is under Fashion Pria, and its description lists hang and fade instead of ending in an ellipsis',{timeout:60000},async()=>{
- const path=await catalogPath('Paket Barber & Grooming Pria di Rumah');
+test('S143: description lists hang and fade instead of ending in an ellipsis; DEC-022 keeps the grooming bundle off the storefront',{timeout:60000},async()=>{
+ // DEC-022: bundles are not imported while the local catalog is unit-only, so the S143 bundle is not public.
+ const search=await fetch(`${origin}/api/v1/products?${new URLSearchParams({q:'Paket Barber & Grooming Pria di Rumah',limit:'5'})}`);assert.equal(search.status,200);
+ assert.ok(!((await search.json()) as {data:{name:string}[]}).data.some(p=>p.name==='Paket Barber & Grooming Pria di Rumah'),'the grooming bundle is not published');
+ const path=await catalogPath('Timbangan Dapur Minuman Digital, 3 kg');
  const f=await start(1440);try{
   await open(f.page,path);
-  await expect(f.page.locator('.breadcrumb li').last()).toHaveText('Fashion Pria');
+  await expect(f.page.locator('.breadcrumb li').last()).toHaveText('Dapur');
   const text=f.page.locator('.description-body .detail-description');
   // The "- item" lines are a real list; its wrapped lines hang under the text (padding on the list, no text-indent).
   const list=text.locator('ul').first();await expect(list.locator('li')).toHaveCount(3);
@@ -160,10 +168,10 @@ test('listing cards link to the clean slug and add ?offer= only for an offer the
 });
 
 test('gallery thumbnails are server links, take their column before hydration and move the photo row',{timeout:60000},async()=>{
- const html=await (await fetch(origin+paths.bundle)).text();
+ const html=await (await fetch(origin+paths.gallery)).text();
  assert.match(html,/class="gallery-thumbs"[\s\S]*?<a href="#foto-1"[^>]*aria-label="Foto 1 dari 4"/,'thumbnail links are in the server HTML');
  const f=await start(1440);try{
-  await open(f.page,paths.bundle);const thumbs=f.page.locator('.gallery-thumbs a');await expect(thumbs).toHaveCount(4);await expect(thumbs.first()).toHaveAttribute('aria-current','true');
+  await open(f.page,paths.gallery);const thumbs=f.page.locator('.gallery-thumbs a');await expect(thumbs).toHaveCount(4);await expect(thumbs.first()).toHaveAttribute('aria-current','true');
   await thumbs.nth(2).click();await expect(thumbs.nth(2)).toHaveAttribute('aria-current','true');await expect.poll(()=>f.page.locator('.gallery-row').evaluate(el=>el.scrollLeft)).toBeGreaterThan(0);
   assert.equal(new URL(f.page.url()).hash,'','thumbnail clicks scroll the row only, without a page jump');
   await f.page.keyboard.press('Tab');await expect(thumbs.nth(3)).toBeFocused();await capture(f.page,'gallery-thumb-focus-1440',false);
@@ -173,7 +181,7 @@ test('gallery thumbnails are server links, take their column before hydration an
   assert.deepEqual(f.errors,[]);
  }finally{await f.browser.close();}
  // Without JavaScript the strip is already there and each thumbnail is a working in-page link.
- const nojs=await start(1440,false);try{await open(nojs.page,paths.bundle);await expect(nojs.page.locator('.gallery-thumbs a')).toHaveCount(4);await nojs.page.locator('.gallery-thumbs a').nth(1).click();assert.equal(new URL(nojs.page.url()).hash,'#foto-2');}finally{await nojs.browser.close();}
+ const nojs=await start(1440,false);try{await open(nojs.page,paths.gallery);await expect(nojs.page.locator('.gallery-thumbs a')).toHaveCount(4);await nojs.page.locator('.gallery-thumbs a').nth(1).click();assert.equal(new URL(nojs.page.url()).hash,'#foto-2');}finally{await nojs.browser.close();}
 });
 
 test('option links switch the offer at once, keep the return path and work without JavaScript',{timeout:60000},async()=>{

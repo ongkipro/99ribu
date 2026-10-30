@@ -1,3 +1,4 @@
+import {ListingMore} from '../../../../components/storefront/sections/listing-more';
 import type {Metadata} from 'next';
 import Link from 'next/link';
 import {permanentRedirect,redirect} from 'next/navigation';
@@ -37,13 +38,14 @@ export async function generateMetadata({params}:Props):Promise<Metadata>{
 }
 
 // shop.com "You might also like" grid (5 columns, 32px gaps on desktop), from what 99ribu has: other current
+// (owner 2026-10-30: two rows first, then one more row each time its end is reached, five at most; 25 cards)
 // products of the same category, newest first, through the guarded public reader. Streamed after the
 // buy box (its own Suspense boundary), so it never delays the product, price or purchase action.
 async function RelatedShelf({product,category}:{product:string;category:PublicCategory}){
  let items:Awaited<ReturnType<typeof listProducts>>['data']=[];
- try{items=(await listProducts(getLocalAuth(),catalogQuery(new URLSearchParams({category_id:category.id,sort:'newest',limit:'21'})))).data.filter(p=>p.id!==product).slice(0,20);}catch{return null;}
+ try{items=(await listProducts(getLocalAuth(),catalogQuery(new URLSearchParams({category_id:category.id,sort:'newest',limit:'26'})))).data.filter(p=>p.id!==product).slice(0,25);}catch{return null;}
  if(items.length<2)return null;
- return <section className="home-shelf related-shelf" aria-labelledby="related-heading"><h2 id="related-heading" className="shelf-heading"><Link href={`/kategori/${category.slug}`}>Lainnya di {category.name}<Icon name="forward"/></Link></h2><ProductGrid products={items}/></section>;
+ return <section className="home-shelf related-shelf" aria-labelledby="related-heading"><h2 id="related-heading" className="shelf-heading"><Link href={`/kategori/${category.slug}`}>Lainnya di {category.name}<Icon name="forward"/></Link></h2><div className="related-grid"><ProductGrid products={items}/><ListingMore next={null} step={1} rows={2} max={5} margin="0px"/></div></section>;
 }
 
 export default async function Product({params,searchParams}:Props){

@@ -12,7 +12,7 @@ import {CategoryPills} from './sections/category-pills';
 import {SearchBox} from './sections/search-box';
 import {Dock} from './sections/dock';
 import {Icon} from './ui/icon';
-import {SiteNotice,Wordmark} from './ui/brand';
+import {BrandLink,SiteNotice,Wordmark} from './ui/brand';
 import {ProductBar} from './product-bar';
 // Header and footer catalog chrome (top departments with their pill photos, search suggestions,
 // whether /promo has content) is the same for every visitor, so it is computed once per 30s per
@@ -48,7 +48,7 @@ export async function Shell({children,q='',active='home',department=null,product
   <SiteNotice/>
   <header className="store-header"><div className="header-main wrap">
    {/* Pointer hover/focus reveals "Serba 99ribu" (CSS only); the link is always named by its label. */}
-   <Link href="/" className="brand brand-reveal" aria-label="Serba 99ribu, beranda"><span className="grow" aria-hidden="true"><span>Serba&nbsp;</span></span>99<span>r<span className="grow" aria-hidden="true"><span>i</span></span>b<span className="grow" aria-hidden="true"><span>u</span></span></span><i aria-hidden="true">.</i></Link>
+   <BrandLink/>
    <search className="search-region"><SearchBox key={q} q={q} suggestions={suggestions}/></search>
    <nav className="utilities" aria-label="Belanja">{promo&&<Link href="/promo" aria-label="Promo" aria-current={active==='promo'?'page':undefined}><Icon name="tag"/></Link>}<Link href="/keranjang" aria-label={cartLabel} aria-current={active==='cart'?'page':undefined}><Icon name="cart"/>{count>0&&<b className="cart-count utility-count" aria-hidden="true">{count}</b>}</Link><Link href="/akun" aria-label="Akun" aria-current={active==='account'?'page':undefined}><Icon name="user"/></Link></nav>
   </div></header>

@@ -18,14 +18,19 @@ export async function handleGuestOrderAccessRoutes(
 	if (url.pathname === "/api/v1/guest-order-access/challenges") {
 		if (request.method !== "POST") throw new AccessError(404, "NOT_FOUND");
 		const key = mutationKey(request);
-		const body = object(await readBody(request), ["order_number", "order_id", "contact"]);
+		const body = object(await readBody(request), ["order_number", "order_id", "tracking_number", "contact"]);
 		// The contract field is `order_number` (what the buyer holds); `order_id` stays for callers
-		// that already have the UUID. Exactly one of them.
-		if ((body.order_number === undefined) === (body.order_id === undefined)) throw invalid();
+		// that already have the UUID; `tracking_number` (owner 2026-10-30) is a parcel's resi. Exactly one of them,
+		// and the contact must still match the order (the same decoy, budgets and code as an order number).
+		if ([body.order_number, body.order_id, body.tracking_number].filter((value) => value !== undefined).length !== 1) throw invalid();
 		const orderNumber =
 			body.order_number === undefined ? null : text(body.order_number, 19).toUpperCase();
 		if (orderNumber !== null && !/^99-[A-Z0-9]{16}$/.test(orderNumber)) throw invalid();
-		const orderRef = orderNumber === null ? id(body.order_id) : `n:${digest(orderNumber)}`;
+		const trackingNumber =
+			body.tracking_number === undefined ? null : text(body.tracking_number, 64).replace(/\s+/g, "").toUpperCase();
+		if (trackingNumber !== null && !/^[A-Z0-9][A-Z0-9-]{5,63}$/.test(trackingNumber)) throw invalid();
+		const orderRef =
+			orderNumber !== null ? `n:${digest(orderNumber)}` : trackingNumber !== null ? `t:${digest(trackingNumber)}` : id(body.order_id);
 		const contact = normalizeContactReference(body.contact);
 		const hash = await intentHash(identity, "guest_order_access.challenge", {
 			orderRef,
@@ -61,7 +66,7 @@ export async function handleGuestOrderAccessRoutes(
 			if (prior) return prior;
 			const order = await findOrderContactMatch(
 				tx,
-				orderNumber === null ? { id: orderRef } : { number: orderNumber },
+				orderNumber !== null ? { number: orderNumber } : trackingNumber !== null ? { tracking: trackingNumber } : { id: orderRef },
 				contact,
 			);
 			// Enumeration-safe: an unknown order or a contact that does not match gets the same 202

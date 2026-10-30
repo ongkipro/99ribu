@@ -1,7 +1,7 @@
 "use client";
 
 import { usePathname, useSearchParams } from "next/navigation";
-import { type ReactNode, Suspense, useEffect, useMemo, useState } from "react";
+import { type ReactNode, useEffect, useMemo, useState } from "react";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { activeHref, LENS_COOKIE, type NavBadgeKey, type NavCounts, navFor } from "./admin-nav";
 import type { CanonicalWorkspace } from "./admin-workspaces-client";
@@ -11,7 +11,6 @@ import { Brand, type ConsoleAccount, Topbar } from "./topbar";
 export type { ConsoleAccount } from "./topbar";
 
 const TABLET = "(min-width: 768px) and (max-width: 1023px)";
-const EMPTY = new URLSearchParams();
 
 /**
  * Spec 10 widths, final on the first paint (open P2 from the 2026-10-28 re-review): admin.css sizes
@@ -68,7 +67,6 @@ function Shell({
 	permissions,
 	account,
 	storedLens,
-	search,
 	children,
 }: {
 	workspaces: CanonicalWorkspace[];
@@ -76,10 +74,12 @@ function Shell({
 	permissions: string[];
 	account: ConsoleAccount;
 	storedLens: string | null;
-	search: URLSearchParams;
 	children: ReactNode;
 }) {
 	const pathname = usePathname();
+	// The console layout reads headers and cookies, so every admin route renders per request and the search
+	// params are known on the server. No Suspense here: its fallback would render the whole page a second time.
+	const search = useSearchParams();
 	const valid = (ws: string | null | undefined) => workspaces.find((w) => w === ws) ?? null;
 	// The home and the full queue page carry the lens in `?workspace=`; elsewhere the last one holds.
 	const requested = pathname === "/admin" || pathname === "/admin/antrian" ? valid(search.get("workspace")) : null;
@@ -149,10 +149,6 @@ function Shell({
 	);
 }
 
-function ShellWithSearch(props: Omit<Parameters<typeof Shell>[0], "search">) {
-	return <Shell {...props} search={useSearchParams()} />;
-}
-
 export function AdminShell(props: {
 	workspaces: CanonicalWorkspace[];
 	roles: CanonicalWorkspace[];
@@ -164,9 +160,7 @@ export function AdminShell(props: {
 }) {
 	return (
 		<TooltipProvider>
-			<Suspense fallback={<Shell {...props} search={EMPTY} />}>
-				<ShellWithSearch {...props} />
-			</Suspense>
+			<Shell {...props} />
 		</TooltipProvider>
 	);
 }

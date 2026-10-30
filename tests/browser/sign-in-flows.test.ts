@@ -35,14 +35,15 @@ test("modal over a storefront page: focus stays inside, Escape and close return 
 		const page = await browser.newPage({ viewport: { width: 1440, height: 900 } });
 		const errors: string[] = [];
 		page.on("pageerror", (error) => errors.push(error.message));
-		await page.goto(`${origin}/akun`);
+		// Signed-out /akun holds the forms inline (owner 2026-10-29); the home hero still opens the modal.
+		await page.goto(`${origin}/`);
 		const trigger = page.locator("main").getByRole("link", { name: "Masuk", exact: true });
 		await trigger.focus();
 		await page.keyboard.press("Enter");
 		const modal = page.getByRole("dialog", { name: "Masuk" });
 		await modal.waitFor();
-		assert.equal(page.url(), `${origin}/masuk?next=%2Fakun`);
-		assert.equal(await page.locator("main [data-testid=buyer-account-root]").count(), 1, "The page under the modal stays rendered");
+		assert.equal(page.url(), `${origin}/masuk`);
+		assert.equal(await page.locator("main.home-main").count(), 1, "The page under the modal stays rendered");
 		assert.ok(await focused(page, "#signin-email"), "Focus starts in the email field");
 		assert.equal(await modal.getByLabel("Email").getAttribute("autocomplete"), "username");
 		assert.equal(await modal.getByLabel("Kata sandi").getAttribute("autocomplete"), "current-password");
@@ -53,12 +54,12 @@ test("modal over a storefront page: focus stays inside, Escape and close return 
 		await page.screenshot({ path: `${RENDERS}/s112/test-modal-1440.png` });
 		await page.keyboard.press("Escape");
 		await modal.waitFor({ state: "detached" });
-		await page.waitForURL(`${origin}/akun`);
+		await page.waitForURL(`${origin}/`);
 		assert.ok(await trigger.evaluate((el) => el === document.activeElement), "Escape returns focus to the link that opened the modal");
 		await trigger.click();
 		await modal.getByRole("button", { name: "Tutup" }).click();
 		await modal.waitFor({ state: "detached" });
-		assert.equal(page.url(), `${origin}/akun`);
+		assert.equal(page.url(), `${origin}/`);
 		// A reload (or a shared link) of the modal URL renders the dedicated page, not a modal.
 		await trigger.click();
 		await modal.waitFor();
@@ -69,14 +70,14 @@ test("modal over a storefront page: focus stays inside, Escape and close return 
 	} finally { await browser.close(); }
 });
 
-test("buyer signs in from the modal and returns to the page under it (?next=)", async () => {
+test("buyer signs in with the inline /akun form and returns to the account (?next=/akun)", async () => {
 	const buyer = account("pembeli2@99ribu.test");
 	const browser = await launch();
 	try {
 		const page = await browser.newPage({ viewport: { width: 390, height: 844 } });
 		await page.goto(`${origin}/akun`);
-		await page.locator("main").getByRole("link", { name: "Masuk", exact: true }).click();
-		const modal = page.getByRole("dialog", { name: "Masuk" });
+		const modal = page.locator("main .signin-forms");
+		await modal.getByRole("heading", { level: 1, name: "Masuk ke 99ribu" }).waitFor();
 		await modal.getByLabel("Email").fill(buyer.email);
 		await modal.getByLabel("Kata sandi").fill("not-the-password-123");
 		await modal.getByRole("button", { name: "Masuk", exact: true }).click();

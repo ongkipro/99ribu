@@ -397,67 +397,108 @@
 :where(.account-empty p) {
 	margin: 0;
 }
+/* Signed out (owner 2026-10-30, shop.com sign-in, "buat clean"): no card frame. The /masuk column as it is on that
+   page (344px, centred on the canvas, brand mark, 32/35 800 heading, 28 on phones, muted lead, 52px pill fields and
+   primary pill), then the guest lookup as the column's last row under a hairline ("Pesan tanpa akun? Cek pesanan"
+   opens the lookup form in place). The forms' own footnote pointing to this page is hidden here. */
 .account-signed-out {
 	display: grid;
-	grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
-	align-items: start;
-	gap: 48px;
-	padding-block: 24px;
+	justify-items: center;
+	padding-block: 48px 64px;
 }
-.account-intro {
-	padding-block: 16px;
-	min-width: 0;
+.account-entry {
+	box-sizing: border-box;
+	width: min(100%, 344px);
+	margin-inline: auto;
 }
-:where(.account-intro h1) {
-	margin-top: 0;
+.account-entry > * {
+	width: 100%;
 }
-.account-benefits {
-	display: grid;
-	gap: 16px;
-	list-style: none;
-	padding: 0;
-	margin: 32px 0;
+.account-entry .signin-card {
+	width: 100%;
 }
-:where(.account-benefits li) {
-	display: flex;
-	align-items: start;
-	gap: 12px;
-}
-:where(.account-benefits svg, .account-guest-summary svg) {
-	flex: none;
+.account-entry .signin-hint:has(a[href="/akun"]) {
+	display: none;
 }
 .account-guest-details {
 	min-width: 0;
-	border: 1px solid var(--hairline);
-	border-radius: 20px;
-	background: var(--surface);
-	padding: 24px;
+	margin-top: 20px;
+	border-top: 1px solid var(--hairline);
 }
 .account-guest-summary {
 	display: flex;
 	justify-content: space-between;
 	align-items: center;
 	gap: 12px;
-	min-height: 44px;
+	min-height: 52px;
 	list-style: none;
 	cursor: pointer;
 }
 :where(.account-guest-summary::-webkit-details-marker) {
 	display: none;
 }
-:where(.account-guest-summary h2) {
+:where(.account-guest-summary svg) {
+	flex: none;
+	transition: rotate 150ms ease-out;
+}
+:where(.account-guest-details[open] .account-guest-summary svg) {
+	rotate: 180deg;
+}
+.account-signed-out .account-guest-summary h2 {
 	margin: 0;
+	font-size: var(--small-size);
+	line-height: var(--small-leading);
+	font-weight: 600;
+	letter-spacing: var(--tracking-small);
+}
+:where(.account-guest-summary h2 span) {
+	color: var(--muted);
+	font-weight: 400;
 }
 .account-guest-content {
-	padding-top: 12px;
+	padding: 0 0 20px;
 }
-@media (min-width: 701px) {
-	/* Native disclosure on phones; always expose the guest form on desktop, without a hydration shift. */
-	.account-guest-details::details-content {
-		content-visibility: visible;
-	}
+/* Owner 2026-10-30: the guest lookup uses the sign-in field language (12/16 600 labels, 52px pills on a 4% ink fill
+   with the field edge) and a full-width 52px secondary pill, so the folded form reads as part of one column. */
+.account-signed-out .account-guest-content form {
+	display: grid;
+	gap: 6px;
+	margin-top: 12px;
+}
+.account-signed-out .account-guest-content form label {
+	margin-top: 6px;
+	font-size: var(--caption-size);
+	line-height: var(--caption-leading);
+	font-weight: 600;
+	letter-spacing: var(--tracking-small);
+}
+.account-signed-out .account-guest-content form input {
+	box-sizing: border-box;
+	width: 100%;
+	min-height: 52px;
+	padding: 0 16px;
+	border: 1px solid var(--field-border);
+	border-radius: 9999px;
+	background-color: rgba(0, 0, 0, 0.04);
+	color: inherit;
+	font-size: var(--body-size);
+	line-height: var(--body-leading);
+	letter-spacing: var(--tracking-body);
+}
+.account-signed-out .account-guest-content form .button {
+	width: 100%;
+	min-height: 52px;
+	margin-top: 10px;
+}
+.account-signed-out .account-guest-content .checkout-hint {
+	margin: 0;
+	color: var(--muted);
+	font-size: var(--small-size);
+	line-height: var(--small-leading);
+}
+@media (prefers-reduced-motion: reduce) {
 	:where(.account-guest-summary svg) {
-		display: none;
+		transition: none;
 	}
 }
 @media (max-width: 700px) {
@@ -487,11 +528,9 @@
 		height: 48px;
 	}
 	.account-signed-out {
-		grid-template-columns: minmax(0, 1fr);
-		gap: 24px;
-		padding-top: 0;
+		padding-block: 16px 32px;
 	}
 	.account-guest-details {
-		padding: 16px;
+		margin-top: 12px;
 	}
 }

@@ -416,6 +416,9 @@ test("/akun and admin Segmen Pembeli render at 390 touch, 768 and 1440 without o
 			await admin.page
 				.getByRole("heading", { level: 1, name: "Segmen Pembeli" })
 				.waitFor();
+			// A streamed segment can sit in a hidden `S:n` div beside the shown copy until React swaps it in;
+			// strict locators would count both, so wait for the single settled page (a lasting duplicate still fails).
+			await expect(admin.page.getByTestId("buyer-segments-page")).toHaveCount(1);
 			for (const id of [
 				"segment-consent",
 				"segment-programs",

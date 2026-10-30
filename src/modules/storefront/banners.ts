@@ -13,13 +13,16 @@ import {photosById} from './department-photos.ts';
 // no hero, tile or department pick (so nothing repeats the sections above), high contrast, with no
 // percentage, price, discount, claim or badge overlay (product labels only): a reed diffuser
 // still life (round 62 replaced the soft Kopi Bali packs), a car dent puller, a men's sunglasses collage.
+// 2026-10-30 (DEC-022, unit products only): the men's sunglasses collage is a multipack and the mixed bundle is not
+// imported, so a pink tote carried by a model (Fashion Wanita) and a red make-up pouch (Kecantikan) keep three banners.
 // `tint`: a cut-out product photo on white sits contained on that brand tint (the pill/tile tokens);
 // without it the photo fills the media area edge to edge.
 export type HomeBanner={id:string;title:string;body:string;href:string;action:string;photo:string;tint?:'amber'|'slate'|'rose'|'blue'|'green'|'violet'|'teal';needs:'bundles'|{department:string}};
 export const HOME_BANNERS:readonly HomeBanner[]=[
  {id:'paket-campuran',title:'Paket campuran',body:'Misalnya pengharum mobil dan pengharum ruangan dalam satu pilihan lengkap Rp99.000.',href:'/promo',action:'Lihat paket',photo:'5e496b28d84b',needs:'bundles'},
  {id:'otomotif',title:'Rawat kendaraan sendiri',body:'Perlengkapan otomotif, setiap pilihan lengkap Rp99.000.',href:'/kategori/otomotif',action:'Lihat Otomotif',photo:'ef7fae0c77d4',tint:'slate',needs:{department:'otomotif'}},
- {id:'fashion-pria',title:'Gaya pria sehari-hari',body:'Fashion pria, setiap pilihan lengkap Rp99.000.',href:'/kategori/fashion-pria',action:'Lihat Fashion Pria',photo:'0f510b5d7bd5',needs:{department:'fashion-pria'}},
+ {id:'fashion-wanita',title:'Tas untuk sehari-hari',body:'Fashion wanita, setiap pilihan lengkap Rp99.000.',href:'/kategori/fashion-wanita',action:'Lihat Fashion Wanita',photo:'8646209b0dec',needs:{department:'fashion-wanita'}},
+ {id:'kecantikan',title:'Rapi di mana saja',body:'Perlengkapan kecantikan, setiap pilihan lengkap Rp99.000.',href:'/kategori/kecantikan',action:'Lihat Kecantikan',photo:'4f78c904a924',needs:{department:'kecantikan'}},
 ];
 export async function homeBanners(identity:LocalAuth,context:{bundles:number;departments:readonly {slug:string}[]}){
  const photos=await photosById(identity,HOME_BANNERS.map(b=>b.photo));

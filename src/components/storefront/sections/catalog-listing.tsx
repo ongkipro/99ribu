@@ -3,13 +3,16 @@ import { getLocalAuth } from "../../../modules/access/auth";
 import { AccessError } from "../../../modules/access/policy";
 import {
 	catalogQuery,
+	featuredDepartments,
 	listCategories,
 	listProducts,
+	type CatalogQuery,
 	type PublicCategory,
 	publicCategory,
 } from "../../../modules/storefront/catalog";
 import { isListingParam } from "../../../modules/storefront/navigation";
 import { Listing } from "./listing";
+import type { Collection } from "./category-collections";
 import { Shell } from "../shell";
 
 type Raw = Record<string, string | string[] | undefined>;
@@ -27,6 +30,61 @@ async function allCategories(identity: ReturnType<typeof getLocalAuth>) {
 		if (!cursor) break;
 	}
 	return { data };
+}
+
+const isPlain = (input: CatalogQuery) =>
+	!input.q &&
+	!input.cursor &&
+	!input.offer_kind &&
+	!input.availability &&
+	input.sort === "relevance" &&
+	!Object.keys(input.attributes).length;
+// Category feed cards above the full grid (clean category URL only). Each card is a real listing
+// view it links to: the category's newest, its mixed bundles when there are enough, otherwise the
+// next department in catalog order. A card needs four products; with fewer the grid says it all.
+async function collectionsFor(
+	identity: ReturnType<typeof getLocalAuth>,
+	category: PublicCategory,
+	path: string,
+): Promise<Collection[]> {
+	const query = (params: Record<string, string>) =>
+		catalogQuery(new URLSearchParams({ limit: "8", ...params }));
+	const bundle = query({ category_id: category.id, offer_kind: "bundle" });
+	const [newest, bundles, departments] = await Promise.all([
+		listProducts(identity, query({ category_id: category.id, sort: "newest" })),
+		listProducts(identity, bundle),
+		featuredDepartments(identity, 100),
+	]);
+	if (newest.data.length < 4) return [];
+	const cards: Collection[] = [
+		{ title: "Baru masuk", href: `${path}?sort=newest`, products: newest.data },
+	];
+	if (bundles.data.length >= 4)
+		cards.push({
+			title: "Paket campuran",
+			href: `${path}?offer_kind=bundle`,
+			products: bundles.data,
+			input: bundle,
+		});
+	else {
+		const at = departments.findIndex((d) => d.id === category.id);
+		const next = departments.filter((d) => d.id !== category.id)[
+			Math.max(at, 0) % Math.max(departments.length - 1, 1)
+		];
+		const other = next
+			? await listProducts(
+					identity,
+					query({ category_id: next.id, sort: "newest" }),
+				)
+			: null;
+		if (next && other && other.data.length >= 4)
+			cards.push({
+				title: `Jelajahi ${next.name}`,
+				href: `/kategori/${next.slug}`,
+				products: other.data,
+			});
+	}
+	return cards;
 }
 
 // Shared by /search and /category/<slug>. Parameters that are not listing state (utm_*, gclid,
@@ -66,6 +124,8 @@ export async function CatalogListing({
 			}
 		if (Object.keys(attributes).length)
 			params.set("attributes", JSON.stringify(attributes));
+		// Owner 2026-10-30: listing pages hold 30 cards, five full rows at six columns (the step island shows five rows at a time).
+		if (!params.has("limit")) params.set("limit", "30");
 		const input = catalogQuery(params),
 			identity = getLocalAuth();
 		const [result, categories] = await Promise.all([
@@ -75,15 +135,16 @@ export async function CatalogListing({
 		const category = input.category_id
 			? await publicCategory(identity.sql, input.category_id)
 			: null;
+		const collections =
+			pinned && isPlain(input)
+				? await collectionsFor(identity, pinned, basePath)
+				: [];
 		const current = category ? [category] : [];
 		const products = result.data;
 		const next = result.pagination.next_cursor;
 		const options = [
 			...new Map(
-				[
-					...current,
-					...categories.data,
-				].map((c) => [c.id, c]),
+				[...current, ...categories.data].map((c) => [c.id, c]),
 			).values(),
 		];
 		return (
@@ -105,6 +166,7 @@ export async function CatalogListing({
 						}[]
 					}
 					categoryName={current[0]?.name}
+					collections={collections}
 					facets={result.available_filters}
 					pinned={pinned ? { id: pinned.id, path: basePath } : undefined}
 				/>
@@ -130,9 +192,7 @@ export async function CatalogListing({
 					<Link
 						className="button"
 						href={
-							safeQuery
-								? `/cari?q=${encodeURIComponent(safeQuery)}`
-								: basePath
+							safeQuery ? `/cari?q=${encodeURIComponent(safeQuery)}` : basePath
 						}
 					>
 						Hapus filter

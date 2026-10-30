@@ -277,6 +277,12 @@ if (import.meta.main) {
           }
           // Browser suites and the integration *-http files share the owner's LOCAL database and built storefront:
           // publications this run's synthetic principals made are withdrawn afterwards (pass or fail) so fixtures never stay public.
+          // A killed run skips that teardown; under this lock no fixture is alive, so withdraw its synthetic leftovers first.
+          {
+            const { withdrawTestPublications } = await import("../src/modules/local/seed-runtime.ts");
+            const leaked = await withdrawTestPublications("local", "-infinity");
+            if (leaked.withdrawn) console.error(`Withdrew ${leaked.withdrawn} fixture publication(s) left public by an interrupted test run.`);
+          }
           const [started] = await connection.sql`select clock_timestamp()::text as at`;
           try { if (!(await checkFiles(files)).ok) process.exitCode = 1; }
           finally {

@@ -60,12 +60,16 @@ export default async function Home(){
  // Promo banners plus one per active shipping promotion; no banner, no section. S110: the admin-managed
  // banners current now (WIB windows) while any is not retired; otherwise the data-backed HOME_BANNERS defaults.
  const [bundles,promotions,managed]=await Promise.all([bundleOffers(identity,1),activeShippingPromotions(identity),currentHomeBanners(identity.sql)]);
+ // Curation-card thumbnails: a department banner shows that department's own products, any other the newest.
+ const photo=(p:(typeof products)[number])=>p.images[0]&&{src:sameOrigin(p.images[0].url),width:p.images[0].width,height:p.images[0].height};
+ const stack=(href:string)=>{const slug=/^\/kategori\/([^/?#]+)/.exec(href)?.[1],own=slug?shelves.find(s=>s.department.slug===slug)?.own:undefined;
+  return (own?.length?own:products).slice(0,4).map(photo).filter(p=>p!==undefined);};
  const banners:Banner[]=[
   ...(managed.configured
    ?managed.banners.map(b=>({id:b.id,title:b.title,body:b.subtitle??'',href:b.href,action:b.action_label,tint:'#efeafd',cutout:b.tint??undefined,images:[b.image]}))
    :(await homeBanners(identity,{bundles:bundles.length,departments})).map(b=>({id:b.id,title:b.title,body:b.body,href:b.href,action:b.action,tint:'#efeafd',cutout:b.tint,images:[{src:sameOrigin(b.image.url),width:b.image.width,height:b.image.height,alt:''}]}))),
   ...promotions.map(p=>({id:`shipping-${p.id}`,title:p.name,body:promotionSummary(p,rupiah),href:'/promo',action:'Lihat promo',tint:'#fdf3d6',images:[]})),
- ];
+ ].map(b=>({...b,stack:stack(b.href)}));
  let signedIn=false;try{await getPrincipal(await storefrontRequest('GET','/'),identity);signedIn=true;}catch{}
  return <Shell><JsonLd data={jsonLdGraph(organizationJsonLd(siteConfig()),websiteJsonLd(siteConfig()))}/><main id="main" className="wrap home-main"><HomeHero photos={heroPhotos} signedIn={signedIn}/>
   {groups.length>0&&<section className="home-shelf" aria-labelledby="categories-heading"><h2 id="categories-heading" className="shelf-heading"><Link href="/kategori">Kategori<Icon name="forward"/></Link></h2><CategoryGrid tiles={groups.map(({department,tint,tile})=>({department,tint,photo:tile}))}/></section>}
