@@ -303,6 +303,21 @@ Create Payment persists `reff_id` before the call and stores `trx_id`, the one n
 
 The AutoLaris `admin` fee is store cost and is never added to the buyer total: the buyer pays merchandise + shipping only. When the account deducts it from settlement it posts as `provider_fee_expense` (contribution payment cost), never as buyer revenue, surcharge, Purchase value or commission basis. The docs show `total = amount + admin`; the adapter refuses any payment whose returned `total` differs from the frozen buyer total, so the account must be configured with a merchant-borne fee (S97 confirms this with AutoLaris). Other open gates: callback payload/signature/source IP/retry, `expired` timezone, the complete advice status list and the `reff_id` uniqueness rule for Create Payment.
 
+Account fees observed live (read-only `GET /api/h2h/list_payment`, 2026-10-30, rc `00` "Sukses"; the runtime `list_payment` stays authoritative, these values are a record, not configuration):
+
+| Channel | Fee | Type (`tipe_admin`) | Offered by 99ribu |
+|---|---|---|---|
+| QRIS | 0.7% | persen | yes |
+| VABNI | Rp3.000 | fix | yes |
+| VAPERMATA | Rp3.000 | fix | yes |
+| VAMANDIRI | Rp3.000 | fix | yes |
+| VABRI | Rp3.000 | fix | yes |
+| VABCA | Rp6.500 | fix | yes |
+| OVO | 3% | persen | no (not in `AUTOLARIS_CHANNELS`) |
+| COD | 0 | fix | no (COD runs through Mengantar, DEC-007/DEC-009) |
+
+Per the rule above these fees are store cost (`provider_fee_expense`), never added to the buyer total. At Rp99.000 a QRIS payment costs about Rp693, a VA Rp3.000 (VABCA Rp6.500). The same account answered from the owner's machine without an IP whitelist (owner: the account is already allowed for the payment gateway).
+
 Implementation notes (S93, local simulated contract; live gated S97): the order channel is `autolaris` (prepaid, 30-minute window) and the buyer picks a channel enabled by `list_payment` (VABNI, VAPERMATA, VABCA, VAMANDIRI, VABRI, QRIS) when creating the attempt. The attempt persists `reff_id` (`99R` + attempt id) and the channel in `autolaris_payment` before any call; the leased `payment.create` adapter binds the attempt's payment operation, checks the channel against `list_payment`, calls Create Payment once and records the one response (`trx_id`, the single instruction field, `amount`, `admin`, `total`). A lost response leaves the job `unknown`; reconciliation replays the same `reff_id` (assumed provider dedupe by `reff_id`, an S97 gate) and never creates a second local payment. A response whose `amount` or `total` differs from the frozen buyer amount is recorded with `AUTOLARIS_AMOUNT_MISMATCH`/`AUTOLARIS_TOTAL_MISMATCH` and the attempt fails. The leased `payment.autolaris.advice` job polls every 5 minutes (at most 24 polls, stopping one interval after the payment window); each read is an append-only `autolaris_observation`. Only the simulated settlement status (`rc 00`, `status PAID`, with an amount) settles the attempt's operation and posts through the S23 callback (exact amount → receipt; other amount or late → recovery); `02/PENDING`, `SUCCESS`, `BERHASIL`, `DELIVERED` and anything else never pay. A deferred database seal refuses a confirmed AutoLaris collection without its settled observation for exactly the collected amount. `POST /api/v1/payments/autolaris/callbacks` stores the raw body (≤16 KiB) in `autolaris_callback` and never touches payment state. Manual confirmation: `POST /api/v1/admin/autolaris-payments/{attemptId}/confirmations` (finance reconciliation authority, `finance.reconcile` proof bound to the attempt, reason, evidence, paid time; audited `finance.autolaris_confirm`). The admin fee is kept on `autolaris_payment.admin_fee` and posts as `provider_fee_expense` when the AutoLaris settlement (gross = total, provider fee = admin, net = total − admin) is reconciled through S30. Local commands: `npm run worker -- --autolaris-paid <attemptId>` simulates the buyer paying and runs the due advice poll.
 
 ### Manual bank transfer and unique code (DEC-008)
