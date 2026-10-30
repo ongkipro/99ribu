@@ -2,14 +2,14 @@
 
 Adopted at repository root on 2026-10-16; updated 2026-10-21 upon completion of all 68 local slices (`S01`–`S68`) and assembled localhost readiness (`T-39`). External live-provider, physical hardware, and production deployment gates remain separate per `CTX-18`.
 
-Release-ID: LOCAL-20261024-S68
+Release-ID: PROD-20261030-3899d69 (previous local: LOCAL-20261024-S68)
 Base: 6f9f288
-Environment: local
+Environment: production (https://99ribu.com, Coolify 99ribu-prod; deployed 2026-10-30, commit 3899d69; see STATUS "Production deployment")
 Declared-Risk: R3
 Rollback-Ref: 410c2a4
 Rollback-Command: pg_restore --clean --if-exists --no-owner --no-privileges -d <disposable_restore_db> <backup_artifact.dump>
 Backup-Proof: PASS (2026-10-21: `tests/integration/localhost-readiness.test.ts` subtest 3 runs real `pg_dump -Fc` and `pg_restore` into disposable database `99ribu_restore_<uuid>`, reseals creating-XID triggers, verifies table/row/ledger parity and immutability triggers, and drops the disposable DB on teardown)
-Status: READY_FOR_LOCAL_ACCEPTANCE
+Status: DEPLOYED (catalog-only launch; off-host backup, rollback rehearsal and provider gates still open)
 Local-Acceptance: PASS 2026-10-24 (S01–S81, S90–S93 and post-audit gaps G1–G10 on the assembled localhost runtime; evidence in STATUS.md)
 Target: localhost production-mode application with synthetic data and simulated external effects
 
