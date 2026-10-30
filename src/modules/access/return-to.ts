@@ -46,7 +46,7 @@ export const CONSOLE_PATH_HEADER = "x-99ribu-console-path"; // set by src/proxy.
 export function consoleSignInRedirect(profile: string, signedIn: boolean, path: string | null) {
   if (profile !== "production" || signedIn) return null;
   const next = path && isAdminPath(path) ? safeReturnPath(path) : null;
-  return `/masuk?${new URLSearchParams({ next: next ?? "/admin" })}`;
+  return `/portal?${new URLSearchParams({ next: next ?? "/admin" })}`;
 }
 
 // Staff go to their console, buyers and affiliates to their account; a validated `next` wins when the role can use it.

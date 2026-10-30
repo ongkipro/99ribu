@@ -76,12 +76,12 @@ function AccountMenu({ account, roles }: { account: ConsoleAccount; roles: Canon
 	const [signOut, setSignOut] = useState<"idle" | "pending" | "failed">("idle");
 	if (!account)
 		return (
-			// Signed-out preview (local/test only; production redirects to /masuk in the layout).
+			// Signed-out preview (local/test only; production redirects to /portal in the layout).
 			<div data-testid="admin-account" className="flex items-center gap-2">
 				<p className="hidden text-xs text-muted-foreground lg:block">Pratinjau tanpa sesi staf.</p>
 				<Button asChild size="sm">
 					{/* Full document navigation: the storefront must not inherit the console stylesheet. */}
-					<a href="/masuk?next=%2Fadmin">
+					<a href="/portal?next=%2Fadmin">
 						<LogIn data-icon="inline-start" aria-hidden="true" />
 						Masuk sebagai staf
 					</a>
@@ -102,7 +102,7 @@ function AccountMenu({ account, roles }: { account: ConsoleAccount; roles: Canon
 			headers: { "content-type": "application/json" },
 			body: "{}",
 		}).catch(() => null);
-		if (response?.ok) window.location.assign("/masuk?next=%2Fadmin");
+		if (response?.ok) window.location.assign("/portal?next=%2Fadmin");
 		else setSignOut("failed");
 	}
 	return (

@@ -34,12 +34,14 @@ export function codeInput(step: SignInStep, raw: string) {
 // URL words for the no-JS round trip (/masuk?langkah=…&galat=…&tunggu=…).
 export const STEP_PARAM: Record<SignInStep, string | null> = { password: null, totp: "kode", backup: "cadangan" };
 export const stepFromParam = (value: unknown): SignInStep => (value === "kode" ? "totp" : value === "cadangan" ? "backup" : "password");
-export const signInHref = (next: string | null, step: SignInStep = "password") => {
+// `base`: /masuk (buyers) or /portal (owner and staff, sign-in only; owner 2026-10-30).
+export const PORTAL_PATH = "/portal";
+export const signInHref = (next: string | null, step: SignInStep = "password", base = "/masuk") => {
 	const query = new URLSearchParams();
 	if (STEP_PARAM[step]) query.set("langkah", STEP_PARAM[step]);
 	if (next) query.set("next", next);
 	const text = query.toString();
-	return text ? `/masuk?${text}` : "/masuk";
+	return text ? `${base}?${text}` : base;
 };
 
 // Waits of an hour or more come from the daily email budget (S123 review L1) and read in hours.

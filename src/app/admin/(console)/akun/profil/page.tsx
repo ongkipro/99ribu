@@ -23,7 +23,7 @@ export default async function AccountPage() {
 					<h2 className="text-base font-semibold">Masuk sebagai staf untuk melihat profil</h2>
 					<p className="text-sm text-muted-foreground">Profil hanya tersedia untuk akun staf dengan verifikasi dua langkah selesai.</p>
 					<Button asChild className="self-start max-md:self-stretch">
-						<a href="/masuk?next=%2Fadmin%2Fakun%2Fprofil">Masuk sebagai staf</a>
+						<a href="/portal?next=%2Fadmin%2Fakun%2Fprofil">Masuk sebagai staf</a>
 					</Button>
 				</section>
 			</AdminPage>

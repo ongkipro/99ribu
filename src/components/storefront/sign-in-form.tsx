@@ -2,9 +2,9 @@
 
 import Link from "next/link";
 import { useEffect, useRef, useState } from "react";
-import { type AuthMode, authHref, codeInput, failureKind, failureMessage, type SignInStep, signInHref } from "./sign-in-copy";
+import { type AuthMode, authHref, codeInput, failureKind, failureMessage, PORTAL_PATH, type SignInStep, signInHref } from "./sign-in-copy";
 import { Icon } from "./ui/icon";
-import { BrandLink } from "./ui/brand";
+import { BrandLink, Wordmark } from "./ui/brand";
 
 type Field = "email" | "password" | "code";
 export type SignInError = { message: string; field: Field | null };
@@ -36,7 +36,10 @@ export async function post(path: string, body: Record<string, string>) {
 
 // `modal`: rendered in the intercepted sheet over a storefront page (h2, success returns to that page).
 // `onMode`/`email`: the sign-up switch and the email carried over from it (sign-up-form.tsx:AuthForms).
-export function SignInForm({ next, step: initialStep = "password", error: initialError = null, modal = false, onMode, email = null }: { next: string | null; step?: SignInStep; error?: SignInError | null; modal?: boolean; onMode?: ModeSwitch; email?: string | null }) {
+// `portal`: the owner and staff door (/portal): sign-in only, no sign-up switch and no link to the shop;
+// staff accounts are created by the owner in the console.
+export function SignInForm({ next, step: initialStep = "password", error: initialError = null, modal = false, onMode, email = null, portal = false }: { next: string | null; step?: SignInStep; error?: SignInError | null; modal?: boolean; onMode?: ModeSwitch; email?: string | null; portal?: boolean }) {
+	const base = portal ? PORTAL_PATH : "/masuk";
 	const [step, setStep] = useState<SignInStep>(initialStep);
 	const [code, setCode] = useState("");
 	const [error, setError] = useState<SignInError | null>(initialError);
@@ -63,7 +66,7 @@ export function SignInForm({ next, step: initialStep = "password", error: initia
 		if (modal && !next) {
 			window.addEventListener("popstate", () => window.location.reload(), { once: true });
 			window.history.back();
-		} else window.location.assign(signInHref(next));
+		} else window.location.assign(signInHref(next, "password", base));
 	}
 
 	async function submit(event: React.FormEvent<HTMLFormElement>) {
@@ -117,12 +120,13 @@ export function SignInForm({ next, step: initialStep = "password", error: initia
 		<form className="signin-card" method="post" action="/masuk/kirim" onSubmit={submit} noValidate aria-labelledby={headingId}>
 			<input type="hidden" name="step" value={step} />
 			{next && <input type="hidden" name="next" value={next} />}
-			<BrandLink className="signin-mark" />
-			{step === "password" && <AuthSwitch mode="masuk" next={next} onMode={onMode} />}
-			<Heading id={headingId}>{step === "password" ? "Masuk ke 99ribu" : "Verifikasi dua langkah"}</Heading>
+			{portal && <input type="hidden" name="portal" value="1" />}
+			{portal ? <span className="brand signin-mark" aria-hidden="true"><Wordmark /></span> : <BrandLink className="signin-mark" />}
+			{step === "password" && !portal && <AuthSwitch mode="masuk" next={next} onMode={onMode} />}
+			<Heading id={headingId}>{step !== "password" ? "Verifikasi dua langkah" : portal ? "Portal staf" : "Masuk ke 99ribu"}</Heading>
 			<p className="signin-lead">
 				{step === "password"
-					? "Lihat pesanan, alamat tersimpan, dan status pengiriman."
+					? portal ? "Khusus pemilik toko dan staf. Akun staf dibuat oleh pemilik toko." : "Lihat pesanan, alamat tersimpan, dan status pengiriman."
 					: backup
 						? "Masukkan salah satu kode cadangan yang Anda simpan. Setiap kode hanya berlaku sekali."
 						: "Buka aplikasi autentikator, lalu masukkan 6 digit kode untuk 99ribu."}
@@ -151,14 +155,14 @@ export function SignInForm({ next, step: initialStep = "password", error: initia
 			)}
 			{alert}
 			<button className="button signin-submit" type="submit" disabled={pending}>{pending ? "Memeriksa…" : step === "password" ? "Masuk" : "Verifikasi"}</button>
-			{step === "password" ? (
+			{step === "password" ? (portal ? <p className="signin-hint">Setelah kata sandi, masukkan kode verifikasi dua langkah.</p> :
 				<p className="signin-hint">
 					Akun staf diminta kode verifikasi dua langkah. Belanja tetap bisa tanpa akun; pesanan tamu dibuka dari halaman <Link href="/akun">Akun</Link>.
 				</p>
 			) : (
 				<p className="signin-links">
-					<a href={signInHref(next, backup ? "totp" : "backup")} onClick={switchTo(backup ? "totp" : "backup")}>{backup ? "Pakai kode autentikator" : "Pakai kode cadangan"}</a>
-					<a href={signInHref(next)} onClick={switchTo("password")}>Mulai ulang dari email dan kata sandi</a>
+					<a href={signInHref(next, backup ? "totp" : "backup", base)} onClick={switchTo(backup ? "totp" : "backup")}>{backup ? "Pakai kode autentikator" : "Pakai kode cadangan"}</a>
+					<a href={signInHref(next, "password", base)} onClick={switchTo("password")}>Mulai ulang dari email dan kata sandi</a>
 				</p>
 			)}
 		</form>

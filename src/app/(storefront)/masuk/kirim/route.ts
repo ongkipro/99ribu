@@ -1,7 +1,7 @@
 import { getLocalAuth } from "@/modules/access/auth";
 import { handleAuth } from "@/modules/access/handler";
 import { PASSWORD_PATH, safeReturnPath, activationCallback } from "@/modules/access/return-to";
-import { type AuthMode, authHref, codeInput, failureKind, type SignInStep, signInHref, signUpFailureKind } from "@/components/storefront/sign-in-copy";
+import { type AuthMode, authHref, codeInput, failureKind, PORTAL_PATH, type SignInStep, signInHref, signUpFailureKind } from "@/components/storefront/sign-in-copy";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -36,6 +36,8 @@ export async function POST(request: Request) {
 	// Set-password (S123 review M1) answers on /masuk/atur-sandi; the token goes back only so a failed
 	// attempt can be retried (that page sends an origin-only Referer), never on success.
 	const token = form.get("token") ?? "", activation = form.get("aktivasi") === "1";
+	// The /portal form (owner and staff) goes back to /portal; it has no sign-up side.
+	const base = form.get("portal") === "1" ? PORTAL_PATH : "/masuk";
 	const back = (query: Record<string, string>) => {
 		const url = new URL(PASSWORD_PATH, "http://localhost");
 		if (activation) url.searchParams.set("aktivasi", "1");
@@ -44,7 +46,7 @@ export async function POST(request: Request) {
 		return new Response(null, { status: 303, headers: { location: url.pathname + url.search, "cache-control": "no-store", "referrer-policy": "no-referrer" } });
 	};
 	const go = (target: SignInStep | AuthMode, query: Record<string, string> = {}, cookies: string[] = []) => {
-		const url = new URL(target === "daftar" || target === "cek-email" || target === "masuk" ? authHref(next, target) : signInHref(next, target), "http://localhost");
+		const url = new URL(target === "daftar" || target === "cek-email" || target === "masuk" ? authHref(next, target) : signInHref(next, target, base), "http://localhost");
 		for (const [key, value] of Object.entries(query)) url.searchParams.set(key, value);
 		const headers = new Headers({ location: url.pathname + url.search, "cache-control": "no-store", "referrer-policy": "no-referrer" });
 		for (const cookie of cookies) headers.append("set-cookie", cookie);

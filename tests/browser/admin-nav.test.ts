@@ -206,7 +206,7 @@ test("S128 signed-out local preview keeps the shell with a sign-in entry (no red
 		assert.equal(new URL(page.url()).pathname, "/admin/pesanan");
 		const account = page.getByTestId("admin-account");
 		await expect(account.getByText("Pratinjau tanpa sesi staf.")).toBeVisible();
-		await expect(account.getByRole("link", { name: "Masuk sebagai staf" })).toHaveAttribute("href", "/masuk?next=%2Fadmin");
+		await expect(account.getByRole("link", { name: "Masuk sebagai staf" })).toHaveAttribute("href", "/portal?next=%2Fadmin");
 		await expect(account.getByRole("link", { name: "Lihat Toko" })).toHaveAttribute("href", "/");
 	} finally {
 		await close();

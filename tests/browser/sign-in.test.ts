@@ -65,14 +65,17 @@ test("prune dry run reports without deleting and never lists the local accounts"
 	assert.equal(JSON.parse((await cli(["login-codes", "local"])).stdout).codes.length, 5);
 });
 
-test("staff signs in through /masuk with the TOTP step and lands on /admin", async () => {
+test("staff signs in through /portal (sign-in only, no sign-up, no shop link) with the TOTP step and lands on /admin", async () => {
 	await resetBrowserAuthLimits();
 	const owner = accounts.find((account) => account.email === "owner@99ribu.test");
 	assert.ok(owner?.totp_uri);
 	const browser = await chromium.launch({ executablePath: process.env.PLAYWRIGHT_CHROMIUM_EXECUTABLE });
 	try {
 		const page = await browser.newPage();
-		assert.equal((await page.goto(`${origin}/masuk`))?.status(), 200);
+		assert.equal((await page.goto(`${origin}/portal`))?.status(), 200);
+		await page.getByRole("heading", { name: "Portal staf" }).waitFor();
+		assert.equal(await page.getByRole("link", { name: "Daftar" }).count(), 0, "The staff door has no sign-up");
+		assert.equal(await page.locator('a[href="/"]').count(), 0, "The staff door links nowhere into the shop");
 		await page.getByLabel("Email").fill(owner.email);
 		await page.getByLabel("Kata sandi").fill("not-the-password-123");
 		await page.getByRole("button", { name: "Masuk", exact: true }).click();
@@ -85,13 +88,15 @@ test("staff signs in through /masuk with the TOTP step and lands on /admin", asy
 		await page.getByTestId("admin-account").getByRole("button", { name: /^Menu akun/ }).waitFor();
 		const cookie = (await page.context().cookies()).find((item) => item.name === "99ribu-local.session_token");
 		assert.ok(cookie?.httpOnly && cookie.sameSite === "Lax");
-		// Already signed in: /masuk routes straight to the role home instead of showing the form.
+		// Already signed in: /portal (and /masuk) route straight to the role home instead of showing the form.
+		await page.goto(`${origin}/portal`);
+		await page.waitForURL(`${origin}/admin`);
 		await page.goto(`${origin}/masuk`);
 		await page.waitForURL(`${origin}/admin`);
 		// S128/S-V1: sign-out lives in the topbar account menu.
 		await page.getByRole("button", { name: /^Menu akun/ }).click();
 		await page.getByTestId("sign-out-button").click();
-		await page.waitForURL(/\/masuk\?next=%2Fadmin$/);
+		await page.waitForURL(/\/portal\?next=%2Fadmin$/);
 		await page.getByLabel("Email").waitFor();
 	} finally { await browser.close(); }
 });

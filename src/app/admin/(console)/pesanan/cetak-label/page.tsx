@@ -56,7 +56,7 @@ export default async function AdminPrintCenterPage() {
 					</p>
 					<div className="flex flex-wrap gap-2">
 						<Button asChild>
-							<a href="/masuk?next=%2Fadmin%2Fpesanan%2Fcetak-label">
+							<a href="/portal?next=%2Fadmin%2Fpesanan%2Fcetak-label">
 								Masuk sebagai staf
 							</a>
 						</Button>

@@ -478,7 +478,7 @@ export function StaffRolesClient() {
 				<AlertDescription className="flex flex-col gap-3 text-foreground">
 					<span>{notice}</span>
 					<Button asChild className="self-start max-md:self-stretch">
-						<a href="/masuk?next=%2Fadmin">Masuk lagi</a>
+						<a href="/portal?next=%2Fadmin">Masuk lagi</a>
 					</Button>
 				</AlertDescription>
 			</Alert>

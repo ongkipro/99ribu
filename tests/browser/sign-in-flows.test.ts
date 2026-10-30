@@ -140,13 +140,14 @@ test("without JavaScript the page posts a plain form: errors, rate-limit copy, b
 		await page.waitForURL(`${origin}/akun/pesanan`);
 		assert.ok(await session(page));
 		await context.clearCookies();
-		// Staff: password, then the TOTP step as its own page, then the console deep link.
+		// Staff: an old /masuk console link moves to /portal; password, then the TOTP step as its own page, then the console deep link.
 		await page.goto(`${origin}/masuk?next=%2Fadmin%2Fpesanan%2Fcetak-label`);
+		await page.waitForURL(`${origin}/portal?next=%2Fadmin%2Fpesanan%2Fcetak-label`);
 		await page.getByLabel("Email").fill(staff.email);
 		await page.getByLabel("Kata sandi").fill(staff.password);
 		await page.getByRole("button", { name: "Masuk", exact: true }).click();
-		await page.waitForURL(/\/masuk\?langkah=kode&next=%2Fadmin%2Fpesanan%2Fcetak-label$/);
-		assert.equal(await page.getByRole("link", { name: "Pakai kode cadangan" }).getAttribute("href"), "/masuk?langkah=cadangan&next=%2Fadmin%2Fpesanan%2Fcetak-label");
+		await page.waitForURL(/\/portal\?langkah=kode&next=%2Fadmin%2Fpesanan%2Fcetak-label$/);
+		assert.equal(await page.getByRole("link", { name: "Pakai kode cadangan" }).getAttribute("href"), "/portal?langkah=cadangan&next=%2Fadmin%2Fpesanan%2Fcetak-label");
 		await page.getByLabel("Kode autentikator").fill("12");
 		await page.getByRole("button", { name: "Verifikasi" }).click();
 		await page.getByTestId("signin-error").getByText("Masukkan 6 digit kode dari aplikasi autentikator.").waitFor();
