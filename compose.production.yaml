@@ -20,7 +20,10 @@ x-runtime: &runtime
     DATABASE_SSL: ${DATABASE_SSL:-disable}
     DATABASE_APP_PASSWORD: ${DATABASE_APP_PASSWORD:?}
     PAYMENT_ADAPTER: disabled
-    SHIPPING_ADAPTER: disabled
+    # S95: live Mengantar rates when Coolify sets SHIPPING_ADAPTER=mengantar with the two MENGANTAR_* values.
+    SHIPPING_ADAPTER: ${SHIPPING_ADAPTER:-disabled}
+    MENGANTAR_BASE_URL: ${MENGANTAR_BASE_URL:-}
+    MENGANTAR_API_KEY: ${MENGANTAR_API_KEY:-}
     ADS_ADAPTER: disabled
     NOTIFICATION_ADAPTER: disabled
     PAYOUT_ADAPTER: disabled
@@ -41,6 +44,10 @@ services:
     environment:
       <<: *env
       DATABASE_OWNER_PASSWORD_FILE: /run/secrets/database-owner-password
+      # Only web quotes live rates (S95); the shared env_file must not hand the Mengantar key to other services.
+      SHIPPING_ADAPTER: disabled
+      MENGANTAR_BASE_URL: ""
+      MENGANTAR_API_KEY: ""
 
   web:
     <<: *runtime
@@ -62,6 +69,9 @@ services:
     environment:
       <<: *env
       WORKER_HEARTBEAT_FILE: /tmp/worker-heartbeat
+      SHIPPING_ADAPTER: disabled
+      MENGANTAR_BASE_URL: ""
+      MENGANTAR_API_KEY: ""
 
 volumes:
   storage:

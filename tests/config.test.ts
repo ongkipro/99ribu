@@ -211,6 +211,16 @@ test("production profile: exact https origin, container listener, one trusted or
   assert.equal(readProductionConfig({ ...production, BETTER_AUTH_TRUSTED_ORIGINS: productionOrigin }).origin, productionOrigin);
 });
 
+test("production profile with SHIPPING_ADAPTER=mengantar admits only the two Mengantar names and keeps the key out of the config", () => {
+  const mengantar = { SHIPPING_ADAPTER: "mengantar", MENGANTAR_BASE_URL: "https://api-public.mengantar.com", MENGANTAR_API_KEY: "synthetic-sentinel-mengantar" };
+  const config = readProductionConfig({ ...production, ...mengantar });
+  assert.ok(!JSON.stringify(config).includes("synthetic-sentinel"), "the shipping key is never part of the config object");
+  for (const extra of [{ NEXT_PUBLIC_MENGANTAR_API_KEY: "synthetic-sentinel-public" }, { MENGANTAR_PICKUP_ADDRESS_ID: "synthetic-sentinel-pickup" }, { AUTOLARIS_API_KEY: "synthetic-sentinel-payment" }]) {
+    assert.throws(() => readProductionConfig({ ...production, ...mengantar, ...extra }), (error: unknown) => error instanceof Error && !error.message.includes("synthetic-sentinel"));
+  }
+  assert.throws(() => readProductionConfig({ ...production, ...mengantar, SHIPPING_ADAPTER: "disabled" }), /gated/, "credentials without the adapter stay refused");
+});
+
 const invalidProduction = [
   ["plain http origin", { APP_ORIGIN: "http://99ribu.com", BETTER_AUTH_URL: "http://99ribu.com" }],
   ["loopback origin", { APP_ORIGIN: "https://127.0.0.1", BETTER_AUTH_URL: "https://127.0.0.1" }],

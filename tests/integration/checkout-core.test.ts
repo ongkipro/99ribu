@@ -33,6 +33,17 @@ test('real rollback-only unpaid prepaid checkout seals a quote, original units a
   await assert.rejects(tx.savepoint(t=>t`insert into app.checkout_quote (cart_id,cart_revision,operation_id,document,payment_method,merchandise_amount,shipping_amount,subsidy_amount,buyer_total,created_at,expires_at)
     select cart_id,cart_revision,gen_random_uuid(),jsonb_set(document,'{selected_plan,packages,0,lines,0,quantity}','99'),payment_method,merchandise_amount,shipping_amount,subsidy_amount,buyer_total,created_at,expires_at from app.checkout_quote where id=${selected.id}`),{code:'23514'});
 
+  // S95: the guard takes live Mengantar plans. A copy whose plans and every rate say `mengantar` passes the row guard
+  // (rolled back here); a plan mixing sources or naming another source is refused.
+  const [stored]=await tx<{document:Record<string,unknown>}[]>`select document from app.checkout_quote where id=${selected.id}`;
+  const withSource=(planSource:string,rateSource:string)=>{const doc=structuredClone(stored.document) as {plans:{source:string;packages:{options:{source:string}[]}[]}[];selected_plan:{source:string;packages:{options:{source:string}[]}[]}};
+   for(const plan of [...doc.plans,doc.selected_plan]){plan.source=planSource;for(const parcel of plan.packages)for(const option of parcel.options)option.source=rateSource;}return doc;};
+  const copy=(doc:unknown)=>tx.savepoint(async t=>{await t`insert into app.checkout_quote (cart_id,cart_revision,operation_id,document,payment_method,merchandise_amount,shipping_amount,subsidy_amount,buyer_total,created_at,expires_at,payment_channel,payment_charge_amount,cod_fee_bps)
+    select cart_id,cart_revision,gen_random_uuid(),${JSON.stringify(doc)}::jsonb,payment_method,merchandise_amount,shipping_amount,subsidy_amount,buyer_total,created_at,expires_at,payment_channel,payment_charge_amount,cod_fee_bps from app.checkout_quote where id=${selected.id}`;throw new Error('accepted');});
+  await assert.rejects(copy(withSource('mengantar','mengantar')),/accepted/);
+  await assert.rejects(copy(withSource('mengantar','TEST-ONLY')),{code:'23514'});
+  await assert.rejects(copy(withSource('kurir-lain','kurir-lain')),{code:'23514'});
+
   const key=randomUUID();const body={quote_id:selected.id};const req=request('/orders',body,key);
   const submitted=await submitOrder(tx,req,fixture.identity,actor,body);
   await tx.unsafe('SET CONSTRAINTS ALL IMMEDIATE');

@@ -27,3 +27,5 @@ test-results
 Dockerfile
 .dockerignore
 compose.yaml
+# S95: the raw Mengantar harvest log (the image needs only data/shipping/mengantar-areas.json.gz).
+data/shipping/mengantar-harvest.ndjson

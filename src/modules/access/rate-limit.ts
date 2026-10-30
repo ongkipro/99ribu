@@ -20,6 +20,9 @@ export const LIMITS = {
 	// R4 (S92): checkout quotes/orders per commerce actor (guest context or account); orders hold stock.
 	checkoutQuotePerActor: [60, 60_000],
 	checkoutOrderPerActor: [10, 600_000],
+	// S95: public destination search (an ILIKE scan of ~80k Mengantar areas) per client address and overall.
+	destinationSearchPerAddress: [30, 60_000],
+	destinationSearchGlobal: [600, 60_000],
 	// Raw AutoLaris callback receiver (unauthenticated discovery endpoint), global budget.
 	autolarisCallbackGlobal: [120, 60_000],
 	// S129: ending the caller's own sessions (every attempt counts, including refused proofs).

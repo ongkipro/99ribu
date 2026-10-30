@@ -1,8 +1,8 @@
 import type {LocalAuth} from '../access/auth.ts';
-import {assertOrigin,privateJson,problem,readBody} from '../access/http.ts';
+import {addressBucket,assertOrigin,clientIp,privateJson,problem,readBody} from '../access/http.ts';
 import {AccessError} from '../access/policy.ts';
 import {id,integer,invalid} from '../catalog/validation.ts';
-import {findDestinations} from '../shipping/address.ts';
+import {destinationSource,searchDestinations} from '../shipping/destinations.ts';
 import {authorizeCart,bootstrapGuest,capability,commerceActor,cookie,lockActor,prefix,setCookie,type CartRow} from './access.ts';
 import {cartCreationInput,changeLine,createCart,mutationKey,projectCart} from './carts.ts';
 import {LIMITS,rateLimit} from '../access/rate-limit.ts';
@@ -15,7 +15,10 @@ export async function handleCheckout(request:Request,identity:LocalAuth){
   if(path==='/api/v1/destinations'&&request.method==='GET'){
    if([...url.searchParams.keys()].some(k=>!['q','limit'].includes(k)||url.searchParams.getAll(k).length!==1)) throw invalid();
    const query=url.searchParams.get('q');if(!query) throw invalid();const raw=url.searchParams.get('limit')??'20';if(!/^\d{1,3}$/.test(raw)) throw invalid();
-   return privateJson({items:findDestinations(query,integer(Number(raw),1,100)),source:'TEST-ONLY'});
+   // Per address first: an address over its own budget must not keep spending the global one.
+   await rateLimit(identity.sql,`destinations:ip:${addressBucket(clientIp(request))}`,LIMITS.destinationSearchPerAddress);
+   await rateLimit(identity.sql,'destinations:global',LIMITS.destinationSearchGlobal);
+   return privateJson({items:await searchDestinations(identity.sql,query,integer(Number(raw),1,100)),source:destinationSource()});
   }
   if(url.search) throw invalid();
   const actor=await commerceActor(request,identity);

@@ -1,6 +1,10 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
-import {checkoutFormInput,initialCheckoutIntent,validateCheckoutDraft,type CheckoutIntent} from '../../src/modules/storefront/checkout.ts';
+import {checkoutFormInput,initialCheckoutIntent,validateCheckoutDraft as validateWith,type CheckoutIntent} from '../../src/modules/storefront/checkout.ts';
+import {searchDestinations} from '../../src/modules/shipping/destinations.ts';
+// The draft names a fixture area; the caller resolves it (fixture mode reads no database).
+const destinations=await searchDestinations(null as never,'contoh',100);
+const validateCheckoutDraft=(draft:Parameters<typeof validateWith>[0])=>validateWith(draft,destinations);
 
 const cart='d53126a9-264c-4310-a89c-c61d86687dbd',quote='26b08a71-f07c-44de-9c76-3b74c8850a21';
 const draft={recipient_name:'SYNTHETIC Receiver',phone:'0812 3456 7890',email:'',destination_id:'test-malang',address_line:'SYNTHETIC street\nRT 01 / RW 02',buyer_note:'SYNTHETIC note\nRing once',payment_method:'prepaid'};

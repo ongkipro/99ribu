@@ -1,13 +1,13 @@
-import {shippingFixture} from './address.ts';
+
 import {AccessError} from '../access/policy.ts';
-import {chargeableWeight,type ParcelMeasures} from './rates.ts';
+import {chargeableWeight,PACKAGE_POLICY,type ParcelMeasures} from './rates.ts';
 export type CompleteUnit={line_id:string;offer_id:string;default_warehouse_id:string;components:{stock_item_id:string;quantity:number}[];measures:ParcelMeasures};
 export type Parcel={warehouse_id:string;measures:ParcelMeasures;lines:{line_id:string;quantity:number}[]};
 const compare=(a:string,b:string)=>a<b?-1:a>b?1:0;
 export function parcelKey(parcel:Parcel){return JSON.stringify([parcel.warehouse_id,parcel.measures,[...parcel.lines].sort((a,b)=>compare(a.line_id,b.line_id))]);}
 export function enumerateAllocations(units:readonly CompleteUnit[],warehouses:readonly string[],available:ReadonlyMap<string,number>){
   if(!units.length||units.length>50) throw new AccessError(422,'ALLOCATION_REVIEW_REQUIRED');
-  const policy=shippingFixture().policy;if(units.some((u)=>chargeableWeight(u.measures,policy)===null)) throw new AccessError(422,'PACKAGE_UNSUPPORTED');const remaining=new Map(available);const parcels:Parcel[]=[];const candidates=new Map<string,Parcel[]>();const visited=new Set<string>();let nodes=0;
+  const policy=PACKAGE_POLICY;if(units.some((u)=>chargeableWeight(u.measures,policy)===null)) throw new AccessError(422,'PACKAGE_UNSUPPORTED');const remaining=new Map(available);const parcels:Parcel[]=[];const candidates=new Map<string,Parcel[]>();const visited=new Set<string>();let nodes=0;
   function search(index:number){
     // lazy: exact retail search is capped20k attempts/1k candidates/50 units.
     // Exhaustion returns review, never an unproven cheapest shipping claim;

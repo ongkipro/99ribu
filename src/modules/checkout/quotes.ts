@@ -6,7 +6,8 @@ import {lockRateActor} from '../affiliates/rates.ts';
 import {array,id,integer,invalid,object,text} from '../catalog/validation.ts';
 import {allocate,compare,safeMoney,type Rule,type Shipment} from '../promotions/allocation.ts';
 import {identifier} from '../promotions/configuration.ts';
-import {normalizeAddress,normalizePhone,shippingFixture} from '../shipping/address.ts';
+import {normalizePhone} from '../shipping/address.ts';
+import {normalizeAddress,type NormalizedAddress} from '../shipping/destinations.ts';
 import {buildShippingPlans,type ShippingPlan} from '../shipping/quotes.ts';
 import {isValidEmail} from '../storefront/contact.ts';
 import {checkShippingBenefit} from '../shipping/contribution.ts';
@@ -15,7 +16,7 @@ import {codFee,paymentTerms,PAYMENT_CHANNELS,paymentChannel,type PaymentChannel}
 import {assertCartOpen,cartClock,cartLines,expectedCartVersion,intentHash,mutationKey,priorOperation,recordOperation} from './carts.ts';
 
 export type PromotionAllocation=ReturnType<typeof allocate>[number];
-export type QuoteDocument={plans:ShippingPlan[];selected_plan:ShippingPlan;address:ReturnType<typeof normalizeAddress>;contact:{phone:string;email:string|null};customer_key:string;promotions:PromotionAllocation[];financial_sources:Awaited<ReturnType<typeof checkShippingBenefit>>['sources'];affiliate_id?:string};
+export type QuoteDocument={plans:ShippingPlan[];selected_plan:ShippingPlan;address:NormalizedAddress;contact:{phone:string;email:string|null};customer_key:string;promotions:PromotionAllocation[];financial_sources:Awaited<ReturnType<typeof checkShippingBenefit>>['sources'];affiliate_id?:string};
 export type QuoteRow={id:string;cart_id:string;cart_revision:number;parent_id:string|null;operation_id:string;document:QuoteDocument;payment_method:'prepaid'|'cod';merchandise_amount:string;shipping_amount:string;subsidy_amount:string;buyer_total:string;created_at:string;expires_at:string;payment_channel:PaymentChannel|null;payment_charge_amount:string;cod_fee_bps:number|null};
 export function normalizeContact(value:unknown){
  const b=object(value,['phone','email']);let email:string|null=null;
@@ -23,8 +24,7 @@ export function normalizeContact(value:unknown){
  return {phone:normalizePhone(b.phone),email};
 }
 export function promotionShipments(plan:ShippingPlan):Shipment[]{
- const destination=shippingFixture().destinations.find(d=>d.id===plan.destination_id);if(!destination) throw new AccessError(409,'DESTINATION_UNAVAILABLE');
- return plan.packages.map(p=>{const option=p.options.find(o=>o.id===p.selected_option_id);if(!option) throw new AccessError(409,'SHIPPING_OPTION_UNAVAILABLE');return {shipment_id:p.id,origin_warehouse_id:p.warehouse_id,shipping_fee:p.shipping_amount,service_id:option.service_id,region_ids:[destination.id]};});
+ return plan.packages.map(p=>{const option=p.options.find(o=>o.id===p.selected_option_id);if(!option) throw new AccessError(409,'SHIPPING_OPTION_UNAVAILABLE');return {shipment_id:p.id,origin_warehouse_id:p.warehouse_id,shipping_fee:p.shipping_amount,service_id:option.service_id,region_ids:[plan.destination_id]};});
 }
 export function parcelBenefits(plan:ShippingPlan,promotions:readonly PromotionAllocation[]){return plan.packages.map(p=>({shipment_id:p.id,amount:promotions.reduce((n,a)=>n+(a.shipments.find(s=>s.shipment_id===p.id)?.amount??0),0)}));}
 export async function previewPromotions(tx:TransactionSql,plan:ShippingPlan,customerKey:string,now:string){
@@ -57,7 +57,7 @@ export function projectQuote(row:QuoteRow){const d=row.document,channel=row.paym
   merchandise_total:Number(row.merchandise_amount),shipping_total:Number(row.shipping_amount),subsidy_total:Number(row.subsidy_amount),buyer_total:Number(row.buyer_total),
   cod_fee_bps:row.cod_fee_bps??null,cod_fee_total:row.payment_method==='cod'?charge:0,amount_due:Number(row.buyer_total)+charge,
   available_payment_methods:[{id:channel==='cod'?'local-cod':channel,label:PAYMENT_CHANNELS[channel].label,kind:row.payment_method,action_kind:'none'}],
-  packages:projectPackages(d.selected_plan,d.promotions,row.cod_fee_bps??null),selected_allocation_id:d.selected_plan.id,allocation_options:d.plans.map(p=>({id:p.id,shipping_total:p.shipping_total,package_count:p.packages.length,origins:[...new Set(p.packages.map(g=>g.origin_city))]})),address:d.address,contact:d.contact,source:'TEST-ONLY'};
+  packages:projectPackages(d.selected_plan,d.promotions,row.cod_fee_bps??null),selected_allocation_id:d.selected_plan.id,allocation_options:d.plans.map(p=>({id:p.id,shipping_total:p.shipping_total,package_count:p.packages.length,origins:[...new Set(p.packages.map(g=>g.origin_city))]})),address:d.address,contact:d.contact,source:d.selected_plan.source};
 }
 export async function ownedQuote(tx:TransactionSql,request:Request,identity:LocalAuth,actor:CommerceActor,quoteId:string){
  const [quote]=await tx<QuoteRow[]>`select * from app.checkout_quote where id=${id(quoteId)}`;if(!quote) throw new AccessError(404,'NOT_FOUND');
@@ -85,7 +85,7 @@ async function persistQuote(tx:TransactionSql,actor:CommerceActor,key:string,has
  const response=projectQuote(quote);await recordOperation(tx,actor,key,parent?'quote.select':'quote.create',hash,quote.id,response,operationId);return response;
 }
 export async function createQuote(tx:TransactionSql,request:Request,identity:LocalAuth,actor:CommerceActor,value:unknown,context:{affiliate_id?:string|null}={}){
- const body=object(value,['cart_id','address','contact','payment_method','payment_channel']);const cartId=id(body.cart_id),address=normalizeAddress(body.address),contact=normalizeContact(body.contact);
+ const body=object(value,['cart_id','address','contact','payment_method','payment_channel']);const cartId=id(body.cart_id),address=await normalizeAddress(tx,body.address),contact=normalizeContact(body.contact);
  if(typeof body.payment_method!=='string'||!['prepaid','cod'].includes(body.payment_method)) throw invalid();const method=body.payment_method as 'prepaid'|'cod',channel=paymentChannel(method,body.payment_channel);
  const affiliateId=context.affiliate_id==null?null:id(context.affiliate_id);
  const version=expectedCartVersion(request),key=mutationKey(request),hash=await intentHash(identity,'quote.create',{cartId,address,contact,method,version,...(channel!=='local-prepaid'&&channel!=='cod'?{channel}:{}),...(affiliateId?{affiliateId}:{})});

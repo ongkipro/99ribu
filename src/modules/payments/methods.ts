@@ -1,4 +1,5 @@
 import type {TransactionSql} from 'postgres';
+import {runtimeTarget} from '../../config/runtime.ts';
 import {AccessError} from '../access/policy.ts';
 import {resolvePolicy,type BankAccount} from '../settings/policies.ts';
 
@@ -19,10 +20,14 @@ export const MANUAL_BANK_CONFIRMATION_GRACE_MS=12*3600000;
 // AutoLaris: before cancelling, a fresh advice read after the deadline is required; pending or
 // unknown answers keep the order for at most this window.
 export const AUTOLARIS_FINAL_ADVICE_WINDOW_MS=30*60000;
+// S95: production offers only channels with a real effect path, manual bank transfer and COD. The simulator never
+// runs there, and AutoLaris stays local until its live gate (S97) passes.
+export function offeredChannels():PaymentChannel[]{return runtimeTarget()==='production'?['manual-bank','cod']:Object.keys(PAYMENT_CHANNELS) as PaymentChannel[];}
 export function paymentChannel(method:'prepaid'|'cod',requested:unknown):PaymentChannel{
- if(requested===undefined||requested===null)return method==='cod'?'cod':'local-prepaid';
- if(typeof requested!=='string'||!Object.hasOwn(PAYMENT_CHANNELS,requested)||PAYMENT_CHANNELS[requested as PaymentChannel].method!==method)throw new AccessError(400,'INVALID_INPUT');
- return requested as PaymentChannel;
+ const channel=requested===undefined||requested===null?method==='cod'?'cod':'local-prepaid':requested;
+ if(typeof channel!=='string'||!Object.hasOwn(PAYMENT_CHANNELS,channel)||PAYMENT_CHANNELS[channel as PaymentChannel].method!==method)throw new AccessError(400,'INVALID_INPUT');
+ if(!offeredChannels().includes(channel as PaymentChannel))throw new AccessError(422,'PAYMENT_CHANNEL_UNAVAILABLE');
+ return channel as PaymentChannel;
 }
 // DEC-009: per COD parcel ceil(base x bps / 10000) in whole rupiah (integer math).
 export function codFee(base:number|bigint,bps:number){

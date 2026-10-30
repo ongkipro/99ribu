@@ -33,16 +33,3 @@ export function normalizePhone(value:unknown){
   return phone;
 }
 export function normalizeWhatsApp(value:unknown){const phone=normalizePhone(value);if(!isWhatsAppNumber(phone)) throw new AccessError(422,'INVALID_WHATSAPP');return phone;} // S123: WhatsApp contact = a mobile number; normalizePhone stays as is for other callers
-export function normalizeAddress(value:unknown){
-  const body=object(value,['recipient_name','phone','address_line','destination_id','postal_code']);
-  const recipient=clean(body.recipient_name,200);const street=clean(body.address_line,500);const phone=normalizePhone(body.phone);
-  const fixture=shippingFixture();const destination=fixture.destinations.find((d)=>d.id===body.destination_id);
-  if(!destination) throw new AccessError(422,'DESTINATION_UNAVAILABLE');
-  if(body.postal_code!==destination.postal_code) throw new AccessError(422,'DESTINATION_POSTCODE_MISMATCH');
-  return {recipient_name:recipient,phone,address_line:street,destination_id:destination.id,postal_code:destination.postal_code,
-    province:destination.province,city:destination.city,district:destination.district,subdistrict:destination.subdistrict,destination_version:fixture.version,source:fixture.source};
-}
-export function findDestinations(query:string,limit=20){
-  const search=clean(query,100).toLocaleLowerCase('id-ID');integer(limit,1,100);
-  return shippingFixture().destinations.filter((d)=>`${d.label} ${d.province} ${d.city} ${d.district} ${d.subdistrict} ${d.postal_code}`.toLocaleLowerCase('id-ID').includes(search)).slice(0,limit);
-}

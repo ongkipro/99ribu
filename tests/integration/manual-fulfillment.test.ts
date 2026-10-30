@@ -233,7 +233,7 @@ test('S99 quoted courier names map to Mengantar codes only when unambiguous',()=
 
 test('S99 booking queue: >100 parcels page completely by packing deadline (nulls last), age, id; booking facts carry the buyer courier and the order_shipment COD due; membership scope and denials hold',{timeout:600000},async()=>{
  // The buyer quotes a named courier through the rate seam (the gated live estimate adapter's slot).
- rateSeam.adapter={estimate:async(request,signal)=>(await localRateAdapter.estimate(request,signal)).map(rate=>({...rate,courier_name:'J&T'}))};
+ rateSeam.adapter={source:'TEST-ONLY',version:localRateAdapter.version,estimate:async(request,signal)=>(await localRateAdapter.estimate(request,signal)).map(rate=>({...rate,courier_name:'J&T'}))};
  const staff:Awaited<ReturnType<typeof actor>>[]=[];
  let f:Awaited<ReturnType<typeof fulfillmentFixture>>|undefined;
  try{

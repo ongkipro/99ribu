@@ -148,7 +148,7 @@ if (import.meta.main) {
       : selector === "--case=PR-4"
       ? mode === "integration" ? ["tests/integration/checkout-migration.test.ts","tests/integration/checkout-core.test.ts","tests/integration/checkout-contract.test.ts","tests/integration/checkout-access.test.ts","tests/integration/guest-context-cleanup.test.ts","tests/integration/checkout-races.test.ts","tests/integration/checkout-worker.test.ts"] : ["tests/integration/checkout-http.test.ts"]
       : selector === "--case=PR-3"
-      ? ["tests/integration/shipping-address.test.ts","tests/integration/shipping.test.ts","tests/integration/shipping-contribution.test.ts"]
+      ? ["tests/integration/shipping-address.test.ts","tests/integration/shipping.test.ts","tests/integration/shipping-contribution.test.ts","tests/integration/shipping-mengantar.test.ts"]
       : selector === "--case=seed-berlapak"
       ? ["tests/integration/berlapak-import.test.ts"]
       : selector === "--case=demo-orders"

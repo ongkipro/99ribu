@@ -6,8 +6,8 @@ import {handleCheckout} from '../../src/modules/checkout/routes.ts';
 import {createCart} from '../../src/modules/checkout/carts.ts';
 import {capability,commerceActor,prefix} from '../../src/modules/checkout/access.ts';
 import {appendCostVersion} from '../../src/modules/finance/costs.ts';
-import {estimateRates,type RateRequest} from '../../src/modules/shipping/rates.ts';
-import {normalizeAddress} from '../../src/modules/shipping/address.ts';
+import {estimateRates,localRateAdapter,type RateRequest} from '../../src/modules/shipping/rates.ts';
+import {normalizeAddress} from '../../src/modules/shipping/destinations.ts';
 
 async function quote(f:Awaited<ReturnType<typeof checkoutFixture>>,client:CommerceClient,quantity:number,namespace:string|null=null){
  const key=randomUUID(),input={lines:[f.line('fixture-offer-shirt',quantity)]};assert.equal((await client.call('/api/v1/carts',input,{key})).response.status,401);
@@ -53,13 +53,13 @@ test('current version/publication, closed inputs, recipient controls and remaini
   assert.equal((await f.client.call('/api/v1/checkout/quotes',body,{version:2})).response.status,409);
   assert.equal((await f.client.call('/api/v1/checkout/quotes',{...body,clock_namespace:f.namespace},{version:1})).response.status,400);
   assert.equal((await f.client.call(`/api/v1/carts/${c.cart.id}/lines`,{...f.line(),expected_publication_id:randomUUID()},{version:1})).response.status,409);
-  for(const character of ['\u0085','\u202e','\u2066']) assert.throws(()=>normalizeAddress({...f.address,recipient_name:`Synthetic${character}Recipient`}),{code:'INVALID_INPUT'});
+  for(const character of ['\u0085','\u202e','\u2066']) await assert.rejects(normalizeAddress(f.identity.sql,{...f.address,recipient_name:`Synthetic${character}Recipient`}),{code:'INVALID_INPUT'});
   const linePath=`/api/v1/carts/${c.cart.id}/lines/${c.cart.lines[0].id}`;
   const empty=f.client.request(linePath,undefined,{method:'DELETE',version:1});
   const bad=new Request(empty,{body:new ReadableStream({start(controller){controller.enqueue(new Uint8Array([1]));controller.close();}}),duplex:'half'} as RequestInit&{duplex:'half'});assert.equal((await handleCheckout(bad,f.identity)).status,400);
   const streamed=new Request(empty,{body:new ReadableStream({start(controller){controller.close();}}),duplex:'half'} as RequestInit&{duplex:'half'});assert.equal((await handleCheckout(streamed,f.identity)).status,200);
-  const request:RateRequest={warehouse_id:randomUUID(),origin:{province:'Jawa Timur',city:'Malang',district:'Kecamatan Gudang Contoh A'},destination_id:'test-malang',measures:{weight_grams:100,length_mm:100,width_mm:100,height_mm:100},now:new Date().toISOString()};
-  const started=performance.now();await assert.rejects(estimateRates({async estimate(){return new Promise(()=>{});}},request,40),{code:'SHIPPING_RATE_TIMEOUT'});assert.ok(performance.now()-started<1000);
+  const request:RateRequest={warehouse_id:randomUUID(),origin:{province:'Jawa Timur',city:'Malang',district:'Kecamatan Gudang Contoh A'},origin_area_id:null,destination_id:'test-malang',measures:{weight_grams:100,length_mm:100,width_mm:100,height_mm:100},now:new Date().toISOString()};
+  const started=performance.now();await assert.rejects(estimateRates({source:'TEST-ONLY',version:localRateAdapter.version,async estimate(){return new Promise(()=>{});}},request,40),{code:'SHIPPING_RATE_TIMEOUT'});assert.ok(performance.now()-started<1000);
  }finally{await f.close();}
 });
 

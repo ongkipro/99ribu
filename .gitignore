@@ -33,3 +33,5 @@ next-env.d.ts
 /docs/spec/design/reviews/shop-com-r2/slices-round*/
 # Design-review round counter is cited evidence (exception to *.log).
 !/docs/spec/design/reviews/shop-com-r2/review-rounds.log
+# S95: raw Mengantar area harvest log, reproducible with scripts/mengantar-areas.ts harvest.
+data/shipping/mengantar-harvest.ndjson

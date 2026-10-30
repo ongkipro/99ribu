@@ -62,9 +62,23 @@ export const warehouse = appSchema.table("warehouse", {
   timezone: text("timezone").notNull().default("Asia/Jakarta"), active: boolean("active").notNull().default(true),
   province: text("province"), district: text("district"), originKey: text("origin_key").unique("warehouse_origin_key_unique"),
   adminNo: bigint("admin_no", { mode: "number" }).generatedAlwaysAsIdentity().notNull().unique("warehouse_admin_no_unique"),
+  // S95: the warehouse's Mengantar origin area (kelurahan `_id`); cleared by trigger when the location changes.
+  providerAreaId: text("provider_area_id").references(() => shippingArea.id, { onDelete: "restrict" }),
 }, (table) => [
   check("warehouse_location_check", sql`(${table.province} IS NULL OR char_length(${table.province}) BETWEEN 1 AND 100) AND (${table.district} IS NULL OR char_length(${table.district}) BETWEEN 1 AND 100)`),
   check("warehouse_origin_key_check", sql`${table.originKey} IS NULL OR (${table.originKey} ~ '^[0-9a-f]{32}$' AND ${table.province} IS NOT NULL AND ${table.district} IS NOT NULL)`),
+]);
+// S95: Mengantar's own area catalogue (kelurahan level), loaded from data/shipping/mengantar-areas.json. Checkout picks
+// a destination here; quotes and bookings send `id` to Mengantar unchanged. Rows are replaced only by a dataset load.
+export const shippingArea = appSchema.table("shipping_area", {
+  id: text("id").primaryKey(), province: text("province").notNull(), city: text("city").notNull(),
+  district: text("district").notNull(), subdistrict: text("subdistrict").notNull(), postalCode: text("postal_code").notNull(),
+  datasetVersion: text("dataset_version").notNull(),
+}, (table) => [
+  check("shipping_area_id_check", sql`${table.id} ~ '^[0-9a-f]{24}$'`),
+  check("shipping_area_postal_check", sql`${table.postalCode} = '' OR ${table.postalCode} ~ '^[0-9]{5}$'`),
+  check("shipping_area_names_check", sql`char_length(${table.province}) BETWEEN 1 AND 100 AND char_length(${table.city}) BETWEEN 1 AND 100 AND char_length(${table.district}) BETWEEN 1 AND 100 AND char_length(${table.subdistrict}) <= 100`),
+  index("shipping_area_postal_idx").on(table.postalCode),
 ]);
 export const warehouseMembership = appSchema.table("warehouse_membership", {
   userId: text("user_id").notNull().references(() => user.id, { onDelete: "cascade" }),

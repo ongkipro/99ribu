@@ -38,6 +38,7 @@ COPY --from=build /app/src ./src
 COPY --from=build /app/scripts ./scripts
 COPY --from=build /app/migrations ./migrations
 COPY --from=build /app/data/catalog/berlapak ./data/catalog/berlapak
+COPY --from=build /app/data/shipping/mengantar-areas.json.gz ./data/shipping/mengantar-areas.json.gz
 COPY --from=build /app/docs/spec/fixtures/shipping-local.json ./docs/spec/fixtures/shipping-local.json
 # .local is the persistent volume mount point (catalog-media + artifacts). A fresh named volume copies
 # this owner and the 0700 modes that privateDirectory() requires. .next/cache is the only writable build path.

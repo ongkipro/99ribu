@@ -8,27 +8,31 @@ import {readLocalConfig} from '../../config/local.ts';
 import {identifier} from '../promotions/configuration.ts';
 import {safeMoney} from '../promotions/allocation.ts';
 import {lockPublishedSources} from './contribution.ts';
-import {shippingFixture} from './address.ts';
+import {destinationSource,findDestination,type DestinationSource} from './destinations.ts';
+import {mengantarRateAdapter} from './mengantar.ts';
 import {enumerateAllocations,parcelKey,type CompleteUnit} from './allocation.ts';
 import {estimateRates,localRateAdapter,type Rate,type RateAdapter} from './rates.ts';
 
 export type ShippingLine={line_id:string;product_id:string;offer_id:string;publication_id:string;quantity:number};
-export type ShippingPlan={id:string;payment_method:'prepaid'|'cod';destination_id:string;destination_version:string;expires_at:string;pricing_evaluated_at:string;source:'TEST-ONLY';
+export type ShippingPlan={id:string;payment_method:'prepaid'|'cod';destination_id:string;destination_version:string;expires_at:string;pricing_evaluated_at:string;source:DestinationSource;
   merchandise_total:number;shipping_total:number;default_warehouse_units:number;packages:{id:string;warehouse_id:string;origin_city:string;measures:CompleteUnit['measures'];lines:{line_id:string;quantity:number}[];options:Rate[];selected_option_id:string;merchandise_amount:number;shipping_amount:number}[];
   lines:(ShippingLine&{product_revision:number})[]};
-// Rate adapter seam (the gated live Mengantar estimate, S95, plugs in here). Replacing it is refused
-// outside the local/test profiles, so no runtime path can swap the production rates.
-let currentRateAdapter:RateAdapter=localRateAdapter;
+// Rate adapter seam: the simulator locally, live Mengantar (S95) in production with SHIPPING_ADAPTER=mengantar.
+// Replacing it is refused outside the local/test profiles, so no runtime path can swap the production rates.
+let currentRateAdapter:RateAdapter|null=null;
 export const rateSeam={
-  get adapter(){return currentRateAdapter;},
+  get adapter():RateAdapter{return currentRateAdapter??(destinationSource()==='mengantar'?mengantarRateAdapter:localRateAdapter);},
   // readLocalConfig throws unless this is the local/test profile with simulated shipping adapters.
   set adapter(next:RateAdapter){try{readLocalConfig(process.env);}catch{throw new AccessError(403,'RATE_ADAPTER_LOCKED');}currentRateAdapter=next;},
 };
 const hash=(value:unknown)=>createHash('sha256').update(JSON.stringify(value)).digest('hex');
 const compare=(a:string,b:string)=>a<b?-1:a>b?1:0;
 export async function buildShippingPlans(tx:TransactionSql,value:unknown,context:{clock_namespace?:string|null;adapter?:RateAdapter}={}){
-  const body=object(value,['lines','destination_id','payment_method']);const fixture=shippingFixture();
-  if(typeof body.destination_id!=='string'||!fixture.destinations.some((d)=>d.id===body.destination_id)||typeof body.payment_method!=='string'||!['prepaid','cod'].includes(body.payment_method)) throw invalid();
+  const body=object(value,['lines','destination_id','payment_method']);const adapter=context.adapter??rateSeam.adapter;
+  if(adapter.source!==destinationSource()) throw new AccessError(503,'SHIPPING_UNAVAILABLE');
+  const destination=await findDestination(tx,body.destination_id);
+  if(!destination||typeof body.payment_method!=='string'||!['prepaid','cod'].includes(body.payment_method)) throw invalid();
+
   const method=body.payment_method as 'prepaid'|'cod';
   const lines=array(body.lines,(value)=>{const l=object(value,['line_id','product_id','offer_id','publication_id','quantity']);return {line_id:identifier(l.line_id),product_id:id(l.product_id),offer_id:id(l.offer_id),publication_id:id(l.publication_id),quantity:integer(l.quantity,1,1000000)};},1).sort((a,b)=>compare(a.line_id,b.line_id));
   if(new Set(lines.map((l)=>l.line_id)).size!==lines.length) throw invalid();
@@ -36,12 +40,12 @@ export async function buildShippingPlans(tx:TransactionSql,value:unknown,context
   const namespace=context.clock_namespace??null;
   // Every active warehouse in the clock scope is a quotable origin, exactly the warehouses the
   // publication guard accepts as default warehouses (DEC-006: rates band by its kecamatan/city).
-  let warehouses=await tx<{id:string;province:string|null;city:string;district:string|null}[]>`select w.id,w.province,w.city,w.district from app.warehouse w
+  let warehouses=await tx<{id:string;province:string|null;city:string;district:string|null;provider_area_id:string|null}[]>`select w.id,w.province,w.city,w.district,w.provider_area_id from app.warehouse w
     left join app.local_fixture_warehouse f on f.warehouse_id=w.id where w.active and (${namespace}::text is null or f.namespace=${namespace}) order by w.id`;
   const clock=await lockInventoryClock(tx,namespace,warehouses.map((w)=>w.id));
   // Re-read active status after the row wait; keep origin changes serialized
   // through the same quote transaction without locking before its clock.
-  if(warehouses.length) warehouses=await tx`select w.id,w.province,w.city,w.district from app.warehouse w where w.id in ${tx(warehouses.map((w)=>w.id))} and w.active
+  if(warehouses.length) warehouses=await tx`select w.id,w.province,w.city,w.district,w.provider_area_id from app.warehouse w where w.id in ${tx(warehouses.map((w)=>w.id))} and w.active
     order by w.id for share of w`;
   const productIds=[...new Set(lines.map((l)=>l.product_id))].sort();
   await lockPublishedSources(tx,productIds);
@@ -73,7 +77,7 @@ export async function buildShippingPlans(tx:TransactionSql,value:unknown,context
       if(Date.now()>deadline) throw new AccessError(503,'SHIPPING_RATE_TIMEOUT');
       const key=parcelKey({...parcel,lines:[]});let options=rates.get(key);
       const origin=eligible.find((w)=>w.id===parcel.warehouse_id);if(!origin) throw new AccessError(422,'ROUTE_UNCONFIGURED');
-      if(!options){if(rates.size>=500) throw new AccessError(422,'ALLOCATION_REVIEW_REQUIRED');options=await estimateRates(context.adapter??rateSeam.adapter,{warehouse_id:origin.id,origin:{province:origin.province,city:origin.city,district:origin.district},destination_id:body.destination_id,measures:parcel.measures,now:businessNow},deadline-Date.now());rates.set(key,options);}
+      if(!options){if(rates.size>=500) throw new AccessError(422,'ALLOCATION_REVIEW_REQUIRED');options=await estimateRates(adapter,{warehouse_id:origin.id,origin:{province:origin.province,city:origin.city,district:origin.district},origin_area_id:origin.provider_area_id,destination_id:destination.id,measures:parcel.measures,now:businessNow},deadline-Date.now());rates.set(key,options);}
       if(!options.length) prepaidCandidate=false;
       const supported=options.filter((r)=>method==='prepaid'||r.supports_cod).sort((a,b)=>a.shipping_amount-b.shipping_amount||compare(a.id,b.id));
       if(!supported.length){valid=false;continue;}const selected=supported[0];
@@ -84,7 +88,7 @@ export async function buildShippingPlans(tx:TransactionSql,value:unknown,context
     if(!valid) continue;
     const shipping=safeMoney(packages.reduce((sum,p)=>sum+BigInt(p.shipping_amount),0n));
     const defaultUnits=packages.reduce((sum,p)=>sum+p.lines.reduce((n,l)=>n+(units.find((u)=>u.line_id===l.line_id)?.default_warehouse_id===p.warehouse_id?l.quantity:0),0),0);
-    plans.push({id:`plan_${hash([body.destination_id,method,packages,lines])}`,payment_method:method,destination_id:body.destination_id,destination_version:fixture.version,source:'TEST-ONLY',pricing_evaluated_at:new Date(pricing.now).toISOString(),
+    plans.push({id:`plan_${hash([destination.id,method,packages,lines])}`,payment_method:method,destination_id:destination.id,destination_version:destination.version,source:adapter.source,pricing_evaluated_at:new Date(pricing.now).toISOString(),
       expires_at:new Date(Math.min(Date.parse(businessNow)+600000,...packages.flatMap((p)=>p.options.map((r)=>Date.parse(r.expires_at))))).toISOString(),
       merchandise_total:safeMoney(BigInt(units.length)*99000n),shipping_total:shipping,default_warehouse_units:defaultUnits,packages,lines:frozen});
   }

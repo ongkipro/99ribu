@@ -8,7 +8,7 @@
     "start": "node --env-file=.env.example scripts/run-local.ts start",
     "lint": "biome lint src scripts tests next.config.ts drizzle.config.ts --error-on-warnings",
     "typecheck": "node --env-file=.env.example node_modules/next/dist/bin/next typegen && tsc --noEmit",
-    "test": "node --test tests/config.test.ts tests/launcher.test.ts tests/runner.test.ts tests/backup.test.ts tests/container.test.ts tests/admin-wib.test.ts tests/admin-routes.test.ts tests/admin-nav-model.test.ts tests/home-banners.test.ts tests/sign-up.test.ts tests/contact.test.ts tests/product-description.test.ts tests/home-safe.test.ts tests/account-orders.test.ts tests/memo.test.ts",
+    "test": "node --test tests/config.test.ts tests/launcher.test.ts tests/runner.test.ts tests/backup.test.ts tests/container.test.ts tests/admin-wib.test.ts tests/admin-routes.test.ts tests/admin-nav-model.test.ts tests/home-banners.test.ts tests/sign-up.test.ts tests/contact.test.ts tests/product-description.test.ts tests/home-safe.test.ts tests/account-orders.test.ts tests/memo.test.ts tests/mengantar.test.ts",
     "test:smoke": "node --test tests/smoke.test.ts",
     "check": "npm run lint && npm run typecheck && npm test",
     "db:up": "node --env-file=.env.example scripts/database.ts up",

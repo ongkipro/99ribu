@@ -75,6 +75,20 @@ function privateNetworkHost(host: string) {
   return !host.includes(".") || /\.(?:internal|local)$/i.test(host);
 }
 
+// S95: the one live adapter so far. SHIPPING_ADAPTER=mengantar admits exactly these two names (never a
+// NEXT_PUBLIC_ copy) and only the official API origin; the key travels in the URL path, so it stays server-side
+// and out of the frozen config object (read it through productionShipping at call time).
+const MENGANTAR_ORIGIN = "https://api-public.mengantar.com";
+const MENGANTAR_NAMES = new Set(["MENGANTAR_BASE_URL", "MENGANTAR_API_KEY"]);
+export function productionShipping(env: Environment) {
+  if (env.SHIPPING_ADAPTER === "disabled") return null;
+  if (env.SHIPPING_ADAPTER !== "mengantar") throw new Error("SHIPPING_ADAPTER must be disabled or mengantar.");
+  if (env.MENGANTAR_BASE_URL !== MENGANTAR_ORIGIN) throw new Error("MENGANTAR_BASE_URL must be the official Mengantar API origin.");
+  const apiKey = env.MENGANTAR_API_KEY ?? "";
+  if (!/^[A-Za-z0-9_-]{16,128}$/.test(apiKey)) throw new Error("MENGANTAR_API_KEY is missing or malformed.");
+  return { provider: "mengantar" as const, baseUrl: MENGANTAR_ORIGIN, apiKey };
+}
+
 // Production profile (S82). Refuses anything the local profile would accept as a convenience: plain http,
 // loopback/tailnet origins, simulated or live adapters, extra trusted origins and local-only switches.
 export function readProductionConfig(env: Environment) {
@@ -87,13 +101,14 @@ export function readProductionConfig(env: Environment) {
   if (env.BETTER_AUTH_SECRETS || env.AUTH_SECRET) throw new Error("Use BETTER_AUTH_SECRET only.");
   assertAuthSecret(env.BETTER_AUTH_SECRET);
   if (env.LOCAL_TAILNET_ORIGIN) throw new Error("LOCAL_TAILNET_ORIGIN is local-only.");
-  for (const name of ["PAYMENT", "SHIPPING", "ADS", "NOTIFICATION", "PAYOUT"]) {
+  for (const name of ["PAYMENT", "ADS", "NOTIFICATION", "PAYOUT"]) {
     // No live adapter has passed its provider gate; simulated adapters would create fake effects.
     if (env[`${name}_ADAPTER`] !== "disabled") throw new Error(`${name}_ADAPTER must be disabled until its provider gate passes.`);
   }
+  const shipping = productionShipping(env);
   if (env.EXTERNAL_DISPATCH !== "disabled") throw new Error("EXTERNAL_DISPATCH must be disabled.");
   for (const [name, value] of Object.entries(env)) {
-    if (value && PROVIDER_KEY.test(name)) throw new Error("Provider configuration is gated in production.");
+    if (value && PROVIDER_KEY.test(name) && !(shipping && MENGANTAR_NAMES.has(name))) throw new Error("Provider configuration is gated in production.");
   }
   if (env.DATABASE_URL || env.PGHOST || env.PGPORT || env.PGDATABASE || env.PGUSER || env.PGPASSWORD) {
     throw new Error("Use DATABASE_HOST/DATABASE_PORT and the role passwords; URL and PG* overrides are refused.");

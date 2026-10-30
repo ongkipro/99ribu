@@ -74,7 +74,7 @@ const fields:{label:string;id:string;kind:Kind;value:string}[]=[
  {label:'Nama penerima',id:'checkout-recipient_name',kind:'input',value:'Penerima Contoh'},
  {label:'Nomor HP',id:'checkout-phone',kind:'input',value:'081200000000'},
  {label:'Email (opsional)',id:'checkout-email',kind:'input',value:'penerima@example.com'},
- {label:'Cari wilayah (opsional)',id:'checkout-query',kind:'input',value:'Malang'},
+ {label:'Kelurahan atau kode pos',id:'checkout-query',kind:'input',value:'Malang'},
  {label:'Wilayah pengiriman',id:'checkout-destination_id',kind:'select',value:'test-malang'},
  {label:'Alamat lengkap',id:'checkout-address_line',kind:'textarea',value:'Jalan Contoh 12\nRT 01'},
  {label:'Catatan pengiriman (opsional)',id:'checkout-buyer_note',kind:'textarea',value:'Titip di penerima'},

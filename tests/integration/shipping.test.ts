@@ -54,8 +54,8 @@ test('changed publication/cost, expired or timed-out rates require review/retry 
  const f=await shippingFixture();try{
   const lines=[f.line('fixture-offer-shirt')];await assert.rejects(f.plans([{...lines[0],publication_id:randomUUID()}]),denied('PUBLICATION_REVIEW_REQUIRED'));
   const body={lines,payment_method:'prepaid',destination_id:'test-malang'};
-  await assert.rejects(f.identity.sql.begin((tx)=>buildShippingPlans(tx,body,{clock_namespace:f.namespace,adapter:{async estimate(request,signal){return (await localRateAdapter.estimate(request,signal)).map((r)=>({...r,expires_at:new Date(Date.parse(request.now)-1).toISOString()}));}}})),denied('SHIPPING_RATE_EXPIRED'));
-  await assert.rejects(f.identity.sql.begin((tx)=>buildShippingPlans(tx,body,{clock_namespace:f.namespace,adapter:{async estimate(){return new Promise(()=>{});}}})),denied('SHIPPING_RATE_TIMEOUT'));
+  await assert.rejects(f.identity.sql.begin((tx)=>buildShippingPlans(tx,body,{clock_namespace:f.namespace,adapter:{source:'TEST-ONLY',version:localRateAdapter.version,async estimate(request,signal){return (await localRateAdapter.estimate(request,signal)).map((r)=>({...r,expires_at:new Date(Date.parse(request.now)-1).toISOString()}));}}})),denied('SHIPPING_RATE_EXPIRED'));
+  await assert.rejects(f.identity.sql.begin((tx)=>buildShippingPlans(tx,body,{clock_namespace:f.namespace,adapter:{source:'TEST-ONLY',version:localRateAdapter.version,async estimate(){return new Promise(()=>{});}}})),denied('SHIPPING_RATE_TIMEOUT'));
   const req=f.request();req.headers.set('idempotency-key',randomUUID());await appendCostVersion(req,f.identity,f.principal,'component',f.seeded.stocks['fixture-shirt'],{expected_version:1,unit_cost:31000,effective_from:null,source:'Synthetic changed supplier estimate',reason:'Requote requires renewed current financial review'});
   await assert.rejects(f.plans(lines),denied('PUBLICATION_REVIEW_REQUIRED'));
   const [stock]=await f.identity.sql`select on_hand,reserved,quarantined from app.inventory_balance where id=${f.seeded.positions['fixture-malang:fixture-shirt']}`;assert.deepEqual(stock,{on_hand:5,reserved:1,quarantined:1});
