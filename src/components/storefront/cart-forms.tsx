@@ -6,12 +6,33 @@ import {useFormStatus} from 'react-dom';
 import {changeCart,restartShopping} from '../../app/(storefront)/keranjang/actions';
 import type {CartIntent,CartMutationState} from '../../modules/storefront/cart';
 import {Icon} from './ui/icon';
-import {rupiah} from '../../modules/storefront/format';
 
 const formData=(intent:CartIntent)=>{const data=new FormData();for(const [key,value] of Object.entries(intent))data.set(key,value);return data;};
 const target=(intent:CartIntent)=>`${intent.kind}:${intent.line||intent.variant}`;
-type Mutations={state:CartMutationState;action:(data:FormData)=>void;pending:boolean;recovering:boolean;capture:(intent:CartIntent)=>void;feedbackId:string;buyNow:{current:string|null}};
+type Mutations={state:CartMutationState;action:(data:FormData)=>void;pending:boolean;recovering:boolean;capture:(intent:CartIntent)=>void;feedbackId:string;buyNow:{current:string|null};lastForm:{current:HTMLFormElement|null}};
 const Context=createContext<Mutations|null>(null);
+
+// Owner 2026-10-31: an add shows no "Keranjang diperbarui" box; like marketplace stores, the product photo flies to
+// the visible cart icon and the icon bumps (its count is already re-rendered by the action's layout revalidation).
+// No success text is rendered at all (owner: "hapus aja, jangan disembunyikan"); errors still show. Reduced motion:
+// no flight, no bump; the count still changes.
+const visible=(el:Element)=>{const r=el.getBoundingClientRect();return r.width>0&&r.height>0&&r.bottom>0&&r.top<innerHeight&&r.right>0&&r.left<innerWidth&&getComputedStyle(el).visibility!=='hidden';};
+function bump(target:HTMLElement){target.classList.remove('cart-bump');void target.offsetWidth;target.classList.add('cart-bump');target.addEventListener('animationend',()=>target.classList.remove('cart-bump'),{once:true});}
+function flyToCart(form:HTMLFormElement|null){
+ if(matchMedia('(prefers-reduced-motion: reduce)').matches)return;
+ const target=[...document.querySelectorAll<HTMLElement>('a[href="/keranjang"]')].find(link=>link.querySelector('svg')&&visible(link));if(!target)return;
+ const source=form?.closest('.purchase-region')?document.querySelector<HTMLImageElement>('.product-gallery .product-image'):form?.closest('article,li')?.querySelector<HTMLImageElement>('img');
+ // From the photo when it is on screen, otherwise from the button that was pressed (the gallery may be scrolled away);
+ // a product without a photo sends a small dot instead.
+ const origin=source&&visible(source)?source:form?.querySelector<HTMLElement>('button[type=submit]');if(!origin||!visible(origin)){bump(target);return;}
+ const from=origin.getBoundingClientRect(),to=target.getBoundingClientRect(),size=source?Math.min(from.width,from.height,160):20;
+ const ghost=source?source.cloneNode() as HTMLImageElement:document.createElement('span');
+ if(ghost instanceof HTMLImageElement){ghost.removeAttribute('id');ghost.alt='';ghost.loading='eager';}ghost.className=source?'cart-fly':'cart-fly cart-fly-dot';ghost.setAttribute('aria-hidden','true');
+ Object.assign(ghost.style,{left:`${from.left+(from.width-size)/2}px`,top:`${from.top+(from.height-size)/2}px`,width:`${size}px`,height:`${size}px`});document.body.append(ghost);
+ const dx=to.left+to.width/2-(from.left+from.width/2),dy=to.top+to.height/2-(from.top+from.height/2);
+ ghost.animate([{transform:'translate(0,0) scale(1)',opacity:1},{transform:`translate(${dx}px,${dy}px) scale(${Math.max(16/size,0.08)})`,opacity:0.5}],{duration:650,easing:'cubic-bezier(0.55,0,0.75,0.2)'})
+  .finished.then(()=>bump(target),()=>{}).finally(()=>ghost.remove());
+}
 
 // A rejected Server Action cancels React's queue. Retain its exact submitted
 // intents in memory so an explicit retry can recover committed acknowledgements.
@@ -29,7 +50,8 @@ class MutationBoundary extends Component<{children:(capture:(intent:CartIntent)=
 function Controller({initial,permalink,children,capture,settle,retry,activeLines,showCartLink}:{initial:CartMutationState;permalink:string;children:React.ReactNode;capture:(intent:CartIntent)=>void;settle:(key:string)=>void;retry:CartIntent[];activeLines?:string[];showCartLink:boolean}){
  const feedbackId=useId();
  const [state,action,pending]=useActionState(changeCart,initial,permalink);
- const [recovering,setRecovering]=useState(retry.length>0);const continued=useRef(new Set<string>());const replayed=useRef(false);const buyNow=useRef<string|null>(null);
+ const [recovering,setRecovering]=useState(retry.length>0);const continued=useRef(new Set<string>());const replayed=useRef(false);const buyNow=useRef<string|null>(null);const lastForm=useRef<HTMLFormElement|null>(null);const flown=useRef<string|null>(null);
+ useEffect(()=>{if(state.phase!=='success'||state.intent.kind!=='add'||flown.current===state.intent.key||buyNow.current===state.intent.key)return;flown.current=state.intent.key;flyToCart(lastForm.current);},[state]);
  useEffect(()=>{if(state.acknowledgedKey)settle(state.acknowledgedKey);},[state.acknowledgedKey,settle]);
  useEffect(()=>{
   if(state.phase!=='bootstrap'||continued.current.has(state.intent.key))return;
@@ -42,7 +64,7 @@ function Controller({initial,permalink,children,capture,settle,retry,activeLines
  },[retry,action]);
  useEffect(()=>{if(recovering&&replayed.current&&!pending&&['success','error'].includes(state.phase))setRecovering(false);},[recovering,pending,state.phase]);
  const lostTarget=state.phase==='error'&&state.intent.line&&activeLines&&!activeLines.includes(state.intent.line);
- return <Context value={{state,action,pending,recovering,capture,feedbackId,buyNow}}><div id={feedbackId} className="cart-feedback" data-phase={state.phase} role={state.phase==='unknown'||lostTarget?'alert':'status'} aria-live="polite" aria-atomic="true">{state.message&&(state.phase!=='error'||lostTarget)&&<><h2><Icon name={state.phase==='success'||state.phase==='bootstrap'?'check':'alert'}/>{state.phase==='success'?'Keranjang diperbarui':state.phase==='bootstrap'?'Sesi siap':state.phase==='unknown'?'Hasil tindakan belum diketahui':'Perubahan belum tersimpan'}</h2><p>{state.message}</p>{state.phase==='success'&&state.total!==null&&(state.count??0)>0&&<p>{state.count} pilihan · {rupiah(state.total)}</p>}{state.phase==='unknown'&&<Link className="detail-help" href="/keranjang">Periksa keranjang</Link>}</>}</div>{children}{showCartLink&&state.phase==='success'&&<Link className="detail-help" href="/keranjang">Lihat keranjang</Link>}</Context>;
+ return <Context value={{state,action,pending,recovering,capture,feedbackId,buyNow,lastForm}}><div id={feedbackId} className="cart-feedback" data-phase={state.phase} data-ack={state.acknowledgedKey??undefined} role={state.phase==='unknown'||lostTarget?'alert':'status'} aria-live="polite" aria-atomic="true">{state.message&&state.phase!=='success'&&(state.phase!=='error'||lostTarget)&&<><h2><Icon name={state.phase==='bootstrap'?'check':'alert'}/>{state.phase==='bootstrap'?'Sesi siap':state.phase==='unknown'?'Hasil tindakan belum diketahui':'Perubahan belum tersimpan'}</h2><p>{state.message}</p>{state.phase==='unknown'&&<Link className="detail-help" href="/keranjang">Periksa keranjang</Link>}</>}</div>{children}{showCartLink&&state.phase==='success'&&<Link className="detail-help" href="/keranjang">Lihat keranjang</Link>}</Context>;
 }
 export function CartMutations({initial,permalink,children,activeLines,showCartLink=false}:{initial:CartMutationState;permalink:string;children:React.ReactNode;activeLines?:string[];showCartLink?:boolean}){
  return <MutationBoundary>{(capture,settle,retry)=><Controller initial={initial} permalink={permalink} capture={capture} settle={settle} retry={retry} activeLines={activeLines} showCartLink={showCartLink}>{children}</Controller>}</MutationBoundary>;
@@ -53,7 +75,7 @@ export function CartForm(props:CartFormProps){
  const context=useContext(Context);if(!context)throw new Error('CartForm requires CartMutations');
  return <form action={context.action} className="cart-mutation" onSubmit={event=>{
   const data=new FormData(event.currentTarget);context.capture(Object.fromEntries(Object.keys(props.intent).map(key=>[key,String(data.get(key)??'')])) as CartIntent);
-  context.buyNow.current=(event.nativeEvent as SubmitEvent).submitter?.getAttribute('value')==='checkout'?String(data.get('key')??''):null;
+  context.buyNow.current=(event.nativeEvent as SubmitEvent).submitter?.getAttribute('value')==='checkout'?String(data.get('key')??''):null;context.lastForm.current=event.currentTarget;
  }}><CartControls {...props}/></form>;
 }
 function CartControls({intent:base,label,subject,disabled=false,quantity=true,notice,reviewId,stepper=false,bar,buyNow=false}:CartFormProps){

@@ -14,6 +14,15 @@ import {seedCommerce} from '../../src/modules/local/commerce.ts';
 import {prepareStorefront} from '../../src/modules/local/storefront.ts';
 import {actor,cleanup,enroll} from '../contract/access-fixture.ts';
 import {RENDERS} from '../render-root.ts';
+// Owner 2026-10-31: a successful change renders no text; wait for the server's acknowledgement instead (the region's
+// data-ack changes to the new intent key) and check the region stays empty.
+const acknowledgements=new WeakMap<Page,string>();
+async function acknowledged(page:Page){
+ const feedback=page.locator('.cart-feedback[data-phase="success"]');const previous=acknowledgements.get(page)??'';
+ await expect(feedback).toHaveAttribute('data-ack',/./);if(previous)await expect(feedback).not.toHaveAttribute('data-ack',previous);
+ acknowledgements.set(page,await feedback.getAttribute('data-ack')??'');await expect(feedback).toBeEmpty();
+}
+
 
 // S139 PDP precision pass (shop.com product page structure): the six product states at 390 (touch),
 // 768 and 1440 with no horizontal overflow and no console errors, plus the behaviours the pass adds:
@@ -206,7 +215,8 @@ test('the phone buy bar submits the same form, then brings the feedback into vie
   await main.evaluate(el=>window.scrollTo(0,el.getBoundingClientRect().bottom+window.scrollY+8));
   await expect(bar).toBeVisible();await capture(f.page,'buy-bar-390',false);
   await bar.locator('.bar-add').tap();
-  await expect(f.page.locator('.cart-feedback')).toContainText('ditambahkan');await expect(f.page.locator('.cart-feedback')).toBeInViewport();await expect(bar).toBeHidden();
+  // Owner 2026-10-31: the add is announced (visually hidden) and the purchase region scrolls back into view.
+  await acknowledged(f.page);await expect(main).toBeInViewport();await expect(bar).toBeHidden();
   const cart=await (await f.page.request.get(`${origin}/api/v1/carts/current`)).json();assert.equal(cart.lines[0].quantity,1);await capture(f.page,'buy-bar-added-390',false);
   assert.deepEqual(f.errors,[]);
  }finally{try{await f.page.request.post(`${origin}/api/auth/sign-out`,{headers:{origin},data:{}});}finally{await f.browser.close();}}

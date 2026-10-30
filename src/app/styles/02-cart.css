@@ -606,3 +606,37 @@ main.empty-state > .session-actions > .button {
 .cart-line-actions .cart-fields {
 	width: auto;
 }
+
+/* Owner 2026-10-31: a successful add shows no message; the photo flies to the cart (cart-forms.tsx flyToCart). */
+.cart-fly {
+	position: fixed;
+	z-index: 1000;
+	object-fit: cover;
+	border-radius: 16px;
+	box-shadow: 0 8px 24px rgb(0 0 0 / 0.18);
+	pointer-events: none;
+	will-change: transform, opacity;
+}
+.cart-fly-dot {
+	border-radius: 50%;
+	background: var(--purple);
+}
+.cart-bump svg,
+.cart-bump .cart-count {
+	animation: cart-bump 360ms cubic-bezier(0.34, 1.56, 0.64, 1);
+}
+@keyframes cart-bump {
+	0%,
+	100% {
+		transform: scale(1);
+	}
+	45% {
+		transform: scale(1.3);
+	}
+}
+@media (prefers-reduced-motion: reduce) {
+	.cart-bump svg,
+	.cart-bump .cart-count {
+		animation: none;
+	}
+}
