@@ -47,8 +47,11 @@ test("Dockerfile runtime stage: fixed non-root uid, node-only HEALTHCHECK, expli
   // The S82 production listener only; migrations run in compose.production.yaml's one-shot `migrate` service.
   assert.match(runtime, /^CMD \["node", "scripts\/run-local\.ts", "start"\]$/m);
   const compose = readFileSync("compose.production.yaml", "utf8").replace(/^\s*#.*$/gm, "");
-  // Only the one-shot migrate service receives the owner password; web and worker wait for it to succeed.
-  assert.equal(compose.match(/^\s+DATABASE_OWNER_PASSWORD:/gm)?.length, 1);
+  // Only the one-shot migrate service receives the owner password, as a mounted file (never an application
+  // variable, which Coolify shares with every service); web and worker wait for it to succeed.
+  assert.doesNotMatch(compose, /DATABASE_OWNER_PASSWORD:/);
+  assert.equal(compose.match(/^\s+DATABASE_OWNER_PASSWORD_FILE: \/run\/secrets\/database-owner-password$/gm)?.length, 1);
+  assert.equal(compose.match(/:\/run\/secrets\/database-owner-password:ro$/gm)?.length, 1);
   assert.match(compose, /migrate:\n(?:.*\n)*?\s+command: \["node", "scripts\/migrate\.ts", "production"\]/);
   assert.equal(compose.match(/condition: service_completed_successfully/g)?.length, 2);
 });

@@ -19,9 +19,6 @@ x-runtime: &runtime
     DATABASE_PORT: ${DATABASE_PORT:-5432}
     DATABASE_SSL: ${DATABASE_SSL:-disable}
     DATABASE_APP_PASSWORD: ${DATABASE_APP_PASSWORD:?}
-    # Coolify hands every application variable to every service; this explicit empty value overrides that for
-    # web and worker, so only migrate (below) ever holds the owner password (verified with printenv, 2026-10-30).
-    DATABASE_OWNER_PASSWORD: ""
     PAYMENT_ADAPTER: disabled
     SHIPPING_ADAPTER: disabled
     ADS_ADAPTER: disabled
@@ -36,9 +33,13 @@ services:
     command: ["node", "scripts/migrate.ts", "production"]
     healthcheck:
       disable: true
+    # The owner password is a host file mounted into this service only (0400, uid 10001), never an application
+    # variable: Coolify writes every application variable into an env_file shared by all services (seen 2026-10-30).
+    volumes:
+      - ${DATABASE_OWNER_PASSWORD_HOST_FILE:?}:/run/secrets/database-owner-password:ro
     environment:
       <<: *env
-      DATABASE_OWNER_PASSWORD: ${DATABASE_OWNER_PASSWORD:?}
+      DATABASE_OWNER_PASSWORD_FILE: /run/secrets/database-owner-password
 
   web:
     <<: *runtime

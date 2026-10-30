@@ -1,3 +1,4 @@
+import { readFileSync } from "node:fs";
 import { isIP } from "node:net";
 import { readLocalConfig } from "./local.ts";
 
@@ -45,7 +46,9 @@ export function productionDatabase(env: Environment, access: "app" | "owner") {
     throw new Error("DATABASE_HOST must be the private database host name or IP.");
   }
   const name = access === "owner" ? "DATABASE_OWNER_PASSWORD" : "DATABASE_APP_PASSWORD";
-  const password = env[name];
+  // `<name>_FILE`: a secret file mounted into one service only (Coolify gives every application variable to
+  // every Compose service, so the owner password reaches only `migrate` as a file; compose.production.yaml).
+  const password = env[name] || (env[`${name}_FILE`] ? readFileSync(env[`${name}_FILE`] as string, "utf8").trim() : undefined);
   if (!password || password.length < 16) throw new Error(`${name} is required (at least 16 characters).`);
   return { host, port: port(env.DATABASE_PORT, "DATABASE_PORT", 5432), password, ssl: databaseTls(host, env.DATABASE_SSL) };
 }

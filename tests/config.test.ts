@@ -1,6 +1,8 @@
 import assert from "node:assert/strict";
 import { parseEnv } from "node:util";
-import { readFileSync } from "node:fs";
+import { mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
 import { randomBytes } from "node:crypto";
 import test from "node:test";
 import { assertLocalNextCommand, readLocalConfig } from "../src/config/local.ts";
@@ -301,6 +303,14 @@ test("production database target: TCP endpoint, fixed roles, explicit pool and t
 
 test("production database target refuses a missing owner password and the local profile refuses it entirely", async () => {
   await asProduction({}, () => assert.throws(() => connectDatabase("production", "owner"), /DATABASE_OWNER_PASSWORD is required/));
+  // The mounted-file form (compose.production.yaml migrate service): read and trimmed; a short file is still refused.
+  const directory = mkdtempSync(join(tmpdir(), "99ribu-owner-secret-"));
+  try {
+    writeFileSync(join(directory, "long"), "synthetic-file-owner-password\n", { mode: 0o400 });
+    writeFileSync(join(directory, "short"), "short\n", { mode: 0o400 });
+    assert.equal(productionDatabase({ ...production, DATABASE_OWNER_PASSWORD_FILE: join(directory, "long") }, "owner").password, "synthetic-file-owner-password");
+    assert.throws(() => productionDatabase({ ...production, DATABASE_OWNER_PASSWORD_FILE: join(directory, "short") }, "owner"), /DATABASE_OWNER_PASSWORD is required/);
+  } finally { rmSync(directory, { recursive: true, force: true }); }
   const saved = process.env;
   process.env = { ...local } as NodeJS.ProcessEnv;
   try { assert.throws(() => connectDatabase("production"), /must match APP_ENV/); } finally { process.env = saved; }
