@@ -161,7 +161,9 @@ export const LOCAL_OFFER_KINDS: readonly Offer["kind"][] | null = ["unit"];
 // Owner 2026-10-30: products dropped from the catalog (all four refused publication with BELOW_MARGIN_FLOOR on
 // production): Madu Hutan Liar Asli, Susu Kuda Gizigood, SR12 Gomilku Susu Kambing, Kampas Kopling Kain Klos.
 // Catalog rows are immutable, so an imported one stays an unpublished draft; the withdraw keep list leaves them out.
-export const DROPPED_PRODUCTS: readonly string[] = ["308", "310", "363", "420"];
+// Owner 2026-10-31: the six live products on the single-product list's hold list (variants of different size or volume
+// at one price) are withdrawn: Ocean Bag 311, Madu Multiflora 341, Cocoflim 364 and 365, Matcha 409, Teko Teh 484.
+export const DROPPED_PRODUCTS: readonly string[] = ["308", "310", "363", "420", "311", "341", "364", "365", "409", "484"];
 export function inLocalScope(catalog: CatalogDocument): CatalogDocument {
   const kinds = LOCAL_OFFER_KINDS;
   const products = catalog.products.filter((p) => !DROPPED_PRODUCTS.includes(p.key) && (!kinds || p.offers.every((o) => kinds.includes(o.kind))));

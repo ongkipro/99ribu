@@ -1,7 +1,8 @@
 import { existsSync } from "node:fs";
 import { resolve } from "node:path";
 
-// DEC-005 catalog commands. `dataset` is host-only (needs the raw snapshot); `import` loads the
+// DEC-005 catalog commands. `dataset` is host-only (needs the raw snapshot); `fetch-images` (host-only, network)
+// downloads the photos the single-product list names that the snapshot does not hold yet; `import` loads the
 // committed dataset into the selected database through the real catalog/publication services.
 // `initial-stock` reads the raw snapshot at run time and posts initial receive movements, HPP and
 // default offer assumptions through the real inventory/finance services (nothing is committed).
@@ -14,7 +15,7 @@ import { resolve } from "node:path";
 // explicit, operator-uploaded BERLAPAK_DATA_DIR. `verify` is read-only and prints the counts the release checks.
 // In the image run `node scripts/catalog.ts …` (the npm scripts read .env.example, which the image does not carry).
 const [command, ...args] = process.argv.slice(2);
-const usage = "Use: catalog dataset [out-dir] | catalog import local|test|production [dataset-dir] | catalog initial-stock local|test|production [dataset-dir] | catalog rehome local|test [--apply] | catalog withdraw local|test|production [--apply] | catalog verify local|test|production.";
+const usage = "Use: catalog dataset [out-dir] | catalog fetch-images | catalog import local|test|production [dataset-dir] | catalog initial-stock local|test|production [dataset-dir] | catalog rehome local|test [--apply] | catalog withdraw local|test|production [--apply] | catalog verify local|test|production.";
 type Target = "local" | "test" | "production";
 const targets = ["local", "test", "production"];
 const rawDirectory = (target?: string) => {
@@ -55,6 +56,12 @@ try {
     const directory = rawDirectory();
     const { defaultDatasetDir, writeBerlapakDataset } = await import("../src/modules/local/berlapak-dataset.ts");
     console.log(JSON.stringify(writeBerlapakDataset(directory, args[0] ? resolve(args[0]) : defaultDatasetDir)));
+  } else if (command === "fetch-images" && args.length === 0) {
+    const { readBerlapakSource } = await import("../src/modules/local/berlapak.ts");
+    const { fetchSinglePhotos } = await import("../src/modules/local/berlapak-singles.ts");
+    const { CATALOG_MEDIA_LIMIT } = await import("../src/storage/catalog-media.ts");
+    const source = readBerlapakSource(rawDirectory());
+    console.log(JSON.stringify(await fetchSinglePhotos(source.imagesRoot, source.singlePhotos, CATALOG_MEDIA_LIMIT)));
   } else if (command === "import" && targets.includes(args[0]) && (args.length === 1 || args.length === 2)) {
     const { importCatalog, inLocalScope, readCatalogDataset } = await import("../src/modules/catalog/dataset.ts");
     const { defaultDatasetDir } = await import("../src/modules/local/berlapak-dataset.ts");

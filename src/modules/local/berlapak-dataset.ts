@@ -52,22 +52,27 @@ export const MIN_CATEGORY_PRODUCTS=8;
 // Indonesian marketplaces; shapewear and bras to Fashion Wanita).
 type Rule={slug:Department;pattern:RegExp;unless?:RegExp;gendered?:true};
 const DEPARTMENT_RULES:readonly Rule[]=[
-  {slug:'kesehatan',pattern:/anti mendengkur|kacamata (?:presbiopia|baca)|kaos kaki terapi|ankle support|korektor postur|penyangga bahu|sabuk pinggang terapi|terapi jari|akupuntur|suplemen|madu herbal/},
+  {slug:'kesehatan',pattern:/anti mendengkur|kacamata (?:presbiopia|baca)|kaos kaki terapi|ankle support|korektor postur|penyangga bahu|sabuk pinggang terapi|terapi jari|akupuntur|suplemen|madu herbal|deker|terapi pemanas|kapsul|penggemuk|nafsu makan/},
   {slug:'hewan-peliharaan',pattern:/\b(?:lumipet|luminpet|lumino|kucing|anjing|anabul|bau hewan)\b/},
-  {slug:'ibadah',pattern:/\b(?:peci|sarung(?! tangan)|al-?quran|surah|syariah)\b/},
+  {slug:'ibadah',pattern:/\b(?:peci|sarung(?! tangan)|al-?quran|surah|syariah|rompi shalat|rompi sholat|ruqyah|iqro)\b/},
   {slug:'otomotif',pattern:/\b(?:parfum mobil|mobil|motor|klx|crf|wr ?155|ktm|srx|trail|autocare|sepeda|cakram|aki|kendaraan|monoshock|kampas|kopling|pentil|foglamp|windshield|demon eye|car charger|baret)\b/},
   {slug:'makanan-minuman',pattern:/\b(?:madu|cuka|kurma|susu kuda|susu kambing|stevia|gula aren|matcha|nasi (?:kebuli|mandhi|biryani)|teh|kopi)\b/},
+  // Books outside the Islamic shelf sit with hobbies (no book department yet).
+  {slug:'mainan-hobi',pattern:/\bbuku\b/,unless:/\b(?:syariah|al-?quran|surah|iqro|islam\w*|ruqyah|tajwid|doa|sholat|shalat)\b/},
   {slug:'mainan-hobi',pattern:/\b(?:mainan|spinner|pipa lampu|pop tube|papan tulis|essen|umpan (?:pancing|mancing)|mancing|strike)\b/},
   {slug:'ibu-anak',pattern:/\b(?:anak|kids|bayi|nubiko|plush|boneka|tempat pensil|milk powder|tas les)\b/},
   {slug:'fashion-pria',gendered:true,pattern:/\bkaos\b(?! (?:kaki|anak|jersey))|\bbeanie\b|\bdompet\b|\bwallet\b|celana dalam|kacamata/},
   {slug:'fashion-wanita',gendered:true,pattern:/\bkorset\b|\bshapers?\b|\bstagen\b|\bsauna\b|\bbra\b/},
+  // Single-product list 2026-10-31: women's dresses and headscarves (children's ones stay in Ibu & Anak), men's shirts and kurta.
+  {slug:'fashion-wanita',gendered:true,pattern:/\bgamis\b|\bkaftan\b|\bdaster\b|\bpasmina\b|\bhijab\b|\bkerudung\b/,unless:/\banak\b/},
+  {slug:'fashion-pria',gendered:true,pattern:/\bkemeja\b|\bkurta\b/},
   // Men's grooming tools (clipper, beard trimmer, shaver) are Fashion Pria, not Kecantikan (owner note 2026-10-25). Listed before
   // the Kecantikan rule, which also contains cukur/shaver/trimmer, so an equal match position goes to this rule.
   {slug:'fashion-pria',pattern:/\bbarber\b|\balat cukur\b|\bpencukur\b|\bshaver\b|\btrimmer\b/},
   {slug:'kecantikan',pattern:/\b(?:jawline|hidung|nose|bulu ?mata|eyelash|sabun|soap|cream|serum|moisturizer|setrika wajah|wajah|cukur|shaver|trimmer|gigi|catok(?:an)?|pelurus rambut|hair|rambut|shampoo|shampo|deodorant|deodoran|parfum|perfume|body mist|body cream|body wash|body booster|brush wood|kuas|make ?up|pouch|travel bottle|tumit|feminine|mouth ?spray|mouthwash|toothpaste|bekas luka|medinail|ketiak|pantat|kecantikan|kulit|cermin|booster|pemutih|alat pijat|balm|soothing gel)\b/},
   {slug:'elektronik',pattern:/\b(?:phone holder|laptop|antena|antenna|tv|senter|lampu led sensor|kipas angin|pembesar layar|penghemat listrik|mouse|pipa asbak|earphone|headset|tws|cctv|gps|korek api)\b/},
   {slug:'dapur',pattern:/\b(?:pisau|watermelon|pemotong sayuran|saringan|chopper|blender|tatakan kompor|oil pot|lunch ?box|bekal|coaster|tumbler|rak galon|mincer|shaker|timbangan dapur|teko|teapot|mug)\b/},
-  {slug:'perkakas',pattern:/\b(?:lem|lakban|tape|waterproof agent|pompa|kunci|tang|gergaji|stapler|sarung tangan|timbangan|kaca pembesar)\b/},
+  {slug:'perkakas',pattern:/\b(?:lem|lakban|tape|waterproof agent|pompa|kunci|tang|gergaji|stapler|sarung tangan|timbangan|kaca pembesar|troli|dongkrak)\b/},
   {slug:'rumah-tangga',pattern:/floor drain|pembersih (?:pipa|lantai|kulkas|noda|toilet|tabung|multifungsi|minyak|sepatu)|gel pembersih|busa pembersih|saluran air|shoes cleaner|dishwash|deterjen|detergent|laundry|stain remover|semprotan air|water canon|spray gun|perangkap|tikus|kecoa|semut|pembasmi|pest reject|alat pel|\bmop\b|kemoceng|vacum|vacuum|polish|pengkilap|pengharum ruangan|reed diffuser|washing machine|gantungan|\bhook\b|sticker|stiker|pengangkat kasur|penghilang bulu pakaian|jam dinding|selang|payung|rak sepatu/},
   // Bags last: a lunch, school or cosmetic bag is classified by its purpose first.
   {slug:'fashion-pria',gendered:true,pattern:/\btas\b|\bbag\b|slingbag/,unless:/\b(?:anak|plush|boneka|bekal|lunch|cooler|make ?up|travel bottle)\b/},
@@ -388,6 +393,12 @@ export function cardTitle(full:string,options:{variant?:string|null;count?:numbe
 // `limit` (at most TITLE_HARD_LIMIT) is for the few products whose type + brand + variant cannot fit 40.
 export const TITLE_HARD_LIMIT=48;
 const TITLE_OVERRIDES:Readonly<Record<string,{expect:string;title:string;evidence?:string;limit?:number}>>={
+  // The motorcycle models are what the part fits; the cut kept only the part name.
+  // Supplier names lead with promotion or health claims; the title keeps the product and its size only.
+  '1600':{expect:'Special Summit',title:'Nubiko Hair Lotion Baby Argan Oil, 100ml'},
+  '1638':{expect:'SR12 Minyak Bulus',title:'SR12 Minyak Bulus'},
+  '1698':{expect:'Supergoat Platinum',title:'Supergoat Platinum Susu Kambing Etawa, 200gr'},
+  '1723':{expect:'Undertail stoplamp lazer',title:'Undertail Stoplamp LED CRF 150 / KLX 150'},
   '135':{expect:'Snap On Smile Gigi Palsu',title:'Snap On Smile Gigi Palsu Natural',evidence:'"Warna: Putih natural", worn as is'},
   '136':{expect:'Snap On Smile Gigi Palsu',title:'Snap On Smile Gigi Palsu + Cetakan',evidence:'"2 Cetakan Gigi", "2 Bahan Gigi Silicon"'},
   // The generation number is what separates the jawline trainers; the cut lost it.
@@ -659,8 +670,11 @@ export function classifyOffers(source:Pick<ReturnType<typeof readBerlapakSource>
 export type BerlapakDataset={catalog:CatalogDocument;text:string;manifest:ManifestDocument;photos:Map<string,{bytes:Buffer;width:number;height:number}>;skipped:Record<string,number>};
 // `minimumPerCategory`/`requireOverrides` exist for small synthetic snapshots in tests only; the
 // catalog command always uses the defaults.
-export function buildBerlapakDataset(sourceDir:string,options:{minimumPerCategory?:number;requireOverrides?:boolean}={}):BerlapakDataset{
-  const source=readBerlapakSource(sourceDir);
+// `stockNames`: stock item names already committed (immutable rows once imported); an item keeps its committed name
+// when the snapshot renames it.
+export function buildBerlapakDataset(sourceDir:string,options:{minimumPerCategory?:number;requireOverrides?:boolean;stockNames?:ReadonlyMap<string,string>}={}):BerlapakDataset{
+  const raw=readBerlapakSource(sourceDir);
+  const source={...raw,stocks:raw.stocks.map((s)=>{const name=options.stockNames?.get(stockSku(s.key));return name&&name!==s.name?{...s,name}:s;})};
   const groups=Map.groupBy(source.offers,(o)=>o.productKey);
   const products=[...groups].map(([key,offers])=>({...offers[0],key}));
   const productSource={...source,offers:products};
@@ -677,7 +691,10 @@ export function buildBerlapakDataset(sourceDir:string,options:{minimumPerCategor
   // descriptions already name the stock item; a shortened bundle's description gains its name.
   // Product page text: the offer contents, then the tidied supplier details of the item. A bundle
   // adds each component's details under its name only when all of them fit DETAILS_LIMIT.
-  const suppliers=supplierPatterns(source.supplierNames),warehouseNames=[...new Set(source.stocks.map((s)=>s.warehouse.name.toLowerCase()))];
+  // A supplier warehouse called by a short or everyday word ("SK", "Rumah") names nothing private; matching it would
+  // drop ordinary detail lines and refuse ordinary product text, so only distinctive names are screened.
+  const warehouseNames=[...new Set(source.stocks.map((s)=>s.warehouse.name.toLowerCase().trim()))].filter((n)=>n.length>=4&&!/^(?:rumah|gudang|toko|kantor)$/.test(n));
+  const suppliers=supplierPatterns(source.supplierNames);
   const details=new Map(source.stocks.map((s)=>[s.key,cleanDetails(s.details,{suppliers,names:[s.title,s.name],warehouses:warehouseNames})]));
   const describe=(o:(typeof source.offers)[number])=>{
     const variants=groups.get(o.productKey) as (typeof source.offers);
@@ -730,11 +747,12 @@ export function buildBerlapakDataset(sourceDir:string,options:{minimumPerCategor
       const gallery=candidates.flatMap((i)=>{const sha256=photo(i.rank,i.file);if(seen.has(sha256)) return [];seen.add(sha256);
         const alt=i.choice?`${titles.get(o.key) as string}, ${i.choice}`.replace(ALT_CLAIMS,' ').replace(/\s+/g,' ').replace(/\s+,/g,',').trim():altText(o,i.rank,seen.size-1);
         return [{sha256,alt:alt.length<=125?alt:fit(alt,125)}];}).slice(0,20);
-      const definitions=offers.map((offer)=>{const side=cube(offer.grams);return {
-        sku:`B99_${offer.key}_OFFER`,label:offer.label,kind:offer.kind,image:offer.image?photo(offer.image.rank,offer.image.file):null,
+      // A variant whose photo does not fit the 20-photo gallery (many colour x size variants) shows the shared gallery
+      // instead; its own photo is never replaced by another variant's.
+      const definitions=offers.map((offer)=>{const side=cube(offer.grams),image=offer.image?photo(offer.image.rank,offer.image.file):null;return {
+        sku:`B99_${offer.key}_OFFER`,label:offer.label,kind:offer.kind,image:image&&gallery.some((p)=>p.sha256===image)?image:null,
         warehouse:originKey(offer.warehouse),weight_grams:offer.grams,length_mm:side,width_mm:side,height_mm:side,
         contents:offer.parts.map((p)=>({stock_item:stockSku(p.stock),quantity:p.quantity})).sort((a,b)=>byKey(a.stock_item,b.stock_item))};});
-      if(definitions.some((v)=>v.image&&!gallery.some((p)=>p.sha256===v.image))) throw new Error(`Product ${o.key} has too many variant photos for the 20-photo gallery.`);
       return {key:o.key,name:titles.get(o.key) as string,description:describe(o),category:slug(o.key),
         ...(()=>{const d=departments.get(o.key) as {slug:Department;google:number};
           return d.google===DEPARTMENTS.find((x)=>x.slug===d.slug)?.google?{}:{google_product_category:d.google};})(),photos:gallery,offers:definitions};})};
@@ -746,7 +764,7 @@ export function buildBerlapakDataset(sourceDir:string,options:{minimumPerCategor
   // product text, or carries a raw supplier warehouse id anywhere. Warehouse entries are built
   // from kecamatan/city/province only (DEC-006).
   const productText=JSON.stringify([catalog.categories,catalog.stock_items,catalog.products]);const lower=productText.toLowerCase();
-  if(supplierPatterns(source.supplierNames).some((p)=>p.test(productText))||source.stocks.some((s)=>lower.includes(s.warehouse.name.toLowerCase())||text.includes(s.warehouse.id)))
+  if(supplierPatterns(source.supplierNames).some((p)=>p.test(productText))||warehouseNames.some((n)=>lower.includes(n))||source.stocks.some((s)=>text.includes(s.warehouse.id)))
     throw new Error('Refusing dataset: a supplier or supplier-warehouse name would be published.');
   const catalogSha256=createHash('sha256').update(text).digest('hex');
   const manifest:ManifestDocument={format:MANIFEST_FORMAT,catalog_sha256:catalogSha256,
@@ -755,7 +773,8 @@ export function buildBerlapakDataset(sourceDir:string,options:{minimumPerCategor
 }
 
 export function writeBerlapakDataset(sourceDir:string,outDir=defaultDatasetDir,options:{minimumPerCategory?:number;requireOverrides?:boolean}={}){
-  const built=buildBerlapakDataset(sourceDir,options);const photoDir=join(outDir,'photos');mkdirSync(photoDir,{recursive:true});
+  const committed=existsSync(join(outDir,'catalog.json'))?readCatalogDocument(outDir).stock_items:[];
+  const built=buildBerlapakDataset(sourceDir,{...options,stockNames:new Map(committed.map((s)=>[s.sku,s.name]))});const photoDir=join(outDir,'photos');mkdirSync(photoDir,{recursive:true});
   const write=(path:string,bytes:Buffer|string)=>{const next=Buffer.from(bytes);if(existsSync(path)&&readFileSync(path).equals(next)) return false;writeFileSync(path,next);return true;};
   let written=0,removed=0;
   for(const [hash,p] of built.photos) if(write(join(photoDir,`${hash}.webp`),p.bytes)) written++;
@@ -807,20 +826,22 @@ export async function loadInitialStock(request:Request,identity:LocalAuth,option
       const command=(step:string)=>{const next=new Request(`${config.origin}/api/v1/admin/catalog-initial-stock`,{method:'POST',headers:request.headers});
         next.headers.set('idempotency-key',createHash('sha256').update(`catalog-initial-stock:${source.snapshot}:${step}`).digest('hex'));return next;};
       const summary={snapshot:source.snapshot,warehouses:warehouses.size,stock_items:items.length,
-        receive:{received:0,units:0,existing:0,capped:0,differs_from_snapshot:0,outside_origin:0},hpp:{appended:0,existing:0,differs_from_snapshot:0},assumptions:{appended:0,existing:0},offers_not_imported:notImported};
+        receive:{received:0,units:0,zero:0,existing:0,capped:0,differs_from_snapshot:0,outside_origin:0},hpp:{appended:0,existing:0,differs_from_snapshot:0},assumptions:{appended:0,existing:0},offers_not_imported:notImported};
       for(const item of items){
         signal?.throwIfAborted();const stockId=stocks.get(item.sku) as string;const warehouseId=warehouses.get(origins.get(item.sku) as string) as string;
         const [history]=await identity.sql`select count(*) filter (where revision>0)::int as touched,coalesce(sum(on_hand),0)::int as on_hand,
           coalesce(sum(on_hand) filter (where warehouse_id<>${warehouseId}),0)::int as outside from app.inventory_balance where stock_item_id=${stockId}`;
         const quantity=Math.min(item.stock,RECEIVE_LIMIT);
         let received=false;
-        if(history.touched===0){
+        // A product without stock is catalogued as a draft: nothing to receive, HPP still recorded.
+        if(history.touched===0&&quantity===0) summary.receive.zero++;
+        else if(history.touched===0){
           try{await createMovement(command(`receive:${warehouseId}:${item.sku}`),identity,principal,{warehouse_id:warehouseId,stock_item_id:stockId,lot_id:null,kind:'receive',quantity,
             expected_version:0,reason:`Initial stock from supplier snapshot ${source.snapshot}`});received=true;}
           catch(error){if(!(error instanceof AccessError)||error.code!=='VERSION_CONFLICT') throw error;}
         }
         if(received){summary.receive.received++;summary.receive.units+=quantity;if(quantity<item.stock) summary.receive.capped++;}
-        else{summary.receive.existing++;if(history.on_hand!==item.stock) summary.receive.differs_from_snapshot++;if(history.outside>0) summary.receive.outside_origin++;}
+        else if(history.touched>0||quantity>0){summary.receive.existing++;if(history.on_hand!==item.stock) summary.receive.differs_from_snapshot++;if(history.outside>0) summary.receive.outside_origin++;}
         const [cost]=await identity.sql`select revision,unit_cost from app.component_cost_version where stock_item_id=${stockId} order by revision desc limit 1`;
         if(!cost){
           try{await appendCostVersion(command(`hpp:${item.sku}`),identity,principal,'component',stockId,{expected_version:0,unit_cost:item.hpp,effective_from:null,

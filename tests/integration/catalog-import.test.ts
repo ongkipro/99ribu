@@ -362,7 +362,7 @@ test('initial stock and HPP from the raw snapshot, guarded publication, withdraw
 
     const first=await load();
     // Received into each item's origin warehouse (on_hand below counts that warehouse only).
-    assert.equal(first.warehouses,1);assert.deepEqual(first.receive,{received:2,units:160,existing:0,capped:0,differs_from_snapshot:0,outside_origin:0});
+    assert.equal(first.warehouses,1);assert.deepEqual(first.receive,{received:2,units:160,zero:0,existing:0,capped:0,differs_from_snapshot:0,outside_origin:0});
     assert.deepEqual(first.hpp,{appended:2,existing:0,differs_from_snapshot:0});assert.deepEqual(first.assumptions,{appended:3,existing:0});
     assert.deepEqual(await state(),{movements:2,on_hand:160,costs:2,assumptions:3});
     const [cost]=await sql`select v.unit_cost from app.component_cost_version v join app.stock_item s on s.id=v.stock_item_id where s.sku=${`${prefix}1`}`;assert.equal(cost.unit_cost,HPP);
@@ -372,7 +372,7 @@ test('initial stock and HPP from the raw snapshot, guarded publication, withdraw
     const second=await load();assert.equal(second.receive.received,0);assert.equal(second.receive.existing,2);assert.equal(second.hpp.appended,0);assert.equal(second.assumptions.appended,0);
     const rawFile=join(rawDir,'data-json','products-up-to-49k-ready-stock.json');const raw=JSON.parse(readFileSync(rawFile,'utf8'));
     for(const product of raw.products){product.inventory.total_stock=90;if(product.rank===4) product.pricing.hpp_price=20000;}writeFileSync(rawFile,JSON.stringify(raw));
-    const changed=await load();assert.deepEqual(changed.receive,{received:0,units:0,existing:2,capped:0,differs_from_snapshot:2,outside_origin:0});assert.equal(changed.hpp.differs_from_snapshot,1);
+    const changed=await load();assert.deepEqual(changed.receive,{received:0,units:0,zero:0,existing:2,capped:0,differs_from_snapshot:2,outside_origin:0});assert.equal(changed.hpp.differs_from_snapshot,1);
     assert.deepEqual(await state(),{movements:2,on_hand:160,costs:2,assumptions:3});
 
     // Publication stays the guarded import rerun.
@@ -500,7 +500,7 @@ test('DEC-006 local transition: dry run is read-only; apply moves available stoc
     assert.ok(legacyPlans[0].packages.every((p)=>p.warehouse_id===legacy.id));assert.equal(legacyPlans[0].shipping_total,8000,'one parcel under 1 kg, same-city band by city only');
     // Initial stock never receives again when the item already has stock history elsewhere.
     const initial=await loadInitialStock(request(),identity,{sourceDir:rawDir,datasetDir:dir});
-    assert.deepEqual(initial.receive,{received:0,units:0,existing:2,capped:0,differs_from_snapshot:0,outside_origin:2});
+    assert.deepEqual(initial.receive,{received:0,units:0,zero:0,existing:2,capped:0,differs_from_snapshot:0,outside_origin:2});
 
     const before=await writes();const dry=await plan();
     assert.deepEqual(dry.warehouses,{catalog:1,existing:1,to_create:0,conflicts:[]});

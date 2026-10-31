@@ -18,6 +18,7 @@ import {ensurePosition,postMovement} from '../inventory/state.ts';
 import {webpSize} from '../../storage/media-sniff.ts';
 import {seedLocal} from './fixtures.ts';
 import {variantKey} from './berlapak-identities.ts';
+import {SINGLES_FILE,singleRows} from './berlapak-singles.ts';
 
 // Host-only importer for the local Berlapak supplier snapshot. Supplier names, HPP and
 // supplier/warehouse IDs stay in private stock/cost/warehouse rows; public names,
@@ -25,6 +26,7 @@ import {variantKey} from './berlapak-identities.ts';
 type Target='local'|'test';
 const PRICE=99000,ON_HAND_CAP=500,MAX_PARCEL_GRAMS=20000,FALLBACK_UNIT_GRAMS=250,NAME_LIMIT=70,JSON_LIMIT=32*1024*1024,IMAGE_LIMIT=5_000_000;
 export const defaultBerlapakDir='/data/99ribu-berlapak-data';
+const ARCHIVE='_archive_old_bundling';
 // S69 per-offer variable-cost defaults (IDR); also applied to DEC-005 catalog offers that have none.
 export const DEFAULT_OFFER_ASSUMPTIONS={packaging_idr:1000,provider_fee_idr:1000,subsidy_idr:5000,returns_reserve_idr:1000} as const;
 export const defaultCatalogPublicDir=fileURLToPath(new URL('../../../public/catalog-local/',import.meta.url));
@@ -102,18 +104,26 @@ const variantLabel=(value:string)=>value.normalize('NFC').replace(/\s+/g,' ').tr
   const letters=word.replace(/[^\p{L}]/gu,'');
   return letters.length>3&&/^\p{Lu}+$/u.test(letters)&&!/\d/.test(word)&&!/^X+L$/.test(letters)?word.charAt(0)+word.slice(1).toLowerCase():word;}).join(' ');
 type Image={file:string;source:string;width:number;height:number};
-type StockSource={rank:number;key:string;name:string;title:string;variant:string|null;choice:string|null;details:string;hpp:number;stock:number;unitGrams:number;weightDefaulted:boolean;warehouse:{id:string;name:string;province:string;city:string;district:string};category:string;images:Image[];image:Image|null;qty:number};
+type StockSource={rank:number;key:string;name:string;title:string;variant:string|null;choice:string|null;details:string;hpp:number;stock:number;unitGrams:number;weightDefaulted:boolean;unstocked:boolean;warehouse:{id:string;name:string;province:string;city:string;district:string};category:string;images:Image[];image:Image|null;qty:number};
 type OfferSource={key:string;productKey:string;name:string;description:string;category:string;kind:'unit'|'multipack'|'bundle';label:string;choice:string|null;parts:{rank:number;stock:string;quantity:number}[];warehouse:string;grams:number;images:{rank:number;file:string;alt:string}[];image:{rank:number;file:string}|null};
 
 export function readBerlapakSource(directory:string){
   if(!existsSync(join(directory,'data-json'))||!existsSync(join(directory,'images'))) throw new Error(`Berlapak data directory not found or incomplete: ${directory}`);
   const root=realpathSync(directory),jsonRoot=inside(root,join(directory,'data-json')),imagesRoot=inside(root,join(directory,'images'));
-  const json=(name:string)=>rec(JSON.parse(readContained(jsonRoot,join(jsonRoot,name),JSON_LIMIT).toString('utf8')));
-  const mapping=json('google-catalog-category-mapping.json');const curated=json('curated-99ribu-packages.json');const ready=json('products-up-to-49k-ready-stock.json');
+  const parse=(base:string,name:string)=>rec(JSON.parse(readContained(base,join(base,name),JSON_LIMIT).toString('utf8')));
+  const json=(name:string)=>parse(jsonRoot,name);
+  // The legacy lists moved to _archive_old_bundling/ when the single-product list arrived (2026-10-31).
+  const legacy=(name:string)=>existsSync(join(jsonRoot,name))?json(name):parse(root,join(ARCHIVE,name));
+  const mapping=json('google-catalog-category-mapping.json');const curated=legacy('curated-99ribu-packages.json');const ready=legacy('products-up-to-49k-ready-stock.json');
+  const singles=existsSync(join(root,SINGLES_FILE))
+    ?singleRows(parse(root,SINGLES_FILE),array(legacy('products-up-to-49k-full.json').products,rec,1,10000),(folder)=>/^[\w-]+$/.test(folder)&&existsSync(join(imagesRoot,folder))):null;
   const categories=array(mapping.storefront_categories,(value)=>{const v=rec(value);const code=text(v.code,20);if(!/^CAT-\d{2}$/.test(code)) throw invalid();
     const name=text(v.name,200);const slug=slugify(text(v.slug,100).replace(/^\d+-/,''));if(!slug||slug.length>60) throw invalid();return {code,name,slug};},1,50);
   if(new Set(categories.map((c)=>c.code)).size!==categories.length||new Set(categories.map((c)=>c.slug)).size!==categories.length) throw invalid();
-  const snapshot=text(ready.updated_at,40);const rows=array(ready.products,rec,1,5000);
+  // A single-product record replaces the legacy record of the same rank (same Berlapak product).
+  const replaced=new Set(singles?.rows.map((r)=>r.rank));
+  const snapshot=singles?.snapshot??text(ready.updated_at,40);
+  const rows=[...array(ready.products,rec,1,5000).filter((r)=>!replaced.has(r.rank)),...singles?.rows??[]];
   const skipped:Record<string,number>={};const skip=(reason:string)=>{skipped[reason]=(skipped[reason]??0)+1;};
   const supplierNames=new Set<string>();for(const row of rows){try{const name=optionalText(rec(row.supplier).name,200);if(name) supplierNames.add(name);}catch{/* validated per row below */}}
   const suppliers=supplierPatterns([...supplierNames]);
@@ -123,11 +133,13 @@ export function readBerlapakSource(directory:string){
     try{rank=integer(row.rank,1,99999);}catch{skip('invalid-record');continue;}
     if(ranks.has(rank)){skip('invalid-record');continue;}ranks.add(rank);
     try{
-      const inventory=rec(row.inventory);if(inventory.is_ready_stock!==true){skip('not-ready-stock');continue;}
+      const unstocked=row.allow_unstocked===true;
+      const inventory=rec(row.inventory);if(inventory.is_ready_stock!==true&&!unstocked){skip('not-ready-stock');continue;}
       const pricing=rec(row.pricing),strategy=rec(row.strategy_99ribu),variants=rec(row.variants_summary),assets=rec(row.assets),place=rec(row.warehouse_and_shipping),category=rec(row.category_mapping);
       const options=array(variants.variants,rec,0,200).flatMap((v)=>{try{return [{name:text(v.name,100),hpp:integer(v.hpp_price,1,PRICE*10),stock:integer(v.stock,0),id:text(v._id,40),image:optionalText(v.image_local_path,600)}];}catch{skip('variant-invalid');return [];}});
       if(new Set(options.map((v)=>v.id)).size!==options.length) throw invalid();
-      const candidates=variants.has_variants===true?options.filter((v)=>v.stock>0):[{
+      const stocked=options.filter((v)=>v.stock>0);
+      const candidates=variants.has_variants===true?(stocked.length||!unstocked?stocked:options):[{
         name:null,hpp:integer(pricing.hpp_price,1,PRICE*10),stock:integer(inventory.total_stock,0),id:null,image:null}];
       if(!candidates.length){skip('hpp-unusable');continue;}
       const qty=integer(strategy.recommended_bundle_qty,1,50);
@@ -156,6 +168,8 @@ export function readBerlapakSource(directory:string){
       const code=text(category.storefront_category_code,20);if(!categories.some((c)=>c.code===code)){skip('category-unmapped');continue;}
       const fallback=optionalText(category.storefront_subcategory,100)??undefined;
       const base=publicName(text(row.name,500),suppliers,NAME_LIMIT,fallback);
+      // A product named only by its supplier (brand = seller) cannot be published without that name.
+      if(suppliers.some((p)=>{p.lastIndex=0;return p.test(base);})){skip('supplier-named');continue;}
       // Raw marketplace description: cleaned by the DEC-005 generator before anything is published.
       let details='';try{details=optionalText(row.description,20000)??'';}catch{/* unusable text: no details */}
       for(const candidate of candidates){
@@ -170,7 +184,7 @@ export function readBerlapakSource(directory:string){
         stocks.set(key,{rank,key,name:text(name,200),title:publicName(text(row.name,500),suppliers,500,fallback,true),variant,choice,hpp:candidate.hpp,stock:candidate.stock,
           unitGrams:grams??FALLBACK_UNIT_GRAMS,weightDefaulted:grams===null,
           warehouse:{id:warehouseId,name:text(place.warehouse_name,150),province:placeName(place.province),city:placeName(place.city),district:placeName(place.district)},
-          category:code,details,images, image,qty});
+          category:code,details,images, image,qty,unstocked});
       }
     }catch{skip('invalid-record');}
   }
@@ -178,7 +192,7 @@ export function readBerlapakSource(directory:string){
   const imageAlt=(name:string,index:number)=>index?`${name}, foto ${index+1}`:name;
   for(const item of [...stocks.values()].sort((a,b)=>a.rank-b.rank||a.key.localeCompare(b.key))){
     if(item.qty*item.hpp>=PRICE){skip('hpp-at-or-above-price');continue;}
-    if(item.stock<item.qty){skip('insufficient-stock');continue;}
+    if(item.stock<item.qty&&!item.unstocked){skip('insufficient-stock');continue;}
     const grams=item.qty*item.unitGrams;if(grams>MAX_PARCEL_GRAMS){skip('parcel-too-heavy');continue;}
     const kind=item.qty===1?'unit':'multipack';
     const name=publicName(kind==='unit'?item.name:`Paket ${item.qty} pcs ${item.name}`,[],NAME_LIMIT);
@@ -214,7 +228,7 @@ export function readBerlapakSource(directory:string){
   }
   const used=new Set(offers.flatMap((o)=>o.parts.map((p)=>p.stock)));
   const selected=[...stocks.values()].filter((s)=>used.has(s.key));
-  return {snapshot,imagesRoot,categories,stocks:selected,offers,skipped,weightDefaulted:selected.filter((s)=>s.weightDefaulted).length,supplierNames:[...supplierNames]};
+  return {snapshot,imagesRoot,categories,stocks:selected,offers,skipped,weightDefaulted:selected.filter((s)=>s.weightDefaulted).length,supplierNames:[...supplierNames],singlePhotos:singles?.photos??[]};
 }
 
 async function owner(tx:TransactionSql,principal:Principal){await tx`select id from app.auth_user where id=${principal.id} for update`;await assertCurrentOwner(tx,principal);}
