@@ -21,7 +21,6 @@ test("a product new to 99ribu gets the base rank, its own folder and fetchable p
   assert.equal(row.allow_unstocked, true);
   assert.deepEqual(out.photos, [{ folder: "007-kaos-polos", file: "img-01.webp", url: "https://x/1.png" }]);
   assert.equal(out.snapshot, "singles 2026-10-30T17:02:43.765Z");
-  assert.deepEqual(out.legacyRanks, []);
 });
 
 test("a product already in the legacy snapshot keeps its rank, folder and legacy variant photos", () => {
@@ -33,10 +32,22 @@ test("a product already in the legacy snapshot keeps its rank, folder and legacy
   const out = singleRows({ generated_at: "t", products: [product] }, legacy, (folder) => folder === "042-kaos");
   const row = out.rows[0] as Record<string, any>;
   assert.equal(row.rank, 42);
-  assert.deepEqual(out.legacyRanks, [42]);
-  assert.deepEqual(row.variants_summary.variants.map((v: any) => v.image_local_path), ["images/042-kaos/var-01.webp", "images/042-kaos/var-102.webp"]);
+  const [known, fresh] = row.variants_summary.variants.map((v: any) => v.image_local_path);
+  assert.equal(known, "images/042-kaos/var-01.webp");
+  // A new variant's photo is named from its id (stable when the list reorders variants), never a legacy var-NN name.
+  assert.match(fresh, /^images\/042-kaos\/var-\d{10}\.webp$/);
   // Gallery photos already on disk are not fetched; only the new variant's photo is.
-  assert.deepEqual(out.photos, [{ folder: "042-kaos", file: "var-102.webp", url: "https://x/v2.png" }]);
+  assert.deepEqual(out.photos, [{ folder: "042-kaos", file: fresh.slice("images/042-kaos/".length), url: "https://x/v2.png" }]);
+  const reordered = singleRows({ generated_at: "t", products: [{ ...product, variants_summary: { has_variants: true,
+    variants: [...(product.variants_summary as { variants: unknown[] }).variants].reverse() } }] }, legacy, (folder) => folder === "042-kaos");
+  assert.deepEqual(reordered.photos, out.photos);
+});
+
+test("one variant is still a variant even when the record says has_variants:false", () => {
+  const product = record({ variants_summary: { has_variants: false, variants: [{ _id: "v9", name: "5M", hpp_price: 30000, stock: 4, image_remote_url: "https://x/v9.png" }] } });
+  const row = singleRows({ generated_at: "t", products: [product] }, [], () => false).rows[0] as Record<string, any>;
+  assert.equal(row.variants_summary.has_variants, true);
+  assert.equal(row.variants_summary.variants[0].name, "5M");
 });
 
 test("a product without a supplier warehouse ships from the distributor address; a duplicate rank is invalid", () => {

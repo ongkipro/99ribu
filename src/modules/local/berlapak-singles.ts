@@ -1,3 +1,5 @@
+import {createHash} from 'node:crypto';
+
 // Owner 2026-10-31: the curated single-product list in the raw snapshot (`single-79k-105k/…-full.json`, 216 products
 // whose Berlapak recommended price is Rp79.000–Rp105.000) is sold as one unit at Rp99.000. Its records are rewritten
 // here into the legacy row shape readBerlapakSource already reads, so naming, cleaning, classification and the
@@ -17,7 +19,7 @@ const slugOf=(value:string)=>value.normalize('NFKD').toLowerCase().replace(/[^a-
 
 // One photo the reader expects on disk (images/<folder>/<file>) and where `catalog fetch-images` gets it.
 export type SinglePhoto={folder:string;file:string;url:string};
-export type SingleRows={snapshot:string;rows:Rec[];photos:SinglePhoto[];legacyRanks:number[]};
+export type SingleRows={snapshot:string;rows:Rec[];photos:SinglePhoto[]};
 
 // `legacy`: every legacy record (full list, not only ready stock) for the `_id` -> rank and variant photo mapping.
 // `hasFolder`: whether images/<folder> exists in the snapshot.
@@ -26,14 +28,14 @@ export function singleRows(document:unknown,legacy:readonly Rec[],hasFolder:(fol
   const snapshot=typeof data.generated_at==='string'?data.generated_at:'';
   if(!snapshot||snapshot.length>40) throw new Error('Single-product list has no generated_at.');
   const byId=new Map(legacy.flatMap((row)=>typeof row._id==='string'?[[row._id,row] as const]:[]));
-  const rows:Rec[]=[],photos:SinglePhoto[]=[],legacyRanks:number[]=[],ranks=new Set<number>();
+  const rows:Rec[]=[],photos:SinglePhoto[]=[],ranks=new Set<number>();
   for(const value of list(data.products)){
     const p=rec(value),id=typeof p._id==='string'?p._id:'',old=byId.get(id);
     const catalogNo=Number(p.berlapak_catalog_no);
     const rank=old?Number(old.rank):SINGLE_RANK_BASE+catalogNo;
     // An invalid record is passed on with rank 0 so the reader counts it as `invalid-record`.
     if(!Number.isSafeInteger(rank)||rank<1||ranks.has(rank)){rows.push({rank:0});continue;}
-    ranks.add(rank);if(old) legacyRanks.push(rank);
+    ranks.add(rank);
     const assets=rec(p.assets),place=rec(p.warehouse_and_location),seller=rec(p.distributor_and_seller),inventory=rec(p.inventory);
     const pricing=rec(p.pricing_berlapak),variants=rec(p.variants_summary),category=rec(p.category_and_google_catalog);
     // The legacy folder (and its photos) is reused; a new product gets <rank%1000>-<slug> filled by fetch-images.
@@ -47,10 +49,12 @@ export function singleRows(document:unknown,legacy:readonly Rec[],hasFolder:(fol
     const options=list(variants.variants).map((value,index)=>{
       const v=rec(value),prior=oldVariants.get(String(v._id));
       // A variant known to the legacy snapshot keeps its legacy photo; any other variant photo is fetched next to the
-      // folder's own files (var-1NN cannot collide with the legacy var-NN names).
+      // folder's own files, named from the variant id (9 or more digits, never a legacy var-NN name), so a later list
+      // that reorders variants cannot attach one variant's photo to another.
       let image:string|null=typeof prior?.image_local_path==='string'?prior.image_local_path:null;
       if(!image&&typeof v.image_remote_url==='string'){
-        const file=`var-${pad((local||old?100:0)+index+1,2)}.webp`;image=`images/${folder}/${file}`;photos.push({folder,file,url:v.image_remote_url});
+        const file=`var-${1e9+Number.parseInt(createHash('sha256').update(String(v._id)).digest('hex').slice(0,8),16)}.webp`;
+        image=`images/${folder}/${file}`;photos.push({folder,file,url:v.image_remote_url});
       }
       return {_id:v._id,name:v.name,hpp_price:v.hpp_price,stock:v.stock,image_local_path:image};
     });
@@ -59,20 +63,21 @@ export function singleRows(document:unknown,legacy:readonly Rec[],hasFolder:(fol
     rows.push({rank,_id:id,name:p.name,description:p.description,allow_unstocked:true,
       inventory:{is_ready_stock:inventory.is_ready_stock,total_stock:inventory.total_stock,weight_gram:inventory.weight_gram,weight_kg:inventory.weight_kg},
       pricing:{hpp_price:pricing.hpp_price},strategy_99ribu:{recommended_bundle_qty:1},
-      variants_summary:{has_variants:variants.has_variants===true&&options.length>0,variants:options},
+      variants_summary:{has_variants:options.length>0,variants:options},
       assets:{folder_slug:folder},supplier:{name:seller.seller_name},
       warehouse_and_shipping:warehouseId?{warehouse_id:warehouseId,warehouse_name:place.warehouse_name,province:place.province,city:place.city,district:place.district}
         :{warehouse_id:address.address_id,warehouse_name:address.name,province:address.province??place.province,city:address.city??place.city,district:address.district??place.district},
       category_mapping:{storefront_category_code:category.suggested_category_code,storefront_subcategory:category.suggested_subcategory_name}});
   }
-  return {snapshot:`singles ${snapshot}`,rows,photos,legacyRanks};
+  return {snapshot:`singles ${snapshot}`,rows,photos};
 }
 
 // Host-only: downloads the photos the single-product list names but the snapshot does not hold yet (supplier bucket
 // only), converted the way the snapshot's own photos were (inside 1080 px, WebP q82, lower quality until the file fits
 // the catalog media limit). Existing files are never overwritten; a failed photo is reported and the reader then
 // skips that product or variant, so a rerun only fetches what is still missing.
-const PHOTO_ORIGIN='https://storage.googleapis.com/productsource-bucket/',DOWNLOAD_LIMIT=15_000_000;
+const PHOTO_HOST='storage.googleapis.com',PHOTO_PATH='/productsource-bucket/',DOWNLOAD_LIMIT=15_000_000;
+const trusted=(value:string)=>{try{const url=new URL(value);return url.protocol==='https:'&&url.host===PHOTO_HOST&&url.pathname.startsWith(PHOTO_PATH)&&!url.pathname.includes('/../')&&!url.search;}catch{return false;}};
 export async function fetchSinglePhotos(imagesRoot:string,photos:readonly SinglePhoto[],limit:number){
   const {default:sharp}=await import('sharp');
   const {closeSync,constants,existsSync,mkdirSync,openSync,writeFileSync}=await import('node:fs');const {join}=await import('node:path');
@@ -80,14 +85,15 @@ export async function fetchSinglePhotos(imagesRoot:string,photos:readonly Single
   const queue=[...photos];
   const work=async()=>{for(let photo=queue.shift();photo;photo=queue.shift()){
     const target=join(imagesRoot,photo.folder,photo.file);
-    if(!/^[\w-]+$/.test(photo.folder)||!photo.url.startsWith(PHOTO_ORIGIN)){summary.failed.push(`${photo.folder}/${photo.file}: refused source`);continue;}
+    if(!/^[\w-]+$/.test(photo.folder)||!trusted(photo.url)){summary.failed.push(`${photo.folder}/${photo.file}: refused source`);continue;}
     if(existsSync(target)){summary.existing++;continue;}
     try{
-      const response=await fetch(photo.url,{signal:AbortSignal.timeout(30_000)});if(!response.ok) throw new Error(`HTTP ${response.status}`);
+      const response=await fetch(photo.url,{redirect:'error',signal:AbortSignal.timeout(30_000)});if(!response.ok) throw new Error(`HTTP ${response.status}`);
+      if(Number(response.headers.get('content-length')??0)>DOWNLOAD_LIMIT) throw new Error('too large');
       const raw=Buffer.from(await response.arrayBuffer());if(raw.length>DOWNLOAD_LIMIT) throw new Error('too large');
       let bytes:Buffer|null=null;
       for(const quality of [82,72,62,52]){
-        bytes=await sharp(raw,{failOn:'none'}).rotate().resize({width:1080,height:1080,fit:'inside',withoutEnlargement:true}).webp({quality,effort:4}).toBuffer();
+        bytes=await sharp(raw).rotate().resize({width:1080,height:1080,fit:'inside',withoutEnlargement:true}).webp({quality,effort:4}).toBuffer();
         if(bytes.length<=limit) break;
       }
       if(!bytes||bytes.length>limit) throw new Error('does not fit the media limit');

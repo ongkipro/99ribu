@@ -121,9 +121,12 @@ export function readBerlapakSource(directory:string){
     const name=text(v.name,200);const slug=slugify(text(v.slug,100).replace(/^\d+-/,''));if(!slug||slug.length>60) throw invalid();return {code,name,slug};},1,50);
   if(new Set(categories.map((c)=>c.code)).size!==categories.length||new Set(categories.map((c)=>c.slug)).size!==categories.length) throw invalid();
   // A single-product record replaces the legacy record of the same rank (same Berlapak product).
+  // A legacy row the list replaces is kept as a fallback after the singles: it is read only when its single was
+  // skipped, so a single that fails validation leaves the live product as it was instead of dropping it.
   const replaced=new Set(singles?.rows.map((r)=>r.rank));
   const snapshot=singles?.snapshot??text(ready.updated_at,40);
-  const rows=[...array(ready.products,rec,1,5000).filter((r)=>!replaced.has(r.rank)),...singles?.rows??[]];
+  const legacyRows=array(ready.products,rec,1,5000);
+  const rows:Rec[]=[...legacyRows.filter((r)=>!replaced.has(r.rank)),...singles?.rows??[],...legacyRows.filter((r)=>replaced.has(r.rank)).map((r)=>({...r,fallback:true}))];
   const skipped:Record<string,number>={};const skip=(reason:string)=>{skipped[reason]=(skipped[reason]??0)+1;};
   const supplierNames=new Set<string>();for(const row of rows){try{const name=optionalText(rec(row.supplier).name,200);if(name) supplierNames.add(name);}catch{/* validated per row below */}}
   const suppliers=supplierPatterns([...supplierNames]);
@@ -131,7 +134,9 @@ export function readBerlapakSource(directory:string){
   for(const row of rows){
     let rank:number;
     try{rank=integer(row.rank,1,99999);}catch{skip('invalid-record');continue;}
-    if(ranks.has(rank)){skip('invalid-record');continue;}ranks.add(rank);
+    if(row.fallback===true){if([...stocks.values()].some((s)=>s.rank===rank)) continue;}
+    else if(ranks.has(rank)){skip('invalid-record');continue;}
+    ranks.add(rank);
     try{
       const unstocked=row.allow_unstocked===true;
       const inventory=rec(row.inventory);if(inventory.is_ready_stock!==true&&!unstocked){skip('not-ready-stock');continue;}
