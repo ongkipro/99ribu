@@ -1252,3 +1252,11 @@ export const homeBannerVersion = appSchema.table('home_banner_version',{
   AND (${t.tint} IS NULL OR ${t.tint} IN ('amber','slate','rose','blue','green','violet','teal'))`),
  check('home_banner_version_window_check',sql`${t.startsAt}<${t.endsAt} AND ${t.position} between 0 and 999 AND NOT (${t.retired} AND ${t.active})`),
 ]);
+// S-C1 static store pages (tentang, kontak, syarat, privasi): append-only versions edited in the admin "Halaman"; the
+// storefront shows the highest revision of each slug. Immutable rows (0043 trigger); a concurrent save loses on the
+// unique (slug, revision) and is answered 409.
+export const staticPageVersion = appSchema.table('static_page_version',{
+ id:uuid('id').primaryKey().defaultRandom(),slug:text('slug').notNull(),revision:integer('revision').notNull(),title:text('title').notNull(),body:text('body').notNull(),
+ actorId:text('actor_id').notNull(),reason:text('reason').notNull(),createdAt:instant('created_at').notNull().default(sql`clock_timestamp()`),
+},t=>[unique('static_page_version_unique').on(t.slug,t.revision),
+ check('static_page_version_check',sql`${t.slug} IN ('tentang','kontak','syarat','privasi') AND ${t.revision}>0 AND char_length(${t.title}) between 1 and 80 AND char_length(${t.body}) between 1 and 20000 AND char_length(${t.reason}) between 1 and 500`)]);

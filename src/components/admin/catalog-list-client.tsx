@@ -1,6 +1,6 @@
 "use client";
 
-import { CircleAlert, ImageOff, Search, X } from "lucide-react";
+import { CircleAlert, ImageOff, Plus, Search, X } from "lucide-react";
 import Link from "next/link";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { Badge } from "@/components/ui/badge";
@@ -250,6 +250,16 @@ export function CatalogListClient({
 								? " Produk bisa terbit setelah HPP dan asumsi biaya tercatat."
 								: ""}
 					</>
+				}
+				actions={
+					access.edit ? (
+						<Button asChild data-testid="catalog-create">
+							<Link href="/admin/produk/baru">
+								<Plus aria-hidden="true" data-icon="inline-start" />
+								Tambah produk
+							</Link>
+						</Button>
+					) : undefined
 				}
 			/>
 

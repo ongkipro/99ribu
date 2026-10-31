@@ -59,8 +59,12 @@ export function canExport(principal: Principal, domain: "orders" | "warehouse" |
 export function projectMe(principal: Principal) {
   return { id: principal.id, roles: principal.roles, warehouse_ids: principal.warehouseIds };
 }
-export function projectWarehouse(row: { id: string; admin_no: number | string; name: string; city: string; timezone: string; active: boolean }) {
-  return { id: row.id, admin_no: Number(row.admin_no), name: row.name, city: row.city, timezone: row.timezone, active: row.active };
+// pickup_ready mirrors pickupReadiness (street address, PIC name and phone present) without exposing those values;
+// shipping_area says whether live shipping rates can be quoted from this warehouse (S95).
+export function projectWarehouse(row: { id: string; admin_no: number | string; name: string; city: string; province: string | null; district: string | null;
+  timezone: string; active: boolean; shipping_area: boolean; pickup_ready: boolean }) {
+  return { id: row.id, admin_no: Number(row.admin_no), name: row.name, city: row.city, province: row.province, district: row.district,
+    timezone: row.timezone, active: row.active, shipping_area: row.shipping_area, pickup_ready: row.pickup_ready };
 }
 // The downstream history handler supplies its actual authorized order. Copy an
 // explicit public schema, never an ORM row with contact/cost/proof fields.

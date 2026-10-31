@@ -6,6 +6,7 @@ import { homeSafe } from "../storefront/department-photos.ts";
 import { draftGoogleCategory } from "./google-category.ts";
 import { publishProduct, readPublicationState, withdrawPublication } from "./publication.ts";
 import { listProductSummaries } from "./summary.ts";
+import { uploadProductPhoto } from "./media-upload.ts";
 
 type ProductFacts = { name: string; category_id: string; images: { url: string }[]; variants: { id: string }[] };
 
@@ -20,6 +21,10 @@ export async function handleCatalog(request: Request, identity: LocalAuth) {
     const read = request.method === "GET" && url.pathname !== "/api/v1/admin/stock-items";
     const allowed = read ? ["owner", "ecommerce_admin", "warehouse", "finance"] : ["owner", "ecommerce_admin"];
     if (!principal.roles.some((r) => allowed.includes(r))) throw new AccessError(403, "FORBIDDEN");
+    if (url.pathname === "/api/v1/admin/product-photos") {
+      if (request.method !== "POST") throw new AccessError(404, "NOT_FOUND");
+      return privateJson(await uploadProductPhoto(request, identity, principal), 201);
+    }
     const product = /^\/api\/v1\/admin\/products\/([^/]+)$/.exec(url.pathname);
     const publication = /^\/api\/v1\/admin\/products\/([^/]+)\/publications$/.exec(url.pathname);
     if (publication && request.method === "GET") {

@@ -7,6 +7,7 @@ import {
 	ChartColumn,
 	ClipboardCheck,
 	Eye,
+	FileText,
 	House,
 	Landmark,
 	type LucideIcon,
@@ -75,9 +76,7 @@ export const UNBUILT_PAGES: ReadonlySet<string> = new Set([
 	"/admin/pantauan/kendala", // S-O1
 	"/admin/analitik", // S-A1
 	"/admin/pemasaran", // Pemasaran hub, later slice
-	"/admin/halaman", // S-C1
 	"/admin/media", // S-C1
-	"/admin/produk/baru", // S-P1
 ]);
 
 const HOME: NavItem = { label: "Beranda", href: "/admin", icon: House };
@@ -254,6 +253,7 @@ export const SETTINGS_CARDS: { href: string; label: string; description: string;
 	{ href: "/admin/pengaturan/komersial", label: "Kebijakan Komersial", icon: Scale, description: "Batas kontribusi minimum dan nilai bawaan, berversi." },
 	{ href: "/admin/pengaturan/pembayaran", label: "Pembayaran & COD", icon: Landmark, description: "Biaya COD dan rekening transfer manual, berversi." },
 	{ href: "/admin/produk/gudang", label: "Gudang", icon: Warehouse, description: "Daftar gudang, profil penjemputan dan kalender pengiriman." },
+	{ href: "/admin/halaman", label: "Halaman Toko", icon: FileText, description: "Tentang kami, kontak, syarat dan kebijakan privasi di toko." },
 	{ href: "/admin/pengaturan/label", label: "Template Label", icon: Printer, description: "Template label pengiriman yang dipakai pusat cetak." },
 	{ href: "/admin/pengaturan/balasan-cs", label: "Balasan CS", icon: MessagesSquare, description: "Balasan tersimpan dan tag percakapan pelanggan." },
 	{ href: "/admin/pemasaran/iklan", label: "Integrasi Iklan", icon: Megaphone, description: "Tujuan iklan Meta, Google dan TikTok serta diagnostiknya." },
@@ -288,11 +288,14 @@ const PAGE_RULES: Record<string, Rule> = {
 	"/admin/produk/sku": (r, p) =>
 		catalogAccess(r, p).edit && (r.includes("owner") || p.includes("finance.costs.read")),
 	"/admin/produk/kategori": (r, p) => catalogAccess(r, p).edit,
+	"/admin/produk/baru": (r, p) => catalogAccess(r, p).edit,
 	"/admin/produk/inventori": (r, p) => consoleAccess(r, p).inventory,
 	"/admin/produk/inventori/transfer": (r, p) => consoleAccess(r, p).inventory,
 	"/admin/produk/gudang": (r, p) => consoleAccess(r, p).inventory,
 	"/admin/promo/ongkir": (r, p) => consoleAccess(r, p).shippingPromo,
 	"/admin/banner": (r, p) => consoleAccess(r, p).banners,
+	// handleStaticPages: owner and ecommerce_admin.
+	"/admin/halaman": any("owner", "ecommerce_admin"),
 	// Affiliates (S132, DEC-018 Q5): owner writes rates, finance reads.
 	"/admin/afiliasi": any("owner", "finance"),
 	"/admin/keuangan": (r, p) => financeAccess(r, p).summaryRead,

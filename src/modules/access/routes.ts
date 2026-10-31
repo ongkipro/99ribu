@@ -4,6 +4,7 @@ import { assertOrigin, privateJson, problem, readBody } from "./http.ts";
 import { issueAccessProof, replaceStaffGrant } from "./grants.ts";
 import { appendPolicyVersion, listPolicyVersions } from "../settings/policies.ts";
 
+type WarehouseRow = Parameters<typeof projectWarehouse>[0];
 export async function handleAccess(request: Request, identity: LocalAuth) {
   try {
     assertOrigin(request);
@@ -47,16 +48,25 @@ export async function handleAccess(request: Request, identity: LocalAuth) {
     }
     if (request.method === "GET" && url.pathname === "/api/v1/admin/warehouses") {
       if (!principal.roles.some((role) => ["owner", "ecommerce_admin", "warehouse"].includes(role))) throw new AccessError(403, "FORBIDDEN");
-      if ([...url.searchParams.keys()].some((key) => !["cursor", "limit"].includes(key) || url.searchParams.getAll(key).length !== 1)) throw new AccessError(400, "INVALID_INPUT");
+      if ([...url.searchParams.keys()].some((key) => !["cursor", "limit", "q", "profile"].includes(key) || url.searchParams.getAll(key).length !== 1)) throw new AccessError(400, "INVALID_INPUT");
       const rawLimit = url.searchParams.get("limit") ?? "20";
       const cursor = url.searchParams.get("cursor");
+      // Search over name, kecamatan, city and province; `profile` narrows to complete or incomplete pickup profiles.
+      const q = url.searchParams.get("q")?.trim() ?? null, profile = url.searchParams.get("profile");
       if (!/^\d{1,3}$/.test(rawLimit) || Number(rawLimit) < 1 || Number(rawLimit) > 100 ||
-        (cursor !== null && !/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(cursor))) throw new AccessError(400, "INVALID_INPUT");
-      const limit = Number(rawLimit);
-      const rows = await identity.sql<{ id: string; admin_no: string; name: string; city: string; timezone: string; active: boolean }[]>`
-        select w.id,w.admin_no,w.name,w.city,w.timezone,w.active from app.warehouse w where w.active
+        (cursor !== null && !/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(cursor)) ||
+        (q !== null && (q.length < 1 || q.length > 100)) || (profile !== null && profile !== "complete" && profile !== "incomplete")) throw new AccessError(400, "INVALID_INPUT");
+      const limit = Number(rawLimit), pattern = q === null ? null : `%${q.replace(/[\\%_]/g, (c) => `\\${c}`)}%`;
+      const rows = await identity.sql<WarehouseRow[]>`
+        select * from (select w.id,w.admin_no,w.name,w.city,w.province,w.district,w.timezone,w.active,w.provider_area_id is not null as shipping_area,
+          coalesce(p.street_address is not null and p.pic_name is not null and p.pic_phone is not null,false) as pickup_ready
+        from app.warehouse w left join lateral (select x.street_address,x.pic_name,x.pic_phone from app.warehouse_pickup_profile x
+          where x.warehouse_id=w.id order by x.revision desc limit 1) p on true
+        where w.active
         and (${principal.roles.includes("owner")} or exists (select 1 from app.warehouse_membership m where m.user_id=${principal.id} and m.warehouse_id=w.id))
-        and (${cursor}::uuid is null or w.id>${cursor}::uuid) order by w.id limit ${limit + 1}`;
+        and (${pattern}::text is null or concat_ws(' ',w.name,w.district,w.city,w.province) ilike ${pattern})
+        and (${cursor}::uuid is null or w.id>${cursor}::uuid)) r
+        where ${profile}::text is null or r.pickup_ready=(${profile}='complete') order by r.id limit ${limit + 1}`;
       return privateJson({ data: rows.slice(0, limit).map(projectWarehouse), pagination: { next_cursor: rows.length > limit ? rows[limit - 1].id : null } });
     }
     const warehouse = /^\/api\/v1\/admin\/warehouses\/([^/]+)$/.exec(url.pathname);
@@ -64,8 +74,11 @@ export async function handleAccess(request: Request, identity: LocalAuth) {
       // S134: one warehouse with the list's roles and scope; outside the scope (or inactive) it is a 404, never a 403, so ids do not probe.
       if (!principal.roles.some((role) => ["owner", "ecommerce_admin", "warehouse"].includes(role))) throw new AccessError(403, "FORBIDDEN");
       if (url.search || !/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(warehouse[1])) throw new AccessError(400, "INVALID_INPUT");
-      const [row] = await identity.sql<{ id: string; admin_no: string; name: string; city: string; timezone: string; active: boolean }[]>`
-        select w.id,w.admin_no,w.name,w.city,w.timezone,w.active from app.warehouse w where w.active and w.id=${warehouse[1].toLowerCase()}::uuid
+      const [row] = await identity.sql<WarehouseRow[]>`
+        select w.id,w.admin_no,w.name,w.city,w.province,w.district,w.timezone,w.active,w.provider_area_id is not null as shipping_area,
+          coalesce((select x.street_address is not null and x.pic_name is not null and x.pic_phone is not null from app.warehouse_pickup_profile x
+            where x.warehouse_id=w.id order by x.revision desc limit 1),false) as pickup_ready
+        from app.warehouse w where w.active and w.id=${warehouse[1].toLowerCase()}::uuid
         and (${principal.roles.includes("owner")} or exists (select 1 from app.warehouse_membership m where m.user_id=${principal.id} and m.warehouse_id=w.id))`;
       if (!row) throw new AccessError(404, "NOT_FOUND");
       return privateJson(projectWarehouse(row));

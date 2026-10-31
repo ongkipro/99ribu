@@ -1,4 +1,5 @@
-import {PlaceholderPage} from '../../../components/storefront/placeholder-page';
-// Placeholder until the owner supplies content: kept out of search results and the sitemap.
-export const metadata={title:'Tentang kami',robots:{index:false,follow:true}};
-export default function Page(){return <PlaceholderPage title="Tentang kami"/>;}
+import {StaticPageView,staticPageMetadata} from '../../../components/storefront/static-page';
+// S-C1: content from admin "Halaman"; the noindex placeholder until the first version is saved.
+export const dynamic='force-dynamic';
+export function generateMetadata(){return staticPageMetadata('tentang');}
+export default function Page(){return <StaticPageView slug="tentang"/>;}
