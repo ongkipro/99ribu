@@ -93,7 +93,7 @@ export default async function Product({params,searchParams}:Props){
     <li><Icon name="clock"/><span>Hari libur tidak dihitung sebagai hari proses pengiriman.</span></li>
     <li><Icon name="wallet"/><span>Bayar transfer bank atau COD. Ketersediaan COD dicek saat checkout dan ada biaya COD.</span></li>
    </ul></details>
-   <details className="product-policy"><summary>Pengembalian<Icon name="chevron"/></summary><p>Ketentuan pengembalian belum diterbitkan.</p><Link className="detail-help" href="/bantuan#returns">Ketentuan pengembalian</Link></details>
+   <details className="product-policy"><summary>Pengembalian<Icon name="chevron"/></summary><p>Barang salah, rusak, cacat, tidak lengkap, kedaluwarsa atau tidak sesuai deskripsi dapat diajukan paling lambat 7 hari sejak paket diterima.</p><Link className="detail-help" href="/syarat">Syarat dan ketentuan</Link></details>
   </div>
  </section></div>
  {category&&<Suspense fallback={null}><RelatedShelf product={product.id} category={category}/></Suspense>}

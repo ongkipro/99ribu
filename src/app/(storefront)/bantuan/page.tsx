@@ -36,7 +36,12 @@ export default function Help() {
 					</section>
 					<section id="returns">
 						<h2>Pengembalian</h2>
-						<p>Ketentuan pengembalian belum diterbitkan.</p>
+						<p>
+							Barang salah, rusak, cacat, tidak lengkap, kedaluwarsa atau tidak
+							sesuai deskripsi dapat diajukan paling lambat 7 hari sejak paket
+							diterima lewat percakapan di bawah. Rincian ada di{" "}
+							<Link href="/syarat">Syarat dan ketentuan</Link>.
+						</p>
 					</section>
 					<section id="privacy">
 						<h2>Privasi data pesanan</h2>
