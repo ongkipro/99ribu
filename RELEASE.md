@@ -2,9 +2,9 @@
 
 Adopted at repository root on 2026-10-16; updated 2026-10-21 upon completion of all 68 local slices (`S01`–`S68`) and assembled localhost readiness (`T-39`). External live-provider, physical hardware, and production deployment gates remain separate per `CTX-18`.
 
-Release-ID: PROD-20261031-4eabcdd (previous: PROD-20261030-3899d69; local: LOCAL-20261024-S68)
+Release-ID: PROD-20261031-cc3b657 (previous: d2afc30, 4eabcdd, PROD-20261030-3899d69; local: LOCAL-20261024-S68)
 Base: 6f9f288
-Environment: production (https://99ribu.com, Coolify 99ribu-prod; first deployed 2026-10-30 at 3899d69; current commit 4eabcdd deployed 2026-10-31 with live Mengantar rates; see STATUS "Production deployment")
+Environment: production (https://99ribu.com, Coolify 99ribu-prod; first deployed 2026-10-30 at 3899d69; 4eabcdd deployed 2026-10-31 with live Mengantar rates; current commit cc3b657 deployed 2026-10-31 (Coolify `yacr8rgydoluzmwbjs5vhhff`, migration 0043, pre-deploy off-host backup `20261031T055716Z`); see STATUS "Production deployment")
 Declared-Risk: R3
 Rollback-Ref: 410c2a4
 Rollback-Command: pg_restore --clean --if-exists --no-owner --no-privileges -d <disposable_restore_db> <backup_artifact.dump>
