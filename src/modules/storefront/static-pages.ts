@@ -38,7 +38,8 @@ export function pageBlocks(body:string):Block[]{
 }
 
 const line=(value:unknown,maximum:number)=>{const result=text(value,maximum);if(result!==value||/[\p{Cc}\p{Cf}]/u.test(result)) throw invalid();return result;};
-// Body: any text except control characters other than newline and tab.
+// Body: any text except control characters other than newline and tab. lazy: 20,000 characters inside the 32 KB
+// request limit holds for plain Indonesian text; mostly multi-byte text near the cap answers 413.
 const bodyText=(value:unknown)=>{const result=text(value,20000);if(result!==value||/\p{Cf}|(?![\n\t])\p{Cc}/u.test(result)) throw invalid();return result;};
 
 async function editor(tx:TransactionSql,principal:Principal){await assertCurrentOwner(tx,principal,false,EDITORS);}
@@ -72,9 +73,10 @@ async function save(request:Request,identity:LocalAuth,principal:Principal,slug:
  const hash=createHash('sha256').update(JSON.stringify(input)).digest('hex');
  return identity.sql.begin(async(tx)=>{
   await editor(tx,principal);
+  // Lock first so a concurrent request with the same key waits and then replays instead of colliding.
+  await tx`select pg_advisory_xact_lock(hashtextextended(${`static-page:${slug}`},0))`;
   const [prior]=await tx`select request_hash,response from app.access_operation where actor_id=${principal.id} and action=${OPERATION} and key=${key}`;
   if(prior){if(prior.request_hash!==hash) throw new AccessError(409,'IDEMPOTENCY_CONFLICT');return prior.response;}
-  await tx`select pg_advisory_xact_lock(hashtextextended(${`static-page:${slug}`},0))`;
   const [last]=await tx`select coalesce(max(revision),0)::int as revision from app.static_page_version where slug=${slug}`;
   if(last.revision!==input.expected_version) throw new AccessError(409,'VERSION_CONFLICT');
   const [row]=await tx`insert into app.static_page_version (slug,revision,title,body,actor_id,reason) values (${slug},${input.expected_version+1},${input.title},${input.body},${principal.id},${input.reason})
@@ -101,10 +103,14 @@ export async function handleStaticPages(request:Request,identity:LocalAuth){
   if(slug!==undefined&&!isSlug(slug)) throw new AccessError(404,'NOT_FOUND');
   if(request.method==='GET'&&!slug) return privateJson(await list(identity,principal));
   if(request.method==='GET'&&slug&&!versions) return privateJson(await history(identity,principal,slug as StaticSlug));
-  if(request.method==='POST'&&slug&&versions) return privateJson(await save(request,identity,principal,slug as StaticSlug,await readBody(request)),201);
+  if(request.method==='POST'&&slug&&versions) return privateJson(await save(request,identity,principal,slug as StaticSlug,await readBody(request,32768)),201);
   throw new AccessError(404,'NOT_FOUND');
  }catch(error){
-  if(error&&typeof error==='object'&&'code' in error&&error.code==='23505') return problem(new AccessError(409,'VERSION_CONFLICT'));
+  if(error&&typeof error==='object'&&'code' in error&&error.code==='23505'&&'constraint_name' in error){
+   if(error.constraint_name==='static_page_version_unique') return problem(new AccessError(409,'VERSION_CONFLICT'));
+   // The same key used at once on two slugs (different locks).
+   if(error.constraint_name==='access_operation_identity_idx') return problem(new AccessError(409,'IDEMPOTENCY_CONFLICT'));
+  }
   return problem(error);
  }
 }

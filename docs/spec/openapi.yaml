@@ -15048,7 +15048,8 @@ paths:
       summary: Upload a product photo
       description: S-P1. Raw WebP bytes (Content-Type image/webp, at most 524288 bytes; the admin form converts a
         photo to WebP first). Authority is checked before the body is read; magic bytes, the content scan and a 300 px
-        minimum are enforced, then the bytes are stored content-addressed in catalog media (idempotent) and the absolute
+        minimum are enforced, then the bytes are stored content-addressed in catalog media (idempotent by content, so the
+        Idempotency-Key is required but not stored) and the absolute
         URL for a product image entry is returned. Rate-limited per actor (20/minute). Current cookie/MFA owner or
         ecommerce_admin.
       tags:
@@ -15061,7 +15062,7 @@ paths:
       x-allowed-roles:
       - owner
       - ecommerce_admin
-      x-proof-group: catalog
+      x-proof-group: product-photos
       x-implementation: src/app/api/v1/admin/product-photos/route.ts
       parameters:
       - $ref: '#/components/parameters/IdempotencyKey'
@@ -15084,8 +15085,6 @@ paths:
           $ref: '#/components/responses/Forbidden'
         '404':
           $ref: '#/components/responses/NotFound'
-        '409':
-          $ref: '#/components/responses/Conflict'
         '503':
           $ref: '#/components/responses/Unavailable'
         '413':
@@ -15225,6 +15224,7 @@ paths:
       - owner
       - ecommerce_admin
       x-proof-group: static-pages
+      x-request-body-limit-bytes: 32768
       x-implementation: src/app/api/v1/admin/static-pages/[slug]/versions/route.ts
       parameters:
       - name: slug
@@ -15289,6 +15289,10 @@ paths:
           $ref: '#/components/responses/NotFound'
         '503':
           $ref: '#/components/responses/Unavailable'
+        '413':
+          $ref: '#/components/responses/PayloadTooLarge'
+        '415':
+          $ref: '#/components/responses/UnsupportedMediaType'
         default:
           description: Safe application Problem; a gateway may return non-Problem failure.
           content:
@@ -31754,6 +31758,12 @@ x-proof-groups:
   home-banners:
     integration: tests/integration/home-banners.test.ts
     browser: tests/browser/admin-banners.test.ts
+  product-photos:
+    integration: tests/integration/product-photos.test.ts
+    browser: tests/integration/product-photos.test.ts
+  static-pages:
+    integration: tests/integration/static-pages.test.ts
+    browser: tests/browser/admin-static-pages.test.ts
   customer-lookup:
     integration: tests/integration/customer-lookup.test.ts
     browser: tests/browser/customer-lookup.test.ts

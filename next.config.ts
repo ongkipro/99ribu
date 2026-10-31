@@ -41,7 +41,12 @@ const securityHeaders = [
 
 const nextConfig: NextConfig = {
   poweredByHeader: false,
-  headers: async () => [{ source: "/:path*", headers: securityHeaders }],
+  // API responses carry their own private headers (src/modules/access/http.ts); the later entry wins, so the
+  // document Referrer-Policy above does not replace the API's no-referrer.
+  headers: async () => [
+    { source: "/:path*", headers: securityHeaders },
+    { source: "/api/:path*", headers: [{ key: "Referrer-Policy", value: "no-referrer" }] },
+  ],
   ...(devServer ? { deprecated: { looseRouteMatching: true } } : {}),
   // Built-in image optimization for the content-addressed catalog photos only (resized webp; see
   // src/components/storefront/ui/media.tsx). Widths are the candidates the storefront's srcset uses.

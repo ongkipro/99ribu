@@ -18,12 +18,18 @@ import { ErrorState, LoadingState } from "./states";
 // per variant (POST stock-items), the product with one unit offer per variant (POST products), then, for a caller with
 // finance.costs.write, each component's HPP and each offer's default variable-cost assumptions. Every step has its own
 // idempotency key for the life of the form, so a retry after a lost response replays instead of creating twice; a step
-// that already succeeded is not sent again. Publication, stock receipt and edits stay on the product page.
+// that already succeeded is not sent again; a definitive refusal (4xx) rotates that step's key so corrected input is not an
+// IDEMPOTENCY_CONFLICT (an IDEMPOTENCY_CONFLICT itself proves the earlier request committed, so it keeps the key). While a
+// step holds a key (sent, outcome unknown or created) the fields its body is built from are locked, so a retry after a
+// lost response sends the same body: stock steps lock the product name, the variant list and that variant's label; the
+// product step locks the rest of the product body; an HPP step locks that HPP. Publication, stock receipt and edits stay on the product page.
 
 type Warehouse = { id: string; name: string; city: string; district: string | null };
 type Photo = { url: string; width: number; height: number; preview: string };
-type Variant = { key: string; label: string; weight: string; warehouse: string; hpp: string };
-type Created = { stock: Record<string, string>; product?: { id: string; variants: { id: string; sku: string }[] }; costs: Set<string> };
+// `n`: the variant's SKU suffix, assigned once (never from its list position).
+type Variant = { key: string; n: number; label: string; weight: string; warehouse: string; hpp: string };
+type Stock = { id: string; sku: string; name: string };
+type Created = { stock: Record<string, Stock>; product?: { id: string; variants: { id: string; sku: string }[] }; costs: Set<string> };
 
 const PHOTO_MAX = 10, PHOTO_BYTES = 500 * 1024, PHOTO_EDGE = 1080;
 // Same per-offer defaults the catalog import applies (S69 DEFAULT_OFFER_ASSUMPTIONS in src/modules/local/berlapak.ts).
@@ -31,7 +37,9 @@ const ASSUMPTIONS = { packaging_idr: 1000, provider_fee_idr: 1000, subsidy_idr: 
 // lazy: no carton dimensions on the form; a cube whose volumetric weight equals the actual weight, as the import does.
 const cube = (grams: number) => Math.min(1000, Math.max(50, Math.ceil(Math.cbrt(grams * 6000))));
 const skuBase = () => `P${new Date().toISOString().slice(2, 10).replaceAll("-", "")}${crypto.randomUUID().replaceAll("-", "").slice(0, 6).toUpperCase()}`;
-const newVariant = (label = "", warehouse = ""): Variant => ({ key: crypto.randomUUID(), label, weight: "", warehouse, hpp: "" });
+const newVariant = (n: number, label = "", warehouse = ""): Variant => ({ key: crypto.randomUUID(), n, label, weight: "", warehouse, hpp: "" });
+// Cut by code point so a name never ends in half a surrogate pair.
+const clip = (value: string, max: number) => Array.from(value).slice(0, max).join("");
 
 // Inside 1080 px, WebP, quality lowered until it fits the catalog media limit. Safari cannot encode WebP from a canvas.
 async function toWebp(file: File): Promise<{ blob: Blob; width: number; height: number }> {
@@ -43,6 +51,7 @@ async function toWebp(file: File): Promise<{ blob: Blob; width: number; height: 
 	canvas.height = height;
 	canvas.getContext("2d")?.drawImage(bitmap, 0, 0, width, height);
 	bitmap.close();
+	if (width < 300 || height < 300) throw new Error("Foto terlalu kecil; sisi terpendek minimal 300 px.");
 	for (const quality of [0.82, 0.72, 0.62, 0.52]) {
 		const blob = await new Promise<Blob | null>((resolve) => canvas.toBlob(resolve, "image/webp", quality));
 		if (blob?.type !== "image/webp") throw new Error("Browser ini belum bisa mengubah foto ke WebP. Gunakan Chrome atau Edge terbaru.");
@@ -51,11 +60,22 @@ async function toWebp(file: File): Promise<{ blob: Blob; width: number; height: 
 	throw new Error("Foto terlalu detail untuk batas 500 KB. Pilih foto lain.");
 }
 
+class Refused extends Error {
+	constructor(readonly status: number, readonly code: string | null, message: string) {
+		super(message);
+	}
+}
+
 async function post<T>(url: string, body: BodyInit, type: string, key: string): Promise<T> {
-	const res = await fetch(url, { method: "POST", credentials: "include", headers: { "content-type": type, "idempotency-key": key }, body });
+	let res: Response;
+	try {
+		res = await fetch(url, { method: "POST", credentials: "include", headers: { "content-type": type, "idempotency-key": key }, body });
+	} catch {
+		throw new Error("Koneksi terputus. Periksa jaringan lalu coba lagi; langkah yang sudah tersimpan tidak dibuat dua kali.");
+	}
 	if (res.ok) return (await res.json()) as T;
 	const problem = (await res.json().catch(() => null)) as { code?: string } | null;
-	throw new Error(sentText(res.status, problem?.code ?? null));
+	throw new Refused(res.status, problem?.code ?? null, sentText(res.status, problem?.code ?? null));
 }
 
 export function ProductCreateClient({ costsWrite }: { costsWrite: boolean }) {
@@ -70,13 +90,14 @@ export function ProductCreateClient({ costsWrite }: { costsWrite: boolean }) {
 	const [photos, setPhotos] = useState<Photo[]>([]);
 	const [photoBusy, setPhotoBusy] = useState(false);
 	const [photoError, setPhotoError] = useState<string | null>(null);
-	const [variants, setVariants] = useState<Variant[]>([newVariant("Satuan")]);
+	const [variants, setVariants] = useState<Variant[]>([newVariant(1, "Satuan")]);
 	const [errors, setErrors] = useState<Record<string, string>>({});
 	const [busy, setBusy] = useState<string | null>(null);
 	const [failure, setFailure] = useState<string | null>(null);
 	const failureRef = useRef<HTMLDivElement>(null);
 	// Stable for the life of the form: SKUs, step keys and what already succeeded.
 	const sku = useRef(skuBase());
+	const nextVariant = useRef(2);
 	const keys = useRef(new Map<string, string>());
 	const created = useRef<Created>({ stock: {}, costs: new Set() });
 	const key = (step: string) => {
@@ -103,7 +124,10 @@ export function ProductCreateClient({ costsWrite }: { costsWrite: boolean }) {
 		if (failure) failureRef.current?.focus();
 	}, [failure]);
 
-	const locked = Boolean(created.current.product) || busy !== null;
+	const sent = (step: string) => keys.current.has(step);
+	const locked = Boolean(created.current.product) || busy !== null || sent("product");
+	// Once any stock step was sent: the name and the variant list are fixed (see the header comment).
+	const named = locked || [...keys.current.keys()].some((step) => step.startsWith("stock:"));
 	const single = variants.length === 1;
 	const setVariant = (index: number, patch: Partial<Variant>) => setVariants((rows) => rows.map((row, i) => (i === index ? { ...row, ...patch } : row)));
 
@@ -113,10 +137,10 @@ export function ProductCreateClient({ costsWrite }: { costsWrite: boolean }) {
 		setPhotoBusy(true);
 		try {
 			for (const file of [...files].slice(0, PHOTO_MAX - photos.length)) {
-				const { blob, width, height } = await toWebp(file);
+				const { blob } = await toWebp(file);
 				const saved = await post<{ url: string; width: number; height: number }>("/api/v1/admin/product-photos", blob, "image/webp", crypto.randomUUID());
-				setPhotos((rows) => [...rows, { url: saved.url, width: saved.width, height: saved.height, preview: URL.createObjectURL(blob) }]);
-				if (width < 300 || height < 300) break;
+				// Content-addressed URL: the same photo twice is one entry.
+				setPhotos((rows) => (rows.some((row) => row.url === saved.url) ? rows : [...rows, { url: saved.url, width: saved.width, height: saved.height, preview: URL.createObjectURL(blob) }]));
 			}
 		} catch (error) {
 			setPhotoError(error instanceof Error ? error.message : "Foto gagal diunggah.");
@@ -148,14 +172,15 @@ export function ProductCreateClient({ costsWrite }: { costsWrite: boolean }) {
 		if (busy || !validate()) return;
 		setFailure(null);
 		const title = name.trim();
-		const stockName = (v: Variant) => (single ? title : `${title} - ${v.label.trim()}`).slice(0, 200);
-		const variantSku = (index: number) => (single ? sku.current : `${sku.current}-${index + 1}`);
+		let step = "";
 		try {
 			setBusy("Membuat SKU…");
-			for (const [index, v] of variants.entries()) {
+			for (const v of variants) {
 				if (created.current.stock[v.key]) continue;
-				const row = await post<{ id: string }>("/api/v1/admin/stock-items", JSON.stringify({ sku: variantSku(index), name: stockName(v) }), "application/json", key(`stock:${v.key}`));
-				created.current.stock[v.key] = row.id;
+				const stock = { sku: single ? sku.current : `${sku.current}-${v.n}`, name: clip(single ? title : `${title} - ${v.label.trim()}`, 200) };
+				step = `stock:${v.key}`;
+				const row = await post<{ id: string }>("/api/v1/admin/stock-items", JSON.stringify(stock), "application/json", key(step));
+				created.current.stock[v.key] = { id: row.id, ...stock };
 			}
 			if (!created.current.product) {
 				setBusy("Menyimpan draf produk…");
@@ -165,29 +190,32 @@ export function ProductCreateClient({ costsWrite }: { costsWrite: boolean }) {
 					description: description.trim(),
 					category_id: category,
 					images,
-					variants: variants.map((v, index) => {
-						const grams = Number(v.weight), side = cube(grams);
+					variants: variants.map((v) => {
+						const grams = Number(v.weight), side = cube(grams), stock = created.current.stock[v.key];
 						return {
-							sku: `${variantSku(index)}_OFFER`, label: v.label.trim(), attributes: [], offer_kind: "unit", weight_grams: grams,
+							sku: `${stock.sku}_OFFER`, label: v.label.trim(), attributes: [], offer_kind: "unit", weight_grams: grams,
 							length_mm: side, width_mm: side, height_mm: side, default_warehouse_id: v.warehouse,
-							contents: [{ stock_item_id: created.current.stock[v.key], name: stockName(v), quantity: 1 }],
+							contents: [{ stock_item_id: stock.id, name: stock.name, quantity: 1 }],
 						};
 					}),
 				};
-				created.current.product = await post("/api/v1/admin/products", JSON.stringify(body), "application/json", key("product"));
+				step = "product";
+				created.current.product = await post("/api/v1/admin/products", JSON.stringify(body), "application/json", key(step));
 			}
 			const product = created.current.product as NonNullable<Created["product"]>;
 			if (costsWrite) {
 				setBusy("Menyimpan HPP dan biaya…");
-				for (const [index, v] of variants.entries()) {
-					const stockId = created.current.stock[v.key];
+				for (const v of variants) {
+					const stock = created.current.stock[v.key];
 					if (v.hpp && !created.current.costs.has(`hpp:${v.key}`)) {
-						await post(`/api/v1/admin/stock-items/${stockId}/cost-versions`, JSON.stringify({ expected_version: 0, unit_cost: Number(v.hpp), effective_from: null,
+						step = `hpp:${v.key}`;
+						await post(`/api/v1/admin/stock-items/${stock.id}/cost-versions`, JSON.stringify({ expected_version: 0, unit_cost: Number(v.hpp), effective_from: null,
 							source: "Form Tambah Produk", reason: "HPP awal produk baru" }), "application/json", key(`hpp:${v.key}`));
 						created.current.costs.add(`hpp:${v.key}`);
 					}
-					const offer = product.variants.find((o) => o.sku === `${variantSku(index)}_OFFER`);
+					const offer = product.variants.find((o) => o.sku === `${stock.sku}_OFFER`);
 					if (offer && !created.current.costs.has(`assumption:${v.key}`)) {
+						step = `assumption:${v.key}`;
 						await post(`/api/v1/admin/offers/${offer.id}/cost-assumption-versions`, JSON.stringify({ expected_version: 0, effective_from: null, ...ASSUMPTIONS,
 							source: "Asumsi biaya bawaan per penawaran", reason: "Asumsi biaya awal produk baru" }), "application/json", key(`assumption:${v.key}`));
 						created.current.costs.add(`assumption:${v.key}`);
@@ -197,6 +225,8 @@ export function ProductCreateClient({ costsWrite }: { costsWrite: boolean }) {
 			setBusy("Membuka produk…");
 			router.push(`/admin/produk/${product.id}`);
 		} catch (error) {
+			// A definitive refusal created nothing: the corrected retry gets a fresh key.
+			if (error instanceof Refused && error.status >= 400 && error.status < 500 && error.code !== "IDEMPOTENCY_CONFLICT") keys.current.delete(step);
 			setBusy(null);
 			setFailure(error instanceof Error ? error.message : "Produk belum tersimpan. Coba lagi.");
 		}
@@ -215,12 +245,20 @@ export function ProductCreateClient({ costsWrite }: { costsWrite: boolean }) {
 			<form id={formId} onSubmit={submit} noValidate className="flex flex-col gap-6" data-testid="product-create-form">
 				{failure && (
 					<Alert ref={failureRef} tabIndex={-1} variant="destructive" className="outline-none" data-testid="product-create-error">
-						<AlertDescription>{failure}</AlertDescription>
+						<AlertDescription>
+							{failure}
+							{created.current.product && (
+								<>
+									{" "}
+									<a className="font-medium underline" href={`/admin/produk/${created.current.product.id}`}>Buka draf produk</a> untuk melengkapi HPP dan biaya di sana.
+								</>
+							)}
+						</AlertDescription>
 					</Alert>
 				)}
 				<DetailSection id="product-info" title="Informasi produk">
 					<FormField id="product-name" label="Nama produk" invalid={Boolean(fieldError("name"))} hint={fieldError("name") ?? "Nama yang dilihat pembeli, tanpa kata promosi."}>
-						<Input id="product-name" value={name} maxLength={200} disabled={locked} onChange={(e) => setName(e.target.value)}
+						<Input id="product-name" value={name} maxLength={200} disabled={named} onChange={(e) => setName(e.target.value)}
 							aria-invalid={Boolean(fieldError("name"))} aria-describedby="product-name-hint" data-testid="product-name" />
 					</FormField>
 					<FormField id="product-category" label="Kategori" invalid={Boolean(fieldError("category"))} hint={fieldError("category")}>
@@ -257,10 +295,11 @@ export function ProductCreateClient({ costsWrite }: { costsWrite: boolean }) {
 							<ImagePlus aria-hidden="true" className="size-4" />
 							{photoBusy ? "Mengunggah foto…" : "Tambah foto"}
 							<input type="file" accept="image/jpeg,image/png,image/webp" multiple className="sr-only" disabled={locked || photoBusy}
+								aria-describedby={photoError || fieldError("photos") ? "product-photo-error" : undefined}
 								onChange={(e) => { void addPhotos(e.target.files); e.target.value = ""; }} data-testid="product-photo-input" />
 						</label>
 					)}
-					{(photoError || fieldError("photos")) && <p className="text-sm text-destructive" role="alert">{photoError ?? fieldError("photos")}</p>}
+					{(photoError || fieldError("photos")) && <p id="product-photo-error" className="text-sm text-destructive" role="alert">{photoError ?? fieldError("photos")}</p>}
 				</DetailSection>
 
 				<DetailSection id="product-variants-section" title="Varian" description="Satu baris untuk tiap pilihan yang dijual (warna, ukuran). Semua varian dijual Rp99.000.">
@@ -268,7 +307,7 @@ export function ProductCreateClient({ costsWrite }: { costsWrite: boolean }) {
 						{variants.map((v, index) => (
 							<li key={v.key} className="grid gap-3 rounded-md border p-3 md:grid-cols-[minmax(0,1.4fr)_minmax(0,0.8fr)_minmax(0,1.6fr)_minmax(0,0.9fr)_auto] md:items-start">
 								<FormField id={`variant-label-${index}`} label="Nama varian" invalid={Boolean(fieldError(`label-${index}`))} hint={fieldError(`label-${index}`)}>
-									<Input id={`variant-label-${index}`} value={v.label} maxLength={200} disabled={locked} placeholder="Contoh: Hitam / L"
+									<Input id={`variant-label-${index}`} value={v.label} maxLength={200} disabled={locked || sent(`stock:${v.key}`)} placeholder="Contoh: Hitam / L"
 										onChange={(e) => setVariant(index, { label: e.target.value })} aria-invalid={Boolean(fieldError(`label-${index}`))} aria-describedby={`variant-label-${index}-hint`} />
 								</FormField>
 								<FormField id={`variant-weight-${index}`} label="Berat (gram)" invalid={Boolean(fieldError(`weight-${index}`))} hint={fieldError(`weight-${index}`)}>
@@ -284,19 +323,22 @@ export function ProductCreateClient({ costsWrite }: { costsWrite: boolean }) {
 								</FormField>
 								{costsWrite ? (
 									<FormField id={`variant-hpp-${index}`} label="HPP (Rp)" invalid={Boolean(fieldError(`hpp-${index}`))} hint={fieldError(`hpp-${index}`)}>
-										<Input id={`variant-hpp-${index}`} inputMode="numeric" value={v.hpp} disabled={locked}
+										<Input id={`variant-hpp-${index}`} inputMode="numeric" value={v.hpp} disabled={busy !== null || sent(`hpp:${v.key}`)}
 											onChange={(e) => setVariant(index, { hpp: e.target.value.replace(/\D/g, "") })} aria-invalid={Boolean(fieldError(`hpp-${index}`))} aria-describedby={`variant-hpp-${index}-hint`} />
 									</FormField>
 								) : <span className="hidden md:block" />}
-								<Button type="button" variant="ghost" size="icon" className="md:mt-6" disabled={locked || single}
+								<Button type="button" variant="ghost" size="icon" className="md:mt-6" disabled={named || single}
 									onClick={() => setVariants((rows) => rows.filter((_, i) => i !== index))} aria-label={`Hapus varian ${index + 1}`}>
 									<Trash2 aria-hidden="true" />
 								</Button>
 							</li>
 						))}
 					</ol>
-					<Button type="button" variant="outline" className="self-start max-md:self-stretch" disabled={locked || variants.length >= 50}
-						onClick={() => setVariants((rows) => [...rows.map((r) => (rows.length === 1 && r.label === "Satuan" ? { ...r, label: "" } : r)), newVariant("", rows[0]?.warehouse ?? "")])}
+					<Button type="button" variant="outline" className="self-start max-md:self-stretch" disabled={named || variants.length >= 50}
+						onClick={() => {
+							const n = nextVariant.current++;
+							setVariants((rows) => [...rows.map((r) => (rows.length === 1 && r.label === "Satuan" ? { ...r, label: "" } : r)), newVariant(n, "", rows[0]?.warehouse ?? "")]);
+						}}
 						data-testid="product-variant-add">
 						<Plus aria-hidden="true" data-icon="inline-start" />
 						Tambah varian

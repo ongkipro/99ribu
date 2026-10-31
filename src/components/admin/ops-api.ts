@@ -22,6 +22,9 @@ const CODE_MESSAGES: Record<string, string> = {
 	BUDGET_ENCUMBERED: "Anggaran tidak boleh lebih kecil dari yang sudah terpakai atau dipesan.",
 	PROMOTION_ALREADY_ENDED: "Promo aktif harus berakhir di masa depan.",
 	CATALOG_IDENTITY_CONFLICT: "Data katalog bentrok dengan data yang sudah ada.",
+	COMPONENT_NAME_MISMATCH: "Nama isi paket tidak sama dengan nama SKU-nya.",
+	PRODUCT_PHOTO_TOO_SMALL: "Foto terlalu kecil; sisi terpendek minimal 300 px.",
+	PRODUCT_PHOTO_REJECTED: "Foto ditolak pemeriksaan file. Simpan ulang sebagai JPG atau PNG lalu coba lagi.",
 };
 
 export function sentText(status: number, code: string | null) {
