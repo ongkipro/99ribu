@@ -2113,6 +2113,21 @@ paths:
           type: string
           format: uuid
       - $ref: '#/components/parameters/Limit'
+      - name: q
+        in: query
+        description: Case-insensitive text matched against name, kecamatan, city and province.
+        schema:
+          type: string
+          minLength: 1
+          maxLength: 100
+      - name: profile
+        in: query
+        description: Only warehouses whose pickup profile is complete or incomplete.
+        schema:
+          type: string
+          enum:
+          - complete
+          - incomplete
   /admin/warehouses/{warehouseId}:
     get:
       operationId: readWarehouse
@@ -15027,6 +15042,259 @@ paths:
             schema:
               type: string
               format: binary
+  /admin/product-photos:
+    post:
+      operationId: uploadProductPhoto
+      summary: Upload a product photo
+      description: S-P1. Raw WebP bytes (Content-Type image/webp, at most 524288 bytes; the admin form converts a
+        photo to WebP first). Authority is checked before the body is read; magic bytes, the content scan and a 300 px
+        minimum are enforced, then the bytes are stored content-addressed in catalog media (idempotent) and the absolute
+        URL for a product image entry is returned. Rate-limited per actor (20/minute). Current cookie/MFA owner or
+        ecommerce_admin.
+      tags:
+      - Content
+      security:
+      - sessionCookie: []
+      x-contract-status: implemented-local
+      x-domain-owner: catalog
+      x-primary-requirement: PR-1
+      x-allowed-roles:
+      - owner
+      - ecommerce_admin
+      x-proof-group: catalog
+      x-implementation: src/app/api/v1/admin/product-photos/route.ts
+      parameters:
+      - $ref: '#/components/parameters/IdempotencyKey'
+      responses:
+        '201':
+          description: Stored image facts.
+          headers:
+            Cache-Control:
+              schema:
+                const: no-store
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ProductPhoto'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '409':
+          $ref: '#/components/responses/Conflict'
+        '503':
+          $ref: '#/components/responses/Unavailable'
+        '413':
+          $ref: '#/components/responses/BodyTooLarge'
+        '415':
+          $ref: '#/components/responses/UnsupportedMediaType'
+        '422':
+          $ref: '#/components/responses/Unprocessable'
+        '429':
+          $ref: '#/components/responses/TooManyRequests'
+        default:
+          description: Safe application Problem; a gateway may return non-Problem failure.
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+      x-request-body-limit-bytes: 524288
+      requestBody:
+        required: true
+        content:
+          image/webp:
+            schema:
+              type: string
+              format: binary
+  /admin/static-pages:
+    get:
+      operationId: listStaticPages
+      summary: List the store pages
+      description: S-C1. The four footer store pages with their latest version (0 = empty, shown as the noindex placeholder). Query parameters are rejected. Current cookie/MFA owner or ecommerce_admin.
+      tags:
+      - Content
+      security:
+      - sessionCookie: []
+      x-contract-status: implemented-local
+      x-domain-owner: content
+      x-primary-requirement: PR-1
+      x-allowed-roles:
+      - owner
+      - ecommerce_admin
+      x-proof-group: static-pages
+      x-implementation: src/app/api/v1/admin/static-pages/route.ts
+      responses:
+        '200':
+          description: Successful private response.
+          headers:
+            Cache-Control:
+              schema:
+                const: no-store
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/StaticPageList'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '503':
+          $ref: '#/components/responses/Unavailable'
+        default:
+          description: Safe application Problem; a gateway may return non-Problem failure.
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+  /admin/static-pages/{slug}:
+    get:
+      operationId: readStaticPage
+      summary: Read one store page with its recent versions
+      description: S-C1. Current title and body plus the newest 20 versions (title, reason, time, actor). Query parameters are rejected.
+      tags:
+      - Content
+      security:
+      - sessionCookie: []
+      x-contract-status: implemented-local
+      x-domain-owner: content
+      x-primary-requirement: PR-1
+      x-allowed-roles:
+      - owner
+      - ecommerce_admin
+      x-proof-group: static-pages
+      x-implementation: src/app/api/v1/admin/static-pages/[slug]/route.ts
+      parameters:
+      - name: slug
+        in: path
+        required: true
+        schema:
+          type: string
+          enum:
+          - tentang
+          - kontak
+          - syarat
+          - privasi
+      responses:
+        '200':
+          description: Successful private response.
+          headers:
+            Cache-Control:
+              schema:
+                const: no-store
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/StaticPageDetail'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '503':
+          $ref: '#/components/responses/Unavailable'
+        default:
+          description: Safe application Problem; a gateway may return non-Problem failure.
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+  /admin/static-pages/{slug}/versions:
+    post:
+      operationId: appendStaticPageVersion
+      summary: Save a store page as a new live version
+      description: S-C1. Appends an immutable version right after expected_version (409 VERSION_CONFLICT otherwise); the storefront shows it at once. Idempotent per actor and key. Body is plain text with blank-line paragraphs, "## " headings and "- " list items.
+      tags:
+      - Content
+      security:
+      - sessionCookie: []
+      x-contract-status: implemented-local
+      x-domain-owner: content
+      x-primary-requirement: PR-1
+      x-allowed-roles:
+      - owner
+      - ecommerce_admin
+      x-proof-group: static-pages
+      x-implementation: src/app/api/v1/admin/static-pages/[slug]/versions/route.ts
+      parameters:
+      - name: slug
+        in: path
+        required: true
+        schema:
+          type: string
+          enum:
+          - tentang
+          - kontak
+          - syarat
+          - privasi
+      - $ref: '#/components/parameters/IdempotencyKey'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                expected_version:
+                  type: integer
+                  minimum: 0
+                title:
+                  type: string
+                  minLength: 1
+                  maxLength: 80
+                body:
+                  type: string
+                  minLength: 1
+                  maxLength: 20000
+                reason:
+                  type: string
+                  minLength: 1
+                  maxLength: 500
+              required:
+              - expected_version
+              - title
+              - body
+              - reason
+              additionalProperties: false
+      responses:
+        '201':
+          description: Successful private response.
+          headers:
+            Cache-Control:
+              schema:
+                const: no-store
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/StaticPageSaved'
+        '409':
+          $ref: '#/components/responses/Conflict'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '503':
+          $ref: '#/components/responses/Unavailable'
+        default:
+          description: Safe application Problem; a gateway may return non-Problem failure.
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/Problem'
   /carts/current:
     get:
       operationId: getCurrentCart
@@ -20162,17 +20430,36 @@ components:
           type: string
         city:
           type: string
+        province:
+          type:
+          - string
+          - 'null'
+        district:
+          type:
+          - string
+          - 'null'
+          description: Kecamatan.
         timezone:
           type: string
         active:
           type: boolean
+        shipping_area:
+          type: boolean
+          description: The warehouse is mapped to a shipping-provider origin area, so live rates can be quoted from it.
+        pickup_ready:
+          type: boolean
+          description: The latest pickup profile has a street address, PIC name and PIC phone (values not exposed).
       required:
       - admin_no
       - id
       - name
       - city
+      - province
+      - district
       - timezone
       - active
+      - shipping_area
+      - pickup_ready
       additionalProperties: false
     WarehouseList:
       type: object
@@ -22579,6 +22866,157 @@ components:
       required:
       - data
       - pagination
+      additionalProperties: false
+    StaticPageList:
+      type: object
+      properties:
+        data:
+          type: array
+          maxItems: 4
+          items:
+            type: object
+            properties:
+              slug:
+                type: string
+              path:
+                type: string
+              default_title:
+                type: string
+              version:
+                type: integer
+                minimum: 0
+              title:
+                type:
+                - string
+                - 'null'
+              updated_at:
+                type:
+                - string
+                - 'null'
+                format: date-time
+              actor_name:
+                type:
+                - string
+                - 'null'
+            required:
+            - slug
+            - path
+            - default_title
+            - version
+            - title
+            - updated_at
+            - actor_name
+            additionalProperties: false
+      required:
+      - data
+      additionalProperties: false
+    StaticPageDetail:
+      type: object
+      properties:
+        slug:
+          type: string
+        path:
+          type: string
+        default_title:
+          type: string
+        current:
+          oneOf:
+          - type: 'null'
+          - type: object
+            properties:
+              version:
+                type: integer
+                minimum: 1
+              title:
+                type: string
+              body:
+                type: string
+            required:
+            - version
+            - title
+            - body
+            additionalProperties: false
+        versions:
+          type: array
+          maxItems: 20
+          items:
+            type: object
+            properties:
+              version:
+                type: integer
+                minimum: 1
+              title:
+                type: string
+              reason:
+                type: string
+              updated_at:
+                type: string
+                format: date-time
+              actor_name:
+                type:
+                - string
+                - 'null'
+            required:
+            - version
+            - title
+            - reason
+            - updated_at
+            - actor_name
+            additionalProperties: false
+      required:
+      - slug
+      - path
+      - default_title
+      - current
+      - versions
+      additionalProperties: false
+    StaticPageSaved:
+      type: object
+      properties:
+        slug:
+          type: string
+        path:
+          type: string
+        version:
+          type: integer
+          minimum: 1
+        title:
+          type: string
+        updated_at:
+          type: string
+          format: date-time
+      required:
+      - slug
+      - path
+      - version
+      - title
+      - updated_at
+      additionalProperties: false
+    ProductPhoto:
+      type: object
+      properties:
+        sha256:
+          type: string
+          pattern: ^[0-9a-f]{64}$
+        width:
+          type: integer
+          minimum: 300
+        height:
+          type: integer
+          minimum: 300
+        byte_size:
+          type: integer
+          minimum: 1
+          maximum: 524288
+        url:
+          type: string
+          format: uri
+      required:
+      - sha256
+      - width
+      - height
+      - byte_size
+      - url
       additionalProperties: false
     HomeBannerImage:
       type: object

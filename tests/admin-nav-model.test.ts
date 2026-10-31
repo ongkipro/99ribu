@@ -58,8 +58,9 @@ test("S-V1 nav per role lens: exactly the plan §4.1 items each principal's gran
 			[
 				["Beranda", "/admin"],
 				["Pesanan", "/admin/pesanan?tab=perlu_dikirim", ["Semua Pesanan", "Input Resi", "Cetak Label"]],
-				["Produk", "/admin/produk", ["Kategori", "Inventori", "Transfer Stok"]],
+				["Produk", "/admin/produk", ["Tambah Produk", "Kategori", "Inventori", "Transfer Stok"]],
 				["Promo", "/admin/promo/ongkir", ["Banner", "Segmen Pembeli"]],
+				["Toko Online", "/admin/halaman"],
 				["Pengaturan", "/admin/pengaturan"],
 			],
 		],

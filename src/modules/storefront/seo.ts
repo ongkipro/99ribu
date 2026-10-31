@@ -173,7 +173,10 @@ export async function sitemapEntries(sql:Sql,config:SiteConfig):Promise<Metadata
    for(let c=categories.get(sale.draft.category_id);c;c=categories.get(c.parent_id)){const seen=categoryDates.get(c.id);if(!seen||seen<lastModified) categoryDates.set(c.id,lastModified);}
   }
   const newest=products.length?products[0].lastModified as Date:undefined,at=(date?:Date)=>date?{lastModified:date}:{};
+  // S-C1 store pages enter the sitemap once they have content (the placeholder stays noindex).
+  const pages=await tx`select slug,max(created_at) as at from app.static_page_version group by slug order by slug`;
   return [{url:pageUrl('/',config),...at(newest)},{url:pageUrl('/kategori',config),...at(newest)},{url:pageUrl('/bantuan',config)},{url:pageUrl('/promo',config)},
+   ...pages.map(p=>({url:pageUrl(`/${p.slug}`,config),lastModified:new Date(p.at)})),
    ...[...categoryDates].sort(([a],[b])=>String(categories.get(a)?.slug).localeCompare(String(categories.get(b)?.slug))).map(([id,lastModified])=>({url:pageUrl(categoryPath(String(categories.get(id)?.slug)),config),lastModified})),
    ...products];
  });

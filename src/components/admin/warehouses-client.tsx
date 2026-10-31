@@ -1,6 +1,6 @@
 "use client";
 
-import { ChevronRight, CircleCheck, Pencil } from "lucide-react";
+import { ChevronRight, CircleCheck, Pencil, Search } from "lucide-react";
 import Link from "next/link";
 import { useCallback, useEffect, useId, useRef, useState } from "react";
 import { Alert, AlertDescription } from "@/components/ui/alert";
@@ -11,7 +11,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { failureText, getJson } from "./admin-errors";
 import { DataTable } from "./data-table";
 import { formatWib } from "./format";
-import { FormDialog, FormField } from "./form";
+import { FormDialog, FormField, SegmentedControl } from "./form";
 import { send, useOperationKey } from "./ops-api";
 import { AdminPage, DetailSection, PageHeader } from "./page-blocks";
 import { ErrorState, LoadingState } from "./states";
@@ -24,10 +24,26 @@ import { adminPath } from "@/modules/access/admin-paths";
 // The warehouse APIs enforce the same scope and roles; the page only decides what to ask for. Calendar writes stay on
 // Pengiriman Manual: the calendar validator still accepts TEST-ONLY calendars only (DEC-018 Q2), so this screen is a view.
 
-type Warehouse = { id: string; admin_no: number; name: string; city: string; timezone: string; active: boolean };
+type Warehouse = {
+	id: string; admin_no: number; name: string; city: string; province: string | null; district: string | null;
+	timezone: string; active: boolean; shipping_area: boolean; pickup_ready: boolean;
+};
+type ProfileFilter = "all" | "incomplete" | "complete";
 
 export function WarehousesClient({ all }: { all: boolean }) {
-	const list = useKeysetList<Warehouse>("/api/v1/admin/warehouses?limit=50", (row) => row.id);
+	// Catalog imports add origin warehouses whose pickup profile is filled in later; the filter finds the ones to finish.
+	const [q, setQ] = useState("");
+	const [query, setQuery] = useState("");
+	const [profile, setProfile] = useState<ProfileFilter>("all");
+	useEffect(() => {
+		const timer = setTimeout(() => setQuery(q.trim()), 300);
+		return () => clearTimeout(timer);
+	}, [q]);
+	const params = new URLSearchParams({ limit: "50" });
+	if (query) params.set("q", query);
+	if (profile !== "all") params.set("profile", profile);
+	const list = useKeysetList<Warehouse>(`/api/v1/admin/warehouses?${params}`, (row) => row.id);
+	const filtered = Boolean(query) || profile !== "all";
 	return (
 		<AdminPage testId="warehouses-page">
 			<PageHeader
@@ -38,6 +54,34 @@ export function WarehousesClient({ all }: { all: boolean }) {
 						: "Gudang yang ditugaskan kepada Anda. Gudang lain tidak terlihat di sini."
 				}
 			/>
+			<search className="grid gap-3 md:grid-cols-[minmax(0,1fr)_auto] md:items-end">
+				<div className="flex flex-col gap-1.5">
+					<label htmlFor="warehouse-search" className="text-sm font-medium">
+						Cari gudang
+					</label>
+					<div className="relative">
+						<Search aria-hidden="true" className="pointer-events-none absolute top-1/2 left-2.5 size-4 -translate-y-1/2 text-muted-foreground" />
+						<Input
+							id="warehouse-search"
+							type="search"
+							value={q}
+							onChange={(e) => setQ(e.target.value)}
+							placeholder="Nama, kecamatan, kota atau provinsi"
+							autoComplete="off"
+							maxLength={100}
+							className="pl-8"
+							data-testid="warehouse-search"
+						/>
+					</div>
+				</div>
+				<SegmentedControl
+					legend="Profil penjemputan"
+					value={profile}
+					options={[["all", "Semua"], ["incomplete", "Belum lengkap"], ["complete", "Lengkap"]] as const}
+					onChange={setProfile}
+					testId={(key) => `warehouse-profile-${key}`}
+				/>
+			</search>
 			<DataTable
 				testId="warehouses"
 				caption="Daftar gudang"
@@ -47,9 +91,11 @@ export function WarehousesClient({ all }: { all: boolean }) {
 				status={list.status}
 				loadingLabel="Memuat gudang…"
 				empty={
-					all
-						? "Belum ada gudang aktif. Gudang muncul di sini setelah ditambahkan lewat impor katalog."
-						: "Belum ada gudang yang ditugaskan kepada Anda. Minta Super Admin menambahkannya di Staf & Peran."
+					filtered
+						? "Tidak ada gudang yang cocok dengan pencarian atau filter ini."
+						: all
+							? "Belum ada gudang aktif. Gudang muncul di sini setelah ditambahkan lewat impor katalog."
+							: "Belum ada gudang yang ditugaskan kepada Anda. Minta Super Admin menambahkannya di Staf & Peran."
 				}
 				emptyTestId="warehouses-empty"
 				stack
@@ -66,7 +112,26 @@ export function WarehousesClient({ all }: { all: boolean }) {
 							</Link>
 						),
 					},
-					{ id: "city", header: "Kota", stack: "meta", cell: (row) => row.city },
+					{
+						id: "place",
+						header: "Lokasi",
+						stack: "meta",
+						cellClassName: "whitespace-normal",
+						cell: (row) => [row.district, row.city, row.province].filter(Boolean).join(", "),
+					},
+					{
+						id: "status",
+						header: "Status",
+						stack: "meta",
+						cell: (row) => (
+							<span className="flex flex-wrap gap-1.5">
+								<StatusBadge tone={row.pickup_ready ? "success" : "problem"} data-status={row.pickup_ready ? "complete" : "incomplete"}>
+									{row.pickup_ready ? "Profil lengkap" : "Profil belum lengkap"}
+								</StatusBadge>
+								{!row.shipping_area && <StatusBadge tone="problem">Ongkir belum aktif</StatusBadge>}
+							</span>
+						),
+					},
 					{ id: "tz", header: "Zona waktu", hideBelow: "5xl", cell: (row) => row.timezone },
 					{
 						id: "actions",
@@ -128,7 +193,7 @@ export function WarehouseDetailClient({ warehouseId, profileAccess, owner }: { w
 	const { warehouse } = state;
 	return (
 		<AdminPage testId="warehouse-page">
-			<PageHeader title={warehouse.name} titleTestId="warehouse-title" back={back} description={`${warehouse.city} · zona waktu ${warehouse.timezone}`} />
+			<PageHeader title={warehouse.name} titleTestId="warehouse-title" back={back} description={`${[warehouse.district, warehouse.city, warehouse.province].filter(Boolean).join(", ")} · zona waktu ${warehouse.timezone}${warehouse.shipping_area ? "" : " · ongkir belum aktif"}`} />
 			<DetailSection id="warehouse-links" title="Stok dan transfer" description="Stok per gudang dicatat dan dilihat di halaman Stok Gudang.">
 				<div className="flex flex-wrap gap-2 max-md:*:flex-1">
 					<Button asChild variant="outline">
