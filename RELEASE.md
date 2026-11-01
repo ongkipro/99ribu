@@ -2,10 +2,10 @@
 
 Adopted at repository root on 2026-10-16; updated 2026-10-21 upon completion of all 68 local slices (`S01`–`S68`) and assembled localhost readiness (`T-39`). External live-provider, physical hardware, and production deployment gates remain separate per `CTX-18`.
 
-Release-ID: PROD-20261031-cc3b657 (previous: d2afc30, 4eabcdd, PROD-20261030-3899d69; local: LOCAL-20261024-S68)
+Release-ID: PROD-20261101-b5c67dd (previous: PROD-20261031-cc3b657, d2afc30, 4eabcdd, PROD-20261030-3899d69; local: LOCAL-20261024-S68)
 Base: 6f9f288
-Environment: production (https://99ribu.com, Coolify 99ribu-prod; first deployed 2026-10-30 at 3899d69; 4eabcdd deployed 2026-10-31 with live Mengantar rates; current commit cc3b657 deployed 2026-10-31 (Coolify `yacr8rgydoluzmwbjs5vhhff`, migration 0043, pre-deploy off-host backup `20261031T055716Z`); see STATUS "Production deployment")
-Declared-Risk: R3
+Environment: production (https://99ribu.com, Coolify 99ribu-prod; first deployed 2026-10-30 at 3899d69; 4eabcdd deployed 2026-10-31 with live Mengantar rates; cc3b657 deployed 2026-10-31 (Coolify `yacr8rgydoluzmwbjs5vhhff`, migration 0043, backup `20261031T055716Z`); current commit b5c67dd (S148 DEC-025 price ceiling) deployed 2026-11-01 (Coolify `loahztf0dwds2gj8fxaorcix`, migration 0044 newly applied, pre-deploy off-host backup `20261101T032451Z`, edge cache purged); see STATUS "S148" and "Production deployment")
+Declared-Risk: R4
 Rollback-Ref: 410c2a4
 Rollback-Command: pg_restore --clean --if-exists --no-owner --no-privileges -d <disposable_restore_db> <backup_artifact.dump>
 Backup-Proof: PASS production 2026-10-30 (off-host set `20261030T152437Z` on Vultr Object Storage blr with Object Lock; restore drill PASS from the owner's machine, see STATUS "Production deployment"). Earlier local proof: PASS (2026-10-21: `tests/integration/localhost-readiness.test.ts` subtest 3 runs real `pg_dump -Fc` and `pg_restore` into disposable database `99ribu_restore_<uuid>`, reseals creating-XID triggers, verifies table/row/ledger parity and immutability triggers, and drops the disposable DB on teardown)
