@@ -2,7 +2,7 @@
 
 Adopted at repository root on 2026-10-16; updated 2026-10-21 upon completion of all 68 local slices (`S01`–`S68`) and assembled localhost readiness (`T-39`). External live-provider, physical hardware, and production deployment gates remain separate per `CTX-18`.
 
-Release-ID: PROD-20261101-b5c67dd (previous: PROD-20261031-cc3b657, d2afc30, 4eabcdd, PROD-20261030-3899d69; local: LOCAL-20261024-S68)
+Release-ID: PROD-20261101-6a9af02 (catalog v5 imported 2026-11-01, backup `20261101T084442Z`; previous: PROD-20261101-b5c67dd, PROD-20261031-cc3b657, d2afc30, 4eabcdd, PROD-20261030-3899d69; local: LOCAL-20261024-S68)
 Base: 6f9f288
 Environment: production (https://99ribu.com, Coolify 99ribu-prod; first deployed 2026-10-30 at 3899d69; 4eabcdd deployed 2026-10-31 with live Mengantar rates; cc3b657 deployed 2026-10-31 (Coolify `yacr8rgydoluzmwbjs5vhhff`, migration 0043, backup `20261031T055716Z`); current commit b5c67dd (S148 DEC-025 price ceiling) deployed 2026-11-01 (Coolify `loahztf0dwds2gj8fxaorcix`, migration 0044 newly applied, pre-deploy off-host backup `20261101T032451Z`, edge cache purged); see STATUS "S148" and "Production deployment")
 Declared-Risk: R4
