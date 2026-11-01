@@ -18306,7 +18306,8 @@ components:
             $ref: '#/components/schemas/Attribute'
         price:
           type: integer
-          const: 99000
+          minimum: 1
+          maximum: 99000
         currency:
           type: string
           const: IDR
@@ -18341,7 +18342,7 @@ components:
       - offer_kind
       - contents
       additionalProperties: false
-      description: Selected sellable option costs exactly IDR99000 for all included components, not per component.
+      description: Selected sellable option costs its own offer price (whole rupiah, at most IDR99000, DEC-025) for all included components, not per component.
         Unit has one component of quantity1; multipack has one component with quantity>=2; bundle has at least two
         distinct inventory components. Publication validates these rules, physical attributes, stock and category-required
         facts. Every component must be reservable atomically from one warehouse for the full selected quantity;
@@ -18434,7 +18435,7 @@ components:
       - version
       additionalProperties: false
       description: One listing may mix unit, multipack and bundle variants. Buyer selects one variant; quantity1
-        adds that complete offer once at IDR99000. Show selected contents with quantities and one total; choosing
+        adds that complete offer once at its own offer price (at most IDR99000). Show selected contents with quantities and one total; choosing
         a second variant creates another separately priced cart line. Response version exposes current draft revision
         for admin edit recovery; public catalog returns its published snapshot, never unpublished edits. Server-generated
         product/variant/catalog IDs remain stable and are never recycled.
@@ -18588,7 +18589,8 @@ components:
           maximum: 50
         unit_price:
           type: integer
-          const: 99000
+          minimum: 1
+          maximum: 99000
         line_total:
           $ref: '#/components/schemas/Money'
         publication_changed:
@@ -19000,7 +19002,8 @@ components:
           minimum: 1
         unit_price:
           type: integer
-          const: 99000
+          minimum: 1
+          maximum: 99000
           readOnly: true
         subtotal:
           $ref: '#/components/schemas/Money'
@@ -19065,7 +19068,7 @@ components:
       additionalProperties: false
       description: Immutable purchased option/name/contents/quantity/price snapshot; selected offer kind and variant
         label come from the committed order, not current product/variant records. Contents are per offer unit, while
-        quantity counts complete IDR99000 offers. Later catalog edits and address-book updates cannot change this
+        quantity counts complete offers at the frozen unit price. Later catalog edits and address-book updates cannot change this
         response history. Subtotal remains server-derived and conserved with original order amounts.
       allOf:
       - if:
@@ -19884,7 +19887,8 @@ components:
           - null
         merchandise_amount:
           type: integer
-          const: 99000
+          minimum: 1
+          maximum: 99000
         buyer_shipping:
           $ref: '#/components/schemas/Money'
     ReturnEligibility:
@@ -28397,6 +28401,11 @@ components:
           maxItems: 50
           items:
             $ref: '#/components/schemas/CatalogAttribute'
+        price:
+          type: integer
+          minimum: 1
+          maximum: 99000
+          description: DEC-025 whole-rupiah price of this offer, at most IDR99000. Omitted on create it is 99000; omitted on update the current price stays.
         weight_grams:
           type: integer
           minimum: 1
@@ -28441,7 +28450,7 @@ components:
       - offer_kind
       - contents
       additionalProperties: false
-      description: Selected sellable option costs exactly IDR99000 for all included components, not per component.
+      description: Selected sellable option costs its own offer price (whole rupiah, at most IDR99000, DEC-025) for all included components, not per component.
         Unit has one component of quantity1; multipack has one component with quantity>=2; bundle has at least two
         distinct inventory components. Publication validates these rules, physical attributes, stock and category-required
         facts. Every component must be reservable atomically from one warehouse for the full selected quantity;
@@ -28501,6 +28510,11 @@ components:
           maxItems: 50
           items:
             $ref: '#/components/schemas/CatalogAttribute'
+        price:
+          type: integer
+          minimum: 1
+          maximum: 99000
+          description: DEC-025 whole-rupiah price of this offer, at most IDR99000. Omitted on create it is 99000; omitted on update the current price stays.
         weight_grams:
           type: integer
           minimum: 1
@@ -28546,7 +28560,7 @@ components:
       additionalProperties: false
       description: Full prospective editable offer definition for an existing variant. Stable variant/catalog IDs
         and SKU cannot be reassigned. Definition changes stage a new product draft revision; do not mutate committed
-        order contents, stock reservations, old quotes or dispatched labels. Price remains server-fixed IDR99000;
+        order contents, stock reservations, old quotes or dispatched labels. Price is the offer's own whole-rupiah price, at most IDR99000 (DEC-025), frozen into every later cart, quote and order;
         physical stock only moves through inventory domain. Publication rechecks category, components, warehouse,
         dimensions, media, stock and margin/cost policy.
       allOf:
@@ -29303,7 +29317,8 @@ components:
             $ref: '#/components/schemas/Attribute'
         price:
           type: integer
-          const: 99000
+          minimum: 1
+          maximum: 99000
         currency:
           type: string
           const: IDR
@@ -29361,7 +29376,7 @@ components:
       - height_mm
       - default_warehouse_id
       additionalProperties: false
-      description: Selected sellable option costs exactly IDR99000 for all included components, not per component.
+      description: Selected sellable option costs its own offer price (whole rupiah, at most IDR99000, DEC-025) for all included components, not per component.
         Unit has one component of quantity1; multipack has one component with quantity>=2; bundle has at least two
         distinct inventory components. Publication validates these rules, physical attributes, stock and category-required
         facts. Every component must be reservable atomically from one warehouse for the full selected quantity;
@@ -29537,9 +29552,14 @@ components:
           minimum: 0
           maximum: 100
           description: Active offers with at least one complete unit in their active default warehouse.
-        price_idr:
+        price_min_idr:
           type: integer
-          const: 99000
+          minimum: 1
+          maximum: 99000
+        price_max_idr:
+          type: integer
+          minimum: 1
+          maximum: 99000
         state:
           $ref: '#/components/schemas/CatalogListState'
         latest_publication_version:
@@ -29593,7 +29613,8 @@ components:
       - offer_kinds
       - offer_count
       - stock_ready_offers
-      - price_idr
+      - price_min_idr
+      - price_max_idr
       - state
       - latest_publication_version
       - published_revision
@@ -30020,6 +30041,10 @@ components:
       properties:
         offer_id:
           $ref: '#/components/schemas/CatalogUuid'
+        price_idr:
+          type: integer
+          minimum: 1
+          maximum: 99000
         estimated_hpp:
           type:
           - integer
@@ -30061,6 +30086,7 @@ components:
             $ref: '#/components/schemas/ContributionComponentCost'
       required:
       - offer_id
+      - price_idr
       - estimated_hpp
       - estimated_contribution
       - complete
@@ -30114,9 +30140,6 @@ components:
         currency:
           type: string
           const: IDR
-        price_idr:
-          type: integer
-          const: 99000
         offers:
           type: array
           minItems: 1
@@ -30131,7 +30154,6 @@ components:
       - minimum_contribution_idr
       - evaluated_at
       - currency
-      - price_idr
       - offers
       additionalProperties: false
       description: Private financial estimate with actual effective source IDs; distinct from posted realized costs/cash.
@@ -30412,7 +30434,8 @@ components:
             $ref: '#/components/schemas/Attribute'
         price:
           type: integer
-          const: 99000
+          minimum: 1
+          maximum: 99000
         currency:
           type: string
           const: IDR
@@ -30446,7 +30469,7 @@ components:
       - offer_kind
       - contents
       additionalProperties: false
-      description: Selected sellable option costs exactly IDR99000 for all included components, not per component.
+      description: Selected sellable option costs its own offer price (whole rupiah, at most IDR99000, DEC-025) for all included components, not per component.
         Unit has one component of quantity1; multipack has one component with quantity>=2; bundle has at least two
         distinct inventory components. Publication validates these rules, physical attributes, stock and category-required
         facts. Every component must be reservable atomically from one warehouse for the full selected quantity;

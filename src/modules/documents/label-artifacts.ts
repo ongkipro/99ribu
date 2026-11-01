@@ -75,7 +75,7 @@ function renderShippingLabelPdf(snapshot: {
 		`ALAMAT: ${snapshot.address_line}`,
 		`KECAMATAN/KOTA: ${snapshot.subdistrict}, ${snapshot.district}, ${snapshot.city}`,
 		`PROVINSI/KODEPOS: ${snapshot.province} ${snapshot.postal_code}`,
-		`RINGKASAN PAKET: ${snapshot.item_count} unit (Rp99.000 Toko Serba 99 Ribu)`,
+		`RINGKASAN PAKET: ${snapshot.item_count} unit (Toko Serba 99 Ribu)`,
 		`FORMAT: ${snapshot.format} | REV: v${snapshot.template_version}`,
 	];
 

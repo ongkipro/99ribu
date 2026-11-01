@@ -20,7 +20,7 @@ test('rate intake rejects invalid or noncanonical dates and hidden control text 
 });
 
 test('commission uses safe integer rates and half-up rounding separately for each IDR99000 original offer',()=>{
- for(const [bps,expected]of [[0,0],[1,10],[5,50],[1000,9900],[1750,17325],[3333,32997],[9999,98990],[10000,99000]])assert.equal(offerCommissionIdr(bps),expected);
- assert.equal(offerCommissionIdr(5)*2,100);
- for(const bps of [-1,10001,0.5,Number.NaN,Number.POSITIVE_INFINITY])assert.throws(()=>offerCommissionIdr(bps),{code:'INVALID_INPUT'});
+ for(const [bps,expected]of [[0,0],[1,10],[5,50],[1000,9900],[1750,17325],[3333,32997],[9999,98990],[10000,99000]])assert.equal(offerCommissionIdr(bps,99000),expected);
+ assert.equal(offerCommissionIdr(5,99000)*2,100);
+ for(const bps of [-1,10001,0.5,Number.NaN,Number.POSITIVE_INFINITY])assert.throws(()=>offerCommissionIdr(bps,99000),{code:'INVALID_INPUT'});
 });

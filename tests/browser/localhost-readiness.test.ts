@@ -162,7 +162,7 @@ function renderAffiliateReadinessHtml(data: {
 	commissions: Awaited<ReturnType<typeof readCommissionsForAffiliate>>["data"];
 	payouts: Awaited<ReturnType<typeof readPayoutsForAffiliate>>["data"];
 }) {
-	const unitIdr = offerCommissionIdr(data.profile.rate_basis_points);
+	const unitIdr = offerCommissionIdr(data.profile.rate_basis_points, 99000);
 	return `<!doctype html>
 <html lang="id">
 <head>

@@ -3,7 +3,7 @@ import { Shell } from "../../../components/storefront/shell";
 import { getLocalAuth } from "../../../modules/access/auth";
 import { getPrincipal, type Principal } from "../../../modules/access/policy";
 import { readAffiliateProfileDetail } from "../../../modules/affiliates/profile";
-import { offerCommissionIdr } from "../../../modules/affiliates/rates";
+import { offerCommissionIdr, PRICE_CEILING_IDR } from "../../../modules/affiliates/rates";
 import {
 	type CommissionStatus,
 	readCommissionBalanceForAffiliate,
@@ -80,12 +80,12 @@ export default async function AffiliateWorkspacePage() {
 					<header className="receipt-header">
 						<p className="checkout-order-reference">
 							<span>Program Mitra Afiliasi · 99ribu</span>
-							<span>Harga Tetap Rp99.000</span>
+							<span>Harga Maksimal Rp99.000</span>
 						</p>
 						<h1>Ruang Mitra Afiliasi 99ribu</h1>
 						<p className="receipt-lead">
-							Harga produk tetap Rp99.000 untuk semua pembeli. Komisi dihitung
-							per unit dan masuk antrean transfer manual otomatis saat saldo
+							Setiap produk berharga maksimal Rp99.000, sama untuk semua pembeli.
+							Komisi dihitung dari harga tiap unit dan masuk antrean transfer manual otomatis saat saldo
 							siap cair mencapai minimal Rp99.000.
 						</p>
 					</header>
@@ -98,10 +98,10 @@ export default async function AffiliateWorkspacePage() {
 							<span className="receipt-badge" data-tone="active">
 								Skema Komisi Transparan
 							</span>
-							<div className="affiliate-eligible-amount">Rp9.900 / unit</div>
+							<div className="affiliate-eligible-amount">10% / unit</div>
 							<p style={{ margin: 0, color: "var(--muted)", lineHeight: 1.6 }}>
-								Tarif dasar 10% (1.000 bps) dari harga tetap Rp99.000 per
-								pilihan. Tanpa diskon kode dan tanpa mengubah harga pembeli.
+								Tarif dasar 10% (1.000 bps) dari harga pilihan yang dibeli, maksimal
+								Rp9.900 per unit. Tanpa diskon kode dan tanpa mengubah harga pembeli.
 							</p>
 							<dl className="receipt-returns-list" style={{ marginTop: "4px" }}>
 								<div>
@@ -173,8 +173,8 @@ export default async function AffiliateWorkspacePage() {
 						<h1>Aktivasi Profil Afiliasi</h1>
 						<p>
 							Akun Anda memiliki akses mitra afiliasi, tetapi profil rujukan
-							belum diaktifkan. Komisi dihitung dari harga tetap Rp99.000 per
-							pilihan dan dicairkan otomatis saat saldo siap cair mencapai
+							belum diaktifkan. Komisi dihitung dari harga setiap pilihan yang
+							dibeli dan dicairkan otomatis saat saldo siap cair mencapai
 							minimal Rp99.000.
 						</p>
 						<div className="notice-actions">
@@ -192,7 +192,10 @@ export default async function AffiliateWorkspacePage() {
 	}
 
 	const { profile, balance, commissions, payouts } = workspace;
-	const unitCommissionIdr = offerCommissionIdr(profile.rate_basis_points);
+	const unitCommissionIdr = offerCommissionIdr(
+		profile.rate_basis_points,
+		PRICE_CEILING_IDR,
+	);
 
 	return (
 		<Shell active="account">
@@ -204,8 +207,8 @@ export default async function AffiliateWorkspacePage() {
 					</p>
 					<h1>Ruang Mitra Afiliasi 99ribu</h1>
 					<p className="receipt-lead">
-						Semua produk tetap seharga Rp99.000 bagi pembeli. Komisi dihitung
-						transparan per unit dan masuk antrean transfer manual otomatis saat
+						Setiap produk berharga maksimal Rp99.000. Komisi dihitung transparan
+						dari harga tiap unit dan masuk antrean transfer manual otomatis saat
 						saldo siap cair mencapai minimal {rupiah(balance.minimum_payout)}.
 					</p>
 				</header>
@@ -255,8 +258,8 @@ export default async function AffiliateWorkspacePage() {
 								<dt>Tarif komisi efektif</dt>
 								<dd data-testid="affiliate-rate-bps">
 									{formatBpsPercent(profile.rate_basis_points)} (
-									{profile.rate_basis_points} bps) · {rupiah(unitCommissionIdr)}{" "}
-									per unit
+									{profile.rate_basis_points} bps) · maksimal{" "}
+									{rupiah(unitCommissionIdr)} per unit
 								</dd>
 							</div>
 						</dl>

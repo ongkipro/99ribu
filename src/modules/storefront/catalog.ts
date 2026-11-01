@@ -69,7 +69,7 @@ export async function publicProduct(tx:TransactionSql,productId:string){
    where w.active and b.stock_item_id in ${tx(offer.contents.map(c=>c.stock_item_id))} order by b.warehouse_id`;
   let available=false;for(const warehouse of warehouses){try{if(await offerAvailability(tx,{product_id:draft.id,product_revision:draft.version,offer_id:offer.id,warehouse_id:warehouse.warehouse_id})>0){available=true;break;}}
    catch(error){if(!(error instanceof AccessError)||error.status!==404) throw error;}}
-  variants.push({id:offer.id,catalog_id:offer.catalog_id,label:offer.label,attributes:offer.attributes,price:99000 as const,currency:'IDR' as const,
+  variants.push({id:offer.id,catalog_id:offer.catalog_id,label:offer.label,attributes:offer.attributes,price:offer.price,currency:'IDR' as const,
    availability:available?'available' as const:'unavailable' as const,image:offer.image??draft.images[0],offer_kind:offer.offer_kind,
    contents:offer.contents.map(c=>({name:c.name,quantity:c.quantity}))});
  }

@@ -45,7 +45,8 @@ import {
 	categoryPath,
 	mapLimit,
 	OFFER_KIND_LABELS,
-	PRICE_IDR,
+	PRICE_CEILING_IDR,
+	priceRange,
 	type PublicationState,
 	readAll,
 	STATUS_LABELS,
@@ -293,7 +294,11 @@ export function CatalogProductClient({
 										<Skeleton className="h-5 w-24" />
 									)}
 									<span className="text-sm font-medium text-foreground tabular-nums">
-										{rupiah(PRICE_IDR)} per varian
+										{priceRange(
+											Math.min(...p.variants.map((v) => v.price)),
+											Math.max(...p.variants.map((v) => v.price)),
+											rupiah,
+										)}
 									</span>
 								</>
 							}
@@ -411,7 +416,7 @@ export function CatalogProductClient({
 						<DetailSection
 							id="variants-heading"
 							title={`Varian (${p.variants.length})`}
-							description="Setiap varian dijual Rp99.000. Isi bundel mengikuti komponen stok fisik."
+							description={`Setiap varian punya harga sendiri, maksimal ${rupiah(PRICE_CEILING_IDR)}. Isi bundel mengikuti komponen stok fisik.`}
 						>
 							<ul className="flex flex-col divide-y rounded-md border">
 								{p.variants.map((v) => (
@@ -742,6 +747,7 @@ function VariantItem({
 			<div className="flex min-w-0 flex-1 flex-col gap-1.5">
 				<div className="flex flex-wrap items-center gap-2">
 					<h3 className="text-sm font-semibold">{v.label}</h3>
+					<span className="text-sm font-medium tabular-nums">{rupiah(v.price)}</span>
 					<Badge variant="outline">{OFFER_KIND_LABELS[v.offer_kind]}</Badge>
 					<StatusBadge tone={stockShort ? "problem" : "success"}>
 						{readsStock
@@ -1046,7 +1052,7 @@ function PublishAction({
 							<DialogTitle>Terbitkan {product.name}?</DialogTitle>
 							<DialogDescription>
 								Draf versi {expected.draft} dengan {product.variants.length}{" "}
-								varian akan tampil di toko seharga Rp99.000 per varian. Tindakan
+								varian akan tampil di toko dengan harga masing-masing varian. Tindakan
 								ini tercatat di audit.
 							</DialogDescription>
 						</DialogHeader>
@@ -1342,6 +1348,11 @@ function ContentDialog({
 	const [name, setName] = useState(product.name);
 	const [description, setDescription] = useState(product.description);
 	const [images, setImages] = useState(product.images);
+	// DEC-025: each variant's own price (whole rupiah, 1..PRICE_CEILING_IDR), edited as text so a
+	// half-typed value is refused instead of silently coerced.
+	const [prices, setPrices] = useState<Record<string, string>>(() =>
+		Object.fromEntries(product.variants.map((v) => [v.id, String(v.price)])),
+	);
 	const [reason, setReason] = useState("");
 	const [error, setError] = useState<string | null>(null);
 	const [pending, setPending] = useState(false);
@@ -1367,27 +1378,59 @@ function ContentDialog({
 	};
 	const length = Array.from(name.trim()).length;
 	// Field the last client-side refusal points at (aria-invalid on it).
-	const [invalid, setInvalid] = useState<"name" | "alt" | "reason" | null>(null);
+	const [invalid, setInvalid] = useState<"name" | "alt" | "reason" | "price" | null>(null);
+	const priceOf = (raw: string) => (/^\d{1,5}$/.test(raw.trim()) ? Number(raw.trim()) : Number.NaN);
+	const priceValid = (n: number) => Number.isSafeInteger(n) && n >= 1 && n <= PRICE_CEILING_IDR;
+	const repriced = product.variants.filter((v) => priceOf(prices[v.id] ?? "") !== v.price);
 	const dirty =
+		repriced.length > 0 ||
 		name !== product.name ||
 		description !== product.description ||
 		reason.trim() !== "" ||
 		JSON.stringify(images) !== JSON.stringify(product.images);
-	const refuse = (field: "name" | "alt" | "reason" | null, message: string) => {
+	const refuse = (field: "name" | "alt" | "reason" | "price" | null, message: string) => {
 		setInvalid(field);
 		setError(message);
 	};
 	async function submit() {
 		if (!name.trim()) return refuse("name", "Judul wajib diisi.");
 		if (images.some((img) => !img.alt.trim())) return refuse("alt", "Setiap foto perlu teks alternatif.");
+		const badPrice = product.variants.find((v) => !priceValid(priceOf(prices[v.id] ?? "")));
+		if (badPrice) return refuse("price", `Harga ${badPrice.label} harus angka bulat Rp1 sampai ${rupiah(PRICE_CEILING_IDR)}.`);
 		if (!reason.trim()) return refuse("reason", "Alasan wajib diisi.");
 		const cleaned = images.map((img) => ({ ...img, alt: img.alt.trim() }));
 		const changes = {
 			...(name.trim() !== product.name ? { name: name.trim() } : {}),
 			...(description !== product.description ? { description } : {}),
 			...(JSON.stringify(cleaned) !== JSON.stringify(product.images) ? { images: cleaned } : {}),
+			// The update body is the whole offer (offerInput refuses unknown keys and replaces the offer); only the
+			// price differs. The wire `image` falls back to the product cover when the offer has none, so it is sent
+			// only when it is not that cover; otherwise the offer stays without its own photo and keeps following the
+			// cover. lazy: an offer whose own photo is exactly the cover loses the duplicate (same rendering); upgrade
+			// by returning an own-image flag from the API.
+			...(repriced.length
+				? {
+						variant_changes: repriced.map((v) => ({
+							operation: "update",
+							variant_id: v.id,
+							update: {
+								label: v.label,
+								attributes: v.attributes,
+								price: priceOf(prices[v.id] ?? ""),
+								weight_grams: v.weight_grams,
+								length_mm: v.length_mm,
+								width_mm: v.width_mm,
+								height_mm: v.height_mm,
+								default_warehouse_id: v.default_warehouse_id,
+								offer_kind: v.offer_kind,
+								contents: v.contents,
+								...(v.image && v.image.url !== product.images[0]?.url ? { image: v.image } : {}),
+							},
+						})),
+					}
+				: {}),
 		};
-		if (!Object.keys(changes).length) return refuse(null, "Belum ada perubahan. Ubah judul, deskripsi atau foto, lalu simpan.");
+		if (!Object.keys(changes).length) return refuse(null, "Belum ada perubahan. Ubah judul, deskripsi, foto atau harga, lalu simpan.");
 		setPending(true);
 		setInvalid(null);
 		setError(null);
@@ -1397,7 +1440,7 @@ function ContentDialog({
 			if (result.code === "VERSION_CONFLICT") onConflict();
 			return setError(result.text);
 		}
-		onSaved(`Konten disimpan sebagai draf versi ${result.data.version}. Produk yang sudah terbit perlu diterbitkan ulang agar perubahan tampil di toko.`);
+		onSaved(`${repriced.length ? "Konten dan harga" : "Konten"} disimpan sebagai draf versi ${result.data.version}. Produk yang sudah terbit perlu diterbitkan ulang agar perubahan tampil di toko.`);
 	}
 	return (
 		<FormDialog
@@ -1431,6 +1474,34 @@ function ContentDialog({
 			<FormField id="content-description" label="Deskripsi">
 				<Textarea id="content-description" rows={6} maxLength={10000} value={description} onChange={(e) => setDescription(e.target.value)} />
 			</FormField>
+			<fieldset className="flex min-w-0 flex-col gap-2" data-testid="content-prices">
+				<legend className="text-sm font-medium">Harga varian</legend>
+				<p className="text-xs text-muted-foreground">
+					Rupiah bulat, maksimal {rupiah(PRICE_CEILING_IDR)}. Keranjang dan pesanan yang sudah ada tetap memakai harga lama.
+				</p>
+				{product.variants.map((v) => {
+					const bad = invalid === "price" && !priceValid(priceOf(prices[v.id] ?? ""));
+					return (
+						<FormField key={v.id} id={`content-price-${v.id}`} label={`${v.label} (Rp)`}>
+							<DialogErrorId>
+								{(errorId) => (
+									<Input
+										id={`content-price-${v.id}`}
+										inputMode="numeric"
+										pattern="[0-9]*"
+										maxLength={5}
+										className="tabular-nums sm:max-w-40"
+										aria-invalid={bad || undefined}
+										aria-describedby={bad && errorId ? errorId : undefined}
+										value={prices[v.id] ?? ""}
+										onChange={(e) => setPrices({ ...prices, [v.id]: e.target.value })}
+									/>
+								)}
+							</DialogErrorId>
+						</FormField>
+					);
+				})}
+			</fieldset>
 			<fieldset className="flex min-w-0 flex-col gap-2">
 				<legend className="text-sm font-medium">Foto ({images.length})</legend>
 				<p className="text-xs text-muted-foreground">Foto pertama menjadi sampul. Teks alternatif menjelaskan isi foto untuk pembaca layar.</p>

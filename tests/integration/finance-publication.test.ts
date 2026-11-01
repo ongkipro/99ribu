@@ -11,6 +11,7 @@ import {readContribution} from "../../src/modules/finance/contribution.ts";
 import {appendCostVersion} from "../../src/modules/finance/costs.ts";
 import {handleInventory} from "../../src/modules/inventory/routes.ts";
 import {actor,cleanup,enroll} from "../contract/access-fixture.ts";
+import {withdrawOwn} from "./withdraw-own.ts";
 import {totp} from "./totp-fixture.ts";
 
 type Actor=Awaited<ReturnType<typeof actor>>;
@@ -68,7 +69,7 @@ async function setup(){
     const [clock]=publicationId?await tx`select evaluated_at::text as now from app.publication_version where id=${publicationId}`:await tx`select clock_timestamp()::text as now`;
     return salePublication(tx,product.id,clock.now);
   });
-  const close=async()=>{await cleanup(identity,users);await identity.sql`update app.warehouse set active=false where id=${wh.id}`;await identity.sql.end();};
+  const close=async()=>{try{await withdrawOwn(identity,owner,product.id);}finally{await cleanup(identity,users);await identity.sql`update app.warehouse set active=false where id=${wh.id}`;await identity.sql.end();}};
   return {identity,users,owner,wh:wh.id,product,stock,catalogue,issue,principal,publish,prepare,cost,assumptions,state,sale,close};
 }
 

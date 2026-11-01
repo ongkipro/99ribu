@@ -192,7 +192,7 @@ export function AffiliatesListClient({ owner }: { owner: boolean }) {
 						cell: (row) => (
 							<span className="flex flex-col items-end gap-0.5">
 								<span className="font-medium">
-									{bpsToPercent(row.effective_rate_bps)}% ({rupiah(row.effective_commission_idr)})
+									{bpsToPercent(row.effective_rate_bps)}% (maks. {rupiah(row.effective_commission_idr)} / unit)
 								</span>
 								<span className="text-xs font-normal text-muted-foreground">
 									{row.rate_source === "override"
@@ -431,7 +431,7 @@ export function AffiliateDetailClient({
 			<DetailSection
 				id="affiliate-commissions-heading"
 				title="Ringkasan komisi dan saldo"
-				description="Setiap unit penawaran lengkap Rp99.000 dihitung terpisah. Data pribadi pembeli dan nomor rekening tujuan tidak ditampilkan di halaman ini."
+				description="Setiap unit dihitung terpisah dari harga penawarannya. Data pribadi pembeli dan nomor rekening tujuan tidak ditampilkan di halaman ini."
 				testId="affiliate-commissions"
 			>
 				{/* Figures sit directly in the section (no card inside a card). */}
@@ -544,7 +544,7 @@ export function AffiliateDetailClient({
 					<dd className="font-semibold tabular-nums">
 						{bpsToPercent(affiliate.effective_rate_bps)}% (
 						{affiliate.effective_rate_bps} bps ·{" "}
-						{rupiah(affiliate.effective_commission_idr)} / unit)
+						maks. {rupiah(affiliate.effective_commission_idr)} / unit)
 					</dd>
 					<dt className="text-muted-foreground">Sumber tarif</dt>
 					<dd className="tabular-nums">
@@ -607,7 +607,7 @@ export function AffiliateDetailClient({
 							stack: "aside",
 							className: "text-right tabular-nums",
 							cell: (row: AdminAffiliateRateVersion) =>
-								`${bpsToPercent(row.basis_points)}% (${row.basis_points} bps · ${rupiah(row.commission_idr)})`,
+								`${bpsToPercent(row.basis_points)}% (${row.basis_points} bps · maks. ${rupiah(row.commission_idr)} / unit)`,
 						},
 						{
 							id: "effective_at",
@@ -779,8 +779,8 @@ function RateVersionDialog({
 				label="Tarif komisi (basis poin, 0–10000)"
 				hint={
 					validBps !== null
-						? `Setara ${bpsToPercent(validBps)}% (${rupiah(offerCommissionPreviewIdr(validBps))} per unit penawaran Rp99.000).`
-						: "Bilangan bulat 0–10000 (contoh: 1000 = 10% = Rp9.900 per unit)."
+						? `Setara ${bpsToPercent(validBps)}% (${rupiah(offerCommissionPreviewIdr(validBps))} per unit penawaran seharga Rp99.000; unit yang lebih murah mendapat komisi lebih kecil).`
+						: "Bilangan bulat 0–10000 (contoh: 1000 = 10% dari harga unit)."
 				}
 			>
 				<Input

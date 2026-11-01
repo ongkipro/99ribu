@@ -1276,7 +1276,7 @@ export default async function OrderReceiptPage({
 								)}
 							</dl>
 							<p className="checkout-hint">
-								Harga Rp99.000 per pilihan dan komposisi isi dibekukan dari
+								Harga setiap pilihan dan komposisi isi dibekukan dari
 								publikasi saat pesanan dibuat.
 							</p>
 						</OrderReceiptSummary>

@@ -1,9 +1,12 @@
 import assert from "node:assert/strict";
+import { mkdir } from "node:fs/promises";
 import test from "node:test";
 import { type Browser, chromium, expect, type Page, type Request as PwRequest } from "@playwright/test";
 import { createLocalAuth } from "../../src/modules/access/auth.ts";
 import type { Role } from "../../src/modules/access/policy.ts";
 import { actor, cleanup, enroll } from "../contract/access-fixture.ts";
+import { readCatalogRevision } from "../../src/modules/catalog/catalog.ts";
+import { offerInput } from "../../src/modules/catalog/validation.ts";
 
 // S102 ops screens against the built web on the canonical origin: Stok Gudang (movement dialog,
 // conflict copy, phone bottom sheet), Transfer Stok, Promo Ongkir (create body in WIB), the DEC-013
@@ -199,6 +202,68 @@ test("Katalog: DEC-013 claim filter, read-only Google category and content edit 
 		assert.deepEqual(body.images.map((i: { url: string }) => i.url), [images[1].url, images[0].url, ...images.slice(2).map((i) => i.url)]);
 		assert.equal(body.images[0].alt, "Sampul baru");
 		assert.deepEqual([body.expected_version, body.reason, "name" in body, "description" in body], [Number(product.revision), "Urutkan sampul", false, false], "only changed fields are sent");
+		await noOverflow(page);
+		assert.deepEqual(errors, []);
+	} finally {
+		await close();
+	}
+});
+
+test("Katalog: DEC-025 variant price edit refuses an out-of-range price and sends an update offerInput accepts", { timeout: 120000 }, async () => {
+	// An offer without its own photo: the wire response shows the product cover for it, which must not be written back.
+	const [row] = await sql`select p.id, p.admin_no::int as n, o.offer_id, o.label, o.price::int as price, o.weight_grams, o.length_mm, o.width_mm, o.height_mm,
+		o.default_warehouse_id, o.kind, o.attributes
+		from app.product p join app.product_revision r on r.product_id=p.id and r.revision=p.revision
+		join app.offer_revision o on o.product_id=p.id and o.revision=p.revision and not o.retired
+		where o.image is null and jsonb_array_length(r.images)>=1 and o.price < 99000
+		order by p.id limit 1`;
+	assert.ok(row, "a product with an imageless offer below the ceiling exists in the local catalog");
+	const owner = await staff("owner");
+	const { page, errors, close } = await open(owner);
+	try {
+		const patches = await mockMutations(page, () => ({ status: 200, body: { version: 99 } }));
+		await page.goto(`${origin}/admin/produk/${row.n}`);
+		await page.getByTestId("content-edit").click();
+		const dialog = page.getByRole("dialog");
+		const price = dialog.getByTestId("content-prices").getByLabel(`${row.label} (Rp)`, { exact: true });
+		await expect(price).toHaveValue(String(row.price));
+		await price.fill("99001");
+		await dialog.getByLabel("Alasan").fill("Sesuaikan harga varian");
+		await dialog.getByRole("button", { name: "Simpan draf" }).click();
+		await expect(dialog.getByText(/harus angka bulat Rp1 sampai Rp99\.000/)).toBeVisible();
+		await expect(price).toHaveAttribute("aria-invalid", "true");
+		assert.equal(patches.length, 0, "an out-of-range price is refused before any request");
+		// Rendered evidence of the price fieldset with its refusal, wide and phone width.
+		await mkdir(".local/test-renders/s148", { recursive: true });
+		await dialog.getByTestId("content-prices").scrollIntoViewIfNeeded();
+		await page.screenshot({ path: ".local/test-renders/s148/admin-price-error-1440.png" });
+		await page.setViewportSize({ width: 390, height: 844 });
+		await dialog.getByTestId("content-prices").scrollIntoViewIfNeeded();
+		await noOverflow(page);
+		await page.screenshot({ path: ".local/test-renders/s148/admin-price-error-390.png" });
+		await page.setViewportSize({ width: 1440, height: 900 });
+		const next = row.price === 49000 ? 59000 : 49000;
+		await price.fill(String(next));
+		await dialog.getByRole("button", { name: "Simpan draf" }).click();
+		await expect(page.getByRole("status").filter({ hasText: "Konten dan harga disimpan sebagai draf versi" })).toBeVisible();
+		const body = patches[0].postDataJSON();
+		assert.equal(body.variant_changes.length, 1, "only the repriced offer is sent");
+		const [change] = body.variant_changes;
+		assert.deepEqual([change.operation, change.variant_id], ["update", row.offer_id]);
+		assert.equal("image" in change.update, false, "the cover fallback is not written into the offer");
+		// The exact body the dialog sends passes the server validator, and every other offer field is unchanged.
+		const parsed = offerInput(change.update, false);
+		assert.equal(parsed.price, next);
+		assert.deepEqual(
+			[parsed.label, parsed.weight_grams, parsed.length_mm, parsed.width_mm, parsed.height_mm, parsed.default_warehouse_id, parsed.offer_kind, parsed.image],
+			[row.label, row.weight_grams, row.length_mm, row.width_mm, row.height_mm, row.default_warehouse_id, row.kind, null],
+		);
+		// Attributes and physical contents are carried unchanged too (offerInput sorts both).
+		const stored = (await readCatalogRevision(sql, row.id)).variants.find((v) => v.id === row.offer_id);
+		assert.ok(stored);
+		const byKey = <T extends { key: string }>(a: readonly T[]) => [...a].sort((x, y) => x.key.localeCompare(y.key));
+		assert.deepEqual(parsed.attributes, byKey(stored.attributes));
+		assert.deepEqual(parsed.contents, [...stored.contents].sort((a, b) => a.stock_item_id.localeCompare(b.stock_item_id)).map(({ stock_item_id, name, quantity }) => ({ stock_item_id, name, quantity })));
 		await noOverflow(page);
 		assert.deepEqual(errors, []);
 	} finally {

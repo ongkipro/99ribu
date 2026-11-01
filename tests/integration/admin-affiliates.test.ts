@@ -279,7 +279,7 @@ test("S132 admin affiliates read & rate versions: owner/finance read, non-permit
 		const unitAmount = Number(accrued[0].amount_idr);
 		assert.equal(
 			unitAmount,
-			offerCommissionIdr(enrolledA.rate_basis_points),
+			offerCommissionIdr(enrolledA.rate_basis_points, 99000),
 		);
 		assert.equal(
 			unitAmount,
@@ -711,7 +711,7 @@ test("S132 admin affiliates read & rate versions: owner/finance read, non-permit
 		assert.equal(afterDetail.effective_rate_bps, 1250);
 		assert.equal(
 			afterDetail.effective_commission_idr,
-			offerCommissionIdr(1250),
+			offerCommissionIdr(1250, 99000),
 		);
 		assert.equal(afterDetail.rate_source, "override");
 		assert.equal(afterDetail.rate_versions.length, 2);

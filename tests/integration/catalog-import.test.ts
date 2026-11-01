@@ -93,7 +93,7 @@ test('generator: deterministic sanitized dataset; malformed datasets are refused
     assert.deepEqual(first.catalog.products.map((p)=>[p.name,p.category,p.google_product_category]),[['2 pcs Pembersih Lantai Super Kuat','rumah-tangga',7330],['Spons Cuci Piring','rumah-tangga',undefined],['Paket Dapur Bersih','rumah-tangga',undefined]]);
     // Photo alt text is the clean title (", foto N" from the second photo); a bundle photo names its component.
     assert.deepEqual(first.catalog.products.map((p)=>p.photos.map((ph)=>ph.alt)),[['2 pcs Pembersih Lantai Super Kuat','2 pcs Pembersih Lantai Super Kuat, foto 2'],['Spons Cuci Piring','Spons Cuci Piring, foto 2'],['Pembersih Lantai Super Kuat','Spons Cuci Piring']]);
-    assert.throws(()=>buildBerlapakDataset(rawDir),/Category override BND-17 names no offer/);
+    assert.throws(()=>buildBerlapakDataset(rawDir),/Category override \S+ names no offer/);
     assert.throws(()=>buildBerlapakDataset(rawDir,{requireOverrides:false}),/Departments below the minimum of 8 products: rumah-tangga \(3\)/);
     const raws=JSON.parse(readFileSync(join(rawDir,'data-json','products-up-to-49k-ready-stock.json'),'utf8')).products as {warehouse_and_shipping:{warehouse_id:string}}[];
     for(const banned of ['rahasia',raws[0].warehouse_and_shipping.warehouse_id,'5fc64914f8f44b34aa4ce853','hpp',String(HPP),'23456','total_stock','supplier','warehouse_id','address'])
@@ -111,7 +111,10 @@ test('generator: deterministic sanitized dataset; malformed datasets are refused
     const edit=(f:(c:Record<string,unknown>)=>void,resign=true)=>()=>{const c=JSON.parse(readFileSync('catalog.json','utf8'));f(c);const text=`${JSON.stringify(c,null,2)}\n`;writeFileSync('catalog.json',text);
       if(resign){const m=JSON.parse(readFileSync('manifest.json','utf8'));m.catalog_sha256=createHash('sha256').update(text).digest('hex');writeFileSync('manifest.json',JSON.stringify(m));}};
     refused(edit((c)=>{c.source='edited';},false),/manifest digest/);
-    refused(edit((c)=>{c.price_idr=98000;}),/IDR 99,000/);
+    // DEC-025: the ceiling is fixed and every offer price stays within IDR 1..99,000.
+    refused(edit((c)=>{c.price_ceiling_idr=100000;}),/price ceiling must be IDR 99,000/);
+    refused(edit((c)=>{(c.products as CatalogDocument['products'])[0].offers[0].price_idr=99001;}),/IDR 1 to IDR 99,000/);
+    refused(edit((c)=>{delete (c.products as Record<string,Record<string,unknown>[]>[])[0].offers[0].price_idr;}),/IDR 1 to IDR 99,000/);
     refused(edit((c)=>{(c.products as CatalogDocument['products'])[0].offers[0].contents[0].stock_item='B99_999';}),/unknown stock item/);
     refused(edit((c)=>{(c.products as Record<string,unknown>[])[0].hpp=HPP;}),/products\[0\]/);
     refused(()=>{const m=JSON.parse(readFileSync('manifest.json','utf8'));const name=join('photos',`${m.photos[0].sha256}.webp`);writeFileSync(name,Buffer.concat([readFileSync(name),Buffer.from('x')]));},/does not match|not a clean/);

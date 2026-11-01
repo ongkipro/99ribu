@@ -326,7 +326,7 @@ test("S134 product, SKU, category and warehouse reads respect role and warehouse
 		assert.deepEqual(list.json.data.map((row: { id: string }) => row.id), [warehouseA]);
 		const own = await call(user, handleAccess, `${root}/warehouses/${warehouseA}`);
 		assert.equal(own.status, 200);
-		assert.deepEqual(Object.keys(own.json).sort(), ["active", "admin_no", "city", "id", "name", "timezone"]);
+		assert.deepEqual(Object.keys(own.json).sort(), ["active", "admin_no", "city", "district", "id", "name", "pickup_ready", "province", "shipping_area", "timezone"]);
 		const other = await call(user, handleAccess, `${root}/warehouses/${warehouseB}`);
 		assert.equal(other.status, 404);
 		assert.equal(other.json.code, "NOT_FOUND");

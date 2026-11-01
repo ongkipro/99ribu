@@ -22,8 +22,8 @@ export default function Help() {
 			<main id="main" className="wrap help-main">
 				<h1>Bantuan belanja</h1>
 				<p className="help-lead">
-					Harga Rp99.000 berlaku untuk satu pilihan lengkap sesuai rincian isi.
-					Dua pilihan lengkap menjadi Rp198.000 sebelum ongkir.
+					Setiap pilihan berharga maksimal Rp99.000; harganya tertulis di halaman
+					produk. Total belanja adalah jumlah harga pilihan sebelum ongkir.
 				</p>
 				<div className="help-topics">
 					<section>

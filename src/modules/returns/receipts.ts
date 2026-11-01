@@ -73,7 +73,7 @@ export async function projectReturnEligibility(tx:TransactionSql,orderId:string,
   const received=row.received_at===null?null:new Date(row.received_at).toISOString(),deadline=received===null?null:returnDeadline(received);
   if(received!==null&&Date.parse(received)>Date.parse(now))throw new AccessError(409,'PARCEL_RECEIPT_CONTEXT_MISMATCH');
   const claim=claims.find(item=>item.occurrence_id===row.id),state=claim?'already_claimed':received===null?'not_received':Date.parse(now)>Date.parse(deadline as string)?'window_expired':'eligible';
-  return {fulfillment_item_id:String(row.id),order_item_id:String(row.order_item_id),shipment_id:String(row.shipment_id),unit_index:Number(row.unit_index),quantity:1,receipt_id:row.receipt_id,received_at:received,deadline_at:deadline,state,case_id:claim?String(claim.case_id):null,claim_state:claim?String(claim.claim_state):null,merchandise_amount:99000,buyer_shipping:Number(row.buyer_shipping)};
+  return {fulfillment_item_id:String(row.id),order_item_id:String(row.order_item_id),shipment_id:String(row.shipment_id),unit_index:Number(row.unit_index),quantity:1,receipt_id:row.receipt_id,received_at:received,deadline_at:deadline,state,case_id:claim?String(claim.case_id):null,claim_state:claim?String(claim.claim_state):null,merchandise_amount:Number(row.unit_price),buyer_shipping:Number(row.buyer_shipping)};
  });
  return {data,pagination:{next_cursor:rows.length>take?String(chosen.at(-1)?.id):null},as_of:now};
 }

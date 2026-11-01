@@ -147,19 +147,20 @@ export async function accrueOrderCommissions(
 			order_item_id: string;
 			order_id: string;
 			unit_index: number;
+			unit_price: string;
 		}[]
 	>`
-    select fi.id as fulfillment_item_id, fi.order_item_id, oi.order_id, fi.unit_index
+    select fi.id as fulfillment_item_id, fi.order_item_id, oi.order_id, fi.unit_index, oi.unit_price
     from app.fulfillment_item fi
     join app.order_item oi on oi.id = fi.order_item_id
     where oi.order_id = ${input.orderId}
     order by oi.id asc, fi.unit_index asc
   `;
 
-	const amountIdr = offerCommissionIdr(attribution.basis_points);
 	const created: CommissionEntryRow[] = [];
 
 	for (const unit of units) {
+		const amountIdr = offerCommissionIdr(attribution.basis_points, Number(unit.unit_price));
 		const [entry] = await tx<CommissionEntryRow[]>`
       insert into app.commission_entry (
         order_id,
@@ -177,7 +178,7 @@ export async function accrueOrderCommissions(
         ${unit.fulfillment_item_id},
         ${attribution.affiliate_id},
         ${attribution.basis_points},
-        99000,
+        ${Number(unit.unit_price)},
         ${amountIdr},
         'pending',
         1

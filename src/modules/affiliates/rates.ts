@@ -20,10 +20,13 @@ export function rateVersionInput(value:unknown){
   reauthentication_proof:proof};
 }
 
-// A complete purchased offer remains IDR99,000. Round half up per original
-// quantity; shipping, subsidy and a replacement never create another basis.
-export function offerCommissionIdr(basisPoints:number){
- return Number((99000n*BigInt(integer(basisPoints,0,10000))+5000n)/10000n);
+// DEC-025: the basis is the complete offer's own unit price (at most IDR99,000). The price is
+// required so a money path can never fall back to the ceiling; rate previews pass
+// PRICE_CEILING_IDR and label the result "maksimal". Round half up per original quantity;
+// shipping, subsidy and a replacement never create another basis.
+export const PRICE_CEILING_IDR=99000;
+export function offerCommissionIdr(basisPoints:number,unitPrice:number){
+ return Number((BigInt(integer(unitPrice,1,99000))*BigInt(integer(basisPoints,0,10000))+5000n)/10000n);
 }
 
 type RateAccount={id:string;user_id:string;status:string;rate_revision:number;email_verified:boolean};
@@ -79,7 +82,9 @@ export async function readEffectiveAffiliateRate(tx:TransactionSql,affiliateId:s
  const [override]=selected===null?[]:await tx<RateVersion[]>`select id,affiliate_id,revision,basis_points,effective_at from app.affiliate_rate_version
   where affiliate_id=${selected} and effective_at<=${instant}::timestamptz order by effective_at desc,revision desc limit 1`;
  const basisPoints=override?.basis_points??policy.values.default_commission_bps;
- return {affiliate_id:selected,rate_version_id:override?.id??null,basis_points:basisPoints,commission_idr:offerCommissionIdr(basisPoints),policy};
+ return {affiliate_id:selected,rate_version_id:override?.id??null,basis_points:basisPoints,
+  // Preview only: the commission one unit earns at the ceiling. Money paths compute it from the frozen unit price.
+  max_unit_commission_idr:offerCommissionIdr(basisPoints,PRICE_CEILING_IDR),policy};
 }
 
 // Source only until exact0022 native/application gates pass. Version creation

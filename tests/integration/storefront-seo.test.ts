@@ -25,7 +25,8 @@ test('every page route is classified, and only index-class routes opt into index
   assert.ok(policy,`${route} (${file}) is missing from seo.ts routePolicy`);
   assert.equal(source.includes('publicMetadata('),policy.index,`${route}: publicMetadata usage must match its policy`);
   if(!policy.index&&route.startsWith('/admin')) continue;
-  if(!policy.index) assert.match(source,/privateMetadata\(|searchMetadata\(|robots:\s*\{\s*index:\s*false/,`${route} declares its noindex robots explicitly`);
+  // staticPageMetadata (S-C1 store pages) declares noindex for the placeholder and the public metadata once a version exists.
+  if(!policy.index) assert.match(source,/privateMetadata\(|searchMetadata\(|staticPageMetadata\(|robots:\s*\{\s*index:\s*false/,`${route} declares its noindex robots explicitly`);
  }
  assert.deepEqual(seo.rootMetadata(config).robots,{index:false,follow:false},'unclassified routes inherit noindex');
  for(const path of ['/admin','/api/','/keranjang','/checkout','/akun','/pesanan','/masuk','/afiliasi']) assert.ok((seo.disallowedPaths as readonly string[]).includes(path));
@@ -58,11 +59,11 @@ test('public metadata: absolute self canonical, index robots and social cards; v
 });
 
 test('titles and descriptions of every committed catalog page fit 55-70 / 120-155 without CTA or banned separators',()=>{
- const catalog=JSON.parse(readFileSync('data/catalog/berlapak/catalog.json','utf8')) as {categories:{slug:string;name:string}[];products:{name:string;description:string;category:string}[]};
+ const catalog=JSON.parse(readFileSync('data/catalog/berlapak/catalog.json','utf8')) as {categories:{slug:string;name:string}[];products:{name:string;description:string;category:string;offers:{price_idr:number}[]}[]};
  const names=new Map(catalog.categories.map(c=>[c.slug,c.name]));
  const pairs:[string,string][]=[[seo.homeTitle,seo.homeDescription],[seo.categoriesTitle,seo.categoriesDescription],[seo.helpTitle,seo.helpDescription],
   ...catalog.categories.map(c=>[seo.categoryTitle(c.name),seo.categoryDescription(c.name)] as [string,string]),
-  ...catalog.products.map(p=>[seo.productTitle(p,names.get(p.category)),seo.productDescription(p,names.get(p.category))] as [string,string])];
+  ...catalog.products.map(p=>({...p,variants:p.offers.map(o=>({price:o.price_idr}))})).map(p=>[seo.productTitle(p as never,names.get(p.category)),seo.productDescription(p as never,names.get(p.category))] as [string,string])];
  assert.equal(pairs.length,3+catalog.categories.length+catalog.products.length);
  for(const [title,description] of pairs){
   assert.ok(inRange(title,seo.titleRange),`title length ${seo.textLength(title)}: ${title}`);

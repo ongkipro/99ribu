@@ -50,12 +50,12 @@ export async function buildShippingPlans(tx:TransactionSql,value:unknown,context
   const productIds=[...new Set(lines.map((l)=>l.product_id))].sort();
   await lockPublishedSources(tx,productIds);
   const [pricing]=await tx`select clock_timestamp()::text as now`;
-  const units:CompleteUnit[]=[];const frozen:(ShippingLine&{product_revision:number})[]=[];const required=new Map<string,number>();
+  const units:CompleteUnit[]=[];const frozen:(ShippingLine&{product_revision:number})[]=[];const required=new Map<string,number>();const prices=new Map<string,bigint>();
   for(const line of lines){
     const publication=await salePublication(tx,line.product_id,pricing.now);
     if(!publication||publication.publication_id!==line.publication_id) throw new AccessError(409,'PUBLICATION_REVIEW_REQUIRED');
     const variant=publication.draft.variants.find((v)=>v.id===line.offer_id&&!v.retired);if(!variant) throw new AccessError(409,'OFFER_UNAVAILABLE');
-    frozen.push({...line,product_revision:publication.product_revision});
+    frozen.push({...line,product_revision:publication.product_revision});prices.set(line.line_id,BigInt(variant.price));
     const unit={line_id:line.line_id,offer_id:line.offer_id,default_warehouse_id:variant.default_warehouse_id,components:variant.contents.map((c)=>({stock_item_id:c.stock_item_id,quantity:c.quantity})),
       measures:{weight_grams:variant.weight_grams,length_mm:variant.length_mm,width_mm:variant.width_mm,height_mm:variant.height_mm}};
     for(const c of unit.components) required.set(c.stock_item_id,(required.get(c.stock_item_id)??0)+c.quantity*line.quantity);
@@ -82,7 +82,7 @@ export async function buildShippingPlans(tx:TransactionSql,value:unknown,context
       const supported=options.filter((r)=>method==='prepaid'||r.supports_cod).sort((a,b)=>a.shipping_amount-b.shipping_amount||compare(a.id,b.id));
       if(!supported.length){valid=false;continue;}const selected=supported[0];
       packages.push({id:`parcel_${hash([parcel,parcelIndex])}`,warehouse_id:origin.id,origin_city:origin.city,measures:parcel.measures,lines:parcel.lines,options:supported,selected_option_id:selected.id,
-        merchandise_amount:safeMoney(parcel.lines.reduce((sum,l)=>sum+BigInt(l.quantity)*99000n,0n)),shipping_amount:selected.shipping_amount});
+        merchandise_amount:safeMoney(parcel.lines.reduce((sum,l)=>sum+BigInt(l.quantity)*(prices.get(l.line_id)??0n),0n)),shipping_amount:selected.shipping_amount});
     }
     if(prepaidCandidate) supportedPrepaid=true;
     if(!valid) continue;
@@ -90,7 +90,7 @@ export async function buildShippingPlans(tx:TransactionSql,value:unknown,context
     const defaultUnits=packages.reduce((sum,p)=>sum+p.lines.reduce((n,l)=>n+(units.find((u)=>u.line_id===l.line_id)?.default_warehouse_id===p.warehouse_id?l.quantity:0),0),0);
     plans.push({id:`plan_${hash([destination.id,method,packages,lines])}`,payment_method:method,destination_id:destination.id,destination_version:destination.version,source:adapter.source,pricing_evaluated_at:new Date(pricing.now).toISOString(),
       expires_at:new Date(Math.min(Date.parse(businessNow)+600000,...packages.flatMap((p)=>p.options.map((r)=>Date.parse(r.expires_at))))).toISOString(),
-      merchandise_total:safeMoney(BigInt(units.length)*99000n),shipping_total:shipping,default_warehouse_units:defaultUnits,packages,lines:frozen});
+      merchandise_total:safeMoney(units.reduce((sum,u)=>sum+(prices.get(u.line_id)??0n),0n)),shipping_total:shipping,default_warehouse_units:defaultUnits,packages,lines:frozen});
   }
   if(Date.now()>deadline) throw new AccessError(503,'SHIPPING_RATE_TIMEOUT');
   if(!plans.length) throw new AccessError(422,method==='cod'&&supportedPrepaid?'COD_UNAVAILABLE':'NO_SUPPORTED_ROUTE');

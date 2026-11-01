@@ -19,11 +19,12 @@ import { array, integer, object, sku, text } from "./validation.ts";
 // warehouse by an opaque hashed key; the warehouse list has generic names and kecamatan-level
 // location only. importCatalog loads it through the real catalog and publication services,
 // creating the origin warehouses; it never writes stock, cost or order rows.
-export const CATALOG_FORMAT = "99ribu.catalog/v3";
+// v4 (DEC-025): every offer carries its own price_idr, at most the root price_ceiling_idr (IDR 99,000).
+export const CATALOG_FORMAT = "99ribu.catalog/v4";
 // The committed dataset (repository-relative), also read by the local feed for Google categories.
 export const defaultCatalogDatasetDir = new URL("../../../data/catalog/berlapak/", import.meta.url).pathname;
 export const MANIFEST_FORMAT = "99ribu.catalog-manifest/v1";
-const PRICE = 99000, JSON_LIMIT = 16 * 1024 * 1024, SHA = /^[0-9a-f]{64}$/, SLUG = /^[a-z0-9]+(-[a-z0-9]+)*$/, ORIGIN_KEY = /^[0-9a-f]{32}$/;
+const CEILING = 99000, JSON_LIMIT = 16 * 1024 * 1024, SHA = /^[0-9a-f]{64}$/, SLUG = /^[a-z0-9]+(-[a-z0-9]+)*$/, ORIGIN_KEY = /^[0-9a-f]{32}$/;
 export const IMPORT_ACTION = "catalog.import";
 
 export class CatalogDatasetError extends Error {}
@@ -34,10 +35,10 @@ function field<T>(where: string, parse: () => T): T {
 }
 
 type Content = { stock_item: string; quantity: number };
-type Offer = { sku: string; label: string; kind: "unit" | "multipack" | "bundle"; image: string | null; warehouse: string; weight_grams: number; length_mm: number; width_mm: number; height_mm: number; contents: Content[] };
+type Offer = { sku: string; label: string; price_idr: number; kind: "unit" | "multipack" | "bundle"; image: string | null; warehouse: string; weight_grams: number; length_mm: number; width_mm: number; height_mm: number; contents: Content[] };
 type Product = { key: string; name: string; description: string; category: string; google_product_category?: number; photos: { sha256: string; alt: string }[]; offers: Offer[] };
 export type OriginWarehouse = { key: string; name: string; province: string; city: string; district: string };
-export type CatalogDocument = { format: string; source: string; source_snapshot: string; price_idr: number;
+export type CatalogDocument = { format: string; source: string; source_snapshot: string; price_ceiling_idr: number;
   categories: { slug: string; name: string; google_product_category?: number }[]; warehouses: OriginWarehouse[]; stock_items: { sku: string; name: string }[]; products: Product[] };
 export type ManifestDocument = { format: string; catalog_sha256: string; photos: { sha256: string; bytes: number; width: number; height: number }[] };
 export type CatalogDataset = { catalog: CatalogDocument; catalogSha256: string; photos: Map<string, { bytes: Buffer; width: number; height: number }> };
@@ -47,9 +48,9 @@ export type CatalogDataset = { catalog: CatalogDocument; catalogSha256: string; 
 const google = (value: unknown) => value === undefined ? {} : { google_product_category: integer(value, 1, 99999999) };
 
 export function parseCatalog(value: unknown): CatalogDocument {
-  const data = field("catalog root", () => object(value, ["format", "source", "source_snapshot", "price_idr", "categories", "warehouses", "stock_items", "products"]));
+  const data = field("catalog root", () => object(value, ["format", "source", "source_snapshot", "price_ceiling_idr", "categories", "warehouses", "stock_items", "products"]));
   if (data.format !== CATALOG_FORMAT) refuse("Unsupported catalog dataset format.");
-  if (data.price_idr !== PRICE) refuse("Every catalog offer must be IDR 99,000.");
+  if (data.price_ceiling_idr !== CEILING) refuse("The catalog price ceiling must be IDR 99,000.");
   const categories = field("categories", () => array(data.categories, (v) => {
     const row = object(v, ["slug", "name", "google_product_category"]); const slug = text(row.slug, 100);
     if (slug !== row.slug || !SLUG.test(slug)) throw new Error();
@@ -70,7 +71,7 @@ export function parseCatalog(value: unknown): CatalogDocument {
       return { sha256: photo.sha256, alt: text(photo.alt, 500) };
     }, 1, 20);
     const offers = array(row.offers, (value) => {
-      const o = object(value, ["sku", "label", "kind", "image", "warehouse", "weight_grams", "length_mm", "width_mm", "height_mm", "contents"]);
+      const o = object(value, ["sku", "label", "price_idr", "kind", "image", "warehouse", "weight_grams", "length_mm", "width_mm", "height_mm", "contents"]);
       if (typeof o.warehouse !== "string" || !ORIGIN_KEY.test(o.warehouse)) throw new Error();
       if (o.image !== null && (typeof o.image !== "string" || !SHA.test(o.image) || !photos.some((p) => p.sha256 === o.image))) throw new Error();
       const contents = array(o.contents, (c) => {
@@ -80,7 +81,8 @@ export function parseCatalog(value: unknown): CatalogDocument {
       if ((kind === "unit" && (contents.length !== 1 || contents[0].quantity !== 1)) || (kind === "multipack" && (contents.length !== 1 || contents[0].quantity < 2)) ||
         (kind === "bundle" && contents.length < 2) || !["unit", "multipack", "bundle"].includes(kind as string)) throw new Error();
       if (new Set(contents.map((c) => c.stock_item)).size !== contents.length) throw new Error();
-      return { sku: sku(o.sku), label: text(o.label, 200), kind: kind as Offer["kind"], image: o.image as string | null, warehouse: o.warehouse,
+      if (!Number.isSafeInteger(o.price_idr) || (o.price_idr as number) < 1 || (o.price_idr as number) > CEILING) refuse("Every catalog offer price must be a whole rupiah amount from IDR 1 to IDR 99,000.");
+      return { sku: sku(o.sku), label: text(o.label, 200), price_idr: o.price_idr as number, kind: kind as Offer["kind"], image: o.image as string | null, warehouse: o.warehouse,
         weight_grams: integer(o.weight_grams, 1, 1000000), length_mm: integer(o.length_mm, 1, 10000), width_mm: integer(o.width_mm, 1, 10000),
         height_mm: integer(o.height_mm, 1, 10000), contents };
     }, 1, 100);
@@ -98,7 +100,7 @@ export function parseCatalog(value: unknown): CatalogDocument {
     if (product.offers.some((o) => !keys.has(o.warehouse))) refuse(`Product ${product.key} references an unknown origin warehouse.`);
   }
   const catalog = { format: CATALOG_FORMAT, source: field("source", () => text(data.source, 100)), source_snapshot: field("source_snapshot", () => text(data.source_snapshot, 100)),
-    price_idr: PRICE, categories, warehouses, stock_items: stockItems, products };
+    price_ceiling_idr: CEILING, categories, warehouses, stock_items: stockItems, products };
   const origins = stockOrigins(catalog);
   if (stockItems.some((s) => !origins.has(s.sku))) refuse("Every catalog stock item must be in at least one offer.");
   if (warehouses.some((w) => ![...origins.values()].includes(w.key))) refuse("Every catalog warehouse must be an offer origin.");
@@ -163,7 +165,9 @@ export const LOCAL_OFFER_KINDS: readonly Offer["kind"][] | null = ["unit"];
 // Catalog rows are immutable, so an imported one stays an unpublished draft; the withdraw keep list leaves them out.
 // Owner 2026-10-31: the six live products on the single-product list's hold list (variants of different size or volume
 // at one price) are withdrawn: Ocean Bag 311, Madu Multiflora 341, Cocoflim 364 and 365, Matcha 409, Teko Teh 484.
-export const DROPPED_PRODUCTS: readonly string[] = ["308", "310", "363", "420", "311", "341", "364", "365", "409", "484"];
+// DEC-025 ends both reasons: each size or volume now has its own price, and the cleaned list keeps only variants that
+// pass the publication margin floor (repricing thin ones to >= 3 x HPP). Owner 2026-11-01: all ten are sold again.
+export const DROPPED_PRODUCTS: readonly string[] = [];
 export function inLocalScope(catalog: CatalogDocument): CatalogDocument {
   const kinds = LOCAL_OFFER_KINDS;
   const products = catalog.products.filter((p) => !DROPPED_PRODUCTS.includes(p.key) && (!kinds || p.offers.every((o) => kinds.includes(o.kind))));
@@ -311,7 +315,7 @@ export async function importCatalog(request: Request, identity: LocalAuth, datas
         const images = product.photos.map((photo) => { const meta = dataset.photos.get(photo.sha256) as { width: number; height: number };
           return { url: `${config.origin}/media/catalog/${photoNames.get(photo.sha256) as string}`, alt: photo.alt, width: meta.width, height: meta.height }; });
         const variants = product.offers.map((offer) => ({
-          sku: offer.sku, label: offer.label, attributes: [], offer_kind: offer.kind, weight_grams: offer.weight_grams, length_mm: offer.length_mm,
+          sku: offer.sku, label: offer.label, attributes: [], price: offer.price_idr, offer_kind: offer.kind, weight_grams: offer.weight_grams, length_mm: offer.length_mm,
           width_mm: offer.width_mm, height_mm: offer.height_mm, default_warehouse_id: warehouses.ids.get(offer.warehouse) as string,
           ...(offer.image ? { image: images[product.photos.findIndex((p) => p.sha256 === offer.image)] } : {}),
           contents: offer.contents.map((c) => { const stock = stocks.get(c.stock_item) as { id: string; name: string }; return { stock_item_id: stock.id, name: stock.name, quantity: c.quantity }; })
@@ -331,7 +335,7 @@ export async function importCatalog(request: Request, identity: LocalAuth, datas
         const owned = (await identity.sql`select 1 from app.product_revision r where r.product_id=${draft.id} and r.revision=${draft.version}
           and exists (select 1 from app.audit_event a where a.action=${IMPORT_ACTION} and a.actor_id=r.actor_id)`).length > 0;
         const currentBySku = new Map(active.map((v) => [v.sku, v]));
-        const variantValue = (v: typeof active[number]) => ({ label: v.label, attributes: v.attributes, offer_kind: v.offer_kind,
+        const variantValue = (v: typeof active[number]) => ({ label: v.label, attributes: v.attributes, price: v.price, offer_kind: v.offer_kind,
           weight_grams: v.weight_grams, length_mm: v.length_mm, width_mm: v.width_mm, height_mm: v.height_mm,
           default_warehouse_id: v.default_warehouse_id, contents: v.contents, image: v.image });
         const changes = variants.map(({ sku: offerSku, ...variant }) => {
@@ -340,14 +344,19 @@ export async function importCatalog(request: Request, identity: LocalAuth, datas
           return isDeepStrictEqual(variantValue(current), { ...variant, image: variant.image ?? null }) ? null
             : { operation: "update" as const, variant_id: current.id, update: variant };
         }).filter((c) => c !== null);
-        const matches = !changes.length && draft.name === fields.name && draft.description === fields.description && draft.category_id === fields.category_id &&
+        // DEC-025: an active offer the dataset no longer lists (a variant removed by the cleaned list) is retired in the
+        // same revision, so a product never keeps selling a dropped size or price next to its current offers.
+        const listed = new Set(variants.map((v) => v.sku));
+        const retire = active.filter((v) => !listed.has(v.sku)).map((v) => ({ operation: "retire" as const, variant_id: v.id }));
+        const allChanges = [...changes, ...retire];
+        const matches = !allChanges.length && draft.name === fields.name && draft.description === fields.description && draft.category_id === fields.category_id &&
           isDeepStrictEqual(draft.images, images) && isDeepStrictEqual(draft.facts, []);
         let version = draft.version;
         if (!owned || draft.variants.some((v) => v.retired && product.offers.some((o) => o.sku === v.sku))) { summary.products.preserved.push(product.key); continue; }
         if (!matches) {
           await begin();
           const revised = await patchProduct(command(`revise:${product.key}:${draft.version}`), identity, principal, draft.id, { ...fields, expected_version: draft.version,
-            reason: `Catalog dataset import ${catalogSha256.slice(0, 12)}`, ...(changes.length ? { variant_changes: changes } : {}) });
+            reason: `Catalog dataset import ${catalogSha256.slice(0, 12)}`, ...(allChanges.length ? { variant_changes: allChanges } : {}) });
           version = revised.version; summary.products.revised++;
         } else if (!fresh) summary.products.unchanged++;
         let state = await readPublicationState(identity, principal, draft.id);

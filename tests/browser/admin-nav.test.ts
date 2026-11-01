@@ -59,7 +59,7 @@ async function navRows(page: Page) {
 const overflow = (page: Page) => page.evaluate(() => document.documentElement.scrollWidth - document.documentElement.clientWidth);
 
 // Plan §4.1 per lens; the same rules as the page guards hide what a grant does not open (unit-tested
-// in tests/admin-nav-model.test.ts). Unbuilt pages (Persetujuan, Analitik, Tambah Produk, ...) never show.
+// in tests/admin-nav-model.test.ts). Unbuilt pages (Persetujuan, Analitik, ...) never show; Tambah Produk and Halaman Toko exist since bf56d8d.
 const SETTINGS = ["Staf & Peran", "Kebijakan Komersial", "Pembayaran & COD", "Tarif Afiliasi", "Gudang", "Integrasi Iklan", "Log Audit", "Kesehatan Sistem"];
 const EXPECTED: [string, Role[], string[], [string, string[]][]][] = [
 	["owner", ["owner"], [], [
@@ -71,8 +71,9 @@ const EXPECTED: [string, Role[], string[], [string, string[]][]][] = [
 	["ecommerce_admin", ["ecommerce_admin"], ["orders.history.read"], [
 		["Beranda", []],
 		["Pesanan", ["Semua Pesanan", "Input Resi", "Cetak Label"]],
-		["Produk", ["Kategori", "Inventori", "Transfer Stok"]],
+		["Produk", ["Tambah Produk", "Kategori", "Inventori", "Transfer Stok"]],
 		["Promo", ["Banner", "Segmen Pembeli"]],
+		["Toko Online", []],
 		["Pengaturan", []],
 	]],
 	["warehouse", ["warehouse"], [], [
@@ -185,7 +186,7 @@ test("S-V1 settings index lists only the cards the role opens", async () => {
 	const owner = await staff(["owner"]);
 	const cs = await staff(["customer_service"], ["orders.history.read"]);
 	for (const [user, cards] of [
-		[owner, ["Staf & Peran", "Kebijakan Komersial", "Pembayaran & COD", "Gudang", "Template Label", "Balasan CS", "Integrasi Iklan", "Log Audit", "Kesehatan Sistem"]],
+		[owner, ["Staf & Peran", "Kebijakan Komersial", "Pembayaran & COD", "Gudang", "Halaman Toko", "Template Label", "Balasan CS", "Integrasi Iklan", "Log Audit", "Kesehatan Sistem"]],
 		[cs, ["Balasan CS"]],
 	] as const) {
 		const { page, close } = await open(user);

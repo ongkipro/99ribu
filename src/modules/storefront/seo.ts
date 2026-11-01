@@ -16,10 +16,10 @@ export const routePolicy:readonly {route:string;index:boolean;rule:string}[]=[
  {route:'/produk/[slug]',index:true,rule:'canonical /produk/<public_slug> (drops ?offer= and ?from=; a legacy /produk/<title>-<uuid> 308s to it, query kept); Product/ProductGroup + BreadcrumbList'},
  {route:'/bantuan',index:true,rule:'canonical self'},
  {route:'/promo',index:true,rule:'canonical self; active shipping promotions and published bundles only'},
- {route:'/tentang',index:false,rule:'placeholder until the owner supplies content: noindex, follow; not in the sitemap'},
- {route:'/kontak',index:false,rule:'placeholder until the owner supplies content: noindex, follow; not in the sitemap'},
- {route:'/privasi',index:false,rule:'placeholder until the owner supplies content: noindex, follow; not in the sitemap'},
- {route:'/syarat',index:false,rule:'placeholder until the owner supplies content: noindex, follow; not in the sitemap'},
+ {route:'/tentang',index:false,rule:'S-C1 store page: noindex, follow placeholder until its first version; then public metadata and the sitemap (staticPageMetadata)'},
+ {route:'/kontak',index:false,rule:'S-C1 store page: noindex, follow placeholder until its first version; then public metadata and the sitemap (staticPageMetadata)'},
+ {route:'/privasi',index:false,rule:'S-C1 store page: noindex, follow placeholder until its first version; then public metadata and the sitemap (staticPageMetadata)'},
+ {route:'/syarat',index:false,rule:'S-C1 store page: noindex, follow placeholder until its first version; then public metadata and the sitemap (staticPageMetadata)'},
  {route:'/cari',index:false,rule:'noindex, follow; never canonical or in the sitemap'},
  {route:'/keranjang',index:false,rule:'noindex, nofollow; robots.txt Disallow'},
  {route:'/checkout',index:false,rule:'noindex, nofollow; robots.txt Disallow'},
@@ -39,10 +39,14 @@ export const routePolicy:readonly {route:string;index:boolean;rule:string}[]=[
 export const disallowedPaths=['/admin','/api/','/keranjang','/checkout','/akun','/pesanan','/masuk','/portal','/afiliasi'] as const;
 
 export const brand='99ribu';
-const suffix=` - ${brand}`,price=rupiah(99000);
+const suffix=` - ${brand}`,price=rupiah(99000),ceiling=`Maksimal ${price}`;
+// DEC-025: a product page states its own price (one price, or the lowest with "mulai").
+const productPrice=(product:Pick<PublicProduct,'variants'>)=>{const prices=product.variants.map((v)=>v.price);const low=Math.min(...prices);
+ return prices.length&&low===Math.max(...prices)?rupiah(low):`mulai ${rupiah(low)}`;};
 export const titleRange=[55,70] as const,descriptionRange=[120,155] as const;
 export const textLength=(text:string)=>Array.from(text).length;
-const clean=(text:string)=>text.replace(/\s+/g,' ').trim();
+// Supplier text may carry "|" or an em dash; titles and snippets use a plain hyphen instead.
+const clean=(text:string)=>text.replace(/\s*[|—]\s*/g,' - ').replace(/\s+/g,' ').trim();
 const privateRobots={index:false,follow:false},listingRobots={index:false,follow:true};
 const indexRobots={index:true,follow:true,googleBot:{index:true,follow:true,'max-image-preview':'large' as const,'max-snippet':-1,'max-video-preview':-1}};
 
@@ -72,8 +76,8 @@ export const pageUrl=(path:string,config:SiteConfig)=>new URL(path,config.origin
 export const categoryPath=(slug:string)=>`/kategori/${slug}`;
 
 export function rootMetadata(config:SiteConfig):Metadata{
- return {metadataBase:new URL(config.origin),title:{default:`${brand} - Pilihan lengkap seharga ${price}`,template:`%s${suffix}`},
-  description:`Pilihan lengkap seharga ${price} dengan rincian isi dan foto produk asli.`,applicationName:brand,authors:[{name:brand}],publisher:brand,
+ return {metadataBase:new URL(config.origin),title:{default:`${brand} - Semua Produk ${ceiling}`,template:`%s${suffix}`},
+  description:`Semua produk berharga maksimal ${price}, dengan rincian isi dan foto produk asli.`,applicationName:brand,authors:[{name:brand}],publisher:brand,
   robots:privateRobots,openGraph:{siteName:brand,locale:'id_ID',type:'website'}};
 }
 export const privateMetadata=(title:string):Metadata=>({title,robots:privateRobots});
@@ -81,7 +85,7 @@ export const searchMetadata=(title:string):Metadata=>({title,robots:listingRobot
 
 // Full metadata for a public route. `indexable:false` marks a parameterised variant (noindex,
 // follow, no canonical); the site-wide switch turns every page into noindex, nofollow.
-export const shareImageAlt='Kartu 99ribu: Semua Rp99.000, harga tetap untuk setiap pilihan lengkap.';
+export const shareImageAlt='Kartu 99ribu: Maksimal Rp99.000, harga setiap produk tidak lebih dari Rp99.000.';
 export function publicMetadata(config:SiteConfig,{path,title,description,image,indexable=true}:{path:string;title:string;description:string;image?:{url:string;alt:string;width?:number;height?:number};indexable?:boolean}):Metadata{
  const url=pageUrl(path,config),index=config.indexing&&indexable;
  // Pages without their own photo share the brand card (src/app/opengraph-image.png); page-level
@@ -93,33 +97,35 @@ export function publicMetadata(config:SiteConfig,{path,title,description,image,i
   twitter:{card:'summary_large_image',title,description,images:images.map(i=>i.url)}};
 }
 
-export const homeTitle=`${brand} - Pilihan Lengkap Harga Tetap ${price} per Paket`;
-export const homeDescription=`Katalog pilihan lengkap seharga ${price}: perlengkapan rumah tangga, dapur, fashion, kecantikan, dan lainnya, dengan rincian isi dan foto asli.`;
-export const categoriesTitle=`Kategori Produk - Semua Pilihan Lengkap ${price}${suffix}`;
-export const categoriesDescription=`Daftar kategori 99ribu, dari rumah tangga, dapur, fashion, hingga hobi. Setiap produk dijual sebagai pilihan lengkap seharga ${price} per paket.`;
-export const promoTitle=`Promo Ongkir dan Paket Campuran ${price} - Belanja Hemat${suffix}`;
-export const promoDescription=`Promo ongkir yang sedang aktif beserta syaratnya, dan paket campuran berisi beberapa barang berbeda dalam satu pilihan lengkap seharga ${price}.`;
+export const homeTitle=`${brand} - Belanja Online Semua Produk Harga ${ceiling}`;
+export const homeDescription=`Katalog produk berharga maksimal ${price}: perlengkapan rumah tangga, dapur, fashion, kecantikan, dan lainnya, dengan rincian isi dan foto asli.`;
+export const categoriesTitle=`Kategori Produk - Semua Produk Harga ${ceiling}${suffix}`;
+export const categoriesDescription=`Daftar kategori 99ribu, dari rumah tangga, dapur, fashion, hingga hobi. Setiap produk berharga maksimal ${price}, lengkap dengan foto asli.`;
+export const promoTitle=`Promo Ongkir dan Paket Campuran - Belanja Hemat${suffix}`;
+export const promoDescription=`Promo ongkir yang sedang aktif beserta syaratnya, dan paket campuran berisi beberapa barang berbeda dalam satu pilihan lengkap.`;
 export const helpTitle=`Bantuan Belanja - Cara Pesan, Ongkir, dan Pengembalian${suffix}`;
-export const helpDescription=`Cara memesan pilihan lengkap ${price} di 99ribu, cara ongkir dihitung dari alamat dan paket, ketentuan pengembalian, dan privasi data pesanan.`;
+export const helpDescription=`Cara memesan di 99ribu (semua produk maksimal ${price}), cara ongkir dihitung dari alamat dan paket, ketentuan pengembalian, dan privasi data pesanan.`;
 
 export function categoryTitle(name:string){
- return fitTitle([`${name} - Pilihan Lengkap ${price}${suffix}`,`${name} - Harga Tetap ${price}${suffix}`,`${name} ${price}${suffix}`,
-  `Produk ${name} - Pilihan Lengkap Harga Tetap ${price}${suffix}`,`Produk ${name} - Pilihan Lengkap ${price}${suffix}`]);
+ return fitTitle([`${name} - ${ceiling}${suffix}`,`${name} - Harga ${ceiling}${suffix}`,`${name} ${price}${suffix}`,
+  `Produk ${name} - Semua Harga ${ceiling}${suffix}`,`Produk ${name} - ${ceiling}${suffix}`,`Belanja Produk ${name} Online - Semua Harga ${ceiling}${suffix}`]);
 }
 export function categoryDescription(name:string){
- return fitDescription([`Produk ${name} dengan harga tetap ${price} per pilihan lengkap.`,'Setiap produk menampilkan foto asli, rincian isi, dan status stok.',
+ return fitDescription([`Produk ${name} dengan harga maksimal ${price} per pilihan.`,'Setiap produk menampilkan foto asli, rincian isi, dan status stok.',
   'Isi setiap paket tercantum jelas di halaman produk.','Rincian isi tampil di setiap produk.']);
 }
-export function productTitle(product:Pick<PublicProduct,'name'>,categoryName?:string|null){
- const name=clean(product.name);
+export function productTitle(product:Pick<PublicProduct,'name'|'variants'>,categoryName?:string|null){
+ const name=clean(product.name),price=productPrice(product);
  return fitTitle([...(categoryName?[`${name} - ${categoryName}${suffix}`]:[]),`${name} - ${price}${suffix}`,`${name}${suffix}`,name,
-  ...(categoryName?[`${name} - ${categoryName} - ${price}${suffix}`]:[]),`${name} - Pilihan Lengkap ${price}${suffix}`,
-  ...(categoryName?[`${name} - ${categoryName} - Pilihan Lengkap ${price}${suffix}`]:[])]);
+  ...(categoryName?[`${name} - ${categoryName} - ${price}${suffix}`]:[]),`${name} - Harga ${price}${suffix}`,
+  ...(categoryName?[`${name} - ${categoryName} - Harga ${price}${suffix}`,`Belanja ${name} Online - ${categoryName} - Harga ${price}${suffix}`]:[]),
+  `Belanja ${name} Online - Harga ${price}, Maksimal Rp99.000${suffix}`]);
 }
-export function productDescription(product:Pick<PublicProduct,'description'|'name'>,categoryName?:string|null){
+export function productDescription(product:Pick<PublicProduct,'description'|'name'|'variants'>,categoryName?:string|null){
+ const price=productPrice(product);
  // A long bundle list (one run-on sentence) would be cut mid-item; lead with the product name instead.
  const own=clean(product.description||product.name).split(/(?<=[.!?])\s+/),lead=textLength(own[0])<descriptionRange[1]?own:[clean(product.name)];
- return fitDescription([...lead,...(categoryName?[`Kategori ${categoryName}.`]:[]),`Harga tetap ${price} per pilihan lengkap.`,
+ return fitDescription([...lead,...(categoryName?[`Kategori ${categoryName}.`]:[]),`Harga ${price}.`,
   'Foto produk asli dan rincian isi tersedia.','Stok diperiksa sebelum pesanan dibuat.','Foto produk asli.']);
 }
 

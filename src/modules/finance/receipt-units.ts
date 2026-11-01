@@ -9,7 +9,7 @@ export type CollectionBasis={unit_ids:string[];merchandise_amount:number;buyer_s
 // Empty means no collectible goods, never a zero-valued economic receipt.
 export function collectionUnitTotals(units:readonly Unit[]):CollectionBasis{
  if(units.length>100)throw new AccessError(422,'COLLECTION_UNIT_LIMIT_EXCEEDED');
- const normalized=units.map(unit=>({id:id(unit.id),unit_price:integer(unit.unit_price,99000,99000),buyer_shipping:integer(unit.buyer_shipping,0,Number.MAX_SAFE_INTEGER),payment_charge:integer(unit.payment_charge??0,0,Number.MAX_SAFE_INTEGER)}));
+ const normalized=units.map(unit=>({id:id(unit.id),unit_price:integer(unit.unit_price,1,99000),buyer_shipping:integer(unit.buyer_shipping,0,Number.MAX_SAFE_INTEGER),payment_charge:integer(unit.payment_charge??0,0,Number.MAX_SAFE_INTEGER)}));
  if(new Set(normalized.map(unit=>unit.id)).size!==normalized.length)throw new AccessError(409,'COLLECTION_UNIT_SCOPE_INVALID');
  const merchandise=normalized.reduce((sum,unit)=>sum+BigInt(unit.unit_price),0n),shipping=normalized.reduce((sum,unit)=>sum+BigInt(unit.buyer_shipping),0n),charge=normalized.reduce((sum,unit)=>sum+BigInt(unit.payment_charge),0n);
  if(merchandise+shipping+charge>BigInt(Number.MAX_SAFE_INTEGER))throw new AccessError(422,'COLLECTION_AMOUNT_LIMIT_EXCEEDED');

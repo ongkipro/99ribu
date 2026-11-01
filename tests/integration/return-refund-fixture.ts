@@ -9,8 +9,8 @@ import {acceptRefundDestination,type projectBuyerRefund,queueRefund} from '../..
 import {createRefundDestinationSource} from '../../src/modules/returns/refund-source.ts';
 import {returnFixture} from './return-fixture.ts';
 
-export async function approvedRefundFixture(method:'cod'|'prepaid'='prepaid'){
- const f=await returnFixture(method),sql=f.identity.sql;
+export async function approvedRefundFixture(method:'cod'|'prepaid'='prepaid',options:Parameters<typeof returnFixture>[1]={}){
+ const f=await returnFixture(method,options),sql=f.identity.sql;
  try{
   const unit=f.units[0],parcel=f.parcels.find(row=>row.shipment_id===unit.shipment_id),booking=f.bookings.find(row=>row.fulfillment_id===parcel?.id);assert.ok(booking);
   const receipt=await simulateParcelReceipt(sql,'test',{reference:randomUUID(),booking_id:booking.id,unit_ids:[unit.id]});assert.equal(await runOneJob(sql,{},await ingestParcelReceiptSource(sql,receipt)),true);

@@ -36,7 +36,6 @@ export async function evaluateContribution(tx:TransactionSql,draft:Draft,at:stri
   if(!('default_commission_bps' in policy.values)) throw new AccessError(503,'POLICY_INVALID');
   if(rate&&rate.policy_version_id!==policy.id)throw new AccessError(409,'FINANCIAL_REVIEW_REQUIRED');
   const commissionBps=rate?.basis_points??policy.values.default_commission_bps;const floor=policy.values.minimum_contribution_idr??0;
-  const commission=offerCommissionIdr(commissionBps);
   const costs=await tx<Cost[]>`select distinct on (stock_item_id) id,stock_item_id,unit_cost from app.component_cost_version
     where stock_item_id in ${tx(stockIds)} and effective_at<=${at}::timestamptz order by stock_item_id,effective_at desc,revision desc`;
   const profiles=await tx<Assumptions[]>`select distinct on (offer_id) id,offer_id,packaging_idr,provider_fee_idr,subsidy_idr,returns_reserve_idr
@@ -51,14 +50,14 @@ export async function evaluateContribution(tx:TransactionSql,draft:Draft,at:stri
     });
     const estimatedHpp=missing.length?null:amount(hpp);const profile=profilesByOffer.get(offer.id)??null;let variable=0n;
     for(const field of assumptionFields){const value=profile?.[field]??null;if(value===null) missing.push(field);else variable+=BigInt(value);}
-    const complete=missing.length===0;
-    const contribution=complete?amount(99000n-hpp-variable-BigInt(commission)):null;
-    return {offer_id:offer.id,estimated_hpp:estimatedHpp,estimated_contribution:contribution,complete,missing_inputs:missing,
+    const complete=missing.length===0,commission=offerCommissionIdr(commissionBps,offer.price);
+    const contribution=complete?amount(BigInt(offer.price)-hpp-variable-BigInt(commission)):null;
+    return {offer_id:offer.id,price_idr:offer.price,estimated_hpp:estimatedHpp,estimated_contribution:contribution,complete,missing_inputs:missing,
       below_floor:contribution!==null&&contribution<floor,commission_idr:commission,assumption_version_id:profile?.id??null,
       assumptions:profile?Object.fromEntries(assumptionFields.map((name)=>[name,profile[name]])):Object.fromEntries(assumptionFields.map((name)=>[name,null])),components};
   });
   return {product_id:draft.id,product_revision:draft.version,policy_version_id:policy.id,commission_bps:commissionBps,minimum_contribution_idr:floor,
-    evaluated_at:at,currency:'IDR',price_idr:99000,offers};
+    evaluated_at:at,currency:'IDR',offers};
 }
 export async function readContribution(identity:LocalAuth,principal:Principal,productId:string){
   return identity.sql.begin(async(tx)=>{

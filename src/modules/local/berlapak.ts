@@ -104,8 +104,8 @@ const variantLabel=(value:string)=>value.normalize('NFC').replace(/\s+/g,' ').tr
   const letters=word.replace(/[^\p{L}]/gu,'');
   return letters.length>3&&/^\p{Lu}+$/u.test(letters)&&!/\d/.test(word)&&!/^X+L$/.test(letters)?word.charAt(0)+word.slice(1).toLowerCase():word;}).join(' ');
 type Image={file:string;source:string;width:number;height:number};
-type StockSource={rank:number;key:string;name:string;title:string;variant:string|null;choice:string|null;details:string;hpp:number;stock:number;unitGrams:number;weightDefaulted:boolean;unstocked:boolean;warehouse:{id:string;name:string;province:string;city:string;district:string};category:string;images:Image[];image:Image|null;qty:number};
-type OfferSource={key:string;productKey:string;name:string;description:string;category:string;kind:'unit'|'multipack'|'bundle';label:string;choice:string|null;parts:{rank:number;stock:string;quantity:number}[];warehouse:string;grams:number;images:{rank:number;file:string;alt:string}[];image:{rank:number;file:string}|null};
+type StockSource={rank:number;key:string;name:string;title:string;variant:string|null;choice:string|null;details:string;hpp:number;price:number;stock:number;unitGrams:number;weightDefaulted:boolean;unstocked:boolean;warehouse:{id:string;name:string;province:string;city:string;district:string};category:string;images:Image[];image:Image|null;qty:number};
+type OfferSource={key:string;productKey:string;name:string;description:string;category:string;kind:'unit'|'multipack'|'bundle';label:string;price:number;choice:string|null;parts:{rank:number;stock:string;quantity:number}[];warehouse:string;grams:number;images:{rank:number;file:string;alt:string}[];image:{rank:number;file:string}|null};
 
 export function readBerlapakSource(directory:string){
   if(!existsSync(join(directory,'data-json'))||!existsSync(join(directory,'images'))) throw new Error(`Berlapak data directory not found or incomplete: ${directory}`);
@@ -121,12 +121,11 @@ export function readBerlapakSource(directory:string){
     const name=text(v.name,200);const slug=slugify(text(v.slug,100).replace(/^\d+-/,''));if(!slug||slug.length>60) throw invalid();return {code,name,slug};},1,50);
   if(new Set(categories.map((c)=>c.code)).size!==categories.length||new Set(categories.map((c)=>c.slug)).size!==categories.length) throw invalid();
   // A single-product record replaces the legacy record of the same rank (same Berlapak product).
-  // A legacy row the list replaces is kept as a fallback after the singles: it is read only when its single was
-  // skipped, so a single that fails validation leaves the live product as it was instead of dropping it.
-  const replaced=new Set(singles?.rows.map((r)=>r.rank));
   const snapshot=singles?.snapshot??text(ready.updated_at,40);
   const legacyRows=array(ready.products,rec,1,5000);
-  const rows:Rec[]=[...legacyRows.filter((r)=>!replaced.has(r.rank)),...singles?.rows??[],...legacyRows.filter((r)=>replaced.has(r.rank)).map((r)=>({...r,fallback:true}))];
+  // DEC-025: with the cleaned single-product list present it is the whole catalog (no legacy multipacks or bundles);
+  // the legacy rows still supply the `_id` -> rank and photo mapping inside singleRows.
+  const rows:Rec[]=singles?singles.rows:legacyRows;
   const skipped:Record<string,number>={};const skip=(reason:string)=>{skipped[reason]=(skipped[reason]??0)+1;};
   const supplierNames=new Set<string>();for(const row of rows){try{const name=optionalText(rec(row.supplier).name,200);if(name) supplierNames.add(name);}catch{/* validated per row below */}}
   const suppliers=supplierPatterns([...supplierNames]);
@@ -141,11 +140,11 @@ export function readBerlapakSource(directory:string){
       const unstocked=row.allow_unstocked===true;
       const inventory=rec(row.inventory);if(inventory.is_ready_stock!==true&&!unstocked){skip('not-ready-stock');continue;}
       const pricing=rec(row.pricing),strategy=rec(row.strategy_99ribu),variants=rec(row.variants_summary),assets=rec(row.assets),place=rec(row.warehouse_and_shipping),category=rec(row.category_mapping);
-      const options=array(variants.variants,rec,0,200).flatMap((v)=>{try{return [{name:text(v.name,100),hpp:integer(v.hpp_price,1,PRICE*10),stock:integer(v.stock,0),id:text(v._id,40),image:optionalText(v.image_local_path,600)}];}catch{skip('variant-invalid');return [];}});
+      const options=array(variants.variants,rec,0,200).flatMap((v)=>{try{return [{name:text(v.name,100),hpp:integer(v.hpp_price,1,PRICE*10),price:v.price_idr===undefined?PRICE:integer(v.price_idr,1,PRICE),stock:integer(v.stock,0),id:text(v._id,40),image:optionalText(v.image_local_path,600)}];}catch{skip('variant-invalid');return [];}});
       if(new Set(options.map((v)=>v.id)).size!==options.length) throw invalid();
       const stocked=options.filter((v)=>v.stock>0);
       const candidates=variants.has_variants===true?(stocked.length||!unstocked?stocked:options):[{
-        name:null,hpp:integer(pricing.hpp_price,1,PRICE*10),stock:integer(inventory.total_stock,0),id:null,image:null}];
+        name:null,hpp:integer(pricing.hpp_price,1,PRICE*10),price:pricing.price_idr===undefined?PRICE:integer(pricing.price_idr,1,PRICE),stock:integer(inventory.total_stock,0),id:null,image:null}];
       if(!candidates.length){skip('hpp-unusable');continue;}
       const qty=integer(strategy.recommended_bundle_qty,1,50);
       const warehouseId=text(place.warehouse_id,40);if(!/^[0-9a-f]{24}$/.test(warehouseId)) throw invalid();
@@ -186,7 +185,7 @@ export function readBerlapakSource(directory:string){
         // variant-specific imagery or omit an otherwise sellable physical variant.
         const image=candidate.id?(file&&/^var-\d+\.webp$/.test(file)?aliases.get(file)??null:candidate.image===null?images[0]:null):null;
         if(candidate.id&&!image){skip('variant-image-missing');continue;}
-        stocks.set(key,{rank,key,name:text(name,200),title:publicName(text(row.name,500),suppliers,500,fallback,true),variant,choice,hpp:candidate.hpp,stock:candidate.stock,
+        stocks.set(key,{rank,key,name:text(name,200),title:publicName(text(row.name,500),suppliers,500,fallback,true),variant,choice,hpp:candidate.hpp,price:candidate.price,stock:candidate.stock,
           unitGrams:grams??FALLBACK_UNIT_GRAMS,weightDefaulted:grams===null,
           warehouse:{id:warehouseId,name:text(place.warehouse_name,150),province:placeName(place.province),city:placeName(place.city),district:placeName(place.district)},
           category:code,details,images, image,qty,unstocked});
@@ -196,19 +195,19 @@ export function readBerlapakSource(directory:string){
   const offers:OfferSource[]=[];
   const imageAlt=(name:string,index:number)=>index?`${name}, foto ${index+1}`:name;
   for(const item of [...stocks.values()].sort((a,b)=>a.rank-b.rank||a.key.localeCompare(b.key))){
-    if(item.qty*item.hpp>=PRICE){skip('hpp-at-or-above-price');continue;}
+    if(item.qty*item.hpp>=item.price){skip('hpp-at-or-above-price');continue;}
     if(item.stock<item.qty&&!item.unstocked){skip('insufficient-stock');continue;}
     const grams=item.qty*item.unitGrams;if(grams>MAX_PARCEL_GRAMS){skip('parcel-too-heavy');continue;}
     const kind=item.qty===1?'unit':'multipack';
     const name=publicName(kind==='unit'?item.name:`Paket ${item.qty} pcs ${item.name}`,[],NAME_LIMIT);
     const gallery=(item.image?[item.image,...item.images.filter((i)=>i!==item.image)]:item.images).slice(0,20);
-    offers.push({key:item.key,productKey:String(item.rank),name,kind,choice:item.choice,label:item.choice?kind==='unit'?item.choice:`${item.choice} · Paket ${item.qty} pcs`:kind==='unit'?'Satuan':`Paket ${item.qty} pcs`,
+    offers.push({key:item.key,productKey:String(item.rank),name,kind,price:item.price,choice:item.choice,label:item.choice?kind==='unit'?item.choice:`${item.choice} · Paket ${item.qty} pcs`:kind==='unit'?'Satuan':`Paket ${item.qty} pcs`,
       category:item.category,warehouse:item.warehouse.id,grams,
-      description:`Isi paket: ${item.qty} pcs ${item.name}.\nHarga Rp99.000 untuk satu paket lengkap.`,parts:[{rank:item.rank,stock:item.key,quantity:item.qty}],
+      description:`Isi paket: ${item.qty} pcs ${item.name}.`,parts:[{rank:item.rank,stock:item.key,quantity:item.qty}],
       images:gallery.map((image,index)=>({rank:item.rank,file:image.file,alt:imageAlt(name,index)})),image:item.image?{rank:item.rank,file:item.image.file}:null});
   }
   const occurrences=new Map<string,number>();
-  for(const value of array(curated.curated_cross_sku_bundles,(v)=>v,0,500)){
+  for(const value of singles?[]:array(curated.curated_cross_sku_bundles,(v)=>v,0,500)){
     try{
       const bundle=rec(value);const code=text(bundle.code,20);if(!/^BND-\d{2,3}$/.test(code)) throw invalid();
       const seen=(occurrences.get(code)??0)+1;occurrences.set(code,seen);const key=seen>1?`${code}-${seen}`:code;
@@ -226,8 +225,8 @@ export function readBerlapakSource(directory:string){
       const storefront=text(rec(bundle.google_catalog).storefront_category,200);const category=categories.find((c)=>c.name===storefront);
       if(!category){skip('bundle-category-unmapped');continue;}
       const name=publicName(text(bundle.title,300).replace(/\s*\([^)]*\)\s*$/,''),suppliers,NAME_LIMIT);
-      offers.push({key,productKey:key,name,kind:'bundle',choice:null,label:`Paket ${parts.reduce((n,p)=>n+p.quantity,0)} barang`,category:category.code,warehouse:resolved[0].warehouse.id,grams,
-        description:`Isi paket:\n${parts.map((p,i)=>`- ${p.quantity} pcs ${resolved[i].name}`).join('\n')}\nHarga Rp99.000 untuk satu paket lengkap.`,parts,
+      offers.push({key,productKey:key,name,kind:'bundle',price:PRICE,choice:null,label:`Paket ${parts.reduce((n,p)=>n+p.quantity,0)} barang`,category:category.code,warehouse:resolved[0].warehouse.id,grams,
+        description:`Isi paket:\n${parts.map((p,i)=>`- ${p.quantity} pcs ${resolved[i].name}`).join('\n')}`,parts,
         images:resolved.slice(0,4).map((c)=>({rank:c.rank,file:c.images[0].file,alt:c.name.slice(0,500)})),image:null});
     }catch{skip('bundle-invalid');}
   }
@@ -314,7 +313,7 @@ export async function importBerlapak(request:Request,identity:LocalAuth,target:T
       const offer=offers[0],stock=source.stocks.find((s)=>s.key===offer.parts[0].stock) as StockSource;
       const name=offer.kind==='bundle'||!stock.variant?offer.name:publicName(offer.kind==='unit'?stock.title:`Paket ${stock.qty} pcs ${stock.title}`,[],NAME_LIMIT);
       const description=offer.kind==='bundle'||!stock.variant?offer.description:
-        `Pilihan paket:\n${offers.map((o)=>`- ${o.label}`).join('\n')}\nHarga Rp99.000 untuk satu paket lengkap sesuai pilihan varian.`;
+        `Pilihan varian:\n${offers.map((o)=>`- ${o.label}`).join('\n')}`;
       const refs=[...offers.flatMap((o)=>o.image?[{...o.image,alt:o.label}]:[]),...offers.flatMap((o)=>o.images.filter((i)=>!o.image||i.file.startsWith('img-')))];
       const seen=new Set<string>();
       const images=refs.flatMap((image)=>{
@@ -324,7 +323,7 @@ export async function importBerlapak(request:Request,identity:LocalAuth,target:T
       }).slice(0,20);
       const definitions=offers.map((o)=>{const side=cube(o.grams);
         const contents=o.parts.map((p)=>({stock_item_id:stocks[p.stock],name:names.get(p.stock) as string,quantity:p.quantity})).sort((a,b)=>a.stock_item_id.localeCompare(b.stock_item_id));
-        return {sku:`BL_${NS}_${o.key}_OFFER`,label:o.label,attributes:[],offer_kind:o.kind,weight_grams:o.grams,length_mm:side,width_mm:side,height_mm:side,
+        return {sku:`BL_${NS}_${o.key}_OFFER`,label:o.label,attributes:[],price:o.price,offer_kind:o.kind,weight_grams:o.grams,length_mm:side,width_mm:side,height_mm:side,
           default_warehouse_id:warehouses[o.warehouse],contents,...(o.image?{image:images.find((i)=>i.url.endsWith(`/${o.image?.rank}/${o.image?.file}`))}:{})};});
       const fields={name,description,category_id:categories[offer.category],images};
       const existing=await identity.sql`select id,product_id from app.offer where sku in ${identity.sql(definitions.map((d)=>d.sku))}`;
@@ -335,7 +334,7 @@ export async function importBerlapak(request:Request,identity:LocalAuth,target:T
       const owned=(await identity.sql`select 1 from app.product_revision where product_id=${productId} and revision=${draft.version}
         and reason in ('Create inactive product draft','Refresh local snapshot product images','Refresh local snapshot variant offers')`).length>0;
       const current=new Map(draft.variants.filter((v)=>!v.retired).map((v)=>[v.sku,v]));
-      const values=(v:typeof draft.variants[number])=>({sku:v.sku,label:v.label,attributes:v.attributes,offer_kind:v.offer_kind,weight_grams:v.weight_grams,length_mm:v.length_mm,
+      const values=(v:typeof draft.variants[number])=>({sku:v.sku,label:v.label,attributes:v.attributes,price:v.price,offer_kind:v.offer_kind,weight_grams:v.weight_grams,length_mm:v.length_mm,
         width_mm:v.width_mm,height_mm:v.height_mm,default_warehouse_id:v.default_warehouse_id,contents:v.contents,image:v.image});
       const changes=definitions.map(({sku,...definition})=>{
         const v=current.get(sku);if(!v) return {operation:'create' as const,create:{sku,...definition}};

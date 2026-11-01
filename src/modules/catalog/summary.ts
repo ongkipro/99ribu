@@ -1,7 +1,6 @@
 import type { TransactionSql } from "postgres";
 import type { LocalAuth } from "../access/auth.ts";
 import { AccessError, type Principal } from "../access/policy.ts";
-import { offerCommissionIdr } from "../affiliates/rates.ts";
 import { resolvePolicy } from "../settings/policies.ts";
 import { homeSafe } from "../storefront/department-photos.ts";
 import { authority, visibleBlocker } from "./catalog.ts";
@@ -38,10 +37,10 @@ async function policyInputs(tx: TransactionSql, at: string) {
     const policy = await resolvePolicy(tx, "commercial", null, new Date(at));
     if (!("default_commission_bps" in policy.values)) throw new AccessError(503, "POLICY_INVALID");
     const values = policy.values as { default_commission_bps: number; minimum_contribution_idr?: number };
-    return { commission: offerCommissionIdr(values.default_commission_bps), floor: values.minimum_contribution_idr ?? 0, code: null };
+    return { bps: values.default_commission_bps, floor: values.minimum_contribution_idr ?? 0, code: null };
   } catch (error) {
     // Same handling as readPublicationState: 409/422 become blockers, anything else fails the read.
-    if (error instanceof AccessError && [409, 422].includes(error.status)) return { commission: 0, floor: 0, code: error.code };
+    if (error instanceof AccessError && [409, 422].includes(error.status)) return { bps: 0, floor: 0, code: error.code };
     throw error;
   }
 }
@@ -95,7 +94,7 @@ export async function listProductSummaries(identity: LocalAuth, principal: Princ
         left join app.category c2 on c2.id=c1.parent_id left join app.category c3 on c3.id=c2.parent_id
         where ${page.categoryId}::uuid is null or ${page.categoryId}::uuid in (c1.id, c2.id, c3.id)
       ), offers as (
-        select s.id as product_id, v.offer_id, v.kind, w.id as warehouse_id,
+        select s.id as product_id, v.offer_id, v.kind, v.price, w.id as warehouse_id,
           (select coalesce(floor(min(coalesce(st.available,0)::numeric/c.quantity)),0)
             from app.offer_component c left join lateral (
               select sum((b.on_hand-b.reserved-b.quarantined)::bigint) as available
@@ -129,7 +128,7 @@ export async function listProductSummaries(identity: LocalAuth, principal: Princ
           case when ${policy.code}::text is null and o.returns_reserve_idr is null then 'UNKNOWN_RETURNS_RESERVE_IDR' end,
           case when ${policy.code}::text is null and not o.hpp_missing and o.packaging_idr is not null and o.provider_fee_idr is not null
             and o.subsidy_idr is not null and o.returns_reserve_idr is not null
-            and 99000 - o.hpp - o.packaging_idr - o.provider_fee_idr - o.subsidy_idr - o.returns_reserve_idr - ${policy.commission}::bigint
+            and o.price - o.hpp - o.packaging_idr - o.provider_fee_idr - o.subsidy_idr - o.returns_reserve_idr - floor((o.price::numeric*${policy.bps}::int+5000)/10000)
               < ${policy.floor}::bigint then 'BELOW_MARGIN_FLOOR' end
         ]::text[], null)) as code
       ), summary as (
@@ -137,6 +136,8 @@ export async function listProductSummaries(identity: LocalAuth, principal: Princ
           s.images->0->>'url' as image_url, s.images,
           coalesce((select array_agg(distinct o.kind order by o.kind) from offers o where o.product_id=s.id), '{}') as offer_kinds,
           (select count(*)::int from offers o where o.product_id=s.id) as offer_count,
+          (select min(o.price)::int from offers o where o.product_id=s.id) as price_min_idr,
+          (select max(o.price)::int from offers o where o.product_id=s.id) as price_max_idr,
           (select count(*)::int from offers o where o.product_id=s.id and o.warehouse_id is not null and o.available>=1) as stock_ready_offers,
           coalesce(h.revision, 0) as latest_publication_version,
           (select v.product_revision from app.publication_version v where v.product_id=s.id and v.revision=h.revision
@@ -163,7 +164,7 @@ export async function listProductSummaries(identity: LocalAuth, principal: Princ
       id: r.id as string, admin_no: Number(r.admin_no), catalog_id: r.catalog_id as string, slug: r.slug as string, version: Number(r.version), name: r.name as string,
       category_id: (r.category_id as string | null) ?? null, category_path: (r.category_path as string | null) ?? null,
       image_url: (r.image_url as string | null) ?? null, offer_kinds: r.offer_kinds as string[], offer_count: Number(r.offer_count),
-      stock_ready_offers: Number(r.stock_ready_offers), price_idr: 99000, state: r.state as State,
+      stock_ready_offers: Number(r.stock_ready_offers), price_min_idr: Number(r.price_min_idr), price_max_idr: Number(r.price_max_idr), state: r.state as State,
       latest_publication_version: Number(r.latest_publication_version),
       published_revision: r.published_revision === null ? null : Number(r.published_revision),
       ready: (r.blocker_codes as string[]).length === 0,

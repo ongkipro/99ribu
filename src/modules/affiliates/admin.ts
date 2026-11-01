@@ -27,7 +27,7 @@ import {
 	STAMP_FORMAT,
 } from "../finance/page-cursor.ts";
 import { resolvePolicy } from "../settings/policies.ts";
-import { offerCommissionIdr } from "./rates.ts";
+import { offerCommissionIdr, PRICE_CEILING_IDR } from "./rates.ts";
 
 export const ADMIN_AFFILIATES_PATH = "/api/v1/admin/affiliates";
 export const DEFAULT_LIMIT = 25;
@@ -307,7 +307,7 @@ async function loadSummariesForRows(
 			rate_eligible: Boolean(row.rate_eligible),
 			rate_version: Number(row.rate_revision),
 			effective_rate_bps: effectiveBps,
-			effective_commission_idr: offerCommissionIdr(effectiveBps),
+			effective_commission_idr: offerCommissionIdr(effectiveBps, PRICE_CEILING_IDR),
 			rate_source: hasOverride ? "override" : "default_policy",
 			attributed_orders_count: ordersByAffiliate.get(row.id) ?? 0,
 			commissions:
@@ -484,7 +484,7 @@ export function getAdminAffiliate(
 				affiliate_id: String(v.affiliate_id),
 				version: Number(v.revision),
 				basis_points: bps,
-				commission_idr: offerCommissionIdr(bps),
+				commission_idr: offerCommissionIdr(bps, PRICE_CEILING_IDR),
 				effective_at: new Date(v.effective_at).toISOString(),
 				created_at: new Date(v.created_at).toISOString(),
 				actor_id: v.actor_id,

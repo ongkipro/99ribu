@@ -19,10 +19,10 @@ import {photosById} from './department-photos.ts';
 // without it the photo fills the media area edge to edge.
 export type HomeBanner={id:string;title:string;body:string;href:string;action:string;photo:string;tint?:'amber'|'slate'|'rose'|'blue'|'green'|'violet'|'teal';needs:'bundles'|{department:string}};
 export const HOME_BANNERS:readonly HomeBanner[]=[
- {id:'paket-campuran',title:'Paket campuran',body:'Misalnya pengharum mobil dan pengharum ruangan dalam satu pilihan lengkap Rp99.000.',href:'/promo',action:'Lihat paket',photo:'5e496b28d84b',needs:'bundles'},
- {id:'otomotif',title:'Rawat kendaraan sendiri',body:'Perlengkapan otomotif, setiap pilihan lengkap Rp99.000.',href:'/kategori/otomotif',action:'Lihat Otomotif',photo:'ef7fae0c77d4',tint:'slate',needs:{department:'otomotif'}},
- {id:'fashion-wanita',title:'Tas untuk sehari-hari',body:'Fashion wanita, setiap pilihan lengkap Rp99.000.',href:'/kategori/fashion-wanita',action:'Lihat Fashion Wanita',photo:'8646209b0dec',needs:{department:'fashion-wanita'}},
- {id:'kecantikan',title:'Rapi di mana saja',body:'Perlengkapan kecantikan, setiap pilihan lengkap Rp99.000.',href:'/kategori/kecantikan',action:'Lihat Kecantikan',photo:'4f78c904a924',needs:{department:'kecantikan'}},
+ {id:'paket-campuran',title:'Paket campuran',body:'Misalnya pengharum mobil dan pengharum ruangan dalam satu pilihan lengkap.',href:'/promo',action:'Lihat paket',photo:'5e496b28d84b',needs:'bundles'},
+ {id:'otomotif',title:'Rawat kendaraan sendiri',body:'Perlengkapan otomotif, semua maksimal Rp99.000.',href:'/kategori/otomotif',action:'Lihat Otomotif',photo:'ef7fae0c77d4',tint:'slate',needs:{department:'otomotif'}},
+ {id:'fashion-wanita',title:'Tas untuk sehari-hari',body:'Fashion wanita, semua maksimal Rp99.000.',href:'/kategori/fashion-wanita',action:'Lihat Fashion Wanita',photo:'8646209b0dec',needs:{department:'fashion-wanita'}},
+ {id:'kecantikan',title:'Rapi di mana saja',body:'Perlengkapan kecantikan, semua maksimal Rp99.000.',href:'/kategori/kecantikan',action:'Lihat Kecantikan',photo:'4f78c904a924',needs:{department:'kecantikan'}},
 ];
 export async function homeBanners(identity:LocalAuth,context:{bundles:number;departments:readonly {slug:string}[]}){
  const photos=await photosById(identity,HOME_BANNERS.map(b=>b.photo));

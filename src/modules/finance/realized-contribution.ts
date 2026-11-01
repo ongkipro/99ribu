@@ -325,6 +325,7 @@ export async function readFinanceSummary(
 					subsidy_amount: string;
 					line_id: string;
 					offer_id: string;
+					unit_price: string;
 					quote_doc: { financial_sources?: FinancialSourceDoc[] };
 					released: boolean;
 				}[]
@@ -334,6 +335,7 @@ export async function readFinanceSummary(
           f.subsidy_amount,
           i.line_id,
           i.offer_id,
+          i.unit_price,
           q.document as quote_doc,
           exists(
             select 1 from app.exception_cancellation ec
@@ -470,6 +472,7 @@ export async function readFinanceSummary(
               select values from app.policy_version where id=${lineSource.policy_version_id}`;
 						commissionEstimate = offerCommissionIdr(
 							pol?.values?.default_commission_bps ?? 0,
+							Number(unit.unit_price),
 						);
 					} else {
 						const pol = await resolvePolicy(
@@ -482,13 +485,13 @@ export async function readFinanceSummary(
 							"default_commission_bps" in pol.values
 								? pol.values.default_commission_bps
 								: 0;
-						commissionEstimate = offerCommissionIdr(bps);
+						commissionEstimate = offerCommissionIdr(bps, Number(unit.unit_price));
 					}
 				}
 
 				if (unitHppComplete && unitAssumptionsComplete) {
 					estimatedContributionTotal +=
-						99000n -
+						BigInt(unit.unit_price) -
 						unitHpp -
 						unitVariableAssumptions -
 						BigInt(commissionEstimate);

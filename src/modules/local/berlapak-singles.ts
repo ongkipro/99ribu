@@ -1,14 +1,17 @@
 import {createHash} from 'node:crypto';
 
-// Owner 2026-10-31: the curated single-product list in the raw snapshot (`single-79k-105k/…-full.json`, 216 products
-// whose Berlapak recommended price is Rp79.000–Rp105.000) is sold as one unit at Rp99.000. Its records are rewritten
-// here into the legacy row shape readBerlapakSource already reads, so naming, cleaning, classification and the
+// DEC-025 (owner 2026-10-31): the cleaned curated list (`single-max-99k-bersih/…-bersih.json`, written by
+// /data/99ribu-data/scripts/clean-max-99k.py: Berlapak's recommended price on the Rp9.900–Rp99.000 ladder, gross profit
+// at least max(Rp10.000, Rp8.000 + 10%), a thin-margin variant repriced to the lowest step >= 3 x HPP) is the whole
+// catalog; each variant is sold as one
+// unit at its own price (`selling_price_99ribu`). Its records are rewritten here into the legacy row shape
+// readBerlapakSource already reads, so naming, cleaning, classification and the
 // sanitization gate stay the same code. A product that was already in the legacy snapshot keeps its legacy rank (the
 // product key and B99_ SKUs, matched by Berlapak `_id`), so the live product is revised in place, never duplicated.
 // A product new to 99ribu gets rank SINGLE_RANK_BASE + its Berlapak catalog number. Products without stock stay in the
 // catalog as drafts (the publication guard blocks them); one without a supplier warehouse ships from the
 // distributor address until the warehouse profile is completed.
-export const SINGLES_FILE='single-79k-105k/01-siap-jual-langsung-99ribu-full.json';
+export const SINGLES_FILE='single-max-99k-bersih/01-siap-jual-99ribu-bersih.json';
 export const SINGLE_RANK_BASE=1000;
 const HEX=/^[0-9a-f]{24}$/;
 type Rec=Record<string,unknown>;
@@ -37,7 +40,7 @@ export function singleRows(document:unknown,legacy:readonly Rec[],hasFolder:(fol
     if(!Number.isSafeInteger(rank)||rank<1||ranks.has(rank)){rows.push({rank:0});continue;}
     ranks.add(rank);
     const assets=rec(p.assets),place=rec(p.warehouse_and_location),seller=rec(p.distributor_and_seller),inventory=rec(p.inventory);
-    const pricing=rec(p.pricing_berlapak),variants=rec(p.variants_summary),category=rec(p.category_and_google_catalog);
+    const pricing=rec(p.pricing),economics=rec(p.unit_economics_99ribu),variants=rec(p.variants_summary),category=rec(p.category_and_google_catalog);
     // The legacy folder (and its photos) is reused; a new product gets <rank%1000>-<slug> filled by fetch-images.
     const local=typeof assets.folder_slug==='string'&&hasFolder(assets.folder_slug)?assets.folder_slug:null;
     const folder=local??(old?String(rec(old.assets).folder_slug):`${pad(rank%1000,3)}-${slugOf(String(p.slug??p.name??id))}`);
@@ -46,7 +49,7 @@ export function singleRows(document:unknown,legacy:readonly Rec[],hasFolder:(fol
       if(Number.isSafeInteger(index)&&index>0&&typeof g.remote_url==='string') photos.push({folder,file:`img-${pad(index,2)}.webp`,url:g.remote_url});
     }
     const oldVariants=new Map(list(rec(old?.variants_summary).variants).map((v)=>[String(rec(v)._id),rec(v)]));
-    const options=list(variants.variants).map((value,index)=>{
+    const options=list(variants.variants).map((value)=>{
       const v=rec(value),prior=oldVariants.get(String(v._id));
       // A variant known to the legacy snapshot keeps its legacy photo; any other variant photo is fetched next to the
       // folder's own files, named from the variant id (9 or more digits, never a legacy var-NN name), so a later list
@@ -56,13 +59,14 @@ export function singleRows(document:unknown,legacy:readonly Rec[],hasFolder:(fol
         const file=`var-${1e9+Number.parseInt(createHash('sha256').update(String(v._id)).digest('hex').slice(0,8),16)}.webp`;
         image=`images/${folder}/${file}`;photos.push({folder,file,url:v.image_remote_url});
       }
-      return {_id:v._id,name:v.name,hpp_price:v.hpp_price,stock:v.stock,image_local_path:image};
+      return {_id:v._id,name:v.name,hpp_price:v.hpp_price,price_idr:v.selling_price_99ribu,stock:v.stock,image_local_path:image};
     });
     const warehouseId=typeof place.warehouse_id==='string'&&HEX.test(place.warehouse_id)?place.warehouse_id:null;
-    const address=rec(seller.distributor_address);
+    // The cleaned list keeps the distributor address under the location record; the earlier list kept it on the seller.
+    const address=rec(place.distributor_address??seller.distributor_address);
     rows.push({rank,_id:id,name:p.name,description:p.description,allow_unstocked:true,
       inventory:{is_ready_stock:inventory.is_ready_stock,total_stock:inventory.total_stock,weight_gram:inventory.weight_gram,weight_kg:inventory.weight_kg},
-      pricing:{hpp_price:pricing.hpp_price},strategy_99ribu:{recommended_bundle_qty:1},
+      pricing:{hpp_price:pricing.hpp_price,price_idr:economics.selling_price_99ribu},strategy_99ribu:{recommended_bundle_qty:1},
       variants_summary:{has_variants:options.length>0,variants:options},
       assets:{folder_slug:folder},supplier:{name:seller.seller_name},
       warehouse_and_shipping:warehouseId?{warehouse_id:warehouseId,warehouse_name:place.warehouse_name,province:place.province,city:place.city,district:place.district}

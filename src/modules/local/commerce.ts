@@ -21,7 +21,7 @@ function recipe(){
   const source=JSON.parse(readFileSync(new URL('../../../docs/spec/fixtures/localhost-commerce.json',import.meta.url),'utf8'));
   if(source.format!==1||source.synthetic!==true||source.environment!=='local'||source.real_external_effects!==false||source.currency!=='IDR') throw invalid();
   const stock=array(source.stock_items,(value)=>{const v=object(value,['id','name','hpp_idr']);return {id:fixtureId(v.id),name:text(v.name,200),hpp:v.hpp_idr===null?null:integer(v.hpp_idr,0)};},1);
-  const offers=array(source.offers,(value)=>{const v=object(value,['id','price_idr','components']);if(v.price_idr!==99000) throw invalid();return {id:fixtureId(v.id),components:array(v.components,(value)=>{const c=object(value,['stock_item_id','quantity']);return {stock_id:fixtureId(c.stock_item_id),quantity:integer(c.quantity,1,1000000)};},1)};},1);
+  const offers=array(source.offers,(value)=>{const v=object(value,['id','price_idr','components']);if(!Number.isSafeInteger(v.price_idr)||Number(v.price_idr)<1||Number(v.price_idr)>99000) throw invalid();return {id:fixtureId(v.id),price:Number(v.price_idr),components:array(v.components,(value)=>{const c=object(value,['stock_item_id','quantity']);return {stock_id:fixtureId(c.stock_item_id),quantity:integer(c.quantity,1,1000000)};},1)};},1);
   const inventory=array(source.inventory,(value)=>{const v=object(value,['warehouse_id','stock_item_id','on_hand','reserved','quarantine']);return {warehouse_id:fixtureId(v.warehouse_id),stock_id:fixtureId(v.stock_item_id),on_hand:integer(v.on_hand,0),reserved:integer(v.reserved,0),quarantine:integer(v.quarantine,0)};},1);
   if(new Set(stock.map((s)=>s.id)).size!==stock.length||new Set(offers.map((o)=>o.id)).size!==offers.length||new Set(inventory.map((i)=>`${i.warehouse_id}:${i.stock_id}`)).size!==inventory.length||
     offers.some((o)=>new Set(o.components.map((c)=>c.stock_id)).size!==o.components.length||o.components.some((c)=>!stock.some((s)=>s.id===c.stock_id)))||
@@ -70,7 +70,7 @@ export async function seedCommerce(request:Request,identity:LocalAuth,target:Tar
         const kind=contents.length>1?'bundle':contents[0].quantity>1?'multipack':'unit';
         const asset=item.id==='fixture-offer-shirt'?'shirt':item.id==='fixture-offer-bag'?'bag':item.id==='fixture-offer-cream-pack'?'cream':'mixed';
         const product=await createProduct(command(`product:${item.id}`),identity,principal,{name:`SYNTHETIC ${item.id.replace('fixture-offer-','')} [${namespace}]`,description:'Synthetic localhost commerce fixture. Not a real product listing.',category_id:category.id,
-          images:[{url:`${config.origin}/fixtures/${asset}.svg`,alt:`Synthetic ${asset} fixture`,width:480,height:600}],variants:[{sku,label:'Synthetic complete offer',attributes:[],offer_kind:kind,
+          images:[{url:`${config.origin}/fixtures/${asset}.svg`,alt:`Synthetic ${asset} fixture`,width:480,height:600}],variants:[{sku,label:'Synthetic complete offer',attributes:[],price:item.price,offer_kind:kind,
             weight_grams:500,length_mm:200,width_mm:150,height_mm:100,default_warehouse_id:primaryWarehouse,contents}]});
         stored={id:product.variants[0].id,product_id:product.id};
       }

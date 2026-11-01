@@ -567,7 +567,7 @@ function BannerEditor({
 					<FormField id={field("title")} label="Judul" hint="Maks. 60 karakter.">
 						<Input id={field("title")} data-testid="banner-title" maxLength={60} value={draft.title} onChange={set("title")} aria-describedby={`${field("title")}-hint`} />
 					</FormField>
-					<FormField id={field("subtitle")} label="Keterangan (opsional)" hint="Maks. 140 karakter. Tanpa janji hemat atau harga selain Rp99.000.">
+					<FormField id={field("subtitle")} label="Keterangan (opsional)" hint="Maks. 140 karakter. Tanpa janji hemat atau harga di atas Rp99.000.">
 						<Textarea id={field("subtitle")} data-testid="banner-subtitle" maxLength={140} rows={2} value={draft.subtitle} onChange={set("subtitle")} aria-describedby={`${field("subtitle")}-hint`} />
 					</FormField>
 					<div className="grid gap-4 sm:grid-cols-2">

@@ -162,7 +162,7 @@ export function SettingsCommercialClient({ canWrite }: { canWrite: boolean }) {
 			<DetailSection
 				id="commercial-current-heading"
 				title="Kebijakan komersial yang berlaku sekarang"
-				description="Harga penawaran lengkap tetap Rp99.000. Perubahan kebijakan berlaku ke depan; pesanan dan akrual komisi yang sudah tercatat mempertahankan snapshot kebijakan saat transaksi terjadi."
+				description="Harga setiap penawaran maksimal Rp99.000 dan diatur per varian di katalog. Perubahan kebijakan berlaku ke depan; pesanan dan akrual komisi yang sudah tercatat mempertahankan snapshot kebijakan saat transaksi terjadi."
 				testId="commercial-policy-current"
 			>
 				{status.kind === "loading" && !history ? (
@@ -214,8 +214,8 @@ export function SettingsCommercialClient({ canWrite }: { canWrite: boolean }) {
 								className="grid grid-cols-[auto_minmax(0,1fr)] gap-x-4 gap-y-2 text-sm"
 								data-testid="commercial-policy-values"
 							>
-								<dt className="text-muted-foreground">Harga penawaran tetap</dt>
-								<dd className="font-medium tabular-nums">{rupiah(99000)}</dd>
+								<dt className="text-muted-foreground">Batas harga penawaran</dt>
+								<dd className="font-medium tabular-nums">maksimal {rupiah(99000)}</dd>
 								<dt className="text-muted-foreground">
 									Komisi afiliasi bawaan
 								</dt>
@@ -458,7 +458,7 @@ function CommercialPolicyDialog({
 	return (
 		<FormDialog
 			title="Versi kebijakan komersial baru"
-			description={`Menambah versi ${capturedVersion + 1} (didasarkan pada versi v${capturedVersion}). Harga penawaran lengkap tetap Rp99.000 dan pesanan lama tidak berubah.`}
+			description={`Menambah versi ${capturedVersion + 1} (didasarkan pada versi v${capturedVersion}). Harga penawaran diatur per varian di katalog dan pesanan lama tidak berubah.`}
 			pending={intent.pending}
 			error={intent.error}
 			submitLabel="Simpan kebijakan"

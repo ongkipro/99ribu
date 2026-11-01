@@ -10,16 +10,19 @@ import { appendCostVersion } from "../../src/modules/finance/costs.ts";
 import { handleInventory } from "../../src/modules/inventory/routes.ts";
 import { actor, BrowserSession, cleanup, enroll } from "../contract/access-fixture.ts";
 import { type Exchange, validateExchanges } from "../contract/openapi-probe.ts";
+import { withdrawOwn } from "./withdraw-own.ts";
 
 type Actor = Awaited<ReturnType<typeof actor>>;
 type Summary = {
   id: string; name: string; category_id: string | null; category_path: string | null; image_url: string | null;
-  offer_kinds: string[]; offer_count: number; stock_ready_offers: number; price_idr: number; state: string;
+  offer_kinds: string[]; offer_count: number; stock_ready_offers: number; price_min_idr: number; price_max_idr: number; state: string;
   latest_publication_version: number; published_revision: number | null; ready: boolean; blocker_codes: string[];
 };
 
 test("admin product list returns publication summaries with server filters, and withdrawal is an audited, versioned, idempotent command", async () => {
   const identity = createLocalAuth("test"); const users: Actor[] = []; const samples: Exchange[] = [];
+  // The test ends by republishing its product; withdraw it so the shared storefront never lists it.
+  let own: { owner: Actor; productId: string } | undefined;
   const [wh] = await identity.sql`insert into app.warehouse (name,city) values ('Synthetic Summary','Malang') returning id`;
   try {
     const owner = await actor(identity, "owner", []); users.push(owner); await enroll(owner.browser, owner.password);
@@ -64,7 +67,7 @@ test("admin product list returns publication summaries with server filters, and 
     const name = `Synthetic summary ${tag}`;
     const product = await ok("POST", "/products", { name, category_id: child.id, description: " ", images: [], variants: [{
       sku: `SUM-${randomUUID()}`.toUpperCase(), label: "Synthetic unit", attributes: [], offer_kind: "unit", weight_grams: 100, length_mm: 100,
-      width_mm: 100, height_mm: 100, default_warehouse_id: wh.id, contents: [{ stock_item_id: stock.id, name: stock.name, quantity: 1 }] }] });
+      width_mm: 100, height_mm: 100, default_warehouse_id: wh.id, contents: [{ stock_item_id: stock.id, name: stock.name, quantity: 1 }] }] }); own = { owner, productId: product.id };
     const q = `q=${encodeURIComponent(name)}`;
 
     // Draft summary: blocked, same codes as the authoritative publication state for the covered checks.
@@ -72,7 +75,7 @@ test("admin product list returns publication summaries with server filters, and 
     assert.equal(row.state, "blocked"); assert.equal(row.ready, false); assert.equal(row.category_id, child.id);
     assert.equal(row.category_path, `Synthetic parent ${tag} › Synthetic child ${tag}`); assert.equal(row.image_url, null);
     assert.deepEqual(row.offer_kinds, ["unit"]); assert.equal(row.offer_count, 1); assert.equal(row.stock_ready_offers, 0);
-    assert.equal(row.price_idr, 99000); assert.equal(row.latest_publication_version, 0); assert.equal(row.published_revision, null);
+    assert.equal(row.price_min_idr, 99000); assert.equal(row.price_max_idr, 99000); assert.equal(row.latest_publication_version, 0); assert.equal(row.published_revision, null);
     const authoritative = async () => [...new Set((await readPublicationState(identity, await principal(), product.id)).blockers.map((b) => b.code))].sort();
     assert.deepEqual(row.blocker_codes, await authoritative());
     for (const code of ["MEDIA_REQUIRED", "DESCRIPTION_REQUIRED", "COMPLETE_STOCK_REQUIRED", "UNKNOWN_HPP", "UNKNOWN_PACKAGING_IDR"]) assert.ok(row.blocker_codes.includes(code), code);
@@ -132,6 +135,7 @@ test("admin product list returns publication summaries with server filters, and 
 
     validateExchanges(samples, "publication-withdrawal");
   } finally {
-    await cleanup(identity, users); await identity.sql`update app.warehouse set active=false where id=${wh.id}`; await identity.sql.end();
+    try { if (own) await withdrawOwn(identity, own.owner, own.productId); }
+    finally { await cleanup(identity, users); await identity.sql`update app.warehouse set active=false where id=${wh.id}`; await identity.sql.end(); }
   }
 });

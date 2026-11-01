@@ -54,9 +54,9 @@ type Rule={slug:Department;pattern:RegExp;unless?:RegExp;gendered?:true};
 const DEPARTMENT_RULES:readonly Rule[]=[
   {slug:'kesehatan',pattern:/anti mendengkur|kacamata (?:presbiopia|baca)|kaos kaki terapi|ankle support|korektor postur|penyangga bahu|sabuk pinggang terapi|terapi jari|akupuntur|suplemen|madu herbal|deker|terapi pemanas|kapsul|penggemuk|nafsu makan/},
   {slug:'hewan-peliharaan',pattern:/\b(?:lumipet|luminpet|lumino|kucing|anjing|anabul|bau hewan)\b/},
-  {slug:'ibadah',pattern:/\b(?:peci|sarung(?! tangan)|al-?quran|surah|syariah|rompi shalat|rompi sholat|ruqyah|iqro)\b/},
+  {slug:'ibadah',pattern:/\b(?:peci|sarung(?! tangan)|al-?qur'?an|surah|syariah|rompi shalat|rompi sholat|ruqyah|iqro)\b/},
   {slug:'otomotif',pattern:/\b(?:parfum mobil|mobil|motor|klx|crf|wr ?155|ktm|srx|trail|autocare|sepeda|cakram|aki|kendaraan|monoshock|kampas|kopling|pentil|foglamp|windshield|demon eye|car charger|baret)\b/},
-  {slug:'makanan-minuman',pattern:/\b(?:madu|cuka|kurma|susu kuda|susu kambing|stevia|gula aren|matcha|nasi (?:kebuli|mandhi|biryani)|teh|kopi)\b/},
+  {slug:'makanan-minuman',pattern:/\b(?:madu|cuka|kurma|susu kuda|susu kambing|stevia|gula aren|matcha|nasi (?:kebuli|mandhi|biryani)|teh|kopi|sari lemon|sari buah|garam|jelly powder|chia seed|bawang (?:bombay|putih|merah)|bumbu dasar|minyak kelapa|minyak zaitun|olive oil)\b/},
   // Books outside the Islamic shelf sit with hobbies (no book department yet).
   {slug:'mainan-hobi',pattern:/\bbuku\b/,unless:/\b(?:syariah|al-?quran|surah|iqro|islam\w*|ruqyah|tajwid|doa|sholat|shalat)\b/},
   {slug:'mainan-hobi',pattern:/\b(?:mainan|spinner|pipa lampu|pop tube|papan tulis|essen|umpan (?:pancing|mancing)|mancing|strike)\b/},
@@ -70,7 +70,7 @@ const DEPARTMENT_RULES:readonly Rule[]=[
   // the Kecantikan rule, which also contains cukur/shaver/trimmer, so an equal match position goes to this rule.
   {slug:'fashion-pria',pattern:/\bbarber\b|\balat cukur\b|\bpencukur\b|\bshaver\b|\btrimmer\b/},
   {slug:'kecantikan',pattern:/\b(?:jawline|hidung|nose|bulu ?mata|eyelash|sabun|soap|cream|serum|moisturizer|setrika wajah|wajah|cukur|shaver|trimmer|gigi|catok(?:an)?|pelurus rambut|hair|rambut|shampoo|shampo|deodorant|deodoran|parfum|perfume|body mist|body cream|body wash|body booster|brush wood|kuas|make ?up|pouch|travel bottle|tumit|feminine|mouth ?spray|mouthwash|toothpaste|bekas luka|medinail|ketiak|pantat|kecantikan|kulit|cermin|booster|pemutih|alat pijat|balm|soothing gel)\b/},
-  {slug:'elektronik',pattern:/\b(?:phone holder|laptop|antena|antenna|tv|senter|lampu led sensor|kipas angin|pembesar layar|penghemat listrik|mouse|pipa asbak|earphone|headset|tws|cctv|gps|korek api)\b/},
+  {slug:'elektronik',pattern:/\b(?:phone holder|laptop|antena|antenna|tv|senter|lampu led sensor|kipas angin|pembesar layar|penghemat listrik|mouse|pipa asbak|earphone|headset|tws|cctv|gps|korek api|alarm pintu|door alarm)\b/},
   {slug:'dapur',pattern:/\b(?:pisau|watermelon|pemotong sayuran|saringan|chopper|blender|tatakan kompor|oil pot|lunch ?box|bekal|coaster|tumbler|rak galon|mincer|shaker|timbangan dapur|teko|teapot|mug)\b/},
   {slug:'perkakas',pattern:/\b(?:lem|lakban|tape|waterproof agent|pompa|kunci|tang|gergaji|stapler|sarung tangan|timbangan|kaca pembesar|troli|dongkrak)\b/},
   {slug:'rumah-tangga',pattern:/floor drain|pembersih (?:pipa|lantai|kulkas|noda|toilet|tabung|multifungsi|minyak|sepatu)|gel pembersih|busa pembersih|saluran air|shoes cleaner|dishwash|deterjen|detergent|laundry|stain remover|semprotan air|water canon|spray gun|perangkap|tikus|kecoa|semut|pembasmi|pest reject|alat pel|\bmop\b|kemoceng|vacum|vacuum|polish|pengkilap|pengharum ruangan|reed diffuser|washing machine|gantungan|\bhook\b|sticker|stiker|pengangkat kasur|penghilang bulu pakaian|jam dinding|selang|payung|rak sepatu/},
@@ -88,7 +88,16 @@ const SUPPLIER_PRIOR:Readonly<Record<string,Department|null>>={
 };
 // Reviewed exceptions by offer key, guarded by the expected name so a changed snapshot refuses.
 export const CATEGORY_OVERRIDES:Readonly<Record<string,{expect:string;slug:Department;reason:string}>>={
-  'BND-17':{expect:'Paket Keamanan Rumah & Kendaraan',slug:'elektronik',reason:'Glue, hook and CCTV tie one each; the security the title promises is the CCTV camera.'},
+  '1517':{expect:'Dark Opium',slug:'makanan-minuman',reason:'Black tea; the supplier name ("... Tea") is stripped from the title, leaving only the blend name.'},
+  '1518':{expect:'Earl Grey',slug:'makanan-minuman',reason:'Black tea; the supplier name ("... Tea") is stripped from the title, leaving only the blend name.'},
+  '1519':{expect:'Fruit Garden',slug:'makanan-minuman',reason:'Black tea; the supplier name ("... Tea") is stripped from the title, leaving only the blend name.'},
+  '1520':{expect:'Mango Indica',slug:'makanan-minuman',reason:'Black tea; the supplier name ("... Tea") is stripped from the title, leaving only the blend name.'},
+  '1521':{expect:'Mango Mint',slug:'makanan-minuman',reason:'Black tea; the supplier name ("... Tea") is stripped from the title, leaving only the blend name.'},
+  '1523':{expect:'Morning Spirit',slug:'makanan-minuman',reason:'Black tea; the supplier name ("... Tea") is stripped from the title, leaving only the blend name.'},
+  '1524':{expect:'Racikan Hujan',slug:'makanan-minuman',reason:'Black tea; the supplier name ("... Tea") is stripped from the title, leaving only the blend name.'},
+  '1526':{expect:'Strawberry Creme',slug:'makanan-minuman',reason:'Black tea; the supplier name ("... Tea") is stripped from the title, leaving only the blend name.'},
+  '1528':{expect:'Tropical Blue',slug:'makanan-minuman',reason:'Black tea; the supplier name ("... Tea") is stripped from the title, leaving only the blend name.'},
+  '1529':{expect:'Vanilla Rose',slug:'makanan-minuman',reason:'Black tea; the supplier name ("... Tea") is stripped from the title, leaving only the blend name.'},
 };
 const gender=(text:string,prior:Department|null,fallback:Department):Department=>{
   const pria=/\b(?:pria|cowok|laki|men)\b/.test(text),wanita=/\b(?:wanita|cewek|perempuan|women)\b/.test(text);
@@ -393,6 +402,54 @@ export function cardTitle(full:string,options:{variant?:string|null;count?:numbe
 // `limit` (at most TITLE_HARD_LIMIT) is for the few products whose type + brand + variant cannot fit 40.
 export const TITLE_HARD_LIMIT=48;
 const TITLE_OVERRIDES:Readonly<Record<string,{expect:string;title:string;evidence?:string;limit?:number}>>={
+  // DEC-025 list: the cut title dropped the product type (feminine wash, korset, mouth spray, pouch, lotion, gearbox additive).
+  '132':{expect:'Celana Munafie',title:'Korset Pelangsing Celana Slimming Pants Lace High'},
+  '1136':{expect:'DR Glow Body Lotion',title:'Dr Glow Body Lotion Collagen Pelembab Kulit'},
+  '1541':{expect:'Moormiles - Olix',title:'Olix Gearbox Additive Mobil Matic, 100ml'},
+  '1547':{expect:'Kavela Flavor',title:'Kavela Mouth Spray Fresh Berry'},
+  '1572':{expect:'Dianti BAG',title:'Dianti Tas Selempang Wanita Pouch Make Up'},
+  // Same-name items told apart by size (supplier size in the name or the 100 g / 250 g weight) or by spray vs wash foam.
+  '387':{expect:'Gendes Sweet Aromatic Feminine Care spray',title:'Gendes Feminine Spray Cappucino, 23 ml',evidence:'Flavour and size from the supplier name (spelling normalised, e.g. Cocopanddan).'},
+  '389':{expect:'Gendes Sweet Aromatic Feminine Care spray',title:'Gendes Feminine Spray Cocopandan, 23 ml',evidence:'Flavour and size from the supplier name (spelling normalised, e.g. Cocopanddan).'},
+  '392':{expect:'Gendes Sweet Aromatic Feminine Care spray',title:'Gendes Feminine Spray Lychee Tea, 23 ml',evidence:'Flavour and size from the supplier name (spelling normalised, e.g. Cocopanddan).'},
+  '394':{expect:'Gendes Sweet Aromatic Feminine Care spray',title:'Gendes Feminine Spray Teh Keraton, 23 ml',evidence:'Flavour and size from the supplier name (spelling normalised, e.g. Cocopanddan).'},
+  '438':{expect:'Gendes Sweet Aromatic Feminine Care spray',title:'Gendes Feminine Spray Kuwut, 23 ml',evidence:'Flavour and size from the supplier name (spelling normalised, e.g. Cocopanddan).'},
+  '388':{expect:'Gendes Sweet Aromatic Feminine Care spray',title:'Gendes Feminine Spray Chocolate, 23 ml',evidence:'Flavour and size from the supplier name (spelling normalised, e.g. Cocopanddan).'},
+  '390':{expect:'Gendes Sweet Aromatic Feminine Care spray',title:'Gendes Feminine Spray Grape, 23 ml',evidence:'Flavour and size from the supplier name (spelling normalised, e.g. Cocopanddan).'},
+  '395':{expect:'Gendes Sweet Aromatic Feminine Care spray',title:'Gendes Feminine Spray Vanila, 23 ml',evidence:'Flavour and size from the supplier name (spelling normalised, e.g. Cocopanddan).'},
+  '439':{expect:'Gendes Sweet Aromatic Feminine Care Wash',title:'Gendes Feminine Wash Bubble Gum, 50 ml',evidence:'Flavour and size from the supplier name (spelling normalised, e.g. Cocopanddan).'},
+  '441':{expect:'Gendes Sweet Aromatic Feminine Care Wash',title:'Gendes Feminine Wash Cappucino, 50 ml',evidence:'Flavour and size from the supplier name (spelling normalised, e.g. Cocopanddan).'},
+  '445':{expect:'Gendes Sweet Aromatic Feminine Care Wash',title:'Gendes Feminine Wash Cocopandan, 50 ml',evidence:'Flavour and size from the supplier name (spelling normalised, e.g. Cocopanddan).'},
+  '447':{expect:'Gendes Sweet Aromatic Feminine Care Wash',title:'Gendes Feminine Wash Kuwut, 50 ml',evidence:'Flavour and size from the supplier name (spelling normalised, e.g. Cocopanddan).'},
+  '449':{expect:'Gendes Sweet Aromatic Feminine Care Wash',title:'Gendes Feminine Wash Lychee Tea, 50 ml',evidence:'Flavour and size from the supplier name (spelling normalised, e.g. Cocopanddan).'},
+  '452':{expect:'Gendes Sweet Aromatic Feminine Care Wash',title:'Gendes Feminine Wash Teh Keraton, 50 ml',evidence:'Flavour and size from the supplier name (spelling normalised, e.g. Cocopanddan).'},
+  '442':{expect:'Gendes Sweet Aromatic Feminine Care Wash',title:'Gendes Feminine Wash Chocolate, 50 ml',evidence:'Flavour and size from the supplier name (spelling normalised, e.g. Cocopanddan).'},
+  '454':{expect:'Gendes Sweet Aromatic Feminine Care Wash',title:'Gendes Feminine Wash Vanila, 50 ml',evidence:'Flavour and size from the supplier name (spelling normalised, e.g. Cocopanddan).'},
+  '456':{expect:'Gendes Sweet Aromatic Feminine Care Wash',title:'Gendes Feminine Wash Grape, 50 ml',evidence:'Flavour and size from the supplier name (spelling normalised, e.g. Cocopanddan).'},
+  '450':{expect:'Gendes Sweet Aromatic Feminine Care Wash',title:'Gendes Feminine Wash Mango, 50 ml',evidence:'Flavour and size from the supplier name (spelling normalised, e.g. Cocopanddan).'},
+  '440':{expect:'Gendes Sweet Aromatic Feminine Care Wash',title:'Gendes Feminine Wash Foam Cappucino',evidence:'Flavour and size from the supplier name (spelling normalised, e.g. Cocopanddan).'},
+  '443':{expect:'Gendes Sweet Aromatic Feminine Care Wash',title:'Gendes Feminine Wash Foam Chocolate',evidence:'Flavour and size from the supplier name (spelling normalised, e.g. Cocopanddan).'},
+  '451':{expect:'Gendes Sweet Aromatic Feminine Care Wash',title:'Gendes Feminine Wash Foam Mango',evidence:'Flavour and size from the supplier name (spelling normalised, e.g. Cocopanddan).'},
+  '453':{expect:'Gendes Sweet Aromatic Feminine Care Wash',title:'Gendes Feminine Wash Foam Teh Keraton',evidence:'Flavour and size from the supplier name (spelling normalised, e.g. Cocopanddan).'},
+  '372':{expect:'Moormiles - Armor Aspalt',title:'Moormiles Armor Aspalt, 100 ml',evidence:'Size from the supplier weight (100 g / 250 g), as the sibling Armor items name it.'},
+  '477':{expect:'Moormiles - Armor Aspalt',title:'Moormiles Armor Aspalt, 250 ml',evidence:'Size from the supplier weight (100 g / 250 g), as the sibling Armor items name it.'},
+  '373':{expect:'Moormiles - Armor Attack',title:'Moormiles Armor Attack 2.0, 100 ml',evidence:'Supplier name states the size (100ML / 250ML).'},
+  '463':{expect:'Moormiles - Armor Attack',title:'Moormiles Armor Attack 2.0, 250 ml',evidence:'Supplier name states the size (100ML / 250ML).'},
+  '464':{expect:'Moormiles - Armor Destroy',title:'Moormiles Armor Destroy, 100 ml',evidence:'Size from the supplier weight (100 g / 250 g), as the sibling Armor items name it.'},
+  '1535':{expect:'Moormiles - Armor Destroy',title:'Moormiles Armor Destroy, 250 ml',evidence:'Size from the supplier weight (100 g / 250 g), as the sibling Armor items name it.'},
+  '467':{expect:'Moormiles - Armor Xrainy',title:'Moormiles Armor Xrainy, 100 ml',evidence:'Supplier name states the size (100ML / 250ML).'},
+  '1537':{expect:'Moormiles - Armor Xrainy',title:'Moormiles Armor Xrainy, 250 ml',evidence:'Supplier name states the size (100ML / 250ML).'},
+  // DEC-025 list: the supplier's own name ("OZA Tea") is stripped, so only the blend name is left; the title names the tea.
+  '1517':{expect:'Dark Opium',title:'Teh Hitam Dark Opium, 40 gram',evidence:'Supplier name: "Artisan Tea - Black Tea | Teh Premium | 40 gram (20 cups)".'},
+  '1518':{expect:'Earl Grey',title:'Teh Hitam Earl Grey, 40 gram',evidence:'Supplier name: "Artisan Tea - Black Tea | Teh Premium | 40 gram (20 cups)".'},
+  '1519':{expect:'Fruit Garden',title:'Teh Hitam Fruit Garden, 40 gram',evidence:'Supplier name: "Artisan Tea - Black Tea | Teh Premium | 40 gram (20 cups)".'},
+  '1520':{expect:'Mango Indica',title:'Teh Hitam Mango Indica, 40 gram',evidence:'Supplier name: "Artisan Tea - Black Tea | Teh Premium | 40 gram (20 cups)".'},
+  '1521':{expect:'Mango Mint',title:'Teh Hitam Mango Mint, 40 gram',evidence:'Supplier name: "Artisan Tea - Black Tea | Teh Premium | 40 gram (20 cups)".'},
+  '1523':{expect:'Morning Spirit',title:'Teh Hitam Morning Spirit, 40 gram',evidence:'Supplier name: "Artisan Tea - Black Tea | Teh Premium | 40 gram (20 cups)".'},
+  '1524':{expect:'Racikan Hujan',title:'Teh Hitam Racikan Hujan, 40 gram',evidence:'Supplier name: "Artisan Tea - Black Tea | Teh Premium | 40 gram (20 cups)".'},
+  '1526':{expect:'Strawberry Creme',title:'Teh Hitam Strawberry Creme, 40 gram',evidence:'Supplier name: "Artisan Tea - Black Tea | Teh Premium | 40 gram (20 cups)".'},
+  '1528':{expect:'Tropical Blue',title:'Teh Hitam Tropical Blue, 40 gram',evidence:'Supplier name: "Artisan Tea - Black Tea | Teh Premium | 40 gram (20 cups)".'},
+  '1529':{expect:'Vanilla Rose',title:'Teh Hitam Vanilla Rose, 40 gram',evidence:'Supplier name: "Artisan Tea - Black Tea | Teh Premium | 40 gram (20 cups)".'},
   // The motorcycle models are what the part fits; the cut kept only the part name.
   // Supplier names lead with promotion or health claims; the title keeps the product and its size only.
   '1600':{expect:'Special Summit',title:'Nubiko Hair Lotion Baby Argan Oil, 100ml'},
@@ -449,8 +506,8 @@ const TITLE_OVERRIDES:Readonly<Record<string,{expect:string;title:string;evidenc
   // 11: the variant is the lens power (+2).
   '11':{expect:'Kacamata Presbiopia Baca Super Plus',title:'Kacamata Presbiopia Baca, Plus 2'},
   '20':{expect:'Lem Serbaguna Oily Glue',title:'Lem Oily Glue Cepat Kering, 20ml'},
-  '25':{expect:'Windshield Repair Kit Glass Lem Kaca Mobil',title:'Windshield Repair Kit Kaca Mobil'},
-  '181':{expect:'Windshield Repair Kit Glass LEM Kaca Mobil',title:'Windshield Repair Kit Kaca Mobil'},
+  '25':{expect:'Windshield Repair Kit Glass Lem Kaca Mobil',title:'Windshield Repair Kit Kaca Mobil Hitam',evidence:'Supplier name starts with [HITAM]; packaging colour.'},
+  '181':{expect:'Windshield Repair Kit Glass LEM Kaca Mobil',title:'Windshield Repair Kit Kaca Mobil Kuning',evidence:'Supplier name starts with [KUNING]; packaging colour.'},
   '29':{expect:'Semprotan AIR Cuci Motor Hose',title:'Semprotan Air Cuci Motor Mobil'},
   '38':{expect:'tutup pentil led',title:'Tutup Pentil Ban LED'},
   '39':{expect:'Ankle Support',title:'Ankle Support Liton Deker 8624'},
@@ -672,7 +729,9 @@ export type BerlapakDataset={catalog:CatalogDocument;text:string;manifest:Manife
 // catalog command always uses the defaults.
 // `stockNames`: stock item names already committed (immutable rows once imported); an item keeps its committed name
 // when the snapshot renames it.
-export function buildBerlapakDataset(sourceDir:string,options:{minimumPerCategory?:number;requireOverrides?:boolean;stockNames?:ReadonlyMap<string,string>}={}):BerlapakDataset{
+// `warehouseNames`: origin warehouse names already committed, by key; a warehouse keeps its name (rows are immutable
+// once imported) and a new one in the same kecamatan takes the next free number instead of renumbering the others.
+export function buildBerlapakDataset(sourceDir:string,options:{minimumPerCategory?:number;requireOverrides?:boolean;stockNames?:ReadonlyMap<string,string>;warehouseNames?:ReadonlyMap<string,string>}={}):BerlapakDataset{
   const raw=readBerlapakSource(sourceDir);
   const source={...raw,stocks:raw.stocks.map((s)=>{const name=options.stockNames?.get(stockSku(s.key));return name&&name!==s.name?{...s,name}:s;})};
   const groups=Map.groupBy(source.offers,(o)=>o.productKey);
@@ -699,7 +758,7 @@ export function buildBerlapakDataset(sourceDir:string,options:{minimumPerCategor
   const describe=(o:(typeof source.offers)[number])=>{
     const variants=groups.get(o.productKey) as (typeof source.offers);
     const head=o.kind==='bundle'&&titles.get(o.key)!==o.name?`${o.name}\n${o.description}`:o.kind==='bundle'||!variants.some((v)=>v.image)?o.description:
-      `Pilihan paket:\n${variants.map((v)=>`- ${v.label}`).join('\n')}\nHarga Rp99.000 untuk satu paket lengkap sesuai pilihan varian.`;
+      `Pilihan varian:\n${variants.map((v)=>`- ${v.label}`).join('\n')}`;
     const parts=o.parts.map((p)=>({name:(source.stocks.find((s)=>s.key===p.stock) as (typeof source.stocks)[number]).name,text:details.get(p.stock)?.text??''})).filter((p)=>p.text);
     const body=o.kind==='bundle'?parts.map((p)=>`${p.name}\n${p.text}`).join('\n\n'):parts[0]?.text??'';
     const full=body?`${head}\n\n${body}`:head;
@@ -729,13 +788,19 @@ export function buildBerlapakDataset(sourceDir:string,options:{minimumPerCategor
   // Generic warehouse names come only from location: "Gudang <Kecamatan>, <Kota>", numbered by key
   // order when two supplier warehouses share a kecamatan. Never the supplier's warehouse name.
   const places=new Map(source.stocks.map((s)=>[s.warehouse.id,{key:originKey(s.warehouse.id),province:s.warehouse.province,city:s.warehouse.city,district:s.warehouse.district}]));
-  const ordinal=new Map<string,number>();
-  const numbered=[...places.values()].sort((a,b)=>byKey(a.key,b.key)).map((p)=>{
-    const place=`${p.district}\n${p.city}`;const n=(ordinal.get(place)??0)+1;ordinal.set(place,n);
-    return {place,n,warehouse:{key:p.key,name:`Gudang ${p.district}${n>1?` ${n}`:''}, ${p.city}`,province:p.province,city:p.city,district:p.district}};
+  const nameOf=(p:{district:string;city:string},n:number)=>`Gudang ${p.district}${n>1?` ${n}`:''}, ${p.city}`;
+  const sorted=[...places.values()].sort((a,b)=>byKey(a.key,b.key));
+  const taken=new Map<string,Set<number>>(),kept=new Map<string,number>();
+  for(const p of sorted){const place=`${p.district}\n${p.city}`,name=options.warehouseNames?.get(p.key);if(!name) continue;
+    const n=[...Array(sorted.length).keys()].map((i)=>i+1).find((i)=>nameOf(p,i)===name);if(n===undefined) continue;
+    kept.set(p.key,n);taken.set(place,(taken.get(place)??new Set()).add(n));}
+  const numbered=sorted.map((p)=>{
+    const place=`${p.district}\n${p.city}`,used=taken.get(place)??new Set<number>();let n=kept.get(p.key);
+    if(n===undefined){n=1;while(used.has(n)) n++;used.add(n);taken.set(place,used);}
+    return {place,n,warehouse:{key:p.key,name:nameOf(p,n),province:p.province,city:p.city,district:p.district}};
   });
   const warehouses:OriginWarehouse[]=numbered.sort((a,b)=>byKey(a.place,b.place)||a.n-b.n).map((w)=>w.warehouse);
-  const catalog:CatalogDocument={format:CATALOG_FORMAT,source:'berlapak',source_snapshot:source.snapshot,price_idr:99000,
+  const catalog:CatalogDocument={format:CATALOG_FORMAT,source:'berlapak',source_snapshot:source.snapshot,price_ceiling_idr:99000,
     categories:DEPARTMENTS.filter((d)=>counts.has(d.slug)).map((d)=>({slug:d.slug,name:d.name,google_product_category:d.google})).sort((a,b)=>byKey(a.slug,b.slug)),warehouses,
     stock_items:[...source.stocks].sort((a,b)=>a.rank-b.rank||byKey(a.key,b.key)).map((s)=>({sku:stockSku(s.key),name:s.name})),
     products:[...products].sort((a,b)=>byKey(a.key,b.key)).map((o)=>{
@@ -750,7 +815,7 @@ export function buildBerlapakDataset(sourceDir:string,options:{minimumPerCategor
       // A variant whose photo does not fit the 20-photo gallery (many colour x size variants) shows the shared gallery
       // instead; its own photo is never replaced by another variant's.
       const definitions=offers.map((offer)=>{const side=cube(offer.grams),image=offer.image?photo(offer.image.rank,offer.image.file):null;return {
-        sku:`B99_${offer.key}_OFFER`,label:offer.label,kind:offer.kind,image:image&&gallery.some((p)=>p.sha256===image)?image:null,
+        sku:`B99_${offer.key}_OFFER`,label:offer.label,price_idr:offer.price,kind:offer.kind,image:image&&gallery.some((p)=>p.sha256===image)?image:null,
         warehouse:originKey(offer.warehouse),weight_grams:offer.grams,length_mm:side,width_mm:side,height_mm:side,
         contents:offer.parts.map((p)=>({stock_item:stockSku(p.stock),quantity:p.quantity})).sort((a,b)=>byKey(a.stock_item,b.stock_item))};});
       return {key:o.key,name:titles.get(o.key) as string,description:describe(o),category:slug(o.key),
@@ -773,8 +838,13 @@ export function buildBerlapakDataset(sourceDir:string,options:{minimumPerCategor
 }
 
 export function writeBerlapakDataset(sourceDir:string,outDir=defaultDatasetDir,options:{minimumPerCategory?:number;requireOverrides?:boolean}={}){
-  const committed=existsSync(join(outDir,'catalog.json'))?readCatalogDocument(outDir).stock_items:[];
-  const built=buildBerlapakDataset(sourceDir,{...options,stockNames:new Map(committed.map((s)=>[s.sku,s.name]))});const photoDir=join(outDir,'photos');mkdirSync(photoDir,{recursive:true});
+  // Committed stock and warehouse names are reused (both rows are immutable once imported); read them from any earlier
+  // format (v3 before DEC-025).
+  const previous=existsSync(join(outDir,'catalog.json'))?(()=>{const data=JSON.parse(readFileSync(join(outDir,'catalog.json'),'utf8')) as {format?:unknown;stock_items?:unknown;warehouses?:unknown};
+    if(typeof data.format!=='string'||!/^99ribu\.catalog\/v[34]$/.test(data.format)||!Array.isArray(data.stock_items)||!Array.isArray(data.warehouses)) throw new Error('Committed catalog dataset is unreadable.');
+    const pairs=(list:unknown[],key:'sku'|'key')=>list.map((v)=>{const row=v as Record<string,unknown>;if(typeof row[key]!=='string'||typeof row.name!=='string') throw new Error('Committed catalog dataset is unreadable.');return [row[key] as string,row.name as string] as const;});
+    return {stock:pairs(data.stock_items as unknown[],'sku'),warehouses:pairs(data.warehouses as unknown[],'key')};})():{stock:[],warehouses:[]};
+  const built=buildBerlapakDataset(sourceDir,{...options,stockNames:new Map(previous.stock),warehouseNames:new Map(previous.warehouses)});const photoDir=join(outDir,'photos');mkdirSync(photoDir,{recursive:true});
   const write=(path:string,bytes:Buffer|string)=>{const next=Buffer.from(bytes);if(existsSync(path)&&readFileSync(path).equals(next)) return false;writeFileSync(path,next);return true;};
   let written=0,removed=0;
   for(const [hash,p] of built.photos) if(write(join(photoDir,`${hash}.webp`),p.bytes)) written++;

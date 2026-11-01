@@ -26,7 +26,9 @@ test('a partial order refund keeps whole purchased offers and their frozen shipp
  assert.equal(returnEntitlement(99000,0).amount,99000);
  assert.equal(returnEntitlement(99000,Number.MAX_SAFE_INTEGER-99000).amount,Number.MAX_SAFE_INTEGER);
  assert.throws(()=>returnEntitlement(99000,Number.MAX_SAFE_INTEGER-98999),code('REFUND_AMOUNT_LIMIT_EXCEEDED'));
- for(const value of [49500,198000,-1,99000.5])assert.throws(()=>returnEntitlement(value,0),code('INVALID_INPUT'));
+ // DEC-025: the unit's own frozen price (1..99,000) is the entitlement basis.
+ assert.deepEqual(returnEntitlement(49500,7500),{merchandise_amount:49500,buyer_shipping:7500,payment_charge:0,amount:57000});
+ for(const value of [0,198000,99001,-1,99000.5])assert.throws(()=>returnEntitlement(value,0),code('INVALID_INPUT'));
  for(const value of [-1,null,1.5,'7500'])assert.throws(()=>returnEntitlement(99000,value),code('INVALID_INPUT'));
 });
 

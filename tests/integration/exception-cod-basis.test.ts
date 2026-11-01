@@ -23,7 +23,9 @@ test('one remaining unit has only its own entitlement and no cancelled-unit ship
 
 test('original identities are normalized before duplicate detection and arbitrary prices cannot enter the basis',()=>{
  assert.throws(()=>collectionUnitTotals([units[0],{...units[0],id:second.toUpperCase()}]),{code:'COLLECTION_UNIT_SCOPE_INVALID'});
- for(const unit_price of [98000,99001,0,-1,'99000'])assert.throws(()=>collectionUnitTotals([{...units[0],unit_price:unit_price as number}]),{code:'INVALID_INPUT'});
+ // DEC-025: any whole-rupiah unit price 1..99,000 is a valid frozen basis; outside that range or non-integer is refused.
+ for(const unit_price of [99001,0,-1,49000.5,'99000'])assert.throws(()=>collectionUnitTotals([{...units[0],unit_price:unit_price as number}]),{code:'INVALID_INPUT'});
+ assert.equal(collectionUnitTotals([{...units[0],unit_price:98000}]).merchandise_amount,98000);
  for(const buyer_shipping of [-1,0.1,Number.MAX_SAFE_INTEGER+1])assert.throws(()=>collectionUnitTotals([{...units[0],buyer_shipping}]),{code:'INVALID_INPUT'});
 });
 

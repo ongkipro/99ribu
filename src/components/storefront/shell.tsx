@@ -60,7 +60,7 @@ export async function Shell({children,q='',active='home',department=null,product
   {/* Five labelled tabs; Cari is raised and opens the search sheet (a real /cari link without JavaScript). */}
   <Dock active={active} count={count} cartLabel={cartLabel} suggestions={suggestions} departments={dockDepartments}/>
   <footer className="store-footer"><div className="wrap footer-inner">
-   <div className="footer-brand"><p className="brand footer-name"><Wordmark/></p><p>Semua pilihan lengkap Rp99.000.</p></div>
+   <div className="footer-brand"><p className="brand footer-name"><Wordmark/></p><p>Semua produk maksimal Rp99.000.</p></div>
    <div className="footer-menus">
     <nav aria-labelledby="footer-shop"><h2 id="footer-shop">Belanja</h2><ul><li><Link href="/kategori">Semua kategori</Link></li>{departments.slice(0,4).map(d=><li key={d.id}><Link href={`/kategori/${d.slug}`}>{d.name}</Link></li>)}<li><Link href="/cari">Cari produk</Link></li></ul></nav>
     <nav aria-labelledby="footer-help"><h2 id="footer-help">Bantuan</h2><ul><li><Link href="/bantuan">Bantuan belanja</Link></li><li><Link href="/bantuan#returns">Pengembalian</Link></li><li><Link href="/akun">Status pesanan</Link></li><li><Link href="/kontak">Hubungi kami</Link></li></ul></nav>

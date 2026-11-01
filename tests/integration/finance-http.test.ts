@@ -72,6 +72,10 @@ test('built finance/publication APIs enforce real browser MFA cookies, private c
     const exception={...publicationBody,expected_publication_version:1,exception:{reason:'Synthetic explicit owner unknown-cost exception',reauthentication_proof:proof.payload.proof}};
     const approved=await call(publicationPath,exception,key());assert.equal(approved.status,201);assert.equal(approved.payload.exception_applied,true);
     const current=await call(publicationPath);assert.equal(current.payload.current.id,approved.payload.id);assert.equal(current.payload.current.exception_applied,true);assert.equal(current.payload.ready,false);
+    // The built web writes the shared local storefront: withdraw the synthetic offer before signing out, so the
+    // storefront suites never list it while this run is still going (the end-of-run teardown stays the backstop).
+    const retracted=await call(`${root}/products/${product.payload.id}/publication-retractions`,{expected_publication_version:current.payload.latest_version,reason:'Synthetic finance browser fixture finished'},key());
+    assert.equal(retracted.status,201,JSON.stringify(retracted.payload));assert.equal((await call(publicationPath)).payload.current,null);
     assert.equal((await call(costPath,undefined,{authorization:'Bearer synthetic-unsupported'})).status,401);
     assert.ok(!(await page.evaluate(()=>document.cookie)).includes('session_token'));
     assert.equal((await call('/api/auth/sign-out',{})).status,200);assert.equal((await call(costPath)).status,401);

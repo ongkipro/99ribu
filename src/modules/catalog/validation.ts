@@ -57,7 +57,7 @@ export function definitions(value: unknown) {
   return rows.sort((a, b) => a.key.localeCompare(b.key));
 }
 export function offerInput(value: unknown, create: boolean) {
-  const fields = ["label", "attributes", "weight_grams", "length_mm", "width_mm", "height_mm", "default_warehouse_id", "offer_kind", "contents", "image"];
+  const fields = ["label", "attributes", "price", "weight_grams", "length_mm", "width_mm", "height_mm", "default_warehouse_id", "offer_kind", "contents", "image"];
   const data = object(value, create ? [...fields, "sku"] : fields);
   const contents = array(data.contents, (value) => {
     const row = object(value, ["stock_item_id", "name", "quantity"]);
@@ -72,6 +72,8 @@ export function offerInput(value: unknown, create: boolean) {
     weight_grams: integer(data.weight_grams, 1, 1000000), length_mm: integer(data.length_mm, 1, 10000),
     width_mm: integer(data.width_mm, 1, 10000), height_mm: integer(data.height_mm, 1, 10000),
     default_warehouse_id: id(data.default_warehouse_id), offer_kind: kind,
+    // DEC-025: whole rupiah, at most Rp99.000. A new offer without a price is Rp99.000; an update without one keeps it.
+    ...(data.price === undefined ? (create ? { price: 99000 } : {}) : { price: integer(data.price, 1, 99000) }),
     contents: contents.sort((a, b) => a.stock_item_id.localeCompare(b.stock_item_id)), image: data.image === undefined ? null : image(data.image) };
 }
 export function pageInput(url: URL) {

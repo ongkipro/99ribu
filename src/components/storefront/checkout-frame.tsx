@@ -10,7 +10,7 @@ export function CheckoutFrame({children,saveDraft=false,back='cart',payment=fals
   {saveDraft&&<button type="submit" form="checkout-form" name="navigate" value="stay" className="sr-only" tabIndex={-1}>Periksa langkah checkout</button>}
   <header className={`checkout-header ${wrap}`}>{saveDraft?<CheckoutExit/>:<Link href={back==='catalog'?'/cari':'/keranjang'} className="checkout-back"><Icon name="chevron"/><span>{back==='catalog'?'Katalog':'Keranjang'}</span></Link>}{saveDraft?<CheckoutExit home/>:<Link href="/" className="brand" aria-label="99rb - 99ribu, beranda"><Wordmark/></Link>}<a href="#checkout-help" className="checkout-help-link" aria-label="Bantuan"><span>Bantuan</span></a></header>
   <main id="main" className={wrap}>{children}</main>
-  <footer className={`checkout-footer ${wrap}`}><p>Satu pilihan lengkap Rp99.000. Ongkir mengikuti paket dan tujuan yang dipilih.</p><nav aria-label="Kebijakan belanja"><Link href="/bantuan#returns" target="_blank" rel="noopener noreferrer">Pengiriman dan pengembalian<span className="sr-only"> (tab baru)</span></Link><Link href="/bantuan#privacy" target="_blank" rel="noopener noreferrer">Privasi<span className="sr-only"> (tab baru)</span></Link></nav></footer>
+  <footer className={`checkout-footer ${wrap}`}><p>Harga setiap pilihan maksimal Rp99.000. Ongkir mengikuti paket dan tujuan yang dipilih.</p><nav aria-label="Kebijakan belanja"><Link href="/bantuan#returns" target="_blank" rel="noopener noreferrer">Pengiriman dan pengembalian<span className="sr-only"> (tab baru)</span></Link><Link href="/bantuan#privacy" target="_blank" rel="noopener noreferrer">Privasi<span className="sr-only"> (tab baru)</span></Link></nav></footer>
  </>;
 }
 

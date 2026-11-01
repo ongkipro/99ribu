@@ -7,8 +7,8 @@ import {closeFulfillmentActor,fulfillmentFixture} from './fulfillment-fixture.ts
 
 // Real predecessor checkout, collection, physical handover and auth writers.
 // No S31 table, invented delivered flag or manually funded balance is seeded.
-export async function returnFixture(method:'cod'|'prepaid'){
- const f=await fulfillmentFixture(method);let finance:Awaited<ReturnType<typeof actor>>|undefined;
+export async function returnFixture(method:'cod'|'prepaid',options:Parameters<typeof fulfillmentFixture>[1]={}){
+ const f=await fulfillmentFixture(method,options);let finance:Awaited<ReturnType<typeof actor>>|undefined;
  try{
   finance=await actor(f.identity,'finance',[]);await enroll(finance.browser,finance.password);
   await f.identity.sql`update app.role_grant set permissions=${['finance.refunds.read','finance.refunds.write']},revision=revision+1 where user_id=${finance.id}`;

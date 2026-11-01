@@ -415,7 +415,7 @@ const PREVIEW_METRICS: Record<CanonicalWorkspace, DashboardMetric[]> = {
 			currency: "IDR",
 			financial_basis: "actual",
 			definition:
-				"Pendapatan bersih barang dagangan Rp99.000/unit setelah pengembalian dana selesai.",
+				"Pendapatan bersih barang dagangan setelah pengembalian dana selesai.",
 			as_of: "2026-10-21T12:00:00.000Z",
 			queue_filter_token: "preview-token-owner-revenue",
 			filter_version: 1,

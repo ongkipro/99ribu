@@ -43,7 +43,7 @@ test("seven real roles and guest: public handler scopes, MFA gate and safe field
         assert.equal(new Set(data.map((row: {id: string})=>row.id)).size,data.length);
         assert.ok(data.some((row: {id: string}) => row.id === malang));
         assert.equal(data.some((row: {id: string}) => row.id === pontianak), role === "owner");
-        assert.deepEqual(Object.keys(data[0]).sort(), ["active", "admin_no", "city", "id", "name", "timezone"]);
+        assert.deepEqual(Object.keys(data[0]).sort(), ["active", "admin_no", "city", "district", "id", "name", "pickup_ready", "province", "shipping_area", "timezone"]);
         assert.equal((await user.browser.access("/admin/warehouses?limit=1&limit=2")).status, 400);
       } else assert.equal(response.status, 403, role);
       const principal = await getPrincipal(user.browser.request("/api/v1/me"), identity);

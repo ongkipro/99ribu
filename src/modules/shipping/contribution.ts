@@ -61,7 +61,7 @@ export async function checkShippingBenefit(tx:TransactionSql,plan:ShippingPlan,a
       }
       sources.push({line_id:line.line_id,publication_id:publication.publication_id,policy_version_id:snapshot.policy_version_id,assumption_version_id:offer.assumption_version_id,
         component_cost_version_ids:offer.components.map((c)=>c.cost_version_id),allocated_subsidy:Number(subsidy),exception_applied:exceptionApplied,
-        ...(rate?{affiliate_id:rate.affiliate_id,rate_version_id:rate.rate_version_id,commission_bps:rate.basis_points,commission_idr:rate.commission_idr}:{})});
+        ...(rate?{affiliate_id:rate.affiliate_id,rate_version_id:rate.rate_version_id,commission_bps:rate.basis_points,commission_idr:offer.commission_idr}:{})});
     }
   }
   return {eligible:true,sources};

@@ -8,7 +8,7 @@ export const dynamic='force-dynamic';
 export function generateMetadata(){return publicMetadata(siteConfig(),{path:'/promo',title:promoTitle,description:promoDescription});}
 const date=new Intl.DateTimeFormat('id-ID',{day:'numeric',month:'long',year:'numeric',timeZone:'Asia/Jakarta'});
 const methods=(list:string[])=>list.map(m=>m==='cod'?'COD':'bayar di muka').join(' atau ');
-// Prices are fixed at Rp99.000, so "promo" means only what really exists: active shipping
+// Prices are set per offer (DEC-025, at most Rp99.000) and never discounted, so "promo" means only what really exists: active shipping
 // promotions as stored, and the published mixed bundles. With no active shipping promotion the
 // bundles come first, so the page does not open on an empty state.
 export default async function Promo(){
@@ -19,7 +19,7 @@ export default async function Promo(){
    :<p>Belum ada promo ongkir aktif.</p>}
   </section>;
  const mixed=<section className="promo-section" aria-labelledby="promo-bundles"><h2 id="promo-bundles">Paket campuran</h2>
-   {bundles.length?<><p>Beberapa barang berbeda dalam satu pilihan lengkap, tetap Rp99.000.</p><ProductGrid products={bundles}/></>:<p>Belum ada paket campuran yang terbit.</p>}
+   {bundles.length?<><p>Beberapa barang berbeda dalam satu pilihan lengkap.</p><ProductGrid products={bundles}/></>:<p>Belum ada paket campuran yang terbit.</p>}
   </section>;
  return <Shell active="promo"><main id="main" className="wrap promo-main"><h1>Promo</h1>
   {promotions.length?<>{shipping}{mixed}</>:<>{mixed}{shipping}</>}

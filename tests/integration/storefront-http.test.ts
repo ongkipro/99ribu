@@ -34,10 +34,12 @@ async function ownHome(page:Page){
  // Same-origin catalog media only, directly or through the Next image optimizer (SEO name <title-slug>-<12 hex>, or the legacy sha256 name).
  for(const raw of await page.locator('img.product-image').evaluateAll(images=>images.map(i=>i.getAttribute('src')))){const src=raw?.startsWith('/_next/image?')?new URL(raw,origin).searchParams.get('url'):raw;assert.match(src??'',/^\/(?:media\/catalog\/(?:[a-z0-9-]+-[0-9a-f]{12}|[0-9a-f]{64})\.webp|fixtures\/)/);}
 }
-async function capture(page:Page,file:string){
+async function capture(page:Page,file:string,dock=true){
  await page.evaluate(()=>document.fonts.ready);const viewport=page.viewportSize();assert.ok(viewport);
- // Every storefront page, the PDP included (owner call 2026-10-24), carries the phone dock.
- await expect(page.locator('.shopping-tabs')).toHaveCount(1);if(viewport.width<=700)await expect(page.locator('.shopping-tabs')).toBeInViewport({ratio:1});else await expect(page.locator('.shopping-tabs')).toBeHidden();
+ // Every storefront page, the PDP included (owner call 2026-10-24), carries the phone dock; the focused sign-in frame
+ // (2026-10-30) deliberately has no store chrome.
+ if(!dock)await expect(page.locator('.shopping-tabs')).toHaveCount(0);
+ else{await expect(page.locator('.shopping-tabs')).toHaveCount(1);if(viewport.width<=700)await expect(page.locator('.shopping-tabs')).toBeInViewport({ratio:1});else await expect(page.locator('.shopping-tabs')).toBeHidden();}
  const fullPage=await page.evaluate(()=>document.documentElement.scrollHeight>innerHeight);
  await page.screenshot({path:`${output}/${file}`,fullPage});
 }
@@ -51,7 +53,7 @@ async function start(width=390,javaScriptEnabled=true){
 }
 for(const width of [320,390,768,1440]) test(`built storefront home and category reflow at ${width}px with a single mobile bottom region`,async()=>{
  const f=await start(width);try{
-  assert.equal((await f.page.goto(origin))?.status(),200);await expect(f.page.getByRole('heading',{level:1,name:'Semua Rp99.000'})).toBeVisible();await ownHome(f.page);
+  assert.equal((await f.page.goto(origin))?.status(),200);await expect(f.page.getByRole('heading',{level:1,name:'Maksimal Rp99.000'})).toBeVisible();await ownHome(f.page);
   await f.page.evaluate(()=>document.fonts.ready);// The Latin subset face renders the page; the full face (other scripts) stays unloaded by design, so fonts.check() over both faces would be false.
   assert.equal(await f.page.evaluate(()=>[...document.fonts].some(face=>face.family.replaceAll('"','')==='Inter'&&face.status==='loaded'&&face.unicodeRange.startsWith('U+0-FF,'))),true);
   await expect.poll(()=>f.page.evaluate(()=>document.documentElement.scrollWidth-document.documentElement.clientWidth),{message:'Page horizontal overflow delta'}).toBeLessThanOrEqual(1);
@@ -65,7 +67,8 @@ for(const width of [320,390,768,1440]) test(`built storefront home and category 
   await f.page.goto(`${origin}/cari?q=Contoh&offer_kind=multipack&category_id=${ownCategory}`);await expect(f.page.locator('.product')).toHaveCount(1);await expect(f.page.getByRole('group',{name:'Filter dan urutan'}).getByRole('link',{name:/^Hapus filter Isi pilihan: /})).toBeVisible();await capture(f.page,`search-${width}.png`);
   if([390,1440].includes(width)){await f.page.goto(`${origin}/kategori`);await expect(f.page.getByRole('heading',{level:1,name:'Kategori produk'})).toBeVisible();assert.ok(await f.page.locator('.category-grid li').count()>=await f.page.getByRole('navigation',{name:'Kategori produk'}).getByRole('link').count()-1,'/kategori lists every department; the pill row shows the top five plus Semua kategori');await capture(f.page,`departments-${width}.png`);await f.page.goto(`${origin}/bantuan#returns`);await expect(f.page.getByRole('heading',{name:'Pengembalian',exact:true})).toBeVisible();await capture(f.page,`help-${width}.png`);
    await f.page.goto(origin);const productHref=await f.page.locator('.product-link').first().getAttribute('href');assert.ok(productHref?.startsWith('/produk/'));await f.page.goto(`${origin}${productHref}`);await f.page.locator('summary',{hasText:'Isi yang diterima'}).click();await expect(f.page.locator('.offer-detail')).toBeVisible();await capture(f.page,`product-preview-${width}.png`);if(width===390){await f.page.locator('.detail-price').scrollIntoViewIfNeeded();await expect(f.page.locator('.detail-price')).toBeInViewport();await f.page.screenshot({path:`${output}/product-preview-detail-390.png`});}
-   for(const [route,heading,file] of [['/keranjang','Keranjang masih kosong','cart-empty'],['/akun','Akun','account-pending']] as const){await f.page.goto(origin+route);await expect(f.page.getByRole('heading',{level:1,name:heading})).toBeVisible();await capture(f.page,`${file}-${width}.png`);}
+   for(const [route,heading,file] of [['/keranjang','Keranjang masih kosong','cart-empty'],['/akun','Masuk ke 99ribu','account-pending']] as const){// An anonymous /akun shows the focused sign-in (4102bfe).
+   await f.page.goto(origin+route);await expect(f.page.getByRole('heading',{level:1,name:heading})).toBeVisible();await capture(f.page,`${file}-${width}.png`,route!=='/akun');}
    assert.equal((await f.page.goto(`${origin}/kategori/not-a-real-department`))?.status(),404);await expect(f.page.getByRole('heading',{name:'Halaman belum tersedia'})).toBeVisible();await capture(f.page,`not-found-${width}.png`);}
   assert.deepEqual(f.errors,[]);
  }finally{await f.browser.close();}

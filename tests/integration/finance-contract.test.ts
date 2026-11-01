@@ -8,9 +8,10 @@ import {handleFinance} from "../../src/modules/finance/routes.ts";
 import {handleInventory} from "../../src/modules/inventory/routes.ts";
 import {actor,BrowserSession,cleanup,enroll} from "../contract/access-fixture.ts";
 import {type Exchange,validateExchanges} from "../contract/openapi-probe.ts";
+import {withdrawOwn} from "./withdraw-own.ts";
 
 test('seven finance/publication operations validate actual MFA cookie requests, safe DTOs, denial and committed replay against OpenAPI',async()=>{
-  const identity=createLocalAuth('test');const users:Awaited<ReturnType<typeof actor>>[]=[];const samples:Exchange[]=[];let warehouseId='';
+  const identity=createLocalAuth('test');const users:Awaited<ReturnType<typeof actor>>[]=[];const samples:Exchange[]=[];let warehouseId='';let own:{owner:{browser:BrowserSession};productId:string}|undefined;
   const req=(user:{browser:BrowserSession},path:string,body?:Record<string,unknown>,key:string=randomUUID())=>{
     const request=user.browser.request(`/api/v1/admin${path}`,body);request.headers.set('idempotency-key',key);return request;
   };
@@ -41,7 +42,7 @@ test('seven finance/publication operations validate actual MFA cookie requests, 
     const category=await catalog('/categories',{name:'Synthetic contract category',slug:`synthetic-${randomUUID()}`,parent_id:null,attribute_definitions:[]});
     const product=await catalog('/products',{name:'Synthetic contract offer',description:'Synthetic complete contract description',category_id:category.id,
       images:[{url:'https://example.invalid/synthetic.webp',alt:'Synthetic fixture',width:100,height:100}],variants:[{sku:`FC-${randomUUID()}`.toUpperCase(),label:'Synthetic unit',attributes:[],offer_kind:'unit',
-        weight_grams:100,length_mm:100,width_mm:100,height_mm:100,default_warehouse_id:wh.id,contents:[{stock_item_id:stock.id,name:stock.name,quantity:1}]}]});
+        weight_grams:100,length_mm:100,width_mm:100,height_mm:100,default_warehouse_id:wh.id,contents:[{stock_item_id:stock.id,name:stock.name,quantity:1}]}]});own={owner,productId:product.id};
     assert.equal((await handleInventory(req(owner,'/inventory/movements',{warehouse_id:wh.id,stock_item_id:stock.id,kind:'receive',quantity:5,expected_version:0,reason:'Synthetic contract stock'}),identity)).status,201);
     const costPath=`/stock-items/${stock.id}/cost-versions`;const assumptionPath=`/offers/${product.variants[0].id}/cost-assumption-versions`;const publicationPath=`/products/${product.id}/publications`;
     const body={unit_cost:null,expected_version:0,effective_from:null,source:'Synthetic supplier reference',reason:'Synthetic unknown HPP'};
@@ -72,5 +73,5 @@ test('seven finance/publication operations validate actual MFA cookie requests, 
     await observe(req(finance,costPath),403,true);await observe(req(finance,publicationPath),403,true);
     validateExchanges(samples.filter((s)=>!s.url.includes('/publications')),'finance');
     validateExchanges(samples.filter((s)=>s.url.includes('/publications')),'publication');
-  } finally {await cleanup(identity,users);if(warehouseId) await identity.sql`update app.warehouse set active=false where id=${warehouseId}`;await identity.sql.end();}
+  } finally {try{if(own)await withdrawOwn(identity,own.owner,own.productId);}finally{await cleanup(identity,users);if(warehouseId) await identity.sql`update app.warehouse set active=false where id=${warehouseId}`;await identity.sql.end();}}
 });

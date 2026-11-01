@@ -10,7 +10,7 @@ Read root `STATUS.md`, then the selected S01+ slice in the sole root `TASKS.md`,
 
 ## Implementation scope
 
-Build the complete authorized localhost application with real PostgreSQL, migrations, authentication, domain transactions and worker persistence. Simulate external payment, shipping, advertising, notification and transfer effects at adapters; do not replace business invariants with a second fake implementation. Preserve fixed-price complete offers, physical component stock, immutable money postings, scoped access and separate payment/collection/delivery/printing states.
+Build the complete authorized localhost application with real PostgreSQL, migrations, authentication, domain transactions and worker persistence. Simulate external payment, shipping, advertising, notification and transfer effects at adapters; do not replace business invariants with a second fake implementation. Preserve complete offers with their own whole-rupiah price at most IDR 99,000 frozen into every cart, order and money derivation (DEC-025), physical component stock, immutable money postings, scoped access and separate payment/collection/delivery/printing states.
 
 Use consistent functional SVG icons; never use emoji/emoticons as interface icons or decoration. Write concrete, concise Indonesian UI copy without generic AI filler, exaggerated claims or ornamental headings. Keep selected Inter/purple/yellow and mobile composition; UI completion requires rendered browser evidence and applicable independent design review. Physical carrier/label approval and live-provider acceptance remain separate gates.
 

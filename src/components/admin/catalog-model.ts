@@ -57,7 +57,8 @@ export type ProductSummary = {
 	offer_kinds: OfferKind[];
 	offer_count: number;
 	stock_ready_offers: number;
-	price_idr: number;
+	price_min_idr: number;
+	price_max_idr: number;
 	state: CatalogStatus;
 	latest_publication_version: number;
 	published_revision: number | null;
@@ -98,7 +99,10 @@ export type PublicationState = {
 };
 export type Page<T> = { data: T[]; pagination: { next_cursor: string | null } };
 
-export const PRICE_IDR = 99000;
+// DEC-025: every offer has its own price, at most this ceiling.
+export const PRICE_CEILING_IDR = 99000;
+export const priceRange = (min: number, max: number, format: (n: number) => string) =>
+	min === max ? format(min) : `${format(min)}–${format(max)}`;
 
 /**
  * What the console may show for the catalog. Mirrors the server checks in

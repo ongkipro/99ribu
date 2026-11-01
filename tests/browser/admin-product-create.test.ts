@@ -95,6 +95,7 @@ test("S-P1 a refused product step keeps the stock items, locks name and labels, 
 		await page.locator("#variant-label-0").fill("Hitam");
 		await page.locator("#variant-label-1").fill("Putih");
 		for (const i of [0, 1]) {
+			await page.locator(`#variant-price-${i}`).fill("79000");
 			await page.locator(`#variant-weight-${i}`).fill("700");
 			await page.locator(`#variant-warehouse-${i}`).selectOption("w1");
 		}
@@ -153,6 +154,7 @@ test("S-P1 a lost product response locks the product fields and retries with the
 		await expect(page.getByTestId("product-photos").locator("li")).toHaveCount(1);
 		await page.getByTestId("product-name").fill("Gelas Kaca");
 		await page.getByTestId("product-category").selectOption("c1");
+		await page.locator("#variant-price-0").fill("79000");
 		await page.locator("#variant-weight-0").fill("500");
 		await page.locator("#variant-warehouse-0").selectOption("w1");
 		await page.getByTestId("product-create-submit").click();
@@ -202,6 +204,7 @@ test("S-P1 a refused HPP after the product exists links to the draft and can be 
 		await expect(page.getByTestId("product-photos").locator("li")).toHaveCount(1);
 		await page.getByTestId("product-name").fill("Talenan Kayu");
 		await page.getByTestId("product-category").selectOption("c1");
+		await page.locator("#variant-price-0").fill("79000");
 		await page.locator("#variant-weight-0").fill("600");
 		await page.locator("#variant-warehouse-0").selectOption("w1");
 		await page.locator("#variant-hpp-0").fill("45000");

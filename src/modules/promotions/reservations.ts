@@ -94,7 +94,7 @@ export async function reservePromotions(tx:TransactionSql,value:{key:string;cust
   if((await tx`select id from app.warehouse where id in ${tx(originIds)} and active`).length!==originIds.length) throw new AccessError(404,'NOT_FOUND');
   const definitions=await tx`select wanted.*,v.price,v.retired from jsonb_to_recordset(${JSON.stringify(lines)}::jsonb)
     as wanted(line_id text,product_id uuid,product_revision int,offer_id uuid,quantity int) left join app.offer_revision v on v.product_id=wanted.product_id and v.revision=wanted.product_revision and v.offer_id=wanted.offer_id`;
-  if(definitions.length!==lines.length||definitions.some((d)=>d.price!==99000||d.retired)) throw new AccessError(404,'NOT_FOUND');
+  if(definitions.length!==lines.length||definitions.some((d)=>d.price===null||d.retired)) throw new AccessError(404,'NOT_FOUND');
   const merchandise=safeMoney(definitions.reduce((sum,d)=>sum+BigInt(d.price)*BigInt(d.quantity),0n));
   const shipping=safeMoney(shipments.reduce((sum,s)=>sum+BigInt(s.shipping_fee),0n));
   const [wall]=await tx`select clock_timestamp()::text as now`;const now=namespace===null?wall.now:clock.now.toISOString();

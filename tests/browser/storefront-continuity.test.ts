@@ -30,6 +30,8 @@ import {
 } from "../../src/modules/storefront/catalog.ts";
 import { rupiah } from "../../src/modules/storefront/format.ts";
 import { actor, cleanup, enroll } from "../contract/access-fixture.ts";
+// Chromium's restricted ports above 1024 (net/base/port_util.cc kRestrictedPorts).
+const CHROMIUM_UNSAFE_PORTS = new Set([1719, 1720, 1723, 2049, 3659, 4045, 4190, 5060, 5061, 6000, 6566, 6665, 6666, 6667, 6668, 6669, 6679, 6697, 10080]);
 import { CommerceClient } from "../integration/checkout-fixture.ts";
 
 // globals.css only @imports the ordered files under src/app/styles; inline them in that order.
@@ -391,9 +393,13 @@ test("S61 browser: responsive mobile/short-IME/desktop shell, category-preservin
 			}
 		});
 
-		await new Promise<void>((resolve) =>
-			server?.listen(0, "127.0.0.1", () => resolve()),
-		);
+		// An OS-assigned port can land on one Chromium refuses (net::ERR_UNSAFE_PORT, e.g. 3659); listen again until it is allowed.
+		for (;;) {
+			await new Promise<void>((resolve) => server?.listen(0, "127.0.0.1", () => resolve()));
+			const bound = server.address();
+			if (bound && typeof bound === "object" && !CHROMIUM_UNSAFE_PORTS.has(bound.port)) break;
+			await new Promise<void>((resolve) => server?.close(() => resolve()));
+		}
 		const address = server.address();
 		assert.ok(address && typeof address === "object");
 		const baseUrl = `http://127.0.0.1:${address.port}`;

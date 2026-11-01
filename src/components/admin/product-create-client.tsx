@@ -13,6 +13,7 @@ import { FormField, nativeSelectClass } from "./form";
 import { sentText } from "./ops-api";
 import { AdminPage, DetailSection, PageHeader, StickyActions } from "./page-blocks";
 import { ErrorState, LoadingState } from "./states";
+import { rupiah } from "@/modules/storefront/format";
 
 // S-P1 "Tambah Produk": a new product as an inactive draft through the existing catalog APIs, in order: one stock item
 // per variant (POST stock-items), the product with one unit offer per variant (POST products), then, for a caller with
@@ -27,7 +28,7 @@ import { ErrorState, LoadingState } from "./states";
 type Warehouse = { id: string; name: string; city: string; district: string | null };
 type Photo = { url: string; width: number; height: number; preview: string };
 // `n`: the variant's SKU suffix, assigned once (never from its list position).
-type Variant = { key: string; n: number; label: string; weight: string; warehouse: string; hpp: string };
+type Variant = { key: string; n: number; label: string; price: string; weight: string; warehouse: string; hpp: string };
 type Stock = { id: string; sku: string; name: string };
 type Created = { stock: Record<string, Stock>; product?: { id: string; variants: { id: string; sku: string }[] }; costs: Set<string> };
 
@@ -37,7 +38,7 @@ const ASSUMPTIONS = { packaging_idr: 1000, provider_fee_idr: 1000, subsidy_idr: 
 // lazy: no carton dimensions on the form; a cube whose volumetric weight equals the actual weight, as the import does.
 const cube = (grams: number) => Math.min(1000, Math.max(50, Math.ceil(Math.cbrt(grams * 6000))));
 const skuBase = () => `P${new Date().toISOString().slice(2, 10).replaceAll("-", "")}${crypto.randomUUID().replaceAll("-", "").slice(0, 6).toUpperCase()}`;
-const newVariant = (n: number, label = "", warehouse = ""): Variant => ({ key: crypto.randomUUID(), n, label, weight: "", warehouse, hpp: "" });
+const newVariant = (n: number, label = "", warehouse = ""): Variant => ({ key: crypto.randomUUID(), n, label, price: "", weight: "", warehouse, hpp: "" });
 // Cut by code point so a name never ends in half a surrogate pair.
 const clip = (value: string, max: number) => Array.from(value).slice(0, max).join("");
 
@@ -161,7 +162,10 @@ export function ProductCreateClient({ costsWrite }: { costsWrite: boolean }) {
 			labels.add(v.label.trim().toLowerCase());
 			if (!/^\d{1,6}$/.test(v.weight) || Number(v.weight) < 1) next[`weight-${i}`] = "Berat dalam gram, minimal 1.";
 			if (!v.warehouse) next[`warehouse-${i}`] = "Pilih gudang asal.";
-			if (costsWrite && v.hpp && (!/^\d{1,6}$/.test(v.hpp) || Number(v.hpp) >= 99000)) next[`hpp-${i}`] = "HPP dalam rupiah, di bawah Rp99.000.";
+			// DEC-025: each variant has its own price, whole rupiah up to Rp99.000; the HPP stays below it.
+			const price = /^\d{1,5}$/.test(v.price) && Number(v.price) >= 1 && Number(v.price) <= 99000 ? Number(v.price) : null;
+			if (price === null) next[`price-${i}`] = "Harga dalam rupiah, Rp1 sampai Rp99.000.";
+			if (costsWrite && v.hpp && (!/^\d{1,6}$/.test(v.hpp) || Number(v.hpp) >= (price ?? 99000))) next[`hpp-${i}`] = price === null ? "HPP dalam rupiah, di bawah harga varian." : `HPP dalam rupiah, di bawah harga varian (${rupiah(price)}).`;
 		});
 		setErrors(next);
 		return Object.keys(next).length === 0;
@@ -193,7 +197,7 @@ export function ProductCreateClient({ costsWrite }: { costsWrite: boolean }) {
 					variants: variants.map((v) => {
 						const grams = Number(v.weight), side = cube(grams), stock = created.current.stock[v.key];
 						return {
-							sku: `${stock.sku}_OFFER`, label: v.label.trim(), attributes: [], offer_kind: "unit", weight_grams: grams,
+							sku: `${stock.sku}_OFFER`, label: v.label.trim(), attributes: [], price: Number(v.price), offer_kind: "unit", weight_grams: grams,
 							length_mm: side, width_mm: side, height_mm: side, default_warehouse_id: v.warehouse,
 							contents: [{ stock_item_id: stock.id, name: stock.name, quantity: 1 }],
 						};
@@ -302,13 +306,17 @@ export function ProductCreateClient({ costsWrite }: { costsWrite: boolean }) {
 					{(photoError || fieldError("photos")) && <p id="product-photo-error" className="text-sm text-destructive" role="alert">{photoError ?? fieldError("photos")}</p>}
 				</DetailSection>
 
-				<DetailSection id="product-variants-section" title="Varian" description="Satu baris untuk tiap pilihan yang dijual (warna, ukuran). Semua varian dijual Rp99.000.">
+				<DetailSection id="product-variants-section" title="Varian" description="Satu baris untuk tiap pilihan yang dijual (warna, ukuran). Setiap varian punya harga sendiri, maksimal Rp99.000.">
 					<ol className="flex flex-col gap-4" data-testid="product-variants">
 						{variants.map((v, index) => (
-							<li key={v.key} className="grid gap-3 rounded-md border p-3 md:grid-cols-[minmax(0,1.4fr)_minmax(0,0.8fr)_minmax(0,1.6fr)_minmax(0,0.9fr)_auto] md:items-start">
+							<li key={v.key} className="grid gap-3 rounded-md border p-3 md:grid-cols-[minmax(0,1.4fr)_minmax(0,0.8fr)_minmax(0,0.8fr)_minmax(0,1.6fr)_minmax(0,0.9fr)_auto] md:items-start">
 								<FormField id={`variant-label-${index}`} label="Nama varian" invalid={Boolean(fieldError(`label-${index}`))} hint={fieldError(`label-${index}`)}>
 									<Input id={`variant-label-${index}`} value={v.label} maxLength={200} disabled={locked || sent(`stock:${v.key}`)} placeholder="Contoh: Hitam / L"
 										onChange={(e) => setVariant(index, { label: e.target.value })} aria-invalid={Boolean(fieldError(`label-${index}`))} aria-describedby={`variant-label-${index}-hint`} />
+								</FormField>
+								<FormField id={`variant-price-${index}`} label="Harga (Rp)" invalid={Boolean(fieldError(`price-${index}`))} hint={fieldError(`price-${index}`)}>
+									<Input id={`variant-price-${index}`} inputMode="numeric" value={v.price} disabled={locked} placeholder="Maks. 99000"
+										onChange={(e) => setVariant(index, { price: e.target.value.replace(/\D/g, "") })} aria-invalid={Boolean(fieldError(`price-${index}`))} aria-describedby={`variant-price-${index}-hint`} />
 								</FormField>
 								<FormField id={`variant-weight-${index}`} label="Berat (gram)" invalid={Boolean(fieldError(`weight-${index}`))} hint={fieldError(`weight-${index}`)}>
 									<Input id={`variant-weight-${index}`} inputMode="numeric" value={v.weight} disabled={locked}

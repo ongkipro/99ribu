@@ -4,7 +4,7 @@ import type { LocalAuth } from "../access/auth.ts";
 import { AccessError, type Principal } from "../access/policy.ts";
 import { array, attributes, definitions, id, image, integer, invalid, object, offerInput, pageInput, sku, text } from "./validation.ts";
 
-type Definition = ReturnType<typeof offerInput> & { id: string; catalog_id: string; sku: string; retired: boolean };
+type Definition = Omit<ReturnType<typeof offerInput>, "price"> & { id: string; catalog_id: string; sku: string; retired: boolean; price: number };
 type Revision = { id: string; catalog_id: string; slug: string; version: number; name: string; category_id: string;
   description: string; images: ReturnType<typeof image>[]; facts: ReturnType<typeof attributes>; variants: Definition[] };
 // owner: Super Admin authority (exception proofs). company: company-wide product
@@ -50,7 +50,7 @@ export async function readCatalogRevision(sql: Sql | TransactionSql, productId: 
   const [row] = await sql`select p.id,p.catalog_id,p.slug,r.revision,r.name,r.description,r.category_id,r.images,r.facts
     from app.product p join app.product_revision r on r.product_id=p.id and r.revision=coalesce(${version}::int,p.revision) where p.id=${productId}`;
   if (!row) throw new AccessError(404, "NOT_FOUND");
-  const offers = await sql`select o.id,o.catalog_id,o.sku,v.label,v.attributes,v.image,v.kind,v.retired,
+  const offers = await sql`select o.id,o.catalog_id,o.sku,v.label,v.attributes,v.image,v.kind,v.retired,v.price,
     v.weight_grams,v.length_mm,v.width_mm,v.height_mm,v.default_warehouse_id from app.offer_revision v
     join app.offer o on o.id=v.offer_id where v.product_id=${productId} and v.revision=${row.revision} order by o.id`;
   const contents = await sql`select offer_id,stock_item_id,name,quantity from app.offer_component
@@ -58,7 +58,7 @@ export async function readCatalogRevision(sql: Sql | TransactionSql, productId: 
   return { id: row.id, catalog_id: row.catalog_id, slug: row.slug, version: row.revision, name: row.name,
     description: row.description, category_id: row.category_id, images: row.images, facts: row.facts,
     variants: offers.map((v) => ({ id: v.id, catalog_id: v.catalog_id, sku: v.sku, label: v.label, attributes: v.attributes,
-      image: v.image, retired: v.retired, offer_kind: v.kind, weight_grams: v.weight_grams,
+      image: v.image, retired: v.retired, price: Number(v.price), offer_kind: v.kind, weight_grams: v.weight_grams,
       length_mm: v.length_mm, width_mm: v.width_mm, height_mm: v.height_mm, default_warehouse_id: v.default_warehouse_id,
       contents: contents.filter((c) => c.offer_id === v.id).map((c) => ({ stock_item_id: c.stock_item_id, name: c.name, quantity: c.quantity })) })) };
 }
@@ -67,7 +67,7 @@ function project(revision: Revision) {
     name: revision.name, category_id: revision.category_id, description: revision.description, images: revision.images,
     facts: revision.facts, status: "draft", variants: revision.variants.filter((v) => !v.retired).sort((a, b) => a.id.localeCompare(b.id)).map((v) => ({
       id: v.id, catalog_id: v.catalog_id, sku: v.sku, label: v.label, attributes: v.attributes,
-      price: 99000, currency: "IDR", availability: "unavailable", image: v.image ?? revision.images[0] ?? null,
+      price: v.price, currency: "IDR", availability: "unavailable", image: v.image ?? revision.images[0] ?? null,
       offer_kind: v.offer_kind, contents: v.contents, weight_grams: v.weight_grams, length_mm: v.length_mm,
       width_mm: v.width_mm, height_mm: v.height_mm, default_warehouse_id: v.default_warehouse_id })) };
 }
@@ -123,7 +123,7 @@ export async function createStockItem(request: Request, identity: LocalAuth, pri
   });
 }
 function newOffer(input: ReturnType<typeof offerInput>): Definition {
-  return { ...input, sku: sku(input.sku), id: randomUUID(), catalog_id: `v_${randomUUID()}`, retired: false };
+  return { ...input, price: input.price ?? 99000, sku: sku(input.sku), id: randomUUID(), catalog_id: `v_${randomUUID()}`, retired: false };
 }
 async function saveRevision(tx: TransactionSql, state: Revision, access: Authority, actorId: string, reason: string) {
   const active = state.variants.filter((v) => !v.retired);
@@ -141,9 +141,9 @@ async function saveRevision(tx: TransactionSql, state: Revision, access: Authori
     values (${state.id},${state.version},${state.name},${state.description},${state.category_id},${JSON.stringify(state.images)}::jsonb,${JSON.stringify(state.facts)}::jsonb,${actorId},${reason})`;
   for (const v of state.variants) {
     await tx`insert into app.offer (id,product_id,catalog_id,sku) values (${v.id},${state.id},${v.catalog_id},${v.sku}) on conflict (id) do nothing`;
-    await tx`insert into app.offer_revision (product_id,revision,offer_id,label,attributes,image,kind,retired,weight_grams,length_mm,width_mm,height_mm,default_warehouse_id)
+    await tx`insert into app.offer_revision (product_id,revision,offer_id,label,attributes,image,kind,retired,price,weight_grams,length_mm,width_mm,height_mm,default_warehouse_id)
       values (${state.id},${state.version},${v.id},${v.label},${JSON.stringify(v.attributes)}::jsonb,${v.image ? JSON.stringify(v.image) : null}::jsonb,
-        ${v.offer_kind},${v.retired},${v.weight_grams},${v.length_mm},${v.width_mm},${v.height_mm},${v.default_warehouse_id})`;
+        ${v.offer_kind},${v.retired},${v.price},${v.weight_grams},${v.length_mm},${v.width_mm},${v.height_mm},${v.default_warehouse_id})`;
     for (const c of v.contents) await tx`insert into app.offer_component (product_id,revision,offer_id,stock_item_id,name,quantity)
       values (${state.id},${state.version},${v.id},${c.stock_item_id},${c.name},${c.quantity})`;
   }

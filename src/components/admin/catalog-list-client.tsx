@@ -19,7 +19,8 @@ import {
 	categoryPath,
 	type catalogAccess,
 	OFFER_KIND_LABELS,
-	PRICE_IDR,
+	PRICE_CEILING_IDR,
+	priceRange,
 	type Page,
 	type ProductSummary,
 	readAll,
@@ -212,11 +213,6 @@ export function CatalogListClient({
 		);
 	};
 
-	// Every offer is fixed at PRICE_IDR; the header states it, so a column of
-	// identical prices is noise. Shown only if the API ever returns another price.
-	const uniformPrice =
-		load.state !== "ready" || load.rows.every((r) => r.price_idr === PRICE_IDR);
-
 	const status = (r: ProductSummary) => (
 		<div className="flex min-w-0 flex-col items-start gap-0.5">
 			<StatusBadge tone={STATUS_TONE[r.state]}>{STATUS_LABELS[r.state]}</StatusBadge>
@@ -242,8 +238,8 @@ export function CatalogListClient({
 				description={
 					<>
 						{access.company ? "Semua produk" : "Produk dari gudang Anda"},
-						termasuk draf dan yang ditarik dari toko. Harga{" "}
-						{rupiah(PRICE_IDR)} per varian.
+						termasuk draf dan yang ditarik dari toko. Harga per varian maksimal{" "}
+						{rupiah(PRICE_CEILING_IDR)}.
 						{access.edit
 							? " Produk bisa terbit setelah stok lengkap, HPP, dan asumsi biaya tercatat."
 							: access.costs
@@ -432,16 +428,12 @@ export function CatalogListClient({
 							cell: (r) => r.category_path ?? "Tanpa kategori",
 						},
 						{ id: "kinds", header: "Jenis varian", hideBelow: "6xl", cell: kinds },
-						...(uniformPrice
-							? []
-							: [
-									{
-										id: "price",
-										header: "Harga",
-										className: "text-right tabular-nums",
-										cell: (r: ProductSummary) => rupiah(r.price_idr),
-									},
-								]),
+						{
+							id: "price",
+							header: "Harga",
+							className: "text-right tabular-nums",
+							cell: (r: ProductSummary) => priceRange(r.price_min_idr, r.price_max_idr, rupiah),
+						},
 						{ id: "stock", header: access.stock ? "Stok" : "Kesiapan stok", cell: stock },
 						{
 							id: "status",
