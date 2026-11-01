@@ -1,5 +1,14 @@
 # Build log — Serba 99ribu
 
+## 2026-11-01 — Cart checkout button no longer blinks during a quantity save (branch `dec-025-min-contribution`)
+
+Session: Claude Opus 5.5 via Claude Code. Owner: "kedipnya di button checkout hilang dan muncul proses, … perbaiki biar tidak jelek".
+
+- **Cause:** `CartProgression` replaced "Lanjut ke checkout" with the advisory "Periksa hasil perubahan keranjang sebelum checkout." while any cart action was pending, so every auto-save blinked the button and the summary jumped 201→153→201px.
+- **Fix (`cart-forms.tsx`):** the button stays through a save. A press while a save is pending or still debounced (read from refs at the press) sends the waiting saves at once, shows "Menyimpan…" on the button, and opens checkout after the cart settles on a successful new state; an error, a blocked/unknown cart or a cart no longer checkout-ready cancels and stays on the cart. Modifier/middle clicks are left to the browser. The advisory remains for recovering, bootstrap, unknown and blocked carts. Ceiling (`// lazy:`): a save re-armed behind another and then found unchanged leaves the button busy; a second press goes straight to checkout.
+- **Review:** separate agent (Claude Opus 5.5 general-purpose): APPROVE with three recommendations (cancel when not checkout-ready, leave modifier clicks, visible waiting label), all applied.
+- **Checks:** typecheck PASS; unit 179/179; `test:browser -- --case=T-33` 36/36 (new: the button never leaves the summary during a save and keeps its box; typing 3 then pressing checkout lands on `/checkout` with quantity 3); `--case=PR-17` 30/30; `--case=T-31` 36/36. Built web at 390/1440: summary stays 201px with the button at the same position through a save; press during debounce → POST /keranjang, then /checkout, cart quantity 3. Local DB restored from `/data/99ribu-local/backups/pre-ux-review-20261101.dump` afterwards (453 publication heads, 14 categories).
+
 ## 2026-11-01 — Storefront cleanup: add-to-cart text, auto-saving cart quantities, PDP footer shift (branch `dec-025-min-contribution`, not committed)
 
 Session: Claude Opus 5.5 via Claude Code. Owner: "penambahan add to cart memicu text di atas button itu bersihkan saja"; then "cart page, tidak perlu membawa isi produk, dan button update, buat auto aja".

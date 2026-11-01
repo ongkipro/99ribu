@@ -1,7 +1,8 @@
 'use client';
 
-import {Component,createContext,startTransition,useActionState,useContext,useEffect,useId,useRef,useState,useSyncExternalStore} from 'react';
+import {Component,createContext,startTransition,useActionState,useCallback,useContext,useEffect,useId,useRef,useState,useSyncExternalStore} from 'react';
 import Link from 'next/link';
+import {useRouter} from 'next/navigation';
 import {useFormStatus} from 'react-dom';
 import {changeCart,restartShopping} from '../../app/(storefront)/keranjang/actions';
 import type {CartIntent,CartMutationState} from '../../modules/storefront/cart';
@@ -9,7 +10,7 @@ import {Icon} from './ui/icon';
 
 const formData=(intent:CartIntent)=>{const data=new FormData();for(const [key,value] of Object.entries(intent))data.set(key,value);return data;};
 const target=(intent:CartIntent)=>`${intent.kind}:${intent.line||intent.variant}`;
-type Mutations={state:CartMutationState;action:(data:FormData)=>void;pending:boolean;recovering:boolean;live:boolean;capture:(intent:CartIntent)=>void;feedbackId:string;buyNow:{current:string|null};lastForm:{current:HTMLFormElement|null}};
+type Mutations={state:CartMutationState;action:(data:FormData)=>void;pending:boolean;recovering:boolean;live:boolean;scheduled:{current:Map<string,()=>boolean>};tick:number;notify:()=>void;capture:(intent:CartIntent)=>void;feedbackId:string;buyNow:{current:string|null};lastForm:{current:HTMLFormElement|null}};
 const Context=createContext<Mutations|null>(null);
 
 // Owner 2026-10-31: an add shows no "Keranjang diperbarui" box; like marketplace stores, the product photo flies to
@@ -55,6 +56,8 @@ function Controller({initial,permalink,children,capture,settle,retry,activeLines
  // (server render only) the buyer must press it again, so the note stays there.
  const live=useSyncExternalStore(subscribeNever,()=>true,()=>false);
  const [state,action,pending]=useActionState(changeCart,initial,permalink);
+ // Auto-saves waiting on their debounce (flushable by checkout); `tick` re-renders readers when one ends without a submit.
+ const scheduled=useRef(new Map<string,()=>boolean>()),[tick,setTick]=useState(0),notify=useCallback(()=>setTick(t=>t+1),[]);
  const [recovering,setRecovering]=useState(retry.length>0);const continued=useRef(new Set<string>());const replayed=useRef(false);const buyNow=useRef<string|null>(null);const lastForm=useRef<HTMLFormElement|null>(null);const flown=useRef<string|null>(null);
  useEffect(()=>{if(state.phase!=='success'||state.intent.kind!=='add'||flown.current===state.intent.key||buyNow.current===state.intent.key)return;flown.current=state.intent.key;flyToCart(lastForm.current);},[state]);
  useEffect(()=>{if(state.acknowledgedKey)settle(state.acknowledgedKey);},[state.acknowledgedKey,settle]);
@@ -69,7 +72,7 @@ function Controller({initial,permalink,children,capture,settle,retry,activeLines
  },[retry,action]);
  useEffect(()=>{if(recovering&&replayed.current&&!pending&&['success','error'].includes(state.phase))setRecovering(false);},[recovering,pending,state.phase]);
  const lostTarget=state.phase==='error'&&state.intent.line&&activeLines&&!activeLines.includes(state.intent.line);
- return <Context value={{state,action,pending,recovering,live,capture,feedbackId,buyNow,lastForm}}><div id={feedbackId} className="cart-feedback" data-phase={state.phase} data-ack={state.acknowledgedKey??undefined} role={state.phase==='unknown'||lostTarget?'alert':'status'} aria-live="polite" aria-atomic="true">{state.message&&state.phase!=='success'&&!(state.phase==='bootstrap'&&live)&&(state.phase!=='error'||lostTarget)&&<><h2><Icon name={state.phase==='bootstrap'?'check':'alert'}/>{state.phase==='bootstrap'?'Sesi siap':state.phase==='unknown'?'Hasil tindakan belum diketahui':'Perubahan belum tersimpan'}</h2><p>{state.message}</p>{state.phase==='unknown'&&<Link className="detail-help" href="/keranjang">Periksa keranjang</Link>}</>}</div>{children}</Context>;
+ return <Context value={{state,action,pending,recovering,live,scheduled,tick,notify,capture,feedbackId,buyNow,lastForm}}><div id={feedbackId} className="cart-feedback" data-phase={state.phase} data-ack={state.acknowledgedKey??undefined} role={state.phase==='unknown'||lostTarget?'alert':'status'} aria-live="polite" aria-atomic="true">{state.message&&state.phase!=='success'&&!(state.phase==='bootstrap'&&live)&&(state.phase!=='error'||lostTarget)&&<><h2><Icon name={state.phase==='bootstrap'?'check':'alert'}/>{state.phase==='bootstrap'?'Sesi siap':state.phase==='unknown'?'Hasil tindakan belum diketahui':'Perubahan belum tersimpan'}</h2><p>{state.message}</p>{state.phase==='unknown'&&<Link className="detail-help" href="/keranjang">Periksa keranjang</Link>}</>}</div>{children}</Context>;
 }
 const subscribeNever=()=>()=>{};
 export function CartMutations({initial,permalink,children,activeLines}:{initial:CartMutationState;permalink:string;children:React.ReactNode;activeLines?:string[]}){
@@ -94,7 +97,9 @@ function CartControls({intent:base,label,subject,disabled=false,quantity=true,no
  const autoSave=auto&&live&&quantity,saveSoon=useRef(0),latest=useRef({pending:false,saved:0});
  // lazy: a change made within the debounce of leaving the page is not sent (no pagehide flush).
  // lazy: a line waiting while another line ends "unknown" is blocked and its changed value stays unsaved until the retry.
- useEffect(()=>()=>window.clearTimeout(saveSoon.current),[]);
+ const key=target(base);
+ // biome-ignore lint/correctness/useExhaustiveDependencies: unmount only; the map entry is this line's.
+ useEffect(()=>()=>{window.clearTimeout(saveSoon.current);context.scheduled.current.delete(key);},[]);
  // PDP phone buy bar (`bar` is just the on/off flag; the bar carries chat, add-to-cart and "Beli sekarang"): a second submit button of this same form, shown only
  // while the main button is out of view, so it shares the quantity, pending lock and labels. It is a
  // pointer shortcut only (aria-hidden, out of the tab order); keyboard and screen-reader users keep
@@ -124,7 +129,10 @@ function CartControls({intent:base,label,subject,disabled=false,quantity=true,no
  latest.current={pending:pending||status.pending,saved:Number(intent.quantity)};
  // While any cart change is in flight the timer waits: the form must post the cart version that save produces, or a
  // second line changed right after the first would be refused as a conflict. A disabled (blocked) form is never sent.
- const schedule=(delay:number)=>{if(!autoSave)return;window.clearTimeout(saveSoon.current);saveSoon.current=window.setTimeout(()=>{saveSoon.current=0;const el=field.current;if(latest.current.pending){schedule(200);return;}if(el&&!el.readOnly&&!el.matches(':disabled')&&el.checkValidity()&&Number(el.value)!==latest.current.saved)el.form?.requestSubmit();},delay);};
+ // Returns whether a save was sent (or is still waiting), so checkout knows to wait for its result.
+ const fire=()=>{saveSoon.current=0;context.scheduled.current.delete(key);const el=field.current;if(latest.current.pending){schedule(200);return true;}
+  if(el&&!el.readOnly&&!el.matches(':disabled')&&el.checkValidity()&&Number(el.value)!==latest.current.saved){el.form?.requestSubmit();return true;}context.notify();return false;};
+ const schedule=(delay:number)=>{if(!autoSave)return;window.clearTimeout(saveSoon.current);saveSoon.current=window.setTimeout(fire,delay);context.scheduled.current.set(key,()=>{window.clearTimeout(saveSoon.current);return fire();});};
  // Auto-save keeps the input mounted (stable key, so keyboard focus stays) and syncs a newer saved quantity into it.
  // biome-ignore lint/correctness/useExhaustiveDependencies: only a new saved quantity syncs the field.
  useEffect(()=>{const el=field.current;if(autoSave&&el&&!saveSoon.current&&Number(el.value)!==Number(intent.quantity))el.value=intent.quantity;},[intent.quantity]);
@@ -155,10 +163,26 @@ function CartControls({intent:base,label,subject,disabled=false,quantity=true,no
  </fieldset>;
 }
 
+// Owner 2026-11-01: the checkout button must not blink while a quantity saves. It stays in place through a save; a
+// press during one (or during an auto-save's debounce) sends the waiting save at once and goes to checkout when the
+// cart has settled, so the saved quantity is what checkout reads. A press that ends in an error stays on the cart with
+// the error shown (lazy: a save re-armed behind another and then found unchanged leaves the button busy; a second
+// press then goes straight to checkout). Only a cart that really needs attention (unknown result, session bootstrap, blocked) swaps the button
+// for the advisory. Without JavaScript the plain link works as before.
 export function CartProgression({children,checkout=false}:{children:React.ReactNode;checkout?:boolean}){
- const context=useContext(Context);
- const blocked=context&&(context.pending||context.recovering||context.state.phase==='bootstrap'||context.state.phase==='unknown'||context.state.blocked);
- return <div aria-busy={context?.pending}>{children}{checkout&&(blocked?<p className="cart-advisory" role="status">Periksa hasil perubahan keranjang sebelum checkout.</p>:<Link className="button" href="/checkout" prefetch={false}>Lanjut ke checkout</Link>)}</div>;
+ const context=useContext(Context),router=useRouter(),[going,setGoing]=useState<{state:CartMutationState;wait:boolean}|null>(null);
+ const blocked=context&&(context.recovering||context.state.phase==='bootstrap'||context.state.phase==='unknown'||context.state.blocked);
+ // biome-ignore lint/correctness/useExhaustiveDependencies: `tick` re-runs this when a flushed save ended without a submit.
+ useEffect(()=>{
+  if(!going||!context||context.pending||context.scheduled.current.size)return;
+  const changed=context.state!==going.state;
+  if(blocked||!checkout||changed&&context.state.phase!=='success'){setGoing(null);return;}
+  // A sent save must land first (its result is a new state); a flush that sent nothing goes at once.
+  if(going.wait&&!changed)return;
+  router.push('/checkout');
+ },[going,context?.pending,context?.state,context?.tick,blocked,checkout,router]);
+ return <div aria-busy={context?.pending}>{children}{checkout&&(blocked?<p className="cart-advisory" role="status">Periksa hasil perubahan keranjang sebelum checkout.</p>:<Link className="button" href="/checkout" prefetch={false} aria-busy={going?true:undefined} onClick={event=>{// Read at the press: a debounced save lives in a ref and does not re-render this summary.
+   if(!context||!context.pending&&!context.scheduled.current.size||event.metaKey||event.ctrlKey||event.shiftKey||event.altKey||event.button!==0)return;event.preventDefault();const sent=[...context.scheduled.current.values()].map(flush=>flush()).some(Boolean);setGoing({state:context.state,wait:context.pending||sent});}}>{going?'Menyimpan…':'Lanjut ke checkout'}</Link>)}</div>;
 }
 
 export function RestartShopping(){

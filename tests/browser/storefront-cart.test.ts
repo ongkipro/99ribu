@@ -249,7 +249,7 @@ test('cart quantities save themselves per line, update totals, and a concurrent 
   await f.page.route('**/keranjang',async(route,request)=>{if(held&&request.method()==='POST'&&request.headers()['next-action']){const pause=held;held=null;try{const response=await route.fetch();pause.arrive();await pause.wait;await route.fulfill({response});}finally{pause.complete();}}else await route.continue();});
   const busy=(form:Locator)=>expect(form.locator('fieldset')).toHaveAttribute('aria-busy','true');
   // Auto-save: a quantity change saves its own line without a button; the other line stays editable while it is pending.
-  const first=hold();await a.getByRole('spinbutton').fill('2');await first.ready;await busy(a);await expect(a.locator('button[type=submit]')).toHaveCount(0);await expect(a.locator('.cart-dirty')).toHaveCount(0);await expect(a.getByRole('status')).toHaveText('');await expect(b.getByRole('spinbutton')).toBeEditable();await expect(f.page.getByRole('link',{name:'Lanjut ke checkout',exact:true})).toHaveCount(0);await capture(f.page,'cart-pending-390');await a.evaluate(e=>e.scrollIntoView({block:'center'}));await capture(f.page,'cart-pending-detail-390',a);first.release();await acknowledged(f.page);await expect(f.page.getByRole('link',{name:'Lanjut ke checkout',exact:true})).toBeVisible();
+  const first=hold();await a.getByRole('spinbutton').fill('2');await first.ready;await busy(a);await expect(a.locator('button[type=submit]')).toHaveCount(0);await expect(a.locator('.cart-dirty')).toHaveCount(0);await expect(a.getByRole('status')).toHaveText('');await expect(b.getByRole('spinbutton')).toBeEditable();await expect(f.page.getByRole('link',{name:'Lanjut ke checkout',exact:true})).toBeVisible();await expect(f.page.locator('.cart-summary .cart-advisory[role=status]')).toHaveCount(0);await capture(f.page,'cart-pending-390');await a.evaluate(e=>e.scrollIntoView({block:'center'}));await capture(f.page,'cart-pending-detail-390',a);first.release();await acknowledged(f.page);await expect(f.page.getByRole('link',{name:'Lanjut ke checkout',exact:true})).toBeVisible();
   const lineOf=(slug:string)=>f.page.locator('.cart-line').filter({has:f.page.locator(`a[href^="/produk/${slug}?"]`)});
   let cart=await current(f.page);const lineA=cart.lines.find((l:{product_id:string})=>l.product_id===p.bundle.id);assert.equal(lineA.quantity,2);assert.equal(cart.lines.find((l:{product_id:string})=>l.product_id===other.id).quantity,1);
   // The line total and the summary follow the saved quantity with no further press.
@@ -264,6 +264,19 @@ test('cart quantities save themselves per line, update totals, and a concurrent 
   const otherTab=await f.context.newPage();await otherTab.goto(origin+'/keranjang');await otherTab.locator('.cart-line').filter({has:otherTab.locator(`a[href^="/produk/${other.public_slug}?"]`)}).getByRole('button',{name:/^Hapus /}).click();await acknowledged(otherTab);
   await b.getByRole('spinbutton').fill('2');await expect(f.page.locator('.cart-feedback')).toContainText('halaman lain');await expect(f.page.locator('.cart-feedback')).toHaveAttribute('role','alert');await expect(b).toHaveCount(0);assert.equal((await current(f.page)).lines.length,1);await otherTab.close();assert.deepEqual(f.errors,[]);
  }finally{for(const release of releases)release();await Promise.allSettled(completed);await close(f);}
+});
+
+// Owner 2026-11-01: the checkout button stays put while a quantity saves (no blink); pressed during the auto-save's
+// debounce it sends that save first and opens checkout on the saved quantity.
+test('checkout stays in place during a quantity save and waits for it when pressed',async()=>{
+ const f=await start();try{
+  const p=await product();await f.page.goto(origin+p.path);await f.page.getByRole('button',{name:'Tambah ke keranjang',exact:true}).click();await acknowledged(f.page);
+  await f.page.goto(`${origin}/keranjang`);const checkout=f.page.getByRole('link',{name:'Lanjut ke checkout',exact:true});await expect(checkout).toBeVisible();const box=await checkout.boundingBox();
+  const changes:string[]=[];await f.page.exposeFunction('logSummary',(entry:string)=>changes.push(entry));
+  await f.page.evaluate(()=>{const s=document.querySelector('.cart-summary');if(!s)return;new MutationObserver(()=>{(window as unknown as {logSummary:(e:string)=>void}).logSummary(s.querySelector('a.button')?'button':'none');}).observe(s,{subtree:true,childList:true});});
+  await f.page.getByRole('button',{name:/^Tambah jumlah /}).click();await acknowledged(f.page);assert.ok(!changes.includes('none'),'the checkout button never leaves the summary during a save');assert.deepEqual(await checkout.boundingBox(),box);
+  await f.page.getByRole('spinbutton').first().fill('3');await checkout.click();await f.page.waitForURL(`${origin}/checkout`);assert.equal((await current(f.page)).lines[0].quantity,3);assert.deepEqual(f.errors,[]);
+ }finally{await close(f);}
 });
 
 for(const width of [390,1440])test(`Browser Back from a PDP restores the filtered source and native scroll at ${width}px`,async()=>{
