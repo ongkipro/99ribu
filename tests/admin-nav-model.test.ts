@@ -42,12 +42,13 @@ const SETTINGS_ALL = [
 test("S-V1 nav per role lens: exactly the plan §4.1 items each principal's grants open", () => {
 	const cases: [string, Parameters<typeof navFor>, Shape][] = [
 		[
-			"owner (Pantauan keeps the existing pages until S-O1)",
+			"owner (Pantauan opens its hub; katalog/stok/kendala pages still use transition links until S-O1)",
 			["owner", ["owner"], []],
 			[
 				["Beranda", "/admin"],
-				["Pantauan", "/admin/pesanan", ["Pesanan", "Produk", "Stok", "Kendala Pengiriman", "Retur"]],
+				["Pantauan", "/admin/pantauan", ["Pesanan", "Produk", "Stok", "Kendala Pengiriman", "Retur"]],
 				["Keuangan", "/admin/keuangan", ["Laporan Keuangan", "Rekonsiliasi", "Komisi Afiliasi"]],
+				["Pemasaran", "/admin/pemasaran"],
 				["Pengaturan", "/admin/pengaturan", SETTINGS_ALL],
 			],
 		],

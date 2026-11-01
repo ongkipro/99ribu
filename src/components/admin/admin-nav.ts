@@ -70,12 +70,10 @@ export type NavSection = { label?: string; items: NavItem[] };
  */
 export const UNBUILT_PAGES: ReadonlySet<string> = new Set([
 	"/admin/persetujuan", // S-A0
-	"/admin/pantauan", // S-O1
 	"/admin/pantauan/katalog", // S-O1
 	"/admin/pantauan/stok", // S-O1
 	"/admin/pantauan/kendala", // S-O1
 	"/admin/analitik", // S-A1
-	"/admin/pemasaran", // Pemasaran hub, later slice
 	"/admin/media", // S-C1
 ]);
 
@@ -248,6 +246,26 @@ export const NAV_BY_LENS: Record<CanonicalWorkspace, NavSection[]> = {
 };
 
 /** Settings cards of `/admin/pengaturan` (plan §4.5), in order. */
+export type HubCard = { href: string; label: string; description: string; icon: LucideIcon };
+
+/** Pemasaran hub (`/admin/pemasaran`): one card per marketing page; each shows only when its own guard opens it. */
+export const MARKETING_CARDS: HubCard[] = [
+	{ href: "/admin/promo/ongkir", label: "Promo Ongkir", icon: TicketPercent, description: "Subsidi ongkir yang dipotong saat pembeli membayar. Setiap perubahan disimpan sebagai versi baru." },
+	{ href: "/admin/banner", label: "Banner Beranda", icon: Store, description: "Gambar, teks dan tujuan kartu di beranda toko, dengan jadwal tayang dalam WIB." },
+	{ href: "/admin/pelanggan/segmen", label: "Segmen Pembeli", icon: UsersRound, description: "Jumlah pembeli per bulan lahir, kategori favorit dan persetujuan promo. Hanya angka." },
+	{ href: "/admin/afiliasi", label: "Afiliasi", icon: Wallet, description: "Mitra afiliasi, tarif komisi dan pesanan yang teratribusi ke tiap mitra." },
+	{ href: "/admin/pemasaran/iklan", label: "Integrasi Iklan", icon: Megaphone, description: "Tujuan iklan Meta, Google dan TikTok serta diagnostik sinyal konversi." },
+];
+
+/** Pantauan hub (`/admin/pantauan`): owner's read-first entry to the operational pages (plan §4.1, S-O1). */
+export const MONITOR_CARDS: HubCard[] = [
+	{ href: "/admin/pesanan", label: "Pesanan", icon: ReceiptText, description: "Semua pesanan beserta status pembayaran dan pengiriman." },
+	{ href: "/admin/produk", label: "Katalog Produk", icon: Package, description: "Semua produk, termasuk draf dan yang ditarik dari toko, dengan status kelengkapan." },
+	{ href: "/admin/produk/inventori", label: "Stok Gudang", icon: Warehouse, description: "Saldo fisik per gudang dan barang, dengan pergerakan stok yang tercatat." },
+	{ href: "/admin/pesanan/kendala", label: "Kendala Pengiriman", icon: Activity, description: "Kendala pengiriman yang perlu ditangani." },
+	{ href: "/admin/pesanan/retur", label: "Retur", icon: ClipboardCheck, description: "Permintaan retur dan penggantian beserta keputusannya." },
+];
+
 export const SETTINGS_CARDS: { href: string; label: string; description: string; icon: LucideIcon }[] = [
 	{ href: "/admin/pengaturan/staf", label: "Staf & Peran", icon: UserCog, description: "Daftar staf, peran, izin tambahan, cakupan gudang dan reset MFA." },
 	{ href: "/admin/pengaturan/komersial", label: "Kebijakan Komersial", icon: Scale, description: "Batas kontribusi minimum dan nilai bawaan, berversi." },
@@ -317,6 +335,9 @@ const PAGE_RULES: Record<string, Rule> = {
 // The settings index opens when at least one of its cards does.
 PAGE_RULES["/admin/pengaturan"] = (r, p) =>
 	SETTINGS_CARDS.some((card) => PAGE_RULES[card.href]?.(r, p) ?? false);
+// The hubs carry a nav row only in the owner lens (plan §4.1); other roles reach the same pages from their own rows.
+PAGE_RULES["/admin/pemasaran"] = any("owner");
+PAGE_RULES["/admin/pantauan"] = any("owner");
 /** Every list page with a nav rule (the nav-model test checks which of them each role reaches). */
 export const GUARDED_PAGES: readonly string[] = Object.keys(PAGE_RULES);
 

@@ -107,7 +107,7 @@ export function WarehousesClient({ all }: { all: boolean }) {
 						stack: "title",
 						cellClassName: "whitespace-normal",
 						cell: (row) => (
-							<Link href={adminPath("warehouse", row.admin_no)} className="font-medium text-primary underline-offset-4 hover:underline">
+							<Link href={adminPath("warehouse", row.admin_no)} className="inline-flex min-h-11 items-center font-medium text-primary underline-offset-4 hover:underline md:min-h-0">
 								{row.name}
 							</Link>
 						),

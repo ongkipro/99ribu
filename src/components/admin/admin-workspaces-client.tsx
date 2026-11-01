@@ -1394,13 +1394,18 @@ export function AdminWorkspacesClient({
 							})}
 						</KpiGrid>
 						{countMetrics.some((m) => kpiTone(m) === "idle") && (
-							<p className="text-xs text-muted-foreground md:hidden">
-								Kosong:{" "}
-								{countMetrics
-									.filter((m) => kpiTone(m) === "idle")
-									.map((m) => METRIC_LABELS[m.key] ?? m.key)
-									.join(", ")}
-							</p>
+							<details className="text-xs text-muted-foreground md:hidden">
+								<summary className="flex min-h-11 cursor-pointer items-center">
+									{countMetrics.filter((m) => kpiTone(m) === "idle").length} antrean kosong
+								</summary>
+								<ul className="list-disc pl-5">
+									{countMetrics
+										.filter((m) => kpiTone(m) === "idle")
+										.map((m) => (
+											<li key={m.key}>{METRIC_LABELS[m.key] ?? m.key}</li>
+										))}
+								</ul>
+							</details>
 						)}
 						<Definitions metrics={countMetrics} />
 					</>

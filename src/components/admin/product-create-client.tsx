@@ -110,7 +110,7 @@ export function ProductCreateClient({ costsWrite }: { costsWrite: boolean }) {
 	useEffect(() => {
 		let live = true;
 		void (async () => {
-			const [c, w] = await Promise.all([readAll<Category>("/api/v1/admin/categories?limit=100"), readAll<Warehouse>("/api/v1/admin/warehouses?limit=100")]);
+			const [c, w] = await Promise.all([readAll<Category>("/api/v1/admin/categories"), readAll<Warehouse>("/api/v1/admin/warehouses")]);
 			if (!live) return;
 			if (!c.ok) return setLoadError(failureText(c.failure));
 			if (!w.ok) return setLoadError(failureText(w.failure));

@@ -47,15 +47,15 @@ const PROGRAM: Record<
 > = {
 	birthday_voucher: [
 		"Voucher ulang tahun",
-		"Ketentuan (nilai, masa berlaku, satu per tahun) menunggu keputusan pemilik (S127).",
+		"Ketentuan (nilai, masa berlaku, satu per tahun) menunggu keputusan pemilik.",
 	],
 	category_promo: [
 		"Promo kategori",
-		"Jadwal dan ketentuan menunggu keputusan pemilik (S127).",
+		"Jadwal dan ketentuan menunggu keputusan pemilik.",
 	],
 	doorprize: [
 		"Doorprize",
-		"Segera. Tanpa pendaftaran atau undian sampai izin undian Kemensos ada (S127).",
+		"Belum aktif. Tanpa pendaftaran atau undian sampai izin undian Kemensos ada.",
 	],
 };
 const count = (n: number) => new Intl.NumberFormat("id-ID").format(n);
