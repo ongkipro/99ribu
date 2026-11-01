@@ -1150,7 +1150,7 @@ Status: **proposed** by the owner request of 2026-11-02 ("dashboard, tambah list
 
 ### W4-5 Authentication budgets (security contract, see spec 16)
 
-Sign-in, TOTP and backup-code budgets use three buckets rather than one per email: (1) the pair of account and trusted client IP, (2) a per-IP ceiling, (3) an account backstop that only denies an IP that has itself failed for that account. Only a failed attempt spends a budget. Unknown and known accounts return the same status and body. A stranger who knows an email must not be able to keep the owner from signing in from a different network. Where the IP is loopback (local), the account and ceiling buckets still apply and the IP argument is injected in tests.
+Trade-off, not yet a rule. The sign-in budget is 5 attempts per minute per hashed email whatever the address; it is deliberate and tested, and it also lets a stranger who knows an email keep that account from signing in. The options are in `TASKS.md` S149: keep it; three buckets (account and address pair, address ceiling, account backstop that denies only an address that already failed three times); the same only for accounts holding a staff role while buyers and affiliates keep the strict cap (recommended); or keep it and add a challenge after the first failure. Whatever is chosen: a response never reveals whether an account exists (today `INVALID_CREDENTIALS` for 401 and 403), only a failed attempt may spend an account backstop, and local tests inject the address because loopback collapses every caller into one.
 
 ### W4-6 Buyer account (`/akun/**`, extends the buyer-account contracts and S147)
 
