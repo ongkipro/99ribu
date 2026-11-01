@@ -1,5 +1,13 @@
 # Build log — Serba 99ribu
 
+## 2026-11-01 — S148 follow-up: Rp9.900 minimum contribution, curated dataset v5 (branch `dec-025-min-contribution`)
+
+- **Found in production after the owner's v4 import:** 203 dataset products refused with `BELOW_MARGIN_FLOOR` because the production commercial policy has `minimum_contribution_idr` 9,900; the cleaner and local policy used 0. Diagnosis read-only in the web container (`publicationChecks` + `evaluateContribution` per unpublished product).
+- **Rule (owner "Tetap Rp9.900, naikkan harga"):** `/data/99ribu-data/scripts/clean-max-99k.py --rule raise` (default `--min-contribution 9900`): gross profit ≥ Rp8.000 + 10% (half-up) + Rp9.900; a failing variant takes the lowest ladder step ≥ 3 × HPP that passes, else the lowest step that passes; dropped only when Rp99.000 fails. `--rule 3x --min-contribution 0` reproduces v4 and `--rule floor --min-contribution 0` the first floor output byte for byte. Result 574 products, 1,676 variants, 662 repriced (36 products, 179 variants dropped); dataset v5 571 products, 1,626 offers, Rp29.000–Rp99.000 (9 photos fetched by `catalog fetch-images`). Every cleaned variant re-checked against the floor, ceiling, ladder and recommended price: 0 violations.
+- **Local:** commercial policy version appended (owner path with reauthentication proof) with `minimum_contribution_idr` 9,900. v5 import refused locally by the identity guard (nine local-only duplicate products from the 2026-10-31 floor-only import); production has none.
+- **Review:** separate-agent review of the cleaner, v5 output, dataset and DEC-025 text: APPROVE (only Low wording/metadata findings, fixed: raise-mode LAPORAN heading and paragraphs, `cleaning_rule` JSON, `berlapak-singles.ts` header, DEC-025 superseded marker; regression modes re-verified byte for byte, dataset sha256 unchanged `59966a62…`).
+- **Checks:** typecheck PASS; unit 179/179; `--case=price-ceiling` 28/28 on the final tree (no src/tests change); lint warnings only in files outside this change.
+
 ## 2026-11-01 — S148 DEC-025 price ceiling: per-offer price, curated max-Rp99.000 catalog, review fixes (branch `dec-025-price-ceiling`)
 
 Session: Claude Opus 5.5 via Claude Code (resumed after a host reboot interrupted the 2026-10-31 session). Delivery run `RUN-20261031T101809Z-536d2ae8` (R4). Owner: "harga maksimal 99ribu"; profit follows Berlapak's recommended price; affiliate commission at least 10% (custom later per affiliate); thin-margin variants repriced to at least 3 × HPP (all of them); the ten earlier dropped/held products sold again ("Jual lagi semua", 2026-11-01).

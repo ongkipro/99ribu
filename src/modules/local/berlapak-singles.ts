@@ -1,9 +1,9 @@
 import {createHash} from 'node:crypto';
 
-// DEC-025 (owner 2026-10-31): the cleaned curated list (`single-max-99k-bersih/…-bersih.json`, written by
-// /data/99ribu-data/scripts/clean-max-99k.py: Berlapak's recommended price on the Rp9.900–Rp99.000 ladder, gross profit
-// at least max(Rp10.000, Rp8.000 + 10%), a thin-margin variant repriced to the lowest step >= 3 x HPP) is the whole
-// catalog; each variant is sold as one
+// DEC-025 (owner 2026-10-31, 2026-11-01): the cleaned curated list (`single-max-99k-bersih/…-bersih.json`, written by
+// /data/99ribu-data/scripts/clean-max-99k.py --rule raise: Berlapak's recommended price on the Rp9.900–Rp99.000 ladder
+// while the contribution after HPP, Rp8.000 costs and 10% commission is at least Rp9.900 (the production policy), else
+// the lowest step >= 3 x HPP that passes, else the lowest step that passes) is the whole catalog; each variant is sold as one
 // unit at its own price (`selling_price_99ribu`). Its records are rewritten here into the legacy row shape
 // readBerlapakSource already reads, so naming, cleaning, classification and the
 // sanitization gate stay the same code. A product that was already in the legacy snapshot keeps its legacy rank (the
