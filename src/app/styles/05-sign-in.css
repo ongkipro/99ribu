@@ -348,35 +348,7 @@ html:has(.signin-sheet[open]) {
 .keep-hyphen {
 	white-space: nowrap;
 }
-/* Long bundles on the PDP: the first three items, the rest behind a disclosure. */
-:where(.contents-more > summary) {
-	/* Block flow keeps the chevron right after the label even when it wraps. */
-	display: block;
-	padding-block: 12px;
-	min-height: 44px;
-	cursor: pointer;
-	list-style: none;
-	color: var(--purple);
-	font-weight: 600;
-}
-:where(.contents-more > summary)::-webkit-details-marker {
-	display: none;
-}
-:where(.contents-more summary svg) {
-	flex: none;
-	width: 1.125em;
-	height: 1.125em;
-	transform: rotate(-90deg);
-}
-:where(.contents-more[open] summary svg) {
-	transform: rotate(90deg);
-}
 
-/* PDP extra-contents disclosure: the label states the action ("Sembunyikan" when open). */
-.contents-more[open] .more-show,
-.contents-more:not([open]) .more-hide {
-	display: none;
-}
 /* Help chat card: the attachment disclosure spaces only what follows it, so when it
    is the last block the card ends on its own 24px padding. */
 .chat-attach:not(:last-child) {
@@ -414,11 +386,6 @@ html:has(.signin-sheet[open]) {
 	overflow-wrap: anywhere;
 }
 
-:where(.contents-more > summary svg) {
-	display: inline-block;
-	vertical-align: middle;
-	margin-left: 4px;
-}
 
 
 /* Focused sign-in frame (owner 2026-10-30, shop.com login page; /masuk and the signed-out /akun): no store chrome. The

@@ -30,7 +30,6 @@ export const DEPARTMENT_PHOTOS:Readonly<Record<string,{product:string;photo:stri
 };
 // Catalog photo URLs are `/media/catalog/<title-slug>-<first 12 hex>.webp` (legacy `<sha256>.webp`):
 // a pick matches either form.
-export const photoMatch=(url:string,sha:string)=>url.endsWith(`/${sha}.webp`)||url.endsWith(`-${sha.slice(0,12)}.webp`)||url.endsWith(`/${sha.slice(0,12)}.webp`);
 export type DepartmentPhoto={url:string;width:number;height:number};
 // The picked photo only while a current (not withdrawn) publication in the department (or one of
 // its subcategories) still carries it; otherwise null.

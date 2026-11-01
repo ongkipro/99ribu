@@ -441,11 +441,6 @@
 	text-align: left;
 	cursor: pointer;
 }
-.checkout-address-review {
-	display: grid;
-	gap: 8px;
-	overflow-wrap: anywhere;
-}
 .checkout-choices {
 	border: 0;
 	padding: 0;
@@ -760,24 +755,7 @@
 	white-space: nowrap;
 	font-variant-numeric: tabular-nums;
 }
-.checkout-selection-warning,
-.checkout-parcel-pending,
-.checkout-allocation-pending {
-	display: none;
-}
-.checkout-allocation-action {
-	display: none;
-}
-.checkout-controls:has(
-		.checkout-allocation input[data-issued-selected="false"]:checked
-	)
-	.checkout-allocation-action {
-	display: inline;
-}
-.checkout-controls:has(
-		.checkout-allocation input[data-issued-selected="false"]:checked
-	)
-	.checkout-service-action {
+.checkout-parcel-pending {
 	display: none;
 }
 .checkout-fields:has(
@@ -786,23 +764,11 @@
 	> p.checkout-step-notice[data-phase="success"] {
 	display: none;
 }
-.checkout-controls:has(
-		.checkout-choices input[data-issued-selected="false"]:checked
-	)
-	> .checkout-selection-warning {
-	display: flex;
-}
 .checkout-fields:has(
 		.checkout-choices input[data-issued-selected="false"]:checked
 	)
 	> .checkout-total-change {
 	display: none;
-}
-.checkout-controls:has(
-		.checkout-allocation input[data-issued-selected="false"]:checked
-	)
-	> .checkout-allocation-pending {
-	display: block;
 }
 .checkout-controls:has(
 		.checkout-allocation input[data-issued-selected="false"]:checked
