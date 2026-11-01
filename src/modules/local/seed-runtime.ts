@@ -157,11 +157,11 @@ export async function createBerlapakOrders(identity:LocalAuth,target:Target,name
 // real owner reauthentication + policy-version routes. Takes effect now (wall
 // clock); a cart on a fixture clock namespace sees it once that clock passes now.
 export const LOCAL_PAYMENT_TERMS={cod_fee_bps:333,manual_bank_accounts:[{bank_name:'Bank SINTETIS',account_number:'1234567890',account_holder:'PT SINTETIS 99RIBU'}]};
-// Local baseline commercial policy so a fresh local DB can publish the imported
-// catalog (10% default commission, IDR 99,000 minimum payout), same owner route.
-export const LOCAL_COMMERCIAL_TERMS={default_commission_bps:1000,minimum_payout_idr:99000};
+// Local baseline commercial policy so a fresh local DB can publish the imported catalog with production's values
+// (10% default commission, IDR 99,000 minimum payout, IDR 9,900 minimum contribution per unit; DEC-025), same owner route.
+export const LOCAL_COMMERCIAL_TERMS={default_commission_bps:1000,minimum_payout_idr:99000,minimum_contribution_idr:9900};
 export const runPaymentTermsFixture=(target:Target,namespace:string)=>runPolicyFixture(target,namespace,'payment',LOCAL_PAYMENT_TERMS,'payment_policy.version','company-payment','SYNTHETIC local developer payment terms (COD fee 333 bps, synthetic manual bank)');
-export const runCommercialTermsFixture=(target:Target,namespace:string)=>runPolicyFixture(target,namespace,'commercial',LOCAL_COMMERCIAL_TERMS,'company_policy.version','company-commercial','SYNTHETIC local developer commercial baseline (1000 bps commission, IDR 99,000 minimum payout)');
+export const runCommercialTermsFixture=(target:Target,namespace:string)=>runPolicyFixture(target,namespace,'commercial',LOCAL_COMMERCIAL_TERMS,'company_policy.version','company-commercial','SYNTHETIC local developer commercial baseline (1000 bps commission, IDR 99,000 minimum payout, IDR 9,900 minimum contribution)');
 function runPolicyFixture(target:Target,namespace:string,kind:'payment'|'commercial',values:Record<string,unknown>,action:string,subject:string,reason:string){
   if(target!=='local') throw new Error(`${kind} terms fixture is local-only.`);
   return withSeedOwner(target,namespace,async(_request,identity,signal,{browser,password})=>{
