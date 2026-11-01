@@ -492,6 +492,7 @@
 		/* Capped to the screen so the selected name fits at enlarged text (320px at 200%). */
 		font-size: min(2.625rem, 11vw);
 		line-height: 1;
+		min-height: 44px;
 	}
 	.switcher-art {
 		width: 56px;

@@ -1,6 +1,6 @@
 'use client';
 
-import {Component,createContext,startTransition,useActionState,useContext,useEffect,useId,useRef,useState} from 'react';
+import {Component,createContext,startTransition,useActionState,useContext,useEffect,useId,useRef,useState,useSyncExternalStore} from 'react';
 import Link from 'next/link';
 import {useFormStatus} from 'react-dom';
 import {changeCart,restartShopping} from '../../app/(storefront)/keranjang/actions';
@@ -9,12 +9,13 @@ import {Icon} from './ui/icon';
 
 const formData=(intent:CartIntent)=>{const data=new FormData();for(const [key,value] of Object.entries(intent))data.set(key,value);return data;};
 const target=(intent:CartIntent)=>`${intent.kind}:${intent.line||intent.variant}`;
-type Mutations={state:CartMutationState;action:(data:FormData)=>void;pending:boolean;recovering:boolean;capture:(intent:CartIntent)=>void;feedbackId:string;buyNow:{current:string|null};lastForm:{current:HTMLFormElement|null}};
+type Mutations={state:CartMutationState;action:(data:FormData)=>void;pending:boolean;recovering:boolean;live:boolean;capture:(intent:CartIntent)=>void;feedbackId:string;buyNow:{current:string|null};lastForm:{current:HTMLFormElement|null}};
 const Context=createContext<Mutations|null>(null);
 
 // Owner 2026-10-31: an add shows no "Keranjang diperbarui" box; like marketplace stores, the product photo flies to
 // the visible cart icon and the icon bumps (its count is already re-rendered by the action's layout revalidation).
-// No success text is rendered at all (owner: "hapus aja, jangan disembunyikan"); errors still show. Reduced motion:
+// No success text or link is rendered at all (owner: "hapus aja, jangan disembunyikan"; the "Lihat keranjang" link
+// went 2026-11-01: it pushed the page down 52px); errors still show. Reduced motion:
 // no flight, no bump; the count still changes.
 const visible=(el:Element)=>{const r=el.getBoundingClientRect();return r.width>0&&r.height>0&&r.bottom>0&&r.top<innerHeight&&r.right>0&&r.left<innerWidth&&getComputedStyle(el).visibility!=='hidden';};
 function bump(target:HTMLElement){target.classList.remove('cart-bump');void target.offsetWidth;target.classList.add('cart-bump');target.addEventListener('animationend',()=>target.classList.remove('cart-bump'),{once:true});}
@@ -47,8 +48,12 @@ class MutationBoundary extends Component<{children:(capture:(intent:CartIntent)=
  }
 }
 
-function Controller({initial,permalink,children,capture,settle,retry,activeLines,showCartLink}:{initial:CartMutationState;permalink:string;children:React.ReactNode;capture:(intent:CartIntent)=>void;settle:(key:string)=>void;retry:CartIntent[];activeLines?:string[];showCartLink:boolean}){
+function Controller({initial,permalink,children,capture,settle,retry,activeLines}:{initial:CartMutationState;permalink:string;children:React.ReactNode;capture:(intent:CartIntent)=>void;settle:(key:string)=>void;retry:CartIntent[];activeLines?:string[]}){
  const feedbackId=useId();
+ // With JavaScript the guest bootstrap is replayed at once, so its "Sesi siap" note and the "Lanjutkan pilihan" label are
+ // noise above the button (owner 2026-11-01: "bersihkan saja"); the button just stays "Menyimpan…". Without JavaScript
+ // (server render only) the buyer must press it again, so the note stays there.
+ const live=useSyncExternalStore(subscribeNever,()=>true,()=>false);
  const [state,action,pending]=useActionState(changeCart,initial,permalink);
  const [recovering,setRecovering]=useState(retry.length>0);const continued=useRef(new Set<string>());const replayed=useRef(false);const buyNow=useRef<string|null>(null);const lastForm=useRef<HTMLFormElement|null>(null);const flown=useRef<string|null>(null);
  useEffect(()=>{if(state.phase!=='success'||state.intent.kind!=='add'||flown.current===state.intent.key||buyNow.current===state.intent.key)return;flown.current=state.intent.key;flyToCart(lastForm.current);},[state]);
@@ -64,13 +69,14 @@ function Controller({initial,permalink,children,capture,settle,retry,activeLines
  },[retry,action]);
  useEffect(()=>{if(recovering&&replayed.current&&!pending&&['success','error'].includes(state.phase))setRecovering(false);},[recovering,pending,state.phase]);
  const lostTarget=state.phase==='error'&&state.intent.line&&activeLines&&!activeLines.includes(state.intent.line);
- return <Context value={{state,action,pending,recovering,capture,feedbackId,buyNow,lastForm}}><div id={feedbackId} className="cart-feedback" data-phase={state.phase} data-ack={state.acknowledgedKey??undefined} role={state.phase==='unknown'||lostTarget?'alert':'status'} aria-live="polite" aria-atomic="true">{state.message&&state.phase!=='success'&&(state.phase!=='error'||lostTarget)&&<><h2><Icon name={state.phase==='bootstrap'?'check':'alert'}/>{state.phase==='bootstrap'?'Sesi siap':state.phase==='unknown'?'Hasil tindakan belum diketahui':'Perubahan belum tersimpan'}</h2><p>{state.message}</p>{state.phase==='unknown'&&<Link className="detail-help" href="/keranjang">Periksa keranjang</Link>}</>}</div>{children}{showCartLink&&state.phase==='success'&&<Link className="detail-help" href="/keranjang">Lihat keranjang</Link>}</Context>;
+ return <Context value={{state,action,pending,recovering,live,capture,feedbackId,buyNow,lastForm}}><div id={feedbackId} className="cart-feedback" data-phase={state.phase} data-ack={state.acknowledgedKey??undefined} role={state.phase==='unknown'||lostTarget?'alert':'status'} aria-live="polite" aria-atomic="true">{state.message&&state.phase!=='success'&&!(state.phase==='bootstrap'&&live)&&(state.phase!=='error'||lostTarget)&&<><h2><Icon name={state.phase==='bootstrap'?'check':'alert'}/>{state.phase==='bootstrap'?'Sesi siap':state.phase==='unknown'?'Hasil tindakan belum diketahui':'Perubahan belum tersimpan'}</h2><p>{state.message}</p>{state.phase==='unknown'&&<Link className="detail-help" href="/keranjang">Periksa keranjang</Link>}</>}</div>{children}</Context>;
 }
-export function CartMutations({initial,permalink,children,activeLines,showCartLink=false}:{initial:CartMutationState;permalink:string;children:React.ReactNode;activeLines?:string[];showCartLink?:boolean}){
- return <MutationBoundary>{(capture,settle,retry)=><Controller initial={initial} permalink={permalink} capture={capture} settle={settle} retry={retry} activeLines={activeLines} showCartLink={showCartLink}>{children}</Controller>}</MutationBoundary>;
+const subscribeNever=()=>()=>{};
+export function CartMutations({initial,permalink,children,activeLines}:{initial:CartMutationState;permalink:string;children:React.ReactNode;activeLines?:string[]}){
+ return <MutationBoundary>{(capture,settle,retry)=><Controller initial={initial} permalink={permalink} capture={capture} settle={settle} retry={retry} activeLines={activeLines}>{children}</Controller>}</MutationBoundary>;
 }
 
-type CartFormProps={intent:CartIntent;label:string;subject?:string;disabled?:boolean;quantity?:boolean;notice?:string;reviewId?:string;stepper?:boolean;bar?:string;buyNow?:boolean};
+type CartFormProps={intent:CartIntent;label:string;subject?:string;disabled?:boolean;quantity?:boolean;notice?:string;reviewId?:string;stepper?:boolean;bar?:string;buyNow?:boolean;auto?:boolean};
 export function CartForm(props:CartFormProps){
  const context=useContext(Context);if(!context)throw new Error('CartForm requires CartMutations');
  return <form action={context.action} className="cart-mutation" onSubmit={event=>{
@@ -78,9 +84,17 @@ export function CartForm(props:CartFormProps){
   context.buyNow.current=(event.nativeEvent as SubmitEvent).submitter?.getAttribute('value')==='checkout'?String(data.get('key')??''):null;context.lastForm.current=event.currentTarget;
  }}><CartControls {...props}/></form>;
 }
-function CartControls({intent:base,label,subject,disabled=false,quantity=true,notice,reviewId,stepper=false,bar,buyNow=false}:CartFormProps){
+function CartControls({intent:base,label,subject,disabled=false,quantity=true,notice,reviewId,stepper=false,bar,buyNow=false,auto=false}:CartFormProps){
  const messageId=useId(),quantityId=useId(),field=useRef<HTMLInputElement>(null),status=useFormStatus(),context=useContext(Context);if(!context)throw new Error('CartControls requires CartMutations');
- const {state,pending,recovering}=context;
+ const {state,pending,recovering,live}=context;
+ // Cart lines (owner 2026-11-01: "buat auto aja"): a quantity change saves itself, so there is no "Perbarui jumlah" press;
+ // steps wait 400ms and typing 700ms, so a run of presses or digits is one save. Only a valid, changed value is sent; the
+ // line total and summary re-render from the saved cart. The button is not rendered then (the
+ // `hidden` attribute loses to `.button`'s display); without JavaScript it stays the way to save.
+ const autoSave=auto&&live&&quantity,saveSoon=useRef(0),latest=useRef({pending:false,saved:0});
+ // lazy: a change made within the debounce of leaving the page is not sent (no pagehide flush).
+ // lazy: a line waiting while another line ends "unknown" is blocked and its changed value stays unsaved until the retry.
+ useEffect(()=>()=>window.clearTimeout(saveSoon.current),[]);
  // PDP phone buy bar (`bar` is just the on/off flag; the bar carries chat, add-to-cart and "Beli sekarang"): a second submit button of this same form, shown only
  // while the main button is out of view, so it shares the quantity, pending lock and labels. It is a
  // pointer shortcut only (aria-hidden, out of the tab order); keyboard and screen-reader users keep
@@ -104,23 +118,34 @@ function CartControls({intent:base,label,subject,disabled=false,quantity=true,no
  const invalid=error&&!disabled&&['OFFER_UNAVAILABLE','INVALID_INPUT','CART_QUANTITY_LIMIT'].includes(own?.code??'');
  const describedBy=reviewError?reviewId:error||unknown&&!same?messageId:unknown?context.feedbackId:notice?messageId:undefined;
  const busy=status.pending||pending&&(recovering||state.phase==='bootstrap'&&same),blocked=Boolean(own?.blocked)||state.phase==='unknown'&&!same;
- const buttonText=busy?'Menyimpan…':unknown?'Ulangi tindakan yang sama':retained?'Lanjutkan pilihan':label;
+ const buttonText=busy||live&&same&&state.phase==='bootstrap'?'Menyimpan…':unknown?'Ulangi tindakan yang sama':retained?'Lanjutkan pilihan':label;
  // Unsaved quantity (stepper or typed): the update button turns primary and says so; checkout stays the buyer's call (the saved quantity is what is ordered).
  const [value,setValue]=useState(Number(intent.quantity));useEffect(()=>{setValue(Number(intent.quantity));},[intent.quantity]);const dirty=quantity&&!busy&&value!==Number(intent.quantity);
- return <fieldset className="cart-fields" aria-busy={busy} disabled={busy||blocked}><legend className="sr-only">{subject??label}</legend>
+ latest.current={pending:pending||status.pending,saved:Number(intent.quantity)};
+ // While any cart change is in flight the timer waits: the form must post the cart version that save produces, or a
+ // second line changed right after the first would be refused as a conflict. A disabled (blocked) form is never sent.
+ const schedule=(delay:number)=>{if(!autoSave)return;window.clearTimeout(saveSoon.current);saveSoon.current=window.setTimeout(()=>{saveSoon.current=0;const el=field.current;if(latest.current.pending){schedule(200);return;}if(el&&!el.readOnly&&!el.matches(':disabled')&&el.checkValidity()&&Number(el.value)!==latest.current.saved)el.form?.requestSubmit();},delay);};
+ // Auto-save keeps the input mounted (stable key, so keyboard focus stays) and syncs a newer saved quantity into it.
+ // biome-ignore lint/correctness/useExhaustiveDependencies: only a new saved quantity syncs the field.
+ useEffect(()=>{const el=field.current;if(autoSave&&el&&!saveSoon.current&&Number(el.value)!==Number(intent.quantity))el.value=intent.quantity;},[intent.quantity]);
+ // A value typed before hydration had no handler yet: save it once the island runs.
+ // biome-ignore lint/correctness/useExhaustiveDependencies: runs once when auto-save becomes active.
+ useEffect(()=>{const el=field.current;if(autoSave&&el&&Number(el.value)!==Number(intent.quantity)){setValue(Number(el.value));schedule(700);}},[autoSave]);
+ return <fieldset className="cart-fields" aria-busy={busy} disabled={busy&&!autoSave||blocked}><legend className="sr-only">{subject??label}</legend>
   {Object.entries(intent).filter(([name])=>name!=='quantity').map(([name,value])=><input key={name} type="hidden" name={name} value={value}/>)}
   {!error&&!unknown&&notice&&<p id={messageId} className="cart-advisory">{notice}</p>}
   {(error&&!reviewError||unknown&&!same)&&<p id={messageId} className="cart-form-error" role={error||!same?'alert':undefined}><Icon name="alert"/><span>{subject?`${subject}: `:''}{message}{error&&quantity&&' Perubahan jumlah belum diterapkan.'}</span></p>}
-  {quantity?(()=>{const input=<input ref={field} id={quantityId} aria-label={subject?`Jumlah ${subject}`:'Jumlah pilihan'} aria-describedby={describedBy} aria-invalid={invalid||undefined} type="number" name="quantity" min="1" max="50" step="1" required defaultValue={intent.quantity} key={`${target(base)}:${intent.quantity}`} onInput={event=>setValue(Number(event.currentTarget.value))} readOnly={unknown||disabled}/>;
+  {quantity?(()=>{const input=<input ref={field} id={quantityId} aria-label={subject?`Jumlah ${subject}`:'Jumlah pilihan'} aria-describedby={describedBy} aria-invalid={invalid||undefined} type="number" name="quantity" min="1" max="50" step="1" required defaultValue={intent.quantity} key={autoSave?target(base):`${target(base)}:${intent.quantity}`} onInput={event=>{setValue(Number(event.currentTarget.value));schedule(700);}} readOnly={unknown||disabled}/>;
    // PDP (shop.com quantity pill): the same native number field between minus and plus steps.
-   const step=(up:boolean)=>{const el=field.current;if(!el||el.readOnly)return;if(up)el.stepUp();else el.stepDown();setValue(Number(el.value));};
+   const step=(up:boolean)=>{const el=field.current;if(!el||el.readOnly)return;if(up)el.stepUp();else el.stepDown();setValue(Number(el.value));schedule(400);};
    return stepper?<div className="cart-quantity"><label htmlFor={quantityId} className={subject?'sr-only':undefined}>Jumlah pilihan</label><span className="quantity-stepper"><button type="button" aria-label={subject?`Kurangi jumlah ${subject}`:'Kurangi jumlah'} disabled={unknown||disabled||value<=1} onClick={()=>step(false)}><Icon name="subtract" size={subject?20:24}/></button>{input}<button type="button" aria-label={subject?`Tambah jumlah ${subject}`:'Tambah jumlah'} disabled={unknown||disabled||value>=50} onClick={()=>step(true)}><Icon name="add" size={subject?20:24}/></button></span></div>:
     // biome-ignore lint/a11y/noLabelWithoutControl: the label wraps the number input held in `input`.
     <label>Jumlah pilihan{input}</label>;})():<input type="hidden" name="quantity" value={intent.quantity}/>}
-  {busy&&<p className="cart-form-pending" role="status">Menyimpan perubahan pilihan ini…</p>}
   {/* PDP (DEC-020, shop.com action row): add to cart first in the DOM and tab order, shown on the right; "Beli sekarang" submits the same add, then checkout. Hidden while an unknown result offers the retry. */}
-  {buyNow&&!disabled&&!unknown?<div className="purchase-actions"><button ref={submit} type="submit" aria-describedby={!quantity?describedBy:undefined} aria-label={subject?`${label} ${subject}`:undefined} className={`button${intent.kind==='remove'?' quiet':intent.kind==='add'||reviewId||dirty?'':' secondary'}`} disabled={!unknown&&disabled}>{intent.kind==='remove'&&<Icon name="close"/>}{buttonText}</button><button type="submit" name="then" value="checkout" className="button buy-now">{busy?'Menyimpan…':'Beli sekarang'}</button></div>:<button ref={submit} type="submit" aria-describedby={!quantity?describedBy:undefined} aria-label={subject?`${label} ${subject}`:undefined} className={`button${intent.kind==='remove'?' quiet':intent.kind==='add'||reviewId||dirty?'':' secondary'}`} disabled={!unknown&&disabled}>{intent.kind==='remove'&&<Icon name="close"/>}{buttonText}</button>}
-  {dirty&&subject&&<p className="cart-advisory cart-dirty">Jumlah belum disimpan.</p>}
+  {buyNow&&!disabled&&!unknown?<div className="purchase-actions"><button ref={submit} type="submit" aria-describedby={!quantity?describedBy:undefined} aria-label={subject?`${label} ${subject}`:undefined} className={`button${intent.kind==='remove'?' quiet':intent.kind==='add'||reviewId||dirty?'':' secondary'}`} disabled={!unknown&&disabled}>{intent.kind==='remove'&&<Icon name="close"/>}{buttonText}</button><button type="submit" name="then" value="checkout" className="button buy-now">{busy?'Menyimpan…':'Beli sekarang'}</button></div>:autoSave&&!retained?null:<button ref={submit} type="submit" aria-describedby={!quantity?describedBy:undefined} aria-label={subject?`${label} ${subject}`:undefined} className={`button${intent.kind==='remove'?' quiet':intent.kind==='add'||reviewId||dirty?'':' secondary'}`} disabled={!unknown&&disabled}>{intent.kind==='remove'&&<Icon name="close"/>}{buttonText}</button>}
+  {/* The live region stays mounted on every auto-save line, so the first save is announced too. */}
+  {autoSave&&<p className="sr-only" role="status">{same&&state.phase==='success'?`Jumlah disimpan: ${intent.quantity}.`:''}</p>}
+  {dirty&&subject&&!autoSave&&<p className="cart-advisory cart-dirty">Jumlah belum disimpan.</p>}
   {/* Phone buy bar (marketplace pattern): chat icon, add-to-cart icon, then the "Beli sekarang" text button (the same add, then checkout). Pointer shortcuts only (aria-hidden, out of the tab order); the page's own controls keep the names and the keyboard path. */}
   {bar&&!disabled&&<div className="buy-bar" hidden={!barShown} aria-hidden="true">
    <Link href="/bantuan#percakapan" className="bar-chat" tabIndex={-1} prefetch={false}><svg aria-hidden="true" focusable="false" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M7.9 20A9 9 0 1 0 4 16.1L2 22Z"/></svg><span className="sr-only">Chat bantuan</span></Link>

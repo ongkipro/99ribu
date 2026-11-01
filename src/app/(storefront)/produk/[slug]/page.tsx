@@ -46,7 +46,14 @@ async function RelatedShelf({product,category}:{product:string;category:PublicCa
  let items:Awaited<ReturnType<typeof publicList>>['data']=[];
  try{items=(await publicList(getLocalAuth(),catalogQuery(new URLSearchParams({category_id:category.id,sort:'newest',limit:'26'})))).data.filter(p=>p.id!==product).slice(0,25);}catch{return null;}
  if(items.length<2)return null;
- return <section className="home-shelf related-shelf" aria-labelledby="related-heading"><h2 id="related-heading" className="shelf-heading"><Link href={`/kategori/${category.slug}`}>Lainnya di {category.name}<Icon name="forward"/></Link></h2><div className="related-grid"><ProductGrid products={items}/><ListingMore next={null} step={1} rows={2} max={5} margin="0px"/></div></section>;
+ return <section className="home-shelf related-shelf" aria-labelledby="related-heading"><h2 id="related-heading" className="shelf-heading"><Link href={`/kategori/${category.slug}`}>Lainnya di {category.name}<Icon name="forward"/></Link></h2><div className="related-grid"><ProductGrid products={items}/><ListingMore next={null} step={1} rows={2} max={5}/></div></section>;
+}
+
+// Holds the shelf's two rows (same heading and grid, the static 10/6/4-card cap) while it streams, so the footer is not
+// pushed down under a reader who already scrolled to it (2026-11-01: CLS 0.08–0.18 with no fallback).
+const PENDING=['a','b','c','d','e','f','g','h','i','j'];
+function RelatedPending({category}:{category:PublicCategory}){
+ return <section className="home-shelf related-shelf related-pending" aria-busy="true"><h2 className="shelf-heading"><span>Lainnya di {category.name}</span></h2><div className="related-grid"><ul className="product-grid listing-skeleton" aria-hidden="true">{PENDING.map(k=><li key={k} className="product"><span className="product-frame"/><span className="skeleton-line"/><span className="skeleton-line short"/></li>)}</ul></div></section>;
 }
 
 export default async function Product({params,searchParams}:Props){
@@ -78,7 +85,7 @@ export default async function Product({params,searchParams}:Props){
    {/* The stock line already says it; the way out is one secondary pill. */}
    {offer.availability!=='available'&&<Link className="button secondary stock-exit" href={alternative?productHref(product.public_slug,alternative.id,from,standard?.id):category?`/kategori/${category.slug}?availability=available`:'/cari?availability=available'}>{alternative?'Lihat pilihan tersedia':'Cari produk tersedia'}</Link>}
    {current.kind==='ready'&&!open&&<p className="cart-warning">Keranjang sebelumnya {current.cart.state==='submitted'?'sudah menjadi pesanan':'kedaluwarsa'}. Penambahan berikutnya memulai keranjang baru.</p>}
-   {denied?<p className="cart-warning">{current.kind==='denied'?'Sesi belanja perlu diperiksa.':'Keranjang belum dapat dimuat.'} <Link href="/keranjang">Periksa keranjang</Link></p>:<CartMutations initial={initialCartMutation(intent)} permalink={productHref(product.public_slug,offer.id,from,standard?.id)} showCartLink><CartForm intent={intent} label="Tambah ke keranjang" disabled={offer.availability!=='available'} stepper bar={rupiah(offer.price)} buyNow/></CartMutations>}
+   {denied?<p className="cart-warning">{current.kind==='denied'?'Sesi belanja perlu diperiksa.':'Keranjang belum dapat dimuat.'} <Link href="/keranjang">Periksa keranjang</Link></p>:<CartMutations initial={initialCartMutation(intent)} permalink={productHref(product.public_slug,offer.id,from,standard?.id)}><CartForm intent={intent} label="Tambah ke keranjang" disabled={offer.availability!=='available'} stepper bar={rupiah(offer.price)} buyNow/></CartMutations>}
    </div>
   </>:!invalid&&<p className="cart-advisory">Belum ada pilihan yang dapat ditambahkan.</p>}
   {/* Spesifikasi only when the product has spec data; no empty heading or placeholder. */}
@@ -96,6 +103,6 @@ export default async function Product({params,searchParams}:Props){
    <details className="product-policy"><summary>Pengembalian<Icon name="chevron"/></summary><p>Barang salah, rusak, cacat, tidak lengkap, kedaluwarsa atau tidak sesuai deskripsi dapat diajukan paling lambat 7 hari sejak paket diterima.</p><Link className="detail-help" href="/syarat">Syarat dan ketentuan</Link></details>
   </div>
  </section></div>
- {category&&<Suspense fallback={null}><RelatedShelf product={product.id} category={category}/></Suspense>}
+ {category&&<Suspense fallback={<RelatedPending category={category}/>}><RelatedShelf product={product.id} category={category}/></Suspense>}
  </main></Shell>;
 }

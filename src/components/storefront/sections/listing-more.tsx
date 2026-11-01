@@ -11,8 +11,9 @@ import {useCallback,useEffect,useLayoutEffect,useRef,useState} from 'react';
 // CSS shows (four rows per width); the first press only shows them, no request. `step` (category and
 // search listings, owner 2026-10-30): `rows` rows show first (default `step`); each scroll to the end
 // shows `step` more rows, up to `max`, from the cards already loaded and fetches the next page only
-// when they run out. The PDP related grid (owner 2026-10-30) uses rows=2, step=1, max=5, no next page and margin 0px:
-// one more row each time the end of the grid actually enters the viewport. Hidden
+// when they run out. The PDP related grid (owner 2026-10-30) uses rows=2, step=1, max=5 and no next page:
+// one more row each time the end of the grid comes near. It reveals with the default half-screen margin, before
+// the footer is on screen, so the footer is never pushed while visible (2026-11-01, CLS 0.13 at margin 0px). Hidden
 // cards are display:none, so their lazy photos are not fetched; without JS every card shows.
 const AUTO=3,KEEP=20,SKELETON=['a','b','c','d','e','f','g','h'];
 type Saved={pages:string[];next:string|null;scroll:number};

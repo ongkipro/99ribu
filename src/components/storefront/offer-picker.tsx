@@ -11,7 +11,7 @@ type Choice={id:string;label:string;available:boolean};
 export function OfferPicker({slug,defaultOffer,choices,selected,from}:{slug:string;defaultOffer?:string|null;choices:Choice[];selected:string;from?:string|null}){
  const current=choices.find(c=>c.id===selected);
  return <div className="offer-picker">
-  <p id="offer-picker-label" className="field-label">Pilihan lengkap{current&&<> <span>{current.label}</span></>}</p>
+  <p id="offer-picker-label" className="field-label">Varian{current&&<> <span>{current.label}</span></>}</p>
   {(choices.length>1||!current)&&<ul aria-labelledby="offer-picker-label">{choices.map(v=><li key={v.id}>
    <Link href={productHref(slug,v.id,from,defaultOffer)} replace scroll={false} prefetch={false} aria-current={v.id===selected||undefined} data-available={v.available||undefined}>
     {v.label}{!v.available&&<small>Belum tersedia</small>}

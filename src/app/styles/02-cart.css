@@ -121,17 +121,6 @@
 	font-size: var(--caption-size);
 	line-height: var(--caption-leading);
 }
-.cart-contents {
-	margin: 0;
-	padding-left: 18px;
-	font-size: var(--caption-size);
-	line-height: var(--caption-leading);
-	/* Same filled bullets as the PDP contents list, also inside the disclosure. */
-	list-style: disc;
-}
-.cart-line-details .contents-more summary {
-	font-size: var(--caption-size);
-}
 .cart-line > .cart-warning {
 	grid-area: warn;
 	margin: 0;
@@ -486,20 +475,9 @@
 .cart-feedback > .button {
 	margin-block: 12px;
 }
-.cart-form-pending {
-	flex-basis: 100%;
-	font-size: var(--small-size);
-}
 .cart-mutation input[readonly] {
 	background: #f5f5f5;
 	color: var(--caption);
-}
-.contents-label {
-	margin: 8px 0 0;
-	font-size: var(--caption-size);
-	line-height: var(--caption-leading);
-	font-weight: 600;
-	color: var(--muted);
 }
 .publication-contents {
 	padding-left: 20px;

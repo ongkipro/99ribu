@@ -419,6 +419,12 @@ main.product-detail .related-shelf {
 main.product-detail .related-shelf .shelf-heading {
 	margin-bottom: 24px;
 }
+/* The streamed shelf's placeholder (page.tsx RelatedPending): without scripting the stream never swaps in, so it never shows. */
+@media (scripting: none) {
+	main.product-detail .related-pending {
+		display: none;
+	}
+}
 main.product-detail .related-shelf .shelf-heading a {
 	margin-block: calc((44px - var(--title-leading)) / -2);
 }

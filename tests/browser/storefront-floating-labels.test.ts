@@ -192,13 +192,13 @@ test('at 320px with 200% text the labels fall back to plain labels above the fie
 test('the order summary shows each line with a quantity badge and one "Isi:" line at the cart contents size, and its title is 16/400',{timeout:90000},async()=>{
  const f=await start(1440);try{
   await f.page.goto(`${origin}/keranjang`);
-  const cart=await f.page.locator('.cart-contents').first().evaluate(el=>getComputedStyle(el).fontSize);
+  const cart=await f.page.locator('.cart-line .line-variant').first().evaluate(el=>getComputedStyle(el).fontSize);
   await f.page.goto(`${origin}/checkout`);
   const line=f.page.locator('.checkout-summary-line').first();await expect(line).toBeVisible();
   await expect(line.locator('.checkout-qty')).toHaveText(/^[1-9][0-9]*$/);await expect(line.locator('.checkout-qty')).toBeVisible();
   await expect(line.locator('.checkout-summary-contents')).toHaveText(/^Isi: [1-9][0-9]* × .+/);
   await expect(f.page.locator('.checkout-summary .checkout-contents')).toHaveCount(0);await expect(f.page.locator('.checkout-summary')).not.toContainText('Isi per pilihan');
-  assert.ok(Number.parseFloat(await line.locator('.checkout-summary-contents').evaluate(el=>getComputedStyle(el).fontSize))>=Number.parseFloat(cart),'the summary contents line is at least the cart contents size');
+  assert.ok(Number.parseFloat(await line.locator('.checkout-summary-contents').evaluate(el=>getComputedStyle(el).fontSize))>=Number.parseFloat(cart),'the summary contents line is at least the cart caption size');
   const title=f.page.locator('.summary-desktop-title');await expect(title).toBeVisible();
   assert.deepEqual(await title.evaluate(el=>{const s=getComputedStyle(el);return {size:s.fontSize,leading:s.lineHeight,weight:s.fontWeight};}),{size:'16px',leading:'22px',weight:'400'});
   await capture(f.page,'summary-1440');

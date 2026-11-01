@@ -159,7 +159,7 @@
 	font-size: var(--caption-size);
 	line-height: var(--caption-leading);
 	overflow-wrap: anywhere;
-	/* Filled bullets at the same 18px inset and caption size as the cart's list (.cart-contents, shop.com cart 2026-10-29); a list inside the summary's lists would otherwise get hollow circles. */
+	/* Filled bullets at the same 18px inset and caption size as the PDP contents list (shop.com cart 2026-10-29); a list inside the summary's lists would otherwise get hollow circles. */
 	list-style: disc;
 }
 .checkout-progress {
