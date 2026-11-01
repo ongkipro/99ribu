@@ -1,5 +1,10 @@
 # Build log — Serba 99ribu
 
+## 2026-11-02 — S156 live adapter checklist (documentation only)
+
+- `RELEASE.md` "Live adapter acceptance checklist": 16 rows (timeouts, unknown outcomes, no conversion for cancelled or unpaid orders, start-date gate, retry ladder, callbacks as evidence, superseded payment instructions, guarded status writes, and others) from the AdsBookCMS audits, each to be checked on the final build and signed by an owner before the first real provider call.
+- Scope correction found while starting S156: all ad adapters are local sinks (`meta/capi.ts` states `real_dispatch: … local sink only`; no `fetch`, no timeout exists to test), so the timeout code part moved to the first live adapter slice. TASKS S156 now reads DOC now, CODE later.
+
 ## 2026-11-02 — S155 drift guards (local, R1)
 
 - `tests/admin-route-map.test.ts` fails when an admin page on disk is missing from the ARCHITECTURE.md "Admin screen map" or a mapped path is neither a page nor in `UNBUILT_PAGES` (worked examples with a number are ignored). It found two real gaps first: `/admin/halaman` and `/admin/produk/baru` were not in the map; both rows added. Proven red by removing a row, then restored.

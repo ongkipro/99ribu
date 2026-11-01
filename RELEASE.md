@@ -42,6 +42,31 @@ Production auth gates (open; local loopback profile only):
 - 2FA brute-force budget: TOTP and backup-code verification are each budgeted `5/min` per account, keyed on the HMAC of the user id resolved from Better Auth's pending `two_factor` verification row (`src/modules/access/handler.ts`), so fresh sign-ins no longer reset it; unresolvable cookies share one conservative bucket. Residual: an attacker holding the password still gets up to `5` TOTP plus `5` backup-code guesses per minute per account, bounded further only by Better Auth's default two-factor account lockout (`10` consecutive failures -> `900s`, not separately load-tested here). Review these numbers against load evidence before exposure.
 - Client IP: the sign-in ceiling (`300/min`, `src/modules/access/auth.ts`) and guest bootstrap ceiling (`600/min`, `src/modules/checkout/access.ts`) are global buckets because every request is stamped `127.0.0.1`. Once exposed beyond localhost they are an availability risk (one client can exhaust them for everyone). Production must derive the real client IP from a trusted proxy (never from client-supplied forwarding headers) before those per-IP budgets are meaningful. S82 (code, 2026-10-24): under `APP_ENV=production` the client IP comes only from `CLIENT_IP_HEADER` (`x-real-ip` or `cf-connecting-ip`), requests without a valid value are refused (`503 CLIENT_IP_UNAVAILABLE`), the Better Auth ceilings key on it and guest bootstrap adds a `30/min` bucket per IPv4 address or IPv6 /64 under the global `600/min` (kept: it bounds anonymous guest rows; exhausting it now takes at least 20 distinct addresses; numbers documented in `src/modules/checkout/access.ts`). Still open: proving at S84/S88 that the chosen proxy overwrites a client-sent copy of that header (OD-9).
 
+## Live adapter acceptance checklist (S156, 2026-11-02)
+
+Every external adapter in 99ribu is a local sink or simulation today (for example `src/modules/advertising/meta/capi.ts` records `real_dispatch: no credentials, Graph request or Test Events evidence; local sink only`). Before the first real call to any provider (ads, shipping booking, payment, messaging), each row below needs an observed check on the final build and an owner who signs it. The rows come from the open and late-fixed findings of the AdsBookCMS audits (`~/Documents/work/research/99ribu-vs-adsbookcms-comparison-2026-11-02.md`); they are bug classes to test here, not claims that 99ribu has them.
+
+| # | Check | Applies to |
+|---|---|---|
+| 1 | Every outbound request aborts after a configured limit (a test against a deliberately slow fake server proves it). | ads, shipping, payment, messaging |
+| 2 | A timeout, 5xx or unreadable reply is recorded as `unknown`, never as rejected; an unknown outcome blocks a second send until resolved; an accepted request whose id was not saved is linked, not re-sent. | shipping booking, payment, ads |
+| 3 | A cancelled, refunded or unpaid order emits no conversion and no Purchase, including a fresh-tab confirmation page. | ads |
+| 4 | Adding credentials does not upload history: a configured start date gates the first upload. | Google offline conversions |
+| 5 | The retry ladder is a pure function with unit tests: a dead token is terminal, a rate limit waits a flat period, other errors back off up to a cap; `event_time` stays the original time. | ads |
+| 6 | A provider callback is stored as evidence and never moves order or payment state by itself. | payment |
+| 7 | A superseded payment instruction keeps its provider id so a late payment on it can still be matched. | payment |
+| 8 | A failing housekeeping step does not stop the others in the same scheduled run. | worker |
+| 9 | Hot queries have an `EXPLAIN` and no full-table scan on the scheduled path. | worker, reporting |
+| 10 | A status write is a guarded update (`where status in (…)`), not a write after an earlier read. | orders, payments |
+| 11 | The phone normaliser maps `0062…`, `+62…`, `62…` and `08…` to one form. | checkout, messaging |
+| 12 | Eligibility words are one vocabulary (no `paid` versus `settled` versus `success` drift). | ads, finance |
+| 13 | Outbox liveness: retries are driven by the worker clock, not by visitor traffic. | worker |
+| 14 | Admin screens do not call APIs their role may not use and swallow the 403. | console |
+| 15 | No admin URL is placed in a message sent to a customer. | messaging |
+| 16 | No page links to a route that returns 404 (the `UNBUILT_PAGES` and route-map tests already cover the console). | console, storefront |
+
+Not covered by this list because it needs a decision first: per-courier COD fee, remittance days and volumetric divisor (read from the Mengantar documentation, never constants), and the legal and tax wording that needs an accountant or a lawyer.
+
 ## Production migration (Vultr + Coolify)
 
 Planned 2026-10-22; nothing below is executed or authorised. Slices S82–S89 in `TASKS.md` ("Production migration slices"). Hosting choice is ADR-0005 (Vultr `sgp`, `vhp-4c-8gb-amd`, Coolify); catalog content is DEC-005. Goal: the Berlapak catalog and its 708 photos appear in the live storefront and admin exactly as locally, rebuilt on the server from committed content — not copied from the local database.
