@@ -216,7 +216,7 @@ Entry point when changing a console screen: page → client component → API ro
 | `/admin/pesanan/retur`, `/admin/pesanan/retur/[returnNo]` | `return-list-client.tsx`, `return-detail-client.tsx` | `returns`, `refunds`, `replacements` | `returns` | `returnAccess` |
 | `/admin/obrolan` | `components/support/StaffInboxView` | `support/**` | `support` | customer_service, owner |
 | `/admin/pelanggan` (S138) | `customer-lookup-client.tsx` | `customers/lookup` | `accounts` (`lookup.ts`) | customer_service, owner |
-| `/admin/produk`, `/admin/produk/[productNo]` | `catalog-list-client.tsx`, `catalog-product-client.tsx`, `cost-versions.tsx` | `products`, `offers/**`, `categories`, `stock-items/**` | `catalog`, `finance` (`costs.ts`, `contribution.ts`) | `catalogAccess` (costs only with `finance.costs.read`/`write`) |
+| `/admin/produk`, `/admin/produk/[productNo]`, `/admin/produk/baru` | `catalog-list-client.tsx`, `catalog-product-client.tsx`, `cost-versions.tsx` | `products`, `offers/**`, `categories`, `stock-items/**` | `catalog`, `finance` (`costs.ts`, `contribution.ts`) | `catalogAccess` (costs only with `finance.costs.read`/`write`) |
 | `/admin/produk/sku`, `/admin/produk/kategori` (S134) | `stock-items-client.tsx`, `categories-client.tsx`, `cost-versions.tsx` | `stock-items`, `stock-items/*/cost-versions`, `categories` | `catalog`, `finance` (`costs.ts`) | owner, ecommerce_admin (HPP only with `finance.costs.read`/`write`) |
 | `/admin/produk/inventori`, `/admin/produk/inventori/transfer` | `inventory-client.tsx`, `transfers-client.tsx` | `inventory/**`, `warehouses` | `inventory` | warehouse, owner |
 | `/admin/produk/gudang`, `/admin/produk/gudang/[warehouseNo]` (S134) | `warehouses-client.tsx` | `warehouses`, `warehouses/{id}`, `warehouses/{id}/pickup-profile`, `policy-versions` | `access`, `fulfillment` (`manual.ts`), `settings` | owner, ecommerce_admin, warehouse (pickup profile: owner/ecommerce_admin; calendar: owner) |
@@ -234,6 +234,7 @@ Entry point when changing a console screen: page → client component → API ro
 | `/admin/pengaturan/audit` (S135) | `audit-log-client.tsx` | `audit-events` | `audit` | owner; finance (money actions its grant opens) |
 | `/admin/pengaturan/sistem` (S136) | `system-health-client.tsx` | `system-health` | `ops-health` | owner |
 | `/admin/pengaturan/staf` (S137) | `staff-roles-client.tsx` | `staff`, `staff/lookup`, `role-grants`, `staff-mfa-resets`, `me/reauthentication-proofs` | `access` (`staff.ts`, `grants.ts`) | owner |
+| `/admin/halaman` (S-C1) | `static-pages-client.tsx` | `static-pages`, `static-pages/{slug}` | `storefront` (`static-pages.ts`) | owner, ecommerce_admin (MFA) |
 | `/admin/akun/profil`, `/admin/akun/keamanan` (S129) | `account-security-client.tsx` | `/api/auth/account-security`, `change-password`, `two-factor/generate-backup-codes`, `me/session-terminations` | `access`, `accounts` | every MFA-verified staff user (account menu in the sidebar footer) |
 
 Built: every row above. Not built yet (`UNBUILT_PAGES`, redesign plan §6): `/admin/persetujuan` (S-A0, needs a migration), `/admin/analitik` (S-A1), `/admin/media` (S-C1, needs a migration) and the read-only `/admin/pantauan/{katalog,stok,kendala}` pages (S-O1). The plan lives in `docs/history/ADMIN-REDESIGN-PLAN-20261029.md`; open design reviews are in `STATUS.md` and `TASKS.md`.

@@ -1,5 +1,11 @@
 # Build log — Serba 99ribu
 
+## 2026-11-02 — S155 drift guards (local, R1)
+
+- `tests/admin-route-map.test.ts` fails when an admin page on disk is missing from the ARCHITECTURE.md "Admin screen map" or a mapped path is neither a page nor in `UNBUILT_PAGES` (worked examples with a number are ignored). It found two real gaps first: `/admin/halaman` and `/admin/produk/baru` were not in the map; both rows added. Proven red by removing a row, then restored.
+- `scripts/check-docs.ts` (`npm run docs:check`, now part of `npm run check`): each tracked authored Markdown file needs an H1 or front matter and its relative links must resolve; 45 files pass. Tool-generated review output (`design/review*`, `docs/spec/design/reviews`, 279 problems from absolute links into another worktree) and `docs/history` are excluded on purpose.
+- Checks: `npm test` 181/181, lint 20 (baseline), typecheck PASS, `docs:check` PASS. Ledger run `RUN-20261101T204437Z-b3c4de6f`.
+
 ## 2026-11-02 — Admin review pass: product-create fix, Pemasaran/Pantauan hubs, docs aligned (branch `dec-025-min-contribution`, local only)
 
 Session: Claude Sonnet 5.5 via Claude Code. Owner: "review all admin dashbord, sempurnakan ui ux pakai dotuiux … develop halaman2 yang kurang lengkap. local dulu aja"; later: dashboard, add listing, tables and editing still incomplete; system map and md files not updated.
