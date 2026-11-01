@@ -1,23 +1,14 @@
 {
-  "activeRun": "RUN-20261101T204437Z-b3c4de6f",
-  "activeTask": "T-16",
-  "capability": "unattributed",
-  "job": "S155",
+  "activeRun": null,
   "lastRun": {
-    "finishedAt": "2026-11-01T20:21:46Z",
+    "finishedAt": "2026-11-01T20:45:06Z",
     "result": "BLOCKED",
-    "runId": "RUN-20261101T202003Z-dc860d9c"
+    "runId": "RUN-20261101T204437Z-b3c4de6f"
   },
-  "model": "claude-sonnet-5-5",
-  "observedHead": "d94fd4d19dddb52e5f673c8bb27d3508d9fcbec8",
+  "observedHead": "c41c820b552d06716d119fdc03effeec7c01053b",
   "observedState": "BLOCKED",
   "project": "99ribu",
-  "provider": "anthropic",
-  "reasoningEffort": "default",
-  "requirement": "PR-16",
-  "risk": "R1",
   "schemaVersion": 1,
   "statusAuthority": "STATUS.md",
-  "updatedAt": "2026-11-01T20:44:48Z",
-  "worker": "Claude Code"
+  "updatedAt": "2026-11-01T20:45:06Z"
 }
