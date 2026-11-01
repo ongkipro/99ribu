@@ -1,5 +1,15 @@
 # Build log — Serba 99ribu
 
+## 2026-11-01 — Cart: a press during the same line's in-flight save is no longer lost (branch `dec-025-min-contribution`)
+
+Session: Claude Opus 5.5 via Claude Code. Owner: push only when "tidak memicu bug maupun error termasuk tombol checkout … kalo kita nambah varian … termasuk menambah quantity".
+
+- **Found live on 5aa2e8a:** pressing + again while that line's previous save was in flight showed 3 but kept 2 (live latency; locally the debounce usually hid it). Trace: React 19 resets a `<form action={fn}>` after its action completes, so the field returned to its defaultValue and the next timer saw no change.
+- **Fix (`cart-forms.tsx`):** an auto-saving cart line's submit is prevented and dispatched as `startTransition(()=>action(data))` (React then runs neither its own action nor the reset; checked in the bundled react-dom); its defaultValue stays the initial quantity and the sync effect writes newer saved quantities when no save is waiting; `busy` also covers this line's own manual dispatch. PDP, "Hapus", publication review and the no-JS path keep the native form action.
+- **Variant/quantity check (owner):** adding another product or option (cart rail at 1440, PDP at 390) and pressing + across lines never removes the checkout button; totals match the saved quantities.
+- **Review:** separate agent: APPROVE (no double POST; capture/settle, retry, bootstrap and no-JS paths intact).
+- **Checks:** typecheck PASS; unit 179/179; `test:browser -- --case=T-33` 36/36 (new: a − press held in flight plus a second press saves 2 with no error); `--case=PR-17` 30/30; `--case=T-31` 36/36. Built web: held save keeps the field at 3 and saves 2 then 3; two lines pressed in rapid succession both save; checkout button steady; press during debounce lands on `/checkout` with the saved quantity. Local DB restored from the pre-review dump afterwards.
+
 ## 2026-11-01 — Cart checkout button no longer blinks during a quantity save (branch `dec-025-min-contribution`)
 
 Session: Claude Opus 5.5 via Claude Code. Owner: "kedipnya di button checkout hilang dan muncul proses, … perbaiki biar tidak jelek".

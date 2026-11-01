@@ -85,6 +85,9 @@ export function CartForm(props:CartFormProps){
  return <form action={context.action} className="cart-mutation" onSubmit={event=>{
   const data=new FormData(event.currentTarget);context.capture(Object.fromEntries(Object.keys(props.intent).map(key=>[key,String(data.get(key)??'')])) as CartIntent);
   context.buyNow.current=(event.nativeEvent as SubmitEvent).submitter?.getAttribute('value')==='checkout'?String(data.get('key')??''):null;context.lastForm.current=event.currentTarget;
+  // An auto-saving cart line dispatches its own action: React resets a `<form action>` after it completes, which put the
+  // field back to its defaultValue and dropped a press made while that save was in flight (live 2026-11-01).
+  if(props.auto&&context.live&&props.quantity!==false){event.preventDefault();startTransition(()=>context.action(data));}
  }}><CartControls {...props}/></form>;
 }
 function CartControls({intent:base,label,subject,disabled=false,quantity=true,notice,reviewId,stepper=false,bar,buyNow=false,auto=false}:CartFormProps){
@@ -95,6 +98,10 @@ function CartControls({intent:base,label,subject,disabled=false,quantity=true,no
  // line total and summary re-render from the saved cart. The button is not rendered then (the
  // `hidden` attribute loses to `.button`'s display); without JavaScript it stays the way to save.
  const autoSave=auto&&live&&quantity,saveSoon=useRef(0),latest=useRef({pending:false,saved:0});
+ // Under auto-save the field's defaultValue never changes: React writes a new defaultValue into the DOM value of a
+ // field changed by the steppers (stepUp leaves it "clean"), which reset a press made while an earlier save of the
+ // same line was in flight (seen live 2026-11-01: 3 shown, 2 kept). The effect below syncs saved quantities instead.
+ const initialQuantity=useRef(base.quantity);
  // lazy: a change made within the debounce of leaving the page is not sent (no pagehide flush).
  // lazy: a line waiting while another line ends "unknown" is blocked and its changed value stays unsaved until the retry.
  const key=target(base);
@@ -122,7 +129,7 @@ function CartControls({intent:base,label,subject,disabled=false,quantity=true,no
  const message=error&&disabled&&notice&&!own?.blocked?notice:own?.message;
  const invalid=error&&!disabled&&['OFFER_UNAVAILABLE','INVALID_INPUT','CART_QUANTITY_LIMIT'].includes(own?.code??'');
  const describedBy=reviewError?reviewId:error||unknown&&!same?messageId:unknown?context.feedbackId:notice?messageId:undefined;
- const busy=status.pending||pending&&(recovering||state.phase==='bootstrap'&&same),blocked=Boolean(own?.blocked)||state.phase==='unknown'&&!same;
+ const busy=status.pending||autoSave&&pending&&context.lastForm.current!==null&&context.lastForm.current===field.current?.form||pending&&(recovering||state.phase==='bootstrap'&&same),blocked=Boolean(own?.blocked)||state.phase==='unknown'&&!same;
  const buttonText=busy||live&&same&&state.phase==='bootstrap'?'Menyimpan…':unknown?'Ulangi tindakan yang sama':retained?'Lanjutkan pilihan':label;
  // Unsaved quantity (stepper or typed): the update button turns primary and says so; checkout stays the buyer's call (the saved quantity is what is ordered).
  const [value,setValue]=useState(Number(intent.quantity));useEffect(()=>{setValue(Number(intent.quantity));},[intent.quantity]);const dirty=quantity&&!busy&&value!==Number(intent.quantity);
@@ -143,7 +150,7 @@ function CartControls({intent:base,label,subject,disabled=false,quantity=true,no
   {Object.entries(intent).filter(([name])=>name!=='quantity').map(([name,value])=><input key={name} type="hidden" name={name} value={value}/>)}
   {!error&&!unknown&&notice&&<p id={messageId} className="cart-advisory">{notice}</p>}
   {(error&&!reviewError||unknown&&!same)&&<p id={messageId} className="cart-form-error" role={error||!same?'alert':undefined}><Icon name="alert"/><span>{subject?`${subject}: `:''}{message}{error&&quantity&&' Perubahan jumlah belum diterapkan.'}</span></p>}
-  {quantity?(()=>{const input=<input ref={field} id={quantityId} aria-label={subject?`Jumlah ${subject}`:'Jumlah pilihan'} aria-describedby={describedBy} aria-invalid={invalid||undefined} type="number" name="quantity" min="1" max="50" step="1" required defaultValue={intent.quantity} key={autoSave?target(base):`${target(base)}:${intent.quantity}`} onInput={event=>{setValue(Number(event.currentTarget.value));schedule(700);}} readOnly={unknown||disabled}/>;
+  {quantity?(()=>{const input=<input ref={field} id={quantityId} aria-label={subject?`Jumlah ${subject}`:'Jumlah pilihan'} aria-describedby={describedBy} aria-invalid={invalid||undefined} type="number" name="quantity" min="1" max="50" step="1" required defaultValue={autoSave?initialQuantity.current:intent.quantity} key={autoSave?target(base):`${target(base)}:${intent.quantity}`} onInput={event=>{setValue(Number(event.currentTarget.value));schedule(700);}} readOnly={unknown||disabled}/>;
    // PDP (shop.com quantity pill): the same native number field between minus and plus steps.
    const step=(up:boolean)=>{const el=field.current;if(!el||el.readOnly)return;if(up)el.stepUp();else el.stepDown();setValue(Number(el.value));schedule(400);};
    return stepper?<div className="cart-quantity"><label htmlFor={quantityId} className={subject?'sr-only':undefined}>Jumlah pilihan</label><span className="quantity-stepper"><button type="button" aria-label={subject?`Kurangi jumlah ${subject}`:'Kurangi jumlah'} disabled={unknown||disabled||value<=1} onClick={()=>step(false)}><Icon name="subtract" size={subject?20:24}/></button>{input}<button type="button" aria-label={subject?`Tambah jumlah ${subject}`:'Tambah jumlah'} disabled={unknown||disabled||value>=50} onClick={()=>step(true)}><Icon name="add" size={subject?20:24}/></button></span></div>:
