@@ -888,6 +888,8 @@ Buyer order page: a manually booked parcel shows the actual courier name, the re
 
 ## Admin console — information architecture and screen contracts (2026-10-25)
 
+> **Route names (2026-11-02 note).** The admin page paths in this section are the pre-S-U1 English names (`/admin/orders`, `/admin/catalog`, `/admin/finance/...`, `/admin/settings/...`). Owner decision D10 (2026-10-29) moved them to Indonesian slugs (`/admin/pesanan`, `/admin/produk`, `/admin/keuangan/...`, `/admin/pengaturan/...`); the old paths answer 308. The old-to-new table is `src/proxy.ts:LEGACY_ADMIN_ROUTES`, the actual navigation per role is `src/components/admin/admin-nav.ts`, and both are summarised in `ARCHITECTURE.md` "Admin screen map". `/api/v1/admin/**` keeps its English paths. The roles, grants and visibility rules below are unchanged; only the page paths and the sidebar grouping (now one tree per role lens) differ.
+
 Owner request 2026-10-25: complete the admin console (menu, every menu's page, settings, profile and the rest), refine the UI/UX, document first and then develop, and keep a development log. This section is the single inventory for that work. It extends the Screen Inventory, the Permission and Visibility Matrix, the Super Admin/History/Finance/Settings contracts, the Indonesia Admin Workspaces section and the CS inbox contract above; it does not replace them. Roles and permissions stay owned by [07-IAM-RBAC-ABAC.md](07-IAM-RBAC-ABAC.md); wire contracts by [openapi.yaml](openapi.yaml) (operationIds below are cited from it; paths are relative to `/api/v1`); actual implementation by [ARCHITECTURE.md](../../ARCHITECTURE.md#admin-console-architecture-s113); slices by [TASKS.md](../../TASKS.md). Status: proposal; nothing in this section is implemented by this change.
 
 Evidence base (read 2026-10-25 on `main` at `0ac607d`): routes `src/app/admin/(console)/**`, shell `src/components/admin/admin-shell.tsx`, gates `src/components/admin/console-access.ts`, `catalog-model.ts:catalogAccess`, `order-model.ts:canReadOrders`, renders [`design/renders/admin-mobile/`](design/renders/admin-mobile/) (76 PNGs, 390/768/1440).
@@ -1091,3 +1093,114 @@ All five were answered on 2026-10-25 and recorded as DEC-018; the slices below f
 | Q3 | Policy settings stay owner-only writes (payment terms incl. bank accounts, commercial policy, label templates). Should finance get read access, or write access with a grant? | S130 |
 | Q4 | Audit log visibility: owner-only (proposed), or finance read for money actions? | S135 |
 | Q5 | (a) Can CS look up buyer accounts (B29), and which fields? (b) Can finance read the affiliate list? | B29 (S138), S132 read scope — answered: DEC-018 |
+
+## Admin wave 4 — screen contracts for the three dashboards: staff console, buyer account, affiliate (2026-11-02, proposed)
+
+Status: **proposed** by the owner request of 2026-11-02 ("dashboard, tambah listing, UI/UX, tabel dan kebutuhan editing belum"). It extends, and does not replace, the contracts above (A1, A8, A9, B8, B9, the table contract at "Queue, Detail, Bulk and Export Contract") and uses the 2026-11-02 route names (`/admin/pesanan`, `/admin/produk`, `/admin/keuangan`). Visual rules live in `DESIGN.md` "Dashboard system direction". The owner extended the request on 2026-11-02 to the whole dashboard family, so W4-6 covers the buyer account and W4-7 the affiliate dashboard; they share the tokens, status wording and money rules of `DESIGN.md` "Dashboard system direction". Implementation slices are `TASKS.md` S149 to S159. PRD anchors: PR-13 (role-scoped administration), PR-14, PR-1, PR-2, PR-19, PR-20, NFR-2. Where a rule needs an owner decision it is marked **Gate**.
+
+### W4-1 Shared table behaviour (extends the table contract)
+
+| Rule | Contract |
+|---|---|
+| Sorting | A list declares a short allow-list of sortable columns. Sort is server-side with a deterministic keyset (sort value, then id), so a cursor never skips or repeats a row. A header shows an arrow icon and `aria-sort`; a click cycles ascending, descending, default. |
+| State in the URL | Sort, filters and tab are URL parameters and survive Back. Private contact searches are never put in a URL (existing rule). |
+| Search | Server-side over the whole list, not over loaded rows. The SKU list moves to this. |
+| Header and rows | Sticky 40 px header inside the scroll area, 48 px rows, neutral hover, numeric and money columns right-aligned with tabular numerals. |
+| Footer | "N dari M" when the total is known, otherwise the page size; page controls reachable by keyboard. |
+| Phones | Below `md` each row is a card with the same primary fields; sort becomes a labelled select. |
+| States | Loading, empty (nothing exists), filtered-empty (clear filters), denied, error with retry; each distinct. |
+| Acceptance | Three consecutive pages of a sorted list contain no duplicate or missing row; sort and filters survive Back; header buttons are keyboard operable; renders at 390, 768 and 1440 px. |
+
+### W4-2 Dashboard (extends A1 and the role-home contracts)
+
+| Block | Contract |
+|---|---|
+| Order | Header with scope and period (and compare when allowed); Perlu tindakan; money strip; work-queue tabs and table. |
+| Perlu tindakan | Attention tiles ranked by count. A tile opens its exact filtered queue and its count equals the rows behind it (existing one-data-source rule). Items waiting longer than 24 hours are marked with text and an icon, not colour alone. |
+| Comparison | A delta chip (percent, or points for rates) against the previous period of the same length, only for event-period metrics. Lower-is-better metrics invert the colour and also carry a text cue. Snapshot metrics (stock, receivables) show no delta. When the previous period has no base or an input is incomplete the chip shows "—". |
+| Money | Every figure carries its basis badge. Incomplete cost or margin inputs show "Belum lengkap", never Rp0 (A1, B19). |
+| Charts | Only with a tabular alternative, one series each, comparison as a dashed neutral line; hourly buckets for ranges up to two days. |
+| Metric policy | Recorded as DEC-027 on 2026-11-02 (period and WIB boundary, presets, comparison basis, refresh, queue order, new metrics, money labels, the three charts). Dashboard acceptance checks against DEC-027. |
+| Queue order | Perlu dikirim with batas kirim and an overdue marker; pesanan baru belum diproses; COD bermasalah; pengembalian and komplain; chat belum diklaim with the oldest waiting time; pembayaran menunggu dan hampir kedaluwarsa; stok menipis. |
+| New metrics | `fulfillments_overdue`, `cod_failed_rate`, `return_rate`, `average_order_value`, `oldest_unclaimed_chat_age`; each shows its formula and denominator. Thresholds and deadlines are settings. |
+| Acceptance | A delta equals an independent query in a test; tile count equals drilldown rows (`admin-kpis`); incomplete input renders "Belum lengkap"; 390, 768 and 1440 px. |
+
+### W4-3 Offer editing on the product detail page (completes A9)
+
+| Element | Contract |
+|---|---|
+| Editor | A table on desktop and stacked cards on a phone, one row per live offer: label, price (whole rupiah), weight in grams, status. Add offer and Retire offer are explicit actions. |
+| Category | A select of existing categories; changing it is part of the same save. |
+| Save | One sticky "Simpan perubahan"; the request is `PATCH /api/v1/admin/products/{id}` with `expected_version`, a required reason (up to 500 characters) and `variant_changes` (create, update, retire). A version conflict (409) shows what changed and offers reload. |
+| Money rules | Price must be a whole rupiah from 1 to 99,000 (DEC-025) with a live hint. A change is a new catalog revision; open carts and existing orders keep their frozen price. A price or HPP change that breaks the PR-19 margin floor blocks publication and says why. |
+| Not allowed | SKU rename (SKUs are immutable); editing HPP without `finance.costs.write`; showing HPP to roles without `finance.costs.read` (PR-19, line 347). |
+| Acceptance | Editing a price creates a new revision and leaves an open cart's price unchanged until re-approval; a price above Rp99.000 is refused with the Indonesian message; a stale version shows the recovery path; ecommerce_admin never sees HPP; 390 and 1440 px. |
+
+### W4-4 Add listing ("Tambah produk", completes B8)
+
+| Element | Contract |
+|---|---|
+| Product | Name, category, description, photos (existing). Optional attributes and facts. |
+| Offers | One or more offers. Each offer lists its contents: component SKU and quantity, from one origin warehouse (PR-2, line 320). A component is picked from existing SKUs or created inline. Price per offer is whole rupiah 1 to 99,000 and is not the sum of its parts (PR-1). |
+| Initial stock | Optional, per component and warehouse. Saved as one `receive` movement by a warehouse-scoped actor, never as a free number (line 347). |
+| HPP | Shown only with `finance.costs.write` (the owner and finance). Without it the HPP stays unknown and publication stays blocked by PR-19; the screen says so. |
+| Result | Always a draft. Publication is a separate action that passes the existing checks (stock complete, HPP present, margin floor, claims review). |
+| Gate | Owner decision D4: whether Admin E-Commerce may create products (today yes). |
+| Acceptance | A draft with a two-component offer is created; publication is blocked until stock and HPP exist; initial stock appears as exactly one receive movement; no HPP field for a role without the grant; 390 and 1440 px. |
+
+### W4-5 Authentication budgets (security contract, see spec 16)
+
+Sign-in, TOTP and backup-code budgets use three buckets rather than one per email: (1) the pair of account and trusted client IP, (2) a per-IP ceiling, (3) an account backstop that only denies an IP that has itself failed for that account. Only a failed attempt spends a budget. Unknown and known accounts return the same status and body. A stranger who knows an email must not be able to keep the owner from signing in from a different network. Where the IP is loopback (local), the account and ceiling buckets still apply and the IP argument is injected in tests.
+
+### W4-6 Buyer account (`/akun/**`, extends the buyer-account contracts and S147)
+
+State today (code audit 2026-11-02): tabs Pesanan, Profil, Pengaturan; six order filters (Semua, Belum bayar, Diproses, Dikirim, Selesai, Ditutup) with order-number search; order rows with stage badge, thumbnails, units, payment label, total, "Lihat pesanan" and "Beli lagi"; profile with data diri, addresses (list and set default) and extra data; settings with promo consents, notification preferences, notifications and session controls. Spec 17 lines 430 and 679 already name Orders, Returns, Messages, Profile, Addresses and Notifications/Security for the buyer account; Returns and Messages are not reachable from it yet.
+
+| Element | Contract |
+|---|---|
+| Navigation | Keep the tab row. Add a Pengembalian entry (the buyer's own return and replacement cases) and a Bantuan link to the existing support surface. The first task of the slice is to confirm that a buyer-scoped read for returns exists; if it does not, the slice adds that API with OpenAPI parity before the screen. |
+| Order list | When an order has shipped, each row shows the courier name and the resi with a copy button. An unpaid order shows its payment deadline in WIB. An order awaiting a pending guest claim keeps the summary-only rule (DEC-016). |
+| Order detail (`/pesanan/[id]`) | Copyable VA number or transfer details, the exact deadline, and the COD terms stated in plain words: cash is due on delivery, what happens on refusal or absence, and any fee as a visible line. |
+| Addresses | List, add, edit, delete and set default from one place. Respect the existing limit on saved addresses and the existing validation. |
+| Data dan privasi | In Pengaturan: what is stored (profile, addresses, consents), how to correct it (existing forms) and a request to delete the account that creates a support case. Deletion is never automatic and a refusal states its reason (for example retention for tax or an open order). |
+| Notifications | Order and help notifications are separate toggles from promo consent; promo consent is never pre-ticked (existing rule). |
+| Not now (policy needed, Gate O-4) | An auto-confirm period for "pesanan diterima" and any wording about it; the market research found conflicting numbers and no official source, so none is written here. |
+| Do not | Coins, streaks, countdowns, "X orang melihat", confirm-to-claim voucher pressure. |
+| Acceptance | At 390, 768 and 1440 px: no horizontal overflow, keyboard order and visible focus, the copy button announces success in a live region and has a manual fallback, no buyer PII outside the buyer's own session, tokens from `DESIGN.md` only (no hard-coded colours or inline styles). |
+
+### W4-7 Affiliate dashboard (`/afiliasi`, extends C6 and S132)
+
+State today: one server page with four states (programme pitch, signed-in without a profile, active dashboard). The active page shows the code, share URL and effective rate, a masked beneficiary, five balance tiles (pending, held, eligible, allocated, paid), the last 50 per-unit commissions with receipt lineage and hold reasons, and the last 20 payouts. Missing against the contracts: a copy button with a manual fallback (lines 122 and 236), the beneficiary change form (the API `me/affiliate/beneficiary-changes` exists), filters and a full-screen detail (lines 95 and 96), referral click counts (`recordReferralTouch` exists), and a plain reason for a reversed commission.
+
+| Element | Contract |
+|---|---|
+| Structure | A tab or anchor row: Ringkasan, Komisi, Tautan dan kode, Penarikan, Bantuan. On a phone the five balance states come before the link (render C6 note), as a typographic list, not nested stat cards. |
+| Ringkasan | Period filter (7 hari, 30 hari, bulan ini) in WIB; referral clicks and attributed orders for the period; the five balances kept separate, each with the date it matures or the reason it is held. The headline figure is labelled "Estimasi, bisa berubah". Eligible and queued amounts are never summed twice, and "in flight" is not available balance (line 694). |
+| Komisi | Per-unit table: pseudonymous reference, product, quantity, rate, amount, state, receipt date and kind (original or replacement), maturity date (H+10 after verified receipt, PR-9), hold reason. Filters by state and period, keyset paging, and a detail view. A reversed commission shows a plain reason: pesanan dibatalkan, barang diretur, COD tidak diterima, pesanan tidak terkirim, or klik di luar masa atribusi. The word "valid" is never used for an amount that can still be reversed. |
+| Tautan dan kode | Code, share URL, effective rate and the attribution rule (first click within 7 days, PR-8) in words. A copy button with a manual fallback, and the native share sheet where the browser offers it. QR code and free-text sub-ID labels are not specified (Gate O-4). |
+| Penarikan | The rule in plain words: minimum Rp99.000 (PR-10), maturity H+10, transfer by finance on a schedule, no "Tarik" button and no promise of an automatic transfer. Beneficiary shown masked, with a change form that asks for the password again and states the account must be in the affiliate's own name. Payout history with status and explanation. A tax note (NPWP or NIK, whether anything is withheld) is shown only after an accountant has written it (Gate O-4). |
+| Bantuan | The reversal reasons and the commission rules. A "pesanan tidak muncul" claim form is not specified (Gate O-4). |
+| Privacy | No buyer name, address, phone, bank data or cookie identifier (UX-3, PR-14). Never any HPP or seller amount (DEC-007). Dispute evidence stays hidden even when a hold reason is shown (line 182). |
+| Do not | Earnings promises ("sampai 70%", "jutaan per bulan"), leaderboards that shame, commission figures without their rate and basis, unverifiable claims, silent fees or tax. |
+| Acceptance | Same as W4-6, plus: five states reconcile to the ledger in an integration test, a reversed commission always has a reason, the beneficiary change is refused without the reauth proof, and no response includes buyer PII (response-shape test). |
+
+### W4-8 Operations needs from the Indonesian market research (listing, warehouse, COD)
+
+Basis: `~/Documents/work/research/99ribu-indonesia-ecommerce-admin-needs-2026-11-02.md` (mostly secondary sources; conventions are used, numbers are not). Each row names the slice that first confirms what already exists, so nothing is built twice.
+
+| Need | Contract | Slice |
+|---|---|---|
+| Offer availability is computed, never typed | The product list and detail show available units per offer as the minimum over its components in the chosen warehouse, with the limiting component named ("Terbatas oleh: …"). This already follows PR-2; the hint is new. | S151 |
+| Duplicate an offer or product | A "Duplikat" action creates a draft copy with a new identity, no stock and no HPP. | S152 |
+| Excel export of lists | Export of the current filtered product and SKU lists as a spreadsheet-safe CSV (formula guard already exists). Import with a per-row error preview is not specified yet (owner choice). | S150 |
+| Reason on every stock change | Existing rule (receive and adjust require a reason); the screens keep it and add the reason set: hilang, rusak, salah hitung, retur masuk, opname. | S161 |
+| Picklist across orders | Selected orders produce one picklist that sums components, grouped by warehouse. First confirm what the print centre already offers. | S161 |
+| Label printed marker | A parcel whose label was printed shows "Label sudah dicetak" so it is not printed twice; reprint stays possible with a reason. First confirm the existing label states (S54, S55). | S161 |
+| COD return | A returned COD parcel has an explicit "Terima dan restock" step (warehouse, condition good or damaged) that creates the stock movement with reason "retur"; a refused COD records its reason from a fixed list (tidak di tempat, menolak, alamat salah, tidak ada uang, lainnya). | S161 |
+| Per-courier settings | Remittance days, COD fee and the volumetric divisor are per-courier settings read from the provider documentation, never constants in code. Not built yet. | gate |
+| Roles | Unchanged: gudang sees no prices or finance, customer service cannot change stock, finance exports. One account per person; a departed person is deactivated the same day (existing staff roles screen). | none |
+
+### W4-9 Recommended but not specified here (owner decisions)
+
+- Storefront social-proof toast ("N orang memesan dalam 24 jam", measured, hidden below 3, no names): no conflict with `10:28`, `17:178` or `17:687`; needs owner approval as a storefront change.
+- Read-only operations API with bearer keys and a CLI: **conflicts** with the current auth contract (`07-IAM-RBAC-ABAC.md:36,85`, `09-API-SPECIFICATION.md:166`, `16:43`). It needs a new DEC or ADR first; it is not planned.

@@ -1,0 +1,42 @@
+{
+  "name": "99ribu-console",
+  "source": "Copy of the admin-dashboard house default (volum-default) because the staff console already measures to it. Baseline measured 2026-11-02 with a signed-in synthetic owner at 390, 1366 and 1536 px on routes /admin, pesanan, produk, produk/sku, produk/inventori, keuangan, pengaturan, pengaturan/staf, produk/baru. Proposed by DEC-026; becomes the accepted contract when the owner accepts DEC-026.",
+  "settleMs": 1500,
+  "notes": {
+    "measured": {
+      "button heights": "32, 36 on desktop; 50 to 132 on a phone are full-width buttons",
+      "input height": "36",
+      "input font": "14 desktop, 16 phone",
+      "header": "64",
+      "sidebar": "256 expanded; the 64 px tablet rail was not in this measurement",
+      "table head": "40",
+      "table cell font": "14 (12 in compact meta cells)",
+      "radius": "6 and 8, plus 32 on circular avatars and chips",
+      "shadow blur": "none outside overlays",
+      "h1": "24 px, weight 700"
+    },
+    "deviations": [
+      "Tablet rail is 64 px (4rem, for 44 px targets plus padding) instead of 48 px: src/app/admin/(console)/admin.css `[data-slot=admin-sidebar]`.",
+      "Spec 10 line 78 gives a 28/36 weight-600 page title on desktop; the console renders 24/700 (house default). Recommended: amend spec 10 to the measured value because the title must stay larger than the KPI value and density matters. Owner decision O-1 in DESIGN.md.",
+      "The sidebar is a custom component (`data-slot=admin-sidebar`), not the shadcn Sidebar, so the sidebar-width selector below targets it."
+    ],
+    "not_measurable_with_the_script": "admin-geometry.mjs has no sign-in option, so signed-in routes are reported 'not checked' by the script. Use the Playwright baseline in BUILD-LOG (2026-11-02) or add a sign-in option to the script before relying on it."
+  },
+  "checks": [
+    { "id": "root-font", "selector": "html", "prop": "fontSize", "allowed": [16], "viewports": "all" },
+    { "id": "button-height", "selector": "[data-slot=button]", "prop": "height", "allowed": [32, 36, 40], "viewports": "desktop" },
+    { "id": "input-height", "selector": "[data-slot=input], input[data-slot=form-control], [data-slot=select-trigger]", "prop": "height", "allowed": [32, 36], "viewports": "desktop" },
+    { "id": "input-font-desktop", "selector": "[data-slot=input], input[data-slot=form-control], textarea", "prop": "fontSize", "allowed": [14], "viewports": "desktop" },
+    { "id": "input-font-mobile", "selector": "[data-slot=input], textarea, select", "prop": "fontSize", "allowed": [16], "viewports": "mobile" },
+    { "id": "sidebar-width", "selector": "[data-slot=admin-sidebar]", "prop": "width", "allowed": [256, 64], "viewports": "desktop" },
+    { "id": "header-height", "selector": "header", "prop": "height", "allowed": [64], "viewports": "all" },
+    { "id": "table-head-height", "selector": "[data-slot=table-head]", "prop": "height", "allowed": [40], "viewports": "desktop" },
+    { "id": "table-cell-font", "selector": "[data-slot=table-cell]", "prop": "fontSize", "allowed": [14], "viewports": "all" },
+    { "id": "radius", "selector": "body *", "prop": "borderRadius", "allowed": [4, 6, 8, 10], "allowPill": true, "ignore": "[data-slot=sidebar-inset]", "viewports": "desktop" },
+    { "id": "shadow", "selector": "body *", "prop": "shadowBlur", "max": 3, "ignore": "[role=dialog], [role=menu], [role=listbox], [data-slot=popover-content], [data-slot=tooltip-content], [data-sonner-toaster]", "viewports": "desktop" },
+    { "id": "gradient", "selector": "body *", "prop": "gradient", "forbid": true, "viewports": "all" },
+    { "id": "icon-tile", "selector": "body *", "prop": "iconTile", "forbid": true, "viewports": "all" },
+    { "id": "accent-surfaces", "selector": "body *", "prop": "accentSurface", "distinctMax": 5, "viewports": "desktop" },
+    { "id": "touch-target", "selector": "[data-slot=button], [data-slot=input], [data-slot=select-trigger], [role=checkbox], [role=switch]", "prop": "minSide", "warnBelow": 44, "viewports": "mobile" }
+  ]
+}

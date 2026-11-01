@@ -79,7 +79,7 @@ Values are CSS-pixel design defaults, implemented with scalable units; users ret
 | Metadata and timestamps | 13 / 18 | 13 / 18 | 400–500; supporting facts only, never the sole error/total/action |
 | Conversation/card heading | 18 / 26 | 18 / 26 | 600; distinguish sender/content/section without a marketing hero |
 | Section heading | 20 / 28 | 20 / 28 | 600 |
-| Page title | 28 / 36 | 24 / 32 | 600; content-driven wrap, no fixed one-line height |
+| Page title | 28 / 36 | 24 / 32 | 600; content-driven wrap, no fixed one-line height. **Staff console (amended 2026-11-02, DEC-026, owner decision O-1):** 24 px, weight 700 at every width, the measured value of the console; it stays larger than any KPI value. The 28/36 row applies to the other surfaces. |
 | Product price or key financial total | 24 / 32 | 20 / 28 | 600–700; retain currency, basis and financial-state label |
 
 Use normal body letter spacing. A financial value never becomes a large unlabeled metric; price typography does not change the fixed IDR 99,000 rule or claim recognized cash. Font weights and size communicate hierarchy alongside semantic headings, not through visual size alone.

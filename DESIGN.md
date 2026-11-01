@@ -177,6 +177,141 @@ Reusable block patterns (one CSS rule set each): **section heading link** (`.she
 - Everything works at 320px with 200% text: chips wrap inside their pill, grids drop to one column, the dock becomes static at short heights.
 - Reduced motion disables every animation and transition listed above.
 
+## Dashboard system direction (proposed 2026-11-02): staff console, buyer account, affiliate
+
+Status: **proposed**, not accepted by the owner (DEC-026). Brief: [`design/brief.md`](design/brief.md). Size and surface contract for the console: [`design/admin-contract.json`](design/admin-contract.json). Evidence: storefront tokens `src/app/styles/01-base-tokens.css`, console tokens `src/app/admin/(console)/admin.css`, spec 10 (`docs/spec/10-DESIGN-SYSTEM-WHITELABEL.md`), the shop.com measurements in `docs/spec/design/references/shop-com/visual-context.md`, a code audit of `/akun` and `/afiliasi`, and market research (section "References"). shop.com has no public seller or admin console, so what transfers is its visual language, not its screens.
+
+**Direction in one line:** shop.com's calm neutral language (white surfaces on `#fcfcfc`, hairlines, charcoal ink, one purple action per view) applied to three dashboards that share one set of tokens, statuses, money rules and states, while each keeps the shell that fits its job.
+
+### Three surfaces, one system
+
+| | Console (staff) | Account (buyer) | Partner (affiliate) |
+|---|---|---|---|
+| Routes | `/admin/**` | `/akun/**` | `/afiliasi` |
+| Job | Operate the store: see what needs action, act, reconcile | Follow orders, fix details, get help | See earnings honestly, share a link, get paid |
+| Shell | Sidebar (256 px, tablet rail 64 px) and 64 px header; per-role nav | Storefront header and footer; tab row Pesanan, Profil, Pengaturan | Storefront header and footer; section anchors or tabs |
+| Controls | 36 px (44 px on coarse pointers), 8 px radius, 48 px table rows | 44 px, storefront pill buttons, 12 px fields | same as Account |
+| Component source | shadcn/ui (`radix-vega`) + Tailwind v4, `admin.css` | storefront CSS (`13-account.css`) and native HTML, server-first | storefront CSS (move out of `04-receipt-support.css`) and native HTML |
+| Density | Compact for mouse, comfortable for touch | Comfortable, one column on phones | Comfortable, one column on phones |
+
+Shared by all three: neutral canvas, ink `#121212`, hairline `rgba(0,0,0,.1)`, purple `#5b35d5` reserved for the primary action and the current place, Inter, functional SVG icons (no emoji), flat surfaces, and the rules below. The portals (Account, Partner) are **not** migrated onto shadcn: they are public-facing, server-first pages that should not load the console's CSS or client bundles. They share **tokens**, not a component library (owner decision O-2).
+
+### Rules shared by all three surfaces
+
+- **Status** is icon plus Indonesian text plus tone, never colour alone (`components/admin/status.tsx` tones: open, progress, problem, done, closed, danger, neutral). Portals use the same tone names and the same wording for the same state.
+- **Money** is whole rupiah, `Rp` with dot thousands (`id-ID`), tabular numerals, right-aligned in tables. An unknown amount shows "—" or "Belum lengkap", never Rp0. An amount that can still be reversed carries the words "Estimasi, bisa berubah" or its maturity date; the word "valid" is not used for anything reversible. Distinct balance states are never summed into one number (spec 17 line 694).
+- **Time** is shown in WIB with the zone stated next to a period.
+- **States:** a skeleton that matches the final geometry; first-run, filtered-empty, denied and error are four different messages; an error names the cause and the recovery and keeps what was typed; a toast never carries an error.
+- **Copy:** concrete Indonesian sentence case, no filler, no guarantee of earnings, no invented urgency or scarcity.
+- **Privacy:** no buyer name, address, phone or bank data in affiliate views (UX-3); no HPP or seller amounts on buyer or affiliate surfaces (DEC-007); guest orders stay summary-only until a claim is confirmed (DEC-016).
+- **Evidence:** a visible change is done only with rendered proof at 390, 768 and 1440 px (console also 1366 and 1536).
+
+### Console token alignment (admin tokens move to the storefront neutrals)
+
+| Token | Console today | Direction |
+|---|---|---|
+| Canvas | violet-tinted `oklch(.991 .001 286)` | `#fcfcfc`; surfaces `#fff` |
+| Ink | `#18181b` | `#121212` (no `#000`, owner 2026-10-30) |
+| Muted text | `oklch(.474 …)`, darker than `#707070` | keep: it holds 4.5:1 on the 4% fill; never lighten |
+| Border | `#d8d8df` | hairline `rgba(0,0,0,.1)`; field border `#858585` (already equal) |
+| Sidebar and neutral fills | blue-violet greys | neutral `#f5f5f5` and `#efefef` (the storefront dropped violet greys on 2026-10-30) |
+| Purple | `#5b35d5` | unchanged; current nav item `rgba(91,53,213,.08)` with `aria-current` |
+| Radius | 8 px base, scale 4/6/8/12 | keep; buttons are not pills in the console; full radius only for avatars and status dots |
+| Page title | `text-2xl font-bold`, 24 px / 700 (measured) | keep; spec 10 line 78 says 28/36 weight 600, owner decision O-1 whether to amend the spec to the measured value |
+| Body, table, form text | 14 px; meta 12 px; inputs 16 px on phones | keep (contract roles) |
+| Controls | 36 px (buttons 32/36/40), 44 px on `pointer: coarse` | keep; above the dotuiux 24 px floor |
+| Table | head 40 px, rows about 48 px, cell padding 8 px | keep; add sticky header and sort (S150) |
+| Motion | none defined | 150 ms `cubic-bezier(.4,0,.2,1)` on colour, background, border, shadow; no hover lift; off under reduced motion |
+| Dark mode | none | none (spec 10 light-only; plan decision D6 open) |
+
+The console already measures to the house contract (buttons 32/36, input 36, header 64, sidebar 256, table head 40, radii 6 and 8, no shadow outside overlays, title 24/700; baseline 2026-11-02 in `BUILD-LOG.md`). The only literal colour in console code is `tint: "#efeafd"` in `banners-client.tsx`.
+
+### Account and Partner token cleanups (from the code audit)
+
+| Finding | Direction |
+|---|---|
+| Affiliate uses hard-coded `#f4f0ff` and `#d9d0fb` and many inline `style={{…}}` | Use the purple tint token and named classes; no inline styles in pages |
+| Buyer defines local `--account-info #153d72` and `--account-success #19582c` | Use the shared tone tokens for info and success |
+| Buyer and affiliate cards use 20 px radius and 24 px padding for data blocks | Data blocks (balances, order lists, tables) use 12 px radius and a hairline; pills stay for buttons and chips |
+| `--muted` means text colour in the storefront and surface colour in the console (`01-base-tokens.css:296` documents the workaround) | Add `--text-muted` and `--surface-muted` aliases in both token files and migrate usage gradually (S159); no big-bang rename |
+| Affiliate has no tab or section nav; buyer has tabs | Affiliate gets the same tab-row pattern as Account |
+
+### Console dashboard, tables and forms
+
+- **Dashboard order:** header with scope and period (and compare when allowed); Perlu tindakan (attention tiles ranked by count, each opening its exact filtered queue, items older than 24 h marked by text and icon); money strip (basis badge on every figure, delta chip only for event-period metrics, "—" and "Belum lengkap" when an input is missing); work-queue tabs over a table. Charts only with a tabular alternative, one series each, purple plus neutral, comparison as a dashed neutral line. Metric policy D2 blocks acceptance (`docs/spec/02-PRD.md` line 449).
+- **Tables:** one `DataTable` behaviour: sticky 40 px header, 48 px rows, neutral 4% hover (no lift), numeric and money columns right-aligned with tabular numerals, sortable columns with an arrow icon and `aria-sort`, server-side keyset sort from a short allow-list with an id tie-breaker, sort and filters in the URL (never private contact searches), selection on the current page only, a card list below `md`, distinct states, "N dari M" in the footer.
+- **Forms and editing:** sectioned blocks, one sticky action bar with a single purple "Simpan perubahan", a dirty guard, a reason and `expected_version` for versioned changes, whole-rupiah fields with live floor and ceiling hints (Rp1 to Rp99.000, DEC-025), the offer editor as a table on desktop and cards on a phone, polite live-region announcements and focus on failure.
+
+### Console component stack: shadcn/ui and Tailwind v4
+
+Facts [verified 2026-11-02 with `shadcn info --json`]: `components.json` style `radix-vega`, base `radix`, RSC on, Tailwind v4 (4.3.3, no config file), CSS file `src/app/admin/(console)/admin.css`, CSS variables on, icons `lucide`, aliases `@/components/ui`, preset values neutral and Inter with default radius, CLI `shadcn` 4.23.0 and `radix-ui` 1.8.1 in `package.json`. No `@tanstack/react-table` is installed.
+
+- **Installed (15):** alert, badge, button, dialog, dropdown-menu, empty, field, input, label, separator, sheet, skeleton, table, textarea, tooltip.
+- **Custom (not shadcn):** admin sidebar (`data-slot=admin-sidebar`, not the shadcn Sidebar), `DataTable`, `KpiCard`, `FormField`, `SegmentedControl`, `StatusBadge`, `PageHeader`. Keep them; do not replace working primitives for resemblance.
+- **Selection ladder** (shadcn-ui skill): native element, then an installed component, then a composition, then a new registry item after `view` and `add --dry-run`, then an installed dependency, then a minimum custom component, then a new dependency only with a reason. A native `<select>` and `<input type="date">` remain the default.
+- **Candidates, dry-run only (nothing installed):**
+  - No overwrite of existing files: checkbox, select, popover, tabs, switch, breadcrumb, spinner, toggle-group (with toggle), chart (adds `recharts` 3.8.0).
+  - Overwrites existing files, so review each with `--diff` and merge by hand, never `--overwrite` without approval: command (also input-group; overwrites button, input, textarea, dialog), calendar (adds `react-day-picker`, `date-fns`; overwrites button), pagination (overwrites button), alert-dialog (overwrites button).
+  - Not wanted: sonner (adds `next-themes`; the console is light-only and errors never go in a toast).
+- **Planned use:** S150 checkbox (row selection); S151 alert-dialog (retire an offer); S152 popover and command (pick an existing SKU); S153 chart (lazy-loaded client leaf), with native date inputs before any calendar.
+- **Rules for every added or changed component** (shadcn-ui skill §5): `className` sets layout only; semantic tokens only (`bg-primary`, `text-muted-foreground`), no raw palette classes; `flex flex-col gap-*` rather than `space-y-*`; forms use `FieldGroup` and `Field` with `data-invalid` and `aria-invalid`; every Dialog or Sheet has a Title; a loading button is `Spinner` plus `disabled`; icons from `lucide` with `data-icon`; shadows only on overlays; heights and radii are set once in the owned primitives (contract roles), never per call (`h-7`, `text-[13px]`).
+- **Tailwind v4:** tokens are `oklch()` variables on `:root`, exposed through `@theme inline`; `--radius` is the seed of the radius scale; no `hsl(var(--x))` wrapper; arbitrary values only for a contract role; `tabular-nums` for money.
+- **MCP:** the shadcn MCP server is an optional convenience (`shadcn mcp init --client claude` writes a project `.mcp.json`; pin `shadcn@4.23.0`). Adding it is a repository configuration change that needs the owner's approval, so it is **not enabled**. The CLI (`info`, `docs`, `search`, `view`, `add --dry-run`, `--diff`) and Context7 are the working path.
+- **Measuring:** `design/admin-contract.json` plus the Playwright baseline. `admin-geometry.mjs` and `dotuiux check` cannot sign in, so signed-in pages are reported **not checked** by those two tools until a sign-in option exists (owner decision O-5: add one to the dotfiles scripts, or keep the Playwright check).
+
+### Account (buyer) and Partner (affiliate): screen direction
+
+Contracts are in spec 17 "Admin wave 4", W4-6 and W4-7. Summary of what the market research and the audit imply:
+
+- **Buyer:** keep the six order filters (Semua, Belum bayar, Diproses, Dikirim, Selesai, Ditutup) and add a Pengembalian entry; show the courier and a copyable resi in the order list; show the exact payment deadline and a copyable VA number; make COD terms explicit before checkout; add an address book with add, edit and delete; add a "Data dan privasi" area (see, correct, delete my data, with the reason when deletion is refused). Policy items that need the owner first: an auto-confirm period for "pesanan diterima", COD refusal wording.
+- **Partner:** Ringkasan with a period filter (7 hari, 30 hari, bulan ini), clicks, orders and the five balance states kept separate; per-unit commission table with filters and paging, each reversal showing a plain reason (pesanan dibatalkan, barang diretur, COD tidak diterima, tidak terkirim, klik di luar masa atribusi); Tautan dan kode with a copy button, QR and a share sheet; Penarikan with the minimum and schedule stated, a beneficiary form that re-asks the password, and history; Bantuan with the reversal rules. No "Tarik" button (finance transfers manually, PR-10) and no earnings promises.
+
+### Won't do
+
+1. Dark mode or a theme toggle without a product need.
+2. Storefront pill buttons, 20-28 px card radii, photo shelves, hero type or the phone dock inside the console.
+3. Decorative charts, invented KPIs, fake or placeholder numbers.
+4. Emoji or emoticons as icons; functional SVG icons only.
+5. Lighter-than-AA grey text to look quieter.
+6. Gamified coins, streaks, spin-to-win, shaming leaderboards, countdowns and "sampai 70%" style claims.
+7. A "valid" label on an amount that can still be reversed; silent fees or tax deductions; pre-ticked marketing consent.
+8. A second component library or a second set of tokens for the portals.
+
+### References (dotuiux step 2) and how far they are trusted
+
+| Source | What was taken | Trust |
+|---|---|---|
+| shop.com storefront, measured in the repo | neutrals, hairlines, one purple action, pill filters | measured by the owner's earlier work |
+| Seller-admin pattern accepted 2026-10-29 (plan D1) | shell, per-role nav, tabs, list to detail to create | accepted |
+| AdsBookCMS (`~/Documents/work/research/99ribu-vs-adsbookcms-comparison-2026-11-02.md`) | dashboard comparison, URL-held filters, confirm hook | patterns only, never code |
+| shadcn docs and CLI (`shadcn info`, `add --dry-run`) | component set, install effects | verified locally |
+| https://www.ui-skills.com/ (4 pages read) | generic rules paraphrased in the shared rules above: status never by colour alone, tabular numerals, visible labels, loading and empty and error states, one accent, one depth strategy, motion under 300 ms | low weight, reference only: its `robots.txt` says `ai-train=no, use=reference` and disallows some agents by name, no licence is stated, it has nothing on tables or data grids; nothing was copied |
+| Indonesian buyer research | tab vocabulary, resi copy, payment deadline, COD terms, auto-confirm, data rights | medium on conventions, low on every number; search summaries only, no official help page was read |
+| Indonesian affiliate research | the Involve Asia status lifecycle (official help page) and payout and tax patterns | medium on lifecycle, low on platform numbers; official Shopee, Tokopedia and Lazada pages were not read |
+
+Numbers from the research (auto-confirm days, COD fee percentages, payout minimums, tax rates, statute article numbers) are **not** carried into any spec as rules.
+
+### Owner decisions (2026-11-02: "jadi 5 point di atas kerjakan asal semua base on research")
+
+Recorded in `DECISIONS.md` DEC-026 (direction) and DEC-027 (metric policy). The owner accepted the recommended answers on the condition that they rest on research; the research summary is `~/Documents/work/research/99ribu-indonesia-ecommerce-admin-needs-2026-11-02.md` (non-authoritative, mostly secondary sources).
+
+- **O-1 accepted:** the console keeps its measured 24 px / weight 700 page title; spec 10 was amended accordingly.
+- **O-2 accepted:** the buyer account and the affiliate dashboard share tokens, status wording and money rules with the console, not its component library.
+- **O-3 accepted:** data blocks in the portals use a 12 px radius (S159).
+- **O-4 split:** accepted as design rules: reason text for a reversed commission, "Estimasi, bisa berubah", maturity dates beside amounts, COD terms stated before checkout, deletion request creating a support case. **Still open, no rule written:** any number or legal wording (auto-confirm period, COD refusal consequences, affiliate minimum and schedule beyond PR-10, tax note, return window, statute citations), because the research found no official source or found conflicting ones; each needs the owner, an accountant or a lawyer.
+- **O-5 accepted:** keep the Playwright check; the dotfiles scripts are not changed.
+- **D4 accepted:** Admin E-Commerce keeps product creation; HPP is entered only with `finance.costs.write`.
+- **D6 accepted:** no dark mode.
+- **D2 and D3 accepted:** metric policy v1 and chart list in DEC-027.
+
+## Tokens
+
+Storefront tokens: `src/app/styles/01-base-tokens.css`. Console tokens: `src/app/admin/(console)/admin.css` (Tailwind v4 and shadcn variables). The "Console token alignment" and "Account and Partner token cleanups" tables above are the target until the owner accepts or changes them. The console size contract is `design/admin-contract.json`.
+
+## Allow
+
+No `allow:` line is needed yet. The dotuiux `target-size` floor is 24 px (WCAG 2.5.8) and cannot be overridden; console controls are 36 px for mouse and keyboard and 44 px under `pointer: coarse` (spec 10 line 100), so they pass. A stylistic warning that this direction chooses on purpose is recorded here as `allow: <rule> — <reason>`.
+
 ## Changing the design
 
 1. Record the owner decision or the shop.com observation in visual-context.md first, then change tokens/components, then this file.
