@@ -223,29 +223,29 @@ test("Katalog: DEC-025 variant price edit refuses an out-of-range price and send
 	try {
 		const patches = await mockMutations(page, () => ({ status: 200, body: { version: 99 } }));
 		await page.goto(`${origin}/admin/produk/${row.n}`);
-		await page.getByTestId("content-edit").click();
-		const dialog = page.getByRole("dialog");
-		const price = dialog.getByTestId("content-prices").getByLabel(`${row.label} (Rp)`, { exact: true });
+		// S151-5: one price editor, the offer editor (the content dialog no longer edits prices).
+		const editor = page.getByTestId("offer-editor");
+		const price = editor.locator(`#offer-price-${row.offer_id}`);
 		await expect(price).toHaveValue(String(row.price));
 		await price.fill("99001");
-		await dialog.getByLabel("Alasan").fill("Sesuaikan harga varian");
-		await dialog.getByRole("button", { name: "Simpan draf" }).click();
-		await expect(dialog.getByText(/harus angka bulat Rp1 sampai Rp99\.000/)).toBeVisible();
+		await editor.getByLabel("Alasan perubahan").fill("Sesuaikan harga varian");
+		await editor.getByTestId("offer-editor-save").click();
+		await expect(page.getByTestId("offer-editor-errors").getByText(/harus angka bulat Rp1 sampai Rp99\.000/)).toBeVisible();
 		await expect(price).toHaveAttribute("aria-invalid", "true");
 		assert.equal(patches.length, 0, "an out-of-range price is refused before any request");
 		// Rendered evidence of the price fieldset with its refusal, wide and phone width.
 		await mkdir(".local/test-renders/s148", { recursive: true });
-		await dialog.getByTestId("content-prices").scrollIntoViewIfNeeded();
+		await editor.getByTestId("offer-editor-rows").scrollIntoViewIfNeeded();
 		await page.screenshot({ path: ".local/test-renders/s148/admin-price-error-1440.png" });
 		await page.setViewportSize({ width: 390, height: 844 });
-		await dialog.getByTestId("content-prices").scrollIntoViewIfNeeded();
+		await editor.getByTestId("offer-editor-rows").scrollIntoViewIfNeeded();
 		await noOverflow(page);
 		await page.screenshot({ path: ".local/test-renders/s148/admin-price-error-390.png" });
 		await page.setViewportSize({ width: 1440, height: 900 });
 		const next = row.price === 49000 ? 59000 : 49000;
 		await price.fill(String(next));
-		await dialog.getByRole("button", { name: "Simpan draf" }).click();
-		await expect(page.getByRole("status").filter({ hasText: "Konten dan harga disimpan sebagai draf versi" })).toBeVisible();
+		await editor.getByTestId("offer-editor-save").click();
+		await expect(page.getByText(/Penawaran disimpan sebagai draf versi/).first()).toBeVisible();
 		const body = patches[0].postDataJSON();
 		assert.equal(body.variant_changes.length, 1, "only the repriced offer is sent");
 		const [change] = body.variant_changes;

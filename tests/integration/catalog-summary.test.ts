@@ -87,7 +87,7 @@ test("admin product list returns publication summaries with server filters, and 
     assert.equal((await list(`${q}&state=ready`)).data.length, 0);
     assert.equal((await list(`q=${encodeURIComponent(`${name}%`)}`)).data.length, 0);
     assert.equal((await list(`q=${encodeURIComponent(tag)}&limit=1`)).data.length, 1);
-    for (const bad of ["state=draft", "q=", "q=%20", `category_id=${parent.id}&category_id=${child.id}`, "sort=name"])
+    for (const bad of ["state=draft", "q=", "q=%20", `category_id=${parent.id}&category_id=${child.id}`, "sort=price"])
       assert.equal((await send(owner, "GET", `/products?${bad}`)).status, 400, bad);
 
     // Complete the draft: description, media, stock, HPP and assumptions → ready, still matching the guard.

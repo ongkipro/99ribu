@@ -251,18 +251,18 @@ test('fulfillment: due excludes handed-over parcels, manual booking equals the S
   // Role scoping: warehouse sees its warehouses and counts only; money only for owner/finance.
   const staff=await actor(f.identity,'warehouse',[warehouse]);users.push(staff);await enroll(staff.browser,staff.password);
   const wh=await dashboard(f.identity,staff,{workspace:'warehouse'});
-  assert.deepEqual(wh.metrics.map(m=>m.key),['fulfillments_due','manual_booking_pending','delivery_exceptions','returns_pending','stock_alerts']);
-  assert.ok(wh.metrics.every(m=>m.kind==='count'&&m.amount===null));
+  assert.deepEqual(wh.metrics.map(m=>m.key),['fulfillments_due','manual_booking_pending','delivery_exceptions','returns_pending','stock_alerts','fulfillments_overdue']);
+  assert.ok(wh.metrics.every(m=>m.kind==='count'&&m.amount===null)); // fulfillments_overdue is a count too
   assert.equal(metric(wh,'manual_booking_pending').count,metric(s2,'manual_booking_pending').count,'same snapshot for the assigned warehouse');
   const other=f.parcels.find(p=>String(p.warehouse_id)!==warehouse);
   if(other)assert.equal((await handleReporting(staff.browser.request(`/api/v1/admin/dashboard?workspace=warehouse&warehouse_id=${other.warehouse_id}`),f.identity)).status,403);
   const fin=await dashboard(f.identity,finance,{workspace:'finance'});
-  assert.deepEqual(fin.metrics.map(m=>m.key),['finance_unmatched','orders_by_payment_method','transfers_near_deadline','autolaris_pending','cod_receivable','cod_remitted','refund_liability','affiliate_liability','estimated_contribution','realized_contribution','net_merchandise_revenue']);
+  assert.deepEqual(fin.metrics.map(m=>m.key),['finance_unmatched','orders_by_payment_method','transfers_near_deadline','autolaris_pending','cod_receivable','cod_remitted','refund_liability','affiliate_liability','estimated_contribution','realized_contribution','net_merchandise_revenue','average_order_value']);
   const admin=await actor(f.identity,'ecommerce_admin',[warehouse]);users.push(admin);await enroll(admin.browser,admin.password);
   const ecom=await dashboard(f.identity,admin,{workspace:'ecommerce_admin'});
-  assert.ok(ecom.metrics.every(m=>m.kind==='count'));assert.ok(!ecom.metrics.some(m=>['transfers_near_deadline','autolaris_pending'].includes(m.key)));
+  assert.ok(ecom.metrics.every(m=>m.kind!=='money'));assert.ok(!ecom.metrics.some(m=>['transfers_near_deadline','autolaris_pending'].includes(m.key)));
   const cs=await actor(f.identity,'customer_service',[]);users.push(cs);await enroll(cs.browser,cs.password);
-  assert.deepEqual((await dashboard(f.identity,cs,{workspace:'customer_service'})).metrics.map(m=>m.key),['orders_pending','delivery_exceptions','returns_pending','support_unassigned']);
+  assert.deepEqual((await dashboard(f.identity,cs,{workspace:'customer_service'})).metrics.map(m=>m.key),['orders_pending','delivery_exceptions','returns_pending','support_unassigned','oldest_unclaimed_chat_age']);
   assert.equal((await handleReporting(admin.browser.request('/api/v1/admin/dashboard?workspace=ecommerce_admin&metric=cod_remitted'),f.identity)).status,403);
  }finally{for(const user of users)await closeFulfillmentActor(f.identity,user).catch(()=>{});await f.close();}
 });

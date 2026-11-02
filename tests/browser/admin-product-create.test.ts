@@ -207,15 +207,15 @@ test("S-P1 a refused HPP after the product exists links to the draft and can be 
 		await page.locator("#variant-price-0").fill("79000");
 		await page.locator("#variant-weight-0").fill("600");
 		await page.locator("#variant-warehouse-0").selectOption("w1");
-		await page.locator("#variant-hpp-0").fill("45000");
+		await page.getByLabel("HPP (Rp)").fill("45000");
 		await page.getByTestId("product-create-submit").click();
 		const error = page.getByTestId("product-create-error");
 		await expect(error).toBeVisible();
 		await expect(error.getByRole("link", { name: "Buka draf produk" })).toHaveAttribute("href", "/admin/produk/p3");
-		await expect(page.locator("#variant-hpp-0")).toBeEnabled();
+		await expect(page.getByLabel("HPP (Rp)")).toBeEnabled();
 		await expect(page.getByTestId("product-name")).toBeDisabled();
 		await page.screenshot({ path: join(renders, "tambah-produk-cost-refused-390.png"), fullPage: true });
-		await page.locator("#variant-hpp-0").fill("");
+		await page.getByLabel("HPP (Rp)").fill("");
 		await page.getByTestId("product-create-submit").click();
 		await page.waitForURL(`${origin}/admin/produk/p3`);
 		assert.deepEqual(costs, ["hpp", "assumption"]);

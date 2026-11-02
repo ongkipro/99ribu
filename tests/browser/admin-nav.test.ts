@@ -66,6 +66,7 @@ const EXPECTED: [string, Role[], string[], [string, string[]][]][] = [
 		["Beranda", []],
 		["Pantauan", ["Pesanan", "Produk", "Stok", "Kendala Pengiriman", "Retur"]],
 		["Keuangan", ["Laporan Keuangan", "Rekonsiliasi", "Komisi Afiliasi"]],
+		["Pemasaran", []],
 		["Pengaturan", SETTINGS],
 	]],
 	["ecommerce_admin", ["ecommerce_admin"], ["orders.history.read"], [

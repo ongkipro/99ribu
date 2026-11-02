@@ -479,7 +479,8 @@ test("S99/S100 built browser: the manual queue shows the booking facts and the b
 			await expect(link.or(more).first()).toBeVisible();
 			for (let i = 0; i < 10 && !(await link.count()) && (await more.count()); i++) {
 				await more.click();
-				await expect(more).not.toHaveText("Memuat…");
+				// the button disappears on the last page, so settle on "not loading" rather than on its text
+				await expect.poll(async () => !(await more.count()) || (await more.textContent()) !== "Memuat…").toBe(true);
 			}
 		}
 		await expect(link).toHaveAttribute("href", `/admin/pesanan/${(await sql`select admin_no::int as n from app.commerce_order where id = ${order.id}`)[0].n}`);
