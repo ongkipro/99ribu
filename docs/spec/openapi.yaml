@@ -996,6 +996,124 @@ paths:
       - $ref: '#/components/parameters/Limit'
       x-proof-group: accounts
       x-implementation: src/app/api/v1/me/orders/route.ts
+  /me/returns:
+    get:
+      operationId: listMyReturns
+      summary: List the authenticated buyer return and replacement cases
+      description: Implemented-local Serba 99ribu v1 endpoint; not deployed. Newest first across every order the buyer
+        owns or has claimed with a verified guest-order link; the same staff-free projection as the per-order
+        read plus the order number and product names. Unclaimed guest orders never appear (DEC-016).
+      tags:
+      - Returns
+      security: *id001
+      x-contract-status: implemented-local
+      x-domain-owner: returns
+      x-primary-requirement: PR-7
+      responses:
+        '200':
+          description: Successful response.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/MyReturnList'
+          headers:
+            Cache-Control:
+              description: Private response; never shared cached.
+              schema:
+                type: string
+                const: no-store
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '429':
+          $ref: '#/components/responses/TooManyRequests'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        default:
+          description: Unexpected server/proxy failure; clients tolerate a non-Problem gateway body.
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+        '503':
+          $ref: '#/components/responses/Unavailable'
+      x-allowed-roles:
+      - buyer
+      parameters:
+      - $ref: '#/components/parameters/Cursor'
+      - $ref: '#/components/parameters/Limit'
+      x-proof-group: accounts
+      x-implementation: src/app/api/v1/me/returns/route.ts
+  /me/data-requests:
+    post:
+      operationId: createMyDataRequest
+      summary: Request deletion of the authenticated buyer account
+      description: Implemented-local Serba 99ribu v1 endpoint; not deployed. Opens exactly one support conversation
+        with a fixed first message and deletes nothing; staff decide and act. A repeated request returns the same
+        conversation. Rate limited per buyer.
+      tags:
+      - Accounts
+      security: *id001
+      x-contract-status: implemented-local
+      x-domain-owner: support
+      x-primary-requirement: PR-12
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              additionalProperties: false
+      responses:
+        '200':
+          description: Replay of an existing request; the same conversation is returned and nothing new is created.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AccountDeletionRequestReceipt'
+          headers:
+            Cache-Control:
+              description: Private response; never shared cached.
+              schema:
+                type: string
+                const: no-store
+        '201':
+          description: Request recorded as a support conversation.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AccountDeletionRequestReceipt'
+          headers:
+            Cache-Control:
+              description: Private response; never shared cached.
+              schema:
+                type: string
+                const: no-store
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '429':
+          $ref: '#/components/responses/TooManyRequests'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        default:
+          description: Unexpected server/proxy failure; clients tolerate a non-Problem gateway body.
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+        '503':
+          $ref: '#/components/responses/Unavailable'
+      x-allowed-roles:
+      - buyer
+      parameters:
+      - $ref: '#/components/parameters/IdempotencyKey'
+      x-proof-group: accounts
+      x-implementation: src/app/api/v1/me/data-requests/route.ts
   /orders/{orderId}:
     get:
       operationId: getOrder
@@ -2213,9 +2331,35 @@ paths:
       - name: cursor
         in: query
         required: false
+        description: 'Opaque `next_cursor` of the previous page. Without sort it is the last position id; with sort it encodes the sort key, direction and last (value, id). A cursor made for another sort (or another filter set where noted) is 400.'
         schema:
-          $ref: '#/components/schemas/CatalogUuid'
+          type: string
+          minLength: 1
+          maxLength: 2000
+          pattern: ^[A-Za-z0-9_-]+$
       - $ref: '#/components/parameters/Limit'
+      - name: sort
+        in: query
+        required: false
+        description: 'Server-side sort column (sku, name, on_hand, reserved, quarantined). Without it the list keeps its default order (by position id).
+          Any other value is 400. Ties are broken by id in the same direction, so pages never repeat or skip a row.'
+        schema:
+          type: string
+          enum:
+          - sku
+          - name
+          - on_hand
+          - reserved
+          - quarantined
+      - name: dir
+        in: query
+        required: false
+        description: Sort direction, default asc. Valid only together with sort (400 otherwise).
+        schema:
+          type: string
+          enum:
+          - asc
+          - desc
       - name: warehouse_id
         in: query
         required: false
@@ -5923,9 +6067,33 @@ paths:
       parameters:
       - name: cursor
         in: query
+        required: false
+        description: 'Opaque `next_cursor` of the previous page. Without sort it is the last product id; with sort it encodes the sort key, direction and last (value, id). A cursor made for another sort (or another filter set where noted) is 400.'
         schema:
-          $ref: '#/components/schemas/CatalogUuid'
+          type: string
+          minLength: 1
+          maxLength: 2000
+          pattern: ^[A-Za-z0-9_-]+$
       - $ref: '#/components/parameters/Limit'
+      - name: sort
+        in: query
+        required: false
+        description: 'Server-side sort column (name, catalog_id). Without it the list keeps its default order (by id).
+          Any other value is 400. Ties are broken by id in the same direction, so pages never repeat or skip a row. Price is not sortable: it belongs to each offer.'
+        schema:
+          type: string
+          enum:
+          - name
+          - catalog_id
+      - name: dir
+        in: query
+        required: false
+        description: Sort direction, default asc. Valid only together with sort (400 otherwise).
+        schema:
+          type: string
+          enum:
+          - asc
+          - desc
       - name: q
         in: query
         description: Case-insensitive literal substring of the product name or catalog ID.
@@ -7031,12 +7199,36 @@ paths:
       parameters:
       - name: cursor
         in: query
+        description: Opaque `next_cursor`. A sorted page's cursor also encodes the sort column, direction and last (value,
+          id) and is bound to the same filters and scope; a cursor made for another sort is 400.
         schema:
           type: string
           minLength: 1
           maxLength: 2000
           pattern: ^[A-Za-z0-9_-]+$
       - $ref: '#/components/parameters/Limit'
+      - name: sort
+        in: query
+        required: false
+        description: 'Server-side sort column (created_at, number, buyer_total, status, payment_status). Without it the list keeps its default order (newest first, created_at desc).
+          Any other value is 400. Ties are broken by id in the same direction, so pages never repeat or skip a row.'
+        schema:
+          type: string
+          enum:
+          - created_at
+          - number
+          - buyer_total
+          - status
+          - payment_status
+      - name: dir
+        in: query
+        required: false
+        description: Sort direction, default asc. Valid only together with sort (400 otherwise).
+        schema:
+          type: string
+          enum:
+          - asc
+          - desc
       - name: from
         in: query
         description: Canonical UTC timestamp with millisecond precision.
@@ -12132,14 +12324,46 @@ paths:
           $ref: '#/components/schemas/Id'
       - name: from
         in: query
+        description: Start of an explicit range. Send from and to together, or neither and use window (default 30d);
+          from without to (or the reverse) is 400, and a range wider than 366 days is 400 WINDOW_TOO_WIDE. When both
+          are sent, window is ignored.
         schema:
           $ref: '#/components/schemas/DateTime'
-        required: true
       - name: to
         in: query
+        description: End of an explicit range; see from.
         schema:
           $ref: '#/components/schemas/DateTime'
-        required: true
+      - name: window
+        in: query
+        description: Preset period, used when from and to are absent (default 30d). today, yesterday, 7d and 30d are
+          WIB (Asia/Jakarta) calendar days that start at 00:00 WIB and, for 7d and 30d, include today. 90d, 365d and
+          all are rolling windows ending now.
+        schema:
+          type: string
+          enum:
+          - today
+          - yesterday
+          - 7d
+          - 30d
+          - 90d
+          - 365d
+          - all
+      - name: compare
+        in: query
+        description: previous adds a comparison against the previous period of equal length, for event-period metrics only.
+        schema:
+          type: string
+          enum:
+          - previous
+      - name: fields
+        in: query
+        description: counts returns only the count metrics (no money, rate or average metric) and no series,
+          COD ageing or comparison; the console's navigation badge poll uses it to stay cheap. Any other value is 400.
+        schema:
+          type: string
+          enum:
+          - counts
       x-required-permission: dashboard.read
       x-proof-group: administration
       x-implementation: src/app/api/v1/admin/dashboard/route.ts
@@ -12654,6 +12878,73 @@ paths:
       x-required-permission: shipping.labels.read
       x-proof-group: labels
       x-implementation: src/app/api/v1/admin/label-queue/route.ts
+  /admin/picklists:
+    get:
+      operationId: readPicklist
+      summary: Read one picklist for selected parcels
+      description: Implemented-local first-party read (S161, W4-8). Sums the allocated component quantities of the
+        selected parcels per stock item, grouped by warehouse, for one printable picking sheet. Any parcel that is
+        unknown or outside the caller's warehouse scope answers 404 for the whole request (owner company-wide;
+        warehouse and ecommerce_admin only active memberships). Parcels already handed over or whose order is cancelled
+        are not summed and are listed in skipped_shipment_ids. Reads mutate nothing.
+      tags:
+      - Fulfillment
+      security:
+      - sessionCookie: []
+      - bearerAuth: []
+      x-contract-status: implemented-local
+      x-domain-owner: fulfillment
+      x-primary-requirement: PR-25
+      parameters:
+      - name: shipment_id
+        in: query
+        required: true
+        description: Repeat once per selected parcel; 1 to 100 distinct parcels.
+        style: form
+        explode: true
+        schema:
+          type: array
+          minItems: 1
+          maxItems: 100
+          items:
+            type: string
+            format: uuid
+      responses:
+        '200':
+          description: Successful response.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Picklist'
+          headers:
+            Cache-Control:
+              description: Private response; never shared cached.
+              schema:
+                type: string
+                const: no-store
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '503':
+          $ref: '#/components/responses/Unavailable'
+        default:
+          description: Safe application Problem; proxies may return non-Problem failures.
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+      x-allowed-roles:
+      - owner
+      - ecommerce_admin
+      - warehouse
+      x-required-permission: shipping.labels.read
+      x-proof-group: labels
+      x-implementation: src/app/api/v1/admin/picklists/route.ts
   /admin/shipments/{shipmentId}/label-jobs:
     post:
       operationId: generateShipmentLabel
@@ -13675,9 +13966,42 @@ paths:
       parameters:
       - name: cursor
         in: query
+        required: false
+        description: 'Opaque `next_cursor` of the previous page. Without sort it is the last SKU id; with sort it encodes the sort key, direction and last (value, id). A cursor made for another sort (or another filter set where noted) is 400.'
         schema:
-          $ref: '#/components/schemas/CatalogUuid'
+          type: string
+          minLength: 1
+          maxLength: 2000
+          pattern: ^[A-Za-z0-9_-]+$
       - $ref: '#/components/parameters/Limit'
+      - name: sort
+        in: query
+        required: false
+        description: 'Server-side sort column (sku, name). Without it the list keeps its default order (by id).
+          Any other value is 400. Ties are broken by id in the same direction, so pages never repeat or skip a row.'
+        schema:
+          type: string
+          enum:
+          - sku
+          - name
+      - name: dir
+        in: query
+        required: false
+        description: Sort direction, default asc. Valid only together with sort (400 otherwise).
+        schema:
+          type: string
+          enum:
+          - asc
+          - desc
+      - name: q
+        in: query
+        required: false
+        description: Case-insensitive literal substring of the physical SKU code or name, matched over the whole dictionary.
+        schema:
+          type: string
+          minLength: 1
+          maxLength: 100
+          pattern: \S
     post:
       operationId: createPhysicalStockItems
       summary: Create physical SKUs
@@ -17435,6 +17759,12 @@ components:
           - manual_dashboard
         booking:
           $ref: '#/components/schemas/ManualShipmentBooking'
+        label_printed_at:
+          type:
+          - string
+          - 'null'
+          format: date-time
+          description: When a valid label of this parcel was last printed to completion; null while not printed.
       required:
       - order_admin_no
       - id
@@ -17465,6 +17795,7 @@ components:
       - warehouse_district
       - mode
       - booking
+      - label_printed_at
       additionalProperties: false
       description: 'Manual work-queue row: paid prepaid or confirmed COD parcel in a manual-mode warehouse. Recipient
         stays assigned-staff only.'
@@ -19962,6 +20293,102 @@ components:
       - created_at
       - version
       - refund_ids
+      additionalProperties: false
+    MyReturnCase:
+      type: object
+      properties:
+        order_number:
+          type: string
+          minLength: 1
+          maxLength: 80
+        product_names:
+          type: array
+          maxItems: 100
+          items:
+            type: string
+            maxLength: 300
+        id:
+          $ref: '#/components/schemas/Id'
+        order_id:
+          $ref: '#/components/schemas/Id'
+        status:
+          type: string
+          enum:
+          - requested
+          - reviewing
+          - approved
+          - rejected
+          - awaiting_goods
+          - inspecting
+          - refunding
+          - replacing
+          - resolved
+        items:
+          type: array
+          items:
+            $ref: '#/components/schemas/ReturnItemInput'
+        requested_resolution:
+          type: string
+          enum:
+          - refund
+          - replacement
+        explanation:
+          type: string
+        replacement_shipment_ids:
+          type: array
+          items:
+            $ref: '#/components/schemas/Id'
+        refund_amount:
+          $ref: '#/components/schemas/Money'
+        created_at:
+          $ref: '#/components/schemas/DateTime'
+        version:
+          type: integer
+          minimum: 1
+        refund_ids:
+          type: array
+          items:
+            $ref: '#/components/schemas/Id'
+      required:
+      - id
+      - order_number
+      - product_names
+      - order_id
+      - status
+      - items
+      - requested_resolution
+      - created_at
+      - version
+      - refund_ids
+      additionalProperties: false
+    MyReturnList:
+      type: object
+      properties:
+        data:
+          type: array
+          items:
+            $ref: '#/components/schemas/MyReturnCase'
+        pagination:
+          $ref: '#/components/schemas/Pagination'
+      required:
+      - data
+      - pagination
+      additionalProperties: false
+    AccountDeletionRequestReceipt:
+      type: object
+      properties:
+        kind:
+          type: string
+          const: account_deletion
+        conversation_id:
+          $ref: '#/components/schemas/Id'
+        status:
+          type: string
+          const: received
+      required:
+      - kind
+      - conversation_id
+      - status
       additionalProperties: false
     ReturnList:
       type: object
@@ -26967,6 +27394,12 @@ components:
           - estimated_contribution
           - realized_contribution
           - net_merchandise_revenue
+          - fulfillments_overdue
+          - cod_failed_rate
+          - return_rate
+          - average_order_value
+          - oldest_unclaimed_chat_age
+          - cod_problems_open
         count:
           type:
           - integer
@@ -26994,6 +27427,8 @@ components:
           enum:
           - count
           - money
+          - rate
+          - duration
         amount:
           type:
           - integer
@@ -27015,6 +27450,68 @@ components:
           - mixed
           - unknown
           - not_applicable
+        denominator:
+          type:
+          - integer
+          - 'null'
+          minimum: 0
+          description: Rate metrics only; the number the rate is divided by, shown beside the figure.
+        rate:
+          type:
+          - number
+          - 'null'
+          minimum: 0
+          description: Rate metrics only; a fraction (0.12 is 12%). Null when the denominator is zero, never 0.
+        low_sample:
+          type: boolean
+          description: Rate metrics with a minimum sample (return_rate) only; true when the denominator is below it.
+            Then rate is null and the console shows count and denominator with a dash ("sampel terlalu kecil").
+            A rate above 1 (above 100%) is kept as is.
+        age_seconds:
+          type:
+          - integer
+          - 'null'
+          minimum: 0
+          description: Duration metrics only; the age of the oldest waiting item.
+        stale_count:
+          type:
+          - integer
+          - 'null'
+          minimum: 0
+          description: Items older than the 24 hour marker that staff must still act on (a prepaid order awaiting the buyer's payment and a chat waiting for the buyer are not counted); null where the metric has no such marker (fulfillments_due uses the overdue chip).
+        comparison:
+          type:
+          - object
+          - 'null'
+          description: Present only for event-period metrics when compare=previous is requested.
+          properties:
+            previous:
+              type:
+              - number
+              - 'null'
+            delta:
+              type:
+              - number
+              - 'null'
+            delta_kind:
+              type: string
+              enum:
+              - percent
+              - points
+            reason:
+              type:
+              - string
+              - 'null'
+              enum:
+              - no_base
+              - incomplete
+              - null
+          required:
+          - previous
+          - delta
+          - delta_kind
+          - reason
+          additionalProperties: false
         definition:
           type: string
           minLength: 1
@@ -27100,6 +27597,7 @@ components:
               - finance_unmatched
               - transfers_near_deadline
               - autolaris_pending
+              - cod_problems_open
         then:
           properties:
             kind:
@@ -27137,6 +27635,9 @@ components:
               - unknown
       - if:
           properties:
+            key:
+              not:
+                const: average_order_value
             kind:
               const: money
             complete:
@@ -27217,9 +27718,123 @@ components:
         metrics:
           type: array
           minItems: 0
-          maxItems: 20
+          maxItems: 30
           items:
             $ref: '#/components/schemas/DashboardMetric'
+        comparison_period:
+          type:
+          - object
+          - 'null'
+          properties:
+            from:
+              $ref: '#/components/schemas/DateTime'
+            to:
+              $ref: '#/components/schemas/DateTime'
+          required:
+          - from
+          - to
+          additionalProperties: false
+        series:
+          type:
+          - object
+          - 'null'
+          properties:
+            bucket:
+              type: string
+              enum:
+              - hour
+              - day
+            points:
+              type: array
+              maxItems: 400
+              items:
+                type: object
+                properties:
+                  start:
+                    $ref: '#/components/schemas/DateTime'
+                  revenue:
+                    type:
+                    - integer
+                    - 'null'
+                  orders:
+                    type: integer
+                    minimum: 0
+                required:
+                - start
+                - revenue
+                - orders
+                additionalProperties: false
+            previous:
+              type:
+              - array
+              - 'null'
+              maxItems: 400
+              items:
+                type: object
+                properties:
+                  start:
+                    $ref: '#/components/schemas/DateTime'
+                  revenue:
+                    type:
+                    - integer
+                    - 'null'
+                  orders:
+                    type: integer
+                    minimum: 0
+                required:
+                - start
+                - revenue
+                - orders
+                additionalProperties: false
+          required:
+          - bucket
+          - points
+          - previous
+          additionalProperties: false
+        cod_ageing:
+          type:
+          - object
+          - 'null'
+          properties:
+            edges_are_display_choice:
+              type: boolean
+              const: true
+            total:
+              type: integer
+              minimum: 0
+            buckets:
+              type: array
+              maxItems: 10
+              items:
+                type: object
+                properties:
+                  label:
+                    type: string
+                    maxLength: 40
+                  from_days:
+                    type: integer
+                    minimum: 0
+                  to_days:
+                    type:
+                    - integer
+                    - 'null'
+                  parcels:
+                    type: integer
+                    minimum: 0
+                  amount:
+                    type: integer
+                required:
+                - label
+                - from_days
+                - to_days
+                - parcels
+                - amount
+                additionalProperties: false
+          required:
+          - edges_are_display_choice
+          - total
+          - buckets
+          additionalProperties: false
       required:
       - workspace
       - warehouse_ids
@@ -27238,6 +27853,41 @@ components:
       - if:
           properties:
             workspace:
+              const: owner
+        then:
+          properties:
+            metrics:
+              items:
+                properties:
+                  key:
+                    enum:
+                    - orders_pending
+                    - orders_by_payment_method
+                    - fulfillments_due
+                    - manual_booking_pending
+                    - delivery_exceptions
+                    - returns_pending
+                    - stock_alerts
+                    - support_unassigned
+                    - finance_unmatched
+                    - transfers_near_deadline
+                    - autolaris_pending
+                    - cod_receivable
+                    - cod_remitted
+                    - refund_liability
+                    - affiliate_liability
+                    - estimated_contribution
+                    - realized_contribution
+                    - net_merchandise_revenue
+                    - fulfillments_overdue
+                    - cod_failed_rate
+                    - return_rate
+                    - average_order_value
+                    - oldest_unclaimed_chat_age
+                    - cod_problems_open
+      - if:
+          properties:
+            workspace:
               const: warehouse
         then:
           properties:
@@ -27251,6 +27901,7 @@ components:
                     - delivery_exceptions
                     - returns_pending
                     - stock_alerts
+                    - fulfillments_overdue
       - if:
           properties:
             workspace:
@@ -27266,6 +27917,7 @@ components:
                     - delivery_exceptions
                     - returns_pending
                     - support_unassigned
+                    - oldest_unclaimed_chat_age
       - if:
           properties:
             workspace:
@@ -27284,6 +27936,10 @@ components:
                     - delivery_exceptions
                     - returns_pending
                     - stock_alerts
+                    - fulfillments_overdue
+                    - cod_failed_rate
+                    - return_rate
+                    - cod_problems_open
       - if:
           properties:
             workspace:
@@ -27306,6 +27962,7 @@ components:
                     - estimated_contribution
                     - realized_contribution
                     - net_merchandise_revenue
+                    - average_order_value
     WorkQueueItem:
       type: object
       properties:
@@ -27448,6 +28105,18 @@ components:
         cod_due:
           type: integer
           minimum: 0
+        label_printed_at:
+          type:
+          - string
+          - 'null'
+          format: date-time
+          description: When a valid, unexpired label of this parcel was last printed to completion (a completed print attempt); null while not printed. Expired labels cannot be printed, so a print of one no longer counts. A further print needs a reprint with a reason.
+        label_printed_artifact_id:
+          type:
+          - string
+          - 'null'
+          format: uuid
+          description: The label artifact that print belongs to. A client shows "printed" only when this equals the artifact its print action acts on, so a newer unprinted artifact still offers the first print.
         due_at:
           type:
           - string
@@ -27463,7 +28132,70 @@ components:
       - tracking_number
       - fulfillment_status
       - cod_due
+      - label_printed_at
+      - label_printed_artifact_id
       - due_at
+      additionalProperties: false
+    Picklist:
+      type: object
+      properties:
+        warehouses:
+          type: array
+          items:
+            type: object
+            properties:
+              warehouse_id:
+                type: string
+                format: uuid
+              warehouse_name:
+                type: string
+              parcel_count:
+                type: integer
+                minimum: 1
+              orders:
+                type: array
+                items:
+                  type: string
+              items:
+                type: array
+                items:
+                  type: object
+                  properties:
+                    stock_item_id:
+                      type: string
+                      format: uuid
+                    sku:
+                      type: string
+                    name:
+                      type: string
+                    quantity:
+                      type: integer
+                      minimum: 1
+                    parcels:
+                      type: integer
+                      minimum: 1
+                  required:
+                  - stock_item_id
+                  - sku
+                  - name
+                  - quantity
+                  - parcels
+                  additionalProperties: false
+            required:
+            - warehouse_id
+            - warehouse_name
+            - parcel_count
+            - orders
+            - items
+            additionalProperties: false
+        skipped_shipment_ids:
+          type: array
+          items:
+            type: string
+            format: uuid
+      required:
+      - warehouses
+      - skipped_shipment_ids
       additionalProperties: false
     PrintQueueArtifact:
       type: object

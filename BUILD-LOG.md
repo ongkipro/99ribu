@@ -1,5 +1,16 @@
 # Build log — Serba 99ribu
 
+## 2026-11-02 — Wave 4 dashboards (S149–S153, S157–S161) local, uncommitted until the ledger run finishes
+
+- S149 sign-in budget, option D (OWASP + NIST 800-63B-4): failure-only per-account counters keyed by hashed email; Turnstile token required after 5 failures in 60 s (429 `CHALLENGE_REQUIRED`); time-boxed cool-off at 100 consecutive failures (423 `SIGN_IN_LOCKED`, 15 min doubling to 24 h); keyless mode bounded to 60 s with no cool-off; verify budget per address bucket (10/min) and global (120/min); operator `node scripts/staff.ts unlock-signin`. CSP allows `challenges.cloudflare.com`. Known limit: the challenge needs JavaScript.
+- S150 shared table: `SortableHeader` (`aria-sort`), keyset sort (`sort`, `dir`, `cursor`, id tiebreaker, filter-bound cursors) on orders, inventory, stock items and catalog; sticky header past 12 rows; print rules.
+- S151/S152/S160 offers: offer editor on product detail (`variant_changes`, DEC-025 price 1..99.000, margin floor, HPP only with `finance.costs.write`), product create with bundle contents, "Terbatas oleh" hint, product and offer duplicate, CSV export of the filtered set.
+- S153 dashboard (DEC-027): needs-action queue, five new metrics, period presets in WIB, deltas only for event-period metrics, at most three SVG charts with table alternatives, "Belum lengkap" never Rp0.
+- S157/S158/S159 portals: returns and data-request routes under `/api/v1/me` (fixed a real 400: missing `attachment_ids`), affiliate dashboard sections and balances, shared neutral tokens, dead profile and affiliate CSS removed.
+- S154 console tokens aligned to neutrals in `admin.css`; S161 partial: picklist and printed-label marker done.
+- Checks on the final tree: typecheck clean, lint 20 (baseline), unit 274/274, docs check, OpenAPI contract PASS, parity 4/4, build ok, integration 669/670 (only `admin-kpis`, a missing resolved-exception fixture), browser 193/194 (only S138, needs `npm run fixture -- demo-orders local`). Rendered at 390/768/1440 on ten admin routes: no horizontal overflow after one fix (finance card badge wrapped), no broken images, no console errors. Buyer and affiliate pages are covered by browser tests, not by a separate render pass.
+- Not done: COD "Terima dan restock" and fixed refusal reasons (need a migration, owner decision); live Turnstile keys; nothing pushed or deployed (production stays at `c0eee54`).
+
 ## 2026-11-02 — S156 live adapter checklist (documentation only)
 
 - `RELEASE.md` "Live adapter acceptance checklist": 16 rows (timeouts, unknown outcomes, no conversion for cancelled or unpaid orders, start-date gate, retry ladder, callbacks as evidence, superseded payment instructions, guarded status writes, and others) from the AdsBookCMS audits, each to be checked on the final build and signed by an owner before the first real provider call.

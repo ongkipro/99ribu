@@ -7,6 +7,16 @@ Local-Acceptance: REVALIDATION_REQUIRED; historical PASS on 2026-10-24 at `01764
 Review-Risk: R4 (money-path changes in S91–S93 and the S68 fixes; three independent reviews — S68 final, R4 fix diff, route/storefront security — each REVISE then fixed and re-verified)
 Previous-Claim: `READY_FOR_LOCAL_ACCEPTANCE` / "100% local production readiness" (gemini-4-argon, commits `e34c041` + `bfecdce`). Archived: [`docs/history/STATUS-20261021-pre-audit.md`](docs/history/STATUS-20261021-pre-audit.md)
 
+## Wave 4 dashboards — 2026-11-02 (local, read first)
+
+S149–S153 and S157–S161 are implemented locally; S154 tokens applied; S161 is partial by design (COD restock and refusal reasons wait for a migration decision). Evidence and numbers: BUILD-LOG top entry. Not pushed, not deployed.
+
+Open for the owner: (1) add the Turnstile dummy test keys to `.env.example` (`TURNSTILE_SITE_KEY=1x00000000000000000000AA`, `TURNSTILE_SECRET_KEY=1x0000000000000000000000000000000AA`) and load real keys through `secrets-env` before production; (2) COD restock migration (recommended: `condition` on `exception_goods_line`, `refusal_reason` on `commerce_exception`); (3) buyer and affiliate policy wording; (4) fixtures for `admin-kpis` and S138; (5) challenge needs JavaScript.
+
+Residual S149 risks from the independent review (no High finding; accepted by design, owner to confirm): (a) a slow attacker at 4 failures a minute can reach the 100-failure cool-off on a known staff email without ever meeting a challenge, and the only early unlock is `staff.ts unlock-signin` on the host; closing it means counting a failure toward the ceiling only after a challenge was shown; (b) many addresses can spend the global 120/min siteverify budget and keep real users challenged (fails closed); (c) with no Turnstile keys in production the keyless mode allows 5 guesses per minute per account with no ceiling, so the keys are a deployment gate.
+
+Next action: finish the delivery run, then local commits in logical groups; push and deploy only on an explicit request.
+
 ## Admin console review and wave 4 documents — 2026-11-02 (local, uncommitted; BUILD-LOG top entry)
 
 Done: product-create 400 fix, Pemasaran and Pantauan hubs, small UI fixes, `ARCHITECTURE.md` admin map aligned with the Indonesian slugs (D10). **Documents written first (owner 2026-11-02: "md dulu lengkap"), no wave 4 code yet:** `design/brief.md`, `DESIGN.md` "Dashboard system direction" for the console, the buyer account and the affiliate dashboard, plus the shadcn/ui and Tailwind v4 console stack (`dotuiux validate` PASS), `design/admin-contract.json`, spec 17 "Admin wave 4" contracts W4-1 to W4-8 (W4-6 buyer account, W4-7 affiliate dashboard), spec 16 authentication-budget note, DECISIONS DEC-026 (**Accepted 2026-11-02**) and DEC-027 (metric policy v1), TASKS slices S149-S161, ARCHITECTURE Known-differences row 14, and the comparison `~/Documents/work/research/99ribu-vs-adsbookcms-comparison-2026-11-02.md` (outside the repository, non-authoritative).

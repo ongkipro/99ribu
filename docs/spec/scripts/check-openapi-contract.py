@@ -450,7 +450,7 @@ valid('WorkQueueItem', dict(queue_row, due_at_kind='deadline'), False)
 valid('WorkQueueItem', {k: v for k, v in queue_row.items() if k != 'reference'}, False)
 valid('WorkQueueItem', dict(queue_row, whole_order_total=198000), False)
 print_row = {'shipment_id': '00000000-0000-4000-8000-000000000001', 'parcel_id': 'P-1', 'warehouse_id': '00000000-0000-4000-8000-000000000002',
-    'warehouse_name': 'Synthetic', 'order_number': 'ORD-1', 'tracking_number': None, 'fulfillment_status': 'packed', 'cod_due': 0, 'due_at': None}
+    'warehouse_name': 'Synthetic', 'order_number': 'ORD-1', 'tracking_number': None, 'fulfillment_status': 'packed', 'cod_due': 0, 'label_printed_at': None, 'label_printed_artifact_id': None, 'due_at': None}
 valid('PrintQueuePage', {'data': [print_row], 'artifacts': [], 'pagination': {'next_cursor': None}})
 valid('PrintQueueShipment', dict(print_row, recipient_phone='+620000'), False)
 check(spec['paths']['/admin/label-queue']['get']['x-required-permission'] == 'shipping.labels.read', 'print queue reuses label read permission')
