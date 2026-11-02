@@ -7,6 +7,7 @@ import { draftGoogleCategory } from "./google-category.ts";
 import { publishProduct, readPublicationState, withdrawPublication } from "./publication.ts";
 import { listProductSummaries } from "./summary.ts";
 import { uploadProductPhoto } from "./media-upload.ts";
+import { listStockItems } from "./stock-items.ts";
 
 type ProductFacts = { name: string; category_id: string; images: { url: string }[]; variants: { id: string }[] };
 
@@ -35,6 +36,7 @@ export async function handleCatalog(request: Request, identity: LocalAuth) {
     const withdrawal = /^\/api\/v1\/admin\/products\/([^/]+)\/publication-retractions$/.exec(url.pathname);
     if (withdrawal && request.method === "POST") return privateJson(await withdrawPublication(request,identity,principal,withdrawal[1],await readBody(request)),201);
     if (request.method === "GET" && url.pathname === "/api/v1/admin/products") return privateJson(await listProductSummaries(identity, principal, url));
+    if (request.method === "GET" && url.pathname === "/api/v1/admin/stock-items") return privateJson(await listStockItems(identity, principal, url));
     const list = ["/api/v1/admin/categories", "/api/v1/admin/stock-items", "/api/v1/admin/products"].includes(url.pathname);
     if (request.method === "GET" && product) {
       // S102: read-only review facts beside the authorized draft (computed only after its scope check).

@@ -1,6 +1,7 @@
 import type { LocalAuth } from "../access/auth.ts";
 import { AccessError, type Principal } from "../access/policy.ts";
 import { id, integer, invalid, object, text } from "../catalog/validation.ts";
+import { afterSortPosition, listCursor, nextSortCursor, readSorting, type SortColumns, sortKeySelect, sortOrder } from "../catalog/sort.ts";
 import { mutateInventory } from "./operations.ts";
 import { assertInventoryWarehouse, ensurePosition, inventoryAuthority, postMovement, projectPosition, readPosition, type Position } from "./state.ts";
 
@@ -52,15 +53,25 @@ export async function createMovement(request: Request, identity: LocalAuth, prin
       position_id: balanceId, balance_version: balance.version, balance } };
   });
 }
+// S150 allow-list of the position list: SKU code, SKU name and the three stored quantities.
+export const POSITION_SORT: SortColumns = {
+  sku: { column: "s.sku", kind: "text" },
+  name: { column: "s.name", kind: "text" },
+  on_hand: { column: "b.on_hand", kind: "int" },
+  reserved: { column: "b.reserved", kind: "int" },
+  quarantined: { column: "b.quarantined", kind: "int" },
+};
 function filters(url: URL, lots: boolean) {
-  const names = lots ? ["warehouse_id", "stock_item_id", "cursor", "limit"] : ["warehouse_id", "stock_item_id", "lot_id", "position_id", "q", "cursor", "limit"];
+  const names = lots ? ["warehouse_id", "stock_item_id", "cursor", "limit"] : ["warehouse_id", "stock_item_id", "lot_id", "position_id", "q", "cursor", "limit", "sort", "dir"];
   if ([...url.searchParams.keys()].some((key) => !names.includes(key) || url.searchParams.getAll(key).length !== 1)) throw invalid();
   const limit = url.searchParams.get("limit") ?? "20"; if (!/^\d{1,3}$/.test(limit)) throw invalid();
   const selected = (key: string) => url.searchParams.has(key) ? id(url.searchParams.get(key)) : null;
   // S102: literal, case-insensitive SKU code or name substring (ILIKE metacharacters escaped).
   const q = url.searchParams.get("q");
   if (q !== null && (!q.isWellFormed() || q.includes("\0") || !q.trim() || Array.from(q).length > 100)) throw invalid();
-  return { limit: integer(Number(limit), 1, 100), cursor: selected("cursor"), warehouseId: selected("warehouse_id"),
+  const sorting = lots ? null : readSorting(url.searchParams, POSITION_SORT);
+  const page = listCursor(url.searchParams.get("cursor"), sorting);
+  return { limit: integer(Number(limit), 1, 100), sorting, cursor: lots ? selected("cursor") : page.id, position: page.position, warehouseId: selected("warehouse_id"),
     stockItemId: selected("stock_item_id"), lotId: selected("lot_id"), positionId: selected("position_id"),
     pattern: q === null ? null : `%${q.trim().replace(/[\\%_]/g, (c) => `\\${c}`)}%` };
 }
@@ -69,13 +80,14 @@ export async function listPositions(identity: LocalAuth, principal: Principal, u
   return identity.sql.begin(async (tx) => {
     const access = await inventoryAuthority(tx, principal);
     if (selected.warehouseId) await assertInventoryWarehouse(tx, selected.warehouseId, access, false);
-    const rows = await tx<(Position & { sku: string; stockItemName: string })[]>`select b.id,b.warehouse_id as "warehouseId",b.stock_item_id as "stockItemId",b.lot_id as "lotId",
+    const rows = await tx<(Position & { sku: string; stockItemName: string; sort_key?: string })[]>`select b.id,b.warehouse_id as "warehouseId",b.stock_item_id as "stockItemId",b.lot_id as "lotId",
       b.on_hand as "onHand",b.reserved,b.quarantined,b.revision,l.code as "lotCode",l.expires_on::text as "expiresOn",
       coalesce(l.expires_on<(app.inventory_clock(w.id) at time zone w.timezone)::date,false) as expired,
-      s.sku,s.name as "stockItemName"
+      s.sku,s.name as "stockItemName"${selected.sorting ? tx`, ${sortKeySelect(tx, selected.sorting)}` : tx``}
       from app.inventory_balance b join app.warehouse w on w.id=b.warehouse_id join app.stock_item s on s.id=b.stock_item_id
       left join app.inventory_lot l on l.id=b.lot_id
       where (${selected.cursor}::uuid is null or b.id>${selected.cursor}::uuid)
+        and ${selected.sorting ? afterSortPosition(tx, selected.sorting, "b.id", selected.position) : tx`true`}
         and (w.active or ${selected.warehouseId}::uuid is not null)
         and (${selected.warehouseId}::uuid is null or b.warehouse_id=${selected.warehouseId}::uuid)
         and (${selected.stockItemId}::uuid is null or b.stock_item_id=${selected.stockItemId}::uuid)
@@ -83,9 +95,9 @@ export async function listPositions(identity: LocalAuth, principal: Principal, u
         and (${selected.positionId}::uuid is null or b.id=${selected.positionId}::uuid)
         and (${selected.pattern}::text is null or s.sku ilike ${selected.pattern} or s.name ilike ${selected.pattern})
         and (${access.owner} or exists (select 1 from app.warehouse_membership m where m.user_id=${principal.id} and m.warehouse_id=w.id and w.active))
-      order by b.id limit ${selected.limit + 1}`;
+      order by ${selected.sorting ? sortOrder(tx, selected.sorting, "b.id") : tx`b.id`} limit ${selected.limit + 1}`;
     // S102: the physical SKU code and name label a row for warehouse staff (no cost or customer data).
-    return { data: rows.slice(0, selected.limit).map((row) => ({ ...projectPosition(row), sku: row.sku, stock_item_name: row.stockItemName })), pagination: { next_cursor: rows.length > selected.limit ? rows[selected.limit - 1].id : null } };
+    return { data: rows.slice(0, selected.limit).map((row) => ({ ...projectPosition(row), sku: row.sku, stock_item_name: row.stockItemName })), pagination: { next_cursor: selected.sorting ? nextSortCursor(selected.sorting, rows as unknown as { sort_key: string; id: string }[], selected.limit) : rows.length > selected.limit ? rows[selected.limit - 1].id : null } };
   });
 }
 export async function listInventoryLots(identity: LocalAuth, principal: Principal, url: URL) {

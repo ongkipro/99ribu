@@ -1,12 +1,16 @@
 "use client";
 
-import { CircleCheck, Plus, ReceiptText, Search } from "lucide-react";
+import { CircleCheck, Download, Plus, ReceiptText, Search } from "lucide-react";
 import Link from "next/link";
+import { useSearchParams } from "next/navigation";
 import { useEffect, useId, useRef, useState } from "react";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
+import { readSortState, type SortState, sortEntries } from "@/modules/catalog/sort-state";
+import { failureText, getJson } from "./admin-errors";
+import { collectPages, stockItemExportColumns, useCsvExport } from "./csv-export";
 import { CostHistory } from "./cost-versions";
 import { DataTable } from "./data-table";
 import { FormDialog, FormField } from "./form";
@@ -22,8 +26,50 @@ type StockItem = { id: string; sku: string; name: string };
 const SKU_FORMAT = /^[A-Z0-9_-]{1,100}$/;
 
 export function StockItemsClient({ costs, costsWrite }: { costs: boolean; costsWrite: boolean }) {
-	const list = useKeysetList<StockItem>("/api/v1/admin/stock-items?limit=50", (row) => row.id);
-	const [query, setQuery] = useState("");
+	// S150: search and sort run on the server over the whole dictionary and live in the URL (cari, urut, arah).
+	const search = useSearchParams();
+	const [query, setQuery] = useState(() => Array.from(search.get("cari") ?? "").slice(0, 100).join(""));
+	const [term, setTerm] = useState(() => query.trim());
+	const [sort, setSort] = useState<SortState | null>(() => readSortState(search, ["sku", "name"], "urut", "arah"));
+	useEffect(() => {
+		const timer = setTimeout(() => setTerm(query.trim()), 300);
+		return () => clearTimeout(timer);
+	}, [query]);
+	const params = new URLSearchParams({ limit: "50", ...(term ? { q: term } : {}), ...sortEntries(sort) });
+	const urlQuery = new URLSearchParams(Object.entries({ cari: term, urut: sort?.key ?? "", arah: sort?.dir ?? "" }).filter(([, v]) => v)).toString();
+	useEffect(() => {
+		const url = new URL(window.location.href);
+		url.search = urlQuery;
+		window.history.replaceState(null, "", url);
+	}, [urlQuery]);
+	const list = useKeysetList<StockItem>(`/api/v1/admin/stock-items?${params}`, (row) => row.id);
+	// S160: CSV of the whole current list (all pages, same search and sort). SKU and name only: this list never carries a cost.
+	// The search is the text in the field at the click, not the debounced term. Access: the dictionary page and its API admit
+	// owner and ecommerce_admin and the file holds the same two columns as the table (no cost), so the button follows that
+	// page guard; `exports.download` (consoleAccess().exportDownload) guards the server-side export jobs, which this is not.
+	const exporter = useCsvExport();
+	const exportList = () =>
+		exporter.run(
+			(signal) => {
+				const q = query.trim();
+				const base = new URLSearchParams({ limit: "100", ...(q ? { q } : {}), ...sortEntries(sort) });
+				return collectPages<StockItem>(
+					async (after, abort) => {
+						const page = new URLSearchParams(base);
+						if (after) page.set("cursor", after);
+						const res = await getJson<{ data: StockItem[]; pagination?: { next_cursor: string | null } }>(`/api/v1/admin/stock-items?${page}`, abort);
+						return res.ok
+							? { ok: true, rows: res.data.data, next: res.data.pagination?.next_cursor ?? null }
+							: { ok: false, text: failureText(res.failure) };
+					},
+					(r) => r.id,
+					undefined,
+					signal,
+				);
+			},
+			stockItemExportColumns,
+			"sku-fisik",
+		);
 	const [create, setCreate] = useState(false);
 	const [open, setOpen] = useState<StockItem | null>(null);
 	const [notice, setNotice] = useState<string | null>(null);
@@ -31,8 +77,6 @@ export function StockItemsClient({ costs, costsWrite }: { costs: boolean; costsW
 	useEffect(() => {
 		if (notice) noticeRef.current?.focus();
 	}, [notice]);
-	const needle = query.trim().toLowerCase();
-	const rows = needle ? list.rows.filter((row) => `${row.sku} ${row.name}`.toLowerCase().includes(needle)) : list.rows;
 	return (
 		<AdminPage testId="stock-items-page">
 			<PageHeader
@@ -40,12 +84,27 @@ export function StockItemsClient({ costs, costsWrite }: { costs: boolean; costsW
 				back={{ href: "/admin/produk", label: "Produk" }}
 				description="Barang fisik yang menjadi isi paket. SKU dibuat sekali dan tidak diubah; stok dan HPP dicatat terpisah per SKU."
 				actions={
-					<Button type="button" data-testid="stock-item-new" onClick={() => setCreate(true)}>
-						<Plus aria-hidden="true" />
-						Tambah SKU
-					</Button>
+					<>
+						<Button type="button" variant="outline" data-testid="stock-items-export" disabled={exporter.busy} onClick={() => void exportList()}>
+							<Download aria-hidden="true" />
+							{exporter.busy ? "Menyiapkan CSV…" : "Ekspor CSV"}
+						</Button>
+						<Button type="button" data-testid="stock-item-new" onClick={() => setCreate(true)}>
+							<Plus aria-hidden="true" />
+							Tambah SKU
+						</Button>
+					</>
 				}
 			/>
+			{exporter.message && (
+				<Alert
+					role={exporter.message.kind === "error" ? "alert" : "status"}
+					variant={exporter.message.kind === "error" ? "destructive" : "default"}
+					data-testid="stock-items-export-message"
+				>
+					<AlertDescription>{exporter.message.text}</AlertDescription>
+				</Alert>
+			)}
 			{notice && (
 				<Alert ref={noticeRef} tabIndex={-1} role="status" className="border-success/30 bg-success-surface outline-none" data-testid="stock-item-notice">
 					<CircleCheck aria-hidden="true" />
@@ -61,7 +120,7 @@ export function StockItemsClient({ costs, costsWrite }: { costs: boolean; costsW
 				<FormField
 					id="stock-search"
 					label="Cari SKU atau nama"
-					hint={needle && list.paging.hasMore ? "Hasil hanya dari baris yang sudah dimuat. Muat baris berikutnya untuk mencari lebih banyak." : "Mencari di baris yang sudah dimuat."}
+					hint="Mencari di seluruh daftar SKU."
 				>
 					<div className="relative">
 						<Search aria-hidden="true" className="pointer-events-none absolute top-1/2 left-2.5 size-4 -translate-y-1/2 text-muted-foreground" />
@@ -80,24 +139,23 @@ export function StockItemsClient({ costs, costsWrite }: { costs: boolean; costsW
 			<DataTable
 				testId="stock-items"
 				caption="Daftar SKU fisik"
-				rows={rows}
+				rows={list.rows}
+				sort={{ state: sort, onChange: setSort }}
 				rowKey={(row) => row.id}
 				rowTestId={(row) => `stock-item-row-${row.sku}`}
 				status={list.status}
 				loadingLabel="Memuat SKU…"
 				empty={
-					needle
-						? list.paging.hasMore
-							? "Tidak ada SKU yang cocok di baris yang sudah dimuat. Muat baris berikutnya atau ubah kata kunci."
-							: "Tidak ada SKU yang cocok. Ubah kata kunci atau kosongkan pencarian."
+					term
+						? "Tidak ada SKU yang cocok. Ubah kata kunci atau kosongkan pencarian."
 						: "Belum ada SKU fisik. Tambah SKU pertama dengan tombol Tambah SKU."
 				}
 				emptyTestId="stock-items-empty"
 				stack
 				paging={{ ...list.paging, testId: "stock-items-more", summary: `${list.rows.length} SKU dimuat` }}
 				columns={[
-					{ id: "sku", header: "SKU", stack: "title", className: "font-mono", cell: (row) => row.sku },
-					{ id: "name", header: "Nama", stack: "plain", cellClassName: "whitespace-normal", cell: (row) => row.name },
+					{ id: "sku", header: "SKU", sort: "sku", stack: "title", className: "font-mono", cell: (row) => row.sku },
+					{ id: "name", header: "Nama", sort: "name", stack: "plain", cellClassName: "whitespace-normal", cell: (row) => row.name },
 					{
 						id: "actions",
 						header: <span className="sr-only">Tindakan</span>,

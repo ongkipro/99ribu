@@ -1,6 +1,6 @@
 "use client";
 
-import { CircleAlert, CircleCheck, FileText, Printer } from "lucide-react";
+import { CircleAlert, CircleCheck, ClipboardList, FileText, Printer } from "lucide-react";
 import { useEffect, useState } from "react";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
@@ -94,6 +94,45 @@ const ATTEMPT_OUTCOME_LABELS: Record<
 
 type Notice = { kind: "info" | "error"; message: string };
 
+type PicklistView = {
+	warehouses: {
+		warehouse_id: string;
+		warehouse_name: string;
+		parcel_count: number;
+		orders: string[];
+		items: { stock_item_id: string; sku: string; name: string; quantity: number; parcels: number }[];
+	}[];
+	skipped_shipment_ids: string[];
+};
+
+const escapeHtml = (value: string) =>
+	value.replace(/[&<>"']/g, (c) => `&#${c.charCodeAt(0)};`);
+
+/** Opens a plain A4 sheet in its own window and prints it; opened inside the click so popup blockers allow it. */
+function printPicklist(list: PicklistView) {
+	const win = window.open("", "_blank");
+	if (!win) return false;
+	const groups = list.warehouses
+		.map(
+			(w) => `<section><h2>${escapeHtml(w.warehouse_name)}</h2>
+<p>${w.parcel_count} paket · pesanan ${escapeHtml(w.orders.join(", "))}</p>
+<table><thead><tr><th>SKU</th><th>Barang</th><th class="n">Jumlah</th><th class="n">Paket</th></tr></thead><tbody>${w.items
+				.map(
+					(i) =>
+						`<tr><td>${escapeHtml(i.sku)}</td><td>${escapeHtml(i.name)}</td><td class="n">${i.quantity}</td><td class="n">${i.parcels}</td></tr>`,
+				)
+				.join("")}</tbody></table></section>`,
+		)
+		.join("");
+	win.document.write(
+		`<!doctype html><html lang="id"><head><meta charset="utf-8"><title>Picklist</title><style>@page{size:A4;margin:12mm}body{font:12pt/1.4 sans-serif}table{border-collapse:collapse;width:100%}th,td{border-bottom:1px solid currentColor;padding:4px 6px;text-align:left}.n{text-align:right}section{break-inside:avoid;margin-bottom:16px}</style></head><body><h1>Picklist</h1>${groups}</body></html>`,
+	);
+	win.document.close();
+	win.focus();
+	win.print();
+	return true;
+}
+
 const NETWORK_ERROR = failureText(describeFailure(0));
 
 async function postJson(url: string, body: unknown) {
@@ -128,6 +167,7 @@ export function PrintCenterClient({
 	>(null);
 	const [notice, setNotice] = useState<Notice | null>(null);
 	const [pending, setPending] = useState(false);
+	const [picklist, setPicklist] = useState<PicklistView | null>(null);
 
 	const now = useNow();
 	// Phones list 20 parcels at first (set after mount: the server render shows the full page).
@@ -218,6 +258,32 @@ export function PrintCenterClient({
 					? `Label ${FORMAT_LABELS[format]} untuk ${parcelName(shipmentId)} siap dicetak.`
 					: `Label ${parcelName(shipmentId)} sedang dibuat. Muat ulang halaman sebentar lagi.`,
 			});
+		});
+
+	const handlePicklist = () =>
+		run(async () => {
+			if (selectedShipments.length === 0) return;
+			const query = selectedShipments
+				.map((id) => `shipment_id=${encodeURIComponent(id)}`)
+				.join("&");
+			const res = await fetch(`/api/v1/admin/picklists?${query}`);
+			if (!res.ok) {
+				setNotice({
+					kind: "error",
+					message: `Picklist gagal dibuat. ${failureText(await readFailure(res))}`,
+				});
+				return;
+			}
+			const list = (await res.json()) as PicklistView;
+			setPicklist(list);
+			setNotice(
+				list.skipped_shipment_ids.length
+					? {
+							kind: "info",
+							message: `${list.skipped_shipment_ids.length} paket tidak dimasukkan karena sudah diserahkan atau pesanannya batal.`,
+						}
+					: null,
+			);
 		});
 
 	const handleGenerateBatch = () =>
@@ -381,9 +447,23 @@ export function PrintCenterClient({
 			{s.tracking_number ?? "Belum terbit"}
 		</span>
 	);
+	// The queue row says so after a reload; the attempt list covers a print recorded in this session.
+	const labelPrinted = (
+		s: ShipmentItem,
+		art: ShippingLabelArtifactResponse | undefined,
+	) =>
+		art?.status === "valid" &&
+		(s.label_printed_artifact_id === art.id ||
+			attempts.some(
+				(a) =>
+					a.shipment_id === s.shipment_id &&
+					a.artifact_id === art.id &&
+					a.outcome === "completed",
+			));
 	const codText = (s: ShipmentItem) =>
 		s.cod_due > 0 ? rupiah(s.cod_due) : "Prabayar";
 	const artifactCell = (
+		s: ShipmentItem,
 		art: ShippingLabelArtifactResponse | undefined,
 		p: string,
 	) =>
@@ -396,6 +476,11 @@ export function PrintCenterClient({
 				>
 					{ARTIFACT_LABELS[art.status]}
 				</StatusBadge>
+				{labelPrinted(s, art) && (
+					<StatusBadge tone="done" testId={`${p}label-printed-${s.shipment_id}`}>
+						Label sudah dicetak
+					</StatusBadge>
+				)}
 				<span className="text-xs text-muted-foreground">
 					{FORMAT_LABELS[art.format]}
 				</span>
@@ -432,17 +517,19 @@ export function PrintCenterClient({
 							Unduh PDF
 						</a>
 					</Button>
-					<Button
-						type="button"
-						size="sm"
-						data-testid={`${p}initial-print-${s.shipment_id}`}
-						disabled={pending}
-						onClick={() =>
-							void handleRecordPrint(s.shipment_id, art.id, "initial_print")
-						}
-					>
-						Catat cetak awal
-					</Button>
+					{!labelPrinted(s, art) && (
+						<Button
+							type="button"
+							size="sm"
+							data-testid={`${p}initial-print-${s.shipment_id}`}
+							disabled={pending}
+							onClick={() =>
+								void handleRecordPrint(s.shipment_id, art.id, "initial_print")
+							}
+						>
+							Catat cetak awal
+						</Button>
+					)}
 					<Button
 						type="button"
 						variant="ghost"
@@ -607,6 +694,18 @@ export function PrintCenterClient({
 						testId: (s, p) => `${p}select-shipment-${s.shipment_id}`,
 						summary: (n) => `${n} paket dipilih`,
 						actions: (
+							<>
+							<Button
+								type="button"
+								variant="outline"
+								size="sm"
+								data-testid="picklist-button"
+								disabled={pending}
+								onClick={() => void handlePicklist()}
+							>
+								<ClipboardList data-icon="inline-start" aria-hidden="true" />
+								Picklist {selectedShipments.length} paket
+							</Button>
 							<Button
 								type="button"
 								size="sm"
@@ -617,6 +716,7 @@ export function PrintCenterClient({
 								<Printer data-icon="inline-start" aria-hidden="true" />
 								Buat label {selectedShipments.length} paket
 							</Button>
+							</>
 						),
 					}}
 					columns={[
@@ -637,7 +737,7 @@ export function PrintCenterClient({
 							id: "label",
 							header: "Label",
 							className: "md:max-xl:hidden",
-							cell: (s) => artifactCell(latestArtifactFor(s.shipment_id), ""),
+							cell: (s) => artifactCell(s, latestArtifactFor(s.shipment_id), ""),
 						},
 						{
 							id: "actions",
@@ -669,7 +769,7 @@ export function PrintCenterClient({
 									<dt className="text-muted-foreground">Resi</dt>
 									<dd>{waybill(s, "card-")}</dd>
 									<dt className="text-muted-foreground">Label</dt>
-									<dd>{artifactCell(art, "card-")}</dd>
+									<dd>{artifactCell(s, art, "card-")}</dd>
 								</dl>
 								<CardActions>{actions(s, art, "card-")}</CardActions>
 								{activeShipmentForReprint === s.shipment_id &&
@@ -691,6 +791,62 @@ export function PrintCenterClient({
 					}}
 				/>
 			</section>
+
+			{picklist && (
+				<section
+					aria-labelledby="picklist-heading"
+					data-testid="picklist-section"
+					className="flex flex-col gap-3 rounded-lg border bg-card p-4"
+				>
+					<div className="flex flex-wrap items-center justify-between gap-2">
+						<h2 id="picklist-heading" className="text-base font-semibold">
+							Picklist
+						</h2>
+						<div className="flex gap-2">
+							<Button
+								type="button"
+								size="sm"
+								data-testid="picklist-print"
+								onClick={() => {
+									if (!printPicklist(picklist))
+										setNotice({
+											kind: "error",
+											message: "Jendela cetak diblokir browser. Izinkan pop-up lalu coba lagi.",
+										});
+								}}
+							>
+								<Printer data-icon="inline-start" aria-hidden="true" />
+								Cetak
+							</Button>
+							<Button type="button" variant="ghost" size="sm" onClick={() => setPicklist(null)}>
+								Tutup
+							</Button>
+						</div>
+					</div>
+					{picklist.warehouses.length === 0 && (
+						<p className="text-sm text-muted-foreground">Tidak ada barang yang perlu diambil.</p>
+					)}
+					{picklist.warehouses.map((w) => (
+						<div key={w.warehouse_id} className="flex flex-col gap-1.5" data-testid={`picklist-warehouse-${w.warehouse_id}`}>
+							<h3 className="text-sm font-semibold">
+								{w.warehouse_name}
+								<span className="font-normal text-muted-foreground"> · {w.parcel_count} paket</span>
+							</h3>
+							<ul className="flex flex-col divide-y rounded-md border text-sm">
+								{w.items.map((i) => (
+									<li key={i.stock_item_id} className="flex items-baseline justify-between gap-3 px-3 py-2">
+										<span>
+											{i.name}
+											<span className="text-muted-foreground"> · {i.sku}</span>
+										</span>
+										<span className="tabular-nums font-medium">{i.quantity}</span>
+									</li>
+								))}
+							</ul>
+						</div>
+					))}
+				</section>
+			)}
 
 			<section
 				aria-labelledby="templates-heading"

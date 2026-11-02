@@ -17,6 +17,8 @@ import {
 } from "./shared.ts";
 import {
 	automatedWarehouseIds,
+	bindingDeadlineAt,
+	bindingDeadlineKind,
 	exceptionsSource,
 	fulfillmentsSource,
 	lowStockPositions,
@@ -130,14 +132,12 @@ export async function queryQueueRows(
              f.status,
              f.revision,
              s.warehouse_id::text as warehouse_id,
-             coalesce(d.packing_due_at, d.handover_due_at, f.created_at) as due_at,
-             case when d.packing_due_at is not null then 'packing_deadline'
-                  when d.handover_due_at is not null then 'handover_deadline'
-                  else 'created' end as due_at_kind,
+             coalesce(${bindingDeadlineAt(sql)}, f.created_at) as due_at,
+             ${bindingDeadlineKind(sql)} as due_at_kind,
              f.created_at,
              f.tracking_number,
              (select o.number from app.commerce_order o where o.id = s.order_id) as order_number
-      ${fulfillmentsSource(sql, warehouseIds, from, to, metric, automated)}
+      ${fulfillmentsSource(sql, warehouseIds, from, to, metric, automated, asOf)}
       order by f.created_at desc, f.id asc
     `;
 		return rows

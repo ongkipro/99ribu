@@ -124,6 +124,7 @@ type Row = {
 	warehouse_name: string;
 	warehouse_city: string;
 	packing_due_at: string | null;
+	label_printed_at: string | null;
 	handover_at: string | null;
 	calendar_error: string | null;
 	tracking_number: string | null;
@@ -567,6 +568,13 @@ export function ManualFulfillmentClient({
 									<span className="mt-1 block text-xs font-normal text-muted-foreground">
 										{row.warehouse_name}
 									</span>
+									{row.label_printed_at && (
+										<span className="mt-1 block">
+											<StatusBadge tone="done" testId={`label-printed-${row.id}`}>
+												Label sudah dicetak
+											</StatusBadge>
+										</span>
+									)}
 									{queue === "to_book" && (
 										<span className="mt-1 hidden text-xs font-normal md:max-2xl:block">
 											Batas resi {deadlineText(row)}

@@ -2,6 +2,19 @@ import type { LocalAuth } from "../access/auth.ts";
 import { AccessError, getPrincipal } from "../access/policy.ts";
 import { digest } from "../checkout/access.ts";
 import {
+	averageOf,
+	bucketCodAgeing,
+	type Comparison,
+	computeComparison,
+	isPeriodPreset,
+	MIN_RATE_SAMPLE,
+	previousPeriod,
+	rateOf,
+	resolvePeriodPreset,
+	seriesBuckets,
+} from "./metric-math.ts";
+import {
+	COMPARABLE_METRICS,
 	LOW_STOCK_THRESHOLD,
 	METRIC_ACTION_HREF,
 	METRIC_QUEUE_MAP,
@@ -12,11 +25,15 @@ import {
 	resolveDateRange,
 	resolveWorkspace,
 	SNAPSHOT_METRICS,
+	STALE_AFTER_HOURS,
 	TRANSFER_DEADLINE_WARNING_HOURS,
 	WORKSPACE_METRICS,
 } from "./shared.ts";
 import {
 	automatedWarehouseIds,
+	codOutcomes,
+	codReceivableSource,
+	deliveredOrders,
 	exceptionsSource,
 	fulfillmentsSource,
 	lowStockPositions,
@@ -58,15 +75,7 @@ async function computeMoneyMetrics(
 	// Limitation: a parcel returned to sender stays here until an outcome is recorded (RTS handling
 	// of manual parcels is the DEC-007 (6) follow-up).
 	const [codRow] = await sql<{ amount: string }[]>`
-    select coalesce(sum(s.cod_due), 0)::text as amount
-    from app.order_shipment s
-    join app.commerce_order o on o.id = s.order_id
-    where o.payment_method = 'cod'
-      and exists (select 1 from app.fulfillment f where f.shipment_id = s.id and f.handover_at is not null)
-      and not exists (select 1 from app.economic_receipt r where r.shipment_id = s.id and r.kind = 'cod')
-      and not exists (select 1 from app.cod_remittance_line l where l.shipment_id = s.id)
-      and not exists (select 1 from app.local_cod_operation c where c.shipment_id = s.id and c.status in ('collected', 'refused'))
-  `;
+    select coalesce(sum(s.cod_due), 0)::text as amount ${codReceivableSource(sql)}`;
 
 	// 1b. COD remitted: per-parcel collected amounts on Mengantar COD statements dated in the period
 	// (gross, before Mengantar's shipping/COD-fee deductions), as finance recorded them (S91).
@@ -296,12 +305,27 @@ export async function getDashboardSnapshot(
 		"window",
 		"as_of",
 		"metric",
+		"compare",
+		"fields",
 	]);
 	for (const key of url.searchParams.keys()) {
 		if (!allowedParams.has(key) || url.searchParams.getAll(key).length !== 1) {
 			throw new AccessError(400, "INVALID_INPUT");
 		}
 	}
+	// compare=previous: the previous period of equal length (DEC-027 (1)); no other value exists.
+	const compareParam = url.searchParams.get("compare");
+	if (compareParam !== null && compareParam !== "previous") {
+		throw new AccessError(400, "INVALID_INPUT");
+	}
+
+	// fields=counts: the navigation badge poll. Counts only, so it skips money, rates, the series, the
+	// ageing and the comparison (each costs queries the badge never shows).
+	const fieldsParam = url.searchParams.get("fields");
+	if (fieldsParam !== null && fieldsParam !== "counts") {
+		throw new AccessError(400, "INVALID_INPUT");
+	}
+	const countsOnly = fieldsParam === "counts";
 
 	const principal = await getPrincipal(request, identity);
 	const workspace = resolveWorkspace(
@@ -334,25 +358,65 @@ export async function getDashboardSnapshot(
 		throw new AccessError(400, "INVALID_INPUT");
 
 	const { from, to } = resolveDateRange(url, asOf);
+	// A preset shifts back by whole WIB days; any other range by its own length.
+	const rawWindow = url.searchParams.get("window") ?? "30d";
+	const explicitRange = url.searchParams.has("from");
+	const previous = compareParam && !countsOnly
+		? previousPeriod(
+				from,
+				to,
+				!explicitRange && isPeriodPreset(rawWindow)
+					? resolvePeriodPreset(rawWindow, Date.parse(asOf)).shiftMs
+					: undefined,
+			)
+		: null;
 	const filterExpiresAt = new Date(
 		Date.parse(asOf) + 30 * 60_000,
 	).toISOString();
 
 	const allowedKeys = WORKSPACE_METRICS[workspace];
+	// Metrics the counts mode leaves out: money, the average (money-derived) and the two-query rates.
+	const skippedInCounts = (key: MetricKey) =>
+		MONEY_METRICS.has(key) || key === "average_order_value" || key === "cod_failed_rate" || key === "return_rate";
 	const sql = identity.sql;
 	type Counted = {
 		count: number;
 		breakdown: { key: string; label: string; count: number }[] | null;
+		/** Rate metrics: what `count` is divided by. */
+		denominator?: number;
+		/** Rate metrics with a minimum sample: the denominator is below it, so no percentage is shown. */
+		low_sample?: boolean;
+		/** Oldest unclaimed chat: seconds the oldest one has waited (null with none). */
+		age_seconds?: number | null;
+		/** Rows of `count` older than STALE_AFTER_HOURS, where the queue has a date for them. */
+		stale_count?: number | null;
 	};
 	// Cards are SQL counts over the same fragments the drilldown pages list; rows are only
 	// materialized for the drilldown.
 	// S113: every count is a count over the exact fragment its drilldown lists (ordersSource,
 	// fulfillmentsSource, lowStockPositions, or the queue rows themselves); no card restates a filter.
+	// S153: `stale` is a FILTER aggregate over the same fragment, so the overdue marker can never
+	// disagree with the rows behind the tile.
+	const staleBefore = new Date(
+		Date.parse(asOf) - STALE_AFTER_HOURS * 3_600_000,
+	).toISOString();
 	const countOf = async (
 		fragment: ReturnType<typeof ordersSource>,
-	): Promise<number> =>
-		Number((await sql<{ n: number }[]>`select count(*)::int as n ${fragment}`)[0].n);
-	const countFor = async (key: MetricKey): Promise<Counted> => {
+		// A boolean over the fragment's own columns: the rows staff must still act on and that are
+		// older than the marker. Rows waiting for the buyer are never in it.
+		staleWhere?: ReturnType<typeof ordersSource>,
+	): Promise<{ n: number; stale: number | null }> => {
+		const [row] = staleWhere
+			? await sql<{ n: number; stale: number }[]>`select count(*)::int as n,
+          (count(*) filter (where ${staleWhere}))::int as stale ${fragment}`
+			: await sql<{ n: number }[]>`select count(*)::int as n ${fragment}`;
+		return { n: Number(row.n), stale: "stale" in row ? Number(row.stale) : null };
+	};
+	const countFor = async (
+		key: MetricKey,
+		range: { from: string; to: string } = { from, to },
+	): Promise<Counted> => {
+		const { from, to } = range;
 		if (key === "orders_by_payment_method") {
 			const groups = await sql<{ channel: string; placed: number }[]>`
         select coalesce(o.payment_channel, case when o.payment_method = 'cod' then 'cod' else 'local-prepaid' end) as channel,
@@ -369,22 +433,63 @@ export async function getDashboardSnapshot(
 					.map(([k, label]) => ({ key: k, label, count: placed.get(k) ?? 0 })),
 			};
 		}
-		if (key === "orders_pending" || PAYMENT_QUEUE_METRICS.has(key))
-			return {
-				count: await countOf(ordersSource(sql, warehouseIds, from, to, key, asOf)),
-				breakdown: null,
-			};
-		if (key === "fulfillments_due" || key === "manual_booking_pending") {
+		if (key === "orders_pending" || key === "average_order_value" || PAYMENT_QUEUE_METRICS.has(key)) {
+			const c = await countOf(
+				ordersSource(sql, warehouseIds, from, to, key, asOf),
+				// "More than 24 hours" counts what staff must act on: a prepaid order still awaiting the
+				// BUYER's payment is waiting on the buyer, not on staff.
+				key === "orders_pending"
+					? sql`o.created_at < ${staleBefore}::timestamptz and not (o.payment_method = 'prepaid' and o.payment_status = 'pending')`
+					: undefined,
+			);
+			return { count: c.n, breakdown: null, stale_count: c.stale };
+		}
+		if (
+			key === "fulfillments_due" ||
+			key === "manual_booking_pending" ||
+			key === "fulfillments_overdue"
+		) {
 			if (warehouseIds.length === 0) return { count: 0, breakdown: null };
 			const ids =
 				key === "manual_booking_pending"
 					? await automatedWarehouseIds(identity)
 					: [];
+			const c = await countOf(
+				fulfillmentsSource(sql, warehouseIds, from, to, key, ids, asOf),
+			);
+			// No stale marker: the overdue chip (fulfillments_overdue) is the one deadline marker.
+			return { count: c.n, breakdown: null };
+		}
+		if (key === "cod_failed_rate") {
+			// Numerator = the failed COD parcels its drilldown lists; denominator = all COD parcels with an outcome.
+			if (warehouseIds.length === 0) return { count: 0, breakdown: null, denominator: 0 };
+			const [denominator] = await sql<{ n: number }[]>`
+        select count(*)::int as n from (${codOutcomes(sql, warehouseIds, from, to)}) co`;
 			return {
-				count: await countOf(
-					fulfillmentsSource(sql, warehouseIds, from, to, key, ids),
-				),
+				count: (await countOf(fulfillmentsSource(sql, warehouseIds, from, to, key, [], asOf))).n,
 				breakdown: null,
+				denominator: Number(denominator.n),
+			};
+		}
+		if (key === "return_rate") {
+			const [denominator] = await deliveredOrders(sql, warehouseIds, from, to);
+			const n = Number(denominator.n);
+			return {
+				count: (await countOf(returnsSource(sql, warehouseIds, from, to, key))).n,
+				breakdown: null,
+				denominator: n,
+				low_sample: n > 0 && n < MIN_RATE_SAMPLE,
+			};
+		}
+		if (key === "oldest_unclaimed_chat_age") {
+			const [row] = await sql<{ n: number; oldest: string | null }[]>`
+        select count(*)::int as n, min(c.created_at) as oldest ${supportSource(sql, from, to, key)}`;
+			return {
+				count: Number(row.n),
+				breakdown: null,
+				age_seconds: row.oldest
+					? Math.max(0, Math.floor((Date.parse(asOf) - new Date(row.oldest).getTime()) / 1000))
+					: null,
 			};
 		}
 		if (key === "stock_alerts") {
@@ -407,8 +512,17 @@ export async function getDashboardSnapshot(
 				})),
 			};
 		}
-		const source =
+		const staleWhere =
 			key === "delivery_exceptions"
+				? sql`e.occurred_at < ${staleBefore}::timestamptz`
+				: key === "returns_pending"
+					? sql`rc.created_at < ${staleBefore}::timestamptz`
+					: key === "support_unassigned"
+						? // Only chats that need a staff reply: not those waiting for the buyer.
+							sql`c.created_at < ${staleBefore}::timestamptz and c.status = 'open'`
+						: undefined;
+		const source =
+			key === "delivery_exceptions" || key === "cod_problems_open"
 				? exceptionsSource(sql, warehouseIds, from, to, key)
 				: key === "returns_pending"
 					? returnsSource(sql, warehouseIds, from, to, key)
@@ -418,22 +532,64 @@ export async function getDashboardSnapshot(
 							? reconciliationSource(sql, from, to, key)
 							: null;
 		if (!source) throw new Error(`count metric without a source fragment: ${key}`);
-		return { count: await countOf(source), breakdown: null };
+		const c = await countOf(source, staleWhere);
+		return { count: c.n, breakdown: null, stale_count: c.stale };
 	};
 
-	const needsMoney = allowedKeys.some((k) => MONEY_METRICS.has(k));
+	const needsMoney =
+		!countsOnly && allowedKeys.some((k) => MONEY_METRICS.has(k));
 	const moneyValues = needsMoney
 		? await computeMoneyMetrics(identity, from, to)
 		: null;
+	const previousMoney =
+		needsMoney && previous
+			? await computeMoneyMetrics(identity, previous.from, previous.to)
+			: null;
+	// Average order value (DEC-027 (4)): one population. Numerator and denominator are the same orders,
+	// the ones the orders drilldown lists (placed in the period, not cancelled, not a draft), dated by
+	// their creation. The numerator is their merchandise at the frozen item prices (quantity x unit
+	// price, no shipping), so a COD order that is not paid yet and a prepaid order awaiting payment
+	// count like every other order and the figure is an estimate (Estimasi), never Aktual: payment and
+	// refunds are not subtracted. It cannot go negative, so nothing is clamped.
+	const averageOrder = async (range: { from: string; to: string }) => {
+		const [row] = await sql<{ n: number; total: string }[]>`
+      select count(*)::int as n, coalesce(sum(m.merchandise), 0)::text as total from (
+        select (select sum(oi.quantity * oi.unit_price) from app.order_item oi where oi.order_id = o.id) as merchandise
+        ${ordersSource(sql, warehouseIds, range.from, range.to, "average_order_value", asOf)}
+      ) m`;
+		return { orders: Number(row.n), average: averageOf(Number(row.total), Number(row.n)) };
+	};
+	// The previous period's value of a comparable metric, in the metric's own unit.
+	const valueIn = async (
+		key: MetricKey,
+		range: { from: string; to: string },
+		money: typeof moneyValues,
+	): Promise<{ value: number | null; complete: boolean }> => {
+		if (key === "average_order_value") {
+			return { value: (await averageOrder(range)).average, complete: true };
+		}
+		if (key === "cod_failed_rate" || key === "return_rate") {
+			const c = await countFor(key, range);
+			return {
+				value: rateOf(c.count, c.denominator ?? 0, key === "return_rate" ? MIN_RATE_SAMPLE : 1),
+				complete: true,
+			};
+		}
+		if (key === "orders_by_payment_method") {
+			return { value: (await countFor(key, range)).count, complete: true };
+		}
+		const m = money?.[key as keyof NonNullable<typeof moneyValues>];
+		return { value: m?.complete ? (m.amount ?? 0) : null, complete: m?.complete ?? false };
+	};
 
 	// Each text states exactly what its query counts (S103).
 	const definitions: Record<MetricKey, string> = {
 		orders_pending:
-			"Pesanan yang dibuat dalam periode dan masih berstatus menunggu atau diproses. Pesanan dibatalkan atau selesai tidak dihitung.",
+			"Pesanan yang dibuat dalam periode dan masih berstatus menunggu atau diproses. Pesanan dibatalkan atau selesai tidak dihitung. Penanda lebih dari 24 jam tidak menghitung pesanan prabayar yang masih menunggu pembayaran pembeli.",
 		orders_by_payment_method:
 			"Pesanan yang dibuat dalam periode (semua status kecuali draf checkout), dirinci per metode bayar: COD, transfer manual, dan VA/QRIS AutoLaris.",
 		fulfillments_due:
-			"Paket gudang yang dibuat dalam periode dan belum diserahkan ke kurir, termasuk paket bermasalah.",
+			"Semua paket gudang saat ini yang belum diserahkan ke kurir, termasuk paket bermasalah, dari hari apa pun dibuatnya. Antrean kerja yang berjalan, tanpa filter periode; paket yang lewat batas ada di dalamnya.",
 		manual_booking_pending:
 			"Paket di antrean Pengiriman Manual \"Perlu dipesan kurir\" saat ini: belum ada resi, belum dipesan lewat sistem, dan masih ada unit aktif.",
 		delivery_exceptions:
@@ -462,10 +618,23 @@ export async function getDashboardSnapshot(
 			"Kontribusi terealisasi setelah penerimaan kas terverifikasi dan biaya komponen lengkap.",
 		net_merchandise_revenue:
 			"Pendapatan bersih barang dagangan (penerimaan terverifikasi dikurangi alokasi refund selesai).",
+		fulfillments_overdue:
+			"Paket gudang yang belum diserahkan ke kurir dan sudah melewati batas yang berlaku: batas serah kurir setelah paket dikemas, batas kemas sebelumnya. Saat ini, tanpa filter periode. Paket tanpa batas dari kalender tidak dihitung.",
+		cod_failed_rate:
+			"Paket COD yang ditolak pembeli, gagal diantar, atau dikembalikan ke pengirim dibagi semua paket COD yang sudah selesai (diterima atau dikembalikan) dalam periode. Setiap paket dihitung sekali menurut kejadian akhirnya: gagal yang kemudian berhasil diantar dihitung berhasil, dan tanggalnya adalah tanggal kejadian akhir itu. Angka di kartu adalah pembilang (paket gagal); penyebut tertulis di bawahnya. Kosong bila belum ada paket COD yang selesai.",
+		return_rate:
+			`Pengajuan retur atau penukaran yang dibuat dalam periode dibagi pesanan yang diterima pembeli dalam periode yang sama. Pengajuan bisa berasal dari pesanan yang diterima sebelum periode, jadi pada periode pendek angkanya bisa melebihi 100% (angka tetap ditampilkan apa adanya). Di bawah ${MIN_RATE_SAMPLE} pesanan diterima persentase tidak ditampilkan (sampel terlalu kecil); jumlah dan penyebutnya tetap tampil. Kosong bila belum ada pesanan diterima.`,
+		average_order_value:
+			"Estimasi. Nilai barang pada pesanan yang dibuat dalam periode (jumlah x harga beku per item, tanpa ongkir) dibagi jumlah pesanan yang sama; pesanan dibatalkan dan draf checkout tidak ikut. Pesanan COD yang belum diterima dan pesanan prabayar yang belum dibayar ikut dihitung, dan refund belum dikurangkan, jadi ini nilai pesanan yang dibuat, bukan pendapatan. Seluruh perusahaan, tanpa filter gudang.",
+		cod_problems_open:
+			"Kasus COD ditolak pembeli atau gagal diantar yang masih terbuka di antrean Kendala pengiriman, saat ini dan tanpa filter periode. Rasio COD gagal di kartu terpisah adalah angka periode.",
+		oldest_unclaimed_chat_age:
+			"Lama percakapan terbuka tertua yang menunggu balasan staf dan belum punya staf penanggung jawab, dihitung dari waktu percakapan dibuat. Percakapan yang menunggu balasan pembeli tidak dihitung. Saat ini, tanpa filter periode.",
 	};
 
 	const metrics = [];
 	for (const key of allowedKeys) {
+		if (countsOnly && skippedInCounts(key)) continue;
 		const queueKey = METRIC_QUEUE_MAP[key];
 		const isMoney = MONEY_METRICS.has(key);
 		const tokenPayload = {
@@ -491,10 +660,50 @@ export async function getDashboardSnapshot(
 			queue_filter_token: queueFilterToken,
 			filter_version: 1,
 			filter_expires_at: filterExpiresAt,
+			// Filled below where the metric has them; null is "not part of this metric", never zero.
+			denominator: null as number | null,
+			rate: null as number | null,
+			low_sample: false as boolean,
+			age_seconds: null as number | null,
+			stale_count: null as number | null,
 		};
 
-		if (!isMoney) {
+		// Previous-period comparison: only for event-period metrics whose past value is stable
+		// (COMPARABLE_METRICS); snapshot metrics and open backlogs never carry one.
+		const compareWith = async (
+			current: { value: number | null; complete: boolean },
+		): Promise<Comparison | null> => {
+			if (!previous || !COMPARABLE_METRICS.has(key)) return null;
+			const before = await valueIn(key, previous, previousMoney);
+			return computeComparison(
+				key === "cod_failed_rate" || key === "return_rate" ? "points" : "percent",
+				current.value,
+				before.value,
+				{ current: current.complete, previous: before.complete },
+			);
+		};
+
+		if (key === "average_order_value") {
+			const a = await averageOrder({ from, to });
+			metrics.push({
+				...common,
+				count: null,
+				basis: "event_period" as const,
+				complete: true,
+				kind: "money" as const,
+				amount: a.average,
+				currency: "IDR" as const,
+				financial_basis: "estimated" as const,
+				breakdown: null,
+				denominator: a.orders,
+				comparison: await compareWith({ value: a.average, complete: true }),
+			});
+		} else if (!isMoney) {
 			const counted = await countFor(key);
+			const isRate = key === "cod_failed_rate" || key === "return_rate";
+			const rate = isRate
+				? rateOf(counted.count, counted.denominator ?? 0, key === "return_rate" ? MIN_RATE_SAMPLE : 1)
+				: null;
 			metrics.push({
 				...common,
 				count: counted.count,
@@ -502,11 +711,24 @@ export async function getDashboardSnapshot(
 					? ("snapshot" as const)
 					: ("event_period" as const),
 				complete: true,
-				kind: "count" as const,
+				kind: isRate
+					? ("rate" as const)
+					: key === "oldest_unclaimed_chat_age"
+						? ("duration" as const)
+						: ("count" as const),
 				amount: null,
 				currency: null,
 				financial_basis: "not_applicable" as const,
 				breakdown: counted.breakdown,
+				denominator: counted.denominator ?? null,
+				rate,
+				low_sample: counted.low_sample ?? false,
+				age_seconds: counted.age_seconds ?? null,
+				stale_count: counted.stale_count ?? null,
+				comparison: await compareWith({
+					value: isRate ? rate : counted.count,
+					complete: true,
+				}),
 			});
 		} else {
 			const m = moneyValues?.[key as keyof NonNullable<typeof moneyValues>];
@@ -524,9 +746,83 @@ export async function getDashboardSnapshot(
 				currency: "IDR" as const,
 				financial_basis: m?.financial_basis ?? "unknown",
 				breakdown: null,
+				comparison: await compareWith({
+					value: complete ? (m?.amount ?? 0) : null,
+					complete,
+				}),
 			});
 		}
 	}
+
+	// Chart data (DEC-027 (6)): the owner home trend and the finance COD ageing. Both come from the
+	// same sources as the cards (economic_receipt, refund allocations, the cod_receivable fragment),
+	// so each chart's total equals its card.
+	const asOfMs = Date.parse(asOf);
+	const buckets = seriesBuckets(Date.parse(from), Math.min(Date.parse(to), asOfMs));
+	const seriesFor = async (shiftMs: number) => {
+		const startSec = (buckets.starts[0] ?? 0) / 1000 - shiftMs / 1000;
+		const stepSec = buckets.stepMs / 1000;
+		const lo = new Date(Date.parse(from) - shiftMs).toISOString();
+		const hi = new Date(Date.parse(to) - shiftMs).toISOString();
+		const idx = (col: ReturnType<typeof ordersSource>) =>
+			sql`floor((extract(epoch from ${col}) - ${startSec}::double precision) / ${stepSec}::double precision)::int`;
+		const rows = await sql<{ i: number; revenue: string; orders: number }[]>`
+      select i, sum(revenue)::text as revenue, sum(orders)::int as orders from (
+        select ${idx(sql`er.occurred_at`)} as i, er.merchandise_amount as revenue, 0 as orders
+        from app.economic_receipt er
+        where er.occurred_at >= ${lo}::timestamptz and er.occurred_at <= ${hi}::timestamptz
+        union all
+        select ${idx(sql`r.created_at`)}, -ra.merchandise_amount, 0
+        from app.refund_allocation ra join app.refund r on r.id = ra.refund_id
+        where r.status = 'completed' and r.created_at >= ${lo}::timestamptz and r.created_at <= ${hi}::timestamptz
+        union all
+        select ${idx(sql`rr.created_at`)}, -rra.merchandise_amount, 0
+        from app.recovery_refund_allocation rra join app.recovery_refund rr on rr.id = rra.refund_id
+        where rr.status = 'completed' and rr.created_at >= ${lo}::timestamptz and rr.created_at <= ${hi}::timestamptz
+        union all
+        select ${idx(sql`o.created_at`)}, 0, 1
+        ${ordersSource(sql, [], lo, hi, "average_order_value", asOf)}
+      ) x group by i`;
+		const byIndex = new Map(rows.map((r) => [r.i, r]));
+		return buckets.starts.map((start, i) => ({
+			start: new Date(start).toISOString(),
+			revenue: Number(byIndex.get(i)?.revenue ?? 0),
+			orders: Number(byIndex.get(i)?.orders ?? 0),
+		}));
+	};
+	const series =
+		!countsOnly && workspace === "owner" && allowedKeys.includes("net_merchandise_revenue")
+			? {
+					bucket: buckets.unit,
+					points: await seriesFor(0),
+					previous: previous
+						? await seriesFor(Date.parse(from) - Date.parse(previous.from))
+						: null,
+				}
+			: null;
+	const codAgeing =
+		!countsOnly && workspace === "finance" && allowedKeys.includes("cod_receivable")
+			? await (async () => {
+					const rows = await sql<{ age_days: number; amount: string; parcels: number }[]>`
+            select greatest(0, floor(extract(epoch from (${asOf}::timestamptz - f.handover_at)) / 86400))::int as age_days,
+                   sum(s.cod_due)::text as amount, count(*)::int as parcels
+            ${codReceivableSource(sql)}
+            group by 1`;
+					const bucketsOut = bucketCodAgeing(
+						rows.map((r) => ({
+							age_days: r.age_days,
+							amount: Number(r.amount),
+							parcels: r.parcels,
+						})),
+					);
+					return {
+						// The bucket edges are a display choice; no rule or deadline reads them.
+						edges_are_display_choice: true as const,
+						buckets: bucketsOut,
+						total: bucketsOut.reduce((n, b) => n + b.amount, 0),
+					};
+				})()
+			: null;
 
 	return {
 		workspace,
@@ -535,6 +831,10 @@ export async function getDashboardSnapshot(
 		to,
 		timezone: "Asia/Jakarta",
 		as_of: asOf,
+		// Set only with compare=previous: the equal-length period the deltas are measured against.
+		comparison_period: previous,
+		series,
+		cod_ageing: codAgeing,
 		metrics,
 	};
 }

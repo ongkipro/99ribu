@@ -20,6 +20,8 @@ import { handleBuyerProfileRoutes, handleSessionTerminationRoutes } from "./prof
 import { handleAddressRoutes } from "./addresses.ts";
 import { handleContactChangeRoutes } from "./contact-change.ts";
 import { handleGuestOrderLinkRoutes } from "./guest-order-link.ts";
+import { handleBuyerReturnRoutes } from "./returns.ts";
+import { handleDataRequestRoutes } from "./data-requests.ts";
 
 export type {
 	BuyerAddressListResponse,
@@ -391,6 +393,10 @@ export async function handleAccounts(request: Request, identity: LocalAuth) {
 		if (sessionResponse) return sessionResponse;
 		const orderHistoryResponse = await handleOrderHistoryRoutes(request, identity, url, principal);
 		if (orderHistoryResponse) return orderHistoryResponse;
+		const returnResponse = await handleBuyerReturnRoutes(request, identity, url, principal);
+		if (returnResponse) return returnResponse;
+		const dataRequestResponse = await handleDataRequestRoutes(request, identity, url, principal);
+		if (dataRequestResponse) return dataRequestResponse;
 
 		throw new AccessError(404, "NOT_FOUND");
 	} catch (error) {

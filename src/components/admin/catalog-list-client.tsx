@@ -1,17 +1,21 @@
 "use client";
 
-import { CircleAlert, ImageOff, Plus, Search, X } from "lucide-react";
+import { CircleAlert, Download, ImageOff, Plus, Search, X } from "lucide-react";
 import Link from "next/link";
+import { useSearchParams } from "next/navigation";
 import { useCallback, useEffect, useRef, useState } from "react";
+import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { rupiah } from "@/modules/storefront/format";
 import { failureText, getJson } from "./admin-errors";
+import { collectPages, productExportColumns, useCsvExport } from "./csv-export";
 import { CardMeta, CardStatus, CardTitle, DataTable } from "./data-table";
 import { FilterSheet, nativeSelectClass } from "./form";
 import {
 	blockerLabel,
+	CATALOG_SORT_KEYS,
 	CATALOG_TABS,
 	type CatalogStatus,
 	catalogTabKey,
@@ -31,6 +35,7 @@ import { StatusBadge } from "./status";
 import { AdminPage, PageHeader } from "./page-blocks";
 import { TabStrip } from "./tab-strip";
 import { adminPath } from "@/modules/access/admin-paths";
+import { readSortState, type SortState, sortEntries } from "@/modules/catalog/sort-state";
 
 const PAGE_SIZE = 25;
 
@@ -57,11 +62,16 @@ export function CatalogListClient({
 		review: initial.review,
 	});
 	const [query, setQuery] = useState(initial.q); // debounced copy of filters.q
+	// S150: the sort (urut, arah) and the cursor chain (kursor) are read from the URL here, because the
+	// page only passes UUID cursors and a sorted cursor is opaque.
+	const search = useSearchParams();
+	const [sort, setSort] = useState<SortState | null>(() => readSortState(search, CATALOG_SORT_KEYS, "urut", "arah"));
+	const urlChain = (search.get("kursor") ?? "").split(",").filter((c) => /^[A-Za-z0-9_-]{1,2000}$/.test(c));
 	const [categories, setCategories] = useState<Category[]>([]);
 	// cursors[i] opens page i+1; page 1 has no cursor.
 	const [cursors, setCursors] = useState<(string | null)[]>([
 		null,
-		...initial.cursors,
+		...(urlChain.length <= 200 ? urlChain : []),
 	]);
 	// Below md the category/status filters sit behind a toggle so rows stay in view.
 	const [load, setLoad] = useState<Load>({ state: "loading" });
@@ -81,16 +91,26 @@ export function CatalogListClient({
 	const page = cursors.length;
 	const cursor = cursors[cursors.length - 1];
 
+	// The current filtered and sorted list, without a cursor; the page and the CSV export both read it.
+	const listParams = useCallback(
+		(limit: number, q: string = query) => {
+			const params = new URLSearchParams({ limit: String(limit) });
+			if (q) params.set("q", q);
+			if (filters.category) params.set("category_id", filters.category);
+			if (filters.status) params.set("state", filters.status);
+			if (filters.review) params.set("review", "claim");
+			for (const [name, value] of Object.entries(sortEntries(sort))) params.set(name, value);
+			return params;
+		},
+		[query, filters.category, filters.status, filters.review, sort],
+	);
+
 	const fetchPage = useCallback(async () => {
 		request.current?.abort();
 		const controller = new AbortController();
 		request.current = controller;
 		setLoad({ state: "loading" });
-		const params = new URLSearchParams({ limit: String(PAGE_SIZE) });
-		if (query) params.set("q", query);
-		if (filters.category) params.set("category_id", filters.category);
-		if (filters.status) params.set("state", filters.status);
-		if (filters.review) params.set("review", "claim");
+		const params = listParams(PAGE_SIZE);
 		if (cursor) params.set("cursor", cursor);
 		const res = await getJson<Page<ProductSummary>>(
 			`/api/v1/admin/products?${params.toString()}`,
@@ -108,7 +128,7 @@ export function CatalogListClient({
 					? { state: "denied", message: res.failure.message }
 					: { state: "error", error: failureText(res.failure) },
 		);
-	}, [query, filters.category, filters.status, filters.review, cursor]);
+	}, [listParams, cursor]);
 
 	useEffect(() => {
 		void fetchPage();
@@ -123,6 +143,8 @@ export function CatalogListClient({
 		kategori: filters.category,
 		tab: filters.status ? catalogTabKey(filters.status) : "",
 		tinjauan: filters.review ? "klaim" : "",
+		urut: sort?.key ?? "",
+		arah: sort?.dir ?? "",
 		hal: page > 1 ? String(page) : "",
 		kursor: chain,
 	};
@@ -165,6 +187,36 @@ export function CatalogListClient({
 		`${adminPath("product", adminNo)}${urlQuery ? `?dari=${encodeURIComponent(urlQuery)}` : ""}`;
 	// Readers without stock access get readiness flags, never quantities.
 	const ready = access.stock ? "lengkap" : "siap";
+
+	// S160: CSV of the whole current list (all pages, same filters and sort). Only columns this role may see:
+	// never HPP or any cost; stock appears as readiness counts, the same as the table. The search is the text in the
+	// field at the click, not the debounced term (a click within 300 ms of typing exports what the user sees typed).
+	// Access: the file holds exactly the columns this role already reads in the table above, from the same list API
+	// (no cost, no new data), so the button follows catalog read access like the table itself; `exports.download`
+	// (consoleAccess().exportDownload) guards the server-side export jobs of orders, warehouse and finance data, which
+	// this is not. The pages do not pass that grant to this component; gating on it is a one-line change there.
+	const exporter = useCsvExport();
+	const exportList = () =>
+		exporter.run(
+			(signal) => {
+				const q = filters.q.trim();
+				return collectPages<ProductSummary>(
+					async (after, abort) => {
+						const params = listParams(100, q);
+						if (after) params.set("cursor", after);
+						const res = await getJson<Page<ProductSummary>>(`/api/v1/admin/products?${params}`, abort);
+						return res.ok
+							? { ok: true, rows: res.data.data, next: res.data.pagination.next_cursor }
+							: { ok: false, text: failureText(res.failure) };
+					},
+					(r) => r.id,
+					undefined,
+					signal,
+				);
+			},
+			productExportColumns(access.stock),
+			"produk",
+		);
 
 	const thumb = (r: ProductSummary) =>
 		r.image_url ? (
@@ -248,16 +300,31 @@ export function CatalogListClient({
 					</>
 				}
 				actions={
-					access.edit ? (
-						<Button asChild data-testid="catalog-create">
-							<Link href="/admin/produk/baru">
-								<Plus aria-hidden="true" data-icon="inline-start" />
-								Tambah produk
-							</Link>
+					<>
+						<Button type="button" variant="outline" data-testid="catalog-export" disabled={exporter.busy} onClick={() => void exportList()}>
+							<Download aria-hidden="true" data-icon="inline-start" />
+							{exporter.busy ? "Menyiapkan CSV…" : "Ekspor CSV"}
 						</Button>
-					) : undefined
+						{access.edit && (
+							<Button asChild data-testid="catalog-create">
+								<Link href="/admin/produk/baru">
+									<Plus aria-hidden="true" data-icon="inline-start" />
+									Tambah produk
+								</Link>
+							</Button>
+						)}
+					</>
 				}
 			/>
+			{exporter.message && (
+				<Alert
+					role={exporter.message.kind === "error" ? "alert" : "status"}
+					variant={exporter.message.kind === "error" ? "destructive" : "default"}
+					data-testid="catalog-export-message"
+				>
+					<AlertDescription>{exporter.message.text}</AlertDescription>
+				</Alert>
+			)}
 
 			<section
 				aria-labelledby="catalog-list-heading"
@@ -399,12 +466,20 @@ export function CatalogListClient({
 						)
 					}
 					caption="Daftar produk katalog"
+					sort={{
+						state: sort,
+						onChange: (next) => {
+							setSort(next);
+							setCursors([null]);
+						},
+					}}
 					rowTestId={(r) => `catalog-row-${r.id}`}
 					columns={[
 						{ id: "photo", header: <span className="sr-only">Foto</span>, className: "w-16", cell: thumb },
 						{
 							id: "product",
 							header: "Produk",
+							sort: "name",
 							cellClassName: "max-w-72 whitespace-normal",
 							cell: (r) => (
 								<>

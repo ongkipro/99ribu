@@ -2,6 +2,7 @@ import {randomUUID} from 'node:crypto';
 import type {TransactionSql} from 'postgres';
 import type {LocalAuth} from '../access/auth.ts';
 import {AccessError,hasPermission,projectOrderSummary,type Principal} from '../access/policy.ts';
+import {afterSortPosition,nextSortCursor,readSortCursor,readSorting,sortKeySelect,sortOrder,type SortColumns} from '../catalog/sort.ts';
 import {id,invalid,object,text} from '../catalog/validation.ts';
 import {mac} from '../checkout/access.ts';
 import {projectOrder} from '../checkout/orders.ts';
@@ -45,8 +46,11 @@ async function referenceLimit(tx:TransactionSql,p:Principal){
  if(rate.count>30) throw new AccessError(429,'RATE_LIMITED',Math.max(1,Math.ceil((Number(rate.last_request)+60000-now)/1000)));
 }
 
+// S150 allow-list of the order list: placed time, number, total and the two states. Default order stays newest first.
+export const ORDER_SORT:SortColumns={created_at:{column:'o.created_at',kind:'stamp'},number:{column:'o.number',kind:'text'},buyer_total:{column:'o.buyer_total',kind:'int'},status:{column:'o.status',kind:'text'},payment_status:{column:'o.payment_status',kind:'text'}};
 export async function listOrderHistory(identity:LocalAuth,principal:Principal,url:URL){
- const p=parameters(url,['cursor','limit','from','to','status','payment_status','warehouse_id','reference','phone_suffix','fulfillment_status','fulfillment_group','return_status']);
+ const p=parameters(url,['cursor','limit','from','to','status','payment_status','warehouse_id','reference','phone_suffix','fulfillment_status','fulfillment_group','return_status','sort','dir']);
+ const sorting=readSorting(p,ORDER_SORT);
  const filters={from:p.has('from')?financeInstant(p.get('from')):null,to:p.has('to')?financeInstant(p.get('to')):null,
   status:state(p.get('status'),['pending','processing','partially_completed','cancelled']),payment_status:state(p.get('payment_status'),['pending','cod_due','partially_collected','confirmed','expired','failed','partially_refunded','refunded']),
   warehouse_id:p.has('warehouse_id')?id(p.get('warehouse_id')):null,reference:p.has('reference')?text(p.get('reference'),100):null,phone_suffix:p.has('phone_suffix')?phoneSuffix(p.get('phone_suffix')):null,
@@ -58,7 +62,7 @@ export async function listOrderHistory(identity:LocalAuth,principal:Principal,ur
  if(filters.from&&filters.to&&filters.from>=filters.to||filters.reference&&/[\p{Cc}\p{Cf}]/u.test(filters.reference)) throw invalid();
  const take=limit(p.get('limit'));
  return identity.sql.begin(async tx=>{
-  const access=await historyAuthority(tx,principal),hash=await fingerprint(identity,{scope:scope(access),filters}),position=cursor(p.get('cursor'),hash);if(filters.reference||filters.phone_suffix) await referenceLimit(tx,access);
+  const access=await historyAuthority(tx,principal),hash=await fingerprint(identity,{scope:scope(access),filters}),position=sorting?null:cursor(p.get('cursor'),hash),sortPosition=sorting?readSortCursor(p.get('cursor'),sorting,hash):null;if(filters.reference||filters.phone_suffix) await referenceLimit(tx,access);
   const [installed]=await tx`select to_regclass('app.fulfillment') is not null installed,to_regclass('app.return_case') is not null returns_installed,to_regclass('app.replacement_shipment') is not null replacements_installed`;
   const replacementScope=installed.replacements_installed?tx`not exists(select 1 from app.replacement_shipment s join app.return_case c on c.id=s.case_id where c.order_id=o.id and not (s.warehouse_id=any(${access.warehouseIds}::uuid[])))`:tx`true`;
   const replacementWarehouse=installed.replacements_installed?tx`exists(select 1 from app.replacement_shipment s join app.return_case c on c.id=s.case_id where c.order_id=o.id and s.warehouse_id=${filters.warehouse_id}::uuid)`:tx`false`;
@@ -79,18 +83,18 @@ export async function listOrderHistory(identity:LocalAuth,principal:Principal,ur
   const phoneMatch=reversedSuffix===null?tx`true`:tx`o.quote_id=any(array(select q.id from app.checkout_quote q where
    reverse(regexp_replace(coalesce(q.document->'contact'->>'phone',''),'[^0-9]','','g')) like ${reversedSuffix}
    or reverse(regexp_replace(coalesce(q.document->'address'->>'phone',''),'[^0-9]','','g')) like ${reversedSuffix}))`;
-  const rows=await tx`select o.*,to_char(o.created_at at time zone 'UTC','YYYY-MM-DD"T"HH24:MI:SS.US"Z"') stamp from app.commerce_order o where o.revision>0
+  const rows=await tx`select o.*,to_char(o.created_at at time zone 'UTC','YYYY-MM-DD"T"HH24:MI:SS.US"Z"') stamp${sorting?tx`, ${sortKeySelect(tx,sorting)}`:tx``} from app.commerce_order o where o.revision>0
    and (${access.roles.includes('owner')} or (exists(select 1 from app.order_shipment s where s.order_id=o.id) and not exists(select 1 from app.order_shipment s where s.order_id=o.id and not (s.warehouse_id=any(${access.warehouseIds}::uuid[]))) and ${replacementScope}))
    and (${filters.from}::timestamptz is null or o.created_at>=${filters.from}::timestamptz) and (${filters.to}::timestamptz is null or o.created_at<${filters.to}::timestamptz)
    and (${filters.status}::text is null or o.status=${filters.status}) and (${filters.payment_status}::text is null or o.payment_status=${filters.payment_status})
    and (${filters.warehouse_id}::uuid is null or exists(select 1 from app.order_shipment s where s.order_id=o.id and s.warehouse_id=${filters.warehouse_id}::uuid) or ${replacementWarehouse})
    and (${filters.reference}::text is null or o.number=upper(${filters.reference}) or ${trackingMatch}) and ${phoneMatch} and ${returnMatch} and ${fulfillmentMatch} and ${dueMatch}
-   and (${position===null} or (o.created_at,o.id)<(${position?.t??'1970-01-01T00:00:00.000000Z'}::timestamptz,${position?.id??'00000000-0000-0000-0000-000000000000'}::uuid)) order by o.created_at desc,o.id desc limit ${take+1}`;
+   and (${position===null} or (o.created_at,o.id)<(${position?.t??'1970-01-01T00:00:00.000000Z'}::timestamptz,${position?.id??'00000000-0000-0000-0000-000000000000'}::uuid)) and ${sorting?afterSortPosition(tx,sorting,'o.id',sortPosition):tx`true`} order by ${sorting?sortOrder(tx,sorting,'o.id'):tx`o.created_at desc,o.id desc`} limit ${take+1}`;
   const selected=rows.slice(0,take),data=[];
   for(const row of selected){const shipments=await tx`select distinct warehouse_id from app.order_shipment where order_id=${row.id}`;
    data.push(projectOrderSummary(access,shipments.map(s=>s.warehouse_id),{id:row.id,admin_no:row.admin_no,number:row.number,status:row.status,payment_status:row.payment_status,payment_method:row.payment_method,buyer_total:Number(row.buyer_total),currency:'IDR',created_at:new Date(row.created_at).toISOString(),version:row.revision}));}
   await audit(tx,access,null,true);const [clock]=await tx`select clock_timestamp() as now`;
-  return {data,pagination:{next_cursor:rows.length>take?encode(selected[selected.length-1] as {stamp:string;id:string},hash):null},as_of:new Date(clock.now).toISOString()};
+  return {data,pagination:{next_cursor:sorting?nextSortCursor(sorting,rows as unknown as {sort_key:string;id:string}[],take,hash):rows.length>take?encode(selected[selected.length-1] as {stamp:string;id:string},hash):null},as_of:new Date(clock.now).toISOString()};
  });
 }
 

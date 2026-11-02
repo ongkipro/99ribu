@@ -29,6 +29,7 @@ export const routePolicy:readonly {route:string;index:boolean;rule:string}[]=[
  {route:'/akun/pesanan',index:false,rule:'noindex, nofollow; robots.txt Disallow (under /akun); account orders tab'},
  {route:'/akun/profil',index:false,rule:'noindex, nofollow; robots.txt Disallow (under /akun); account profile tab'},
  {route:'/akun/pengaturan',index:false,rule:'noindex, nofollow; robots.txt Disallow (under /akun); account settings tab'},
+ {route:'/akun/pengembalian',index:false,rule:'noindex, nofollow; robots.txt Disallow (under /akun); account returns tab'},
  {route:'/afiliasi',index:false,rule:'noindex, nofollow; robots.txt Disallow'},
  {route:'/masuk',index:false,rule:'noindex, nofollow; robots.txt Disallow'},
  {route:'/masuk/verifikasi',index:false,rule:'noindex, nofollow; robots.txt Disallow (under /masuk); email verification landing (S123)'},

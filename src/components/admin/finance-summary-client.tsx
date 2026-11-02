@@ -314,7 +314,7 @@ export function FinanceSummaryClient() {
 											data-complete={m.complete ? "true" : "false"}
 											className="flex min-w-0 flex-col gap-2 rounded-lg border bg-card p-3"
 										>
-											<div className="flex items-start justify-between gap-2">
+											<div className="flex flex-wrap items-start justify-between gap-2">
 												<span className="text-xs font-medium text-muted-foreground">
 													{DASHBOARD_METRIC_LABELS[m.key] ?? m.key}
 												</span>

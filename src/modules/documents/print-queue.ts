@@ -21,6 +21,13 @@ export type PrintQueueShipment = {
 	tracking_number: string | null;
 	fulfillment_status: string | null;
 	cod_due: number;
+	/**
+	 * When a valid, unexpired label was last printed to completion; null = not printed yet.
+	 * Expired labels cannot be printed any more, so a print of one no longer counts.
+	 */
+	label_printed_at: string | null;
+	/** The artifact that print belongs to; the client compares it with the artifact its print button acts on. */
+	label_printed_artifact_id: string | null;
 	/** Packing deadline while a label is missing, handover deadline once labelled. */
 	due_at: string | null;
 };
@@ -70,6 +77,8 @@ export async function readPrintQueue(
 		(Omit<PrintQueueShipment, "cod_due" | "due_at"> & {
 			cod_due: string;
 			due_at: string | null;
+			label_printed_at: string | null;
+			label_printed_artifact_id: string | null;
 			rank: number;
 			due_us: string | null;
 		})[]
@@ -93,12 +102,21 @@ export async function readPrintQueue(
 					else 0
 				end as rank,
 				d.packing_due_at,
-				d.handover_due_at
+				d.handover_due_at,
+				printed.created_at as label_printed_at,
+				printed.artifact_id as label_printed_artifact_id
 			from app.order_shipment s
 			join app.warehouse w on w.id = s.warehouse_id
 			join app.commerce_order o on o.id = s.order_id
 			left join app.fulfillment f on f.shipment_id = s.id
 			left join app.fulfillment_deadline d on d.id = f.deadline_id
+			left join lateral (
+				select p.created_at, p.artifact_id from app.shipping_print_attempt p
+				join app.shipping_label_artifact pa on pa.id = p.artifact_id
+				where p.shipment_id = s.id and p.reported_outcome = 'completed'
+					and pa.status = 'valid' and pa.expires_at > clock_timestamp()
+				order by p.created_at desc, p.id desc limit 1
+			) printed on true
 			where ${isOwner} or s.warehouse_id = any(${principal.warehouseIds}::uuid[])
 		), keyed as (
 			select q.*,
@@ -109,7 +127,7 @@ export async function readPrintQueue(
 			select k.*, (extract(epoch from k.due_at) * 1000000)::bigint as due_us from keyed k
 		)
 		select shipment_id, parcel_id, warehouse_id, warehouse_name, order_number,
-			tracking_number, fulfillment_status, cod_due, due_at, rank, due_us::text as due_us
+			tracking_number, fulfillment_status, cod_due, due_at, label_printed_at, label_printed_artifact_id, rank, due_us::text as due_us
 		from sorted
 		where ${afterId}::uuid is null
 			or rank > ${rank}::int
@@ -158,6 +176,10 @@ export async function readPrintQueue(
 				tracking_number: r.tracking_number,
 				fulfillment_status: r.fulfillment_status,
 				cod_due: Number(r.cod_due),
+				label_printed_at: r.label_printed_at
+					? new Date(r.label_printed_at).toISOString()
+					: null,
+				label_printed_artifact_id: r.label_printed_artifact_id,
 				due_at: r.due_at ? new Date(r.due_at).toISOString() : null,
 			}),
 		),

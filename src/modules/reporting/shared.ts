@@ -1,5 +1,6 @@
 import type { LocalAuth } from "../access/auth.ts";
 import { AccessError, type Principal, type Role } from "../access/policy.ts";
+import { isPeriodPreset, resolvePeriodPreset } from "./metric-math.ts";
 
 export type CanonicalWorkspace =
 	| "owner"
@@ -33,7 +34,21 @@ export type MetricKey =
 	| "affiliate_liability"
 	| "estimated_contribution"
 	| "realized_contribution"
-	| "net_merchandise_revenue";
+	| "net_merchandise_revenue"
+	// DEC-027 (4), S153
+	| "fulfillments_overdue"
+	| "cod_failed_rate"
+	| "return_rate"
+	| "average_order_value"
+	| "oldest_unclaimed_chat_age"
+	// Open COD problems: the work row beside the cod_failed_rate period figure (DEC-027 (3)).
+	| "cod_problems_open";
+
+/**
+ * Anything waiting longer than this carries the overdue marker (spec 17 W4-2). The 24 hours come from
+ * the contract text, not from another platform; there is no setting for it yet.
+ */
+export const STALE_AFTER_HOURS = 24;
 
 /** A manual transfer is flagged this many hours before its 24-hour payment deadline (DEC-008 (4)). */
 export const TRANSFER_DEADLINE_WARNING_HOURS = 6;
@@ -61,12 +76,14 @@ export const WORKSPACE_METRICS: Record<CanonicalWorkspace, MetricKey[]> = {
 		"delivery_exceptions",
 		"returns_pending",
 		"stock_alerts",
+		"fulfillments_overdue",
 	],
 	customer_service: [
 		"orders_pending",
 		"delivery_exceptions",
 		"returns_pending",
 		"support_unassigned",
+		"oldest_unclaimed_chat_age",
 	],
 	ecommerce_admin: [
 		"orders_pending",
@@ -76,6 +93,11 @@ export const WORKSPACE_METRICS: Record<CanonicalWorkspace, MetricKey[]> = {
 		"delivery_exceptions",
 		"returns_pending",
 		"stock_alerts",
+		"fulfillments_overdue",
+		// Their drilldown is the fulfillments queue, which finance cannot open (WORKSPACE_QUEUES).
+		"cod_failed_rate",
+		"return_rate",
+		"cod_problems_open",
 	],
 	finance: [
 		"finance_unmatched",
@@ -89,6 +111,7 @@ export const WORKSPACE_METRICS: Record<CanonicalWorkspace, MetricKey[]> = {
 		"estimated_contribution",
 		"realized_contribution",
 		"net_merchandise_revenue",
+		"average_order_value",
 	],
 	owner: [
 		"orders_pending",
@@ -109,6 +132,12 @@ export const WORKSPACE_METRICS: Record<CanonicalWorkspace, MetricKey[]> = {
 		"estimated_contribution",
 		"realized_contribution",
 		"net_merchandise_revenue",
+		"fulfillments_overdue",
+		"cod_failed_rate",
+		"return_rate",
+		"average_order_value",
+		"oldest_unclaimed_chat_age",
+		"cod_problems_open",
 	],
 };
 
@@ -153,6 +182,15 @@ export const METRIC_QUEUE_MAP: Record<MetricKey, QueueKey> = {
 	estimated_contribution: "orders",
 	realized_contribution: "reconciliation",
 	net_merchandise_revenue: "reconciliation",
+	// The drilldown lists the rows behind the numerator; the denominator is stated on the card.
+	fulfillments_overdue: "fulfillments",
+	cod_failed_rate: "fulfillments",
+	return_rate: "returns",
+	// Orders placed in the period and not cancelled: the denominator of the average.
+	average_order_value: "orders",
+	oldest_unclaimed_chat_age: "support",
+	// The delivery-exception queue, narrowed to COD refusals and failed deliveries.
+	cod_problems_open: "delivery_exceptions",
 };
 
 export const MONEY_METRICS = new Set<MetricKey>([
@@ -167,10 +205,33 @@ export const MONEY_METRICS = new Set<MetricKey>([
 
 // Current-state counts: the selected period does not narrow them.
 export const SNAPSHOT_METRICS = new Set<MetricKey>([
+	// Work counts are live (DEC-027 (2)): every parcel still to hand over, whatever day it was created,
+	// so an old overdue parcel is never outside the backlog it belongs to.
+	"fulfillments_due",
+	"cod_problems_open",
 	"manual_booking_pending",
 	"transfers_near_deadline",
 	"autolaris_pending",
 	"stock_alerts",
+	"fulfillments_overdue",
+	"oldest_unclaimed_chat_age",
+]);
+
+/**
+ * Event-period metrics whose past value does not move once the period is over, so a previous-period
+ * delta is honest (orders, COD outcomes, returns opened, money flows). Backlog counts that depend on
+ * today's state (orders still pending, open returns, open liabilities) are excluded: an older period
+ * would always look better only because its items have since been closed.
+ */
+export const COMPARABLE_METRICS = new Set<MetricKey>([
+	"orders_by_payment_method",
+	"cod_remitted",
+	"net_merchandise_revenue",
+	"estimated_contribution",
+	"realized_contribution",
+	"cod_failed_rate",
+	"return_rate",
+	"average_order_value",
 ]);
 
 // The existing screen where staff act on the number; null = the drilldown queue on the dashboard itself
@@ -288,10 +349,14 @@ export function resolveDateRange(
 	if (rawFrom || rawTo) {
 		throw new AccessError(400, "INVALID_INPUT");
 	}
+	// DEC-027 (1): the four presets start at a WIB midnight and the console names the zone.
+	const preset = windowParam ?? "30d";
+	if (isPeriodPreset(preset)) {
+		const { from, to } = resolvePeriodPreset(preset, nowMs);
+		return { from, to };
+	}
 	let days = 30;
-	if (windowParam === "7d") days = 7;
-	else if (windowParam === "30d" || !windowParam) days = 30;
-	else if (windowParam === "90d") days = 90;
+	if (windowParam === "90d") days = 90;
 	else if (windowParam === "365d" || windowParam === "all") days = 365;
 	else throw new AccessError(400, "INVALID_INPUT");
 	return {

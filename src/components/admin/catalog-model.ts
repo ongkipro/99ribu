@@ -251,3 +251,6 @@ export async function readAll<T>(
 	}
 	return { ok: true, data: rows, complete: false };
 }
+
+/** S150: sort keys of the product list the API accepts (name; catalog_id is API-only until a column shows it alone). */
+export const CATALOG_SORT_KEYS = ["name", "catalog_id"] as const;

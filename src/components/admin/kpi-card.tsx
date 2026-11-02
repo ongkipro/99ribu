@@ -22,6 +22,7 @@ export function KpiCard({
 	value,
 	unit,
 	badge,
+	delta,
 	description,
 	breakdown,
 	active,
@@ -38,6 +39,8 @@ export function KpiCard({
 	value: ReactNode;
 	unit?: string;
 	badge?: ReactNode;
+	/** Change against the previous period (`<DeltaChip>`); only for event-period metrics. */
+	delta?: ReactNode;
 	description?: ReactNode;
 	breakdown?: string | null;
 	active: boolean;
@@ -88,6 +91,7 @@ export function KpiCard({
 				{value}
 				{unit && <span className="ml-1 text-xs font-normal text-muted-foreground">{unit}</span>}
 			</p>
+			{delta && <div className="flex">{delta}</div>}
 			{description && (
 				<p className="hidden text-xs leading-relaxed text-muted-foreground md:line-clamp-2">
 					{description}

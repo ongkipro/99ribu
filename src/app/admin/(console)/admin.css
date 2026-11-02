@@ -35,21 +35,22 @@
 	}
 }
 
-/* Brand tokens from globals.css (#5b35d5 purple, #18181b ink, #d8d8df line). */
+/* Brand tokens (DESIGN.md "Console token alignment", DEC-026): shop.com neutrals instead of violet-tinted greys:
+   canvas #fcfcfc, ink #121212 (never #000), hairline rgba(0,0,0,.1), field border #858585, fills #f5f5f5, #5b35d5 purple. */
 :root {
 	--radius: 0.5rem;
-	--background: oklch(0.991 0.001 286.4);
-	--foreground: oklch(0.21 0.006 285.9);
+	--background: oklch(0.9911 0 0);
+	--foreground: oklch(0.1822 0 0);
 	--card: oklch(1 0 0);
-	--card-foreground: oklch(0.21 0.006 285.9);
+	--card-foreground: oklch(0.1822 0 0);
 	--popover: oklch(1 0 0);
-	--popover-foreground: oklch(0.21 0.006 285.9);
+	--popover-foreground: oklch(0.1822 0 0);
 	--primary: oklch(0.483 0.226 285);
 	--primary-foreground: oklch(1 0 0);
 	--secondary: oklch(0.963 0.02 298.2);
 	--secondary-foreground: oklch(0.483 0.226 285);
-	--muted: oklch(0.968 0.003 286.4);
-	--muted-foreground: oklch(0.474 0.013 285.9);
+	--muted: oklch(0.9702 0 0);
+	--muted-foreground: oklch(0.4712 0 0);
 	--accent: oklch(0.963 0.02 298.2);
 	--accent-foreground: oklch(0.483 0.226 285);
 	--destructive: oklch(0.425 0.14 28.4);
@@ -59,14 +60,14 @@
 	--error-surface: var(--destructive-surface);
 	/* Brand yellow #f6c945: fill only, always with ink text (yellow text on white fails contrast). */
 	--highlight: oklch(0.857 0.146 88.6);
-	--highlight-foreground: oklch(0.21 0.006 285.9);
+	--highlight-foreground: oklch(0.1822 0 0);
 	--warning: oklch(0.488 0.137 43.9);
 	--warning-surface: oklch(0.976 0.015 61.3);
 	--success: oklch(0.448 0.108 151.3);
 	--success-surface: oklch(0.982 0.018 155.8);
-	--border: oklch(0.884 0.01 286.2);
-	/* Form-control border keeps the 3:1 non-text contrast of the old #85858e. */
-	--input: oklch(0.62 0.013 286);
+	--border: oklch(0 0 0 / 0.1);
+	/* Form-control border keeps the 3:1 non-text contrast (#858585 on white is 3.7:1). */
+	--input: oklch(0.6167 0 0);
 	--ring: oklch(0.483 0.226 285);
 	/* Charts (plan §3): purple, teal, green, amber, rose; every series also carries a label or marker.
 	   WCAG 2.x contrast measured 2026-10-29 (OKLCH -> sRGB relative luminance), vs --card / --background;
@@ -77,13 +78,13 @@
 	--chart-3: oklch(0.448 0.108 151.3);
 	--chart-4: oklch(0.488 0.137 43.9);
 	--chart-5: oklch(0.586 0.2 12);
-	--sidebar: oklch(0.973 0.003 264.5);
-	--sidebar-foreground: oklch(0.21 0.006 285.9);
+	--sidebar: oklch(0.9702 0 0);
+	--sidebar-foreground: oklch(0.1822 0 0);
 	--sidebar-primary: oklch(0.483 0.226 285);
 	--sidebar-primary-foreground: oklch(1 0 0);
 	--sidebar-accent: oklch(0.963 0.02 298.2);
 	--sidebar-accent-foreground: oklch(0.483 0.226 285);
-	--sidebar-border: oklch(0.884 0.01 286.2);
+	--sidebar-border: oklch(0 0 0 / 0.1);
 	--sidebar-ring: oklch(0.483 0.226 285);
 }
 
@@ -217,5 +218,12 @@ body :is(button, a, input, select, textarea, summary):focus-visible {
 @media (width >= 48rem) and (width < 64rem) {
 	[data-slot="admin-sidebar"][data-rail="auto"] {
 		width: 4rem;
+	}
+}
+
+/* DESIGN.md motion rule: control transitions are 150 ms (Tailwind's default) and off under reduced motion. */
+@media (prefers-reduced-motion: reduce) {
+	:root {
+		--default-transition-duration: 0s;
 	}
 }

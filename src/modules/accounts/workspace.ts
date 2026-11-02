@@ -6,12 +6,13 @@ import { type OrderRow, projectOrder } from "../checkout/orders.ts";
 import { summarizeAccountOrder, type AccountOrder } from "./order-summary.ts";
 import { type NotificationPreferenceResponse, type PrivateNotificationResponse, parsePagination, ensureBuyerProfile, formatBuyerProfile, listActiveAddresses } from "./shared.ts";
 import { ensureOrderNotifications } from "./notifications.ts";
+import { readBuyerReturnList } from "./returns.ts";
 
 // `orders: false` skips the per-order summaries for account pages that do not list orders.
 export async function readBuyerAccountWorkspace(
 	request: Request,
 	identity: LocalAuth,
-	options: { orders?: boolean } = {},
+	options: { orders?: boolean; returns?: boolean; returnsCursor?: string | null } = {},
 ) {
 	try {
 		const principal = await getPrincipal(request, identity);
@@ -106,6 +107,13 @@ export async function readBuyerAccountWorkspace(
 				preferences,
 				notifications,
 				orders,
+				returns: options.returns
+					? await readBuyerReturnList(tx, principal.id, { limit: 20, cursor: options.returnsCursor ?? null }).catch((error) => {
+							// A stale or foreign cursor shows the first page; it must never look like a sign-out.
+							if (options.returnsCursor && error instanceof AccessError && error.status === 400) return readBuyerReturnList(tx, principal.id, { limit: 20, cursor: null });
+							throw error;
+						})
+					: null,
 			};
 		});
 	} catch {
@@ -116,6 +124,7 @@ export async function readBuyerAccountWorkspace(
 			preferences: null,
 			notifications: [],
 			orders: [],
+			returns: null,
 		};
 	}
 }

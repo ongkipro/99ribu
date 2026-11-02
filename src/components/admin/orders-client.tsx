@@ -2,8 +2,8 @@
 
 import { CircleAlert, Search, X } from "lucide-react";
 import Link from "next/link";
-import { useRouter } from "next/navigation";
-import { useCallback, useEffect, useState } from "react";
+import { useRouter, useSearchParams } from "next/navigation";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -18,6 +18,7 @@ import {
 	historyStatus,
 	ORDER_FILTER_KEYS,
 	ORDER_FILTERS,
+	ORDER_SORT_KEYS,
 	ORDER_STATUS,
 	ORDER_TABS,
 	ORDER_TONE,
@@ -31,6 +32,7 @@ import {
 	paymentTone,
 	SHIPMENT_STATUS,
 	SHIPMENT_TONE,
+	SORT_PARAMS,
 	searchQuery,
 	TRACKING_STATUS,
 } from "./order-model";
@@ -38,6 +40,7 @@ import { StatusBadge } from "./status";
 import { AdminPage, DetailSection, PageHeader } from "./page-blocks";
 import { TabStrip } from "./tab-strip";
 import { adminPath } from "@/modules/access/admin-paths";
+import { readSortState, type SortState, sortEntries } from "@/modules/catalog/sort-state";
 
 export type SearchKind = "nomor" | "resi" | "hp";
 type Summary = {
@@ -111,6 +114,14 @@ export function OrderSearchClient({
 	companyWide: boolean;
 }) {
 	const router = useRouter();
+	// S150: the sort lives in the URL (urut, arah), so Back restores it.
+	const search = useSearchParams();
+	const sortKey = search.get(SORT_PARAMS.key);
+	const sortDir = search.get(SORT_PARAMS.dir);
+	const sort = useMemo(
+		() => readSortState({ get: (name) => (name === SORT_PARAMS.key ? sortKey : sortDir) }, ORDER_SORT_KEYS, SORT_PARAMS.key, SORT_PARAMS.dir),
+		[sortKey, sortDir],
+	);
 	const [kind, setKind] = useState<SearchKind>(initialKind);
 	const [term, setTerm] = useState(initialTerm);
 	const [applied, setApplied] = useState({ kind: initialKind, term: initialTerm.trim() });
@@ -132,13 +143,18 @@ export function OrderSearchClient({
 					applied.kind === "resi" ? applied.term.replace(/\s+/g, "") : applied.term,
 				);
 			for (const [name, value] of orderFilterParams(tab, filters)) params.set(name, value);
+			for (const [name, value] of Object.entries(sortEntries(sort))) params.set(name, value);
 			if (next) params.set("cursor", next);
 			return getJson<Page<Summary>>(`/api/v1/admin/orders?${params}`);
 		},
-		[applied, filters, tab],
+		[applied, filters, tab, sort],
 	);
+	// S150: a late response of an older sort/filter must not replace or extend the newer list.
+	const request = useRef(0);
 	const load = useCallback(async () => {
+		const n = ++request.current;
 		setMoreError(null);
+		setMore(false);
 		if (validate(applied.kind, applied.term)) {
 			setRows([]);
 			setCursor(null);
@@ -147,6 +163,7 @@ export function OrderSearchClient({
 		}
 		setState("loading");
 		const result = await query(null);
+		if (n !== request.current) return;
 		if (result.ok) {
 			setRows(result.data.data);
 			setCursor(result.data.pagination.next_cursor);
@@ -163,9 +180,11 @@ export function OrderSearchClient({
 	// A failed next page keeps the rows already shown and says so under them.
 	const loadMore = async () => {
 		if (!cursor) return;
+		const n = request.current;
 		setMore(true);
 		setMoreError(null);
 		const result = await query(cursor);
+		if (n !== request.current) return;
 		setMore(false);
 		if (!result.ok) {
 			setMoreError(`Pesanan berikutnya gagal dimuat. ${failureMessage(result.failure)}`);
@@ -176,8 +195,8 @@ export function OrderSearchClient({
 	};
 	const fixed = ORDER_TABS[tab].fixed;
 	const selectFilters = ORDER_FILTER_KEYS.filter((key) => key !== "kirim" && !(key in fixed));
-	const navigate = (nextKind: SearchKind, nextTerm: string, nextFilters: OrderFilters) => {
-		const params = searchQuery(nextKind, nextTerm, nextFilters, tab);
+	const navigate = (nextKind: SearchKind, nextTerm: string, nextFilters: OrderFilters, nextSort: SortState | null = sort) => {
+		const params = searchQuery(nextKind, nextTerm, nextFilters, tab, nextSort);
 		router.replace(`/admin/pesanan${params.size ? `?${params}` : ""}`, { scroll: false });
 	};
 	const submit = (nextKind: SearchKind, nextTerm: string) => {
@@ -201,7 +220,7 @@ export function OrderSearchClient({
 		setFilters(kept);
 		navigate(applied.kind, applied.term, kept);
 	};
-	const back = searchQuery(applied.kind, applied.term, filters, tab).toString();
+	const back = searchQuery(applied.kind, applied.term, filters, tab, sort).toString();
 	// Switching tabs keeps the search and the select filters the next tab does not fix.
 	const tabHref = (key: string) => {
 		const carry = Object.fromEntries(active.filter((k) => !(k in ORDER_TABS[key].fixed)).map((k) => [k, filters[k]]));
@@ -395,13 +414,15 @@ export function OrderSearchClient({
 						)
 					}
 					testId="orders-table"
-					caption="Daftar pesanan, terbaru di atas"
+					caption={sort ? "Daftar pesanan, diurutkan" : "Daftar pesanan, terbaru di atas"}
+					sort={{ state: sort, onChange: (next) => navigate(applied.kind, applied.term, filters, next) }}
 					rowTestId={() => "order-row"}
 					stack
 					columns={[
 						{
 							id: "number",
 							header: "Nomor pesanan",
+							sort: "number",
 							stack: "title",
 							// md–xl: the creation time moves under the number so the payment text never clips.
 							cell: (row) => (
@@ -421,6 +442,7 @@ export function OrderSearchClient({
 						{
 							id: "created",
 							header: "Dibuat",
+							sort: "created_at",
 							stack: "meta",
 							kind: "datetime",
 							className: "md:max-xl:hidden",
@@ -429,6 +451,7 @@ export function OrderSearchClient({
 						{
 							id: "status",
 							header: "Status pesanan",
+							sort: "status",
 							stack: "status",
 							cell: (row) => (
 								<StatusBadge tone={ORDER_TONE[row.status] ?? "open"}>
@@ -440,6 +463,8 @@ export function OrderSearchClient({
 							// The method is plain text, the state a badge: a collected COD order never reads "Lunas".
 							id: "payment",
 							header: "Pembayaran",
+							sort: "payment_status",
+							sortLabel: "Status pembayaran",
 							stack: "status",
 							cell: (row) => (
 								<span className="inline-flex flex-wrap items-center gap-1.5">
@@ -456,6 +481,7 @@ export function OrderSearchClient({
 							// Before the COD fee or transfer code; the detail page shows both totals.
 							id: "total",
 							header: "Total pesanan",
+							sort: "buyer_total",
 							stack: "aside",
 							className: "text-right tabular-nums",
 							cell: (row) => rupiah(row.buyer_total),

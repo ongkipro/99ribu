@@ -2,9 +2,15 @@
 
 import { cn } from "cn";
 import { CircleAlert, Download, Info, Printer, X } from "lucide-react";
+import dynamic from "next/dynamic";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useCallback, useEffect, useRef, useState } from "react";
+import { LOWER_IS_BETTER } from "@/modules/reporting/metric-math";
+import { DeltaChip } from "./dashboard/delta-chip";
+import { formatRate, formatWait } from "./dashboard/format";
+import { NeedsAction } from "./dashboard/needs-action";
+import type { CodAgeingData, Comparison, DashboardSeries } from "./dashboard/types";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Badge } from "@/components/ui/badge";
@@ -45,13 +51,39 @@ type QueueKey =
 	| "support"
 	| "reconciliation";
 
+// Charts are lazy client leaves (S153): their code loads only when the dashboard has data for them.
+const chartFallback = () => (
+	<div aria-hidden="true" className="h-40 rounded-lg border bg-muted/40" />
+);
+const RevenueTrendChart = dynamic(() => import("./dashboard/charts").then((m) => m.RevenueTrendChart), {
+	ssr: false,
+	loading: chartFallback,
+});
+const CodAgeingChart = dynamic(() => import("./dashboard/charts").then((m) => m.CodAgeingChart), {
+	ssr: false,
+	loading: chartFallback,
+});
+const PaymentMethodChart = dynamic(() => import("./dashboard/charts").then((m) => m.PaymentMethodChart), {
+	ssr: false,
+	loading: chartFallback,
+});
+
 interface DashboardMetric {
 	key: string;
 	count: number | null;
 	basis: "snapshot" | "event_period";
 	complete: boolean;
 	queue_key: QueueKey;
-	kind: "count" | "money";
+	/** rate: `count` is the numerator and `denominator` what it is divided by; duration: `age_seconds`. */
+	kind: "count" | "money" | "rate" | "duration";
+	denominator?: number | null;
+	rate?: number | null;
+	/** Rate metric whose denominator is below the minimum sample: no percentage, only count and denominator. */
+	low_sample?: boolean;
+	age_seconds?: number | null;
+	stale_count?: number | null;
+	/** Present only with compare=previous and only for event-period metrics. */
+	comparison?: Comparison | null;
 	amount: number | null;
 	currency: "IDR" | null;
 	financial_basis:
@@ -77,6 +109,9 @@ interface DashboardSnapshot {
 	to: string;
 	timezone: string;
 	as_of: string;
+	comparison_period?: { from: string; to: string } | null;
+	series?: DashboardSeries | null;
+	cod_ageing?: CodAgeingData | null;
 	metrics: DashboardMetric[];
 }
 
@@ -154,6 +189,12 @@ const METRIC_LABELS: Record<string, string> = {
 	estimated_contribution: "Estimasi kontribusi margin",
 	realized_contribution: "Kontribusi margin terealisasi",
 	net_merchandise_revenue: "Pendapatan bersih barang",
+	fulfillments_overdue: "Paket lewat batas",
+	cod_failed_rate: "COD ditolak atau gagal",
+	return_rate: "Tingkat retur",
+	average_order_value: "Rata-rata nilai pesanan",
+	oldest_unclaimed_chat_age: "Chat belum diklaim tertua",
+	cod_problems_open: "COD bermasalah terbuka",
 };
 
 const METRIC_UNITS: Record<string, string> = {
@@ -168,6 +209,8 @@ const METRIC_UNITS: Record<string, string> = {
 	manual_booking_pending: "paket",
 	transfers_near_deadline: "transfer",
 	autolaris_pending: "pesanan",
+	fulfillments_overdue: "paket",
+	cod_problems_open: "kasus",
 };
 
 const EXPORT_DENIED =
@@ -195,9 +238,19 @@ const ACTION_METRICS = new Set([
 	"finance_unmatched",
 	"transfers_near_deadline",
 	"autolaris_pending",
+	"fulfillments_overdue",
+	"oldest_unclaimed_chat_age",
+	"cod_problems_open",
 ]);
+// A rate is context, never a to-do or an idle queue: it keeps its place in the grid at 0%.
 const kpiTone = (m: DashboardMetric) =>
-	!m.complete ? "neutral" : (m.count ?? 0) === 0 ? "idle" : ACTION_METRICS.has(m.key) ? "attention" : "neutral";
+	!m.complete || m.kind === "rate"
+		? "neutral"
+		: (m.count ?? 0) === 0
+			? "idle"
+			: ACTION_METRICS.has(m.key)
+				? "attention"
+				: "neutral";
 const TONE_RANK = { attention: 0, neutral: 1, idle: 2 } as const;
 // Deadlines a row can miss; creation/update times are never "late".
 const DEADLINE_KINDS = new Set<DueAtKind>(["payment_deadline", "packing_deadline", "handover_deadline"]);
@@ -243,9 +296,13 @@ const DUE_AT_KIND_LABELS: Record<DueAtKind, string> = {
 	updated: "Diperbarui",
 };
 
+// DEC-027 (1): the first four are WIB calendar days (the zone is printed in the header); 90 hari is the
+// older rolling window.
 const WINDOW_LABELS: Record<string, string> = {
-	"7d": "7 hari terakhir",
-	"30d": "30 hari terakhir",
+	today: "Hari ini",
+	yesterday: "Kemarin",
+	"7d": "7 hari (termasuk hari ini)",
+	"30d": "30 hari (termasuk hari ini)",
 	"90d": "90 hari terakhir",
 };
 
@@ -721,6 +778,9 @@ export function AdminWorkspacesClient({
 	const [warehouseId, setWarehouseId] = useState(requestedWarehouseId);
 	const initialWindow = requestedWindow && requestedWindow in WINDOW_LABELS ? requestedWindow : "30d";
 	const [windowRange, setWindowRange] = useState(initialWindow);
+	// Compare with the previous period of equal length (DEC-027 (1)); off until asked for.
+	const [compare, setCompare] = useState(false);
+	const compareRef = useRef(false);
 
 	const [dashboard, setDashboard] = useState<DashboardSnapshot | null>(null);
 	const [dashState, setDashState] = useState<LoadState>(
@@ -771,6 +831,7 @@ export function AdminWorkspacesClient({
 			try {
 				const q = new URLSearchParams({ workspace: ws, window: win });
 				if (whId) q.set("warehouse_id", whId);
+				if (compareRef.current) q.set("compare", "previous");
 				const res = await fetch(`/api/v1/admin/dashboard?${q.toString()}`, {
 					credentials: "include",
 					cache: "no-store",
@@ -974,7 +1035,7 @@ export function AdminWorkspacesClient({
 	const canSeeMoney = workspace === "owner" || workspace === "finance";
 	// Work first (non-zero action counts), then context, then zero queues; stable within a group.
 	const countMetrics = metrics
-		.filter((m) => m.kind === "count")
+		.filter((m) => m.kind !== "money")
 		.map((m, i) => ({ m, i }))
 		.sort((a, b) => TONE_RANK[kpiTone(a.m)] - TONE_RANK[kpiTone(b.m)] || a.i - b.i)
 		.map(({ m }) => m);
@@ -982,10 +1043,20 @@ export function AdminWorkspacesClient({
 		? metrics.filter((m) => m.kind === "money")
 		: [];
 	const activeMetric = metrics.find((m) => m.key === metricKey) ?? null;
+	// The payment-method bar reuses the card's own breakdown (one data source).
+	const paymentBreakdown =
+		metrics.find((m) => m.key === "orders_by_payment_method" && m.complete)?.breakdown ?? null;
+	const chartCount =
+		(dashboard?.series ? 1 : 0) + (dashboard?.cod_ageing ? 1 : 0) + (paymentBreakdown?.length ? 1 : 0);
 	// A count metric's number is the exact row total of its filtered drilldown.
+	// A rate's number is its numerator's rows; the average order value lists the orders it divides by.
 	const queueTotal =
-		activeMetric?.kind === "count" && activeMetric.queue_key === queue
-			? activeMetric.count
+		activeMetric && activeMetric.queue_key === queue
+			? activeMetric.kind === "money"
+				? activeMetric.key === "average_order_value"
+					? (activeMetric.denominator ?? null)
+					: null
+				: activeMetric.count
 			: null;
 	const exportConfig = QUEUE_EXPORT_CONFIG[queue];
 	// Preview (signed out) offers no actions: every grant below is false without a staff session.
@@ -1270,31 +1341,57 @@ export function AdminWorkspacesClient({
 							? ` · ${dashboard.warehouse_ids.length} gudang dalam cakupan`
 							: ""}
 						{dashboard?.as_of && ` · Data per ${formatTime(dashboard.as_of)}`}
+						{view === "dashboard" && dashboard?.from && dashboard.to && (
+							<span data-testid="period-range">
+								{" "}
+								· Periode {formatTime(dashboard.from)} sampai {formatTime(dashboard.to)}
+								{dashboard.comparison_period &&
+									` · pembanding ${formatTime(dashboard.comparison_period.from)} sampai ${formatTime(dashboard.comparison_period.to)}`}
+							</span>
+						)}
 					</p>
 				}
 				actions={
-					<label className="flex items-center gap-2 text-sm font-medium">
-						<span>Periode</span>
-						<select
-							data-testid="window-select"
-							value={windowRange}
-							onChange={(e) => {
-								const win = e.target.value;
-								setWindowRange(win);
-								setFilterToken(null);
-								setMetricKey(null);
-								void loadDashboard(workspace, warehouseId, win);
-								void loadQueue(workspace, warehouseId, win, queue, null);
-							}}
-							className={cn(nativeSelectClass, "max-md:flex-1")}
-						>
-							{Object.entries(WINDOW_LABELS).map(([value, label]) => (
-								<option key={value} value={value}>
-									{label}
-								</option>
-							))}
-						</select>
-					</label>
+					<div className="flex flex-wrap items-center gap-x-4 gap-y-2 max-md:w-full">
+						{view === "dashboard" && !preview && (
+							<label className="flex min-h-8 items-center gap-2 text-sm pointer-coarse:min-h-11">
+								<input
+									type="checkbox"
+									data-testid="compare-toggle"
+									checked={compare}
+									className="size-4 accent-primary"
+									onChange={(e) => {
+										compareRef.current = e.target.checked;
+										setCompare(e.target.checked);
+										void loadDashboard(workspace, warehouseId, windowRange);
+									}}
+								/>
+								<span>Bandingkan dengan periode sebelumnya</span>
+							</label>
+						)}
+						<label className="flex items-center gap-2 text-sm font-medium max-md:w-full">
+							<span>Periode</span>
+							<select
+								data-testid="window-select"
+								value={windowRange}
+								onChange={(e) => {
+									const win = e.target.value;
+									setWindowRange(win);
+									setFilterToken(null);
+									setMetricKey(null);
+									void loadDashboard(workspace, warehouseId, win);
+									void loadQueue(workspace, warehouseId, win, queue, null);
+								}}
+								className={cn(nativeSelectClass, "max-md:flex-1")}
+							>
+								{Object.entries(WINDOW_LABELS).map(([value, label]) => (
+									<option key={value} value={value}>
+										{label}
+									</option>
+								))}
+							</select>
+						</label>
+					</div>
 				}
 			/>
 
@@ -1328,6 +1425,11 @@ export function AdminWorkspacesClient({
 						<span className="sr-only">Tutup pesan</span>
 					</Button>
 				</Alert>
+			)}
+
+			{/* Perlu tindakan: the work that waits, by deadline risk (DEC-027 (3)); same metrics and tokens as the cards */}
+			{view === "dashboard" && (dashState === "ready" || dashState === "preview") && (
+				<NeedsAction metrics={metrics} activeKey={metricKey} onOpen={drilldown} />
 			)}
 
 			{/* Work counts: each opens the exact queue behind the number */}
@@ -1376,12 +1478,42 @@ export function AdminWorkspacesClient({
 										key={m.key}
 										metricKey={m.key}
 										label={`${METRIC_LABELS[m.key] ?? m.key}${m.complete ? "" : " · belum lengkap"}`}
-										value={m.complete ? (m.count ?? 0) : "—"}
-										unit={METRIC_UNITS[m.key]}
+										value={
+											!m.complete
+												? "—"
+												: m.kind === "rate"
+													? formatRate(m.rate ?? null)
+													: m.kind === "duration"
+														? m.age_seconds != null
+															? formatWait(m.age_seconds)
+															: "—"
+														: (m.count ?? 0)
+										}
+										unit={m.kind === "count" ? METRIC_UNITS[m.key] : undefined}
+										delta={
+											m.comparison ? (
+												<DeltaChip
+													metricKey={m.key}
+													comparison={m.comparison}
+													lowerIsBetter={LOWER_IS_BETTER.has(m.key)}
+												/>
+											) : null
+										}
+										description={m.kind === "count" ? undefined : m.definition}
 										breakdown={
-											shown.length > 0
-												? `${shown.map((b) => `${b.label} ${b.count}`).join(" · ")}${hidden > 0 ? ` · +${hidden} gudang lain` : ""}`
-												: null
+											m.kind === "rate"
+												? m.rate == null
+													? m.low_sample
+														? `${m.count} dari ${m.denominator} pesanan diterima · sampel terlalu kecil untuk persentase`
+														: "Belum ada paket atau pesanan pada penyebut periode ini"
+													: `${m.count} dari ${m.denominator} ${m.key === "cod_failed_rate" ? "paket COD selesai" : "pesanan diterima"}${m.rate > 1 ? " · di atas 100%: retur bisa berasal dari pesanan periode sebelumnya" : ""}`
+												: m.kind === "duration"
+													? m.age_seconds == null
+														? "Tidak ada percakapan yang menunggu"
+														: `${m.count} percakapan menunggu`
+													: shown.length > 0
+														? `${shown.map((b) => `${b.label} ${b.count}`).join(" · ")}${hidden > 0 ? ` · +${hidden} gudang lain` : ""}`
+														: null
 										}
 										active={metricKey === m.key}
 										tone={kpiTone(m)}
@@ -1728,8 +1860,25 @@ export function AdminWorkspacesClient({
 									metricKey={m.key}
 									money
 									label={METRIC_LABELS[m.key] ?? m.key}
-									value={m.complete && m.amount !== null ? rupiah(m.amount) : "Belum lengkap"}
+									// Unknown is never Rp0: incomplete input says so; no orders to average is a dash.
+									value={!m.complete ? "Belum lengkap" : m.amount !== null ? rupiah(m.amount) : "—"}
 									muted={!m.complete}
+									breakdown={
+										m.key === "average_order_value" && m.complete
+											? m.denominator
+												? `dari ${m.denominator} pesanan`
+												: "Belum ada pesanan pada periode ini"
+											: null
+									}
+									delta={
+										m.comparison ? (
+											<DeltaChip
+												metricKey={m.key}
+												comparison={m.comparison}
+												lowerIsBetter={LOWER_IS_BETTER.has(m.key)}
+											/>
+										) : null
+									}
 									reserveAction={moneyMetrics.some((x) => actionLabel(x.action_href))}
 									badge={
 										m.complete && BASIS_LABELS[m.financial_basis] ? (
@@ -1739,7 +1888,7 @@ export function AdminWorkspacesClient({
 									description={
 										m.complete
 											? m.definition
-											: "Sebagian sumber biaya belum tercatat, jadi nilai belum dihitung."
+											: "Sebagian data sumber belum lengkap (biaya komponen, biaya pembayaran atau penyelesaian), jadi nilai belum dihitung."
 									}
 									active={metricKey === m.key}
 									drilldownLabel={`Lihat antrean ${QUEUE_LABELS[m.queue_key].toLowerCase()}`}
@@ -1750,6 +1899,22 @@ export function AdminWorkspacesClient({
 						})}
 					</KpiGrid>
 					<Definitions metrics={moneyMetrics} />
+				</Disclosure>
+			)}
+
+			{/* S153 charts: at most three, each with a table alternative, lazy-loaded; closed on phones. */}
+			{view === "dashboard" && dashState === "ready" && chartCount > 0 && (
+				<Disclosure
+					key={isMobile ? "phone-charts" : "wide-charts"}
+					id="charts-heading"
+					testId="charts-section"
+					open={!isMobile}
+					title={`Grafik · ${chartCount}`}
+					description={`${WINDOW_LABELS[windowRange]} · waktu WIB · setiap grafik punya tabel`}
+				>
+					{dashboard?.series && <RevenueTrendChart series={dashboard.series} />}
+					{dashboard?.cod_ageing && <CodAgeingChart ageing={dashboard.cod_ageing} />}
+					{paymentBreakdown?.length ? <PaymentMethodChart breakdown={paymentBreakdown} /> : null}
 				</Disclosure>
 			)}
 
@@ -1781,7 +1946,7 @@ export function AdminWorkspacesClient({
 							<DialogDescription>
 								{exportMode === "selection"
 									? `${selectedIds.length} baris yang dipilih di halaman ini.`
-									: `Semua baris ${QUEUE_LABELS[queue].toLowerCase()} pada ${WINDOW_LABELS[windowRange]} dalam cakupan Anda, maksimal 1.000 baris${activeMetric?.kind === "count" ? ", tanpa filter kartu" : ""}.`}{" "}
+									: `Semua baris ${QUEUE_LABELS[queue].toLowerCase()} pada ${WINDOW_LABELS[windowRange]} dalam cakupan Anda, maksimal 1.000 baris${activeMetric && activeMetric.kind !== "money" ? ", tanpa filter kartu" : ""}.`}{" "}
 								Rumus spreadsheet dinetralkan dan ekspor tercatat di audit.
 							</DialogDescription>
 						</DialogHeader>

@@ -4,13 +4,20 @@ import { AccessError, type Principal } from "../access/policy.ts";
 import { resolvePolicy } from "../settings/policies.ts";
 import { homeSafe } from "../storefront/department-photos.ts";
 import { authority, visibleBlocker } from "./catalog.ts";
+import { afterSortPosition, listCursor, nextSortCursor, readSorting, type SortColumns, sortKeySelect, sortOrder } from "./sort.ts";
 import { id, integer, invalid } from "./validation.ts";
 
 export const CATALOG_STATES = ["published", "withdrawn", "ready", "blocked"] as const;
 type State = (typeof CATALOG_STATES)[number];
 
+// S150 allow-list: name (current draft) and catalog id. Price is not sortable: it belongs to each offer.
+export const PRODUCT_SORT: SortColumns = {
+  name: { column: "r.name", kind: "text" },
+  catalog_id: { column: "p.catalog_id", kind: "text" },
+};
+
 function summaryInput(url: URL) {
-  const names = ["cursor", "limit", "q", "category_id", "state", "review"];
+  const names = ["cursor", "limit", "q", "category_id", "state", "review", "sort", "dir"];
   if ([...url.searchParams.keys()].some((key) => !names.includes(key) || url.searchParams.getAll(key).length !== 1)) throw invalid();
   const raw = url.searchParams.get("limit") ?? "20";
   if (!/^\d{1,3}$/.test(raw)) throw invalid();
@@ -20,9 +27,13 @@ function summaryInput(url: URL) {
   if (state !== null && !CATALOG_STATES.includes(state as State)) throw invalid();
   const review = url.searchParams.get("review");
   if (review !== null && review !== "claim") throw invalid();
+  const sorting = readSorting(url.searchParams, PRODUCT_SORT);
+  const cursor = listCursor(url.searchParams.get("cursor"), sorting);
   return {
     limit: integer(Number(raw), 1, 100),
-    cursor: url.searchParams.has("cursor") ? id(url.searchParams.get("cursor")) : null,
+    sorting,
+    cursor: cursor.id,
+    position: cursor.position,
     // ILIKE pattern with the user's text matched literally.
     pattern: q === null ? null : `%${q.trim().replace(/[\\%_]/g, (c) => `\\${c}`)}%`,
     categoryId: url.searchParams.has("category_id") ? id(url.searchParams.get("category_id")) : null,
@@ -81,6 +92,7 @@ export async function listProductSummaries(identity: LocalAuth, principal: Princ
         select p.id, p.admin_no, p.catalog_id, p.slug, p.revision as version, r.name, r.description, r.category_id, r.images
         from app.product p join app.product_revision r on r.product_id=p.id and r.revision=p.revision
         where (${page.cursor}::uuid is null or p.id>${page.cursor}::uuid)
+          and ${page.sorting ? afterSortPosition(tx, page.sorting, "p.id", page.position) : tx`true`}
           and (${page.pattern}::text is null or r.name ilike ${page.pattern} or p.catalog_id ilike ${page.pattern})
           and (${claimIds === null} or p.id = any(${claimIds ?? []}::uuid[]))
           and (${access.company} or not exists (
@@ -152,14 +164,14 @@ export async function listProductSummaries(identity: LocalAuth, principal: Princ
           ) codes order by code) as blocker_codes
         from categorized s left join app.publication_head h on h.product_id=s.id
       )
-      select *, case when published_revision is not null then 'published'
+      select *${page.sorting ? tx`, ${sortKeySelect(tx, page.sorting, page.sorting.key)}` : tx``}, case when published_revision is not null then 'published'
           when latest_publication_version>0 then 'withdrawn'
           when cardinality(blocker_codes)=0 then 'ready' else 'blocked' end as state
       from summary
       where ${page.state}::text is null or ${page.state}::text = case when published_revision is not null then 'published'
           when latest_publication_version>0 then 'withdrawn'
           when cardinality(blocker_codes)=0 then 'ready' else 'blocked' end
-      order by id limit ${page.limit + 1}`;
+      order by ${page.sorting ? sortOrder(tx, page.sorting, "id", page.sorting.key) : tx`id`} limit ${page.limit + 1}`;
     const data = rows.slice(0, page.limit).map((r) => ({
       id: r.id as string, admin_no: Number(r.admin_no), catalog_id: r.catalog_id as string, slug: r.slug as string, version: Number(r.version), name: r.name as string,
       category_id: (r.category_id as string | null) ?? null, category_path: (r.category_path as string | null) ?? null,
@@ -171,6 +183,6 @@ export async function listProductSummaries(identity: LocalAuth, principal: Princ
       blocker_codes: [...new Set((r.blocker_codes as string[]).map((code) => visibleBlocker(access, code)))].sort(),
       claim_review: !homeSafe({ name: r.name as string, images: r.images as { url: string }[] }),
     }));
-    return { data, pagination: { next_cursor: rows.length > page.limit ? data[page.limit - 1].id : null } };
+    return { data, pagination: { next_cursor: page.sorting ? nextSortCursor(page.sorting, rows as unknown as { sort_key: string; id: string }[], page.limit) : rows.length > page.limit ? data[page.limit - 1].id : null } };
   });
 }

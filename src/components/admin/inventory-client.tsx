@@ -2,6 +2,7 @@
 
 import { CircleCheck, PackagePlus, RefreshCw, Search } from "lucide-react";
 import Link from "next/link";
+import { useSearchParams } from "next/navigation";
 import { useEffect, useRef, useState } from "react";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
@@ -13,6 +14,7 @@ import {
 	DialogTitle,
 } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
+import { readSortState, type SortState, sortEntries } from "@/modules/catalog/sort-state";
 import { wibDate, wibDateTime } from "@/modules/storefront/format";
 import { failureText, getJson } from "./admin-errors";
 import { readAll } from "./catalog-model";
@@ -23,11 +25,17 @@ import { AdminPage, PageHeader } from "./page-blocks";
 import { StatusBadge } from "./status";
 import { useKeysetList } from "./use-keyset-list";
 
+// Reasons staff most often record for a stock movement (spec 17 W4-8); the text stays free so a note can follow.
+const MOVEMENT_REASONS = ["Hilang", "Rusak", "Salah hitung", "Retur masuk", "Opname"] as const;
+
 // S102 / spec 17 B6: stock per warehouse and SKU (lot), reasoned movements, transfer start and the
 // movement history (audit view). Every quantity change is an immutable movement on the position's
 // current version; the API rechecks role, MFA and warehouse scope.
 
 export type Warehouse = { id: string; name: string; city: string };
+// S150: keys the position list API sorts by; the screen's sort, search and warehouse live in the URL.
+const POSITION_SORT_KEYS = ["sku", "name", "on_hand", "reserved", "quarantined"] as const;
+const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 type Position = {
 	id: string;
 	warehouse_id: string;
@@ -88,9 +96,12 @@ const lotLabel = (p: { lot_code: string | null; expires_on: string | null; expir
 
 export function InventoryClient({ canTransfer, canReceiveNew }: { canTransfer: boolean; canReceiveNew: boolean }) {
 	const [warehouses, setWarehouses] = useState<Warehouse[]>([]);
-	const [warehouse, setWarehouse] = useState("");
-	const [q, setQ] = useState("");
-	const [query, setQuery] = useState("");
+	const search = useSearchParams();
+	const [warehouse, setWarehouse] = useState(() => (UUID.test(search.get("gudang") ?? "") ? (search.get("gudang") as string) : ""));
+	// Cut by code point, like the server's 100-character limit, so a pasted emoji is not split.
+	const [q, setQ] = useState(() => Array.from(search.get("cari") ?? "").slice(0, 100).join(""));
+	const [query, setQuery] = useState(() => Array.from(search.get("cari") ?? "").slice(0, 100).join("").trim());
+	const [sort, setSort] = useState<SortState | null>(() => readSortState(search, POSITION_SORT_KEYS, "urut", "arah"));
 	const [notice, setNotice] = useState<string | null>(null);
 	const [dialog, setDialog] = useState<
 		| { kind: "movement"; row: Position }
@@ -113,6 +124,16 @@ export function InventoryClient({ canTransfer, canReceiveNew }: { canTransfer: b
 	const params = new URLSearchParams({ limit: "50" });
 	if (warehouse) params.set("warehouse_id", warehouse);
 	if (query) params.set("q", query);
+	for (const [name, value] of Object.entries(sortEntries(sort))) params.set(name, value);
+	// Back restores the list: filters and sort are mirrored into the address.
+	const urlQuery = new URLSearchParams(
+		Object.entries({ gudang: warehouse, cari: query, urut: sort?.key ?? "", arah: sort?.dir ?? "" }).filter(([, v]) => v),
+	).toString();
+	useEffect(() => {
+		const url = new URL(window.location.href);
+		url.search = urlQuery;
+		window.history.replaceState(null, "", url);
+	}, [urlQuery]);
 	const list = useKeysetList<Position>(`/api/v1/admin/inventory?${params}`, (row) => row.id);
 	const warehouseName = (id: string) => warehouses.find((w) => w.id === id)?.name ?? "Gudang";
 	const done = (message: string) => {
@@ -171,7 +192,7 @@ export function InventoryClient({ canTransfer, canReceiveNew }: { canTransfer: b
 								autoComplete="off"
 								placeholder="Nama atau kode SKU"
 								className="pl-8"
-								onChange={(e) => setQ(e.target.value)}
+								onChange={(e) => setQ(Array.from(e.target.value).slice(0, 100).join(""))}
 							/>
 						</div>
 					</div>
@@ -224,11 +245,16 @@ export function InventoryClient({ canTransfer, canReceiveNew }: { canTransfer: b
 					testId="inventory-positions"
 					rowTestId={(row) => `inventory-row-${row.sku}`}
 					caption="Saldo stok per gudang dan barang"
+					sort={{ state: sort, onChange: setSort }}
+					// md-xl hides the count columns to avoid overflow; the select keeps their sort reachable.
+					sortSelectUntil="xl"
 					stack
 					columns={[
 						{
 							id: "item",
 							header: "Barang",
+							sort: "name",
+							sortLabel: "Nama barang",
 							stack: "title",
 							cellClassName: "min-w-52 whitespace-normal xl:max-w-80",
 							// md–xl: warehouse, lot and the counts move under the name so the actions never cover a column.
@@ -286,9 +312,9 @@ export function InventoryClient({ canTransfer, canReceiveNew }: { canTransfer: b
 									</span>
 								),
 						},
-						{ id: "on_hand", header: "Fisik", className: "text-right tabular-nums md:max-xl:hidden", cellClassName: "max-md:hidden", cell: (row) => row.on_hand },
-						{ id: "reserved", header: "Dipesan", className: "text-right tabular-nums md:max-xl:hidden", cellClassName: "max-md:hidden", cell: (row) => row.reserved },
-						{ id: "quarantined", header: "Karantina", className: "text-right tabular-nums md:max-xl:hidden", cellClassName: "max-md:hidden", cell: (row) => row.quarantined },
+						{ id: "on_hand", header: "Fisik", sort: "on_hand", className: "text-right tabular-nums md:max-xl:hidden", cellClassName: "max-md:hidden", cell: (row) => row.on_hand },
+						{ id: "reserved", header: "Dipesan", sort: "reserved", className: "text-right tabular-nums md:max-xl:hidden", cellClassName: "max-md:hidden", cell: (row) => row.reserved },
+						{ id: "quarantined", header: "Karantina", sort: "quarantined", className: "text-right tabular-nums md:max-xl:hidden", cellClassName: "max-md:hidden", cell: (row) => row.quarantined },
 						{
 							id: "actions",
 							header: "Tindakan",
@@ -410,7 +436,14 @@ function MovementDialog({
 					onChange={(e) => setAmount(e.target.value)}
 				/>
 			</FormField>
-			<FormField id="movement-reason" label="Alasan" hint="Tercatat di riwayat stok, contoh: surat jalan SJ-0412, hasil hitung ulang rak B.">
+			<FormField id="movement-reason" label="Alasan" hint="Tercatat di riwayat stok. Pilih alasan umum atau ketik sendiri, contoh: surat jalan SJ-0412, hasil hitung ulang rak B.">
+				<fieldset className="m-0 flex min-w-0 flex-wrap gap-2 border-0 p-0" aria-label="Pilihan cepat">
+					{MOVEMENT_REASONS.map((label) => (
+						<Button key={label} type="button" size="sm" variant="outline" aria-pressed={reason === label || reason.startsWith(`${label}: `)} onClick={() => setReason(`${label}: `)}>
+							{label}
+						</Button>
+					))}
+				</fieldset>
 				<Input id="movement-reason" maxLength={500} aria-describedby="movement-reason-hint" value={reason} onChange={(e) => setReason(e.target.value)} />
 			</FormField>
 		</FormDialog>

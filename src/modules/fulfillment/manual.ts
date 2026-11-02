@@ -185,9 +185,13 @@ export async function listManualQueue(identity:LocalAuth,principal:Principal,url
     and (${access.owner} or exists(select 1 from app.warehouse_membership m where m.user_id=${principal.id} and m.warehouse_id=w.id and w.active))
    order by d.packing_due_at asc nulls last,f.created_at asc,f.id asc limit ${limit+1}`;
   const data=[];
-  for(const row of rows.slice(0,limit)){
-   const fulfillment=await projectFulfillment(tx,row.id),[context]=await tx`select o.number order_number,o.admin_no order_admin_no,o.payment_method,w.name warehouse_name,w.city warehouse_city,w.district warehouse_district from app.commerce_order o join app.warehouse w on w.id=${fulfillment.warehouse_id} where o.id=${fulfillment.order_id}`;
-   data.push({...fulfillment,manual:await projectManual(tx,String(row.id)),order_number:String(context.order_number),order_admin_no:Number(context.order_admin_no),payment_method:String(context.payment_method),warehouse_name:String(context.warehouse_name),warehouse_city:String(context.warehouse_city),warehouse_district:context.warehouse_district===null?null:String(context.warehouse_district),mode:'manual_dashboard',
+  const projected=[];for(const row of rows.slice(0,limit))projected.push(await projectFulfillment(tx,row.id));
+  // One batched read for the printed marker: completed print of a valid, unexpired label (an expired label can no longer be printed).
+  const printedAt=new Map((projected.length?await tx`select p.shipment_id,max(p.created_at) at from app.shipping_print_attempt p join app.shipping_label_artifact a on a.id=p.artifact_id
+   where p.shipment_id=any(${projected.map(item=>String(item.shipment_id))}::uuid[]) and p.reported_outcome='completed' and a.status='valid' and a.expires_at>clock_timestamp() group by p.shipment_id`:[]).map(r=>[String(r.shipment_id),new Date(r.at).toISOString()]));
+  for(const [index,row] of rows.slice(0,limit).entries()){
+   const fulfillment=projected[index],[context]=await tx`select o.number order_number,o.admin_no order_admin_no,o.payment_method,w.name warehouse_name,w.city warehouse_city,w.district warehouse_district from app.commerce_order o join app.warehouse w on w.id=${fulfillment.warehouse_id} where o.id=${fulfillment.order_id}`;
+   data.push({...fulfillment,label_printed_at:printedAt.get(String(fulfillment.shipment_id))??null,manual:await projectManual(tx,String(row.id)),order_number:String(context.order_number),order_admin_no:Number(context.order_admin_no),payment_method:String(context.payment_method),warehouse_name:String(context.warehouse_name),warehouse_city:String(context.warehouse_city),warehouse_district:context.warehouse_district===null?null:String(context.warehouse_district),mode:'manual_dashboard',
     booking:await bookingFacts(tx,String(fulfillment.shipment_id))});
   }
   const last=rows.length>limit?rows[limit-1]:null;

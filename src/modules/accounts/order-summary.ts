@@ -13,9 +13,12 @@ export type AccountOrder = {
   buyer_total: number; units: number; payment_label: string;
   items: AccountOrderItem[];
   can_reorder: boolean;
+  // Parcels already handed to a courier, only while the order reads "Dikirim"; absent otherwise.
+  parcels?: { courier_name: string; tracking_number: string | null }[];
 };
 
 type ProjectedOrder = OrderReceipt["order"];
+const SENT_STATUSES = ["handed_over", "partially_delivered", "delivered", "in_transit"];
 
 // Fulfillment, payment and refunds are separate facts: paying (including COD collection)
 // never means delivered. Only original parcels determine the delivery stage.
@@ -39,9 +42,14 @@ export function accountOrderStage(order: ProjectedOrder, now: string, paymentUnk
     const delivered = active.flatMap(s => "delivered_at" in s && s.delivered_at ? [s.delivered_at] : []).sort().at(-1);
     return { stage: "delivered", stage_label: "Selesai", detail: delivered ? `Diterima ${wibDate(delivered)}` : null };
   }
-  const sent = active.find(s => ["handed_over", "partially_delivered", "delivered", "in_transit"].includes(s.status));
+  const sent = active.find(s => SENT_STATUSES.includes(s.status));
   if (sent) return { stage: "shipped", stage_label: "Dikirim", detail: "tracking_number" in sent && sent.tracking_number ? `${sent.courier_name} · ${sent.tracking_number}` : sent.courier_name };
   return { stage: "processing", stage_label: "Diproses", detail: null };
+}
+
+export function sentParcels(order: ProjectedOrder): NonNullable<AccountOrder["parcels"]> {
+  return order.shipments.filter(s => s.kind === "original" && s.status !== "cancelled" && SENT_STATUSES.includes(s.status))
+    .map(s => ({ courier_name: s.courier_name, tracking_number: "tracking_number" in s && s.tracking_number ? s.tracking_number : null }));
 }
 
 export async function summarizeAccountOrder(tx: TransactionSql, orderId: string): Promise<AccountOrder> {
@@ -63,9 +71,10 @@ export async function summarizeAccountOrder(tx: TransactionSql, orderId: string)
     const current = await salePublication(tx, productId, new Date().toISOString());
     if (current?.draft.variants.some(v => !v.retired && frozen.some(i => i.product_id === productId && i.offer_id === v.id))) { canReorder = true; break; }
   }
+  const stage = accountOrderStage(order, clock.now, attempt?.status === "unknown");
   return {
     id: order.id, number: order.number, created_at: order.created_at,
-    ...accountOrderStage(order, clock.now, attempt?.status === "unknown"), buyer_total: order.amount_due,
+    ...stage, ...(stage.stage === "shipped" ? { parcels: sentParcels(order) } : {}), buyer_total: order.amount_due,
     units: order.items.reduce((n, item) => n + item.quantity, 0), payment_label: order.payment_channel_label,
     items: order.items.map(item => {
       const image = frozen.find(i => i.item_id === item.id)?.thumbnail;

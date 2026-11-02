@@ -6,15 +6,20 @@ import {
 	ArrowUp,
 	CircleAlert,
 	CircleCheck,
+	Copy,
 	ImageOff,
 	Pencil,
 } from "lucide-react";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Input } from "@/components/ui/input";
 import { ClaimBadge } from "./catalog-list-client";
+import { limitingHint, type OfferAvailability, offerAvailability } from "./limiting-component";
+import { duplicateBody, newCopyTag } from "./product-duplicate";
 import { FormDialog, FormField, useFormDialogErrorId } from "./form";
+import { OfferEditor } from "./offer-editor";
 import { send, useOperationKey } from "./ops-api";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -128,6 +133,8 @@ export function CatalogProductClient({
 	const [categories, setCategories] = useState<Category[]>([]);
 	const [warehouses, setWarehouses] = useState<Warehouse[]>([]);
 	const [notice, setNotice] = useState<string | null>(null);
+	// Unsaved offer edits own the phone's sticky bottom bar; the publish button then stays inline.
+	const [offersDirty, setOffersDirty] = useState(false);
 
 	const base = `/api/v1/admin/products/${encodeURIComponent(productId)}`;
 
@@ -319,7 +326,7 @@ export function CatalogProductClient({
 										/>
 									);
 									// The screen's one primary action: a sticky bottom bar on phones while it can still publish.
-									return state.current?.product_revision === state.draft_version ? publish : <StickyActions>{publish}</StickyActions>;
+									return state.current?.product_revision === state.draft_version || offersDirty ? publish : <StickyActions>{publish}</StickyActions>;
 								})()
 							}
 						/>
@@ -390,16 +397,19 @@ export function CatalogProductClient({
 								</dd>
 							</dl>
 							{canEdit && (
-								<ContentAction
-									base={base}
-									product={p}
-									onSaved={(message) => {
-										setNotice(message);
-										void loadProduct(true);
-										void loadPub(true);
-									}}
-									onConflict={() => void loadProduct(true)}
-								/>
+								<div className="flex flex-col gap-2 md:flex-row md:flex-wrap">
+									<ContentAction
+										base={base}
+										product={p}
+										onSaved={(message) => {
+											setNotice(message);
+											void loadProduct(true);
+											void loadPub(true);
+										}}
+										onConflict={() => void loadProduct(true)}
+									/>
+									<DuplicateAction product={p} />
+								</div>
 							)}
 							{p.facts.length > 0 && (
 								<dl className="grid gap-x-4 gap-y-1 text-sm sm:grid-cols-[auto_1fr]">
@@ -425,6 +435,11 @@ export function CatalogProductClient({
 										variant={v}
 										warehouse={warehouseName(v.default_warehouse_id)}
 										readsStock={canReadStock}
+										availability={
+											canReadStock && stock.state === "ready"
+												? offerAvailability(v.contents, stock.data, v.default_warehouse_id)
+												: null
+										}
 										stockShort={Boolean(
 											state?.blockers.some(
 												(b) =>
@@ -436,6 +451,30 @@ export function CatalogProductClient({
 								))}
 							</ul>
 						</DetailSection>
+
+						{canEdit && (
+							<DetailSection
+								id="offers-edit-heading"
+								title="Ubah penawaran"
+								description="Nama, harga dan berat disimpan sebagai draf versi baru. Produk yang sudah terbit perlu diterbitkan ulang agar perubahan tampil di toko."
+								testId="offer-editor-section"
+							>
+								<OfferEditor
+									product={p}
+									base={base}
+									categories={categories}
+									warehouses={warehouses}
+									blockers={state?.blockers ?? []}
+									onDirtyChange={setOffersDirty}
+									onReload={() => void loadProduct(true)}
+									onSaved={(message) => {
+										setNotice(message);
+										void loadProduct(true);
+										void loadPub(true);
+									}}
+								/>
+							</DetailSection>
+						)}
 
 						{canReadStock && (
 							<DetailSection
@@ -723,12 +762,15 @@ function VariantItem({
 	variant: v,
 	warehouse,
 	readsStock,
+	availability,
 	stockShort,
 }: {
 	variant: CatalogVariant;
 	warehouse: string | null;
 	/** Without stock access this is a readiness flag, not a quantity. */
 	readsStock: boolean;
+	/** S160: units computed from the component balances in the offer's warehouse; null until they are loaded or when unreadable. */
+	availability: OfferAvailability | null;
 	stockShort: boolean;
 }) {
 	return (
@@ -775,6 +817,14 @@ function VariantItem({
 					<span className="font-medium">Isi:</span>{" "}
 					{v.contents.map((c) => `${c.name} ×${c.quantity}`).join(", ")}
 				</div>
+				{availability && (
+					<p className="text-xs tabular-nums" data-testid={`offer-availability-${v.id}`}>
+						<span className="font-medium">Tersedia:</span> {availability.units}
+						{availability.limiting && (v.contents.length > 1 || availability.limiting.per_offer > 1) && (
+							<span className="text-muted-foreground"> · {limitingHint(availability.limiting)}</span>
+						)}
+					</p>
+				)}
 			</div>
 		</li>
 	);
@@ -1325,6 +1375,49 @@ function ContentAction({
 	);
 }
 
+/**
+ * S160: "Duplikat" creates a draft copy through the create API (see product-duplicate.ts): same photos, offers,
+ * components and prices; no stock, no HPP, never published. One key per click series, so a lost response replays.
+ */
+function DuplicateAction({ product }: { product: CatalogProduct }) {
+	const router = useRouter();
+	const key = useOperationKey();
+	const tag = useRef(newCopyTag());
+	const [busy, setBusy] = useState(false);
+	const [error, setError] = useState<string | null>(null);
+	async function duplicate() {
+		if (busy) return;
+		setBusy(true);
+		setError(null);
+		for (let attempt = 0; ; attempt++) {
+			const res = await send<{ id: string }>("POST", "/api/v1/admin/products", duplicateBody(product, tag.current), key);
+			if (res.ok) return router.push(`/admin/produk/${res.data.id}`); // stays busy until the new page opens
+			// An offer SKU of the copy was taken: a new tag gives new SKUs.
+			if (res.code === "CATALOG_IDENTITY_CONFLICT" && attempt < 2) {
+				tag.current = newCopyTag();
+				continue;
+			}
+			// `send` already rotated the key on this definitive answer (any status below 500), so the next click is a new request;
+			// a lost response (status 0 or 5xx) keeps key, tag and body, so the retry replays instead of copying twice.
+			setBusy(false);
+			return setError(`Salinan belum dibuat. ${res.text}`);
+		}
+	}
+	return (
+		<>
+			<Button variant="outline" className="self-start max-md:self-stretch" data-testid="product-duplicate" title="Membuat draf baru dengan foto, isi paket dan harga yang sama, tanpa stok dan HPP" disabled={busy} onClick={() => void duplicate()}>
+				<Copy data-icon="inline-start" aria-hidden="true" />
+				{busy ? "Menyalin…" : "Duplikat"}
+			</Button>
+			{error && (
+				<Alert variant="destructive" role="alert" data-testid="product-duplicate-error" className="basis-full">
+					<AlertDescription>{error}</AlertDescription>
+				</Alert>
+			)}
+		</>
+	);
+}
+
 const TITLE_CARD_LIMIT = 40;
 
 /** Hands the open FormDialog's error id to a field, so the refusal is read with the control. */
@@ -1348,11 +1441,6 @@ function ContentDialog({
 	const [name, setName] = useState(product.name);
 	const [description, setDescription] = useState(product.description);
 	const [images, setImages] = useState(product.images);
-	// DEC-025: each variant's own price (whole rupiah, 1..PRICE_CEILING_IDR), edited as text so a
-	// half-typed value is refused instead of silently coerced.
-	const [prices, setPrices] = useState<Record<string, string>>(() =>
-		Object.fromEntries(product.variants.map((v) => [v.id, String(v.price)])),
-	);
 	const [reason, setReason] = useState("");
 	const [error, setError] = useState<string | null>(null);
 	const [pending, setPending] = useState(false);
@@ -1378,59 +1466,27 @@ function ContentDialog({
 	};
 	const length = Array.from(name.trim()).length;
 	// Field the last client-side refusal points at (aria-invalid on it).
-	const [invalid, setInvalid] = useState<"name" | "alt" | "reason" | "price" | null>(null);
-	const priceOf = (raw: string) => (/^\d{1,5}$/.test(raw.trim()) ? Number(raw.trim()) : Number.NaN);
-	const priceValid = (n: number) => Number.isSafeInteger(n) && n >= 1 && n <= PRICE_CEILING_IDR;
-	const repriced = product.variants.filter((v) => priceOf(prices[v.id] ?? "") !== v.price);
+	const [invalid, setInvalid] = useState<"name" | "alt" | "reason" | null>(null);
 	const dirty =
-		repriced.length > 0 ||
 		name !== product.name ||
 		description !== product.description ||
 		reason.trim() !== "" ||
 		JSON.stringify(images) !== JSON.stringify(product.images);
-	const refuse = (field: "name" | "alt" | "reason" | "price" | null, message: string) => {
+	const refuse = (field: "name" | "alt" | "reason" | null, message: string) => {
 		setInvalid(field);
 		setError(message);
 	};
 	async function submit() {
 		if (!name.trim()) return refuse("name", "Judul wajib diisi.");
 		if (images.some((img) => !img.alt.trim())) return refuse("alt", "Setiap foto perlu teks alternatif.");
-		const badPrice = product.variants.find((v) => !priceValid(priceOf(prices[v.id] ?? "")));
-		if (badPrice) return refuse("price", `Harga ${badPrice.label} harus angka bulat Rp1 sampai ${rupiah(PRICE_CEILING_IDR)}.`);
 		if (!reason.trim()) return refuse("reason", "Alasan wajib diisi.");
 		const cleaned = images.map((img) => ({ ...img, alt: img.alt.trim() }));
 		const changes = {
 			...(name.trim() !== product.name ? { name: name.trim() } : {}),
 			...(description !== product.description ? { description } : {}),
 			...(JSON.stringify(cleaned) !== JSON.stringify(product.images) ? { images: cleaned } : {}),
-			// The update body is the whole offer (offerInput refuses unknown keys and replaces the offer); only the
-			// price differs. The wire `image` falls back to the product cover when the offer has none, so it is sent
-			// only when it is not that cover; otherwise the offer stays without its own photo and keeps following the
-			// cover. lazy: an offer whose own photo is exactly the cover loses the duplicate (same rendering); upgrade
-			// by returning an own-image flag from the API.
-			...(repriced.length
-				? {
-						variant_changes: repriced.map((v) => ({
-							operation: "update",
-							variant_id: v.id,
-							update: {
-								label: v.label,
-								attributes: v.attributes,
-								price: priceOf(prices[v.id] ?? ""),
-								weight_grams: v.weight_grams,
-								length_mm: v.length_mm,
-								width_mm: v.width_mm,
-								height_mm: v.height_mm,
-								default_warehouse_id: v.default_warehouse_id,
-								offer_kind: v.offer_kind,
-								contents: v.contents,
-								...(v.image && v.image.url !== product.images[0]?.url ? { image: v.image } : {}),
-							},
-						})),
-					}
-				: {}),
 		};
-		if (!Object.keys(changes).length) return refuse(null, "Belum ada perubahan. Ubah judul, deskripsi, foto atau harga, lalu simpan.");
+		if (!Object.keys(changes).length) return refuse(null, "Belum ada perubahan. Ubah judul, deskripsi atau foto, lalu simpan. Harga diubah di bagian Ubah penawaran.");
 		setPending(true);
 		setInvalid(null);
 		setError(null);
@@ -1440,7 +1496,7 @@ function ContentDialog({
 			if (result.code === "VERSION_CONFLICT") onConflict();
 			return setError(result.text);
 		}
-		onSaved(`${repriced.length ? "Konten dan harga" : "Konten"} disimpan sebagai draf versi ${result.data.version}. Produk yang sudah terbit perlu diterbitkan ulang agar perubahan tampil di toko.`);
+		onSaved(`Konten disimpan sebagai draf versi ${result.data.version}. Produk yang sudah terbit perlu diterbitkan ulang agar perubahan tampil di toko.`);
 	}
 	return (
 		<FormDialog
@@ -1474,34 +1530,6 @@ function ContentDialog({
 			<FormField id="content-description" label="Deskripsi">
 				<Textarea id="content-description" rows={6} maxLength={10000} value={description} onChange={(e) => setDescription(e.target.value)} />
 			</FormField>
-			<fieldset className="flex min-w-0 flex-col gap-2" data-testid="content-prices">
-				<legend className="text-sm font-medium">Harga varian</legend>
-				<p className="text-xs text-muted-foreground">
-					Rupiah bulat, maksimal {rupiah(PRICE_CEILING_IDR)}. Keranjang dan pesanan yang sudah ada tetap memakai harga lama.
-				</p>
-				{product.variants.map((v) => {
-					const bad = invalid === "price" && !priceValid(priceOf(prices[v.id] ?? ""));
-					return (
-						<FormField key={v.id} id={`content-price-${v.id}`} label={`${v.label} (Rp)`}>
-							<DialogErrorId>
-								{(errorId) => (
-									<Input
-										id={`content-price-${v.id}`}
-										inputMode="numeric"
-										pattern="[0-9]*"
-										maxLength={5}
-										className="tabular-nums sm:max-w-40"
-										aria-invalid={bad || undefined}
-										aria-describedby={bad && errorId ? errorId : undefined}
-										value={prices[v.id] ?? ""}
-										onChange={(e) => setPrices({ ...prices, [v.id]: e.target.value })}
-									/>
-								)}
-							</DialogErrorId>
-						</FormField>
-					);
-				})}
-			</fieldset>
 			<fieldset className="flex min-w-0 flex-col gap-2">
 				<legend className="text-sm font-medium">Foto ({images.length})</legend>
 				<p className="text-xs text-muted-foreground">Foto pertama menjadi sampul. Teks alternatif menjelaskan isi foto untuk pembaca layar.</p>

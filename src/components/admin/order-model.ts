@@ -2,6 +2,8 @@
 // MFA and whole-order warehouse scope on every read (spec 07: owner company-wide; other staff only
 // orders whose every parcel sits in their assigned warehouses; warehouse role never).
 
+import type { SortState } from "../../modules/catalog/sort-state.ts";
+
 /** Mirrors hasPermission(principal, "orders.history.read"); hides dead ends only. */
 export function canReadOrders(roles: readonly string[], permissions: readonly string[]) {
 	return (
@@ -11,13 +13,21 @@ export function canReadOrders(roles: readonly string[], permissions: readonly st
 	);
 }
 
+// S150: sortable columns of the order list (the API allow-list) and their page URL parameter names.
+export const ORDER_SORT_KEYS = ["created_at", "number", "buyer_total", "status", "payment_status"] as const;
+export const SORT_PARAMS = { key: "urut", dir: "arah" } as const;
+
 /**
  * URL query for a search and its filters (page address and the detail page's `dari`). A phone
  * suffix is personal data: it never enters a URL (history, logs, Referer); only `jenis=hp`
  * survives, the digits stay in component state. Filters are fixed status keys (no personal data).
  */
-export function searchQuery(kind: "nomor" | "resi" | "hp", term: string, filters: OrderFilters = {}, tab?: string) {
+export function searchQuery(kind: "nomor" | "resi" | "hp", term: string, filters: OrderFilters = {}, tab?: string, sort: SortState | null = null) {
 	const params = new URLSearchParams();
+	if (sort) {
+		params.set(SORT_PARAMS.key, sort.key);
+		params.set(SORT_PARAMS.dir, sort.dir);
+	}
 	if (tab && tab !== "semua") params.set("tab", tab);
 	if (term) {
 		params.set("jenis", kind);

@@ -45,7 +45,7 @@ function useNavCounts(lens: CanonicalWorkspace, keys: NavBadgeKey[], signedIn: b
 			return;
 		}
 		const controller = new AbortController();
-		const q = new URLSearchParams({ workspace: lens, window: "30d" });
+		const q = new URLSearchParams({ workspace: lens, window: "30d", fields: "counts" });
 		fetch(`/api/v1/admin/dashboard?${q}`, { credentials: "include", cache: "no-store", signal: controller.signal })
 			.then((res) => (res.ok ? res.json() : null))
 			.then((body: { metrics?: { key: string; count: number | null }[] } | null) => {

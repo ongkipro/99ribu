@@ -1,8 +1,10 @@
 "use client";
 
 import { cn } from "cn";
+import { ArrowDown, ArrowUp, ChevronsUpDown } from "lucide-react";
 import { createContext, Fragment, type ReactNode, useContext, useEffect, useRef, useState } from "react";
 import { Button } from "@/components/ui/button";
+import { ariaSort, nextSort, type SortState } from "@/modules/catalog/sort-state";
 import {
 	Table,
 	TableBody,
@@ -11,6 +13,7 @@ import {
 	TableHeader,
 	TableRow,
 } from "@/components/ui/table";
+import { nativeSelectClass } from "./form";
 import { stickyBarClass } from "./page-blocks";
 import { DeniedState, EmptyState, ErrorState, LoadingState } from "./states";
 
@@ -53,6 +56,13 @@ export type DataTableColumn<T> = {
 	 * tabular digits and a 10rem minimum from md (the stacked phone card keeps its own layout).
 	 */
 	kind?: "datetime";
+	/**
+	 * S150: the server sort key of this column. With the table's `sort` prop the header becomes a
+	 * button (ascending, descending, default) and the phone sort select lists it.
+	 */
+	sort?: string;
+	/** Name of the column in the phone sort select; defaults to a string `header`. */
+	sortLabel?: string;
 };
 
 // Literal classes (Tailwind only sees whole class names); the frame is the `@container`.
@@ -97,6 +107,12 @@ export type DataTablePaging = {
 	testId?: string;
 };
 
+export type DataTableSort = {
+	/** Current server sort; null is the list's default order. */
+	state: SortState | null;
+	onChange: (next: SortState | null) => void;
+};
+
 export type DataTableProps<T> = {
 	rows: readonly T[];
 	rowKey: (row: T) => string;
@@ -132,7 +148,46 @@ export type DataTableProps<T> = {
 	paging?: DataTablePaging;
 	/** Below the rows (page navigation, notes); shown only with rows. */
 	footer?: ReactNode;
+	/** S150: server-side sort of the columns that set `sort` (their header cycles it). */
+	sort?: DataTableSort;
+	/**
+	 * Where the sort select (one labelled select listing every sortable column) stops: "md" (the
+	 * default, headers take over) or "xl" for a list that hides sortable columns from md to xl.
+	 */
+	sortSelectUntil?: "md" | "xl";
+	/**
+	 * Total rows of the list when the API already returns one: the footer then reads "N dari M".
+	 * Never fetch a count just for this; without it the screen's own paging summary stands.
+	 */
+	total?: number | null;
 };
+
+// The header row is the 40px TableHead, pinned inside the table's own scroll area (from md).
+const headerClass = "md:sticky md:top-0";
+
+// S150-1: a sort press reloads the list and the loading state unmounts the header, which drops
+// keyboard focus to <body>. The press leaves its control's key here; when the reload ends, the
+// table that remounted the control gives it focus back (only if focus really fell to <body>).
+let pendingSortFocus: string | null = null;
+
+function SortHeader({ column, sort }: { column: { sort: string; header: ReactNode }; sort: DataTableSort }) {
+	const active = sort.state?.key === column.sort;
+	const Icon = !active ? ChevronsUpDown : sort.state?.dir === "asc" ? ArrowUp : ArrowDown;
+	return (
+		<button
+			type="button"
+			data-testid={`sort-${column.sort}`}
+			onClick={() => {
+				pendingSortFocus = column.sort;
+				sort.onChange(nextSort(sort.state, column.sort));
+			}}
+			className="-mx-1 inline-flex h-8 cursor-pointer items-center gap-1 rounded-sm px-1 font-medium hover:bg-muted focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring"
+		>
+			{column.header}
+			<Icon aria-hidden="true" className={cn("size-3.5 shrink-0", !active && "text-muted-foreground")} />
+		</button>
+	);
+}
 
 // A selected/active row paints bg-muted, which swallows tinted badges: outline them in their own
 // text colour (outline badges also get the card fill).
@@ -167,11 +222,27 @@ export function DataTable<T>({
 	selection,
 	paging,
 	footer,
+	sort,
+	sortSelectUntil,
+	total,
 }: DataTableProps<T>) {
 	const stack = stackProp ?? !card;
 	const scrollRef = useRef<HTMLDivElement>(null);
 	const [edges, setEdges] = useState({ start: false, end: false });
 	const ready = status.kind === "ready" && rows.length > 0;
+	const selectRef = useRef<HTMLSelectElement>(null);
+	useEffect(() => {
+		if (!pendingSortFocus || status.kind === "loading") return;
+		const key = pendingSortFocus;
+		pendingSortFocus = null;
+		const active = document.activeElement;
+		if (active && active !== document.body) return;
+		const target =
+			key === "\u0000select"
+				? selectRef.current
+				: scrollRef.current?.querySelector<HTMLElement>(`[data-testid="sort-${CSS.escape(key)}"]`);
+		target?.focus();
+	}, [status.kind]);
 	useEffect(() => {
 		const el = scrollRef.current?.querySelector<HTMLElement>('[data-slot="table-container"]');
 		if (!ready || !el) return;
@@ -275,11 +346,47 @@ export function DataTable<T>({
 									? "max-md:order-3 max-md:col-span-2 max-md:block max-md:text-left"
 									: "max-md:order-3 max-md:col-span-2 max-md:justify-between max-md:text-right",
 		);
+	// Phones show cards, not headers: sorting moves to one labelled select.
+	const sortChoices = sort
+		? columns.flatMap((c) => {
+				const label = c.sortLabel ?? (typeof c.header === "string" ? c.header : null);
+				return c.sort && label
+					? [
+							{ value: `${c.sort}:asc`, text: `${label}, naik` },
+							{ value: `${c.sort}:desc`, text: `${label}, turun` },
+						]
+					: [];
+			})
+		: [];
+	const sortValue = sort?.state ? `${sort.state.key}:${sort.state.dir}` : "";
 	// Only "label" columns (the default) show their header inside the stacked card.
 	const stackLabel = (c: DataTableColumn<T>) => stack && (c.stack ?? "label") === "label" && c.id !== "actions";
 
 	return (
 		<>
+			{sortChoices.length > 0 && (
+				<label className={cn("flex items-center gap-2 text-sm", sortSelectUntil === "xl" ? "xl:hidden" : "md:hidden")}>
+					<span className="shrink-0 font-medium">Urutkan</span>
+					<select
+						ref={selectRef}
+						data-testid="sort-select"
+						className={cn(nativeSelectClass, "min-w-0 flex-1 pointer-coarse:h-11")}
+						value={sortValue}
+						onChange={(event) => {
+							pendingSortFocus = "\u0000select";
+							const [key, dir] = event.target.value.split(":");
+							sort?.onChange(key ? { key, dir: dir === "desc" ? "desc" : "asc" } : null);
+						}}
+					>
+						<option value="">Urutan bawaan</option>
+						{sortChoices.map((choice) => (
+							<option key={choice.value} value={choice.value}>
+								{choice.text}
+							</option>
+						))}
+					</select>
+				</label>
+			)}
 			{selection && selected.size > 0 && (
 				// Phones: a sticky bottom bar (safe-area inset; admin.css pads the page and the scroll area).
 				<div
@@ -311,6 +418,10 @@ export function DataTable<T>({
 				className={cn(
 					"relative rounded-md border",
 					columns.some((c) => c.hideBelow) && "@container",
+					// The header sticks inside this scroll area: the table container scrolls both ways from md.
+					// Only a long list gets the bounded scroll area (a short table keeps the page scroll); print never clips.
+					rows.length > 12 && "md:not-print:[&_[data-slot=table-container]]:max-h-[75dvh]",
+					"print:[&_[data-slot=table-container]]:overflow-visible",
 					card && "hidden md:block",
 				)}
 			>
@@ -331,7 +442,7 @@ export function DataTable<T>({
 								<TableHead
 									scope="col"
 									{...role("columnheader")}
-									className={cn("w-12", headBg, pinCheckbox)}
+									className={cn("w-12", headBg, pinCheckbox, headerClass, "md:z-30")}
 								>
 									<label className="-m-2 inline-flex size-11 cursor-pointer items-center justify-center">
 										<input
@@ -352,9 +463,10 @@ export function DataTable<T>({
 									key={c.id}
 									scope="col"
 									{...role("columnheader")}
-									className={cn(c.className, c.hideBelow && hideBelowClass[c.hideBelow], c.kind === "datetime" && datetimeClass, headBg, pin(c.id))}
+									aria-sort={sort && c.sort ? ariaSort(sort.state, c.sort) : undefined}
+									className={cn(c.className, c.hideBelow && hideBelowClass[c.hideBelow], c.kind === "datetime" && datetimeClass, headBg, pin(c.id), headerClass, c.id === first ? "md:z-30" : "md:z-20")}
 								>
-									{c.header}
+									{sort && c.sort ? <SortHeader column={{ sort: c.sort, header: c.header }} sort={sort} /> : c.header}
 								</TableHead>
 							))}
 						</TableRow>
@@ -480,6 +592,11 @@ export function DataTable<T>({
 						</SelectingContext>
 					</ul>
 				</div>
+			)}
+			{total != null && (
+				<p className="text-sm tabular-nums text-muted-foreground" aria-live="polite" data-testid="table-total">
+					{rows.length} dari {total}
+				</p>
 			)}
 			{paging && (paging.hasMore || paging.summary || paging.error) && (
 				<div className="flex flex-wrap items-center gap-3">

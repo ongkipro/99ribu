@@ -201,8 +201,8 @@ export async function readCatalog(identity: LocalAuth, principal: Principal, url
   if (productId && url.search) throw invalid();
   const page = productId ? null : pageInput(url);
   return identity.sql.begin(async (tx) => {
-    // The physical-SKU dictionary stays with catalog editors; products/categories admit read roles.
-    const access = await authority(tx, principal, Boolean(productId) || !url.pathname.endsWith("/stock-items"));
+    // Products/categories admit read roles (the physical-SKU dictionary list is stock-items.ts, S150).
+    const access = await authority(tx, principal, true);
     if (productId) { const state = await readCatalogRevision(tx, id(productId)); assertScope(state, access); return project(state); }
     if (!page) throw invalid();
     const path = url.pathname;
@@ -216,8 +216,6 @@ export async function readCatalog(identity: LocalAuth, principal: Principal, url
         union select c.parent_id from app.category c join used u on u.id=c.id where c.parent_id is not null)
       select id,name,slug,parent_id,depth,attribute_definitions from app.category
       where id in (select id from used) and (${page.cursor}::uuid is null or id>${page.cursor}::uuid) order by id limit ${page.limit + 1}`
-      : path.endsWith("/stock-items") ? await tx`select id,sku,name from app.stock_item
-        where (${page.cursor}::uuid is null or id>${page.cursor}::uuid) order by id limit ${page.limit + 1}`
       : await tx`select p.id,p.catalog_id,p.slug,p.revision as version,r.name from app.product p
         join app.product_revision r on r.product_id=p.id and r.revision=p.revision
         where (${page.cursor}::uuid is null or p.id>${page.cursor}::uuid) and (${access.company} or not exists (

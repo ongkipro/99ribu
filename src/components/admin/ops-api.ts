@@ -1,7 +1,8 @@
 "use client";
 
-import { useRef } from "react";
+import { useState } from "react";
 import { describeFailure, failureText, readFailure } from "./admin-errors";
+import { createOperationKey } from "./offer-editor-model";
 
 // S102: one mutation call for the inventory, transfer, promotion and product-content screens.
 // The idempotency key lives as long as the dialog: a retry after a lost response (network error or
@@ -31,32 +32,27 @@ export function sentText(status: number, code: string | null) {
 	return code && CODE_MESSAGES[code] ? `${CODE_MESSAGES[code]} (kode: ${code})` : failureText(describeFailure(status, code));
 }
 
-/** A stable idempotency key per dialog; `rotate` after a definitive refusal. */
+/**
+ * A stable idempotency key per dialog; `rotate` after a definitive refusal. `send` also rotates it when
+ * the body changed since the key was used (an edited retry after a 5xx must not be an IDEMPOTENCY_CONFLICT).
+ */
 export function useOperationKey() {
-	const key = useRef<string | null>(null);
-	return {
-		get: () => {
-			key.current ??= crypto.randomUUID();
-			return key.current;
-		},
-		rotate: () => {
-			key.current = null;
-		},
-	};
+	return useState(() => createOperationKey())[0];
 }
 
 export async function send<T>(
 	method: "POST" | "PATCH",
 	url: string,
 	body: unknown,
-	key: ReturnType<typeof useOperationKey>,
+	key: ReturnType<typeof createOperationKey>,
 ): Promise<Sent<T>> {
 	try {
+		const json = JSON.stringify(body);
 		const res = await fetch(url, {
 			method,
 			credentials: "include",
-			headers: { "content-type": "application/json", "idempotency-key": key.get() },
-			body: JSON.stringify(body),
+			headers: { "content-type": "application/json", "idempotency-key": key.get(json) },
+			body: json,
 		});
 		if (res.ok) {
 			key.rotate();
