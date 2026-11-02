@@ -1,7 +1,7 @@
-import type {TransactionSql} from 'postgres';
+import type {Sql,TransactionSql} from 'postgres';
 import {runtimeTarget} from '../../config/runtime.ts';
 import {AccessError} from '../access/policy.ts';
-import {resolvePolicy,type BankAccount} from '../settings/policies.ts';
+import {resolvePolicy,TOGGLEABLE_CHANNELS,type BankAccount,type ToggleableChannel} from '../settings/policies.ts';
 
 // DEC-008 payment adapter seam. Order and ledger code depend on the channel, never
 // on a provider: each channel names its method, the adapter that creates its
@@ -45,12 +45,20 @@ export function allocateByWeight(total:number,rows:readonly {id:string;weight:nu
  for(const share of order)if(extra>0n){share.amount++;extra--;}
  return new Map(shares.map(s=>[s.id,Number(s.amount)]));
 }
-export type PaymentTerms={version_id:string|null;cod_fee_bps:number;manual_bank_accounts:BankAccount[]};
+export type PaymentTerms={version_id:string|null;cod_fee_bps:number;manual_bank_accounts:BankAccount[];enabled_channels:readonly ToggleableChannel[]};
+// A channel the buyer may pick: offered by this runtime and switched on in the payment policy. The local
+// simulator ('local-prepaid') is runtime-only. Manual bank also needs at least one account to transfer to.
+export function channelEnabled(terms:PaymentTerms,channel:PaymentChannel,offered:readonly PaymentChannel[]=offeredChannels()){
+ if(!offered.includes(channel))return false;
+ if(channel==='local-prepaid')return true;
+ if(channel==='manual-bank'&&!terms.manual_bank_accounts.length)return false;
+ return terms.enabled_channels.includes(channel);
+}
 // The current owner-versioned payment policy at a business instant. No policy
 // means no buyer COD fee and no manual transfer channel.
-export async function paymentTerms(tx:TransactionSql,at:Date):Promise<PaymentTerms>{
+export async function paymentTerms(tx:Sql|TransactionSql,at:Date):Promise<PaymentTerms>{
  try{
-  const policy=await resolvePolicy(tx,'payment',null,at),values=policy.values as {cod_fee_bps?:number;manual_bank_accounts?:BankAccount[]};
-  return {version_id:policy.id,cod_fee_bps:values.cod_fee_bps??0,manual_bank_accounts:values.manual_bank_accounts??[]};
- }catch(error){if(error instanceof AccessError&&error.code==='POLICY_UNCONFIGURED')return {version_id:null,cod_fee_bps:0,manual_bank_accounts:[]};throw error;}
+  const policy=await resolvePolicy(tx,'payment',null,at),values=policy.values as {cod_fee_bps?:number;manual_bank_accounts?:BankAccount[];enabled_channels?:ToggleableChannel[]};
+  return {version_id:policy.id,cod_fee_bps:values.cod_fee_bps??0,manual_bank_accounts:values.manual_bank_accounts??[],enabled_channels:values.enabled_channels??TOGGLEABLE_CHANNELS};
+ }catch(error){if(error instanceof AccessError&&error.code==='POLICY_UNCONFIGURED')return {version_id:null,cod_fee_bps:0,manual_bank_accounts:[],enabled_channels:TOGGLEABLE_CHANNELS};throw error;}
 }

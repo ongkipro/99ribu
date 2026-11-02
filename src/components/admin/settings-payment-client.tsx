@@ -27,9 +27,22 @@ export type BankAccount = {
 	account_holder: string;
 };
 
+type Channel = "manual-bank" | "autolaris" | "cod";
+// Buyer-facing channels the owner switches (policy field enabled_channels; absent in older versions = all on).
+const CHANNELS: readonly (readonly [Channel, string])[] = [
+	["manual-bank", "Transfer bank"],
+	["autolaris", "Virtual Account / QRIS (AutoLaris)"],
+	["cod", "Bayar di tempat (COD)"],
+];
+const ALL_CHANNELS = CHANNELS.map(([c]) => c);
+const channelsOf = (values: PaymentPolicyValues) => values.enabled_channels ?? ALL_CHANNELS;
+const channelText = (values: PaymentPolicyValues) =>
+	CHANNELS.filter(([c]) => channelsOf(values).includes(c)).map(([, label]) => label).join(", ");
+
 export type PaymentPolicyValues = {
 	cod_fee_bps: number;
 	manual_bank_accounts: BankAccount[];
+	enabled_channels?: Channel[];
 };
 
 export type PaymentPolicyVersion = {
@@ -249,6 +262,8 @@ export function SettingsPaymentClient({ canWrite }: { canWrite: boolean }) {
 								className="grid grid-cols-[auto_minmax(0,1fr)] gap-x-4 gap-y-2 text-sm"
 								data-testid="payment-policy-values"
 							>
+								<dt className="text-muted-foreground">Metode di checkout</dt>
+								<dd data-testid="payment-channels">{channelText(current.values)}</dd>
 								<dt className="text-muted-foreground">Biaya COD pembeli</dt>
 								<dd className="font-medium tabular-nums">
 									{bpsToPercent(current.values.cod_fee_bps)}% (
@@ -348,6 +363,12 @@ export function SettingsPaymentClient({ canWrite }: { canWrite: boolean }) {
 							cell: (row) => formatWib(row.effective_at),
 						},
 						{
+							id: "channels",
+							header: "Metode",
+							cellClassName: "max-w-56 whitespace-normal",
+							cell: (row) => channelText(row.values),
+						},
+						{
 							id: "cod_fee",
 							header: "Biaya COD",
 							stack: "aside",
@@ -419,6 +440,7 @@ function PaymentPolicyDialog({
 	const [accounts, setAccounts] = useState(
 		current ? formatAccountsLines(current.manual_bank_accounts) : "",
 	);
+	const [channels, setChannels] = useState<Channel[]>(current ? channelsOf(current) : ALL_CHANNELS);
 	const [when, setWhen] = useState<"now" | "later">("now");
 	const [at, setAt] = useState("");
 	const [reason, setReason] = useState("");
@@ -436,6 +458,10 @@ function PaymentPolicyDialog({
 		const parsedAccounts = parseAccountsLines(accounts);
 		if (typeof parsedAccounts === "string") {
 			intent.setError(parsedAccounts);
+			return;
+		}
+		if (channels.length === 0) {
+			intent.setError("Nyalakan minimal satu metode pembayaran.");
 			return;
 		}
 		let effectiveAt: string | null = null;
@@ -461,6 +487,7 @@ function PaymentPolicyDialog({
 				values: {
 					cod_fee_bps: bps,
 					manual_bank_accounts: parsedAccounts,
+					enabled_channels: ALL_CHANNELS.filter((c) => channels.includes(c)),
 				},
 				reason: reason.trim(),
 			}),
@@ -490,6 +517,27 @@ function PaymentPolicyDialog({
 			onClose={onClose}
 			onSubmit={() => void submit()}
 		>
+			<fieldset className="flex flex-col gap-1" data-testid="payment-channel-switches">
+				<legend className="mb-1 text-sm font-medium">Metode pembayaran di checkout</legend>
+				{CHANNELS.map(([channel, label]) => (
+					<label key={channel} className="flex min-h-9 items-center gap-2 text-sm pointer-coarse:min-h-11">
+						<input
+							type="checkbox"
+							className="size-4 accent-primary"
+							checked={channels.includes(channel)}
+							onChange={(e) =>
+								setChannels((all) => (e.target.checked ? [...all, channel] : all.filter((c) => c !== channel)))
+							}
+						/>
+						{label}
+					</label>
+				))}
+				<p className="text-xs text-muted-foreground">
+					Hanya metode yang menyala yang tampil untuk pembeli. Transfer bank tampil bila ada minimal satu
+					rekening. Virtual Account / QRIS baru tampil di situs produksi setelah koneksi AutoLaris asli disetujui.
+				</p>
+			</fieldset>
+
 			<FormField
 				id="terms-cod-fee"
 				label="Biaya COD (%)"

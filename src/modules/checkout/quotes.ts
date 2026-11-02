@@ -12,7 +12,7 @@ import {buildShippingPlans,type ShippingPlan} from '../shipping/quotes.ts';
 import {isValidEmail} from '../storefront/contact.ts';
 import {checkShippingBenefit} from '../shipping/contribution.ts';
 import {authorizeCart,digest,mac,type CartRow,type CommerceActor} from './access.ts';
-import {codFee,paymentTerms,PAYMENT_CHANNELS,paymentChannel,type PaymentChannel} from '../payments/methods.ts';
+import {channelEnabled,codFee,paymentTerms,PAYMENT_CHANNELS,paymentChannel,type PaymentChannel} from '../payments/methods.ts';
 import {assertCartOpen,cartClock,cartLines,expectedCartVersion,intentHash,mutationKey,priorOperation,recordOperation} from './carts.ts';
 
 export type PromotionAllocation=ReturnType<typeof allocate>[number];
@@ -78,6 +78,7 @@ async function persistQuote(tx:TransactionSql,actor:CommerceActor,key:string,has
  // DEC-009/DEC-008: freeze the buyer COD fee rate in force; manual transfer needs configured accounts.
  const terms=await paymentTerms(tx,now);
  if(channel==='manual-bank'&&!terms.manual_bank_accounts.length)throw new AccessError(409,'MANUAL_BANK_UNAVAILABLE');
+ if(!channelEnabled(terms,channel))throw new AccessError(422,'PAYMENT_CHANNEL_UNAVAILABLE');
  const bps=plan.payment_method==='cod'?terms.cod_fee_bps:null,charge=plan.payment_method==='cod'?projectPackages(plan,document.promotions,bps).reduce((n,p)=>n+(p.cod_fee_amount??0),0):0;
  const operationId=randomUUID();const [quote]=await tx<QuoteRow[]>`insert into app.checkout_quote (cart_id,cart_revision,parent_id,operation_id,document,payment_method,merchandise_amount,shipping_amount,subsidy_amount,buyer_total,created_at,expires_at,payment_channel,payment_charge_amount,cod_fee_bps)
   values (${cart.id},${cart.revision},${parent?.id??null},${operationId},${JSON.stringify(document)}::jsonb,${plan.payment_method},${plan.merchandise_total},${plan.shipping_total},${subsidy},${buyerTotal},${now.toISOString()},${expires},${channel},${charge},${bps}) returning *`;

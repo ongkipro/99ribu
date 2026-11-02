@@ -9,7 +9,7 @@ import {expectedCartVersion,mutationKey} from '../checkout/carts.ts';
 import type {projectOrder} from '../checkout/orders.ts';
 import {normalizeContact,ownedQuote,type projectQuote,type QuoteDocument} from '../checkout/quotes.ts';
 import {handleCheckout} from '../checkout/routes.ts';
-import {offeredChannels} from '../payments/methods.ts';
+import {channelEnabled,offeredChannels,paymentTerms,type PaymentTerms} from '../payments/methods.ts';
 import {clean,normalizePhone} from '../shipping/address.ts';
 import {canonicalAddress,findDestination,initialDestinations,type Destination as ShippingDestination} from '../shipping/destinations.ts';
 import {readCartView,type BrowserCart} from './cart.ts';
@@ -31,6 +31,8 @@ const lengths:Record<string,number>={kind:10,key:200,cart:36,version:10,quote:36
 // Form method → payment channel. Only offered channels are listed or accepted (production: transfer and COD).
 const DRAFT_METHODS={prepaid:'local-prepaid',transfer:'manual-bank',va:'autolaris',cod:'cod'} as const;
 export const offeredMethods=()=>Object.entries(DRAFT_METHODS).filter(([,channel])=>offeredChannels().includes(channel)).map(([method])=>method);
+// What the checkout lists: the runtime's channels the owner's payment policy has switched on (the quote re-checks).
+export const enabledMethods=(terms:PaymentTerms)=>Object.entries(DRAFT_METHODS).filter(([,channel])=>channelEnabled(terms,channel)).map(([method])=>method);
 export const emptyCheckoutDraft=():CheckoutDraft=>({recipient_name:'',phone:'',email:'',destination_id:'',address_line:'',buyer_note:'',payment_method:offeredMethods().includes('prepaid')?'prepaid':''});
 export const initialCheckoutIntent=(values:Partial<CheckoutIntent>={}):CheckoutIntent=>({kind:'quote',key:randomUUID(),cart:'',version:'',quote:'',allocation_id:'',query:'',draft:emptyCheckoutDraft(),packages:[],navigate:'',draft_writer:randomUUID(),draft_sequence:'0',draft_revision:'0',...values});
 export const checkoutUnavailableView=():CheckoutView=>({kind:'unavailable',cart:null,quote:null,allocations:[],quoteCurrent:false,draft:emptyCheckoutDraft(),progress:null,draftExpired:false,destinations:[],methods:[],drafts:false,images:{},now:null,issue:null,code:'SERVICE_UNAVAILABLE'});
@@ -155,8 +157,11 @@ export async function readCheckout(request:Request,identity:LocalAuth,dispatch:t
  if(current.cart.state==='open'&&!expired)try{const saved=await readCheckoutDraft(request,identity,current.cart.id);progress=saved.progress;draftExpired=saved.kind==='expired';if(progress)draft=progress.draft;}
  catch(error){return {...checkoutUnavailableView(),kind:error instanceof AccessError&&error.status<500?'denied':'unavailable',code:error instanceof AccessError?error.code:'SERVICE_UNAVAILABLE'};}
  if(!quote&&!progress)draft=await profileDraft(request,identity)??draft;
+ let methods:string[];
+ try{methods=enabledMethods(await paymentTerms(identity.sql,new Date(current.now)));}
+ catch(error){return {...checkoutUnavailableView(),kind:'unavailable',code:error instanceof AccessError?error.code:'SERVICE_UNAVAILABLE'};}
  const allocations=document?checkoutAllocationChoices(document,current.cart,progress?.allocation_id??quote?.selected_allocation_id??''):[];
- return {kind:'ready',cart:current.cart,quote,allocations,quoteCurrent:Boolean(quote&&quote.id===current.cart.active_quote_id&&quote.cart_version===current.cart.version&&Date.parse(quote.expires_at)>Date.parse(current.now)&&!issue),draft,progress,draftExpired,destinations:await initialDestinations(identity.sql,draft.destination_id),methods:offeredMethods(),drafts:checkoutDraftsEnabled(),images:Object.fromEntries(current.lines.flatMap(l=>l.offer?.image?[[l.line.id,{src:sameOrigin(l.offer.image.url),width:l.offer.image.width,height:l.offer.image.height}]]:[])),now:current.now,issue,code:null};
+ return {kind:'ready',cart:current.cart,quote,allocations,quoteCurrent:Boolean(quote&&quote.id===current.cart.active_quote_id&&quote.cart_version===current.cart.version&&Date.parse(quote.expires_at)>Date.parse(current.now)&&!issue),draft,progress,draftExpired,destinations:await initialDestinations(identity.sql,draft.destination_id),methods,drafts:checkoutDraftsEnabled(),images:Object.fromEntries(current.lines.flatMap(l=>l.offer?.image?[[l.line.id,{src:sameOrigin(l.offer.image.url),width:l.offer.image.width,height:l.offer.image.height}]]:[])),now:current.now,issue,code:null};
 }
 const messages:Record<string,string>={
  INVALID_INPUT:'Periksa isian sebelum melanjutkan.',INVALID_IDEMPOTENCY_KEY:'Muat ulang checkout sebelum mencoba lagi.',
@@ -166,7 +171,7 @@ const messages:Record<string,string>={
  SHIPPING_RATE_EXPIRED:'Tarif pengiriman kedaluwarsa. Gunakan Hitung ongkir untuk menghitung ulang.',SHIPPING_OPTION_UNAVAILABLE:'Layanan yang dipilih sudah tidak tersedia. Pilih kembali layanan pengiriman.',
  MANUAL_BANK_UNAVAILABLE:'Transfer bank belum tersedia. Pilih metode pembayaran lain.',MANUAL_BANK_BUSY:'Transfer bank sedang penuh. Pilih metode pembayaran lain atau coba lagi nanti.',MANUAL_BANK_OPEN_LIMIT:'Selesaikan transfer pesanan sebelumnya dulu, atau pilih metode pembayaran lain.',RATE_LIMITED:'Terlalu banyak percobaan. Tunggu sebentar lalu coba lagi.',
  COD_UNAVAILABLE:'COD belum tersedia untuk tujuan atau paket ini. Ubah preferensi pembayaran atau wilayah pengiriman.',NO_SUPPORTED_ROUTE:'Belum ada pengiriman untuk tujuan dan isi keranjang ini. Pilih wilayah pengiriman lain atau periksa keranjang.',ROUTE_UNCONFIGURED:'Tujuan ini belum memiliki layanan pengiriman. Pilih tujuan lain.',
- DESTINATION_UNAVAILABLE:'Tujuan pengiriman sudah tidak tersedia. Pilih kembali dari daftar.',PAYMENT_CHANNEL_UNAVAILABLE:'Metode pembayaran ini belum tersedia. Pilih transfer bank atau COD.',SHIPPING_UNAVAILABLE:'Pengiriman belum dapat dihitung saat ini. Coba lagi nanti.',DESTINATION_POSTCODE_MISMATCH:'Wilayah dan kode pos perlu diperiksa kembali.',
+ DESTINATION_UNAVAILABLE:'Tujuan pengiriman sudah tidak tersedia. Pilih kembali dari daftar.',PAYMENT_CHANNEL_UNAVAILABLE:'Metode pembayaran ini sedang tidak tersedia. Pilih metode lain.',SHIPPING_UNAVAILABLE:'Pengiriman belum dapat dihitung saat ini. Coba lagi nanti.',DESTINATION_POSTCODE_MISMATCH:'Wilayah dan kode pos perlu diperiksa kembali.',
  OFFER_UNAVAILABLE:'Pilihan produk tidak tersedia. Periksa kembali keranjang.',INSUFFICIENT_COMPLETE_STOCK:'Stok pilihan lengkap berubah. Periksa kembali keranjang.',INSUFFICIENT_STOCK:'Stok berubah sebelum pesanan tersimpan. Periksa keranjang.',PUBLICATION_REVIEW_REQUIRED:'Rincian pilihan berubah. Setujui isi terbaru dari keranjang.',
  PROMOTION_REVIEW_REQUIRED:'Perhitungan promo berubah. Hitung ulang pengiriman dan periksa total.',PROMOTION_BUDGET_EXHAUSTED:'Kuota promo berubah. Hitung ulang total sebelum melanjutkan.',FINANCIAL_REVIEW_REQUIRED:'Perhitungan pengiriman perlu diperbarui. Hitung ulang dan periksa total.',
  UNAUTHENTICATED:'Sesi belanja perlu diperiksa. Kembali ke keranjang.',UNSUPPORTED_AUTH_TRANSPORT:'Buka checkout melalui sesi belanja situs ini.',INVALID_ORIGIN:'Buka checkout dari situs ini sebelum mencoba lagi.',IDEMPOTENCY_CONFLICT:'Tindakan ini memiliki rincian berbeda. Periksa kembali sebelum mengirim ulang.'
@@ -246,7 +251,7 @@ export async function mutateCheckout(request:Request,identity:LocalAuth,intent:C
   let state:CheckoutState;try{state=await fresh();}catch{state=initialCheckoutState(checkoutUnavailableView());}
   const lostScope=blocked||state.view.kind==='denied'||state.view.kind==='none'||!unknown&&Boolean(state.view.cart&&state.view.cart.id!==intent.cart);
   const safeIntent=lostScope?initialCheckoutIntent():unknown?intent:{...intent,key:randomUUID(),kind:'quote' as const,version:state.view.cart?.id===intent.cart?String(state.view.cart.version):intent.version,quote:state.view.quote?.id??'',packages:[],navigate:''};
-  const errors:CheckoutState['errors']=lostScope||unknown?{}:navigate==='lookup'&&code==='INVALID_INPUT'?{query:'Periksa kata pencarian wilayah.'}:['COD_UNAVAILABLE','MANUAL_BANK_UNAVAILABLE','MANUAL_BANK_BUSY','MANUAL_BANK_OPEN_LIMIT'].includes(code)?{payment_method:messages[code]}:code==='NO_SUPPORTED_ROUTE'?{destination_id:messages[code]}:{};
+  const errors:CheckoutState['errors']=lostScope||unknown?{}:navigate==='lookup'&&code==='INVALID_INPUT'?{query:'Periksa kata pencarian wilayah.'}:['COD_UNAVAILABLE','MANUAL_BANK_UNAVAILABLE','MANUAL_BANK_BUSY','MANUAL_BANK_OPEN_LIMIT','PAYMENT_CHANNEL_UNAVAILABLE'].includes(code)?{payment_method:messages[code]}:code==='NO_SUPPORTED_ROUTE'?{destination_id:messages[code]}:{};
   return {state:{...state,phase:unknown?'unknown':'error',step:unknown?intent.kind==='quote'?'contact':'review':'contact',intent:safeIntent,view:lostScope?{...checkoutUnavailableView(),kind:'denied',code}:state.view.cart&&state.view.cart.id!==intent.cart?checkoutUnavailableView():state.view,errors,message:lostScope?'Sesi atau keranjang berubah. Hasil tindakan hanya dapat diperiksa melalui akses yang sah.':unknown?'Hasil tindakan belum diketahui. Ulangi tindakan yang sama untuk memeriksa hasilnya.':messages[code]??'Perubahan belum diterapkan. Periksa kembali pilihan dan coba lagi.',code,blocked:lostScope},cookies,order:null};
  }
 }

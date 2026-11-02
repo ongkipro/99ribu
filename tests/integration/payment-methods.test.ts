@@ -291,6 +291,24 @@ test('manual bank holds are capped per buyer and checkout creation is rate limit
  }finally{try{await terms?.restore();}finally{await f.close();}}
 });
 
+test('owner channel switches: a channel switched off is refused at the quote, the others and the local simulator stay available',async()=>{
+ const f=await paymentFixture();let terms:Awaited<ReturnType<typeof withCommercialTerms>>|undefined;
+ try{
+  const switches=await withCommercialTerms(f,{manual_bank_accounts:ACCOUNTS,enabled_channels:['manual-bank']});terms=switches;
+  // The fixture asserts a 201 quote, so a refused channel surfaces as that assertion carrying the 422.
+  const refused=(e:unknown)=>(e as {actual?:unknown}).actual===422;
+  await assert.rejects(f.order(1,'cod','cod'),refused);
+  assert.equal((await f.order(1,'prepaid','manual-bank')).status,201);
+  assert.equal((await f.order(1,'prepaid','local-prepaid')).status,201,'the local simulator is runtime-only, never switched by the policy');
+  await terms.set({manual_bank_accounts:ACCOUNTS,enabled_channels:['cod']});
+  await assert.rejects(f.order(1,'prepaid','manual-bank'),refused);
+  assert.equal((await f.order(1,'cod','cod')).status,201);
+  // A quote frozen while COD was on cannot become an order after the owner switches COD off.
+  const late=await f.order(1,'cod','cod',undefined,()=>switches.set({manual_bank_accounts:ACCOUNTS,enabled_channels:['manual-bank']}));
+  assert.equal(late.status,422);assert.equal(late.code,'PAYMENT_CHANNEL_UNAVAILABLE');
+ }finally{try{await terms?.restore();}finally{await f.close();}}
+});
+
 // R4 delta: the carrier-simulator COD path with a PINNED payment policy. The waybill cod_due, the
 // order page's shipping-and-fees figure and the collection receipt agree, with and without a fee.
 // Bookings retain their AccessOperation, so a separate staff owner books and is closed like fulfillment fixtures do.

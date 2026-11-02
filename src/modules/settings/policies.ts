@@ -18,6 +18,9 @@ function scope(kind: unknown, warehouseId: unknown): { kind: Kind; warehouseId: 
   if (typeof warehouseId !== "string" || !uuid.test(warehouseId)) throw invalid();
   return { kind, warehouseId: warehouseId.toLowerCase() };
 }
+// Buyer-facing payment channels the owner can switch off (DEC-008); the local simulator is not one of them.
+export const TOGGLEABLE_CHANNELS = ["manual-bank", "autolaris", "cod"] as const;
+export type ToggleableChannel = typeof TOGGLEABLE_CHANNELS[number];
 export type BankAccount = { bank_name: string; account_number: string; account_holder: string };
 function bankAccounts(value: unknown): value is BankAccount[] {
   return Array.isArray(value) && value.length >= 1 && value.length <= 5 && value.every((a) => a && typeof a === "object" && !Array.isArray(a) &&
@@ -25,6 +28,14 @@ function bankAccounts(value: unknown): value is BankAccount[] {
     typeof a.bank_name === "string" && a.bank_name.trim().length >= 2 && a.bank_name.length <= 60 &&
     typeof a.account_number === "string" && /^[0-9]{6,20}$/.test(a.account_number) &&
     typeof a.account_holder === "string" && a.account_holder.trim().length >= 2 && a.account_holder.length <= 100);
+}
+// Write-time rule for a new payment version (never applied when reading stored versions, so a stored row
+// cannot become unreadable under another runtime): at least one switched-on channel must work here. The
+// production profile (APP_ENV=production) never offers the AutoLaris simulator until S97; transfer needs an account.
+export function assertUsablePaymentChannels(values: { manual_bank_accounts: unknown[]; enabled_channels?: readonly string[] }) {
+  if (values.enabled_channels && !values.enabled_channels.some((c) => c === "cod" ||
+    (c === "manual-bank" && values.manual_bank_accounts.length > 0) ||
+    (c === "autolaris" && process.env.APP_ENV !== "production"))) throw new AccessError(422, "PAYMENT_CHANNELS_UNUSABLE");
 }
 export function valuesFor(kind: Kind, value: unknown) {
   if (!value || typeof value !== "object" || Array.isArray(value)) throw invalid();
@@ -39,10 +50,15 @@ export function valuesFor(kind: Kind, value: unknown) {
   }
   if (kind === "payment") {
     // DEC-009 buyer COD fee rate (basis points) and DEC-008 manual transfer accounts.
-    if (Object.keys(data).some((key) => !["cod_fee_bps", "manual_bank_accounts"].includes(key)) ||
+    if (Object.keys(data).some((key) => !["cod_fee_bps", "manual_bank_accounts", "enabled_channels"].includes(key)) ||
       !Number.isSafeInteger(data.cod_fee_bps) || Number(data.cod_fee_bps) < 0 || Number(data.cod_fee_bps) > 2000 ||
       ("manual_bank_accounts" in data && !(Array.isArray(data.manual_bank_accounts) && (data.manual_bank_accounts.length === 0 || bankAccounts(data.manual_bank_accounts))))) throw invalid();
-    return { cod_fee_bps: Number(data.cod_fee_bps), manual_bank_accounts: ((data.manual_bank_accounts ?? []) as BankAccount[]).map((a) => ({ bank_name: a.bank_name.trim(), account_number: a.account_number, account_holder: a.account_holder.trim() })) };
+    // Owner switches for the buyer-facing channels (absent in older versions = all on). At least one stays on.
+    const enabled = data.enabled_channels;
+    if (enabled !== undefined && (!Array.isArray(enabled) || enabled.length < 1 || new Set(enabled).size !== enabled.length ||
+      enabled.some((c) => !(TOGGLEABLE_CHANNELS as readonly unknown[]).includes(c)))) throw invalid();
+    return { cod_fee_bps: Number(data.cod_fee_bps), manual_bank_accounts: ((data.manual_bank_accounts ?? []) as BankAccount[]).map((a) => ({ bank_name: a.bank_name.trim(), account_number: a.account_number, account_holder: a.account_holder.trim() })),
+      ...(enabled === undefined ? {} : { enabled_channels: TOGGLEABLE_CHANNELS.filter((c) => (enabled as string[]).includes(c)) }) };
   }
   if (Object.keys(data).some((key) => !["timezone", "year", "working_weekdays", "cutoff_local", "closed_dates", "source", "approval"].includes(key)) ||
     typeof data.timezone !== "string" || !data.timezone || data.timezone.length > 100 ||
@@ -118,6 +134,7 @@ export async function appendPolicyVersion(request: Request, principal: Principal
     (body.effective_at !== null && (typeof body.effective_at !== "string" || !/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{3}Z$/.test(body.effective_at) ||
       !Number.isFinite(Date.parse(body.effective_at)) || new Date(body.effective_at).toISOString() !== body.effective_at))) throw invalid();
   const selected = scope(body.kind, body.warehouse_id); const values = valuesFor(selected.kind, body.values);
+  if (selected.kind === "payment") assertUsablePaymentChannels(values as { manual_bank_accounts: unknown[]; enabled_channels?: readonly string[] });
   const reauthenticationProof = body.reauthentication_proof; const effectiveInput = body.effective_at;
   const intent = { kind: selected.kind, warehouse_id: selected.warehouseId, effective_at: effectiveInput,
     values, expected_version: Number(body.expected_version), reason: body.reason.trim() };

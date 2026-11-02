@@ -7,6 +7,8 @@ const MESSAGES: Record<string, string> = {
 	INVALID_ORIGIN: "Permintaan ditolak karena asal halaman tidak valid.",
 	CONFLICT: "Data sudah berubah. Muat ulang lalu coba lagi.",
 	VERSION_CONFLICT: "Data sudah berubah. Muat ulang lalu coba lagi.",
+	PAYMENT_CHANNELS_UNUSABLE:
+		"Tidak ada metode yang bisa dipakai pembeli. Nyalakan COD, atau transfer bank dengan minimal satu rekening.",
 	STALE_VERSION: "Data sudah berubah. Muat ulang lalu coba lagi.",
 	FILTER_TOKEN_EXPIRED: "Filter ringkasan kedaluwarsa. Muat ulang halaman.",
 	DRILLDOWN_SCOPE_MISMATCH: "Cakupan filter berubah. Muat ulang halaman.",

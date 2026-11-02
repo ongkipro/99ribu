@@ -11,6 +11,8 @@ Previous-Claim: `READY_FOR_LOCAL_ACCEPTANCE` / "100% local production readiness"
 
 S149–S153 and S157–S161 are implemented locally; S154 tokens applied; S161 is partial by design (COD restock and refusal reasons wait for a migration decision). Evidence and numbers: BUILD-LOG top entry. Not pushed, not deployed.
 
+Payments (owner 2026-11-02): Super Admin switches transfer, VA/QRIS (AutoLaris) and COD per payment-policy version, and checkout shows only those switched on. AutoLaris remains simulated; its live client is prepared but unused (env `AUTOLARIS_API_KEY`, optional `AUTOLARIS_BASE_URL`, local only) until S97 (static IP whitelist, verified settlement mapping, owner go).
+
 Deferred to the end of the project (owner 2026-11-02): buyer and affiliate policy wording (auto-confirm, COD refusal, minimums, sub-ID, claim form, tax note); collect the notes as they come up, write the text last.
 
 Local test data (owner 2026-11-02): `npm run fixture -- demo-orders local` run; 17 synthetic demo orders in `99ribu_local` (namespace `demo-orders`, buyers `*@99ribu.test`).

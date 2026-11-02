@@ -17036,6 +17036,21 @@ components:
           minimum: 0
           maximum: 2000
           description: DEC-009 buyer COD fee in basis points (333 = 3.33%); frozen per quote.
+        enabled_channels:
+          type: array
+          minItems: 1
+          maxItems: 3
+          uniqueItems: true
+          items:
+            type: string
+            enum:
+            - manual-bank
+            - autolaris
+            - cod
+          description: Owner switches for the buyer-facing payment channels. Absent in older versions, which means all
+            are on. A channel is offered only when it is on here, offered by the runtime (production never offers the
+            AutoLaris simulator), and, for manual-bank, at least one account exists. Quotes re-check it (422
+            PAYMENT_CHANNEL_UNAVAILABLE).
         manual_bank_accounts:
           type: array
           maxItems: 5

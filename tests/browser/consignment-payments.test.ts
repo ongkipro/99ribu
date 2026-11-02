@@ -476,11 +476,14 @@ test("S99/S100 built browser: the manual queue shows the booking facts and the b
 			await page.waitForURL(`${origin}/admin/antrian?workspace=owner&queue=orders&window=30d`);
 			await expect(page.getByTestId("work-queue-section")).toBeVisible();
 			const more = page.getByRole("button", { name: "Muat baris berikutnya" });
+			const pager = page.getByRole("button", { name: /^(Muat baris berikutnya|Memuat…)$/ });
 			await expect(link.or(more).first()).toBeVisible();
-			for (let i = 0; i < 10 && !(await link.count()) && (await more.count()); i++) {
+			// Bounded but generous: local demo orders and concurrent suites add rows ahead of this one.
+			for (let i = 0; i < 50 && !(await link.count()) && (await more.count()); i++) {
 				await more.click();
-				// the button disappears on the last page, so settle on "not loading" rather than on its text
-				await expect.poll(async () => !(await more.count()) || (await more.textContent()) !== "Memuat…").toBe(true);
+				// While loading the button is renamed "Memuat…" (so `more` counts 0) and on the last page it disappears:
+				// wait on a locator that matches both labels until it is gone or no longer loading.
+				await expect.poll(async () => !(await pager.count()) || (await pager.textContent()) !== "Memuat…").toBe(true);
 			}
 		}
 		await expect(link).toHaveAttribute("href", `/admin/pesanan/${(await sql`select admin_no::int as n from app.commerce_order where id = ${order.id}`)[0].n}`);
