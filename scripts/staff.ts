@@ -3,15 +3,17 @@
 // bootstrap-owner: the first owner from an operator-typed name, real email and password (never echoed), then TOTP
 //   enrolment (the URI and backup codes are shown once on this terminal). Refused when any owner exists.
 // enroll-mfa: TOTP enrolment for an existing staff account that has none (an interrupted bootstrap, a new staff member).
+// unlock-signin: clears the sign-in failure counters and any cool-off for one account email (S149); prints no account data.
 // Further staff come from the owner's role grants in the console. Local accounts stay with `fixture -- login local`.
 import { createLocalAuth } from "../src/modules/access/auth.ts";
 import { bootstrapOwner, ownerInput, startEnrollment } from "../src/modules/access/operator.ts";
 import { AccessError } from "../src/modules/access/policy.ts";
+import { unlockSignIn } from "../src/modules/access/signin-budget.ts";
 import { operatorPrompt } from "../src/ops/prompt.ts";
 
 const [command, target, ...extra] = process.argv.slice(2);
-const usage = "Use: staff.ts bootstrap-owner production | staff.ts enroll-mfa production";
-if (!["bootstrap-owner", "enroll-mfa"].includes(command) || target !== "production" || extra.length) {
+const usage = "Use: staff.ts bootstrap-owner production | staff.ts enroll-mfa production | staff.ts unlock-signin production";
+if (!["bootstrap-owner", "enroll-mfa", "unlock-signin"].includes(command) || target !== "production" || extra.length) {
   console.error(usage);
   process.exit(1);
 }
@@ -19,6 +21,10 @@ const input = operatorPrompt();
 let userId: string | null = null;
 const identity = createLocalAuth("production");
 try {
+  if (command === "unlock-signin") {
+    await unlockSignIn(identity, await input.ask("Account email to unlock: "));
+    console.log(JSON.stringify({ command, target, unlocked: true }));
+  } else {
   let email: string, password: string;
   if (command === "bootstrap-owner") {
     const name = await input.ask("Owner name: ");
@@ -41,6 +47,7 @@ try {
   } finally { await end(); }
   if (!verified) throw new AccessError(401, "MFA_VERIFY_REJECTED");
   console.log(JSON.stringify({ command, target, ...(userId ? { owner_created: true } : {}), mfa_enrolled: true }));
+  }
 } catch (error) {
   if (error instanceof AccessError) console.error(`Refused: ${error.code}.`);
   else if (error instanceof Error && error.cause === "visible") console.error(error.message);

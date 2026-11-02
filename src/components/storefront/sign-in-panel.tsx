@@ -11,7 +11,7 @@ import { AuthForms } from "./sign-up-form";
 import { Wordmark } from "./ui/brand";
 
 type Params = { [key: string]: string | string[] | undefined };
-const FAILURES: SignInFailure[] = ["origin", "limit", "disabled", "network", "credential"];
+const FAILURES: SignInFailure[] = ["origin", "limit", "disabled", "network", "credential", "challenge", "locked"];
 
 // The sign-in content of /masuk, shared by the page and the intercepted modal (@modal/(.)masuk). A signed-in
 // visitor is routed by role; a buyer asked for the console and a staff account without MFA see why not.

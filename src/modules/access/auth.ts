@@ -9,6 +9,7 @@ import { localSigningKey } from "./local-key.ts";
 import { enqueueLocalDelivery } from "../../jobs/outbox.ts";
 import { randomBytes } from "node:crypto";
 import { ACTIVATION_CALLBACK, isActivationCallback } from "./return-to.ts";
+import { clearSignInBudget } from "./signin-budget.ts";
 
 // Set by handleAuth on public sign-up and resend (never taken from the client) to the validated activation callback.
 export const ACTIVATION_HEADER = "x-99ribu-activation";
@@ -89,6 +90,8 @@ export function createLocalAuth(target: DatabaseTarget) {
       // Called by POST /reset-password after the token was consumed and the new password stored.
       onPasswordReset: async ({ user }) => {
         if (!user.emailVerified) await connection.sql`update app.auth_user set email_verified=true, updated_at=now() where id=${user.id}`;
+        // S149: a completed reset forgets earlier failures and any cool-off (a cool-off also ends by itself).
+        await clearSignInBudget({ auth, sql: connection.sql }, user.email);
       },
     },
     emailVerification: {

@@ -34,6 +34,28 @@ export async function post(path: string, body: Record<string, string>) {
 	}
 }
 
+// S149: Cloudflare Turnstile, loaded only when the server asks for it (CHALLENGE_REQUIRED carries the public site key).
+type TurnstileApi = {
+	render(element: HTMLElement, options: { sitekey: string; action: string; theme: "auto"; callback: (token: string) => void; "error-callback": () => void; "expired-callback": () => void }): string;
+	reset(id: string): void;
+	remove(id: string): void;
+};
+const turnstileApi = () => (window as unknown as { turnstile?: TurnstileApi }).turnstile;
+let turnstileScript: Promise<TurnstileApi> | null = null;
+function loadTurnstile() {
+	turnstileScript ??= new Promise<TurnstileApi>((resolve, reject) => {
+		const ready = turnstileApi();
+		if (ready) return resolve(ready);
+		const script = document.createElement("script");
+		script.src = "https://challenges.cloudflare.com/turnstile/v0/api.js?render=explicit";
+		script.async = true;
+		script.onload = () => { const api = turnstileApi(); if (api) resolve(api); else { turnstileScript = null; reject(new Error("turnstile")); } };
+		script.onerror = () => { script.remove(); turnstileScript = null; reject(new Error("turnstile")); };
+		document.head.append(script);
+	});
+	return turnstileScript;
+}
+
 // `modal`: rendered in the intercepted sheet over a storefront page (h2, success returns to that page).
 // `onMode`/`email`: the sign-up switch and the email carried over from it (sign-up-form.tsx:AuthForms).
 // `portal`: the owner and staff door (/portal): sign-in only, no sign-up switch and no link to the shop;
@@ -48,6 +70,37 @@ export function SignInForm({ next, step: initialStep = "password", error: initia
 	const alertRef = useRef<HTMLDivElement>(null);
 	const moved = useRef(false);
 	const Heading = modal ? "h2" : "h1";
+	// Verification box: shown after the server answers CHALLENGE_REQUIRED with a site key; the token is single use.
+	const [siteKey, setSiteKey] = useState<string | null>(null);
+	const widgetRef = useRef<HTMLDivElement>(null);
+	const groupRef = useRef<HTMLFieldSetElement>(null);
+	const [challenged, setChallenged] = useState(false); // the current message is the challenge notice
+	const widgetId = useRef<string | null>(null);
+	const token = useRef("");
+	const retryRef = useRef<number | null>(null);
+
+	useEffect(() => {
+		if (!siteKey || step !== "password" || !widgetRef.current) return;
+		let gone = false;
+		const element = widgetRef.current;
+		loadTurnstile().then((api) => {
+			if (gone) return;
+			widgetId.current = api.render(element, {
+				sitekey: siteKey, action: "signin", theme: "auto",
+				callback: (value) => { token.current = value; },
+				"error-callback": () => { token.current = ""; },
+				"expired-callback": () => { token.current = ""; },
+			});
+		}).catch(() => {
+			if (!gone) setError({ message: failureMessage("challenge", "password", retryRef.current), field: null });
+		});
+		return () => {
+			gone = true;
+			token.current = "";
+			if (widgetId.current) turnstileApi()?.remove(widgetId.current);
+			widgetId.current = null;
+		};
+	}, [siteKey, step]);
 
 	// A step change moves focus to the code field (not on first render, so a page load does not jump).
 	useEffect(() => {
@@ -57,8 +110,9 @@ export function SignInForm({ next, step: initialStep = "password", error: initia
 	// Every failed submit (a new error object) moves focus to its message, so keyboard and screen-reader
 	// users land on the reason and the invalid field is the next Tab stop.
 	useEffect(() => {
-		if (error && error !== initialError) alertRef.current?.focus();
-	}, [error, initialError]);
+		// A challenge message is announced politely and focus goes to the verification box, so the next Tab stop is the widget.
+		if (error && error !== initialError) (challenged && groupRef.current ? groupRef.current : alertRef.current)?.focus();
+	}, [error, initialError, challenged]);
 
 	function finish() {
 		// Full navigation so the server re-reads the new session. /masuk routes it by role to `next`; the
@@ -79,6 +133,10 @@ export function SignInForm({ next, step: initialStep = "password", error: initia
 			if (!email || !password) return setError({ message: "Isi email dan kata sandi.", field: email ? "password" : "email" });
 			path = "/sign-in/email";
 			body = { email, password };
+			if (siteKey) {
+				if (!token.current) return setError({ message: "Selesaikan verifikasi di bawah dulu, lalu kirim lagi.", field: null });
+				body.turnstile_token = token.current;
+			}
 		} else {
 			const input = codeInput(step, code);
 			if (input.code === null) return setError({ message: input.error, field: "code" });
@@ -87,13 +145,20 @@ export function SignInForm({ next, step: initialStep = "password", error: initia
 		}
 		setPending(true);
 		setError(null);
+		setChallenged(false);
 		const result = await post(path, body);
 		setPending(false);
+		// The token is spent either way: a fresh one is needed for the next attempt.
+		if (step === "password" && widgetId.current) { token.current = ""; turnstileApi()?.reset(widgetId.current); }
 		if (result.status === 200 && step === "password" && result.payload?.twoFactorRedirect === true) setStep("totp");
 		else if (result.status === 200) finish();
 		else {
 			const kind = failureKind(result.status, result.payload?.code);
-			setError({ message: failureMessage(kind, step, result.retry), field: kind === "credential" ? (step === "password" ? "password" : "code") : null });
+			const key = kind === "challenge" && typeof result.payload?.siteKey === "string" ? result.payload.siteKey : null;
+			retryRef.current = result.retry;
+			if (key) setSiteKey(key); // stays up once asked for: every further attempt carries a fresh token
+			setChallenged(key !== null);
+			setError({ message: failureMessage(kind, step, result.retry, key !== null), field: kind === "credential" ? (step === "password" ? "password" : "code") : null });
 		}
 	}
 
@@ -106,7 +171,7 @@ export function SignInForm({ next, step: initialStep = "password", error: initia
 	};
 
 	const alert = error && (
-		<div ref={alertRef} tabIndex={-1} className="signin-alert" role="alert" id="signin-error" data-testid="signin-error">
+		<div ref={alertRef} tabIndex={-1} className="signin-alert" role={challenged ? "status" : "alert"} aria-live={challenged ? "polite" : undefined} id="signin-error" data-testid="signin-error">
 			<Icon name="alert" size={16} />
 			<p>{error.message}</p>
 		</div>
@@ -154,6 +219,11 @@ export function SignInForm({ next, step: initialStep = "password", error: initia
 				</div>
 			)}
 			{alert}
+			{siteKey && step === "password" && (
+				<fieldset ref={groupRef} tabIndex={-1} aria-label="Verifikasi keamanan" style={{ border: 0, margin: 0, padding: 0, minWidth: 0 }}>
+					<div ref={widgetRef} className="signin-turnstile" data-testid="signin-turnstile" />
+				</fieldset>
+			)}
 			<button className="button signin-submit" type="submit" disabled={pending}>{pending ? "Memeriksa…" : step === "password" ? "Masuk" : "Verifikasi"}</button>
 			{step === "password" ? (portal ? <p className="signin-hint">Setelah kata sandi, masukkan kode verifikasi dua langkah.</p> :
 				<p className="signin-hint">

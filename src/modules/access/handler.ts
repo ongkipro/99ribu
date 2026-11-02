@@ -2,9 +2,10 @@ import { mac, prefix, revokeGuestContext } from "../checkout/access.ts";
 import { ACTIVATION_HEADER, isSyntheticEmail, type LocalAuth } from "./auth.ts";
 import { getPrincipal, isStaff, projectMe, AccessError, type Principal } from "./policy.ts";
 import { readAccountSecurity, recordAuthAudit, recordPasswordChange } from "./account-security.ts";
-import { clientIp, privateJson, problem, requestOrigin } from "./http.ts";
+import { addressBucket, clientIp, privateJson, problem, requestOrigin } from "./http.ts";
 import { readRuntimeConfig } from "../../config/runtime.ts";
 import { rateLimit } from "./rate-limit.ts";
+import { clearSignInBudget, gateSignIn, type VerifyTurnstile, verifyTurnstile } from "./signin-budget.ts";
 import { ACTIVATION_CALLBACK, isActivationCallback, isVerificationCallback } from "./return-to.ts";
 import { emailDomainReceives } from "./email-domain.ts";
 import { normalizeWhatsApp } from "../shipping/address.ts";
@@ -31,9 +32,11 @@ async function pendingTwoFactorUser(identity: LocalAuth, signed: string) {
   return row && row.expiresAt > new Date() ? row.value : null;
 }
 
-// Per-account budgets [max, windowMs]; the Better Auth buckets are only global ceilings.
+// Per-account budgets [max, windowMs]; the Better Auth buckets are only global ceilings. Sign-in is not here:
+// its budget counts failures only and escalates to a Turnstile challenge (signin-budget.ts, S149).
+const SIGN_IN = "/api/auth/sign-in/email";
 const ACCOUNT_LIMITS: Record<string, readonly [number, number]> = {
-  "/api/auth/sign-in/email": [5, 60_000], "/api/auth/sign-up/email": [3, 60_000],
+  "/api/auth/sign-up/email": [3, 60_000],
   "/api/auth/request-password-reset": [3, 60_000], "/api/auth/reset-password": [3, 60_000],
   "/api/auth/send-verification-email": [3, 60_000],
   "/api/auth/two-factor/enable": [3, 60_000], "/api/auth/two-factor/verify-totp": [5, 60_000],
@@ -63,7 +66,8 @@ const MAIL_PER_DAY = [10, 86_400_000] as const;
 // `public`: the network entry points (/api/auth/[...all] and /masuk/kirim) pass it; sign-up there takes no
 // password and mails only set-password links. In-process callers (fixtures, seeds, tests) keep the
 // password sign-up and plain verification link of the harness.
-export async function handleAuth(request: Request, identity: LocalAuth, options: { public?: boolean } = {}) {
+// `verifyTurnstile`: injectable for tests; the default calls Cloudflare siteverify.
+export async function handleAuth(request: Request, identity: LocalAuth, options: { public?: boolean; verifyTurnstile?: VerifyTurnstile } = {}) {
   const incoming = new URL(request.url);
   const path = incoming.pathname;
   const getPaths = ["/api/auth/get-session", "/api/auth/verify-email", "/api/auth/account-security"];
@@ -101,6 +105,7 @@ export async function handleAuth(request: Request, identity: LocalAuth, options:
   try { headers.set(profile === "production" ? "x-99ribu-client-ip" : "x-99ribu-local-ip", clientIp(request)); }
   catch (error) { return problem(error); }
   let bodyText: string | undefined;
+  let signInToken: string | null = null;
   let signUpPhone: string | null = null, signUpEmail = "", signUpExisted = true, mailDomain: string | null = null;
   if (request.method === "POST") {
     if (!request.headers.get("content-type")?.startsWith("application/json")) return Response.json({ code: "INVALID_INPUT" }, { status: 415 });
@@ -122,6 +127,13 @@ export async function handleAuth(request: Request, identity: LocalAuth, options:
     let body: Record<string, unknown> | null;
     try { body = JSON.parse(bodyText); } catch { body = null; }
     if (!body || typeof body !== "object" || Array.isArray(body)) return Response.json({ code: "INVALID_INPUT" }, { status: 400 });
+    // S149: the challenge token is read here and never forwarded to Better Auth.
+    if (path === SIGN_IN && "turnstile_token" in body) {
+      const { turnstile_token: token, ...rest } = body;
+      signInToken = typeof token === "string" && token.length <= 2048 ? token || null : null;
+      body = rest;
+      bodyText = JSON.stringify(rest);
+    }
     // Local profile: synthetic identities only. Production sign-in uses real staff emails (sign-up is closed above).
     if (profile === "local" && body.email !== undefined && !isSyntheticEmail(body.email)) {
       return Response.json({ code: "SYNTHETIC_EMAIL_REQUIRED" }, { status: 400 });
@@ -209,6 +221,26 @@ export async function handleAuth(request: Request, identity: LocalAuth, options:
       return limited;
     }
   }
+  // S149: failed sign-ins per account; after 5 in a minute the attempt needs a Turnstile token, after 100 in a row
+  // sign-in is refused for a cool-off (15 min, doubling to 24 h). Fails closed (problem 503) if the counters cannot be read.
+  let signInEmail: string | null = null;
+  if (request.method === "POST" && path === SIGN_IN) {
+    const email = (JSON.parse(bodyText as string) as Record<string, unknown>).email;
+    if (typeof email === "string" && email) {
+      signInEmail = email;
+      try {
+        const ip = signInToken === null ? null : clientIp(request);
+        const gate = await gateSignIn(identity, email, signInToken, ip === null ? null : { ip: profile === "production" ? ip : null, bucket: addressBucket(ip) }, options.verifyTurnstile ?? verifyTurnstile);
+        if (!gate.ok) {
+          const refused = new Headers({ "Cache-Control": "no-store", "Referrer-Policy": "no-referrer" });
+          refused.set("Retry-After", String(gate.retryAfter));
+          refused.set("X-Retry-After", String(gate.retryAfter));
+          if (gate.status === 423) return Response.json({ code: gate.code }, { status: 423, headers: refused });
+          return Response.json({ code: gate.code, ...(gate.siteKey ? { siteKey: gate.siteKey } : {}) }, { status: 429, headers: refused });
+        }
+      } catch (error) { return problem(error); }
+    }
+  }
   let sensitive: Principal | null = null;
   if (request.method === "POST" && SENSITIVE_PATHS.includes(path)) {
     // Own-account reauthentication by password: the caller must hold a verified session (staff: MFA-verified),
@@ -229,6 +261,9 @@ export async function handleAuth(request: Request, identity: LocalAuth, options:
   }
   const canonicalURL = new URL(path + incoming.search, origin);
   const response = await identity.auth.handler(new Request(canonicalURL, { method: request.method, headers, body: bodyText }));
+  // A sign-in that got past the password forgets the account's failures (the 2FA step has its own budget). If the
+  // clear fails the counters stay, which is the conservative side.
+  if (response.status === 200 && signInEmail) await clearSignInBudget(identity, signInEmail).catch(() => undefined);
   // S123: the WhatsApp number of a public sign-up is kept only on the account that sign-up created
   // (buyer_profile.phone; phone_verified_at null = unverified). For an existing account, verified or not, it is
   // dropped: an unauthenticated request never changes a stored number; the owner edits it in /akun.

@@ -5,6 +5,7 @@ import { NextRequest } from "next/server.js";
 import { createLocalAuth } from "../src/modules/access/auth.ts";
 import { handleAuth, requireIdentity, requireStaff } from "../src/modules/access/handler.ts";
 import { mac } from "../src/modules/checkout/access.ts";
+import { clearSignInBudget } from "../src/modules/access/signin-budget.ts";
 import { runOneJob } from "../src/jobs/worker.ts";
 import { enqueueJob } from "../src/jobs/outbox.ts";
 import type { Sql } from "postgres";
@@ -133,11 +134,22 @@ test("real auth: verification, session lifecycle, reset, deny-default and persis
     await t.test("expired session is rejected and spoofed proxy headers cannot evade the limiter", async () => {
       await identity.sql`update app.auth_session set expires_at=now()-interval '1 minute' where user_id=${userId}`;
       assert.equal(await requireIdentity(protectedRequest(), identity), null);
+      // S149 (changed, was: five sign-ins of any outcome then 429): only FAILED sign-ins count, per account. Five wrong
+      // passwords, each from a different spoofed address, make the next attempt need a Turnstile token, even with
+      // the right password; the counter follows the account, not the address, and survives a new process.
+      for (let i = 0; i < 5; i++) {
+        assert.equal((await call("/sign-in/email", { email, password: `wrong-${i}-${newPassword}` }, { "x-forwarded-for": `198.51.100.${i}`, "x-99ribu-local-ip": `198.51.100.${i + 10}` })).status, 401);
+      }
       const response = await call("/sign-in/email", { email, password: newPassword }, { "x-forwarded-for": "198.51.100.1", "x-99ribu-local-ip": "198.51.100.2" });
       assert.equal(response.status, 429);
+      assert.equal((await response.json()).code, "CHALLENGE_REQUIRED");
       assert.ok(Number(response.headers.get("x-retry-after")) > 0);
+      assert.ok(Number(response.headers.get("retry-after")) > 0);
       await identity.sql.end(); identity = createLocalAuth("test");
       assert.equal((await call("/sign-in/email", { email, password: newPassword })).status, 429);
+      // The unchallenged attempts above must not have been checked against the password: wipe the account's
+      // counters (what a completed reset or a success does) so the later subtests start clean.
+      await clearSignInBudget(identity, email);
       const statuses = await Promise.all(Array.from({ length: 8 }, async () => (await call("/sign-up/email", { name: "Synthetic Buyer", email, password: newPassword })).status));
       assert.equal(statuses.filter((s) => s === 200).length, 1);
       assert.equal(statuses.filter((s) => s === 429).length, 7);
@@ -161,6 +173,7 @@ test("real auth: verification, session lifecycle, reset, deny-default and persis
       await identity.sql`delete from app.auth_user where id=${userId}`;
     }
     await identity.sql`delete from app.auth_rate_limit where key in ${identity.sql(keys)}`;
+    await clearSignInBudget(identity, email);
     await identity.sql.end();
   }
 });
@@ -333,12 +346,17 @@ test("failed logins for one email do not lock out another email", async () => {
     method: "POST", headers: { origin, "content-type": "application/json" }, body: JSON.stringify({ email, password: "wrong-password-123" }),
   }), identity);
   const keys = ["127.0.0.1|/sign-in/email"];
-  for (const email of [a, b]) keys.push(`rl:auth-account:/api/auth/sign-in/email:${await mac(identity, "auth-account", [email])}`);
+  // S149 (changed, was `rl:auth-account:/api/auth/sign-in/email:<mac>` counting every attempt): failures only, two rows per account.
+  for (const email of [a, b]) {
+    const hash = await mac(identity, "auth-account", [email]);
+    keys.push(`rl:signin-window:${hash}`, `rl:signin-run:${hash}`, `rl:signin-verify:${hash}`);
+  }
   await identity.sql`delete from app.auth_rate_limit where key in ${identity.sql(keys)}`;
   try {
     for (let i = 0; i < 5; i++) assert.equal((await signIn(a)).status, 401);
     const blocked = await signIn(a);
     assert.equal(blocked.status, 429);
+    assert.equal((await blocked.json()).code, "CHALLENGE_REQUIRED");
     assert.ok(Number(blocked.headers.get("retry-after")) > 0);
     assert.equal((await signIn(b)).status, 401, "another account must not share the lockout");
   } finally {
@@ -372,7 +390,9 @@ test("2FA verify budget follows the account across separate sign-ins, not the pe
     method: "POST", headers: { origin, "content-type": "application/json", cookie }, body: JSON.stringify(body),
   }), identity);
   let userId = "";
-  const keys = [`rl:auth-account:/api/auth/sign-in/email:${await mac(identity, "auth-account", [email])}`];
+  // S149: the sign-in budget rows are `rl:signin-*:<mac>` now (failures only; these two correct sign-ins clear them).
+  const hash = await mac(identity, "auth-account", [email]);
+  const keys = [`rl:signin-window:${hash}`, `rl:signin-run:${hash}`, `rl:signin-verify:${hash}`];
   try {
     assert.equal((await post("/sign-up/email", { name: "MFA Budget", email, password })).status, 200);
     [{ id: userId }] = await identity.sql`update app.auth_user set email_verified=true, two_factor_enabled=true where email=${email} returning id`;

@@ -21,11 +21,13 @@ const devServer = process.env.NODE_ENV === "development";
 // plugins, base-tag hijack and cross-origin form posts. Cloudflare Web Analytics injects its beacon at the edge.
 const csp = [
   "default-src 'self'",
-  `script-src 'self' 'unsafe-inline'${devServer ? " 'unsafe-eval'" : ""} https://static.cloudflareinsights.com`,
+  `script-src 'self' 'unsafe-inline'${devServer ? " 'unsafe-eval'" : ""} https://static.cloudflareinsights.com https://challenges.cloudflare.com`,
   "style-src 'self' 'unsafe-inline'",
   "img-src 'self' data: blob:",
   "font-src 'self'",
   "connect-src 'self' https://cloudflareinsights.com",
+  // S149: the Turnstile challenge widget is an iframe from Cloudflare, loaded only when a sign-in needs it.
+  "frame-src https://challenges.cloudflare.com",
   "frame-ancestors 'none'",
   "base-uri 'self'",
   "form-action 'self'",

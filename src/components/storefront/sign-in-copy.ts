@@ -3,17 +3,24 @@ import { EMAIL_HINT, WHATSAPP_HINT } from "../../modules/storefront/contact.ts";
 // (masuk/kirim/route.ts) and the server-rendered /masuk page. Messages never say whether an email exists:
 // only a credential rejection says the email, password or code did not match.
 export type SignInStep = "password" | "totp" | "backup";
-export type SignInFailure = "origin" | "limit" | "disabled" | "network" | "credential";
+export type SignInFailure = "origin" | "limit" | "disabled" | "network" | "credential" | "challenge" | "locked";
 
 export function failureKind(status: number, code: unknown): SignInFailure {
 	if (status === 403 && code === "INVALID_ORIGIN") return "origin";
+	// S149: five failed sign-ins in a minute ask for a Turnstile token; one hundred in a row start a timed cool-off.
+	if (status === 429 && code === "CHALLENGE_REQUIRED") return "challenge";
+	if (status === 423 && code === "SIGN_IN_LOCKED") return "locked";
 	if (status === 429) return "limit";
 	if (status === 503) return "disabled";
 	if (status === 0 || status >= 500) return "network";
 	return "credential";
 }
 
-export function failureMessage(kind: SignInFailure, step: SignInStep, retry: number | null) {
+// `widget`: the verification box is shown under the message (JS form with a site key); otherwise only the wait is.
+export function failureMessage(kind: SignInFailure, step: SignInStep, retry: number | null, widget = false) {
+	if (kind === "challenge" && widget) return "Terlalu banyak percobaan masuk untuk akun ini. Selesaikan verifikasi di bawah, lalu kirim lagi.";
+	if (kind === "challenge") return limitMessage(retry);
+	if (kind === "locked") return `Akun ini dikunci sementara karena terlalu banyak percobaan masuk yang gagal. Coba lagi ${!retry ? "nanti" : retry >= 3600 ? `dalam ${Math.ceil(retry / 3600)} jam` : `dalam ${Math.ceil(retry / 60)} menit`}.`;
 	if (kind === "origin") return "Halaman ini dibuka dari alamat yang tidak diizinkan. Buka toko dari alamat resminya lalu coba lagi.";
 	if (kind === "limit") return limitMessage(retry);
 	if (kind === "disabled") return "Layanan masuk sedang dinonaktifkan sementara. Coba lagi nanti.";

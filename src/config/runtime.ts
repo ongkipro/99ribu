@@ -89,6 +89,23 @@ export function productionShipping(env: Environment) {
   return { provider: "mengantar" as const, baseUrl: MENGANTAR_ORIGIN, apiKey };
 }
 
+// S149: Cloudflare Turnstile for the sign-in challenge. Both keys unset = no challenge available (the sign-in
+// budget then falls back to a growing delay and never allows silently). The secret stays server-side; the site
+// key is public and is sent to the browser in the CHALLENGE_REQUIRED reply. The documented dummy keys
+// (developers.cloudflare.com/turnstile/troubleshooting/testing, all start 1x/2x/3x + zeros) are fine locally
+// and refused in production.
+const TURNSTILE_DUMMY = /^[123]x0{10}/;
+export function readTurnstileConfig(env: Environment) {
+  const siteKey = env.TURNSTILE_SITE_KEY || undefined, secret = env.TURNSTILE_SECRET_KEY || undefined;
+  if (!siteKey && !secret) return null;
+  if (!siteKey || !secret) throw new Error("TURNSTILE_SITE_KEY and TURNSTILE_SECRET_KEY must be set together.");
+  if (!/^[0-9A-Za-z_-]{8,128}$/.test(siteKey) || !/^[0-9A-Za-z_-]{8,128}$/.test(secret)) throw new Error("TURNSTILE keys are malformed.");
+  if (env.APP_ENV === "production" && (TURNSTILE_DUMMY.test(siteKey) || TURNSTILE_DUMMY.test(secret))) {
+    throw new Error("Turnstile test keys are refused in production.");
+  }
+  return Object.freeze({ siteKey, secret });
+}
+
 // Production profile (S82). Refuses anything the local profile would accept as a convenience: plain http,
 // loopback/tailnet origins, simulated or live adapters, extra trusted origins and local-only switches.
 export function readProductionConfig(env: Environment) {
@@ -114,6 +131,7 @@ export function readProductionConfig(env: Environment) {
     throw new Error("Use DATABASE_HOST/DATABASE_PORT and the role passwords; URL and PG* overrides are refused.");
   }
   productionDatabase(env, "app");
+  readTurnstileConfig(env);
   const clientIpHeader = CLIENT_IP_HEADERS.find((header) => header === env.CLIENT_IP_HEADER);
   if (!clientIpHeader) throw new Error(`CLIENT_IP_HEADER must be one of ${CLIENT_IP_HEADERS.join(", ")}.`);
   return Object.freeze({
