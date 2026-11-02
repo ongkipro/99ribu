@@ -3,6 +3,7 @@ import {randomUUID} from 'node:crypto';
 import test from 'node:test';
 import {runOneJob} from '../../src/jobs/worker.ts';
 import {handleAccess} from '../../src/modules/access/routes.ts';
+import {advanceException,type ExceptionHead} from '../../src/modules/checkout/exceptions/core.ts';
 import {commerceActor} from '../../src/modules/checkout/access.ts';
 import {expireOwnedOrderJob} from '../../src/modules/checkout/expiry.ts';
 import {handleAutolarisPayments} from '../../src/modules/finance/autolaris-routes.ts';
@@ -292,8 +293,7 @@ test('low stock is one row per warehouse SKU, quarantine-aware availability, spl
 
 // Terminal states for the small queues: the card's drilldown is the plain queue minus terminal
 // states, with seeded terminal rows: a rejected return, a resolved conversation (matched settlements
-// are seeded in the fulfillment test). No fixture resolves a delivery exception, so that metric
-// requires at least one resolved exception to exist in the period.
+// are seeded in the fulfillment test) and a resolved delivery exception seeded below in this fixture's warehouse.
 test('open exceptions, returns, settlements and unassigned conversations exclude terminal states',async()=>{
  const f=await returnFixture('prepaid'),sql=f.identity.sql,conversations:string[]=[];
  try{
@@ -325,6 +325,29 @@ test('open exceptions, returns, settlements and unassigned conversations exclude
   assert.equal(returned.status,'requested');
   const decision={decision:'reject',expected_version:1,reason:'SYNTHETIC S103 terminal return'},decide=f.owner.browser.request(`/api/v1/admin/returns/${returned.id}/decisions`,decision);decide.headers.set('idempotency-key',randomUUID());
   assert.equal((await decideReturn(decide,f.identity,f.principal,returned.id,decision) as {status:string}).status,'rejected');
+
+  // A resolved delivery exception in this fixture's (active) warehouse. Older fixtures' cases do not count:
+  // their warehouses are deactivated on close, and the owner's scope is the active warehouses. Synthetic
+  // signed-outcome rows as in exception-workbench.test.ts, then the case is opened and resolved.
+  const parcel0=f.parcels.find(p=>p.id===f.bookings[0].fulfillment_id);assert.ok(parcel0);
+  await sql.begin(async tx=>{
+   const outcomeId=randomUUID(),exceptionId=randomUUID(),callbackJob=randomUUID();
+   const [clock]=await tx<{now:string}[]>`select date_trunc('milliseconds',app.reservation_clock(${f.namespace}))::text as now`;
+   const units=await tx<{id:string}[]>`select id from app.fulfillment_item where shipment_id=${parcel0.shipment_id} order by id`;
+   await tx`insert into app.local_parcel_outcome (id,reference,environment,shipment_id,booking_id,clock_namespace,status,unit_ids,request_hash,signature,occurred_at)
+    values (${outcomeId},${`rts-${outcomeId}`},'test',${parcel0.shipment_id},${f.bookings[0].id},${f.namespace},'returned_to_sender',${JSON.stringify(units.map(u=>u.id))}::jsonb,${'a'.repeat(64)},${'b'.repeat(64)},${clock.now})`;
+   await tx`insert into app.outbox_job (id,kind,dedup_key,payload,status,attempts,max_attempts,completed_at,result)
+    values (${callbackJob},'parcel.outcome.callback',${`parcel-outcome:${outcomeId}`},${JSON.stringify({eventId:outcomeId})}::jsonb,'completed',1,3,clock_timestamp(),${JSON.stringify({event_id:outcomeId,outcome:'observed'})}::jsonb)`;
+   await tx`insert into app.parcel_outcome_provider_event (id,callback_job_id,payload_hash) values (${outcomeId},${callbackJob},${'c'.repeat(64)})`;
+   const [head]=await tx<ExceptionHead[]>`insert into app.commerce_exception (id,order_id,kind,revision,status,source_kind,source_id,reason,occurred_at,created_at)
+    values (${exceptionId},${f.order.id},'delivery_failure',0,'preparing','parcel_outcome',${outcomeId},'SYNTHETIC S153 resolved delivery exception',${clock.now},${clock.now}) returning *`;
+   for(const u of units)await tx`insert into app.exception_unit (id,exception_id,kind,fulfillment_item_id,active,created_at) values (${randomUUID()},${exceptionId},'delivery_failure',${u.id},true,${clock.now})`;
+   const at=new Date(head.created_at).toISOString();
+   await advanceException(tx,head,{kind:'open',status:'awaiting_return',source_kind:'parcel',source_id:outcomeId,actor_id:null,reason:'SYNTHETIC carrier returned parcel',occurred_at:at,proposal_event_id:null});
+   await tx`insert into app.parcel_outcome_result (event_id,outcome,exception_ids) values (${outcomeId},'observed',${JSON.stringify([exceptionId])}::jsonb)`;
+   const [opened]=await tx<ExceptionHead[]>`select * from app.commerce_exception where id=${exceptionId}`;
+   await advanceException(tx,opened,{kind:'resolved',status:'resolved',source_kind:'parcel',source_id:outcomeId,actor_id:null,reason:'SYNTHETIC case closed',occurred_at:at,proposal_event_id:null});
+  });
 
   const [wall]=await sql`select clock_timestamp() now`,[{created_at}]=await sql`select created_at from app.return_case where id=${returned.id}`;
   const now=new Date(wall.now).getTime(),latest=Math.max(now,new Date(created_at).getTime());
