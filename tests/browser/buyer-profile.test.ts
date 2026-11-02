@@ -207,11 +207,8 @@ test("/akun: optional details, address editing and unticked promo opt-ins that g
 			card.getByTestId("completion-state-favourite_categories"),
 		).toHaveText("Terisi");
 
-		// Main address through the address book.
-		await page
-			.getByTestId("completion-main-address")
-			.locator("summary")
-			.click();
+		// Main address through the address book (S157: one place to add, edit, delete and set the default).
+		await page.getByTestId("address-add-button").click();
 		const form = page.getByTestId("main-address-form");
 		await form.getByLabel("Nomor HP penerima").fill("+62 812-3456-0010");
 		await expect(form.getByLabel("Nomor HP penerima")).toHaveValue(
@@ -225,10 +222,7 @@ test("/akun: optional details, address editing and unticked promo opt-ins that g
 			.fill("Jl. Contoh No. 26 RT 01");
 		await form.getByTestId("main-address-save").click();
 		await expect(page.getByTestId("account-status-banner")).toHaveText(
-			"Alamat utama disimpan.",
-		);
-		await expect(page.getByTestId("completion-state-main_address")).toHaveText(
-			"Terisi",
+			"Alamat ditambahkan.",
 		);
 		await expect(page.getByTestId("address-book-list")).toContainText(
 			"Jl. Contoh No. 26 RT 01",
@@ -292,7 +286,7 @@ test("/akun: optional details, address editing and unticked promo opt-ins that g
 		);
 		await page.reload();
 		await expect(page.getByTestId("completion-state-birthday")).toHaveText("Belum diisi");
-		await expect(page.getByTestId("completion-state-main_address")).toHaveText("Terisi");
+		await expect(page.getByTestId("address-book-list")).toContainText("Jl. Contoh No. 26 RT 01");
 		assert.deepEqual(errors, []);
 	} finally {
 		await close();

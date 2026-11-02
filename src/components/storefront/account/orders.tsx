@@ -8,6 +8,7 @@ import type { ReorderState } from "@/modules/accounts/reorder";
 import { rupiah } from "@/modules/storefront/format";
 import { Icon } from "../ui/icon";
 import { CatalogImage } from "../ui/media";
+import { CopyButton } from "./copy-button";
 import { accountOrderDate, countAccountOrders, filterAccountOrders, ORDER_FILTERS, type OrderFilter } from "./order-filters";
 
 const initialReorder: ReorderState = { phase: "idle", message: "", skipped: [] };
@@ -39,7 +40,19 @@ function OrderCard({ order }: { order: AccountOrder }) {
 				</div>
 				<span className="account-order-badge" data-stage={order.stage}><Icon name={STAGE_ICON[order.stage]} size={16} />{order.stage_label}</span>
 			</div>
-			{order.detail && <p className="account-order-detail">{order.detail}</p>}
+			{order.parcels?.length ? (
+				<ul className="account-order-parcels" aria-label="Pengiriman">
+					{order.parcels.map((parcel, index) => (
+						// biome-ignore lint/suspicious/noArrayIndexKey: Parcels have no public ID and keep their order.
+						<li key={`${index}-${parcel.courier_name}-${parcel.tracking_number}`}>
+							<span>{parcel.courier_name}</span>
+							{parcel.tracking_number ? <><span className="account-order-resi">Resi <strong>{parcel.tracking_number}</strong></span><CopyButton value={parcel.tracking_number} label="Nomor resi" /></> : <span className="account-meta">Resi belum tersedia</span>}
+						</li>
+					))}
+				</ul>
+			) : (
+				order.detail && <p className="account-order-detail">{order.detail}</p>
+			)}
 			<ul className="account-order-items" aria-label="Isi pesanan">
 				{order.items.slice(0, 4).map((item, index) => (
 					// biome-ignore lint/suspicious/noArrayIndexKey: Frozen order lines have no public ID and never change position.

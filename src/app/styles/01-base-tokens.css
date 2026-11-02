@@ -39,6 +39,9 @@
 	--yellow: #f6c945;
 	--store-muted: #707070;
 	--muted: var(--store-muted);
+	/* S159: unambiguous aliases (the console redefines --muted as a surface colour); migrate gradually. */
+	--text-muted: var(--store-muted);
+	--surface-muted: #f5f5f5;
 	--caption: #707070;
 	--canvas: #fcfcfc;
 	--surface: #fff;
@@ -51,6 +54,12 @@
 	--error-surface: #fff4f2;
 	--warning: #9c3f0a;
 	--warning-surface: #fff5ed;
+	/* Shared portal tones (S159): info and success text on white, both above 4.5:1. */
+	--tone-info: #153d72;
+	--tone-success: #19582c;
+	/* Purple wash and neutral input fill (portals). */
+	--purple-tint: rgba(91, 53, 213, 0.08);
+	--field-fill: rgba(0, 0, 0, 0.04);
 	/* Department tints (pills, category tiles, banner cutouts); names map in category-pills.tsx. */
 	--tint-rose: #fde8ec;
 	--tint-amber: #fdf0d5;

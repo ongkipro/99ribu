@@ -1,14 +1,27 @@
 import Link from "next/link";
+import { AffiliateLinkTools } from "../../../components/storefront/affiliate/link-tools";
+import { BeneficiaryForm } from "../../../components/storefront/affiliate/beneficiary-form";
 import { Shell } from "../../../components/storefront/shell";
 import { getLocalAuth } from "../../../modules/access/auth";
 import { getPrincipal, type Principal } from "../../../modules/access/policy";
+import {
+	readBalanceDetail,
+	readCommissionPage,
+	readPeriodSummary,
+} from "../../../modules/affiliates/dashboard";
+import {
+	buildDashboardView,
+	COMMISSION_STATES,
+	PERIODS,
+	parsePeriod,
+	parseState,
+	periodRange,
+	STATE_LABEL,
+	WIB_ZONE_LABEL,
+} from "../../../modules/affiliates/dashboard-view";
 import { readAffiliateProfileDetail } from "../../../modules/affiliates/profile";
 import { offerCommissionIdr, PRICE_CEILING_IDR } from "../../../modules/affiliates/rates";
-import {
-	type CommissionStatus,
-	readCommissionBalanceForAffiliate,
-	readCommissionsForAffiliate,
-} from "../../../modules/commissions/service";
+import { readCommissionBalanceForAffiliate } from "../../../modules/commissions/service";
 import {
 	type PayoutStatus,
 	readPayoutsForAffiliate,
@@ -18,20 +31,10 @@ import { rupiah } from "../../../modules/storefront/format";
 
 export const dynamic = "force-dynamic";
 export const metadata = {
-	title: "Ruang Mitra Afiliasi",
+	title: "Ruang mitra afiliasi",
 	robots: { index: false, follow: false },
 	referrer: "same-origin" as const,
 };
-
-const wibDate = new Intl.DateTimeFormat("id-ID", {
-	timeZone: "Asia/Jakarta",
-	dateStyle: "medium",
-	timeStyle: "short",
-});
-
-function formatWib(iso: string) {
-	return `${wibDate.format(new Date(iso))} WIB`;
-}
 
 function formatBpsPercent(bps: number) {
 	return `${(bps / 100).toLocaleString("id-ID", { minimumFractionDigits: 0, maximumFractionDigits: 2 })}%`;
@@ -45,15 +48,6 @@ function beneficiaryStatusLabel(status: string) {
 	return "Belum diatur";
 }
 
-function commissionStatusLabel(status: CommissionStatus) {
-	if (status === "pending") return "Menunggu H+10";
-	if (status === "held") return "Ditahan";
-	if (status === "eligible") return "Siap cair";
-	if (status === "allocated") return "Dalam antrean";
-	if (status === "paid") return "Telah dibayar";
-	return "Dibatalkan";
-}
-
 function payoutStatusLabel(status: PayoutStatus) {
 	if (status === "succeeded") return "Selesai ditransfer";
 	if (status === "processing") return "Sedang diproses";
@@ -63,7 +57,31 @@ function payoutStatusLabel(status: PayoutStatus) {
 	return "Dalam antrean";
 }
 
-export default async function AffiliateWorkspacePage() {
+function first(value: string | string[] | undefined) {
+	return Array.isArray(value) ? value[0] : value;
+}
+
+function href(params: Record<string, string | null>, hash: string) {
+	const query = new URLSearchParams();
+	for (const [key, value] of Object.entries(params)) if (value) query.set(key, value);
+	const text = query.toString();
+	return `/afiliasi${text ? `?${text}` : ""}#${hash}`;
+}
+
+const SECTIONS = [
+	["ringkasan", "Ringkasan"],
+	["komisi", "Komisi"],
+	["tautan", "Tautan dan kode"],
+	["penarikan", "Penarikan"],
+	["bantuan", "Bantuan"],
+] as const;
+
+export default async function AffiliateWorkspacePage({
+	searchParams,
+}: {
+	searchParams: Promise<Record<string, string | string[] | undefined>>;
+}) {
+	const raw = await searchParams;
 	const identity = getLocalAuth();
 	let principal: Principal | null = null;
 	try {
@@ -76,451 +94,372 @@ export default async function AffiliateWorkspacePage() {
 	if (!principal?.roles.includes("affiliate")) {
 		return (
 			<Shell active="account">
-				<main id="main" className="wrap affiliate-workspace">
-					<header className="receipt-header">
-						<p className="checkout-order-reference">
-							<span>Program Mitra Afiliasi · 99ribu</span>
-							<span>Harga Maksimal Rp99.000</span>
-						</p>
-						<h1>Ruang Mitra Afiliasi 99ribu</h1>
-						<p className="receipt-lead">
-							Setiap produk berharga maksimal Rp99.000, sama untuk semua pembeli.
-							Komisi dihitung dari harga tiap unit dan masuk antrean transfer manual otomatis saat saldo
-							siap cair mencapai minimal Rp99.000.
+				<main id="main" className="wrap aff-page">
+					<header className="aff-head">
+						<p className="aff-eyebrow">Program mitra afiliasi</p>
+						<h1>Ruang mitra afiliasi</h1>
+						<p className="aff-lead">
+							Setiap produk 99ribu berharga maksimal Rp99.000, sama untuk semua pembeli. Komisi
+							dihitung dari harga tiap unit yang dibeli lewat tautan Anda.
 						</p>
 					</header>
-
-					<section
-						className="affiliate-head"
-						aria-label="Ringkasan program afiliasi"
-					>
-						<article className="affiliate-eligible-card">
-							<span className="receipt-badge" data-tone="active">
-								Skema Komisi Transparan
-							</span>
-							<div className="affiliate-eligible-amount">10% / unit</div>
-							<p style={{ margin: 0, color: "var(--muted)", lineHeight: 1.6 }}>
-								Tarif dasar 10% (1.000 bps) dari harga pilihan yang dibeli, maksimal
-								Rp9.900 per unit. Tanpa diskon kode dan tanpa mengubah harga pembeli.
-							</p>
-							<dl className="receipt-returns-list" style={{ marginTop: "4px" }}>
-								<div>
-									<dt>Masa tunggu komisi</dt>
-									<dd>Matang H+10 setelah paket diterima pembeli</dd>
-								</div>
-								<div>
-									<dt>Batas minimum pencairan otomatis</dt>
-									<dd>Rp99.000 (masuk antrean transfer keuangan otomatis)</dd>
-								</div>
-							</dl>
-						</article>
-
-						<article className="notice-panel" style={{ maxWidth: "none" }}>
-							<h2
-								style={{
-									fontSize: "var(--section-size)",
-									lineHeight: "var(--section-leading)",
-									margin: 0,
-								}}
-							>
-								Masuk sebagai Mitra Afiliasi
-							</h2>
-							<p>
-								Masuk menggunakan akun mitra afiliasi terverifikasi untuk
-								melihat tautan rujukan pribadi, saldo komisi per status, dan
-								riwayat pencairan otomatis.
-							</p>
-							<div className="notice-actions">
-								<Link className="button" href="/masuk?next=%2Fafiliasi">
-									Masuk ke Akun
-								</Link>
-								<Link className="button button-secondary" href="/cari">
-									Lihat katalog produk
-								</Link>
+					<section className="aff-block" aria-labelledby="aff-how">
+						<h2 id="aff-how">Cara kerjanya</h2>
+						<dl className="aff-facts">
+							<div>
+								<dt>Tarif dasar</dt>
+								<dd>{formatBpsPercent(1000)} per unit, paling banyak {rupiah(offerCommissionIdr(1000, PRICE_CEILING_IDR))} per unit</dd>
 							</div>
-						</article>
+							<div>
+								<dt>Atribusi</dt>
+								<dd>Pembeli yang pertama kali membuka tautan Anda dalam 7 hari terakhir</dd>
+							</div>
+							<div>
+								<dt>Matang</dt>
+								<dd>10 hari setelah paket diterima pembeli</dd>
+							</div>
+							<div>
+								<dt>Pencairan</dt>
+								<dd>Minimal {rupiah(99000)}, ditransfer oleh keuangan secara manual</dd>
+							</div>
+						</dl>
+					</section>
+					<section className="aff-block" aria-labelledby="aff-login">
+						<h2 id="aff-login">Masuk sebagai mitra</h2>
+						<p>Masuk dengan akun mitra afiliasi untuk melihat tautan, komisi per unit, dan riwayat pencairan.</p>
+						<div className="aff-actions">
+							<Link className="button" href="/masuk?next=%2Fafiliasi">
+								Masuk
+							</Link>
+							<Link className="button button-secondary" href="/cari">
+								Lihat katalog
+							</Link>
+						</div>
 					</section>
 				</main>
 			</Shell>
 		);
 	}
 
+	const period = parsePeriod(first(raw.periode));
+	const status = parseState(first(raw.status));
+	const cursor = first(raw.setelah) ?? null;
+	const range = periodRange(period, new Date());
+
 	const workspace = await identity.sql.begin(async (tx) => {
 		const profile = await readAffiliateProfileDetail(tx, principal.id);
 		if (!profile) return null;
-		const balance = await readCommissionBalanceForAffiliate(tx, profile.id);
-		const commissions = await readCommissionsForAffiliate(tx, profile.id, {
-			limit: 50,
-			cursor: null,
-		});
-		const payouts = await readPayoutsForAffiliate(tx, profile.id, {
-			limit: 20,
-			cursor: null,
-		});
-		return {
-			profile,
-			balance,
-			commissions: commissions.data,
-			payouts: payouts.data,
-		};
+		const [balance, detail, summary, page, payouts] = await Promise.all([
+			readCommissionBalanceForAffiliate(tx, profile.id),
+			readBalanceDetail(tx, profile.id),
+			readPeriodSummary(tx, profile.id, range),
+			readCommissionPage(tx, profile.id, { status, range, cursor }),
+			readPayoutsForAffiliate(tx, profile.id, { limit: 20, cursor: null }),
+		]);
+		return { profile, balance, detail, summary, page, payouts: payouts.data };
 	});
 
 	if (!workspace) {
 		return (
 			<Shell active="account">
-				<main id="main" className="wrap affiliate-workspace">
-					<section className="notice-panel">
-						<h1>Aktivasi Profil Afiliasi</h1>
-						<p>
-							Akun Anda memiliki akses mitra afiliasi, tetapi profil rujukan
-							belum diaktifkan. Komisi dihitung dari harga setiap pilihan yang
-							dibeli dan dicairkan otomatis saat saldo siap cair mencapai
-							minimal Rp99.000.
+				<main id="main" className="wrap aff-page">
+					<header className="aff-head">
+						<h1>Profil afiliasi belum aktif</h1>
+						<p className="aff-lead">
+							Akun Anda punya akses mitra, tetapi profil rujukan belum diaktifkan. Hubungi kami untuk
+							mengaktifkannya.
 						</p>
-						<div className="notice-actions">
+						<div className="aff-actions">
 							<Link className="button" href="/bantuan#percakapan">
-								Hubungi kami untuk aktivasi
+								Hubungi kami
 							</Link>
-							<Link className="button secondary" href="/cari">
-								Jelajahi produk 99ribu
+							<Link className="button button-secondary" href="/cari">
+								Lihat katalog
 							</Link>
 						</div>
-					</section>
+					</header>
 				</main>
 			</Shell>
 		);
 	}
 
-	const { profile, balance, commissions, payouts } = workspace;
-	const unitCommissionIdr = offerCommissionIdr(
-		profile.rate_basis_points,
-		PRICE_CEILING_IDR,
-	);
+	const { profile, balance, detail, summary, page, payouts } = workspace;
+	const view = buildDashboardView({
+		balance,
+		detail,
+		beneficiaryVerified: profile.beneficiary_status === "verified",
+		summary,
+		commissions: page.data,
+		payouts: payouts.map((p) => ({
+			id: p.id,
+			amount: p.amount,
+			status: p.status,
+			explanation: p.explanation,
+			created_at: p.created_at,
+			completed_at: p.completed_at,
+		})),
+	});
+	const periodLabel = PERIODS.find((p) => p.key === period)?.label ?? "";
+	const unitCommissionIdr = offerCommissionIdr(profile.rate_basis_points, PRICE_CEILING_IDR);
 
 	return (
 		<Shell active="account">
-			<main id="main" className="wrap affiliate-workspace">
-				<header className="receipt-header">
-					<p className="checkout-order-reference">
-						<span>Mitra Afiliasi · {profile.display_name}</span>
-						<span>Kode: {profile.referral_code}</span>
+			<main id="main" className="wrap aff-page">
+				<header className="aff-head">
+					<p className="aff-eyebrow">
+						{profile.display_name} · kode {profile.referral_code}
 					</p>
-					<h1>Ruang Mitra Afiliasi 99ribu</h1>
-					<p className="receipt-lead">
-						Setiap produk berharga maksimal Rp99.000. Komisi dihitung transparan
-						dari harga tiap unit dan masuk antrean transfer manual otomatis saat
-						saldo siap cair mencapai minimal {rupiah(balance.minimum_payout)}.
-					</p>
+					<h1>Ruang mitra afiliasi</h1>
+					<span
+						data-testid="affiliate-status-badge"
+						className="aff-badge"
+						data-tone={profile.status === "active" ? "ok" : "warn"}
+					>
+						{profile.status === "active" ? "Aktif" : "Ditangguhkan"}
+					</span>
 				</header>
 
-				<section
-					id="affiliate-profile-section"
-					aria-labelledby="heading-affiliate-profile"
-					className="affiliate-head"
-				>
-					<article className="affiliate-card">
-						<div className="receipt-parcel-head">
-							<h2
-								id="heading-affiliate-profile"
-								style={{
-									margin: 0,
-									fontSize: "var(--section-size)",
-									lineHeight: "var(--section-leading)",
-								}}
-							>
-								Tautan & Tarif Rujukan
-							</h2>
-							<span
-								data-testid="affiliate-status-badge"
-								className="receipt-badge"
-								data-tone={profile.status === "active" ? "active" : "warning"}
-							>
-								{profile.status === "active" ? "Aktif" : "Ditangguhkan"}
-							</span>
-						</div>
-						<dl className="receipt-returns-list">
-							<div>
-								<dt>Kode rujukan</dt>
-								<dd data-testid="affiliate-referral-code">
-									{profile.referral_code}
-								</dd>
-							</div>
-							<div>
-								<dt>Tautan bagikan</dt>
-								<dd
-									data-testid="affiliate-referral-url"
-									className="affiliate-copy-box"
+				<nav className="aff-tabs" aria-label="Bagian halaman">
+					{SECTIONS.map(([id, label]) => (
+						<a key={id} href={`#${id}`}>
+							{label}
+						</a>
+					))}
+				</nav>
+
+				<section id="ringkasan" className="aff-section" aria-labelledby="aff-h-ringkasan">
+					<h2 id="aff-h-ringkasan">Ringkasan</h2>
+					<ul className="aff-chips" aria-label="Periode">
+						{PERIODS.map((p) => (
+							<li key={p.key}>
+								<Link
+									href={href({ periode: p.key, status }, "ringkasan")}
+									aria-current={p.key === period ? "true" : undefined}
+									scroll={false}
 								>
-									{profile.referral_url}
-								</dd>
-							</div>
-							<div>
-								<dt>Tarif komisi efektif</dt>
-								<dd data-testid="affiliate-rate-bps">
-									{formatBpsPercent(profile.rate_basis_points)} (
-									{profile.rate_basis_points} bps) · maksimal{" "}
-									{rupiah(unitCommissionIdr)} per unit
-								</dd>
-							</div>
-						</dl>
-					</article>
+									{p.label}
+								</Link>
+							</li>
+						))}
+					</ul>
+					<p className="aff-hint">Waktu mengikuti {WIB_ZONE_LABEL}.</p>
 
-					<article className="affiliate-card">
-						<div className="receipt-parcel-head">
-							<h2
-								style={{
-									margin: 0,
-									fontSize: "var(--section-size)",
-									lineHeight: "var(--section-leading)",
-								}}
-							>
-								Rekening Tujuan Pencairan
-							</h2>
-							<span
-								data-testid="beneficiary-status-badge"
-								className="receipt-badge"
-								data-tone={
-									profile.beneficiary_status === "verified"
-										? "active"
-										: "warning"
-								}
-							>
-								{beneficiaryStatusLabel(profile.beneficiary_status)}
-							</span>
-						</div>
-						{profile.beneficiary ? (
-							<dl className="receipt-returns-list">
-								<div>
-									<dt>Bank tujuan</dt>
-									<dd data-testid="beneficiary-bank-name">
-										{profile.beneficiary.bank_name}
-									</dd>
-								</div>
-								<div>
-									<dt>Nomor rekening</dt>
-									<dd
-										data-testid="beneficiary-masked-account"
-										style={{ fontFamily: "ui-monospace, monospace" }}
-									>
-										{profile.beneficiary.masked_account}
-									</dd>
-								</div>
-								<div>
-									<dt>Nama pemilik rekening</dt>
-									<dd>{profile.beneficiary.account_holder_name}</dd>
-								</div>
-							</dl>
-						) : (
-							<p style={{ margin: 0, color: "var(--muted)" }}>
-								Rekening tujuan belum diatur. Verifikasi rekening diperlukan
-								sebelum saldo siap cair dapat masuk antrean transfer.
-							</p>
-						)}
-						<p className="checkout-hint" style={{ margin: 0 }}>
-							Perubahan rekening memerlukan verifikasi ulang kata sandi dan
-							hanya berlaku untuk pencairan berikutnya; antrean yang sudah
-							diklaim tetap menggunakan rekening terbeku.
+					<div className="aff-estimate">
+						<p className="aff-estimate-label">Total komisi belum dibatalkan, bisa berubah · {periodLabel.toLowerCase()}</p>
+						<p className="aff-estimate-value" data-testid="summary-total">{view.summary.estimate}</p>
+						<p className="aff-estimate-paid">
+							Sudah dibayar dari total ini: <strong data-testid="summary-paid">{view.summary.paid}</strong>
 						</p>
-					</article>
+						<p className="aff-hint">
+							Ini bukan saldo dan bukan jumlah yang pasti cair. Angka ini mencakup komisi dari {view.summary.units} unit
+							dalam semua status selain dibatalkan; yang masih menunggu atau ditahan bisa dibatalkan bila pesanan batal,
+							diretur, atau direfund. Saldo per status ada di bawah.
+						</p>
+					</div>
+					<dl className="aff-facts aff-facts-row">
+						<div>
+							<dt>Kunjungan pertama lewat tautan</dt>
+							<dd data-testid="summary-clicks">{view.summary.clicks}</dd>
+						</div>
+						<div>
+							<dt>Pesanan teratribusi</dt>
+							<dd data-testid="summary-orders">{view.summary.orders}</dd>
+						</div>
+						<div>
+							<dt>Unit dibatalkan</dt>
+							<dd>{view.summary.reversedUnits}</dd>
+						</div>
+					</dl>
+					<p className="aff-hint">
+						Kunjungan dihitung sekali per pengunjung selama masa atribusi 7 hari; kunjungan berulang dari
+						pengunjung yang sama tidak dihitung lagi.
+					</p>
+
+					<h3>Saldo menurut status</h3>
+					<ul className="aff-states" aria-label="Saldo komisi menurut status">
+						{view.states.map((state) => (
+							<li key={state.key} data-testid={`balance-card-${state.key}`} data-state={state.key}>
+								<span className="aff-state-name">{state.label}</span>
+								<strong className="aff-state-amount">{state.amount}</strong>
+								<span className="aff-state-note">{state.note}</span>
+							</li>
+						))}
+					</ul>
+					<p className="aff-hint">
+						Lima status ini tidak dijumlahkan. Hanya yang siap cair yang bisa masuk antrean transfer.
+					</p>
 				</section>
 
-				<section
-					id="affiliate-commissions-section"
-					aria-labelledby="heading-affiliate-balance"
-					style={{ display: "grid", gap: "16px" }}
-				>
-					<div style={{ display: "grid", gap: "4px" }}>
-						<h2
-							id="heading-affiliate-balance"
-							style={{
-								margin: 0,
-								fontSize: "var(--section-size)",
-								lineHeight: "var(--section-leading)",
-							}}
-						>
-							Ringkasan Saldo Komisi
-						</h2>
-						<p className="checkout-hint" style={{ margin: 0 }}>
-							Komisi matang 10 hari setelah paket diterima pembeli (H+10) atau
-							setelah paket pengganti diterima. Pengajuan retur menahan komisi
-							dan refund membatalkan komisi unit terkait.
-						</p>
-					</div>
-
-					<div className="affiliate-balance-grid">
-						<div
-							data-testid="balance-card-pending"
-							className="affiliate-balance-item"
-						>
-							<span>Menunggu (H+10)</span>
-							<strong>{rupiah(balance.pending)}</strong>
-						</div>
-						<div
-							data-testid="balance-card-held"
-							className="affiliate-balance-item"
-						>
-							<span>Ditahan (Retur/Klaim)</span>
-							<strong>{rupiah(balance.held)}</strong>
-						</div>
-						<div
-							data-testid="balance-card-eligible"
-							className="affiliate-balance-item"
-							data-highlight="true"
-						>
-							<span>Siap Cair</span>
-							<strong>{rupiah(balance.eligible)}</strong>
-						</div>
-						<div
-							data-testid="balance-card-allocated"
-							className="affiliate-balance-item"
-						>
-							<span>Dalam Antrean Transfer</span>
-							<strong>{rupiah(balance.allocated)}</strong>
-						</div>
-						<div
-							data-testid="balance-card-paid"
-							className="affiliate-balance-item"
-						>
-							<span>Telah Dibayar</span>
-							<strong>{rupiah(balance.paid)}</strong>
-						</div>
-					</div>
-
-					<div className="affiliate-card">
-						<h3
-							style={{
-								margin: 0,
-								fontSize: "var(--card-size)",
-								lineHeight: "var(--card-leading)",
-							}}
-						>
-							Riwayat Komisi per Unit
-						</h3>
-						{commissions.length === 0 ? (
-							<p style={{ margin: 0, color: "var(--muted)" }}>
-								Belum ada transaksi teratribusi. Bagikan tautan rujukan Anda
-								untuk mulai mengumpulkan komisi.
-							</p>
-						) : (
-							<ul
-								data-testid="commission-history-list"
-								className="checkout-summary-lines"
-								style={{ margin: 0 }}
-							>
-								{commissions.map((item) => (
-									<li
-										key={item.id}
-										data-testid={`commission-row-${item.status}`}
-									>
-										<div className="checkout-summary-parent">
-											<strong>
-												{item.product_name} ({item.quantity} unit)
-											</strong>
-											<strong>{rupiah(item.amount)}</strong>
-										</div>
-										<div
-											className="receipt-parcel-head"
-											style={{ marginTop: "4px", fontSize: "0.875rem" }}
-										>
-											<span style={{ color: "var(--muted)" }}>
-												Ref {item.sale_reference} · Tarif{" "}
-												{formatBpsPercent(item.rate_basis_points)}
-											</span>
-											<span className="receipt-badge" data-tone="active">
-												{commissionStatusLabel(item.status)}
-											</span>
-										</div>
-										{item.received_at && (
-											<p
-												className="checkout-hint"
-												style={{ margin: "4px 0 0" }}
-											>
-												Penerimaan{" "}
-												{item.receipt_kind === "replacement"
-													? "unit pengganti"
-													: "paket awal"}
-												: {formatWib(item.received_at)}
-												{item.eligible_at
-													? ` · Jatuh tempo H+10: ${formatWib(item.eligible_at)}`
-													: ""}
-											</p>
-										)}
-										{item.hold_reason && (
-											<p
-												style={{
-													margin: "4px 0 0",
-													fontSize: "0.8125rem",
-													color: "var(--warning)",
-												}}
-											>
-												Catatan status: {item.hold_reason}
-											</p>
-										)}
-									</li>
-								))}
-							</ul>
-						)}
-					</div>
-				</section>
-
-				<section
-					id="affiliate-payouts-section"
-					aria-labelledby="heading-affiliate-payouts"
-					className="affiliate-card"
-				>
-					<div style={{ display: "grid", gap: "4px" }}>
-						<h2
-							id="heading-affiliate-payouts"
-							style={{
-								margin: 0,
-								fontSize: "var(--section-size)",
-								lineHeight: "var(--section-leading)",
-							}}
-						>
-							Antrean Pencairan Otomatis & Transfer Manual
-						</h2>
-						<p className="checkout-hint" style={{ margin: 0 }}>
-							Batas minimum pencairan otomatis:{" "}
-							<strong>{rupiah(balance.minimum_payout)}</strong> (inklusif).
-							Tidak ada penarikan manual oleh mitra; saat saldo siap cair
-							mencapai batas minimum dan rekening terverifikasi, dana otomatis
-							dicadangkan untuk ditransfer manual oleh tim keuangan.
-						</p>
-					</div>
-
-					{payouts.length === 0 ? (
-						<p style={{ margin: 0, color: "var(--muted)" }}>
-							Belum ada antrean pencairan. Komisi siap cair akan masuk antrean
-							secara otomatis saat mencapai minimal{" "}
-							{rupiah(balance.minimum_payout)}.
+				<section id="komisi" className="aff-section" aria-labelledby="aff-h-komisi">
+					<h2 id="aff-h-komisi">Komisi per unit</h2>
+					<form className="aff-filter" method="get" action="/afiliasi#komisi">
+						<input type="hidden" name="periode" value={period} />
+						<label htmlFor="aff-status">Status</label>
+						<select id="aff-status" name="status" defaultValue={status ?? ""}>
+							<option value="">Semua status</option>
+							{COMMISSION_STATES.map((key) => (
+								<option key={key} value={key}>
+									{STATE_LABEL[key]}
+								</option>
+							))}
+						</select>
+						<button type="submit" className="button button-secondary">
+							Terapkan
+						</button>
+					</form>
+					<p className="aff-hint">
+						Periode {periodLabel.toLowerCase()} menurut tanggal penjualan. Ubah periode di bagian Ringkasan.
+					</p>
+					{view.commissions.length === 0 ? (
+						<p className="aff-empty">
+							{status || period !== "semua"
+								? "Tidak ada komisi untuk filter ini."
+								: "Belum ada pesanan lewat tautan Anda. Bagikan tautan dari bagian Tautan dan kode."}
 						</p>
 					) : (
-						<ul
-							data-testid="payout-history-list"
-							className="checkout-summary-lines"
-							style={{ margin: 0 }}
-						>
-							{payouts.map((payout) => (
-								<li key={payout.id} data-testid={`payout-row-${payout.status}`}>
-									<div className="checkout-summary-parent">
-										<strong>Pencairan {rupiah(payout.amount)}</strong>
-										<span className="receipt-badge" data-tone="active">
-											{payoutStatusLabel(payout.status)}
-										</span>
+						<ul className="aff-rows" data-testid="commission-history-list">
+							{view.commissions.map((row) => (
+								<li key={row.id} data-testid={`commission-row-${row.status}`} data-status={row.status}>
+									<div className="aff-row-head">
+										<strong>{row.product}</strong>
+										<strong>{row.amount}</strong>
 									</div>
-									<p style={{ margin: "4px 0 0", color: "inherit" }}>
-										{payout.explanation}
-									</p>
-									<p className="checkout-hint" style={{ margin: "4px 0 0" }}>
-										Dijadwalkan: {formatWib(payout.created_at)}
-										{payout.completed_at
-											? ` · Diselesaikan: ${formatWib(payout.completed_at)}`
-											: ""}
+									<div className="aff-row-meta">
+										<span className="aff-badge" data-tone={row.status === "void" ? "warn" : row.status === "held" ? "hold" : "ok"}>
+											{row.statusLabel}
+										</span>
+										<span>Ref {row.reference} · tarif {row.rate}</span>
+									</div>
+									<p className="aff-row-note">{row.note}</p>
+									<p className="aff-hint">
+										Terjual {row.soldAt}
+										{row.receivedAt ? ` · diterima ${row.receivedAt}` : ""}
 									</p>
 								</li>
 							))}
 						</ul>
 					)}
+					{page.nextCursor ? (
+						<p>
+							<Link
+								className="button button-secondary"
+								href={href({ periode: period, status, setelah: page.nextCursor }, "komisi")}
+								scroll={false}
+							>
+								Komisi lebih lama
+							</Link>
+						</p>
+					) : null}
+					{cursor ? (
+						<p>
+							<Link className="aff-link" href={href({ periode: period, status }, "komisi")} scroll={false}>
+								Kembali ke komisi terbaru
+							</Link>
+						</p>
+					) : null}
+				</section>
+
+				<section id="tautan" className="aff-section" aria-labelledby="aff-h-tautan">
+					<h2 id="aff-h-tautan">Tautan dan kode</h2>
+					<AffiliateLinkTools url={profile.referral_url} code={profile.referral_code} />
+					<dl className="aff-facts">
+						<div>
+							<dt>Tarif komisi saat ini</dt>
+							<dd data-testid="affiliate-rate-bps">
+								{formatBpsPercent(profile.rate_basis_points)}, paling banyak {rupiah(unitCommissionIdr)} per unit
+							</dd>
+						</div>
+						<div>
+							<dt>Atribusi</dt>
+							<dd>Pesanan dikaitkan ke pembeli yang pertama kali membuka tautan dalam 7 hari terakhir</dd>
+						</div>
+					</dl>
+				</section>
+
+				<section id="penarikan" className="aff-section" aria-labelledby="aff-h-penarikan">
+					<h2 id="aff-h-penarikan">Penarikan</h2>
+					<ul className="aff-rules">
+						<li>Komisi matang 10 hari setelah paket diterima pembeli. Bila ada penukaran, hitungan 10 hari mulai lagi untuk unit itu.</li>
+						<li>Retur atau klaim yang sedang diproses menahan komisi. Refund membatalkannya.</li>
+						<li>Saldo siap cair minimal {rupiah(balance.minimum_payout)} masuk antrean otomatis.</li>
+						<li>Keuangan mentransfer secara manual sesuai jadwal. Tidak ada tombol tarik, dan waktu transfer tidak dijanjikan.</li>
+					</ul>
+
+					<h3>Rekening tujuan</h3>
+					{profile.beneficiary ? (
+						<dl className="aff-facts">
+							<div>
+								<dt>Status</dt>
+								<dd data-testid="beneficiary-status-badge">{beneficiaryStatusLabel(profile.beneficiary_status)}</dd>
+							</div>
+							<div>
+								<dt>Bank</dt>
+								<dd data-testid="beneficiary-bank-name">{profile.beneficiary.bank_name}</dd>
+							</div>
+							<div>
+								<dt>Nomor rekening</dt>
+								<dd className="aff-mono" data-testid="beneficiary-masked-account">
+									{profile.beneficiary.masked_account}
+								</dd>
+							</div>
+							<div>
+								<dt>Nama pemilik</dt>
+								<dd>{profile.beneficiary.account_holder_name}</dd>
+							</div>
+						</dl>
+					) : (
+						<p data-testid="beneficiary-status-badge">
+							Rekening tujuan belum diatur. Tanpa rekening terverifikasi, saldo siap cair tidak masuk antrean.
+						</p>
+					)}
+					<details className="aff-details">
+						<summary>Ubah rekening tujuan</summary>
+						<p className="aff-hint">
+							Perubahan meminta kata sandi lagi dan hanya berlaku untuk pencairan berikutnya. Antrean yang
+							sudah diklaim tetap memakai rekening sebelumnya.
+						</p>
+						<BeneficiaryForm affiliateId={profile.id} />
+					</details>
+
+					<h3>Riwayat pencairan</h3>
+					{view.payouts.length === 0 ? (
+						<p className="aff-empty">Belum ada pencairan.</p>
+					) : (
+						<ul className="aff-rows" data-testid="payout-history-list">
+							{payouts.map((payout, index) => (
+								<li key={payout.id} data-testid={`payout-row-${payout.status}`}>
+									<div className="aff-row-head">
+										<strong>{view.payouts[index].amount}</strong>
+										<span className="aff-badge" data-tone="ok">
+											{payoutStatusLabel(payout.status)}
+										</span>
+									</div>
+									<p className="aff-row-note">{view.payouts[index].explanation}</p>
+									<p className="aff-hint">
+										Dijadwalkan {view.payouts[index].createdAt}
+										{view.payouts[index].completedAt ? ` · selesai ${view.payouts[index].completedAt}` : ""}
+									</p>
+								</li>
+							))}
+						</ul>
+					)}
+				</section>
+
+				<section id="bantuan" className="aff-section" aria-labelledby="aff-h-bantuan">
+					<h2 id="aff-h-bantuan">Bantuan</h2>
+					<dl className="aff-faq">
+						<dt>Mengapa komisi dibatalkan?</dt>
+						<dd>Komisi dibatalkan bila pesanan batal, barang diretur dan direfund, COD tidak diterima, atau pesanan tidak terkirim. Alasannya tertulis di tiap baris.</dd>
+						<dt>Mengapa komisi tidak muncul?</dt>
+						<dd>Pesanan hanya dikaitkan ke pembeli yang pertama kali membuka tautan dalam 7 hari terakhir. Bila pembeli sudah membawa tautan mitra lain, atau lebih dari 7 hari, pesanan tidak masuk ke Anda.</dd>
+						<dt>Kapan transfer masuk?</dt>
+						<dd>Setelah komisi matang dan saldo siap cair mencapai batas minimum, keuangan mentransfer secara manual. Status tiap transfer ada di Riwayat pencairan.</dd>
+					</dl>
+					<p>
+						<Link className="button button-secondary" href="/bantuan#percakapan">
+							Hubungi kami
+						</Link>
+					</p>
 				</section>
 			</main>
 		</Shell>

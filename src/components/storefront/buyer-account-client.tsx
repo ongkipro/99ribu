@@ -4,6 +4,7 @@ import Link from "next/link";
 import { useRef, useState } from "react";
 import { maskedEmail } from "@/modules/accounts/masking";
 import type { AccountOrder } from "@/modules/accounts/order-summary";
+import type { BuyerReturnList } from "@/modules/accounts/returns";
 import type {
 	BuyerAddressListResponse,
 	BuyerProfileResponse,
@@ -11,7 +12,10 @@ import type {
 	PrivateNotificationResponse,
 } from "@/modules/accounts/service";
 import { AccountNavigation, type AccountView } from "./account/navigation";
+import { AddressBook } from "./account/addresses";
+import { DataPrivacy } from "./account/data-privacy";
 import { AccountOrders } from "./account/orders";
+import { AccountReturns } from "./account/returns";
 import {
 	displayPhone,
 	looksLikeWhatsApp,
@@ -22,7 +26,6 @@ import {
 import { SignOutButton } from "./sign-out-button";
 import {
 	type CompletionData,
-	ProfileAddress,
 	ProfileCompletion,
 	PromoConsents,
 } from "./profile-completion";
@@ -38,6 +41,9 @@ type Props = {
 	initialPreferences: NotificationPreferenceResponse | null;
 	initialNotifications: PrivateNotificationResponse[];
 	initialOrders: AccountOrder[];
+	// Only the Pengembalian page loads these; null when the read failed.
+	initialReturns?: BuyerReturnList | null;
+	returnsCursor?: string | null;
 	// S126: null when signed out or when the completion read failed (the rest of the account still works).
 	initialCompletion?: CompletionData | null;
 	/** Signed out: the sign-in/sign-up forms (`SignInPanel`), rendered on the page instead of behind a button. */
@@ -52,6 +58,8 @@ export function BuyerAccountClient({
 	initialPreferences,
 	initialNotifications,
 	initialOrders,
+	initialReturns = null,
+	returnsCursor = null,
 	initialCompletion = null,
 	entry = null,
 }: Props) {
@@ -138,30 +146,6 @@ export function BuyerAccountClient({
 					problem?.code === "INVALID_INDONESIAN_PHONE"
 					? WHATSAPP_HINT
 					: "Gagal memperbarui profil.",
-			);
-		}
-	}
-
-	async function handleSetDefaultAddressRun(addressId: string) {
-		if (!addresses) return;
-		const res = await fetch("/api/v1/me/address-default", {
-			method: "POST",
-			headers: {
-				"content-type": "application/json",
-				"idempotency-key": crypto.randomUUID(),
-			},
-			body: JSON.stringify({
-				expected_book_version: addresses.book_version,
-				address_id: addressId,
-			}),
-		});
-		if (res.ok) {
-			const updated = (await res.json()) as BuyerAddressListResponse;
-			setAddresses(updated);
-			setStatusMsg("Alamat utama berhasil diperbarui.");
-		} else {
-			setStatusMsg(
-				"Gagal memperbarui alamat utama. Muat ulang halaman lalu coba lagi.",
 			);
 		}
 	}
@@ -342,7 +326,6 @@ export function BuyerAccountClient({
 	}
 
 	const handleProfileSave = guard(handleProfileSaveRun);
-	const handleSetDefaultAddress = guard(handleSetDefaultAddressRun);
 	const handleTogglePreference = guard(handleTogglePreferenceRun);
 	const handleNotificationState = guard(handleNotificationStateRun);
 	const handleTerminateSessions = guard(handleTerminateSessionsRun);
@@ -384,6 +367,7 @@ export function BuyerAccountClient({
 					)}
 					<div className="account-content">
 						{view === "orders" && <AccountOrders orders={initialOrders} />}
+						{view === "returns" && <AccountReturns returns={initialReturns} paged={returnsCursor !== null} />}
 						{view === "profile" && (
 							<>
 								<section
@@ -536,55 +520,8 @@ export function BuyerAccountClient({
 									data-testid="account-addresses-section"
 								>
 									<h2 id="account-addresses-title">Alamat</h2>
-									{addresses && addresses.data.length > 0 ? (
-										<ul
-											className="receipt-parcel-items"
-											data-testid="address-book-list"
-										>
-											{addresses.data.map((item) => (
-												<li
-													key={item.id}
-													data-testid={`address-card-${item.id}`}
-													data-default={item.is_default}
-												>
-													<div>
-														<strong>
-															{item.address.label ?? "Alamat"} ·{" "}
-															{item.address.recipient_name}
-														</strong>{" "}
-														{item.is_default && (
-															<span
-																className="receipt-badge"
-																data-testid="default-address-badge"
-															>
-																Utama
-															</span>
-														)}
-													</div>
-													<p className="checkout-hint">
-														{item.address.phone} · {item.address.street},{" "}
-														{item.address.district}, {item.address.city},{" "}
-														{item.address.province} {item.address.postcode}
-													</p>
-													{!item.is_default && (
-														<button
-															disabled={busy}
-															type="button"
-															className="button button-secondary"
-															data-testid={`make-default-${item.id}`}
-															onClick={() => handleSetDefaultAddress(item.id)}
-														>
-															Jadikan utama
-														</button>
-													)}
-												</li>
-											))}
-										</ul>
-									) : (
-										<p className="checkout-hint">Belum ada alamat tersimpan.</p>
-									)}
 									{initialCompletion ? (
-										<ProfileAddress
+										<AddressBook
 											profile={profile}
 											addresses={addresses}
 											destinations={initialCompletion.destinations}
@@ -593,8 +530,7 @@ export function BuyerAccountClient({
 										/>
 									) : (
 										<p className="checkout-hint">
-											Formulir alamat gagal dimuat. Muat ulang halaman untuk
-											mencoba lagi.
+											Alamat gagal dimuat. Muat ulang halaman untuk mencoba lagi.
 										</p>
 									)}
 								</section>
@@ -769,6 +705,7 @@ export function BuyerAccountClient({
 										</button>
 									</div>
 								</section>
+								<DataPrivacy profile={profile} addresses={addresses} completion={initialCompletion} onStatus={setStatusMsg} />
 							</>
 						)}
 					</div>

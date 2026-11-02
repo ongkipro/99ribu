@@ -1,0 +1,354 @@
+/* Affiliate dashboard (/afiliasi), S158. Tokens only; data blocks use a 12px radius and 44px targets. */
+.aff-page {
+	display: grid;
+	grid-template-columns: minmax(0, 1fr);
+	gap: 24px;
+	min-width: 0;
+	max-width: 56rem;
+	padding-block: 24px 48px;
+}
+.aff-head {
+	display: grid;
+	gap: 8px;
+	justify-items: start;
+}
+:where(.aff-head h1) {
+	margin: 0;
+	font-size: var(--page-size);
+	line-height: var(--page-leading);
+	letter-spacing: var(--tracking-tight);
+}
+.aff-eyebrow,
+.aff-hint {
+	margin: 0;
+	color: var(--text-muted);
+	font-size: var(--small-size);
+	line-height: var(--small-leading);
+	letter-spacing: var(--tracking-small);
+}
+.aff-lead {
+	margin: 0;
+	max-width: 40rem;
+	line-height: var(--body-leading);
+}
+.aff-actions {
+	display: flex;
+	flex-wrap: wrap;
+	gap: 8px;
+}
+:where(.aff-page .button) {
+	display: inline-flex;
+	align-items: center;
+	justify-content: center;
+	gap: 8px;
+	min-height: 44px;
+}
+
+/* Section anchors: a scrolling row on phones, so every target stays 44px. */
+.aff-tabs {
+	display: flex;
+	gap: 8px;
+	overflow-x: auto;
+	padding: 4px;
+	margin: -4px;
+}
+.aff-tabs a {
+	flex: 0 0 auto;
+	display: inline-flex;
+	align-items: center;
+	min-height: 44px;
+	padding: 0 16px;
+	border: 1px solid var(--hairline);
+	border-radius: 9999px;
+	background: var(--surface);
+	font-size: var(--small-size);
+	font-weight: 600;
+}
+.aff-tabs a:hover {
+	border-color: var(--purple);
+	color: var(--purple);
+}
+.aff-section,
+.aff-block {
+	display: grid;
+	gap: 16px;
+	min-width: 0;
+	scroll-margin-top: 64px;
+	padding: 20px;
+	border: 1px solid var(--line);
+	border-radius: 12px;
+	background: var(--surface);
+}
+:where(.aff-section h2, .aff-block h2) {
+	margin: 0;
+	font-size: var(--title-size);
+	line-height: var(--title-leading);
+}
+:where(.aff-section h3) {
+	margin: 8px 0 0;
+	font-size: var(--subtitle-size);
+	line-height: var(--subtitle-leading);
+}
+:where(.aff-section p, .aff-block p) {
+	margin: 0;
+}
+
+.aff-badge {
+	display: inline-flex;
+	align-items: center;
+	min-height: 24px;
+	padding: 0 10px;
+	border-radius: 9999px;
+	background: var(--tint-green);
+	font-size: var(--caption-size);
+	font-weight: 600;
+}
+.aff-badge[data-tone="warn"] {
+	background: var(--tint-rose);
+}
+.aff-badge[data-tone="hold"] {
+	background: var(--tint-amber);
+}
+
+.aff-chips {
+	display: flex;
+	flex-wrap: wrap;
+	gap: 8px;
+	margin: 0;
+	padding: 0;
+	list-style: none;
+}
+.aff-chips a {
+	display: inline-flex;
+	align-items: center;
+	min-height: 44px;
+	padding: 0 16px;
+	border: 1px solid var(--hairline);
+	border-radius: 9999px;
+	font-size: var(--small-size);
+	font-weight: 600;
+}
+.aff-chips a[aria-current="true"] {
+	background: var(--ink);
+	border-color: var(--ink);
+	color: var(--surface);
+}
+
+.aff-estimate {
+	display: grid;
+	gap: 4px;
+	padding: 16px;
+	border-radius: 12px;
+	background: var(--tint-violet);
+}
+.aff-estimate-label {
+	font-size: var(--small-size);
+	font-weight: 600;
+}
+.aff-estimate-paid {
+	margin: 0;
+	font-size: var(--small-size);
+	font-variant-numeric: tabular-nums;
+}
+.aff-estimate-value {
+	font-size: var(--heading-size);
+	line-height: var(--heading-leading);
+	font-weight: 600;
+	font-variant-numeric: tabular-nums;
+}
+
+/* Five states as a typographic list with hairlines, not nested stat cards. */
+.aff-states {
+	display: grid;
+	margin: 0;
+	padding: 0;
+	list-style: none;
+	border-top: 1px solid var(--line);
+}
+.aff-states li {
+	display: grid;
+	grid-template-columns: minmax(0, 1fr) auto;
+	gap: 2px 16px;
+	padding: 12px 0;
+	border-bottom: 1px solid var(--line);
+}
+.aff-state-name {
+	font-weight: 600;
+}
+.aff-state-amount {
+	font-size: var(--subtitle-size);
+	font-variant-numeric: tabular-nums;
+	text-align: right;
+}
+.aff-state-note {
+	grid-column: 1 / -1;
+	color: var(--text-muted);
+	font-size: var(--small-size);
+	line-height: var(--small-leading);
+}
+
+.aff-facts {
+	display: grid;
+	gap: 12px;
+	margin: 0;
+}
+.aff-facts div {
+	display: grid;
+	gap: 2px;
+	min-width: 0;
+}
+:where(.aff-facts dt) {
+	color: var(--text-muted);
+	font-size: var(--small-size);
+}
+:where(.aff-facts dd) {
+	margin: 0;
+	overflow-wrap: anywhere;
+}
+.aff-facts-row {
+	grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+.aff-facts-row dd {
+	font-size: var(--heading-size);
+	font-weight: 600;
+	font-variant-numeric: tabular-nums;
+}
+.aff-mono {
+	font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+}
+
+.aff-filter {
+	display: flex;
+	flex-wrap: wrap;
+	align-items: center;
+	gap: 8px;
+}
+.aff-filter label {
+	font-size: var(--small-size);
+	font-weight: 600;
+}
+:where(.aff-filter select) {
+	min-height: 44px;
+}
+.aff-rows {
+	display: grid;
+	margin: 0;
+	padding: 0;
+	list-style: none;
+}
+.aff-rows li {
+	display: grid;
+	gap: 4px;
+	padding: 12px 0;
+	border-top: 1px solid var(--line);
+}
+.aff-row-head,
+.aff-row-meta {
+	display: flex;
+	flex-wrap: wrap;
+	align-items: center;
+	justify-content: space-between;
+	gap: 4px 12px;
+}
+.aff-row-meta {
+	justify-content: flex-start;
+	color: var(--text-muted);
+	font-size: var(--small-size);
+}
+.aff-row-note {
+	font-size: var(--small-size);
+	line-height: var(--small-leading);
+}
+.aff-empty {
+	padding: 16px;
+	border-radius: 12px;
+	background: var(--tint-slate);
+}
+.aff-link {
+	display: inline-flex;
+	align-items: center;
+	min-height: 44px;
+	color: var(--purple);
+	font-weight: 600;
+}
+
+.aff-rules,
+.aff-faq {
+	display: grid;
+	gap: 8px;
+	margin: 0;
+	padding-left: 20px;
+	line-height: var(--body-leading);
+}
+.aff-faq {
+	padding-left: 0;
+}
+:where(.aff-faq dt) {
+	font-weight: 600;
+}
+:where(.aff-faq dd) {
+	margin: 0 0 8px;
+}
+
+.aff-link-tools,
+.aff-form {
+	display: grid;
+	gap: 16px;
+	max-width: 32rem;
+}
+.aff-field {
+	display: grid;
+	gap: 6px;
+	min-width: 0;
+}
+:where(.aff-field label) {
+	font-size: var(--small-size);
+	font-weight: 600;
+	letter-spacing: var(--tracking-small);
+}
+:where(.aff-field input) {
+	min-width: 0;
+	min-height: 44px;
+}
+.aff-copy-row {
+	display: grid;
+	grid-template-columns: minmax(0, 1fr) auto;
+	gap: 8px;
+}
+.aff-share {
+	justify-self: start;
+}
+.aff-live {
+	min-height: var(--small-leading);
+	font-size: var(--small-size);
+}
+.aff-live[data-failed] {
+	color: var(--error);
+}
+.aff-details {
+	display: grid;
+	gap: 12px;
+	padding: 12px 16px;
+	border: 1px solid var(--line);
+	border-radius: 12px;
+}
+:where(.aff-details summary) {
+	display: flex;
+	align-items: center;
+	min-height: 44px;
+	font-weight: 600;
+	cursor: pointer;
+}
+
+@media (max-width: 600px) {
+	.aff-section,
+	.aff-block {
+		padding: 16px;
+	}
+	.aff-copy-row {
+		grid-template-columns: minmax(0, 1fr);
+	}
+	.aff-facts-row {
+		grid-template-columns: minmax(0, 1fr);
+	}
+}

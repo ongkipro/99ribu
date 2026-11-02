@@ -8,17 +8,8 @@ import type {
 	ProfileDetailsResponse,
 } from "@/modules/accounts/profile-completion";
 import { maskedEmail } from "@/modules/accounts/masking";
-import type {
-	BuyerAddressListResponse,
-	BuyerProfileResponse,
-} from "@/modules/accounts/service";
-import {
-	displayPhone,
-	looksLikeWhatsApp,
-	maskedPhone,
-	WHATSAPP_HINT,
-} from "@/modules/storefront/contact";
-import { filterContact } from "./ui/contact-fields";
+import type { BuyerProfileResponse } from "@/modules/accounts/service";
+import { maskedPhone } from "@/modules/storefront/contact";
 
 // Optional buyer details and channel-specific promo consent on /akun.
 // Every field can be changed or deleted; promo consent is never prefilled.
@@ -36,10 +27,7 @@ export type CompletionData = {
 	categories: { id: string; name: string }[];
 	destinations: Destination[];
 };
-type Props = CompletionData & {
-	profile: BuyerProfileResponse;
-	addresses: BuyerAddressListResponse | null;
-	onAddresses: (list: BuyerAddressListResponse) => void;
+type Props = Pick<CompletionData, "details" | "categories"> & {
 	onStatus: (message: string) => void;
 };
 
@@ -99,37 +87,11 @@ function useBusy(onStatus: (message: string) => void) {
 	return { busy, run };
 }
 
-export function ProfileAddress({
-	profile,
-	addresses,
-	destinations,
-	onAddresses,
-	onStatus,
-}: Pick<Props, "profile" | "addresses" | "destinations" | "onAddresses" | "onStatus">) {
-	const main = addresses?.data.find((item) => item.is_default) ?? null;
-	return (
-		<details className="account-address-editor" data-testid="completion-main-address">
-			<summary>
-				<strong>{main ? "Ubah alamat utama" : "Tambah alamat utama"}</strong>{" "}
-				<span
-					className={main ? "receipt-badge" : "account-empty-state"}
-					data-tone={main ? "active" : undefined}
-					data-testid="completion-state-main_address"
-				>
-					{main ? "Terisi" : "Belum diisi"}
-				</span>
-			</summary>
-			<p className="checkout-hint">Checkout langsung terisi dari alamat utama.</p>
-			<AddressForm key={main ? `${main.id}-${main.version}` : "new"} main={main} addresses={addresses} destinations={destinations} profile={profile} onAddresses={onAddresses} onStatus={onStatus} />
-		</details>
-	);
-}
-
 export function ProfileCompletion({
 	onStatus,
 	details: initial,
 	categories,
-}: Pick<Props, "details" | "categories" | "onStatus">) {
+}: Props) {
 	const [details, setDetails] = useState(initial);
 	const { busy, run } = useBusy(onStatus);
 	const fields = details.completion.fields;
@@ -239,14 +201,7 @@ export function ProfileCompletion({
 					Untuk voucher ulang tahun. Tahun lahir boleh dikosongkan.
 				</p>
 				<form onSubmit={submitBirthday} noValidate>
-					<div
-						style={{
-							display: "grid",
-							gap: "12px",
-							gridTemplateColumns:
-								"repeat(auto-fit, minmax(min(100%, 9rem), 1fr))",
-						}}
-					>
+					<div className="profile-field-grid">
 						<label>
 							Tanggal
 							<select
@@ -332,38 +287,16 @@ export function ProfileCompletion({
 						saveDetails({ gender }, "Jenis kelamin disimpan.");
 					}}
 				>
-					<fieldset
-						style={{
-							border: 0,
-							margin: 0,
-							padding: 0,
-							display: "grid",
-							gap: "4px",
-						}}
-					>
+					<fieldset className="profile-fieldset">
 						<legend className="checkout-hint">Jenis kelamin</legend>
 						{(Object.keys(GENDER_LABEL) as Gender[]).map((value) => (
-							<label
-								key={value}
-								style={{
-									display: "flex",
-									gap: "10px",
-									alignItems: "center",
-									minHeight: "44px",
-									fontWeight: 500,
-								}}
-							>
+							<label key={value} className="profile-radio">
 								<input
 									type="radio"
 									name="gender"
 									value={value}
 									checked={gender === value}
 									onChange={() => setGender(value)}
-									style={{
-										width: "20px",
-										height: "20px",
-										accentColor: "var(--purple)",
-									}}
 								/>
 								{GENDER_LABEL[value]}
 							</label>
@@ -420,15 +353,7 @@ export function ProfileCompletion({
 							Belum ada kategori yang bisa dipilih.
 						</p>
 					) : (
-						<fieldset
-							style={{
-								border: 0,
-								margin: 0,
-								padding: 0,
-								display: "grid",
-								gap: "2px",
-							}}
-						>
+						<fieldset className="profile-fieldset profile-fieldset-tight">
 							<legend className="checkout-hint">
 								Kategori favorit (
 								{favourites.filter((id) => offered.has(id)).length}/5)
@@ -495,10 +420,9 @@ export function ProfileCompletion({
 				details.favourite_category_ids.length > 0) && (
 				<button
 					type="button"
-					className="button button-secondary"
+					className="button button-secondary profile-delete-all"
 					disabled={busy}
 					data-testid="profile-details-delete-all"
-					style={{ justifySelf: "start" }}
 					onClick={() =>
 						saveDetails(
 							{
@@ -519,181 +443,6 @@ export function ProfileCompletion({
 	);
 }
 
-function AddressForm({
-	main,
-	addresses,
-	destinations,
-	profile,
-	onAddresses,
-	onStatus,
-}: {
-	main: BuyerAddressListResponse["data"][number] | null;
-	addresses: BuyerAddressListResponse | null;
-	destinations: Destination[];
-	profile: BuyerProfileResponse;
-	onAddresses: (list: BuyerAddressListResponse) => void;
-	onStatus: (message: string) => void;
-}) {
-	const { busy, run } = useBusy(onStatus);
-	const [recipient, setRecipient] = useState(
-		main?.address.recipient_name ?? profile.display_name,
-	);
-	const [phone, setPhone] = useState(
-		displayPhone(main?.address.phone ?? profile.phone),
-	);
-	const [destination, setDestination] = useState(
-		destinations.find((d) => d.id === main?.address.destination_code)?.id ?? "",
-	);
-	const [street, setStreet] = useState(main?.address.street ?? "");
-	const reload = async () => {
-		const res = await fetch("/api/v1/me/addresses?limit=50");
-		if (res.ok) onAddresses((await res.json()) as BuyerAddressListResponse);
-	};
-
-	function submit(event: React.FormEvent) {
-		event.preventDefault();
-		const picked = destinations.find((d) => d.id === destination);
-		if (!recipient.trim() || !street.trim() || !picked)
-			return onStatus("Isi nama penerima, wilayah, dan alamat lengkap.");
-		if (!looksLikeWhatsApp(phone))
-			return onStatus("Nomor HP penerima diawali 08 (nomor seluler).");
-		const address = {
-			label: main?.address.label ?? "Alamat utama",
-			recipient_name: recipient.trim(),
-			phone,
-			street: street.trim(),
-			district: picked.district,
-			city: picked.city,
-			province: picked.province,
-			postcode: picked.postal_code,
-			destination_code: picked.id,
-		};
-		run(async () => {
-			const res = main
-				? await send(`/api/v1/me/addresses/${main.id}`, {
-						expected_version: main.version,
-						address,
-					})
-				: await send("/api/v1/me/addresses", {
-						address,
-						make_default: true,
-						expected_book_version: addresses?.book_version ?? 0,
-					});
-			if (!res.ok) {
-				const code = await problemCode(res);
-				onStatus(
-					code === "INVALID_INDONESIAN_PHONE"
-						? WHATSAPP_HINT
-						: code?.endsWith("VERSION_CONFLICT")
-							? "Alamat berubah di tab lain. Muat ulang halaman lalu coba lagi."
-							: "Gagal menyimpan alamat.",
-				);
-				return;
-			}
-			await reload();
-			onStatus("Alamat utama disimpan.");
-		});
-	}
-
-	function remove() {
-		if (!main || !addresses) return;
-		// Another saved address becomes the main one; the deleted address keeps no personal data.
-		const replacement =
-			addresses.data.find((item) => item.id !== main.id) ?? null;
-		run(async () => {
-			const res = await send(`/api/v1/me/addresses/${main.id}/deletions`, {
-				expected_version: main.version,
-				expected_book_version: addresses.book_version,
-				replacement_default_id: replacement?.id ?? null,
-			});
-			if (!res.ok)
-				return onStatus(
-					"Gagal menghapus alamat. Muat ulang halaman lalu coba lagi.",
-				);
-			await reload();
-			onStatus(
-				replacement
-					? "Alamat dihapus. Alamat lain menjadi alamat utama."
-					: "Alamat utama dihapus.",
-			);
-		});
-	}
-
-	return (
-		<form onSubmit={submit} noValidate data-testid="main-address-form">
-			<label>
-				Nama penerima
-				<input
-					value={recipient}
-					onChange={(e) => setRecipient(e.target.value)}
-					maxLength={120}
-					autoComplete="shipping name"
-				/>
-			</label>
-			<label>
-				Nomor HP penerima
-				<input
-					type="tel"
-					inputMode="numeric"
-					maxLength={24}
-					autoComplete="shipping tel"
-					placeholder="08…"
-					value={phone}
-					onChange={(e) => setPhone(filterContact(e))}
-				/>
-			</label>
-			<label>
-				Wilayah pengiriman
-				<select
-					value={destination}
-					onChange={(e) => setDestination(e.target.value)}
-					data-testid="main-address-destination"
-				>
-					<option value="">Pilih wilayah</option>
-					{destinations.map((d) => (
-						<option key={d.id} value={d.id}>
-							{d.district}, {d.city}, {d.province} {d.postal_code}
-						</option>
-					))}
-				</select>
-			</label>
-			<label>
-				Alamat lengkap
-				<textarea
-					rows={3}
-					maxLength={240}
-					autoComplete="shipping street-address"
-					value={street}
-					onChange={(e) => setStreet(e.target.value)}
-					data-testid="main-address-street"
-				/>
-			</label>
-			<div className="notice-actions">
-				<button
-					type="submit"
-					className="button"
-					disabled={busy}
-					data-testid="main-address-save"
-				>
-					{main ? "Simpan alamat utama" : "Tambah alamat utama"}
-				</button>
-				{main && (
-					<button
-						type="button"
-						className="button button-secondary"
-						disabled={busy}
-						onClick={remove}
-						data-testid="main-address-delete"
-					>
-						Hapus alamat
-					</button>
-				)}
-			</div>
-		</form>
-	);
-}
-
-/** Promo opt-ins: one unticked checkbox per channel; ticking grants under the shown policy version, unticking withdraws. */
 export function PromoConsents({
 	initial,
 	profile,

@@ -1,7 +1,5 @@
 /* Account page */
 .account-page {
-	--account-info: #153d72;
-	--account-success: #19582c;
 	padding-top: 8px;
 }
 .account-status {
@@ -44,7 +42,7 @@
 }
 .account-meta {
 	margin: 0;
-	color: var(--muted);
+	color: var(--text-muted);
 	font-size: var(--small-size);
 	line-height: 1.5;
 	letter-spacing: var(--tracking-small);
@@ -82,7 +80,7 @@
 	margin-bottom: -1px;
 	border-bottom: 2px solid transparent;
 	font-weight: 600;
-	color: var(--muted);
+	color: var(--text-muted);
 }
 .account-nav-link:where(:hover) {
 	color: var(--ink);
@@ -119,7 +117,7 @@
 	gap: 12px;
 }
 .account-facts dt {
-	color: var(--muted);
+	color: var(--text-muted);
 }
 .account-facts dd {
 	margin: 0;
@@ -129,7 +127,7 @@
 	min-width: 0;
 	padding: 24px;
 	border: 1px solid var(--hairline);
-	border-radius: 20px;
+	border-radius: 12px;
 	background: var(--surface);
 	scroll-margin-top: 24px;
 	overflow-wrap: anywhere;
@@ -159,8 +157,8 @@
 	width: 8px;
 	height: 8px;
 	margin-left: auto;
-	border-right: 2px solid var(--muted);
-	border-bottom: 2px solid var(--muted);
+	border-right: 2px solid var(--text-muted);
+	border-bottom: 2px solid var(--text-muted);
 	transform: rotate(45deg);
 }
 .account-section details[open] > summary::after {
@@ -168,7 +166,7 @@
 }
 /* An empty optional field reads as quiet text, a filled one as a badge. */
 .account-empty-state {
-	color: var(--muted);
+	color: var(--text-muted);
 	font-size: var(--small-size);
 }
 /* Checkbox rows: one height and rhythm for promo and order-update choices, each hint right under its row. */
@@ -213,7 +211,7 @@
 	align-items: center;
 	gap: 4px;
 	margin-left: 8px;
-	color: var(--account-success);
+	color: var(--tone-success);
 	font-size: var(--small-size);
 	font-weight: 600;
 }
@@ -229,9 +227,6 @@
 }
 :where(.account-profile-details > h3, .account-promo > h3) {
 	margin-bottom: 8px;
-}
-.account-address-editor {
-	margin-top: 16px;
 }
 .account-filter-rail {
 	display: flex;
@@ -319,11 +314,11 @@
 }
 .account-order-badge:where([data-stage="processing"], [data-stage="shipped"]) {
 	background: var(--tint-blue);
-	color: var(--account-info);
+	color: var(--tone-info);
 }
 .account-order-badge:where([data-stage="delivered"]) {
 	background: var(--tint-green);
-	color: var(--account-success);
+	color: var(--tone-success);
 }
 .account-order-detail {
 	margin: 12px 0;
@@ -352,7 +347,7 @@
 	display: grid;
 	place-items: center;
 	background: var(--canvas);
-	color: var(--muted);
+	color: var(--text-muted);
 }
 .account-order-overflow {
 	display: grid;
@@ -452,7 +447,7 @@
 	letter-spacing: var(--tracking-small);
 }
 :where(.account-guest-summary h2 span) {
-	color: var(--muted);
+	color: var(--text-muted);
 	font-weight: 400;
 }
 .account-guest-content {
@@ -479,7 +474,7 @@
 	padding: 0 16px;
 	border: 1px solid var(--field-border);
 	border-radius: 9999px;
-	background-color: rgba(0, 0, 0, 0.04);
+	background-color: var(--field-fill);
 	color: inherit;
 	font-size: var(--body-size);
 	line-height: var(--body-leading);
@@ -492,7 +487,7 @@
 }
 .account-signed-out .account-guest-content .checkout-hint {
 	margin: 0;
-	color: var(--muted);
+	color: var(--text-muted);
 	font-size: var(--small-size);
 	line-height: var(--small-leading);
 }
@@ -533,4 +528,169 @@
 	.account-guest-details {
 		margin-top: 12px;
 	}
+}
+
+/* S157: Pengembalian tab, shipped parcels with a copyable resi, the address book and Data dan privasi. */
+.account-nav-help {
+	margin-left: auto;
+}
+.account-order-parcels {
+	display: grid;
+	gap: 8px;
+	list-style: none;
+	margin: 12px 0;
+	padding: 0;
+}
+:where(.account-order-parcels li) {
+	display: flex;
+	flex-wrap: wrap;
+	align-items: center;
+	gap: 4px 12px;
+	font-size: var(--small-size);
+}
+.account-order-resi {
+	min-width: 0;
+	overflow-wrap: anywhere;
+	font-variant-numeric: tabular-nums;
+}
+.account-copy {
+	display: inline-flex;
+	flex-wrap: wrap;
+	align-items: center;
+	gap: 8px;
+	min-width: 0;
+}
+.account-copy-button {
+	display: inline-flex;
+	align-items: center;
+	gap: 6px;
+	min-height: 44px;
+	padding: 8px 12px;
+	border: 1px solid var(--line);
+	border-radius: 8px;
+	background: var(--surface);
+	color: var(--ink);
+	font: inherit;
+	font-weight: 600;
+	cursor: pointer;
+}
+.account-copy-field {
+	min-height: 44px;
+	max-width: 100%;
+	font-variant-numeric: tabular-nums;
+}
+.account-copy-status:empty {
+	display: none;
+}
+.account-copy-status {
+	color: var(--text-muted);
+	font-size: var(--small-size);
+}
+.account-return {
+	min-width: 0;
+	display: grid;
+	gap: 8px;
+	padding-block: 24px;
+	border-top: 1px solid var(--hairline);
+}
+:where(.account-return p) {
+	margin: 0;
+}
+.account-address-list {
+	display: grid;
+	gap: 12px;
+	list-style: none;
+	margin: 0 0 16px;
+	padding: 0;
+}
+.account-address {
+	display: grid;
+	gap: 8px;
+	min-width: 0;
+	padding: 16px;
+	border: 1px solid var(--hairline);
+	border-radius: 12px;
+	background: var(--canvas);
+}
+.account-address[data-default="true"] {
+	border-color: var(--purple);
+}
+.account-address-head {
+	display: flex;
+	flex-wrap: wrap;
+	align-items: center;
+	gap: 8px;
+}
+.account-address-confirm {
+	display: grid;
+	gap: 12px;
+	padding: 12px;
+	border-radius: 12px;
+	background: var(--warning-surface);
+	color: var(--warning);
+}
+:where(.account-address-confirm p) {
+	margin: 0;
+}
+.account-address-form {
+	display: grid;
+	gap: 16px;
+	margin-top: 16px;
+	padding: 16px;
+	border: 1px solid var(--hairline);
+	border-radius: 12px;
+}
+:where(.account-address-form h3) {
+	margin: 0;
+}
+:where(.account-address-form label) {
+	display: grid;
+	gap: 6px;
+	font-weight: 600;
+}
+.account-address-form .account-check {
+	display: flex;
+	align-items: center;
+	gap: 8px;
+	min-height: 44px;
+}
+.account-data-list {
+	display: grid;
+	gap: 8px;
+	margin: 0 0 16px;
+	padding: 12px 16px 12px 32px;
+	border-radius: 12px;
+	background: var(--canvas);
+}
+
+/* Profile completion form groups (formerly inline styles). */
+.profile-field-grid {
+	display: grid;
+	gap: 12px;
+	grid-template-columns: repeat(auto-fit, minmax(min(100%, 9rem), 1fr));
+}
+.profile-fieldset {
+	display: grid;
+	gap: 4px;
+	margin: 0;
+	padding: 0;
+	border: 0;
+}
+.profile-fieldset-tight {
+	gap: 2px;
+}
+.profile-radio {
+	display: flex;
+	align-items: center;
+	gap: 10px;
+	min-height: 44px;
+	font-weight: 500;
+}
+.profile-radio input {
+	width: 20px;
+	height: 20px;
+	accent-color: var(--purple);
+}
+.profile-delete-all {
+	justify-self: start;
 }

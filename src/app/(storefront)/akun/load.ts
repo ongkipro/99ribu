@@ -6,10 +6,10 @@ import { storefrontRequest } from "../../../modules/storefront/browser";
 
 // One read for every account page: each page asks only for what it shows (order summaries are
 // the expensive part; profile completion carries the destinations for the address form).
-export async function loadAccount(path: string, options: { orders: boolean; completion: boolean }) {
+export async function loadAccount(path: string, options: { orders: boolean; completion: boolean; returns?: boolean; returnsCursor?: string | null }) {
 	const req = await storefrontRequest("GET", path);
 	const identity = getLocalAuth();
-	const workspace = await readBuyerAccountWorkspace(req, identity, { orders: options.orders });
+	const workspace = await readBuyerAccountWorkspace(req, identity, { orders: options.orders, returns: options.returns, returnsCursor: options.returnsCursor });
 	const completion =
 		workspace.authenticated && options.completion
 			? await readProfileCompletion(req, identity)
