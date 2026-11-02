@@ -9,7 +9,7 @@
 - S157/S158/S159 portals: returns and data-request routes under `/api/v1/me` (fixed a real 400: missing `attachment_ids`), affiliate dashboard sections and balances, shared neutral tokens, dead profile and affiliate CSS removed.
 - S154 console tokens aligned to neutrals in `admin.css`; S161 partial: picklist and printed-label marker done.
 - Checks on the final tree: typecheck clean, lint 20 (baseline), unit 274/274, docs check, OpenAPI contract PASS, parity 4/4, build ok, integration 669/670 (only `admin-kpis`, a missing resolved-exception fixture), browser 193/194 (only S138, needs `npm run fixture -- demo-orders local`). Rendered at 390/768/1440 on ten admin routes: no horizontal overflow after one fix (finance card badge wrapped), no broken images, no console errors. Buyer and affiliate pages are covered by browser tests, not by a separate render pass.
-- Not done: COD "Terima dan restock" and fixed refusal reasons (need a migration, owner decision); live Turnstile keys; nothing pushed or deployed (production stays at `c0eee54`).
+- Not done: a goods condition field and a fixed COD refusal-reason list (need a migration, owner decision); the restock itself already exists as the exception goods intake (correction of the earlier claim); live Turnstile keys; nothing pushed or deployed (production stays at `c0eee54`).
 
 ## 2026-11-02 — S156 live adapter checklist (documentation only)
 
