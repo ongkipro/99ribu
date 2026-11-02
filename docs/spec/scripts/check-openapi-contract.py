@@ -682,10 +682,13 @@ valid('BuyerRecoveryActionInput', {**recovery_choice, 'bank_account': 'SYNTHETIC
 recovery_destination = {'exception_id': recovery_uuid, 'expected_version': 1, 'action': 'accept_destination', 'refund_id': recovery_uuid, 'destination_source_id': recovery_uuid}
 valid('BuyerRecoveryActionInput', recovery_destination)
 valid('BuyerRecoveryActionInput', {**recovery_destination, 'proposal_id': recovery_uuid}, False)
-recovery_intake = {'exception_unit_id': recovery_uuid, 'stock_item_id': recovery_uuid, 'expected_balance_id': recovery_uuid, 'quantity': 1, 'identity_confirmed': True}
+recovery_intake = {'exception_unit_id': recovery_uuid, 'stock_item_id': recovery_uuid, 'expected_balance_id': recovery_uuid, 'quantity': 1, 'identity_confirmed': True, 'condition': 'baik'}
 valid('ExceptionIntakeLine', recovery_intake)
 valid('ExceptionIntakeLine', {**recovery_intake, 'identity_confirmed': False}, False)
-valid('ExceptionIntakeLine', {**recovery_intake, 'identity_confirmed': False, 'stock_item_id': None, 'expected_balance_id': None})
+valid('ExceptionIntakeLine', {**recovery_intake, 'identity_confirmed': False, 'stock_item_id': None, 'expected_balance_id': None, 'condition': None})
+valid('ExceptionIntakeLine', {**recovery_intake, 'identity_confirmed': False, 'stock_item_id': None, 'expected_balance_id': None}, False)
+valid('ExceptionIntakeLine', {k: v for k, v in recovery_intake.items() if k != 'condition'}, False)
+valid('ExceptionIntakeLine', {**recovery_intake, 'condition': 'hilang'}, False)
 valid('ExceptionIntakeLine', {**recovery_intake, 'stock_item_id': None}, False)
 for name in ['CommerceException', 'CommerceExceptionUnit', 'BuyerRecoveryCase', 'BuyerRecoveryRefund']:
     check(spec['components']['schemas'][name]['additionalProperties'] is False, 'recovery projections are closed')

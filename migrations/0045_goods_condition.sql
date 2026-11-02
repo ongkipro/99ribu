@@ -1,0 +1,2 @@
+ALTER TABLE "app"."exception_goods_line" ADD COLUMN "condition" text;--> statement-breakpoint
+ALTER TABLE "app"."exception_goods_line" ADD CONSTRAINT "exception_goods_line_condition_check" CHECK (("app"."exception_goods_line"."condition" IS NULL OR "app"."exception_goods_line"."condition" IN ('baik','rusak','tidak_lengkap')) AND ("app"."exception_goods_line"."identity_confirmed" OR "app"."exception_goods_line"."condition" IS NULL));

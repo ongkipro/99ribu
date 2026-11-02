@@ -316,6 +316,13 @@
       "when": 1793434079606,
       "tag": "0044_price_ceiling",
       "breakpoints": true
+    },
+    {
+      "idx": 45,
+      "version": "7",
+      "when": 1793584083722,
+      "tag": "0045_goods_condition",
+      "breakpoints": true
     }
   ]
 }

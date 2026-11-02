@@ -31814,6 +31814,15 @@ components:
           maximum: 1000000
         identity_confirmed:
           type: boolean
+        condition:
+          description: Warehouse call on a confirmed returned component; required when identity_confirmed is true and absent or null otherwise. Goods always land in quarantine; the condition is kept on the line and in the movement reason.
+          anyOf:
+          - type: string
+            enum:
+            - baik
+            - rusak
+            - tidak_lengkap
+          - type: 'null'
       required:
       - exception_unit_id
       - stock_item_id
@@ -31834,11 +31843,17 @@ components:
               $ref: '#/components/schemas/Id'
             expected_balance_id:
               $ref: '#/components/schemas/Id'
+            condition:
+              type: string
+          required:
+          - condition
         else:
           properties:
             stock_item_id:
               type: 'null'
             expected_balance_id:
+              type: 'null'
+            condition:
               type: 'null'
     ExceptionIntakeInput:
       type: object

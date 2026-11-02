@@ -252,7 +252,14 @@ export function StockReportDialog({
 	);
 }
 
-type UnitDraft = { include: boolean; rows: Record<string, { quantity: string; confirmed: boolean }> };
+type GoodsCondition = "baik" | "rusak" | "tidak_lengkap";
+const GOODS_CONDITION_OPTIONS: readonly (readonly [GoodsCondition, string])[] = [
+	["baik", "Baik, bisa dijual"],
+	["rusak", "Rusak"],
+	["tidak_lengkap", "Tidak lengkap"],
+];
+
+type UnitDraft = { include: boolean; rows: Record<string, { quantity: string; confirmed: boolean; condition: GoodsCondition | "" }> };
 
 export function IntakeDialog({ detail, onClose, onDone, onUncertain }: Props & { detail: CommerceException }) {
 	const units: ExceptionUnit[] = useMemo(
@@ -286,7 +293,7 @@ export function IntakeDialog({ detail, onClose, onDone, onUncertain }: Props & {
 				const parcel = parcels.get(unit.shipment_id);
 				const rows: UnitDraft["rows"] = {};
 				for (const c of parcel ? componentsOf(parcel.pick_items, [unit.fulfillment_item_id], balances) : [])
-					rows[c.key] = { quantity: String(c.quantity), confirmed: true };
+					rows[c.key] = { quantity: String(c.quantity), confirmed: true, condition: "" };
 				next[unit.id] = { include: true, rows };
 			}
 			setDraft(next);
@@ -308,6 +315,7 @@ export function IntakeDialog({ detail, onClose, onDone, onUncertain }: Props & {
 			expected_balance_id: string | null;
 			quantity: number;
 			identity_confirmed: boolean;
+			condition: GoodsCondition | null;
 		}[] = [];
 		for (const unit of units) {
 			const state = draft[unit.id];
@@ -321,17 +329,19 @@ export function IntakeDialog({ detail, onClose, onDone, onUncertain }: Props & {
 					return intent.setError(`Jumlah ${component.name} harus 0–${component.quantity}.`);
 				if (row.confirmed) {
 					if (!component.balance) return intent.setError(`Lot ${component.name} tidak ditemukan di stok gudang.`);
+					if (!row.condition) return intent.setError(`Pilih kondisi ${component.name}.`);
 					lines.push({
 						exception_unit_id: unit.id,
 						stock_item_id: component.stock_item_id,
 						expected_balance_id: component.balance.id,
 						quantity: Number(text),
 						identity_confirmed: true,
+						condition: row.condition,
 					});
 				} else unidentified += Number(text);
 			}
 			if (unidentified > 0)
-				lines.push({ exception_unit_id: unit.id, stock_item_id: null, expected_balance_id: null, quantity: unidentified, identity_confirmed: false });
+				lines.push({ exception_unit_id: unit.id, stock_item_id: null, expected_balance_id: null, quantity: unidentified, identity_confirmed: false, condition: null });
 		}
 		if (!lines.length) return intent.setError("Isi jumlah barang yang tiba untuk minimal satu komponen.");
 		const saved = await intent.run<CommerceException>(
@@ -345,7 +355,7 @@ export function IntakeDialog({ detail, onClose, onDone, onUncertain }: Props & {
 	return (
 		<FormDialog
 			title="Catat barang kembali"
-			description="Isi jumlah setiap komponen yang benar-benar tiba dari kurir. Komponen yang identitasnya cocok masuk stok karantina; yang tidak cocok hanya dicatat jumlahnya, stok tidak bertambah."
+			description="Isi jumlah setiap komponen yang benar-benar tiba dari kurir. Komponen yang identitasnya cocok masuk stok karantina dengan kondisi yang Anda pilih, lalu lepas karantina atau hapus dari stok di halaman Stok Gudang; yang tidak cocok hanya dicatat jumlahnya, stok tidak bertambah."
 			className="md:max-w-2xl"
 			pending={intent.pending}
 			error={intent.error ?? loadError}
@@ -377,7 +387,7 @@ export function IntakeDialog({ detail, onClose, onDone, onUncertain }: Props & {
 							</label>
 							{state.include &&
 								componentsFor(unit).map((component) => {
-									const row = state.rows[component.key] ?? { quantity: "", confirmed: true };
+									const row = state.rows[component.key] ?? { quantity: "", confirmed: true, condition: "" as const };
 									const field = `intake-${unit.id}-${component.key}`;
 									const set = (next: Partial<typeof row>) =>
 										setDraft((all) => ({
@@ -400,6 +410,28 @@ export function IntakeDialog({ detail, onClose, onDone, onUncertain }: Props & {
 												/>
 												Identitas cocok dengan yang dikirim
 											</label>
+											{row.confirmed && (
+												<div className="col-span-2 flex flex-col gap-1">
+													<label htmlFor={`${field}-condition`} className="text-xs text-muted-foreground">
+														Kondisi barang
+													</label>
+													<select
+														id={`${field}-condition`}
+														className={nativeSelectClass}
+														value={row.condition}
+														onChange={(e) => set({ condition: e.target.value as GoodsCondition })}
+													>
+														<option value="" disabled>
+															Pilih kondisi
+														</option>
+														{GOODS_CONDITION_OPTIONS.map(([value, label]) => (
+															<option key={value} value={value}>
+																{label}
+															</option>
+														))}
+													</select>
+												</div>
+											)}
 										</div>
 									);
 								})}

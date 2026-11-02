@@ -346,13 +346,17 @@ test("intake: returned goods are sent per unit and lot; an unconfirmed identity 
 		await dialog.getByRole("button", { name: "Simpan penerimaan" }).click();
 		await expect(dialog.getByRole("alert")).toContainText("Catatan penerimaan wajib diisi");
 		await dialog.getByLabel("Catatan penerimaan (wajib)").fill("Botol kembali utuh");
+		// No condition is preselected: a confirmed line cannot be sent until the warehouse picks one.
+		await dialog.getByRole("button", { name: "Simpan penerimaan" }).click();
+		await expect(dialog.getByRole("alert")).toContainText("Pilih kondisi");
+		await dialog.getByLabel("Kondisi barang").selectOption("rusak");
 		await dialog.getByRole("button", { name: "Simpan penerimaan" }).click();
 		await expect(page.getByTestId("exception-notice")).toContainText("Barang kembali tercatat");
 		const first = s.posts.find((p) => p.path === `${API}/${exId}/intakes`);
 		assert.deepEqual(first?.body, {
 			expected_version: 3,
 			physical_outcome_id: outcomeId,
-			lines: [{ exception_unit_id: unitId, stock_item_id: stockId, expected_balance_id: balanceId, quantity: 1, identity_confirmed: true }],
+			lines: [{ exception_unit_id: unitId, stock_item_id: stockId, expected_balance_id: balanceId, quantity: 1, identity_confirmed: true, condition: "rusak" }],
 			reason: "Botol kembali utuh",
 		});
 		await page.getByTestId("exception-intake").click();
@@ -363,7 +367,7 @@ test("intake: returned goods are sent per unit and lot; an unconfirmed identity 
 		await expect(again).toHaveCount(0);
 		await expect(page.getByTestId("exception-notice")).toContainText("Barang kembali tercatat");
 		const second = s.posts.filter((p) => p.path === `${API}/${exId}/intakes`)[1];
-		assert.deepEqual((second.body.lines as unknown[])[0], { exception_unit_id: unitId, stock_item_id: null, expected_balance_id: null, quantity: 1, identity_confirmed: false });
+		assert.deepEqual((second.body.lines as unknown[])[0], { exception_unit_id: unitId, stock_item_id: null, expected_balance_id: null, quantity: 1, identity_confirmed: false, condition: null });
 		assert.deepEqual(errors, []);
 	} finally {
 		await close();

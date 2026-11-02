@@ -807,6 +807,7 @@ test("S133 returned goods: intake by the warehouse in scope, the join the screen
 				.map((a) => ({
 					exception_unit_id: eu.id,
 					identity_confirmed: true,
+					condition: "baik",
 					stock_item_id: a.stock_item_id,
 					expected_balance_id: a.balance_id,
 					quantity: a.quantity,

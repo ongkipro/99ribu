@@ -574,13 +574,14 @@ async function recordExceptionIntake(
 					quarantined: line.quantity,
 					sourceRef: `exception-goods:${lineId}`,
 					actorId: principal.id,
-					reason: input.reason,
+					// The condition rides in the movement history so whoever releases or writes off the quarantine sees it.
+					reason: Array.from(`Kondisi ${line.condition?.replace("_", " ")}: ${input.reason}`).slice(0, 500).join(""), // by code point: postMovement counts them
 				});
 				movementId = movement.id;
 			}
 			await tx`
-        insert into app.exception_goods_line (id,exception_id,intake_id,exception_unit_id,stock_item_id,balance_id,quantity,identity_confirmed,stock_movement_id)
-        values (${lineId},${head.id},${intakeId},${line.exception_unit_id},${line.stock_item_id},${line.expected_balance_id},${line.quantity},${line.identity_confirmed},${movementId})`;
+        insert into app.exception_goods_line (id,exception_id,intake_id,exception_unit_id,stock_item_id,balance_id,quantity,identity_confirmed,condition,stock_movement_id)
+        values (${lineId},${head.id},${intakeId},${line.exception_unit_id},${line.stock_item_id},${line.expected_balance_id},${line.quantity},${line.identity_confirmed},${line.condition},${movementId})`;
 		}
 		access = await returnAuthority(tx, principal);
 		assertReturnInspection(access, lineWarehouses);

@@ -25,14 +25,19 @@ export function exceptionDecisionRequest(value:unknown){
  return {expected_version:integer(input.expected_version,1),decision:decision as 'propose_cancellation'|'propose_refund'|'keep_waiting'|'escalate',reason:returnText(input.reason,500)};
 }
 
+export const GOODS_CONDITIONS=['baik','rusak','tidak_lengkap'] as const;
+export type GoodsCondition=typeof GOODS_CONDITIONS[number];
+
 export function exceptionIntakeRequest(value:unknown){
  const input=object(value,['expected_version','physical_outcome_id','lines','reason']);
  const lines=array(input.lines,value=>{
-  const line=object(value,['exception_unit_id','stock_item_id','expected_balance_id','quantity','identity_confirmed']);
+  const line=object(value,['exception_unit_id','stock_item_id','expected_balance_id','quantity','identity_confirmed','condition']);
   if(typeof line.identity_confirmed!=='boolean')throw invalid();
   if(!line.identity_confirmed&&(line.stock_item_id!==null||line.expected_balance_id!==null))throw invalid();
+  // Goods condition is the warehouse's call on a returned component: required when identity is confirmed, absent otherwise.
+  if(line.identity_confirmed?!GOODS_CONDITIONS.includes(line.condition as GoodsCondition):line.condition!==undefined&&line.condition!==null)throw invalid();
   return {exception_unit_id:id(line.exception_unit_id),stock_item_id:line.identity_confirmed?id(line.stock_item_id):null,
-   expected_balance_id:line.identity_confirmed?id(line.expected_balance_id):null,quantity:integer(line.quantity,1,1000000),identity_confirmed:line.identity_confirmed};
+   expected_balance_id:line.identity_confirmed?id(line.expected_balance_id):null,quantity:integer(line.quantity,1,1000000),identity_confirmed:line.identity_confirmed,condition:line.identity_confirmed?line.condition as GoodsCondition:null};
  },1,500).sort((a,b)=>`${a.exception_unit_id}:${a.expected_balance_id??'unidentified'}`.localeCompare(`${b.exception_unit_id}:${b.expected_balance_id??'unidentified'}`));
  if(new Set(lines.map(line=>`${line.exception_unit_id}:${line.expected_balance_id??'unidentified'}`)).size!==lines.length)throw new AccessError(422,'DUPLICATE_EXCEPTION_GOODS');
  return {expected_version:integer(input.expected_version,1),physical_outcome_id:id(input.physical_outcome_id),lines,reason:returnText(input.reason,500)};

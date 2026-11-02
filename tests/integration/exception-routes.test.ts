@@ -398,6 +398,7 @@ test("S33 commerce exception routes cover stock discrepancy report, admin list/r
 				.map((a) => ({
 					exception_unit_id: eu.id,
 					identity_confirmed: true,
+					condition: "rusak",
 					stock_item_id: a.stock_item_id,
 					expected_balance_id: a.balance_id,
 					quantity: a.quantity,
@@ -435,6 +436,17 @@ test("S33 commerce exception routes cover stock discrepancy report, admin list/r
 		);
 		assert.equal(replayedIntake.status, 201);
 		assert.equal(replayedIntake.payload.id, returnExId);
+
+		// The warehouse's condition call is kept on every confirmed line and in its movement history.
+		const goods = await sql`select l.condition, m.reason from app.exception_goods_line l join app.stock_movement m on m.id=l.stock_movement_id where l.exception_id=${returnExId}`;
+		assert.ok(goods.length > 0);
+		assert.ok(goods.every((row) => row.condition === "rusak" && String(row.reason).startsWith("Kondisi rusak: ")));
+		// A confirmed line without a condition is refused before anything is written.
+		const noCondition = await callStaff(f.owner, `/api/v1/admin/commerce-exceptions/${returnExId}/intakes`, {
+			...intakeBody,
+			lines: intakeLines.map(({ condition: _dropped, ...rest }) => rest),
+		});
+		assert.equal(noCondition.status, 400);
 
 		// 11. Buyer cancellation conflict on funded order
 		const ineligibleCancel = await callBuyer(

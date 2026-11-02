@@ -1,5 +1,12 @@
 # Build log — Serba 99ribu
 
+## 2026-11-02 — S161 goods condition on COD/RTS intake (migration 0045, local, R3)
+
+- Migration `0045_goods_condition.sql` (additive): `app.exception_goods_line.condition` (`baik`, `rusak`, `tidak_lengkap`, nullable for older rows) with a check that an unidentified line carries none. Applied to the local and test databases only.
+- `POST /api/v1/admin/commerce-exceptions/{id}/intakes`: a line with `identity_confirmed: true` must carry a `condition` (400 otherwise); an unidentified line carries none. Goods still land in quarantine; the condition is stored and prefixed to the stock movement reason (`Kondisi rusak: …`) so the person who releases the quarantine or writes it off sees it. `IntakeDialog` gained a per-component "Kondisi barang" select with no preselected value (independent review: a default would let a forgotten choice record damaged goods as good); the movement reason is cut by code point so a long reason with emoji cannot fail the movement.
+- Not done, by owner choice (2026-11-02): no refusal-reason list. A `cod_refusal` exception is created from the courier status, and Mengantar reason codes are unverified.
+- Checks: typecheck clean, lint clean on touched files, OpenAPI contract PASS (220 paths), `tests/exception-intake-condition.test.ts` 2/2, integration `exception-routes` and `admin-exceptions` 12/12 and PR-13 6/6, browser `admin-exceptions` 12/12. The dialog was exercised by the browser test but not rendered at 390/768/1440.
+
 ## 2026-11-02 — Wave 4 dashboards (S149–S153, S157–S161) local, uncommitted until the ledger run finishes
 
 - S149 sign-in budget, option D (OWASP + NIST 800-63B-4): failure-only per-account counters keyed by hashed email; Turnstile token required after 5 failures in 60 s (429 `CHALLENGE_REQUIRED`); time-boxed cool-off at 100 consecutive failures (423 `SIGN_IN_LOCKED`, 15 min doubling to 24 h); keyless mode bounded to 60 s with no cool-off; verify budget per address bucket (10/min) and global (120/min); operator `node scripts/staff.ts unlock-signin`. CSP allows `challenges.cloudflare.com`. Known limit: the challenge needs JavaScript.
