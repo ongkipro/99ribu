@@ -28,6 +28,10 @@ export function exceptionDecisionRequest(value:unknown){
 export const GOODS_CONDITIONS=['baik','rusak','tidak_lengkap'] as const;
 export type GoodsCondition=typeof GOODS_CONDITIONS[number];
 
+// Movement reason for a confirmed returned component: the condition first, cut to 500 CODE POINTS because
+// postMovement counts code points (a UTF-16 cut could split an emoji and fail the whole intake).
+export const intakeMovementReason=(condition:GoodsCondition,reason:string)=>Array.from(`Kondisi ${condition.replace('_',' ')}: ${reason}`).slice(0,500).join('');
+
 export function exceptionIntakeRequest(value:unknown){
  const input=object(value,['expected_version','physical_outcome_id','lines','reason']);
  const lines=array(input.lines,value=>{

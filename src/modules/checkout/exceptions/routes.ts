@@ -43,6 +43,8 @@ import {
 import {
 	buyerRecoveryRequest,
 	exceptionIntakeRequest,
+	type GoodsCondition,
+	intakeMovementReason,
 	recoveryFinanceRequest,
 } from "./policy.ts";
 import { projectException } from "./projection.ts";
@@ -575,7 +577,7 @@ async function recordExceptionIntake(
 					sourceRef: `exception-goods:${lineId}`,
 					actorId: principal.id,
 					// The condition rides in the movement history so whoever releases or writes off the quarantine sees it.
-					reason: Array.from(`Kondisi ${line.condition?.replace("_", " ")}: ${input.reason}`).slice(0, 500).join(""), // by code point: postMovement counts them
+					reason: intakeMovementReason(line.condition as GoodsCondition, input.reason),
 				});
 				movementId = movement.id;
 			}

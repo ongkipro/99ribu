@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { exceptionIntakeRequest } from "../src/modules/checkout/exceptions/policy.ts";
+import { exceptionIntakeRequest, intakeMovementReason } from "../src/modules/checkout/exceptions/policy.ts";
 
 const U = "00000000-0000-4000-8000-0000000000a1";
 const SKU = "00000000-0000-4000-8000-0000000000b1";
@@ -27,4 +27,12 @@ test("an unidentified line carries no condition", () => {
 	assert.equal(exceptionIntakeRequest(body(unidentified)).lines[0].condition, null);
 	assert.equal(exceptionIntakeRequest(body({ ...unidentified, condition: null })).lines[0].condition, null);
 	assert.throws(() => exceptionIntakeRequest(body({ ...unidentified, condition: "baik" })));
+});
+
+test("the movement reason leads with the condition and is cut by code point, never inside an emoji", () => {
+	assert.equal(intakeMovementReason("tidak_lengkap", "Tutup hilang"), "Kondisi tidak lengkap: Tutup hilang");
+	const reason = intakeMovementReason("rusak", "😀".repeat(500));
+	assert.equal(Array.from(reason).length, 500);
+	assert.ok(reason.isWellFormed());
+	assert.ok(reason.startsWith("Kondisi rusak: "));
 });
