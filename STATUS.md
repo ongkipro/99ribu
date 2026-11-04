@@ -9,11 +9,11 @@ Previous-Claim: `READY_FOR_LOCAL_ACCEPTANCE` / "100% local production readiness"
 
 ## Now — 2026-11-04 (read first)
 
-Local only, nothing committed, pushed or deployed. Done today: local provider mode S162–S169, fee-bearer switch S172 (DEC-029, owner rates QRIS 0,7%, VA BCA Rp6.500, other VA Rp3.000), lint S173, flake S174, local dummy data S175, catalogue address search and province/courier promotions S176. Implemented system: `ARCHITECTURE.md`; results: `BUILD-LOG.md` 2026-11-04; deploy prerequisites: `RELEASE.md` "Pending for the next deploy". All suites named there are green on this tree.
+**Deployed 2026-11-04** (owner-approved): `8ada1f9` on `main` (wave 4 S149–S161 and today's S162–S176), Coolify `y1qb4sgt8qgpy70xdqt3r7rm`, migrations 0045–0049 applied, pre-deploy backup `20261104T130351Z` (off-host) plus a local copy in `/data/99ribu-local/backups/production/`; live check PASS (RELEASE "Deployed 2026-11-04"). Production behaviour is unchanged by default: AutoLaris fee borne by the platform (AutoLaris itself still gated, S97), COD fee by the buyer. Done that day: local provider mode S162–S169, fee-bearer switch S172 (DEC-029, owner rates QRIS 0,7%, VA BCA Rp6.500, other VA Rp3.000), lint S173, flake S174, local dummy data S175, catalogue address search and province/courier promotions S176. Cleanup: stale agent worktrees removed (their diffs saved as patches), merged local branches deleted, ignored review slices (1.1 GB) and old test renders moved to `/data/99ribu-local/archive/cleanup-20261104/`.
 
 **Owner decisions open (short):**
-1. **Commit:** the uncommitted tree on `dec-025-min-contribution` mixes today's work with earlier uncommitted field-system CSS (`02-cart.css`, `03-checkout.css`, `storefront-floating-labels.test.ts`). Say how to group commits (one branch per slice, or one local commit), or keep it uncommitted.
-2. **Deploy:** push to `main` auto-deploys. Before that, production needs migrations `0045`–`0049`; give the go when wanted.
+1. **Done:** commit grouping and deploy (above).
+2. **Before switching COD to store-borne in production:** add an integration check that the store's COD cost is booked at remittance (review note); the QRIS/VA fee rule kinds are now enforced server-side.
 3. **`.env.example`:** outside the agent's edit permission. Add the commented `LOCAL_PROVIDER_ORIGIN` line and the Turnstile dummy test keys yourself, or allow the edit.
 4. **AutoLaris live (S97):** API key, static egress IP whitelist and the real settled advice shape are needed before VA/QRIS can go live; until then production offers transfer and COD only.
 5. **Mengantar booking and tracking API (S94/S98):** still waits for a separate API account; fulfilment stays manual.
@@ -21,7 +21,7 @@ Local only, nothing committed, pushed or deployed. Done today: local provider mo
 7. **Checkout layout:** at 1440 px the order summary column floats mid-page (pre-existing). Fix it now or leave it.
 8. **Still open from wave 4 (unchanged):** buyer and affiliate policy wording (deferred to the end), per-courier COD and volumetric settings, an accountant's view on affiliate withholding, the storefront social-proof toast, the bearer-key operations API (needs a DEC or ADR), and the unbuilt console pages (Persetujuan, Analitik, Media, Pantauan).
 
-Next action: the owner answers items 1–2 (commit grouping, deploy timing); everything else can wait.
+Next action: none blocking; items 3–8 wait for the owner.
 
 ## Wave 4 dashboards — 2026-11-02 (local, read first)
 

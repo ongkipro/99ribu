@@ -1,5 +1,11 @@
 # Build log — Serba 99ribu
 
+## 2026-11-04 (deploy) — `8ada1f9` live; cleanup
+
+- **Pre-merge review:** typecheck, lint, npm test 298/298, docs:check, production build PASS; independent review APPROVE WITH NITS (migrations 0046–0049 expand-only and accept existing rows; SQL and TypeScript fee rounding identical; provider mode impossible in production). Fixed: the policy refuses a fixed QRIS fee or a percentage VA fee (unit test added; payment-fees integration 3/3); an absolute home path in the local-providers README. Left as notes: the order page fee label is priced at render; the admin promo page reads distinct provinces on each load; a store-borne COD cost check at remittance before that switch goes live.
+- **Deploy:** off-host backup `20261104T130351Z` and a local dump on `/data`; fast-forward `main` `c0eee54..8ada1f9`; Coolify `y1qb4sgt8qgpy70xdqt3r7rm`; migrations 0045–0049 applied; Cloudflare purge; live check PASS (RELEASE "Deployed 2026-11-04").
+- **Cleanup:** six stale agent worktrees removed after saving their diffs to `/data/99ribu-local/archive/cleanup-20261104/worktree-patches/`; six merged local branches deleted; ignored `docs/spec/design/reviews/shop-com-r2/slices-round*` (1.1 GB) and `.local/test-renders` (458 MB) moved to the same archive; no tracked file was unused by reference.
+
 ## 2026-11-04 (final) — Owner AutoLaris rates; S176 provider-mode leftovers
 
 - **Rates** (owner): QRIS 0,7%, VA BCA Rp6.500, other VA Rp3.000 as the fee table's starting values and the local simulator's rates; switch labels Pembeli/Platform; the table is saved whoever bears the fee. Added tests: a reported bill at or below the fee stays unknown; finance confirms the bill (below-fee refused 422) and the receipt stays the order value. payment-fees integration 3/3 and browser 2/2, autolaris-payments, payment-methods, PR-5, demo-orders PASS. Review APPROVE after copy fixes.
