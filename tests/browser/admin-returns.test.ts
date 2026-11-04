@@ -166,7 +166,7 @@ test("inspection and refund: components are sent by allocation, the refund issue
 		assert.deepEqual(proof?.body, { password: "not-a-real-password", action: "finance.refund", subject_id: caseId });
 		const queued = state.posts.find((p) => p.path === "/api/v1/admin/refunds");
 		assert.deepEqual(queued?.body, { return_case_id: caseId, expected_version: 5, reason: "Barang rusak diterima gudang", reauthentication_proof: "SYNTHETIC-PROOF" });
-		assert.ok(state.posts.findIndex((p) => p === proof) < state.posts.findIndex((p) => p === queued));
+		assert.ok(state.posts.indexOf(proof) < state.posts.indexOf(queued));
 		assert.deepEqual(errors, []);
 	} finally { await close(); }
 });

@@ -146,7 +146,7 @@ test('S143: description lists hang and fade instead of ending in an ellipsis; DE
 test('legacy product URLs answer one 308 to the clean slug and keep the query; an unknown slug is a 404',{timeout:60000},async()=>{
  const clean=paths.default.slice('/produk/'.length),[{id}]=await identity.sql<{id:string}[]>`select id from app.product where public_slug=${clean}`;
  assert.match(clean,/^[a-z0-9]+(-[a-z0-9]+)*$/);
- const search=`?${new URLSearchParams({offer:randomUUID(),from:'/cari?q=Contoh#product-'+id,utm_source:'google'})}`;
+ const search=`?${new URLSearchParams({offer:randomUUID(),from:`/cari?q=Contoh#product-${id}`,utm_source:'google'})}`;
  for(const legacy of [`/produk/judul-lama-yang-sudah-diganti-${id}`,`/produk/${id}`,`/produk/${id.toUpperCase()}`]){
   const response=await fetch(origin+legacy+search,{redirect:'manual'});assert.equal(response.status,308,legacy);
   const target=new URL(response.headers.get('location')??'',origin);assert.equal(target.pathname,`/produk/${clean}`,'one hop to the clean slug');

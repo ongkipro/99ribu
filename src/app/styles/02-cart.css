@@ -227,7 +227,7 @@
 	border: 0;
 	border-radius: 0;
 	background: transparent;
-	font-size: var(--small-size);
+	font-size: var(--body-size);
 	font-weight: 600;
 	text-align: center;
 	appearance: textfield;
@@ -599,6 +599,7 @@ main.empty-state > .session-actions > .button {
 	border-radius: 50%;
 	background: var(--purple);
 }
+/* biome-ignore lint/style/noDescendingSpecificity: different elements; the earlier `.cart-mutation .button > svg` rule is meant to win where both match */
 .cart-bump svg,
 .cart-bump .cart-count {
 	animation: cart-bump 360ms cubic-bezier(0.34, 1.56, 0.64, 1);

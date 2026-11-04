@@ -80,14 +80,12 @@ export default async function Product({params,searchParams}:Props){
   {invalid&&<section className="cart-warning" role="alert"><h2>Pilihan belum ditemukan</h2><p>Pilih kembali opsi produk ini sebelum menambahkannya.</p></section>}
   {/* One choice: its name moves into the "Isi yang diterima" section below; several: the pills stay in view. */}
   {(product.variants.length>1||!offer)&&<OfferPicker slug={product.public_slug} defaultOffer={standard?.id} from={from} selected={offer?.id??''} choices={product.variants.map(v=>({id:v.id,label:v.label,available:v.availability==='available'}))}/>}
-  {offer?<>
-   <div className="purchase-region">{offer.availability!=='available'&&<p className="stock-status"><Icon name="alert"/>Stok pilihan belum tersedia</p>}
+  {offer?<div className="purchase-region">{offer.availability!=='available'&&<p className="stock-status"><Icon name="alert"/>Stok pilihan belum tersedia</p>}
    {/* The stock line already says it; the way out is one secondary pill. */}
    {offer.availability!=='available'&&<Link className="button secondary stock-exit" href={alternative?productHref(product.public_slug,alternative.id,from,standard?.id):category?`/kategori/${category.slug}?availability=available`:'/cari?availability=available'}>{alternative?'Lihat pilihan tersedia':'Cari produk tersedia'}</Link>}
    {current.kind==='ready'&&!open&&<p className="cart-warning">Keranjang sebelumnya {current.cart.state==='submitted'?'sudah menjadi pesanan':'kedaluwarsa'}. Penambahan berikutnya memulai keranjang baru.</p>}
    {denied?<p className="cart-warning">{current.kind==='denied'?'Sesi belanja perlu diperiksa.':'Keranjang belum dapat dimuat.'} <Link href="/keranjang">Periksa keranjang</Link></p>:<CartMutations initial={initialCartMutation(intent)} permalink={productHref(product.public_slug,offer.id,from,standard?.id)}><CartForm intent={intent} label="Tambah ke keranjang" disabled={offer.availability!=='available'} stepper bar={rupiah(offer.price)} buyNow/></CartMutations>}
-   </div>
-  </>:!invalid&&<p className="cart-advisory">Belum ada pilihan yang dapat ditambahkan.</p>}
+   </div>:!invalid&&<p className="cart-advisory">Belum ada pilihan yang dapat ditambahkan.</p>}
   {/* Spesifikasi only when the product has spec data; no empty heading or placeholder. */}
   {facts.length>0&&<section className="product-facts"><h2>Spesifikasi</h2><dl>{facts.map(f=><div key={f.key}><dt>{f.label}</dt><dd>{f.values.join(', ')}</dd></div>)}</dl></section>}
   {/* shop.com opens its sections; a long catalog text shows its first lines with "Baca selengkapnya" (the full text stays in the HTML). */}

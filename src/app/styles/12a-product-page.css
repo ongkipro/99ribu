@@ -34,7 +34,6 @@
 	padding: 0;
 	list-style: none;
 }
-/* biome-ignore lint/style/noDescendingSpecificity: PDP-only elements; the earlier selector styles other elements. */
 .product-detail .gallery-thumbs img {
 	display: block;
 	width: 100%;
@@ -66,7 +65,6 @@
 .product-detail .gallery-row > li {
 	scroll-snap-align: start;
 }
-/* biome-ignore lint/style/noDescendingSpecificity: PDP-only elements; the earlier selector styles other elements. */
 .product-detail .gallery-row .product-image,
 .product-detail .product-media :is(.photo-slot, .product-image) {
 	display: block;
@@ -145,7 +143,6 @@
 	gap: 4px;
 	min-width: 0;
 }
-/* biome-ignore lint/style/noDescendingSpecificity: breadcrumb-only elements; the earlier selectors style other elements. */
 .breadcrumb a {
 	display: inline-flex;
 	align-items: center;
@@ -156,7 +153,6 @@
 .breadcrumb li:last-child a {
 	color: var(--ink);
 }
-/* biome-ignore lint/style/noDescendingSpecificity: breadcrumb-only elements; the earlier selectors style other elements. */
 .breadcrumb a:hover {
 	color: var(--purple);
 }
@@ -179,7 +175,6 @@
 	letter-spacing: var(--tracking-body);
 }
 /* Field labels (shop.com "Color", "Quantity"): 12/16 600 -0.2px. */
-/* biome-ignore lint/style/noDescendingSpecificity: PDP-only elements; the earlier selector styles other elements. */
 .product-detail .cart-quantity > label {
 	font-size: var(--caption-size);
 	line-height: var(--caption-leading);

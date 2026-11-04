@@ -21,7 +21,7 @@ test('public missing category, product and unmatched routes render recoverable40
    const help=page.locator('.store-footer').getByRole('link',{name:'Pengembalian',exact:true});
    await expect(help).toHaveAttribute('href','/bantuan#returns');
    if(path.startsWith('/kategori/')){await page.evaluate(()=>document.fonts.ready);await page.screenshot({path:`${RENDERS}/s21/not-found-nojs-390.png`});}
-   await help.click();await expect(page).toHaveURL(origin+'/bantuan#returns');
+   await help.click();await expect(page).toHaveURL(`${origin}/bantuan#returns`);
    await expect(page.getByRole('heading',{name:'Pengembalian',exact:true})).toBeVisible();
   }
  }finally{await browser.close();}

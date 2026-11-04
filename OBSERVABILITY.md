@@ -34,7 +34,7 @@ Executable probe commands:
 - `npm run test:integration -- --case=PR-16`: runs `tests/integration/jobs.test.ts` and `tests/integration/public-rate-limits.test.ts`.
 - `npm run test:integration -- --case=T-38`: runs `tests/integration/scenarios-14.test.ts` (all 14 canonical scenarios + real PostgreSQL race).
 - `npm run test:integration -- --case=localhost-readiness`: runs `tests/integration/localhost-readiness.test.ts` (including isolated `pg_dump -Fc` / `pg_restore` rehearsal into disposable database `99ribu_restore_<uuid>` with table/row parity and post-restore `finance_posting_guard` / `finance_transaction_immutable` enforcement).
-- `PLAYWRIGHT_CHROMIUM_EXECUTABLE=/snap/bin/chromium npm run test:browser -- --case=localhost-readiness`: runs `tests/browser/localhost-readiness.test.ts` across mobile (`390x844`), tablet (`768x1024`), and desktop (`1440x900`) viewports.
+- `PLAYWRIGHT_CHROMIUM_EXECUTABLE=/usr/bin/google-chrome npm run test:browser -- --case=localhost-readiness`: runs `tests/browser/localhost-readiness.test.ts` across mobile (`390x844`), tablet (`768x1024`), and desktop (`1440x900`) viewports.
 
 ## S84 container health and S85 backup/restore probes
 

@@ -16,8 +16,9 @@ import {actor,cleanup,enroll} from '../contract/access-fixture.ts';
 import {CommerceClient} from '../integration/checkout-fixture.ts';
 import {RENDERS} from '../render-root.ts';
 
-// S141 floating labels and the S143 checkout-summary polish (owner request 2026-10-25). One owned seeded cart per scenario;
-// the labels are CSS only (:placeholder-shown with a blank placeholder, :autofill), so every case also runs without JavaScript where it can.
+// Checkout field labels and the S143 checkout-summary polish. Since 2026-11-03 the labels are static and sit above their controls
+// (owner request, after tokophi); the S141 floating labels are gone. File name kept for the check registry. One owned seeded cart per scenario;
+// labels are plain CSS, so every case also runs without JavaScript where it can.
 const origin='http://127.0.0.1:3099',output=`${RENDERS}/s141/${readFileSync('.next/BUILD_ID','utf8').trim()}`,namespace=`s141-${randomUUID().slice(0,8)}`;
 const identity=createLocalAuth('local'),carts=new Set<string>();
 let owner:Awaited<ReturnType<typeof actor>>,seeded:Awaited<ReturnType<typeof seedCommerce>>,curated:Awaited<ReturnType<typeof prepareStorefront>>;
@@ -84,10 +85,10 @@ const fontSize=(locator:Locator)=>locator.evaluate(el=>parseFloat(getComputedSty
 async function boxes(page:Page,id:string){
  const label=await labelOf(page,id).boundingBox(),control=await page.locator(`#${id}`).boundingBox();assert.ok(label&&control,`${id} is rendered`);return {label,control};
 }
-// The label sits inside its control's box (not above it) with at least 1px of the border to spare on each side.
-function assertInside(id:string,{label,control}:Awaited<ReturnType<typeof boxes>>,state:string){
- assert.ok(label.x>=control.x-0.5&&label.x+label.width<=control.x+control.width+0.5,`${id} ${state}: label inside horizontally ${JSON.stringify({label,control})}`);
- assert.ok(label.y>=control.y-0.5&&label.y+label.height<=control.y+control.height+0.5,`${id} ${state}: label inside vertically ${JSON.stringify({label,control})}`);
+// The label sits fully above its control (it never overlaps the value) and inside the viewport horizontally.
+function assertAbove(id:string,{label,control}:Awaited<ReturnType<typeof boxes>>,state:string){
+ assert.ok(label.y+label.height<=control.y+1,`${id} ${state}: label above the control ${JSON.stringify({label,control})}`);
+ assert.ok(label.x>=control.x-0.5&&label.x<=control.x+control.width,`${id} ${state}: label aligned with the control ${JSON.stringify({label,control})}`);
 }
 async function capture(page:Page,name:string){
  await mkdir(output,{recursive:true});await page.evaluate(()=>document.fonts.ready);await expect(page.getByText('Menyimpan draf…',{exact:true})).not.toBeVisible();
@@ -95,52 +96,41 @@ async function capture(page:Page,name:string){
  const overflow=await page.evaluate(()=>document.documentElement.scrollWidth-document.documentElement.clientWidth);assert.ok(overflow<=0,`${name}: no horizontal overflow (${overflow}px)`);
 }
 
-for(const width of [390,768,1440])test(`checkout labels sit inside the fields, stay on focus and shrink once a value is typed at ${width}px`,{timeout:90000},async()=>{
+for(const width of [390,768,1440])test(`checkout labels are static above 48px controls with 16px text and never change on focus or typing at ${width}px`,{timeout:90000},async()=>{
  const f=await start(width);try{
   await f.page.goto(`${origin}/checkout`);
   for(const field of fields){
    const control=f.page.locator(`#${field.id}`),label=labelOf(f.page,field.id);
-   // The native label stays the accessible name; the blank placeholder is not a name.
+   // The native label stays the accessible name.
    await expect(f.page.getByLabel(field.label,{exact:true})).toHaveAttribute('id',field.id);
-   if(field.kind!=='select')await expect(control).toHaveAttribute('placeholder',' ');
    await control.scrollIntoViewIfNeeded();
-   assert.equal(await fontSize(label),16,`${field.id} rest: label is the 16px body size`);
-   const rest=await boxes(f.page,field.id);assertInside(field.id,rest,'at rest');
+   assert.equal(await fontSize(label),14,`${field.id} rest: label is the 14px small size`);
+   // 16px control text is what keeps iOS Safari from zooming the page on focus.
+   assert.ok(await fontSize(control)>=16,`${field.id}: control text is at least 16px (no iOS focus zoom)`);
+   const rest=await boxes(f.page,field.id);assertAbove(field.id,rest,'at rest');
+   assert.ok(rest.control.height>=47.5,`${field.id}: control is at least 48px tall (${rest.control.height})`);
    await control.focus();
-   assert.equal(await fontSize(label),16,`${field.id} focus: label stays large`);
-   const focused=await boxes(f.page,field.id);assertInside(field.id,focused,'focused');
+   const focused=await boxes(f.page,field.id);assertAbove(field.id,focused,'focused');
    assert.ok(Math.abs(focused.label.y-rest.label.y)<=0.5&&Math.abs(focused.label.x-rest.label.x)<=0.5,`${field.id}: label does not move on focus`);
    if(field.kind==='select')await control.selectOption(field.value);else await control.fill(field.value);
-   assert.equal(await fontSize(label),12,`${field.id} typed: label shrinks to 12px`);
-   const typed=await boxes(f.page,field.id);assertInside(field.id,typed,'with a value');
-   assert.ok(typed.label.y+typed.label.height<=typed.control.y+28,`${field.id}: shrunk label sits in the top strip of the field`);
-   assert.ok(typed.label.height<rest.label.height,`${field.id}: label box got smaller (it moved to the top strip)`);
+   assert.equal(await fontSize(label),14,`${field.id} typed: label keeps its size`);
+   const typed=await boxes(f.page,field.id);assertAbove(field.id,typed,'with a value');
+   assert.ok(Math.abs(typed.label.y-rest.label.y)<=0.5,`${field.id}: label does not move once a value is typed`);
    if(field.kind==='select')await control.selectOption('');else await control.fill('');
-   assert.equal(await fontSize(label),16,`${field.id} cleared: label is back at rest`);
    await expect(f.page.getByLabel(field.label,{exact:true})).toHaveAttribute('id',field.id);
   }
   await capture(f.page,`labels-rest-${width}`);
   for(const field of fields){const control=f.page.locator(`#${field.id}`);if(field.kind==='select')await control.selectOption(field.value);else await control.fill(field.value);}
   await capture(f.page,`labels-filled-${width}`);
+  // Desktop: the order summary is a full-height grey column, not a rounded card; mobile keeps the card.
+  const summary=await f.page.locator('.checkout-summary').evaluate(el=>{const s=getComputedStyle(el);return {radius:s.borderTopLeftRadius,shadow:s.boxShadow};});
+  if(width>=1024){assert.equal(summary.radius,'0px','desktop summary column has no card radius');assert.notEqual(summary.shadow,'none','desktop summary column bleeds to the viewport edge');}
+  else assert.notEqual(summary.radius,'0px','narrow summary stays a card');
   assert.deepEqual(f.errors,[]);
  }finally{await close(f);}
 });
 
-test('a value set without an input event (autofill, script, restored form) shrinks the label and :autofill is styled',{timeout:60000},async()=>{
- const f=await start(390);try{
-  await f.page.goto(`${origin}/checkout`);
-  // Browser autofill and form restoration write the value without a typing event: only the CSS can react.
-  await f.page.evaluate(()=>{for(const id of ['checkout-recipient_name','checkout-phone','checkout-address_line']){const el=document.getElementById(id) as HTMLInputElement|HTMLTextAreaElement;Object.getOwnPropertyDescriptor(Object.getPrototypeOf(el),'value')?.set?.call(el,'Contoh');}});
-  for(const id of ['checkout-recipient_name','checkout-phone','checkout-address_line'])assert.equal(await fontSize(labelOf(f.page,id)),12,`${id}: label shrinks for a value written without an event`);
-  assert.equal(await fontSize(labelOf(f.page,'checkout-email')),16,'an untouched field keeps its large label');
-  // Real autofill cannot be driven from Playwright, so the declaration that handles it is read from the stylesheet.
-  const rule=await f.page.evaluate(()=>{const found:{selector:string;fontSize:string}[]=[];const walk=(rules:CSSRuleList)=>{for(const rule of rules){if(rule instanceof CSSStyleRule&&/autofill/.test(rule.selectorText)&&rule.style.fontSize)found.push({selector:rule.selectorText,fontSize:rule.style.fontSize});else if('cssRules' in rule)walk((rule as CSSGroupingRule).cssRules);}};for(const sheet of document.styleSheets)try{walk(sheet.cssRules);}catch{}return found;});
-  assert.ok(rule.some(r=>r.fontSize==='var(--caption-size)'&&/checkout-field/.test(r.selector)),`:autofill shrinks .checkout-field labels: ${JSON.stringify(rule)}`);
-  assert.deepEqual(f.errors,[]);
- }finally{await close(f);}
-});
-
-for(const javaScriptEnabled of [true,false])test(`server-prefilled values and server errors keep the label small, the error and the hint associated (JavaScript ${javaScriptEnabled?'on':'off'})`,{timeout:90000},async()=>{
+for(const javaScriptEnabled of [true,false])test(`server-prefilled values and server errors keep the label steady, the error and the hint associated (JavaScript ${javaScriptEnabled?'on':'off'})`,{timeout:90000},async()=>{
  const f=await start(390,javaScriptEnabled);try{
   await f.page.goto(`${origin}/checkout`);
   // No error yet: the region select is described by its hint.
@@ -150,14 +140,14 @@ for(const javaScriptEnabled of [true,false])test(`server-prefilled values and se
   await f.page.getByRole('button',{name:'Hitung ongkir',exact:true}).click();
   await expect(f.page.locator('.checkout-error')).toBeVisible();
   await expect(f.page.getByLabel('Nama penerima',{exact:true})).toHaveValue('Penerima Contoh');
-  assert.equal(await fontSize(labelOf(f.page,'checkout-recipient_name')),12,'a prefilled value starts with the small label');
-  assert.equal(await fontSize(labelOf(f.page,'checkout-buyer_note')),12,'a prefilled note starts with the small label');
+  assert.equal(await fontSize(labelOf(f.page,'checkout-recipient_name')),14,'a prefilled value keeps the label size');
+  assert.equal(await fontSize(labelOf(f.page,'checkout-buyer_note')),14,'a prefilled note keeps the label size');
   for(const id of ['checkout-phone','checkout-destination_id','checkout-address_line']){
    const control=f.page.locator(`#${id}`);await expect(control).toHaveAttribute('aria-invalid','true');
-   assert.equal(await fontSize(labelOf(f.page,id)),16,`${id}: an empty invalid field keeps the large label`);assertInside(id,await boxes(f.page,id),'invalid');
+   assert.equal(await fontSize(labelOf(f.page,id)),14,`${id}: an invalid field keeps the label size`);assertAbove(id,await boxes(f.page,id),'invalid');
    const described=await control.getAttribute('aria-describedby');assert.ok(described,`${id} is described`);
    const message=f.page.locator(`#${described.split(' ')[0]}`);await expect(message).toBeVisible();await expect(message).toHaveClass(/checkout-field-error/);
-   const m=await message.boundingBox(),c=await control.boundingBox();assert.ok(m&&c&&m.y>=c.y+c.height-1,`${id}: the error sits below the field, not over the label`);
+   const m=await message.boundingBox(),c=await control.boundingBox();assert.ok(m&&c&&m.y>=c.y+c.height-1,`${id}: the error sits below the field`);
    await expect(f.page.getByLabel(fields.find(x=>x.id===id)?.label??'',{exact:true})).toHaveAttribute('id',id);
   }
   // While the region still carries the server's error, that error is its description (aria-describedby names only the error); the hint stays on screen.
@@ -165,13 +155,13 @@ for(const javaScriptEnabled of [true,false])test(`server-prefilled values and se
    await f.page.getByLabel('Wilayah pengiriman',{exact:true}).selectOption('test-malang');
    await expect(f.page.locator('#checkout-destination_id')).toHaveAttribute('aria-describedby','checkout-destination-error');
    await expect(f.page.locator('#checkout-destination-hint')).toBeVisible();
-   assert.equal(await fontSize(labelOf(f.page,'checkout-destination_id')),12,'a chosen region shrinks the label');
+   assert.equal(await fontSize(labelOf(f.page,'checkout-destination_id')),14,'a chosen region keeps the label size');
   }
   if(javaScriptEnabled)assert.deepEqual(f.errors,[]);
  }finally{await close(f);}
 });
 
-test('at 320px with 200% text the labels fall back to plain labels above the fields: nothing clips or overlaps',{timeout:90000},async()=>{
+test('at 320px with 200% text the labels stay above the fields: nothing clips or overlaps',{timeout:90000},async()=>{
  const f=await start(320);try{
   await f.page.goto(`${origin}/checkout`);await f.page.addStyleTag({content:'html {font-size:200%}'});
   for(const state of ['rest','filled']){
@@ -180,7 +170,7 @@ test('at 320px with 200% text the labels fall back to plain labels above the fie
     await f.page.locator(`#${field.id}`).scrollIntoViewIfNeeded();const label=labelOf(f.page,field.id);
     assert.ok(await label.evaluate(el=>el.scrollWidth<=el.clientWidth+1),`${field.id} ${state}: label is not clipped sideways`);
     const {label:lb,control:cb}=await boxes(f.page,field.id);
-    assert.ok(lb.y+lb.height<=cb.y+1,`${field.id} ${state}: the narrow field shows its label above the control, not over the value ${JSON.stringify({lb,cb})}`);
+    assert.ok(lb.y+lb.height<=cb.y+1,`${field.id} ${state}: the label stays above the control, not over the value ${JSON.stringify({lb,cb})}`);
     assert.ok(lb.x>=0&&lb.x+lb.width<=320,`${field.id} ${state}: label inside the viewport`);
    }
    await capture(f.page,`labels-${state}-text-200-320`);

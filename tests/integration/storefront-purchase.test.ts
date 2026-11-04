@@ -47,6 +47,6 @@ test('public product return paths keep catalog context and remove private or unr
  assert.equal(productHref('kaos-polos',category,null,category),'/produk/kaos-polos');
  assert.equal(productHref('kaos-polos',category,source,category),`/produk/kaos-polos?${new URLSearchParams({from:source})}`);
  assert.equal(productHref('kaos-polos','other-offer',null,category),'/produk/kaos-polos?offer=other-offer');
- for(const value of [undefined,null,[],['/cari'],'https://outside.invalid/search','//outside.invalid/search','/\\outside.invalid/search','javascript:alert(1)','/api/v1/orders/'+category,'/cari?q=a%0Ab','/cari?q=\u202e','/cari?q='+'x'.repeat(16384)])assert.equal(publicReturnPath(value),null);
+ for(const value of [undefined,null,[],['/cari'],'https://outside.invalid/search','//outside.invalid/search','/\\outside.invalid/search','javascript:alert(1)',`/api/v1/orders/${category}`,'/cari?q=a%0Ab','/cari?q=\u202e',`/cari?q=${'x'.repeat(16384)}`])assert.equal(publicReturnPath(value),null);
  assert.equal(new URL(productHref('kaos-polos',category,'//outside.invalid/'),'http://localhost').searchParams.has('from'),false);
 });

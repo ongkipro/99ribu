@@ -209,49 +209,14 @@
 #checkout-form {
 	container: checkout-field / inline-size;
 }
-/* S141 floating labels (CSS only, no JS). The <label for> stays the accessible name; it sits in the same
-   grid cell as its control, inside the field: 16/22 at rest and on focus, 12/16 at the top once the control
-   has a value (typed, autofilled or server-prefilled). Text controls carry a blank placeholder so
-   :placeholder-shown means "empty"; a select counts as empty on its "" option. A control without the blank
-   placeholder simply keeps the small label. Sizes are rem and the label may wrap; when the field is narrower than 13em (where even the shrunk label could wrap)
-   (320px at 200% text) the labels fall back to the plain label above the control, so nothing clips or overlaps. */
-.checkout-field > :is(label, input, select, textarea) {
-	grid-area: 1 / 1;
-}
+/* Static labels above the control (owner 2026-11-03, after tokophi): one 44px+ control height, 8px label gap,
+   the <label for> stays the accessible name. Replaces the S141 floating labels. */
 .checkout-field > label {
-	z-index: 1;
-	align-self: start;
-	padding: 1.0625rem 13px 0;
-	color: var(--muted);
-	font-size: var(--body-size);
-	line-height: var(--body-leading);
-	font-weight: 400;
-	overflow-wrap: anywhere;
-	pointer-events: none;
-	transition:
-		padding-top 0.15s cubic-bezier(0.4, 0, 0.2, 1),
-		font-size 0.15s cubic-bezier(0.4, 0, 0.2, 1),
-		color 0.15s cubic-bezier(0.4, 0, 0.2, 1);
-}
-.checkout-field:where(:has(> select)) > label {
-	padding-right: 40px;
-}
-.checkout-field:where(
-		:is(
-			:has(> :is(input, textarea):not(:placeholder-shown)),
-			:has(> :is(input, select, textarea):autofill),
-			:has(> :is(input, select, textarea):-webkit-autofill),
-			:has(> select > option:checked:not([value=""]))
-		)
-	)
-	> label {
-	padding-top: 0.5rem;
-	font-size: var(--caption-size);
-	line-height: var(--caption-leading);
-	font-weight: 500;
-}
-.checkout-field:where(:has(> :focus)) > label {
 	color: var(--ink);
+	font-size: var(--small-size);
+	line-height: 1.25rem;
+	font-weight: 500;
+	overflow-wrap: anywhere;
 }
 .checkout-field:where(:has(> [aria-invalid="true"])) > label {
 	color: var(--error);
@@ -259,71 +224,21 @@
 .checkout-field :is(input, select, textarea) {
 	width: 100%;
 	min-width: 0;
-	min-height: 3.5rem;
+	min-height: 3rem;
 	border: 1px solid var(--field-border);
-	border-radius: 12px;
-	padding: 1.5rem 12px 0.375rem;
-	/* background-color only: the shorthand would erase the select chevron set in a :where() rule. */
+	border-radius: 10px;
+	padding: 11px 12px;
 	background-color: #fff;
 	color: inherit;
 	font: inherit;
 	line-height: 1.5;
 }
-/* An empty select shows its label where the "Pilih ..." option text is; the open list keeps normal text. */
-.checkout-field > select:has(> option:checked[value=""]) {
-	color: transparent;
-}
-.checkout-field select option {
-	color: var(--ink);
-}
 .checkout-field textarea {
 	resize: vertical;
-}
-/* A long text scrolls under the shrunk label; this strip keeps the label readable (not over the scrollbar). */
-.checkout-field:has(> textarea:not(:placeholder-shown))::before {
-	content: "";
-	grid-area: 1 / 1;
-	z-index: 1;
-	align-self: start;
-	height: 1.75rem;
-	margin: 1px 16px 0 1px;
-	border-radius: 11px 0 0;
-	background: #fff;
-	pointer-events: none;
 }
 .checkout-field [aria-invalid="true"] {
 	border-color: var(--error);
 	box-shadow: inset 0 0 0 1px var(--error);
-}
-@container checkout-field (max-width: 13em) {
-	.checkout-field > label {
-		grid-area: 1 / 1;
-		padding: 0;
-		color: var(--ink);
-		font-size: var(--body-size);
-		line-height: var(--body-leading);
-		font-weight: 500;
-		transition: none;
-	}
-	.checkout-field:where(:has(> [aria-invalid="true"])) > label {
-		color: var(--error);
-	}
-	.checkout-field > :is(input, select, textarea) {
-		grid-area: 2 / 1;
-		min-height: 3rem;
-		padding: 11px 12px;
-	}
-	.checkout-field > select:has(> option:checked[value=""]) {
-		color: inherit;
-	}
-	.checkout-field:has(> textarea:not(:placeholder-shown))::before {
-		display: none;
-	}
-}
-@media (prefers-reduced-motion: reduce) {
-	.checkout-field > label {
-		transition: none;
-	}
 }
 .checkout-contact-row {
 	display: flex;
@@ -347,8 +262,14 @@
 	gap: 8px;
 	min-width: 0;
 }
+.checkout-search {
+	align-items: flex-start;
+}
 .checkout-search > button {
 	flex: 0 1 auto;
+	align-self: flex-start;
+	margin-top: calc(var(--caption-leading) + 8px);
+	min-height: 3rem;
 }
 .checkout-hint {
 	color: var(--muted);
@@ -886,11 +807,13 @@
 	padding: 0;
 	overflow: hidden;
 }
+/* biome-ignore lint/style/noDescendingSpecificity: the disabled-state rule above is meant to win where both match */
 .checkout-rows label {
 	padding: 12px 16px;
 	align-items: flex-start;
 	cursor: pointer;
 }
+/* biome-ignore lint/style/noDescendingSpecificity: the disabled-state rule above is meant to win where both match */
 .checkout-rows label + label {
 	border-top: 1px solid var(--line);
 }
@@ -900,6 +823,7 @@
 .checkout-rows input {
 	margin-top: 2px;
 }
+/* biome-ignore lint/style/noDescendingSpecificity: different elements from the parcel list spans above; never both on one node */
 .checkout-rows label > span {
 	display: grid;
 	gap: 2px;
@@ -944,6 +868,7 @@
 	gap: 2px;
 	overflow-wrap: anywhere;
 }
+/* biome-ignore lint/style/noDescendingSpecificity: the help-target rule above is meant to win where both match */
 .checkout-review-row .checkout-text-button {
 	min-height: 44px;
 	padding: 0;
@@ -996,6 +921,7 @@
 .checkout-suggestions button[aria-pressed="true"] {
 	background: #f4f0ff;
 }
+/* biome-ignore lint/style/noDescendingSpecificity: different elements from the parcel list spans above; never both on one node */
 .checkout-suggestions button span {
 	color: var(--store-muted);
 	font-size: 0.875rem;
@@ -1044,12 +970,14 @@
 	gap: 2px;
 	overflow-wrap: anywhere;
 }
+/* biome-ignore lint/style/noDescendingSpecificity: different elements from the parcel list spans above; never both on one node */
 .checkout-summary-text > span {
 	color: var(--store-muted);
 	font-size: 0.875rem;
 }
-.checkout-summary-contents {
-	font-size: 0.8125rem !important;
+/* Beats `.checkout-summary-text > span` by specificity instead of !important. */
+.checkout-summary-text > .checkout-summary-contents {
+	font-size: 0.8125rem;
 }
 .checkout-summary-price {
 	flex: none;
@@ -1065,14 +993,30 @@
 	border-top: 1px solid var(--line);
 	font-size: 1.125rem;
 }
+/* biome-ignore lint/style/noDescendingSpecificity: different elements from the summary toggle strong above; never both on one node */
 .checkout-due strong {
 	font-size: 1.375rem;
 }
 @media (min-width: 1024px) {
 	.checkout-layout {
-		margin-top: 24px;
+		margin-top: 0;
+		align-items: stretch;
+		gap: 0;
 	}
+	.checkout-fields {
+		flex: 1.27 1 28rem;
+		padding: 32px 48px 40px 0;
+	}
+	/* Full-height grey column that bleeds to the viewport edge; only its content sticks. */
 	.checkout-summary {
+		flex: 1 1 22rem;
+		border: 0;
+		border-radius: 0;
+		box-shadow: 0 0 0 100vmax #f5f5f5;
+		clip-path: inset(0 -100vmax 0 0);
+		padding: 32px 0 40px 40px;
+	}
+	.checkout-summary > details {
 		position: sticky;
 		top: 24px;
 	}
