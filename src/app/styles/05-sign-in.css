@@ -162,7 +162,8 @@ a.signin-mark:hover {
 	min-height: 44px;
 	padding-inline: 12px;
 	border-radius: 9999px;
-	color: var(--muted);
+	/* #5e5e5e: the inactive tab sits on a 4% grey pill, where --muted (#707070) reads 4.42:1 (WCAG AA needs 4.5). */
+	color: #5e5e5e;
 	font-size: var(--body-size);
 	line-height: 1.25rem;
 	font-weight: 600;

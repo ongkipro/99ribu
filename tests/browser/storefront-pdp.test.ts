@@ -131,9 +131,11 @@ test('S143: description lists hang and fade instead of ending in an ellipsis; DE
   await expect(f.page.locator('.breadcrumb li').last()).toHaveText('Dapur');
   const text=f.page.locator('.description-body .detail-description');
   // The "- item" lines are a real list; its wrapped lines hang under the text (padding on the list, no text-indent).
-  const list=text.locator('ul').first();await expect(list.locator('li')).toHaveCount(3);
+  // The catalogue text is owner-editable (rewritten 2026-11-05), so assert the list shape, not its item count.
+  const list=text.locator('ul').first();assert.ok(await list.locator('li').count()>=2,'the fact lines render as a list');
   assert.deepEqual(await list.evaluate(el=>{const s=getComputedStyle(el),li=getComputedStyle(el.firstElementChild as Element);return {type:s.listStyleType,left:s.paddingLeft,indent:li.textIndent};}),{type:'disc',left:'20px',indent:'0px'});
-  const first=await list.locator('li').first().boundingBox(),box=await list.boundingBox();assert.ok(first&&box&&first.height>=36&&Math.abs(first.x-box.x-20)<=1,'a long item wraps to two lines inside the 20px inset');
+  const longest=list.locator('li').filter({hasText:'Fitur:'}),first=await longest.boundingBox(),box=await list.boundingBox();assert.ok(first&&box&&Math.abs(first.x-box.x-20)<=1,'items sit inside the 20px inset');
+  await f.page.setViewportSize({width:390,height:844});const wrapped=await longest.boundingBox();assert.ok(wrapped&&wrapped.height>=36,'a long item wraps to two lines and hangs under its text');await f.page.setViewportSize({width:1440,height:900});
   // Clamped at 8 lines by max-height and a fade, not a line-clamp ellipsis.
   const clamp=await text.evaluate(el=>{const s=getComputedStyle(el);return {lines:s.getPropertyValue('-webkit-line-clamp'),max:s.maxHeight,mask:s.maskImage};});
   assert.ok(clamp.lines===''||clamp.lines==='none');assert.equal(clamp.max,'144px');assert.notEqual(clamp.mask,'none');

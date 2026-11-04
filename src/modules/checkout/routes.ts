@@ -2,7 +2,7 @@ import type {LocalAuth} from '../access/auth.ts';
 import {addressBucket,assertOrigin,clientIp,privateJson,problem,readBody} from '../access/http.ts';
 import {AccessError} from '../access/policy.ts';
 import {id,integer,invalid} from '../catalog/validation.ts';
-import {destinationSource,searchDestinations} from '../shipping/destinations.ts';
+import {destinationSource,districtAreas,searchDestinations,searchDistricts} from '../shipping/destinations.ts';
 import {authorizeCart,bootstrapGuest,capability,commerceActor,cookie,lockActor,prefix,setCookie,type CartRow} from './access.ts';
 import {cartCreationInput,changeLine,createCart,mutationKey,projectCart} from './carts.ts';
 import {LIMITS,rateLimit} from '../access/rate-limit.ts';
@@ -13,12 +13,17 @@ export async function handleCheckout(request:Request,identity:LocalAuth){
  try{
   assertOrigin(request);const url=new URL(request.url),path=url.pathname;
   if(path==='/api/v1/destinations'&&request.method==='GET'){
-   if([...url.searchParams.keys()].some(k=>!['q','limit'].includes(k)||url.searchParams.getAll(k).length!==1)) throw invalid();
-   const query=url.searchParams.get('q');if(!query) throw invalid();const raw=url.searchParams.get('limit')??'20';if(!/^\d{1,3}$/.test(raw)) throw invalid();
+   // Three reads: `q` lists kelurahan; `q` with `group=district` lists kecamatan (checkout type-ahead, at most 20);
+   // `district=<area id>` lists every kelurahan of that area's kecamatan (at most 100).
+   if([...url.searchParams.keys()].some(k=>!['q','limit','group','district'].includes(k)||url.searchParams.getAll(k).length!==1)) throw invalid();
+   const query=url.searchParams.get('q'),group=url.searchParams.get('group'),district=url.searchParams.get('district');
+   if(district!==null?query!==null||group!==null||!/^[0-9a-z-]{1,100}$/.test(district):!query||group!==null&&group!=='district') throw invalid();
+   const raw=url.searchParams.get('limit')??(district?'100':group?'8':'20');if(!/^\d{1,3}$/.test(raw)) throw invalid();const limit=integer(Number(raw),1,group?20:100);
    // Per address first: an address over its own budget must not keep spending the global one.
-   await rateLimit(identity.sql,`destinations:ip:${addressBucket(clientIp(request))}`,LIMITS.destinationSearchPerAddress);
-   await rateLimit(identity.sql,'destinations:global',LIMITS.destinationSearchGlobal);
-   return privateJson({items:await searchDestinations(identity.sql,query,integer(Number(raw),1,100)),source:destinationSource()});
+   await rateLimit(identity.sql,`${group||district?'destination-lookup':'destinations'}:ip:${addressBucket(clientIp(request))}`,group||district?LIMITS.destinationLookupPerAddress:LIMITS.destinationSearchPerAddress);
+   await rateLimit(identity.sql,group||district?'destination-lookup:global':'destinations:global',group||district?LIMITS.destinationLookupGlobal:LIMITS.destinationSearchGlobal);
+   const items=district?await districtAreas(identity.sql,district,limit):group?await searchDistricts(identity.sql,query as string,limit):await searchDestinations(identity.sql,query as string,limit);
+   return privateJson({items,source:destinationSource()});
   }
   if(url.search) throw invalid();
   const actor=await commerceActor(request,identity);

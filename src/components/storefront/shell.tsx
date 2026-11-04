@@ -1,8 +1,8 @@
 import Link from 'next/link';
 import {connection} from 'next/server';
 import {preload} from 'react-dom';
-import {currentBrowserCart} from '../../modules/storefront/browser';
-import {cartUnits} from '../../modules/storefront/cart';
+import {cartBadge} from '../../modules/storefront/cart-badge';
+import {CartCount} from './ui/cart-count';
 import {getLocalAuth} from '../../modules/access/auth';
 import {featuredDepartments,searchSuggestions} from '../../modules/storefront/catalog';
 import {departmentPhotos} from '../../modules/storefront/department-photos';
@@ -40,8 +40,7 @@ export async function Shell({children,q='',active='home',department=null,product
  // The Latin Inter subset is the only font the storefront needs; fetch it with the HTML instead of
  // after the stylesheet, so text (the phone LCP) settles in its final face sooner.
  preload('/fonts/inter-4.1/InterVariable-latin.woff2',{as:'font',type:'font/woff2',crossOrigin:'anonymous'});
- const current=await currentBrowserCart(),count=current.kind==='ready'&&current.cart.state==='open'&&Date.parse(current.cart.expires_at)>Date.parse(current.now)?cartUnits(current.cart):0;
- const cartLabel=count?`Keranjang, ${count} pilihan`:'Keranjang';
+ const {count,label:cartLabel}=await cartBadge();
  const {departments,pills,suggestions,promo}=await chrome();
  const dockDepartments=departments.map(d=>({name:d.name,slug:d.slug}));
  return <>
@@ -50,7 +49,7 @@ export async function Shell({children,q='',active='home',department=null,product
    {/* Pointer hover/focus reveals "Serba 99ribu" (CSS only); the link is always named by its label. */}
    <BrandLink/>
    <search className="search-region"><SearchBox key={q} q={q} suggestions={suggestions}/></search>
-   <nav className="utilities" aria-label="Belanja">{promo&&<Link href="/promo" aria-label="Promo" aria-current={active==='promo'?'page':undefined}><Icon name="tag"/></Link>}<Link href="/keranjang" aria-label={cartLabel} aria-current={active==='cart'?'page':undefined}><Icon name="cart"/>{count>0&&<b className="cart-count utility-count" aria-hidden="true">{count}</b>}</Link><Link href="/akun" aria-label="Akun" aria-current={active==='account'?'page':undefined}><Icon name="user"/></Link></nav>
+   <nav className="utilities" aria-label="Belanja">{promo&&<Link href="/promo" aria-label="Promo" aria-current={active==='promo'?'page':undefined}><Icon name="tag"/></Link>}<Link href="/keranjang" aria-label={cartLabel} aria-current={active==='cart'?'page':undefined}><Icon name="cart"/><CartCount count={count}/></Link><Link href="/akun" aria-label="Akun" aria-current={active==='account'?'page':undefined}><Icon name="user"/></Link></nav>
   </div></header>
   <CategoryPills departments={pills} current={department} allCurrent={active==='category'&&department===null}/>
   {/* Phone product page: this bar replaces the header (CSS hides the header while it exists, up to 700px). */}

@@ -7,13 +7,14 @@ import {HeroVideo,type HeroVideoSource} from './hero-video';
 // and a bottom-left copy overlay. 99ribu draws its own media: up to eight of its own product photos
 // drifting slowly on a brand tint (CSS transform/opacity only; static under reduced motion).
 // `video` is the upgrade path for an owner-supplied clip; none ships now. The photos are low
-// priority (no preload): on phones the heading text is the LCP element and must not wait for them.
+// priority (no preload): on phones the heading text is the LCP element and must not wait for them. The first
+// four load eagerly: on desktop one of them is the LCP image, and lazy loading delayed it ~0.8 s (Lighthouse 2026-11-04).
 export type HeroPhoto={src:string;width:number;height:number};
 export function HomeHero({photos,signedIn,video}:{photos:HeroPhoto[];signedIn:boolean;video?:HeroVideoSource}){
  return <section className="home-hero" aria-labelledby="offer-heading">
   <div className="hero-media" aria-hidden="true">
    {video?<HeroVideo {...video}/>:photos.slice(0,8).map((photo,index)=><span key={photo.src} className="hero-photo" data-slot={index}>
-    <CatalogImage src={photo.src} sizes="(max-width: 700px) 30vw, 240px" max={384} min={128} alt="" width={photo.width} height={photo.height} loading="lazy" fetchPriority="low" decoding="async" referrerPolicy="no-referrer"/>
+    <CatalogImage src={photo.src} sizes="(max-width: 700px) 30vw, 240px" max={384} min={128} alt="" width={photo.width} height={photo.height} loading={index<4?'eager':'lazy'} fetchPriority="low" decoding="async" referrerPolicy="no-referrer"/>
    </span>)}
   </div>
   <div className="hero-copy">

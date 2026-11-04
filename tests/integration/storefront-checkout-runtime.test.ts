@@ -41,7 +41,7 @@ test('checkout bridge uses real guest authority, native quote/selection, one ord
  // with the draft kept, never the unknown-outcome recovery.
  for(const code of ['SHIPPING_RATE_TIMEOUT','SHIPPING_RATE_UNAVAILABLE','SHIPPING_RATE_INVALID']){
   const failed=await mutateCheckout(f.client.request('/checkout',{}),f.identity,intent,async(request,identity)=>new URL(request.url).pathname==='/api/v1/checkout/quotes'&&request.method==='POST'?Response.json({code},{status:503}):handleCheckout(request,identity));
-  assert.equal(failed.state.phase,'error',code);assert.equal(failed.state.message,'Ongkir belum bisa dihitung. Isian Anda tersimpan. Tunggu sebentar, lalu tekan Hitung ongkir.');
+  assert.equal(failed.state.phase,'error',code);assert.equal(failed.state.message,'Pilihan kurir belum bisa dimuat. Isian Anda tersimpan. Coba lagi sebentar lagi.');
   assert.equal(failed.state.intent.draft.address_line,draft.address_line);assert.equal(failed.state.intent.draft.buyer_note,draft.buyer_note);assert.equal(failed.order,null);
  }
  const generic=await mutateCheckout(f.client.request('/checkout',{}),f.identity,intent,async(request,identity)=>new URL(request.url).pathname==='/api/v1/checkout/quotes'&&request.method==='POST'?Response.json({code:'SERVICE_UNAVAILABLE'},{status:503}):handleCheckout(request,identity));

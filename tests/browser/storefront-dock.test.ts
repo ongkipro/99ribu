@@ -177,7 +177,9 @@ test("desktop keeps its header: no dock, and the 99rb wordmark still grows into 
 		const before = (await brand.boundingBox())?.width ?? 0;
 		await brand.hover();
 		await expect.poll(async () => (await brand.boundingBox())?.width ?? 0, { timeout: 5000 }).toBeGreaterThan(before + 80);
-		assert.equal(await brand.evaluate((el) => el.textContent?.replace(/\u00a0/g, " ")), "Serba 99ribu.");
+		// The visible letters (the sr-only name "Serba 99ribu, beranda" is not drawn).
+		assert.equal(await brand.evaluate((el) => [...el.childNodes].filter((n) => !(n instanceof Element && n.classList.contains("sr-only"))).map((n) => n.textContent).join("").replace(/\u00a0/g, " ")), "Serba 99ribu.");
+		await expect(page.getByRole("link", { name: "Serba 99ribu, beranda", exact: true })).toHaveCount(1);
 		await page.mouse.move(700, 700);
 		await expect.poll(async () => Math.round((await brand.boundingBox())?.width ?? 0), { timeout: 5000 }).toBe(Math.round(before));
 	} finally {

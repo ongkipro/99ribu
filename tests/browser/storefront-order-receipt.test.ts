@@ -260,10 +260,10 @@ test('two-origin split-COD receipt renders cod_due, partial collection, full col
    await f.page.setViewportSize({width:320,height:568});
    const enlarged=await f.page.addStyleTag({content:'html {font-size:200%}'});
    await expect(f.page.locator('.receipt-summary-card>details')).not.toHaveAttribute('open','');
-   const back=await f.page.locator('.checkout-back').boundingBox(),help=await f.page.getByRole('link',{name:'Bantuan',exact:true}).boundingBox(),panelBox=await f.page.locator('.receipt-cod-panel').boundingBox(),leadBox=await f.page.locator('.receipt-lead').boundingBox(),figureBox=await f.page.locator('.receipt-cod-figure').boundingBox();
-   assert.ok(back&&help&&panelBox&&leadBox&&figureBox);
+   const brand=await f.page.locator('.checkout-header .brand').boundingBox(),panelBox=await f.page.locator('.receipt-cod-panel').boundingBox(),leadBox=await f.page.locator('.receipt-lead').boundingBox(),figureBox=await f.page.locator('.receipt-cod-figure').boundingBox();
+   assert.ok(brand&&panelBox&&leadBox&&figureBox);
    assert.ok(leadBox.y<panelBox.y&&figureBox.y+figureBox.height<568,`320px/200% keeps lead above COD panel and places COD cash figure in the first 568px screen (lead ${Math.round(leadBox.y)}, panel ${Math.round(panelBox.y)}, figure bottom ${Math.round(figureBox.y+figureBox.height)})`);
-   assert.ok(help.width>=44&&help.height>=44,'Help keeps 44px target at 320px/200%');
+   assert.ok(brand.width>=44&&brand.height>=44,'Logo keeps a 44px target at 320px/200%');
    await f.page.locator('.receipt-summary-card>details>summary').click();
    await expect(f.page.locator('.receipt-summary-card>details')).toHaveAttribute('open','');
    await f.page.locator('.receipt-more-items summary').click();

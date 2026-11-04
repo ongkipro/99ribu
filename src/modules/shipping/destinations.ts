@@ -3,6 +3,7 @@ import {productionShipping,readRuntimeConfig,runtimeTarget} from '../../config/r
 import {AccessError} from '../access/policy.ts';
 import {integer,object} from '../catalog/validation.ts';
 import {clean,normalizePhone,shippingFixture} from './address.ts';
+import {districtEntry,groupDistricts,rankDistricts,type AreaMatch,type DistrictEntry} from './area-search.ts';
 
 // S95: where checkout destinations come from. Local and test keep the TEST-ONLY fixture; production with
 // SHIPPING_ADAPTER=mengantar reads Mengantar's own area catalogue (app.shipping_area, loaded from
@@ -28,8 +29,8 @@ export function destinationSource():DestinationSource{
 }
 const fixtureDestinations=():Destination[]=>{const f=shippingFixture();return f.destinations.map(d=>({...d,version:f.version,source:'TEST-ONLY' as const}));};
 // Mengantar writes names in capitals ("JAKARTA SELATAN", "BOGOR BARAT - KOTA"); buyers read them title-cased.
-// "DKI" and "DI" (Daerah Istimewa) are initialisms, not words (S176).
-export const areaTitle=(value:string)=>value.toLocaleLowerCase('id-ID').replace(/(^|[\s(/-])(\p{L})/gu,(_,lead:string,letter:string)=>lead+letter.toLocaleUpperCase('id-ID')).replace(/^Dki\b/,'DKI').replace(/^Di\b/,'DI');
+// "DKI" and "DI" (Daerah Istimewa) and a bracketed short form ("(NAD)", "(NTT)") are initialisms, not words (S176).
+export const areaTitle=(value:string)=>value.toLocaleLowerCase('id-ID').replace(/(^|[\s(/-])(\p{L})/gu,(_,lead:string,letter:string)=>lead+letter.toLocaleUpperCase('id-ID')).replace(/^Dki\b/,'DKI').replace(/^Di\b/,'DI').replace(/\((\p{L}{2,4})\)/gu,abbreviation=>abbreviation.toLocaleUpperCase('id-ID'));
 const title=areaTitle;
 type AreaRow={id:string;province:string;city:string;district:string;subdistrict:string;postal_code:string;dataset_version:string};
 function fromArea(row:AreaRow):Destination{
@@ -44,10 +45,57 @@ export async function findDestination(sql:Db,id:unknown):Promise<Destination|nul
  const [row]=await sql<AreaRow[]>`select id,province,city,district,subdistrict,postal_code,dataset_version from app.shipping_area where id=${id}`;
  return row?fromArea(row):null;
 }
-// What a checkout view lists before any search: the whole fixture locally; in production only the chosen area.
+// What a checkout view lists before any search: the kelurahan of the chosen area's kecamatan (so the kelurahan picker
+// can switch within it), or nothing. Never kelurahan of several kecamatan (owner 2026-11-05), fixture included.
 export async function initialDestinations(sql:Db,selected:string):Promise<Destination[]>{
- if(destinationSource()==='TEST-ONLY') return fixtureDestinations();
- const chosen=await findDestination(sql,selected);return chosen?[chosen]:[];
+ return selected?districtAreas(sql,selected):[];
+}
+
+// A kecamatan as the checkout's type-ahead lists it. `id` is one of its area ids (the smallest), accepted by
+// districtAreas; names are title-cased; postal_codes are the distinct codes of its kelurahan. `match`: the kelurahan
+// it was found by when the query matched a kelurahan name or postal code rather than the kecamatan (2026-11-05);
+// `single` says no other kelurahan of the kecamatan shares that postal code, so picking it can choose the kelurahan.
+export type DestinationDistrict={id:string;label:string;province:string;city:string;district:string;postal_codes:string[];areas:number;
+ match?:{area_id:string;subdistrict:string;postal_code:string;kind:'kelurahan'|'postcode';single:boolean}};
+const toDistrict=(entry:DistrictEntry&{match:AreaMatch|null}):DestinationDistrict=>{
+ const [province,city,district]=[entry.province,entry.city,entry.district].map(title);
+ return {id:entry.id,label:[district,city,province].join(', '),province,city,district,postal_codes:entry.postal_codes,areas:entry.areas,
+  ...(entry.match?{match:{area_id:entry.match.id,subdistrict:title(entry.match.subdistrict),postal_code:entry.match.postal_code,kind:entry.match.kind,single:entry.match.single}}:{})};
+};
+// lazy: the ~7k catalogue kecamatan, with each kelurahan's id, name and postal code, are matched in memory (one
+// grouped read of app.shipping_area every 5 minutes, a few MB)
+// because a per-keystroke normalising scan of ~80k rows costs 200-300 ms; rows added meanwhile appear on the next
+// refresh. Upgrade path: a generated compact-name column with a trigram index.
+let catalogue:{at:number;entries:Promise<DistrictEntry[]>}|null=null;
+const CATALOGUE_TTL=300_000;
+function catalogueDistricts(sql:Db){
+ if(catalogue&&Date.now()-catalogue.at<CATALOGUE_TTL) return catalogue.entries;
+ const entries=sql<{id:string;province:string;city:string;district:string;postal_codes:string[];areas:number;ids:string[];subdistricts:string[];codes:string[]}[]>`select min(id) as id,province,city,district,
+  array_agg(distinct postal_code order by postal_code) as postal_codes,count(*)::int as areas,
+  array_agg(id order by subdistrict,id) as ids,array_agg(subdistrict order by subdistrict,id) as subdistricts,array_agg(postal_code order by subdistrict,id) as codes
+  from app.shipping_area group by province,city,district`.then(rows=>rows.map(({ids,subdistricts,codes,...row})=>districtEntry({...row,members:ids.map((id,i)=>({id,subdistrict:subdistricts[i],postal_code:codes[i]}))})));
+ const current={at:Date.now(),entries};catalogue=current;
+ entries.catch(()=>{if(catalogue===current)catalogue=null;});
+ return entries;
+}
+export async function searchDistricts(sql:Db,query:string,limit=8):Promise<DestinationDistrict[]>{
+ const search=clean(query,100);integer(limit,1,20);
+ const entries=destinationSource()==='TEST-ONLY'?groupDistricts(fixtureDestinations()):await catalogueDistricts(sql);
+ return rankDistricts(entries,search,limit).map(toDistrict);
+}
+// Every kelurahan in the kecamatan of area `id` (any of its areas), by name. Unknown ids answer an empty list.
+export async function districtAreas(sql:Db,id:string,limit=100):Promise<Destination[]>{
+ integer(limit,1,100);
+ if(destinationSource()==='TEST-ONLY'){
+  const anchor=fixtureDestinations().find(d=>d.id===id);if(!anchor) return [];
+  return fixtureDestinations().filter(d=>d.province===anchor.province&&d.city===anchor.city&&d.district===anchor.district).slice(0,limit);
+ }
+ // One read: an unknown or malformed id joins nothing.
+ if(!/^[0-9a-f]{24}$/.test(id)) return [];
+ const rows=await sql<AreaRow[]>`select a.id,a.province,a.city,a.district,a.subdistrict,a.postal_code,a.dataset_version from app.shipping_area a
+  join app.shipping_area anchor on anchor.id=${id} and a.province=anchor.province and a.city=anchor.city and a.district=anchor.district
+  order by a.subdistrict,a.id limit ${limit}`;
+ return rows.map(fromArea);
 }
 
 // Every word must appear somewhere in kelurahan, kecamatan, city, province or postal code. lazy: an ILIKE scan over

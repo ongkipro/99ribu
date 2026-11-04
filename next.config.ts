@@ -48,6 +48,8 @@ const nextConfig: NextConfig = {
   headers: async () => [
     { source: "/:path*", headers: securityHeaders },
     { source: "/api/:path*", headers: [{ key: "Referrer-Policy", value: "no-referrer" }] },
+    // Font files live under a versioned folder (inter-4.1); a new font version gets a new folder, so a year is safe.
+    { source: "/fonts/:path*", headers: [{ key: "Cache-Control", value: "public, max-age=31536000, immutable" }] },
   ],
   ...(devServer ? { deprecated: { looseRouteMatching: true } } : {}),
   // Built-in image optimization for the content-addressed catalog photos only (resized webp; see

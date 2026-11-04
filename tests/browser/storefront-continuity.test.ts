@@ -80,10 +80,12 @@ test("S61 browser: responsive mobile/short-IME/desktop shell, category-preservin
 		new URL("../../src/components/storefront/shell.tsx", import.meta.url),
 		"utf8",
 	);
+	// 2026-11-05: the storefront and checkout headers share one count helper (src/modules/storefront/cart-badge.ts).
+	assert.match(shellSource, /await cartBadge\(\)/, "Shell takes the cart badge from the shared helper");
 	assert.match(
-		shellSource,
+		readFileSync(new URL("../../src/modules/storefront/cart-badge.ts", import.meta.url), "utf8"),
 		/current\.cart\.state==='open'&&Date\.parse\(current\.cart\.expires_at\)>Date\.parse\(current\.now\)\?cartUnits\(current\.cart\):0/,
-		"Shell computes cart badge count only for open, unexpired carts",
+		"The cart badge counts only open, unexpired carts",
 	);
 
 	// 2. Seed real PostgreSQL catalog & commerce data in an isolated namespace

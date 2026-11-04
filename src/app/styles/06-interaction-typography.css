@@ -1,7 +1,7 @@
 /* ===== Interaction contract (observed on shop.com 2026-10-23) =====
    Scope: storefront, checkout, receipt and sign-in shells only (admin untouched). */
 /* Links inside running prose keep their underline (WCAG 1.4.1), hover included. */
-:is(.reset-link, .checkout-help-link, .checkout-text-button):hover,
+:is(.reset-link, .checkout-text-button):hover,
 :is(.cart-advisory, .cart-warning, .help-main p, .signin-hint, .checkout-hint) a:hover {
 	text-decoration: underline;
 }

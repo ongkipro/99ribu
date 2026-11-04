@@ -20,22 +20,38 @@
 	color: inherit;
 	cursor: pointer;
 }
-.checkout-back,
-.checkout-help-link {
+/* Storefront logo left, cart right (owner 2026-11-05): the same 48px round icon target as the store header. */
+.checkout-header .brand {
+	font-size: 1.8rem;
+	min-height: 44px;
+	align-items: center;
+}
+.checkout-cart {
+	position: relative;
 	display: inline-flex;
 	align-items: center;
-	gap: 8px;
-	min-height: 44px;
-}
-:where(.checkout-back svg) {
-	width: 20px;
-	height: 20px;
-}
-.checkout-help-link {
-	min-width: 44px;
 	justify-content: center;
+	width: 48px;
+	height: 48px;
+	border-radius: 9999px;
+	transition: background-color 150ms ease-out;
 }
-.checkout-help-link,
+/* The unit badge on the 48px round target, placed like the storefront header's (08: top 4px, right 2px). */
+.checkout-cart > .utility-count {
+	position: absolute;
+	top: 4px;
+	right: 2px;
+	left: auto;
+}
+@media (hover: hover) {
+	.checkout-cart:hover {
+		background: rgba(0, 0, 0, 0.04);
+	}
+}
+:where(.checkout-cart svg) {
+	width: 24px;
+	height: 24px;
+}
 .checkout-text-button {
 	color: var(--purple);
 	text-decoration: underline;
@@ -197,79 +213,152 @@
 .checkout-field {
 	display: grid;
 	grid-template-columns: minmax(0, 1fr);
-	gap: 8px;
+	gap: 6px;
 	min-width: 0;
 }
-/* The size container that drives the narrow-field fallback below. A field that directly holds a <select> is
-   never its own container: Chromium leaves an inline-size container that directly holds a <select> at 0
-   height once React re-renders it after a server action (the checkout "Wilayah pengiriman" vanished after
-   "Hitung ongkir"; a wrapper re-created with the field fails the same way). Its container is the persistent
-   checkout form instead (queries against a fieldset container never matched in Chromium), as wide as the field. */
-.checkout-field:not(.checkout-field-select),
-#checkout-form {
-	container: checkout-field / inline-size;
+/* Floating labels (owner 2026-11-05: Tokophi's pattern at Shopify checkout's numbers; replaces the 2026-11-03 static
+   labels). CSS only: every control carries placeholder=" " and its real <label for> comes AFTER it inside .checkout-float,
+   so `:placeholder-shown` and the sibling selector work without JavaScript. Empty and unfocused, the label reads as the
+   placeholder (14px, centred in the 49px box); focused or filled it rises to 12px at the top and the text moves down
+   (padding 21/6). A select always has a value, so its label stays raised. Text is 14px with a fine pointer and 16px on
+   touch screens, where iOS Safari would otherwise zoom on focus. */
+.checkout-float {
+	position: relative;
+	min-width: 0;
 }
-/* Static labels above the control (owner 2026-11-03, after tokophi): one 44px+ control height, 8px label gap,
-   the <label for> stays the accessible name. Replaces the S141 floating labels. */
-.checkout-field > label {
-	color: var(--ink);
-	font-size: var(--small-size);
-	line-height: 1.25rem;
-	font-weight: 500;
+.checkout-float > label {
+	position: absolute;
+	top: 15px;
+	left: 11px;
+	max-width: calc(100% - 22px);
+	transform-origin: 0 0;
+	color: var(--muted);
+	font-size: 0.875rem;
+	line-height: 1.36;
 	overflow-wrap: anywhere;
+	pointer-events: none;
+	transition:
+		transform 0.15s ease,
+		color 0.15s ease;
 }
-.checkout-field:where(:has(> [aria-invalid="true"])) > label {
+/* Raised: 12/14 of the size, so it may use 14/12 of the resting width before it wraps. */
+.checkout-float > :where(input:focus, textarea:focus, input:not(:placeholder-shown), textarea:not(:placeholder-shown)) ~ label,
+.checkout-float-select > label {
+	transform: translateY(-8px) scale(0.857);
+	max-width: calc((100% - 22px) / 0.857);
+}
+.checkout-float:where(:has(> [aria-invalid="true"])) > label {
 	color: var(--error);
 }
-.checkout-field :is(input, select, textarea) {
+.checkout-field > .checkout-float > :is(input, select, textarea) {
 	width: 100%;
 	min-width: 0;
-	min-height: 3rem;
-	border: 1px solid var(--field-border);
-	border-radius: 10px;
-	padding: 11px 12px;
+	min-height: 49px;
+	border: 1px solid #dedede;
+	border-radius: 12px;
+	padding: 14px 10px;
 	background-color: #fff;
-	color: inherit;
+	color: var(--ink);
 	font: inherit;
-	line-height: 1.5;
+	font-size: 0.875rem;
+	line-height: 1.36;
+	transition:
+		border-color 0.15s,
+		box-shadow 0.15s;
+}
+.checkout-float > :is(input, textarea):is(:focus, :not(:placeholder-shown)) {
+	padding-top: 21px;
+	padding-bottom: 6px;
+}
+.checkout-field > .checkout-float-select > select {
+	padding: 21px 30px 6px 10px;
+	background-position: right 10px center;
+}
+@media (pointer: coarse) {
+	.checkout-field > .checkout-float > :is(input, select, textarea) {
+		font-size: 1rem;
+	}
 }
 .checkout-field textarea {
 	resize: vertical;
 }
-.checkout-field [aria-invalid="true"] {
+/* Focus: a 2px purple frame (1px border + 1px inset, so nothing shifts), nothing outside the box. */
+.checkout-field > .checkout-float > :is(input, select, textarea):focus,
+.checkout-field > .checkout-float > :is(input, select, textarea):focus-visible {
+	/* Transparent, not none: the 2px frame is border plus box-shadow, which forced-colors mode replaces with this outline. */
+	outline: 2px solid transparent;
+	border-color: var(--purple);
+	box-shadow: inset 0 0 0 1px var(--purple);
+}
+.checkout-field > .checkout-float > [aria-invalid="true"],
+.checkout-field > .checkout-float > [aria-invalid="true"]:focus {
 	border-color: var(--error);
 	box-shadow: inset 0 0 0 1px var(--error);
 }
-.checkout-contact-row {
-	display: flex;
-	flex-wrap: wrap;
-	gap: 20px;
+@media (prefers-reduced-motion: reduce) {
+	.checkout-float > label,
+	.checkout-field > .checkout-float > :is(input, select, textarea) {
+		transition: none;
+	}
 }
-.checkout-contact-row > .checkout-field {
-	flex: 1 1 12rem;
-}
-.checkout-search {
-	display: flex;
-	flex-wrap: wrap;
-	gap: 8px;
-	min-width: 0;
-}
-.checkout-search > .checkout-field {
-	flex: 1 1 12rem;
-}
-.checkout-query {
+.checkout-pair {
 	display: grid;
-	gap: 8px;
+	grid-template-columns: minmax(0, 1fr);
+	gap: 12px;
+	align-items: start;
 	min-width: 0;
 }
-.checkout-search {
-	align-items: flex-start;
+/* Nama penerima + Nomor HP side by side from 640px; stacked on phones. */
+@media (min-width: 40em) {
+	.checkout-pair {
+		grid-template-columns: repeat(2, minmax(0, 1fr));
+		gap: 16px;
+	}
 }
-.checkout-search > button {
-	flex: 0 1 auto;
-	align-self: flex-start;
-	margin-top: calc(var(--caption-leading) + 8px);
+/* Kelurahan and its derived postal code: side by side from 640px, the postal code narrower. */
+@media (min-width: 40em) {
+	.checkout-pair.checkout-pair-postal {
+		grid-template-columns: minmax(0, 1fr) 9rem;
+	}
+}
+.checkout-field input[readonly] {
+	background-color: var(--surface-muted);
+	border-color: var(--line);
+}
+.checkout-combobox-control {
+	position: relative;
+	min-width: 0;
+}
+.checkout-field > .checkout-combobox-control > [role="combobox"] {
+	padding-right: 44px;
+}
+.checkout-combobox-control > svg {
+	position: absolute;
+	right: 14px;
+	top: 14px;
+	color: var(--muted);
+	pointer-events: none;
+}
+.checkout-combobox-control > label {
+	max-width: calc(100% - 1.625rem - 32px);
+}
+.checkout-lookup {
+	justify-self: start;
 	min-height: 3rem;
+}
+.checkout-postal-note {
+	display: flex;
+	gap: 8px;
+	align-items: start;
+	margin: 0;
+	padding: 10px 12px;
+	border-radius: 8px;
+	background: var(--tint-amber);
+	font-size: var(--small-size);
+	line-height: 1.25rem;
+}
+.checkout-postal-note > svg {
+	flex: none;
 }
 .checkout-hint {
 	color: var(--muted);
@@ -325,9 +414,6 @@
 .checkout-methods[aria-invalid="true"] {
 	border-color: var(--error);
 	box-shadow: inset 0 0 0 1px var(--error);
-}
-#checkout-destination_id:valid ~ .checkout-destination-prompt {
-	display: none;
 }
 .checkout-methods legend {
 	padding-inline: 4px;
@@ -509,14 +595,6 @@
 .checkout-help details[open] > summary > svg {
 	transform: rotate(90deg);
 }
-.checkout-help > .checkout-text-button {
-	display: none;
-	margin-top: 12px;
-}
-.checkout-help:target > .checkout-text-button {
-	display: inline-flex;
-	align-items: center;
-}
 .checkout-help details p {
 	padding-bottom: 16px;
 	color: var(--muted);
@@ -554,7 +632,6 @@
 	display: flex;
 	flex-wrap: wrap;
 	gap: 8px 24px;
-	margin-top: 12px;
 }
 .checkout-footer a {
 	display: inline-flex;
@@ -744,18 +821,6 @@
 	}
 }
 @media (max-width: 22rem) {
-	.checkout-back svg {
-		display: none;
-	}
-	/* Back and Help fill the second row exactly at 320px/200% text (152 + 124 of 288px), so the
-	   column gap narrows to keep them on one row. */
-	.checkout-header {
-		column-gap: 8px;
-	}
-	.checkout-header .brand {
-		order: -1;
-		flex-basis: 100%;
-	}
 	.checkout-summary summary {
 		flex-wrap: wrap;
 	}
@@ -880,10 +945,23 @@
 	display: flex;
 	gap: 12px;
 	align-items: flex-start;
-	margin: 8px 0 0;
-	padding: 12px;
-	border-radius: 8px;
-	background: #f4f0ff;
+	padding: 12px 14px;
+	border: 1px solid rgba(91, 53, 213, 0.24);
+	border-radius: 10px;
+	background: var(--tint-violet);
+	overflow-wrap: anywhere;
+}
+/* biome-ignore lint/style/noDescendingSpecificity: the card's own icon; the earlier svg rules style other components */
+.checkout-destination-card > svg {
+	flex: none;
+	color: var(--purple);
+}
+.checkout-destination-street,
+.checkout-destination-area {
+	margin: 0;
+}
+.checkout-destination-street {
+	font-weight: 500;
 }
 .checkout-destination-card small {
 	display: block;
@@ -894,37 +972,50 @@
 	text-transform: uppercase;
 }
 .checkout-suggestions {
+	position: absolute;
+	z-index: 20;
+	top: calc(100% + 4px);
+	left: 0;
+	right: 0;
 	list-style: none;
-	margin: 4px 0 0;
-	padding: 0;
+	margin: 0;
+	padding: 4px 0;
 	border: 1px solid var(--line);
-	border-radius: 8px;
+	border-radius: 10px;
+	background: #fff;
+	box-shadow: 0 8px 24px rgba(0, 0, 0, 0.12);
 	max-height: 18rem;
 	overflow-y: auto;
+	overscroll-behavior: contain;
 }
-.checkout-suggestions li + li {
-	border-top: 1px solid var(--line);
+/* Phones: the field lifts below the header when focused (checkout-address.tsx), and the list never runs past the
+   visible area left by the keyboard (dvh tracks it on Android; iOS keeps the 18rem cap). */
+@media (max-width: 700px) and (pointer: coarse) {
+	.checkout-combobox-control input {
+		scroll-margin-top: 12px;
+	}
+	.checkout-suggestions {
+		max-height: min(18rem, 45dvh);
+	}
 }
-.checkout-suggestions button {
+.checkout-suggestions[hidden] {
+	display: none;
+}
+.checkout-suggestions [role="option"] {
 	display: grid;
 	gap: 2px;
-	width: 100%;
 	min-height: 48px;
 	padding: 10px 14px;
-	border: 0;
-	background: #fff;
-	font: inherit;
-	text-align: left;
 	cursor: pointer;
+	overflow-wrap: anywhere;
 }
-.checkout-suggestions button:hover,
-.checkout-suggestions button[aria-pressed="true"] {
-	background: #f4f0ff;
+.checkout-suggestions [role="option"][aria-selected="true"] {
+	background: var(--tint-violet);
+	box-shadow: inset 3px 0 0 var(--purple);
 }
-/* biome-ignore lint/style/noDescendingSpecificity: different elements from the parcel list spans above; never both on one node */
-.checkout-suggestions button span {
+.checkout-suggestions [role="option"] span {
 	color: var(--store-muted);
-	font-size: 0.875rem;
+	font-size: var(--small-size);
 }
 .checkout-summary-line {
 	display: flex;
@@ -975,9 +1066,36 @@
 	color: var(--store-muted);
 	font-size: 0.875rem;
 }
-/* Beats `.checkout-summary-text > span` by specificity instead of !important. */
-.checkout-summary-text > .checkout-summary-contents {
-	font-size: 0.8125rem;
+/* The buyer note disclosure inside the order summary (owner 2026-11-05); it resets the summary toggle's own summary rules. */
+.checkout-note {
+	margin: 12px 0 4px;
+	border-block: 1px solid var(--line);
+}
+/* biome-ignore lint/style/noDescendingSpecificity: the nested note disclosure only; the earlier summary rules style the summary toggle and help */
+.checkout-note > summary {
+	display: flex;
+	align-items: center;
+	gap: 8px;
+	min-height: 48px;
+	padding: 0;
+	flex-wrap: nowrap;
+	color: var(--purple);
+	font-weight: 500;
+}
+/* biome-ignore lint/style/noDescendingSpecificity: the nested note disclosure only; the earlier summary rules style the summary toggle and help */
+.checkout-note > summary > svg {
+	flex: none;
+	transform: rotate(-90deg);
+}
+/* biome-ignore lint/style/noDescendingSpecificity: the nested note disclosure only; the earlier summary rules style the summary toggle and help */
+.checkout-note[open] > summary > svg {
+	transform: rotate(90deg);
+}
+.checkout-note > .checkout-field {
+	padding-bottom: 16px;
+}
+.checkout-note textarea {
+	background-color: #fff;
 }
 .checkout-summary-price {
 	flex: none;
@@ -996,30 +1114,6 @@
 /* biome-ignore lint/style/noDescendingSpecificity: different elements from the summary toggle strong above; never both on one node */
 .checkout-due strong {
 	font-size: 1.375rem;
-}
-@media (min-width: 1024px) {
-	.checkout-layout {
-		margin-top: 0;
-		align-items: stretch;
-		gap: 0;
-	}
-	.checkout-fields {
-		flex: 1.27 1 28rem;
-		padding: 32px 48px 40px 0;
-	}
-	/* Full-height grey column that bleeds to the viewport edge; only its content sticks. */
-	.checkout-summary {
-		flex: 1 1 22rem;
-		border: 0;
-		border-radius: 0;
-		box-shadow: 0 0 0 100vmax #f5f5f5;
-		clip-path: inset(0 -100vmax 0 0);
-		padding: 32px 0 40px 40px;
-	}
-	.checkout-summary > details {
-		position: sticky;
-		top: 24px;
-	}
 }
 @media (max-width: 30rem) {
 	.checkout-review-row {
@@ -1045,4 +1139,420 @@
 }
 .checkout-controls:has(input[data-issued-selected="false"]:checked) :is(.checkout-order-label, .checkout-due) {
 	display: none;
+}
+
+/* ===== Checkout form page at Shopify checkout's measurements (owner 2026-11-05; reference: Reven Leather checkout,
+   captured at 390 and 1440). Scoped to .checkout-layout (form and unknown-outcome pages); the receipt keeps its card.
+   Desktop: the page splits at 50% + 50px; the form column is 500px wide ending 40px before the split, the summary
+   column 400px wide starting 40px after it on a full-height grey half. Phones: a full-bleed grey summary bar under the
+   header, 14px gutters, every field full width. ===== */
+.checkout-wrap {
+	--checkout-gutter: 24px;
+}
+/* The header rule spans the whole viewport (painted outside the box, so it never scrolls sideways). */
+.checkout-header {
+	border-bottom: 1px solid transparent;
+	border-image: linear-gradient(var(--line), var(--line)) 0 0 1 0 / 0 0 1px 0 / 0 100vw;
+}
+.checkout-layout {
+	gap: 0;
+}
+.checkout-layout > .checkout-summary {
+	margin-inline: calc(-1 * var(--checkout-gutter));
+	border: 0;
+	border-bottom: 1px solid #dedede;
+	border-radius: 0;
+	background: #f5f5f5;
+}
+.checkout-layout .checkout-summary summary {
+	min-height: 64px;
+	padding: 16px var(--checkout-gutter);
+}
+.checkout-layout .summary-toggle-label {
+	display: inline-flex;
+	align-items: center;
+	gap: 4px;
+	color: var(--purple);
+	font-size: 0.875rem;
+}
+.checkout-layout .checkout-summary summary small {
+	position: absolute;
+	width: 1px;
+	height: 1px;
+	overflow: hidden;
+	clip-path: inset(50%);
+	white-space: nowrap;
+}
+.checkout-layout .checkout-summary summary > strong {
+	font-size: 1rem;
+	line-height: 1.25rem;
+}
+.checkout-layout .checkout-summary-body {
+	padding: 4px var(--checkout-gutter) 20px;
+}
+.checkout-layout .checkout-summary-lines {
+	gap: 16px;
+	margin: 0 0 20px;
+}
+.checkout-layout .checkout-summary-lines > li {
+	padding-bottom: 0;
+	border-bottom: 0;
+	align-items: center;
+}
+.checkout-layout .checkout-summary-lines > li > .checkout-summary-media {
+	width: 64px;
+	height: 64px;
+	border: 2px solid #fff;
+	border-radius: 16px;
+	background: #fff;
+	box-shadow: 0 0 0 1px #dedede;
+}
+.checkout-layout .checkout-summary-media img {
+	border-radius: 14px;
+}
+.checkout-layout .checkout-qty {
+	top: -10px;
+	right: -10px;
+	background: #000;
+	font-weight: 600;
+}
+/* biome-ignore lint/style/noDescendingSpecificity: a product name, not the summary toggle's total */
+.checkout-layout .checkout-summary-text > strong {
+	font-size: 0.875rem;
+	font-weight: 400;
+	line-height: 1.25rem;
+}
+.checkout-layout .checkout-summary-text > span {
+	font-size: 0.75rem;
+	line-height: 1rem;
+}
+.checkout-layout .checkout-summary-price {
+	font-size: 0.875rem;
+	font-weight: 400;
+}
+/* biome-ignore lint/style/noDescendingSpecificity: the summary's charges, not a parcel's */
+.checkout-layout .checkout-summary .checkout-charges {
+	gap: 8px;
+	margin: 16px 0 0;
+	font-size: 0.875rem;
+}
+.checkout-layout .checkout-summary .checkout-charges dd {
+	font-weight: 400;
+}
+.checkout-layout .checkout-summary .checkout-total {
+	margin-top: 8px;
+	padding-top: 0;
+	border-top: 0;
+	font-size: 1.125rem;
+	line-height: 1.5rem;
+}
+.checkout-layout .checkout-summary .checkout-total dd {
+	font-size: 1.25rem;
+	font-weight: 600;
+}
+.checkout-layout .checkout-summary-body > .checkout-hint {
+	margin-top: 12px;
+	font-size: 0.8125rem;
+}
+.checkout-layout .checkout-note {
+	border-top: 0;
+	margin: 0;
+}
+
+/* The form column. */
+.checkout-layout > .checkout-fields {
+	padding-top: 24px;
+}
+.checkout-layout .checkout-controls {
+	gap: 32px;
+}
+.checkout-layout .checkout-section {
+	gap: 10px;
+	padding: 0;
+}
+.checkout-layout .checkout-section + .checkout-section {
+	border-top: 0;
+	padding-top: 0;
+}
+.checkout-layout .checkout-section > h2 {
+	margin: 0 0 4px;
+	font-size: 1.25rem;
+	line-height: 1.5rem;
+	font-weight: 600;
+}
+.checkout-layout .checkout-section > h2.checkout-subheading {
+	font-size: 1rem;
+	line-height: 1.25rem;
+}
+.checkout-layout .checkout-pair {
+	gap: 10px 12px;
+}
+.checkout-layout .checkout-field > .checkout-hint,
+.checkout-layout .checkout-section > .checkout-hint,
+.checkout-layout .checkout-field-error {
+	font-size: 0.8125rem;
+	line-height: 1.125rem;
+}
+.checkout-layout .checkout-placeholder {
+	padding: 16px;
+	border: 0;
+	border-radius: 12px;
+	background: #f5f5f5;
+	color: var(--muted);
+	font-size: 0.875rem;
+	text-align: center;
+}
+/* Couriers and payment methods: Shopify's rate list. One bordered box, rows divided by a hairline; the checked row is
+   tinted with a purple frame. */
+.checkout-layout :is(.checkout-methods, .checkout-choices) {
+	border: 0;
+	padding: 0;
+	margin: 0;
+	gap: 0;
+}
+.checkout-layout .checkout-destination-card {
+	border-radius: 12px;
+	font-size: 0.875rem;
+	line-height: 1.25rem;
+}
+/* biome-ignore lint/style/noDescendingSpecificity: the earlier disabled-state rule is meant to win while the form is busy */
+.checkout-layout :is(.checkout-methods, .checkout-choices) label {
+	min-height: 52px;
+	margin: 0;
+	padding: 14px;
+	border: 1px solid #dedede;
+	border-radius: 0;
+	background: #fff;
+	align-items: center;
+	font-size: 0.875rem;
+}
+/* biome-ignore lint/style/noDescendingSpecificity: the earlier disabled-state rule is meant to win while the form is busy */
+.checkout-layout :is(.checkout-methods, .checkout-choices) label + label {
+	margin-top: -1px;
+	border-top: 1px solid #dedede;
+}
+.checkout-layout :is(.checkout-methods, .checkout-choices) > label:first-of-type {
+	border-radius: 12px 12px 0 0;
+}
+.checkout-layout :is(.checkout-methods, .checkout-choices) > label:last-of-type {
+	border-radius: 0 0 12px 12px;
+}
+.checkout-layout :is(.checkout-methods, .checkout-choices) > label:only-of-type {
+	border-radius: 12px;
+}
+.checkout-layout :is(.checkout-methods, .checkout-choices) label:has(input:checked) {
+	position: relative;
+	z-index: 1;
+	border-color: var(--purple);
+	background: var(--purple-tint);
+}
+/* Radios at 20px with 14px text, scaling with enlarged text. */
+.checkout-layout :is(.checkout-methods, .checkout-choices) input {
+	width: 1.43em;
+	height: 1.43em;
+}
+/* biome-ignore lint/style/noDescendingSpecificity: a payment hint, not the summary toggle's status */
+.checkout-layout .checkout-methods small {
+	font-size: 0.8125rem;
+}
+.checkout-layout .checkout-review-box,
+.checkout-layout .checkout-parcel {
+	border-color: #dedede;
+	border-radius: 12px;
+}
+/* The order button: full column width, 50px, 12px radius, 16/600 on purple. */
+.checkout-layout .checkout-actions {
+	padding-top: 0;
+}
+.checkout-layout .checkout-actions .button {
+	min-height: 50px;
+	border-radius: 12px;
+	font-size: 1rem;
+	font-weight: 600;
+	letter-spacing: 0;
+}
+.checkout-layout .checkout-mobile-total {
+	display: flex;
+	align-items: center;
+	gap: 12px;
+}
+/* biome-ignore lint/style/noDescendingSpecificity: the phone total row, never inside the summary */
+.checkout-layout .checkout-mobile-total > .checkout-summary-media {
+	position: relative;
+	display: grid;
+	place-items: center;
+	flex: none;
+	width: 40px;
+	height: 40px;
+	overflow: hidden;
+	border-radius: 10px;
+	background: #fff;
+	box-shadow: 0 0 0 1px #dedede;
+}
+.checkout-layout .checkout-mobile-total img {
+	width: 100%;
+	height: 100%;
+	object-fit: cover;
+}
+.checkout-layout .checkout-mobile-total > span:nth-child(2) {
+	display: grid;
+	flex: 1;
+	line-height: 1.25rem;
+}
+/* biome-ignore lint/style/noDescendingSpecificity: the phone total row, never inside the summary */
+.checkout-layout .checkout-mobile-total strong {
+	font-size: 1.125rem;
+	font-weight: 600;
+}
+/* biome-ignore lint/style/noDescendingSpecificity: the phone total row, never inside the summary */
+.checkout-layout .checkout-mobile-total small {
+	color: var(--muted);
+	font-size: 0.8125rem;
+}
+@media (max-width: 600px) {
+	body:has(.checkout-layout) .checkout-wrap {
+		--checkout-gutter: 14px;
+		padding-inline: 14px;
+	}
+}
+@media (min-width: 40em) and (max-width: 1023px) {
+	.checkout-layout > .checkout-fields {
+		max-width: 560px;
+		margin-inline: auto;
+	}
+}
+@media (min-width: 1024px) {
+	body:has(.checkout-layout) {
+		background: linear-gradient(to right, #fff calc(50% + 50px), #dedede calc(50% + 50px), #dedede calc(50% + 51px), #f5f5f5 calc(50% + 51px));
+	}
+	body:has(.checkout-layout) .checkout-header {
+		background: #fff;
+		box-shadow: 0 0 0 100vmax #fff;
+		clip-path: inset(0 -100vmax);
+	}
+	body:has(.checkout-layout) main.checkout-wrap {
+		max-width: none;
+		padding-inline: 0;
+	}
+	/* Logo over the form column's left edge, cart over the summary column's right edge. */
+	body:has(.checkout-layout) .checkout-header {
+		max-width: none;
+		padding-inline: max(24px, calc(50% - 490px));
+	}
+	.checkout-layout .summary-toggle-label {
+		display: none;
+	}
+	.checkout-layout {
+		display: grid;
+		grid-template-columns: calc(50% + 50px) minmax(0, 1fr);
+		align-items: start;
+	}
+	.checkout-layout > .checkout-fields {
+		grid-column: 1;
+		grid-row: 1;
+		justify-self: end;
+		width: min(500px, 100% - 80px);
+		margin-right: 40px;
+		padding: 38px 0 40px;
+	}
+	.checkout-layout > .checkout-summary {
+		grid-column: 2;
+		grid-row: 1;
+		width: min(400px, 100% - 80px);
+		margin: 0 0 0 40px;
+		padding: 38px 0 40px;
+		border: 0;
+		background: transparent;
+	}
+	.checkout-layout > .checkout-summary > details {
+		position: sticky;
+		top: 24px;
+	}
+	.checkout-layout .checkout-summary summary {
+		min-height: 0;
+		padding: 0 0 16px;
+	}
+	.checkout-layout .checkout-summary details[open] > summary > strong {
+		display: none;
+	}
+	.checkout-layout .checkout-summary-body {
+		padding: 8px 0 0;
+	}
+	.checkout-layout .checkout-mobile-total {
+		display: none;
+	}
+	/* The footer joins the form column, like Shopify's "Terms and policies" under the pay button. */
+	body:has(.checkout-layout) .checkout-footer {
+		max-width: none;
+		width: 500px;
+		margin: 0 0 0 calc(50% + 50px - 540px);
+		padding-inline: 0;
+		background: transparent;
+	}
+}
+/* Kelurahan before a kecamatan is chosen: disabled like Shopify's disabled field (grey, muted, not clickable). */
+.checkout-field > .checkout-float > input:disabled:not([aria-invalid="true"]) {
+	background-color: #f5f5f5;
+	border-color: #e6e6e6;
+	color: var(--muted);
+	cursor: not-allowed;
+}
+/* biome-ignore lint/style/noDescendingSpecificity: the kelurahan chevron, unrelated to the help disclosure icons */
+.checkout-combobox-control.checkout-combobox-plain > svg {
+	top: 16px;
+	right: 12px;
+}
+/* The phone total row and the button never widen the column (320px with 200% text). */
+.checkout-layout .checkout-actions {
+	grid-template-columns: minmax(0, 1fr);
+}
+.checkout-layout .checkout-mobile-total {
+	flex-wrap: wrap;
+	min-width: 0;
+}
+/* Voucher (stage 1, hidden until S177): Shopify's discount row, field flex 1 and "Pakai" beside it at the same height. */
+.checkout-voucher-row {
+	display: flex;
+	gap: 8px;
+	align-items: flex-start;
+	padding-bottom: 16px;
+}
+.checkout-voucher-row > .checkout-field {
+	flex: 1;
+	min-width: 0;
+}
+.checkout-voucher #checkout-voucher {
+	text-transform: uppercase;
+}
+.checkout-voucher-apply.button {
+	flex: none;
+	min-height: 49px;
+	padding-inline: 18px;
+	border-radius: 12px;
+}
+.checkout-voucher-applied {
+	padding-block: 8px 12px;
+}
+.checkout-voucher-chip {
+	display: inline-flex;
+	align-items: center;
+	gap: 6px;
+	padding: 4px 4px 4px 10px;
+	border-radius: 8px;
+	background: #e9e9e9;
+	font-size: 0.8125rem;
+	font-weight: 600;
+}
+.checkout-voucher-chip > button {
+	display: inline-grid;
+	place-items: center;
+	width: 28px;
+	height: 28px;
+	border: 0;
+	border-radius: 6px;
+	background: transparent;
+	cursor: pointer;
+}
+.checkout-layout .checkout-summary .checkout-voucher-discount dd {
+	color: var(--tone-success);
 }

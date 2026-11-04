@@ -11,7 +11,7 @@ import {normalizeContact,ownedQuote,type projectQuote,type QuoteDocument} from '
 import {handleCheckout} from '../checkout/routes.ts';
 import {channelEnabled,offeredChannels,paymentTerms,type PaymentTerms} from '../payments/methods.ts';
 import {clean,normalizePhone} from '../shipping/address.ts';
-import {canonicalAddress,findDestination,initialDestinations,type Destination as ShippingDestination} from '../shipping/destinations.ts';
+import {canonicalAddress,districtAreas,findDestination,initialDestinations,type Destination as ShippingDestination,type DestinationDistrict} from '../shipping/destinations.ts';
 import {readCartView,type BrowserCart} from './cart.ts';
 import {rupiah,sameOrigin} from './format.ts';
 import {checkoutDraftFields,checkoutDraftLimits,checkoutDraftsEnabled,readCheckoutDraft,type CheckoutProgress} from './checkout-draft.ts';
@@ -55,6 +55,8 @@ export function checkoutAllocationChoices(document:QuoteDocument,cart:BrowserCar
  }
  return [...groups.values()];
 }
+// The kecamatan field shows the chosen area's kecamatan when nothing was typed (profile prefill, older drafts).
+const districtLabel=(d:Destination|undefined)=>d?`${d.district}, ${d.city}, ${d.province}`:'';
 export function initialCheckoutState(view:CheckoutView):CheckoutState{
  const progress=view.progress,q=view.quote,wire=q?validateCheckoutDraft(view.draft,view.destinations).wire:null;
  const same=Boolean(q&&wire&&isDeepStrictEqual(q.address,wire.canonicalAddress)&&isDeepStrictEqual(q.contact,wire.contact)&&q.payment_method===wire.payment_method&&q.payment_channel===wire.payment_channel&&(!progress||progress.quote===q.id&&progress.cart_version===view.cart?.version));
@@ -62,7 +64,7 @@ export function initialCheckoutState(view:CheckoutView):CheckoutState{
  const step=view.quoteCurrent&&same&&!view.draftExpired&&progress?.step!=='contact'?'review':'contact';
  const allocation=progress&&q&&progress.quote===q.id&&q.allocation_options.some(p=>p.id===progress.allocation_id)?progress.allocation_id:q?.selected_allocation_id??'';
  const packages=progress&&q&&progress.quote===q.id?progress.packages.filter(p=>q.packages.some(parcel=>parcel.id===p.package_id&&parcel.options.some(o=>o.id===p.shipping_option_id))):[];
- return {phase:'idle',step,intent:initialCheckoutIntent({kind:step==='review'?'order':'quote',cart:view.cart?.id??'',version:String(view.cart?.version??''),quote:q?.id??'',allocation_id:allocation,draft:view.draft,query:progress?.query??'',packages,draft_revision:String(progress?.revision??0)}),view,errors:{},message:view.draftExpired?'Draf sebelumnya sudah berakhir. Periksa isian sebelum melanjutkan.':'',code:null,blocked:view.kind!=='ready',draftConflict:false};
+ return {phase:'idle',step,intent:initialCheckoutIntent({kind:step==='review'?'order':'quote',cart:view.cart?.id??'',version:String(view.cart?.version??''),quote:q?.id??'',allocation_id:allocation,draft:view.draft,query:progress?.query||districtLabel(view.destinations.find(d=>d.id===view.draft.destination_id)),packages,draft_revision:String(progress?.revision??0)}),view,errors:{},message:view.draftExpired?'Draf sebelumnya sudah berakhir. Periksa isian sebelum melanjutkan.':'',code:null,blocked:view.kind!=='ready',draftConflict:false};
 }
 
 export function checkoutFormInput(data:FormData):CheckoutIntent{
@@ -99,12 +101,13 @@ const singleLine=(value:string)=>value.replace(/\r\n?/g,'\n').replace(/\n/g,' ')
 // destinations: the resolved areas this draft may name (the view's list, or the area just looked up).
 export function validateCheckoutDraft(draft:CheckoutDraft,destinations:readonly Destination[]){
  const errors:CheckoutState['errors']={};let recipient='',street='',phone='',note:string|undefined,contact:ReturnType<typeof normalizeContact>|null=null;
- try{recipient=clean(draft.recipient_name,200);}catch{errors.recipient_name='Isi nama penerima, maksimal 200 karakter.';}
+ try{recipient=clean(draft.recipient_name,200);}catch{errors.recipient_name='Isi nama lengkap penerima, maksimal 200 karakter.';}
  try{street=clean(singleLine(draft.address_line),500);}catch{errors.address_line='Isi alamat lengkap, maksimal 500 karakter.';}
- try{phone=normalizePhone(draft.phone);}catch{errors.phone='Masukkan nomor HP Indonesia yang dapat dihubungi.';}
- if(phone)try{contact=normalizeContact({phone,email:draft.email.trim()||null});}catch{errors.email='Periksa alamat email atau kosongkan jika tidak digunakan.';}
+ try{phone=normalizePhone(draft.phone);}catch{errors.phone='Masukkan nomor WhatsApp Indonesia yang aktif, mis. 0812 3456 7890.';}
+ // Checkout asks no email (owner 2026-11-05): the draft field stays for stored drafts but never reaches the quote.
+ if(phone)contact=normalizeContact({phone,email:null});
  const destination=destinations.find(d=>d.id===draft.destination_id);
- if(!destination)errors.destination_id='Pilih wilayah dari daftar tujuan pengiriman.';
+ if(!destination)errors.destination_id='Pilih kecamatan, lalu kelurahan atau desa tujuan.';
  // DEC-008: 'transfer' is the manual bank channel and 'va' the AutoLaris VA/QRIS channel of the prepaid method.
  if(!offeredMethods().includes(draft.payment_method))errors.payment_method='Pilih metode pembayaran yang tersedia.';
  if(draft.buyer_note.trim())try{note=clean(singleLine(draft.buyer_note),500);}catch{errors.buyer_note='Gunakan catatan maksimal 500 karakter tanpa karakter kontrol.';}
@@ -133,11 +136,11 @@ export async function assertCheckoutTransport(request:Request,identity:LocalAuth
 export async function profileDraft(request:Request,identity:LocalAuth):Promise<CheckoutDraft|null>{
  try{
   const actor=await commerceActor(request,identity);if(actor?.kind!=='user')return null;
-  const [row]=await identity.sql<{email:string|null;phone:string|null;recipient_name:string|null;address_phone:string|null;street:string|null;destination_code:string|null}[]>`select p.email,p.phone,a.recipient_name,a.phone as address_phone,a.street,a.destination_code
+  const [row]=await identity.sql<{phone:string|null;recipient_name:string|null;address_phone:string|null;street:string|null;destination_code:string|null}[]>`select p.phone,a.recipient_name,a.phone as address_phone,a.street,a.destination_code
    from app.buyer_profile p left join app.buyer_address a on a.id=p.default_address_id and a.user_id=p.user_id and a.deleted_at is null where p.user_id=${actor.id}`;
   if(!row)return null;
   const destination=await findDestination(identity.sql,row.destination_code);
-  return {...emptyCheckoutDraft(),recipient_name:row.recipient_name??'',phone:displayPhone(row.address_phone??row.phone),email:row.email??'',destination_id:destination?.id??'',address_line:row.street??''};
+  return {...emptyCheckoutDraft(),recipient_name:row.recipient_name??'',phone:displayPhone(row.address_phone??row.phone),destination_id:destination?.id??'',address_line:row.street??''};
  }catch{return null;}
 }
 export async function readCheckout(request:Request,identity:LocalAuth,dispatch:typeof handleCheckout=handleCheckout):Promise<CheckoutView>{
@@ -151,10 +154,10 @@ export async function readCheckout(request:Request,identity:LocalAuth,dispatch:t
   const actor=await commerceActor(request,identity);if(!actor)throw new AccessError(401,'UNAUTHENTICATED');
   document=await identity.sql.begin(async tx=>(await ownedQuote(tx,request,identity,actor,quote?.id??'')).quote.document);
  }catch(error){return {...checkoutUnavailableView(),kind:error instanceof AccessError&&[401,403].includes(error.status)?'denied':'unavailable',code:error instanceof AccessError?error.code:'SERVICE_UNAVAILABLE'};}}
- let draft:CheckoutDraft=quote?{recipient_name:quote.address.recipient_name,phone:displayPhone(quote.contact.phone),email:quote.contact.email??'',destination_id:quote.address.destination_id,address_line:quote.address.address_line,buyer_note:'',payment_method:quote.payment_channel==='manual-bank'?'transfer':quote.payment_channel==='autolaris'?'va':quote.payment_method}:emptyCheckoutDraft();
+ let draft:CheckoutDraft=quote?{recipient_name:quote.address.recipient_name,phone:displayPhone(quote.contact.phone),email:'',destination_id:quote.address.destination_id,address_line:quote.address.address_line,buyer_note:'',payment_method:quote.payment_channel==='manual-bank'?'transfer':quote.payment_channel==='autolaris'?'va':quote.payment_method}:emptyCheckoutDraft();
  const expired=Date.parse(current.cart.expires_at)<=Date.parse(current.now),issue=current.cart.state==='submitted'?'submitted':expired||current.cart.state!=='open'?'expired':current.lines.some(l=>!l.product||!l.offer||!l.stock||l.publicationChanged)?'cart':null;
  let progress:CheckoutProgress|null=null,draftExpired=false;
- if(current.cart.state==='open'&&!expired)try{const saved=await readCheckoutDraft(request,identity,current.cart.id);progress=saved.progress;draftExpired=saved.kind==='expired';if(progress)draft=progress.draft;}
+ if(current.cart.state==='open'&&!expired)try{const saved=await readCheckoutDraft(request,identity,current.cart.id);progress=saved.progress;draftExpired=saved.kind==='expired';if(progress)draft={...progress.draft,email:''};/* older drafts may hold an email; checkout no longer asks for one */}
  catch(error){return {...checkoutUnavailableView(),kind:error instanceof AccessError&&error.status<500?'denied':'unavailable',code:error instanceof AccessError?error.code:'SERVICE_UNAVAILABLE'};}
  if(!quote&&!progress)draft=await profileDraft(request,identity)??draft;
  let methods:string[];
@@ -170,14 +173,14 @@ const messages:Record<string,string>={
  INVALID_INPUT:'Periksa isian sebelum melanjutkan.',INVALID_IDEMPOTENCY_KEY:'Muat ulang checkout sebelum mencoba lagi.',
  CART_VERSION_REQUIRED:'Buka kembali keranjang untuk memeriksa isinya.',CART_VERSION_CONFLICT:'Isi keranjang berubah dari halaman lain. Periksa kembali sebelum menghitung pengiriman.',
  CART_EMPTY:'Keranjang masih kosong. Pilih produk sebelum checkout.',CART_EXPIRED:'Keranjang kedaluwarsa. Kembali ke keranjang untuk memulai lagi.',CART_SUBMITTED:'Keranjang ini sudah menjadi pesanan. Periksa pesanan yang tersimpan.',
- QUOTE_EXPIRED:'Perhitungan pengiriman kedaluwarsa. Gunakan Hitung ongkir untuk menghitung ulang, lalu tinjau total terbaru.',QUOTE_SUPERSEDED:'Perhitungan pengiriman berubah. Gunakan Hitung ongkir, lalu periksa setiap paket.',
- SHIPPING_RATE_EXPIRED:'Tarif pengiriman kedaluwarsa. Gunakan Hitung ongkir untuk menghitung ulang.',
- SHIPPING_RATE_TIMEOUT:'Ongkir belum bisa dihitung. Isian Anda tersimpan. Tunggu sebentar, lalu tekan Hitung ongkir.',SHIPPING_RATE_UNAVAILABLE:'Ongkir belum bisa dihitung. Isian Anda tersimpan. Tunggu sebentar, lalu tekan Hitung ongkir.',SHIPPING_RATE_INVALID:'Ongkir belum bisa dihitung. Isian Anda tersimpan. Tunggu sebentar, lalu tekan Hitung ongkir.',SHIPPING_OPTION_UNAVAILABLE:'Layanan yang dipilih sudah tidak tersedia. Pilih kembali layanan pengiriman.',
+ QUOTE_EXPIRED:'Ongkir berubah. Periksa pilihan kurir, lalu buat pesanan.',QUOTE_SUPERSEDED:'Ongkir berubah. Periksa pilihan kurir di setiap paket.',
+ SHIPPING_RATE_EXPIRED:'Ongkir berubah. Periksa pilihan kurir.',
+ SHIPPING_RATE_TIMEOUT:'Pilihan kurir belum bisa dimuat. Isian Anda tersimpan. Coba lagi sebentar lagi.',SHIPPING_RATE_UNAVAILABLE:'Pilihan kurir belum bisa dimuat. Isian Anda tersimpan. Coba lagi sebentar lagi.',SHIPPING_RATE_INVALID:'Pilihan kurir belum bisa dimuat. Isian Anda tersimpan. Coba lagi sebentar lagi.',SHIPPING_OPTION_UNAVAILABLE:'Layanan yang dipilih sudah tidak tersedia. Pilih kembali layanan pengiriman.',
  MANUAL_BANK_UNAVAILABLE:'Transfer bank belum tersedia. Pilih metode pembayaran lain.',MANUAL_BANK_BUSY:'Transfer bank sedang penuh. Pilih metode pembayaran lain atau coba lagi nanti.',MANUAL_BANK_OPEN_LIMIT:'Selesaikan transfer pesanan sebelumnya dulu, atau pilih metode pembayaran lain.',RATE_LIMITED:'Terlalu banyak percobaan. Tunggu sebentar lalu coba lagi.',
  COD_UNAVAILABLE:'COD belum tersedia untuk tujuan atau paket ini. Ubah preferensi pembayaran atau wilayah pengiriman.',NO_SUPPORTED_ROUTE:'Belum ada pengiriman untuk tujuan dan isi keranjang ini. Pilih wilayah pengiriman lain atau periksa keranjang.',ROUTE_UNCONFIGURED:'Tujuan ini belum memiliki layanan pengiriman. Pilih tujuan lain.',
  DESTINATION_UNAVAILABLE:'Tujuan pengiriman sudah tidak tersedia. Pilih kembali dari daftar.',PAYMENT_CHANNEL_UNAVAILABLE:'Metode pembayaran ini sedang tidak tersedia. Pilih metode lain.',SHIPPING_UNAVAILABLE:'Pengiriman belum dapat dihitung saat ini. Coba lagi nanti.',DESTINATION_POSTCODE_MISMATCH:'Wilayah dan kode pos perlu diperiksa kembali.',
  OFFER_UNAVAILABLE:'Pilihan produk tidak tersedia. Periksa kembali keranjang.',INSUFFICIENT_COMPLETE_STOCK:'Stok pilihan lengkap berubah. Periksa kembali keranjang.',INSUFFICIENT_STOCK:'Stok berubah sebelum pesanan tersimpan. Periksa keranjang.',PUBLICATION_REVIEW_REQUIRED:'Rincian pilihan berubah. Setujui isi terbaru dari keranjang.',
- PROMOTION_REVIEW_REQUIRED:'Perhitungan promo berubah. Hitung ulang pengiriman dan periksa total.',PROMOTION_BUDGET_EXHAUSTED:'Kuota promo berubah. Hitung ulang total sebelum melanjutkan.',FINANCIAL_REVIEW_REQUIRED:'Perhitungan pengiriman perlu diperbarui. Hitung ulang dan periksa total.',
+ PROMOTION_REVIEW_REQUIRED:'Promo berubah. Periksa pilihan kurir dan total.',PROMOTION_BUDGET_EXHAUSTED:'Kuota promo berubah. Periksa total sebelum melanjutkan.',FINANCIAL_REVIEW_REQUIRED:'Ongkir berubah. Periksa pilihan kurir dan total.',
  UNAUTHENTICATED:'Sesi belanja perlu diperiksa. Kembali ke keranjang.',UNSUPPORTED_AUTH_TRANSPORT:'Buka checkout melalui sesi belanja situs ini.',INVALID_ORIGIN:'Buka checkout dari situs ini sebelum mencoba lagi.',IDEMPOTENCY_CONFLICT:'Tindakan ini memiliki rincian berbeda. Periksa kembali sebelum mengirim ulang.'
 };
 
@@ -186,6 +189,12 @@ export async function mutateCheckout(request:Request,identity:LocalAuth,intent:C
  const navigate=intent.navigate==='stay'?intent.kind==='quote'?'lookup':intent.kind==='shipping'?'shipping':'review':intent.navigate;
  const call=(path:string,method='GET',body?:unknown,key?:string,version?:string)=>callCheckout(request,identity,path,method,body,key,version,dispatch);
  const fresh=async()=>initialCheckoutState(await readCheckout(request,identity));
+ // The best matching kecamatan for typed text and its kelurahan (one rate-limited read): what the no-JavaScript lookup
+ // lists and what a failed submit keeps listing. Never kelurahan of several kecamatan.
+ const bestDistrict=async(query:string)=>{
+  const [district]=(await call(`/api/v1/destinations?q=${encodeURIComponent(query)}&group=district&limit=1`)).data.items as DestinationDistrict[];
+  return district?{district,areas:await districtAreas(identity.sql,district.id)}:null;
+ };
  const acceptedQuote=async(quote:CheckoutQuote)=>{
   const state=await fresh();if(state.view.kind==='unavailable')throw new AccessError(503,'SERVICE_UNAVAILABLE');
   if(state.view.kind!=='ready')throw new AccessError(401,'UNAUTHENTICATED');
@@ -208,9 +217,20 @@ export async function mutateCheckout(request:Request,identity:LocalAuth,intent:C
    state.step=['shipping','review'].includes(navigate)&&state.view.quoteCurrent&&unchanged?'review':'contact';
    state.intent.kind=state.step==='review'?'order':'quote';
    if(navigate==='lookup'){
-    const query=intent.query.trim();
-    state.view.destinations=query?(await call(`/api/v1/destinations?q=${encodeURIComponent(query)}&limit=20`)).data.items as Destination[]:await initialDestinations(identity.sql,intent.draft.destination_id);
-    state.message=!query&&!state.view.destinations.length?'Ketik nama kelurahan, kecamatan, atau kode pos tujuan.':state.view.destinations.length?'Pilih tujuan dari hasil pencarian.':'Tujuan tidak ditemukan. Coba nama kelurahan atau kecamatan lain.';
+    // A query that is just the chosen kelurahan's own kecamatan (implicit Enter on a filled form) keeps that list.
+    const query=intent.query.trim()===districtLabel(picked??undefined)?'':intent.query.trim();
+    // Without JavaScript: the kelurahan of the best matching kecamatan only (one rate-limited search); the kecamatan
+    // field then names it, so a buyer who meant another one refines the search.
+    const best=query?await bestDistrict(query):null,district=best?.district;
+    state.view.destinations=best?best.areas:query?[]:await initialDestinations(identity.sql,intent.draft.destination_id);
+    if(district){
+     state.intent.query=district.label;
+     // Found by a kelurahan name (or a postal code only one kelurahan has): that kelurahan is chosen, as with JavaScript.
+     const matched=district.match?.single?district.match.area_id:'';
+     const keep=state.view.destinations.length===1?state.view.destinations[0].id:state.view.destinations.some(d=>d.id===matched)?matched:state.view.destinations.some(d=>d.id===intent.draft.destination_id)?intent.draft.destination_id:'';
+     state.intent.draft={...state.intent.draft,destination_id:keep};
+    }
+    state.message=!query&&!state.view.destinations.length?'Ketik nama kecamatan tujuan.':!query?'':district?`Pilih kelurahan atau desa di ${district.label}. Bukan kecamatan ini? Tambahkan nama kota pada pencarian.`:'Kecamatan tidak ditemukan. Periksa ejaan atau coba nama kecamatan lain.';
    }
    return {state,cookies,order:null};
   }
@@ -218,8 +238,15 @@ export async function mutateCheckout(request:Request,identity:LocalAuth,intent:C
   const validation=validateCheckoutDraft(intent.draft,chosen?[chosen]:[]);
   if(!validation.wire){
    const state=await fresh();
+   // No kelurahan chosen yet but a kecamatan typed (the no-JavaScript path): keep listing that kecamatan's kelurahan,
+   // and name it in the kecamatan field. A failed read keeps the field errors and says the list is missing.
+   let query=intent.query,listMessage='';
+   if(!state.view.destinations.length&&query.trim()&&state.view.kind==='ready'){
+    try{const best=await bestDistrict(query.trim());if(best){state.view.destinations=best.areas;query=best.district.label;}}
+    catch(error){if(!(error instanceof AccessError))throw error;listMessage=error.code==='RATE_LIMITED'?' Daftar kelurahan belum dapat dimuat. Tunggu sebentar lalu coba lagi.':' Daftar kelurahan belum dapat dimuat. Coba lagi.';}
+   }
    if(state.view.kind==='denied'||state.view.kind==='none'||state.view.cart&&state.view.cart.id!==intent.cart)return {state:{...state,phase:'error',message:'Sesi atau keranjang berubah. Periksa keranjang yang aktif.'},cookies,order:null};
-   return {state:{...state,phase:'error',step:'contact',intent:{...intent,key:randomUUID(),kind:'quote',packages:[],navigate:''},blocked:false,errors:validation.errors,message:'Periksa isian yang ditandai.',code:'INVALID_INPUT'},cookies,order:null};
+   return {state:{...state,phase:'error',step:'contact',intent:{...intent,query,key:randomUUID(),kind:'quote',packages:[],navigate:''},blocked:false,errors:validation.errors,message:`Periksa isian yang ditandai.${listMessage}`,code:'INVALID_INPUT'},cookies,order:null};
   }
   const wire=validation.wire;
   if(intent.kind==='quote'){
@@ -228,7 +255,7 @@ export async function mutateCheckout(request:Request,identity:LocalAuth,intent:C
   }
   const quote=(await call(`/api/v1/checkout/quotes/${intent.quote}`)).data as CheckoutQuote;
   if(!isDeepStrictEqual(quote.address,wire.canonicalAddress)||!isDeepStrictEqual(quote.contact,wire.contact)||quote.payment_method!==wire.payment_method||quote.payment_channel!==wire.payment_channel){
-   const state=await fresh();return {state:{...state,phase:'error',step:'contact',intent:{...intent,key:randomUUID(),kind:'quote',packages:[]},message:'Alamat atau metode berubah. Gunakan Hitung ongkir untuk menghitung ulang.',code:'INVALID_INPUT'},cookies,order:null};
+   const state=await fresh();return {state:{...state,phase:'error',step:'contact',intent:{...intent,key:randomUUID(),kind:'quote',packages:[]},message:'Alamat atau metode berubah. Periksa pilihan kurir.',code:'INVALID_INPUT'},cookies,order:null};
   }
   // An order submitted with couriers or a package split other than the quote's (e.g. radios changed without JavaScript)
   // first applies that selection and shows the new total; the order itself needs a second, deliberate press.
@@ -255,7 +282,7 @@ export async function mutateCheckout(request:Request,identity:LocalAuth,intent:C
   let state:CheckoutState;try{state=await fresh();}catch{state=initialCheckoutState(checkoutUnavailableView());}
   const lostScope=blocked||state.view.kind==='denied'||state.view.kind==='none'||!unknown&&Boolean(state.view.cart&&state.view.cart.id!==intent.cart);
   const safeIntent=lostScope?initialCheckoutIntent():unknown?intent:{...intent,key:randomUUID(),kind:'quote' as const,version:state.view.cart?.id===intent.cart?String(state.view.cart.version):intent.version,quote:state.view.quote?.id??'',packages:[],navigate:''};
-  const errors:CheckoutState['errors']=lostScope||unknown?{}:navigate==='lookup'&&code==='INVALID_INPUT'?{query:'Periksa kata pencarian wilayah.'}:['COD_UNAVAILABLE','MANUAL_BANK_UNAVAILABLE','MANUAL_BANK_BUSY','MANUAL_BANK_OPEN_LIMIT','PAYMENT_CHANNEL_UNAVAILABLE'].includes(code)?{payment_method:messages[code]}:code==='NO_SUPPORTED_ROUTE'?{destination_id:messages[code]}:{};
+  const errors:CheckoutState['errors']=lostScope||unknown?{}:navigate==='lookup'&&code==='INVALID_INPUT'?{query:'Periksa nama kecamatan yang dicari.'}:['COD_UNAVAILABLE','MANUAL_BANK_UNAVAILABLE','MANUAL_BANK_BUSY','MANUAL_BANK_OPEN_LIMIT','PAYMENT_CHANNEL_UNAVAILABLE'].includes(code)?{payment_method:messages[code]}:code==='NO_SUPPORTED_ROUTE'?{destination_id:messages[code]}:{};
   return {state:{...state,phase:unknown?'unknown':'error',step:unknown?intent.kind==='quote'?'contact':'review':'contact',intent:safeIntent,view:lostScope?{...checkoutUnavailableView(),kind:'denied',code}:state.view.cart&&state.view.cart.id!==intent.cart?checkoutUnavailableView():state.view,errors,message:lostScope?'Sesi atau keranjang berubah. Hasil tindakan hanya dapat diperiksa melalui akses yang sah.':unknown?'Hasil tindakan belum diketahui. Ulangi tindakan yang sama untuk memeriksa hasilnya.':messages[code]??'Perubahan belum diterapkan. Periksa kembali pilihan dan coba lagi.',code,blocked:lostScope},cookies,order:null};
  }
 }

@@ -95,6 +95,11 @@
 	   shop.com's full-width pages), so the larger gutters only matter below that. */
 	--bottom: 0px;
 	--gutter: 16px;
+	/* Card motion and keyboard ring (product cards, promo banners, department highlights; 2026-11-05). */
+	--card-ease: cubic-bezier(0.22, 1, 0.36, 1);
+	--card-in: 360ms;
+	--card-out: 220ms;
+	--card-ring: inset 0 0 0 3px var(--purple), inset 0 0 0 5px #fff;
 }
 @media (min-width: 1024px) {
 	:root {
@@ -251,7 +256,7 @@ html {
 	display: inline-flex;
 	align-items: baseline;
 }
-.brand > span:not(.grow) {
+.brand > span:not(.grow, .brand-num, .sr-only) {
 	font-size: 0.56em;
 	font-weight: 800;
 	letter-spacing: var(--tracking-tight);

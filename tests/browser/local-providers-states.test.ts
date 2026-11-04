@@ -88,11 +88,22 @@ async function capture(page:Page,name:string){
  assert.deepEqual(small,[],`${name}: every text control is at least 16 px (no mobile zoom)`);
  await writeFile(`${output}/${name}.png`,await page.screenshot({fullPage:true}));
 }
+// Couriers load by themselves once the address is complete (owner 2026-11-05). Without JavaScript "Cek ongkir" asks for
+// them; with JavaScript an incomplete or rejected address is checked by pressing "Buat pesanan" in the contact step.
+async function calculate(page:Page){
+ const nojs=page.getByRole('button',{name:'Cek ongkir',exact:true}),review=page.locator('dl.checkout-review-box');
+ if(await nojs.isVisible()){await nojs.click();return;}
+ if(await review.isVisible()||await review.waitFor({timeout:2500}).then(()=>true,()=>false))return;
+ await page.getByRole('button',{name:'Buat pesanan',exact:true}).click();
+}
 async function fill(page:Page,method:'prepaid'|'cod',postcode:string){
- await page.getByLabel('Nama penerima',{exact:true}).fill('Penerima Contoh');await page.getByLabel('Nomor HP',{exact:true}).fill('081200000000');
- await page.getByLabel('Kelurahan atau kode pos',{exact:true}).fill(postcode);
- const suggestion=page.getByRole('list',{name:'Saran wilayah'}).getByRole('button').filter({hasText:postcode}).first();
+ await page.getByLabel('Nama lengkap',{exact:true}).fill('Penerima Contoh');await page.getByLabel('Nomor WhatsApp',{exact:true}).fill('081200000000');
+ // Kecamatan type-ahead finds the kecamatan holding this postal code; then the kelurahan with that code is chosen.
+ await page.getByLabel('Kecamatan tujuan',{exact:true}).fill(postcode);
+ const suggestion=page.getByRole('listbox',{name:'Kecamatan'}).getByRole('option').first();
  await expect(suggestion).toBeVisible();await suggestion.click();
+ const kelurahan=page.getByRole('combobox',{name:'Kelurahan / desa',exact:true});await expect(kelurahan).toBeEnabled();
+ if(!await page.locator('input[type=hidden][name=destination_id]').inputValue()){await kelurahan.fill(postcode);await page.getByRole('listbox',{name:'Kelurahan atau desa'}).getByRole('option').first().click();}
  await page.getByLabel('Alamat lengkap',{exact:true}).fill('Jalan Contoh 12\nRT 01');
  await page.locator(`input[name=payment_method][value=${method}]`).check();
 }
@@ -101,15 +112,15 @@ for(const [index,width] of [390,768,1440].entries()){
  test(`S168 provider-mode checkout states at ${width}px`,async()=>{
   // Area search: none found.
   {const f=await start(width);try{
-   await f.page.goto(`${origin}/checkout`);await f.page.getByLabel('Kelurahan atau kode pos',{exact:true}).fill('zzqxw');
-   await expect(f.page.getByText('Wilayah tidak ditemukan. Coba nama kelurahan, kecamatan, atau kode pos lain.',{exact:true})).toBeVisible();
+   await f.page.goto(`${origin}/checkout`);await f.page.getByLabel('Kecamatan tujuan',{exact:true}).fill('zzqxw');
+   await expect(f.page.getByText('Kecamatan tidak ditemukan. Periksa ejaan atau coba nama kecamatan lain.',{exact:true})).toBeVisible();
    await capture(f.page,`area-none-${width}`);assert.deepEqual(f.errors,[]);
   }finally{await f.browser.close();}}
   // Couriers listed with prices; COD only where the provider allows it.
   {mode='ok';const before=estimates;const f=await start(width);try{
-   await f.page.goto(`${origin}/checkout`);await fill(f.page,'prepaid',postcodes[index*4]);await f.page.getByRole('button',{name:'Hitung ongkir',exact:true}).click();
+   await f.page.goto(`${origin}/checkout`);await fill(f.page,'prepaid',postcodes[index*4]);await calculate(f.page);
    await expect(f.page.locator('dl.checkout-review-box')).toBeVisible();
-   const shipping=f.page.locator('section',{has:f.page.getByRole('heading',{name:'Pengiriman',exact:true})});
+   const shipping=f.page.locator('section',{has:f.page.getByRole('heading',{name:'Metode pengiriman',exact:true})});
    await expect(shipping.getByText('SiCepat',{exact:false}).first()).toBeVisible();await expect(shipping.getByText('JNE',{exact:false}).first()).toBeVisible();
    assert.equal(await shipping.getByText('J&T',{exact:false}).count(),0,'a stand-in key that is not a real Mengantar key is hidden');
    assert.ok(estimates>before,'the quote used the provider');
@@ -117,24 +128,24 @@ for(const [index,width] of [390,768,1440].entries()){
   }finally{await f.browser.close();}}
   // Provider down: concrete retry copy, draft kept, no unknown-outcome recovery.
   {mode='down';const f=await start(width);try{
-   await f.page.goto(`${origin}/checkout`);await fill(f.page,'prepaid',postcodes[index*4+1]);await f.page.getByRole('button',{name:'Hitung ongkir',exact:true}).click();
-   await expect(f.page.getByText('Ongkir belum bisa dihitung. Isian Anda tersimpan. Tunggu sebentar, lalu tekan Hitung ongkir.',{exact:true})).toBeVisible();
+   await f.page.goto(`${origin}/checkout`);await fill(f.page,'prepaid',postcodes[index*4+1]);await calculate(f.page);
+   await expect(f.page.getByText('Pilihan kurir belum bisa dimuat. Isian Anda tersimpan. Coba lagi sebentar lagi.',{exact:true})).toBeVisible();
    await expect(f.page.getByText('Hasil tindakan belum diketahui',{exact:false})).toHaveCount(0);
    await expect(f.page.getByLabel('Alamat lengkap',{exact:true})).toHaveValue('Jalan Contoh 12\nRT 01');
-   await expect(f.page.getByRole('alert').getByRole('link',{name:'Hitung ongkir',exact:true})).toBeVisible();
-   await expect(f.page.getByText('Ongkir belum tersedia. Tekan Hitung ongkir untuk mencoba lagi.',{exact:true})).toBeVisible();
-   await expect(f.page.getByRole('button',{name:'Hitung ongkir',exact:true})).toBeVisible();
+   await expect(f.page.getByRole('button',{name:'Coba lagi',exact:true})).toBeVisible();
+   await expect(f.page.getByText('Pilihan kurir belum bisa dimuat.',{exact:true})).toBeVisible();
+   await expect(f.page.locator('#checkout-primary')).toBeVisible();
    await capture(f.page,`provider-down-${width}`);assert.deepEqual(f.errors,[]);
   }finally{await f.browser.close();}}
   // No courier for the destination.
   {mode='empty';const f=await start(width);try{
-   await f.page.goto(`${origin}/checkout`);await fill(f.page,'prepaid',postcodes[index*4+2]);await f.page.getByRole('button',{name:'Hitung ongkir',exact:true}).click();
+   await f.page.goto(`${origin}/checkout`);await fill(f.page,'prepaid',postcodes[index*4+2]);await calculate(f.page);
    await expect(f.page.getByText('Belum ada pengiriman untuk tujuan dan isi keranjang ini.',{exact:false}).first()).toBeVisible();
    await capture(f.page,`no-courier-${width}`);assert.deepEqual(f.errors,[]);
   }finally{await f.browser.close();}}
   // COD chosen but no courier accepts COD here.
   {mode='nocod';const f=await start(width);try{
-   await f.page.goto(`${origin}/checkout`);await fill(f.page,'cod',postcodes[index*4+3]);await f.page.getByRole('button',{name:'Hitung ongkir',exact:true}).click();
+   await f.page.goto(`${origin}/checkout`);await fill(f.page,'cod',postcodes[index*4+3]);await calculate(f.page);
    await expect(f.page.getByText('COD belum tersedia untuk tujuan atau paket ini.',{exact:false}).first()).toBeVisible();
    await capture(f.page,`cod-unavailable-${width}`);assert.deepEqual(f.errors,[]);
   }finally{await f.browser.close();}}

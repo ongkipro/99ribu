@@ -23,6 +23,11 @@ export const LIMITS = {
 	// S95: public destination search (an ILIKE scan of ~80k Mengantar areas) per client address and overall.
 	destinationSearchPerAddress: [30, 60_000],
 	destinationSearchGlobal: [600, 60_000],
+	// Checkout kecamatan type-ahead and a kecamatan's kelurahan list (2026-11-05): matched in memory or one bounded read,
+	// so their own per-address and global budgets, larger than the scan's (typing plus one list per pick), so type-ahead
+	// never spends the kelurahan search's budgets.
+	destinationLookupPerAddress: [90, 60_000],
+	destinationLookupGlobal: [1200, 60_000],
 	// Raw AutoLaris callback receiver (unauthenticated discovery endpoint), global budget.
 	autolarisCallbackGlobal: [120, 60_000],
 	// S129: ending the caller's own sessions (every attempt counts, including refused proofs).

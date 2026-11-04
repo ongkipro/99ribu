@@ -124,8 +124,9 @@ export function productTitle(product:Pick<PublicProduct,'name'|'variants'>,categ
 }
 export function productDescription(product:Pick<PublicProduct,'description'|'name'|'variants'>,categoryName?:string|null){
  const price=productPrice(product);
+ // Only the opening paragraph: the fact lines and numbered "Cara pakai" steps below it would leak "2. 3." into the meta.
  // A long bundle list (one run-on sentence) would be cut mid-item; lead with the product name instead.
- const own=clean(product.description||product.name).split(/(?<=[.!?])\s+/),lead=textLength(own[0])<descriptionRange[1]?own:[clean(product.name)];
+ const own=clean(product.description?.split(/\n\s*\n/)[0]||product.name).split(/(?<=[.!?])\s+/),lead=textLength(own[0])<descriptionRange[1]?own:[clean(product.name)];
  return fitDescription([...lead,...(categoryName?[`Kategori ${categoryName}.`]:[]),`Harga ${price}.`,
   'Foto produk asli dan rincian isi tersedia.','Stok diperiksa sebelum pesanan dibuat.','Foto produk asli.']);
 }

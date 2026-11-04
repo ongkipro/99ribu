@@ -4,7 +4,10 @@
    bottom-left (36/20/20 padding): title 24/26 600 -1px white, subtitle 14/18 at 75% white. Bottom-right
    a stack of three 40px product thumbnails: white 10px tiles tilted -8/0/8deg, overlapping by 13px,
    the middle one 11px higher, with a soft 0 4px 24px shadow. The whole card is the link. shop.com drifts
-   the rail continuously; this one does not autoplay (WCAG 2.2.2): native scroll, snap and the arrows. */
+   the rail continuously; this one does not autoplay (WCAG 2.2.2): native scroll, snap and the arrows.
+   Motion follows the product card (08): on a fine pointer or keyboard focus the photo scales to 1.03
+   and a soft shadow (within the rail's 8px bottom padding) falls below the card; no lift, because the
+   scrolling rail clips its top edge. The focus ring sits inside the card for the same reason. */
 .banner-row {
 	list-style: none;
 	margin: 0;
@@ -36,13 +39,25 @@
 	border-radius: 28px;
 	background: var(--banner-deep, #2f2466);
 	color: #fff;
+	transition: box-shadow var(--card-out) var(--card-ease);
 }
 .banner-card:hover {
 	text-decoration: none;
 }
+.banner-card::after {
+	content: "";
+	position: absolute;
+	inset: 0;
+	z-index: 3;
+	border-radius: inherit;
+	pointer-events: none;
+}
 .banner-card:focus-visible {
-	outline: 3px solid var(--purple);
-	outline-offset: 4px;
+	/* Transparent, not none: visible in forced-colors mode, where the box-shadow ring is dropped. */
+	outline: 2px solid transparent;
+}
+.banner-card:focus-visible::after {
+	box-shadow: var(--card-ring);
 }
 .banner-backdrop {
 	position: absolute;
@@ -51,7 +66,7 @@
 	width: 100%;
 	height: 100%;
 	object-fit: cover;
-	transition: transform 500ms ease-out;
+	transition: scale var(--card-out) var(--card-ease);
 }
 .banner-card::before {
 	content: "";
@@ -129,9 +144,27 @@
 	height: 100%;
 	object-fit: cover;
 }
-@media (hover: hover) {
+@media (hover: hover) and (pointer: fine) {
+	.banner-card:hover {
+		box-shadow: 0 6px 10px -6px rgba(0, 0, 0, 0.35);
+		transition-duration: var(--card-in);
+	}
+}
+.banner-card:focus-visible {
+	box-shadow: 0 6px 10px -6px rgba(0, 0, 0, 0.35);
+	transition-duration: var(--card-in);
+}
+.banner-card:is(:hover, :focus-visible) .banner-backdrop {
+	transition-duration: var(--card-in);
+}
+@media (hover: hover) and (pointer: fine) and (prefers-reduced-motion: no-preference) {
 	.banner-card:hover .banner-backdrop {
-		transform: scale(1.05);
+		scale: 1.03;
+	}
+}
+@media (prefers-reduced-motion: no-preference) {
+	.banner-card:focus-visible .banner-backdrop {
+		scale: 1.03;
 	}
 }
 .banner-shelf .shelf-arrow {
@@ -186,6 +219,7 @@
 	.banner-row {
 		scroll-behavior: auto;
 	}
+	.banner-card,
 	.banner-backdrop {
 		transition: none;
 	}

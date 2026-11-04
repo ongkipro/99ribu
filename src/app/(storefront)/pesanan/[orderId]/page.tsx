@@ -1,9 +1,7 @@
 import Link from "next/link";
 import { redirect } from "next/navigation";
-import {
-	CheckoutFrame,
-	CheckoutHelp,
-} from "../../../../components/storefront/checkout-frame";
+import { CheckoutFrame } from "../../../../components/storefront/checkout-frame";
+import { CheckoutHelp } from "../../../../components/storefront/checkout-help";
 import {
 	OrderLinkCard,
 	OrderSaveCard,

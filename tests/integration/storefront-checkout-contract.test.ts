@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 import {checkoutFormInput,initialCheckoutIntent,validateCheckoutDraft as validateWith,type CheckoutIntent} from '../../src/modules/storefront/checkout.ts';
-import {searchDestinations} from '../../src/modules/shipping/destinations.ts';
+import {districtAreas,searchDestinations,searchDistricts} from '../../src/modules/shipping/destinations.ts';
 // The draft names a fixture area; the caller resolves it (fixture mode reads no database).
 const destinations=await searchDestinations(null as never,'contoh',100);
 const validateCheckoutDraft=(draft:Parameters<typeof validateWith>[0])=>validateWith(draft,destinations);
@@ -15,20 +15,21 @@ function form(values:Partial<CheckoutIntent>={}){
  return data;
 }
 
-test('checkout keeps the typed draft while producing the native canonical phone/address and optional email',()=>{
+test('checkout keeps the typed draft while producing the native canonical phone/address and no email',()=>{
  const intent=checkoutFormInput(form()),result=validateCheckoutDraft(intent.draft);
  assert.deepEqual(result.errors,{});assert.ok(result.wire);
  assert.equal(intent.draft.address_line,draft.address_line);assert.equal(intent.draft.buyer_note,draft.buyer_note);
  assert.equal(result.wire.address.phone,'+6281234567890');assert.equal(result.wire.contact.phone,'+6281234567890');assert.equal(result.wire.contact.email,null);
  assert.equal(result.wire.address.address_line,'SYNTHETIC street RT 01 / RW 02');assert.equal(result.wire.address.postal_code,'00001');
  assert.equal(result.wire.buyer_note,'SYNTHETIC note Ring once');assert.equal(result.wire.canonicalAddress.destination_id,'test-malang');
- const withEmail=validateCheckoutDraft({...draft,email:'SYNTHETIC@EXAMPLE.TEST'});assert.equal(withEmail.wire?.contact.email,'synthetic@example.test');
+ // Checkout asks no email (owner 2026-11-05): an email left in an old draft never reaches the quote and is never an error.
+ const withEmail=validateCheckoutDraft({...draft,email:'SYNTHETIC@EXAMPLE.TEST'});assert.equal(withEmail.wire?.contact.email,null);
 });
 
 test('checkout validation associates phone, destination, address, method and optional-field failures without authorizing free-text regions',()=>{
  const result=validateCheckoutDraft({...draft,recipient_name:'',phone:'not a phone',destination_id:'Malang',address_line:'Street\u0000hidden',buyer_note:'note\u202eevil',payment_method:'card'});
  assert.equal(result.wire,null);for(const name of ['recipient_name','phone','destination_id','address_line','buyer_note','payment_method'] as const)assert.ok(result.errors[name],name);
- assert.ok(validateCheckoutDraft({...draft,email:'not-an-email'}).errors.email);
+ assert.deepEqual(validateCheckoutDraft({...draft,email:'not-an-email'}).errors,{});
  assert.equal(validateCheckoutDraft({...draft,buyer_note:'  '}).wire?.buyer_note,undefined);
 });
 
@@ -69,4 +70,13 @@ test('native service radios pair each parcel independently and reject mixed, orp
  const order=radios();order.set('kind','order');assert.deepEqual(checkoutFormInput(order).packages,packages);
  const orderDuplicate=radios();orderDuplicate.set('kind','order');orderDuplicate.append('shipping_option:parcel-one','another');assert.throws(()=>checkoutFormInput(orderDuplicate),{code:'INVALID_INPUT'});
  const quoteRadios=radios();quoteRadios.set('kind','quote');assert.throws(()=>checkoutFormInput(quoteRadios),{code:'INVALID_INPUT'});
+});
+
+test('kecamatan type-ahead and the kelurahan of a kecamatan come from the same destination catalogue',async()=>{
+ const [district]=await searchDistricts(null as never,'kec. contoh a',8);
+ assert.deepEqual([district.id,district.district,district.postal_codes,district.areas],['test-malang','Kecamatan Contoh A',['00001'],1]);
+ assert.deepEqual((await districtAreas(null as never,district.id)).map(a=>[a.id,a.postal_code]),[['test-malang','00001']]);
+ assert.deepEqual(await districtAreas(null as never,'unknown-area'),[],'an unknown area id lists nothing');
+ assert.deepEqual(await searchDistricts(null as never,'x'),[],'one letter does not search');
+ await assert.rejects(searchDistricts(null as never,'\u202eevil'),'bidi controls are refused like every destination search');
 });

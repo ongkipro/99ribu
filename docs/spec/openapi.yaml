@@ -249,7 +249,13 @@ paths:
       operationId: listDestinations
       summary: Find supported shipping destinations
       description: Implemented first-party localhost checkout with real PostgreSQL/current scoped authority; external
-        rates are TEST-ONLY simulation. No live provider or account bearer issuance.
+        rates are TEST-ONLY simulation. No live provider or account bearer issuance. Exactly one of `q` or `district`.
+        `q` lists kelurahan (Destination, limit 1-100, default 20); `q` with `group=district` lists kecamatan
+        (DestinationDistrict, limit 1-20, default 8) matched case-, space- and punctuation-insensitively; `district`
+        (any area id) lists every kelurahan of that area's kecamatan (limit 1-100, default 100; unknown id answers
+        an empty list). Rate limits. `q` alone uses the destination search budgets (30/min per client address,
+        600/min overall); the kecamatan and kelurahan-list reads use their own lookup budgets (90/min per client
+        address, 1200/min overall).
       tags:
       - Shipping
       security: []
@@ -299,7 +305,20 @@ paths:
           type: string
           minLength: 1
           maxLength: 100
-        required: true
+        required: false
+      - name: group
+        in: query
+        schema:
+          type: string
+          enum:
+          - district
+        required: false
+      - name: district
+        in: query
+        schema:
+          type: string
+          pattern: ^[0-9a-z-]{1,100}$
+        required: false
       x-proof-group: checkout
       x-implementation: src/app/api/v1/destinations/route.ts
   /carts:
@@ -18903,6 +18922,60 @@ components:
       - city
       - district
       additionalProperties: false
+    DestinationDistrict:
+      type: object
+      description: A kecamatan for the checkout type-ahead; `id` is one of its area ids, accepted by `district`.
+      properties:
+        id:
+          $ref: '#/components/schemas/Id'
+        label:
+          type: string
+        province:
+          type: string
+        city:
+          type: string
+        district:
+          type: string
+        postal_codes:
+          type: array
+          items:
+            type: string
+        areas:
+          type: integer
+          minimum: 1
+        match:
+          type: object
+          description: Present when a kelurahan name or postal code (not the kecamatan) matched; single means no other kelurahan of the kecamatan shares that postal code.
+          properties:
+            area_id:
+              $ref: '#/components/schemas/Id'
+            subdistrict:
+              type: string
+            postal_code:
+              type: string
+            kind:
+              type: string
+              enum:
+              - kelurahan
+              - postcode
+            single:
+              type: boolean
+          required:
+          - area_id
+          - subdistrict
+          - postal_code
+          - kind
+          - single
+          additionalProperties: false
+      required:
+      - id
+      - label
+      - province
+      - city
+      - district
+      - postal_codes
+      - areas
+      additionalProperties: false
     DestinationList:
       type: object
       properties:
@@ -31185,7 +31258,9 @@ components:
         items:
           type: array
           items:
-            $ref: '#/components/schemas/Destination'
+            oneOf:
+            - $ref: '#/components/schemas/Destination'
+            - $ref: '#/components/schemas/DestinationDistrict'
         source:
           type: string
           const: TEST-ONLY

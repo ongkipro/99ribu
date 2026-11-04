@@ -1,17 +1,24 @@
 /* ===== Product card contract (shop.com, observed 2026-10-23, round 21) =====
    Card: image frame then text, 8px apart. Frame: square, 20px radius, white fill, the
-   soft 2px/8px shadow and a 0.5px inner edge (rgba(5,41,77,.1)) drawn over the photo;
-   the photo covers the frame and scales to 1.05 while the card is hovered. Text: 4px
-   inset, title on one line, price 2px below. No vendor line, badge, rating or favourite
-   (no data or feature behind them). */
+   soft 2px/8px shadow and a 0.5px inner edge (rgba(5,41,77,.1)) drawn over the photo.
+   Text: 4px inset, title on one line, price 2px below. No vendor line, badge, rating or
+   favourite (no data or feature behind them).
+   Card motion (2026-11-05, shared with the promo banners and department highlights): on a
+   fine pointer only (no sticky hover on touch) the photo scales to 1.05 and the frame lifts
+   to a deeper soft shadow, 360ms in and 220ms out on one ease-out curve. Keyboard focus
+   gives the same lift and draws a purple ring with a white inner line inside the frame,
+   so a scrolling shelf cannot clip it. Reduced motion keeps the shadow, drops the zoom. */
+/* The --card-* motion and ring tokens live in 01-base-tokens.css (also used by 09 and 11). */
 .product-frame {
 	position: relative;
+	isolation: isolate;
 	display: block;
 	aspect-ratio: 1;
 	overflow: hidden;
 	border-radius: 20px;
 	background: #fff;
 	box-shadow: 0 2px 8px rgba(0, 0, 0, 0.06);
+	transition: box-shadow var(--card-out) var(--card-ease);
 }
 .product-frame::after {
 	content: "";
@@ -26,14 +33,42 @@
 	object-fit: cover;
 	border-radius: 0;
 	box-shadow: none;
-	transition: scale 300ms ease-out;
+	transition: scale var(--card-out) var(--card-ease);
 }
 .product-frame .photo-slot {
 	height: 100%;
 	border-radius: 0;
 }
-.product-link:hover .product-frame .product-image {
-	scale: 1.05;
+.product-link:focus-visible {
+	/* Transparent, not none: the box-shadow ring vanishes in forced-colors mode, the outline then shows. */
+	outline: 2px solid transparent;
+}
+.product-link:focus-visible .product-frame::after {
+	border-color: transparent;
+	box-shadow: var(--card-ring);
+}
+@media (hover: hover) and (pointer: fine) {
+	.product-link:hover .product-frame {
+		box-shadow: 0 10px 22px -8px rgba(0, 0, 0, 0.18), 0 2px 8px rgba(0, 0, 0, 0.06);
+		transition-duration: var(--card-in);
+	}
+}
+.product-link:focus-visible .product-frame {
+	box-shadow: 0 10px 22px -8px rgba(0, 0, 0, 0.18), 0 2px 8px rgba(0, 0, 0, 0.06);
+	transition-duration: var(--card-in);
+}
+.product-link:is(:hover, :focus-visible) .product-frame .product-image {
+	transition-duration: var(--card-in);
+}
+@media (hover: hover) and (pointer: fine) and (prefers-reduced-motion: no-preference) {
+	.product-link:hover .product-frame .product-image {
+		scale: 1.05;
+	}
+}
+@media (prefers-reduced-motion: no-preference) {
+	.product-link:focus-visible .product-frame .product-image {
+		scale: 1.05;
+	}
 }
 /* Title (shop.com bodyTitleSmall): 14/18 weight 600 at -0.2px on one line. Price: 12/16 in full ink, 2px
    below; weight 400 by the owner's later call (eb870b0, 2026-10-25 15:57; shop.com captionBold is 600). */
@@ -74,11 +109,9 @@
 	}
 }
 @media (prefers-reduced-motion: reduce) {
+	.product-frame,
 	.product-frame .product-image {
 		transition: none;
-	}
-	.product-link:hover .product-frame .product-image {
-		scale: none;
 	}
 }
 

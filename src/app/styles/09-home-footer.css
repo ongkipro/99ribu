@@ -628,7 +628,10 @@
    scaling to 1.1 on hover; three square 20px-radius product tiles 6px apart along a 12px inset bottom.
    Ours: three cards side by side from 701px (4:5, so a 410px card stays about shop.com's height), a
    scrolling row with the next card peeking on phones. The card colour is the department tint's deep
-   shade so white text keeps >= 4.5:1 over the gradient. */
+   shade so white text keeps >= 4.5:1 over the gradient.
+   Motion follows the product card (08): on a fine pointer, or keyboard focus on the department link,
+   the cover scales to 1.03, the name to 1.06 and the card shadow deepens; a product tile's photo
+   scales to 1.05 like a product card. The link's focus ring is drawn inside the whole card. */
 .highlight-row {
 	list-style: none;
 	margin: 0 calc(-1 * var(--gutter));
@@ -672,6 +675,7 @@
 	background: var(--deep);
 	box-shadow: 0 4px 16px rgba(0, 0, 0, 0.08);
 	color: #fff;
+	transition: box-shadow var(--card-out) var(--card-ease);
 }
 @media (min-width: 701px) {
 	.highlight-card {
@@ -691,7 +695,18 @@
 	width: 100%;
 	height: 100%;
 	object-fit: cover;
-	transition: transform 500ms ease-out;
+	transition: scale var(--card-out) var(--card-ease);
+}
+.highlight-card::before {
+	content: "";
+	position: absolute;
+	inset: 0;
+	z-index: 2;
+	border-radius: inherit;
+	pointer-events: none;
+}
+.highlight-card:has(> .highlight-link:focus-visible)::before {
+	box-shadow: var(--card-ring);
 }
 .highlight-card::after {
 	content: "";
@@ -720,8 +735,8 @@
 	text-decoration: none;
 }
 .highlight-link:focus-visible {
-	outline: 2px solid #fff;
-	outline-offset: -6px;
+	/* Transparent, not none: visible in forced-colors mode, where the box-shadow ring is dropped. */
+	outline: 2px solid transparent;
 }
 .highlight-title {
 	margin: 0;
@@ -731,7 +746,7 @@
 	letter-spacing: -1px;
 	text-wrap: balance;
 	text-shadow: 0 1px 12px rgba(0, 0, 0, 0.35);
-	transition: transform 150ms ease-out;
+	transition: scale var(--card-out) var(--card-ease);
 }
 .highlight-action {
 	display: inline-flex;
@@ -784,20 +799,46 @@
 	width: 100%;
 	height: 100%;
 	object-fit: cover;
-	transition: transform 150ms ease-out;
+	transition: scale var(--card-out) var(--card-ease);
 }
-@media (hover: hover) {
-	.highlight-card:hover .highlight-cover {
-		transform: scale(1.05);
+@media (hover: hover) and (pointer: fine) {
+	.highlight-card:hover {
+		box-shadow: 0 16px 32px -12px rgba(0, 0, 0, 0.28), 0 4px 16px rgba(0, 0, 0, 0.08);
+		transition-duration: var(--card-in);
 	}
-	.highlight-link:hover .highlight-title {
-		transform: scale(1.1);
+	.highlight-card:hover :is(.highlight-cover, .highlight-title),
+	.highlight-product:hover img {
+		transition-duration: var(--card-in);
+	}
+}
+.highlight-card:has(> .highlight-link:focus-visible) {
+	box-shadow: 0 16px 32px -12px rgba(0, 0, 0, 0.28), 0 4px 16px rgba(0, 0, 0, 0.08);
+	transition-duration: var(--card-in);
+}
+.highlight-card:has(> .highlight-link:focus-visible) :is(.highlight-cover, .highlight-title) {
+	transition-duration: var(--card-in);
+}
+@media (hover: hover) and (pointer: fine) and (prefers-reduced-motion: no-preference) {
+	.highlight-card:hover .highlight-cover {
+		scale: 1.03;
+	}
+	.highlight-card:hover .highlight-title {
+		scale: 1.06;
 	}
 	.highlight-product:hover img {
-		transform: scale(1.1);
+		scale: 1.05;
+	}
+}
+@media (prefers-reduced-motion: no-preference) {
+	.highlight-card:has(> .highlight-link:focus-visible) .highlight-cover {
+		scale: 1.03;
+	}
+	.highlight-card:has(> .highlight-link:focus-visible) .highlight-title {
+		scale: 1.06;
 	}
 }
 @media (prefers-reduced-motion: reduce) {
+	.highlight-card,
 	.highlight-cover,
 	.highlight-title,
 	:where(.highlight-product img) {

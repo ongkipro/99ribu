@@ -155,16 +155,19 @@ async function guestCart(offer: { offer_id: string; publication_id: string | nul
 	return { client, cart: created.cart.id as string };
 }
 async function fillContact(page: Page, method: RegExp) {
-	await page.getByLabel("Nama penerima", { exact: true }).fill("Penerima Contoh");
-	await page.getByLabel("Nomor HP", { exact: true }).fill(`0812${String(Math.floor(Math.random() * 1e8)).padStart(8, "0")}`);
-	await page.getByLabel("Wilayah pengiriman", { exact: true }).selectOption("test-malang");
+	await page.getByLabel("Nama lengkap", { exact: true }).fill("Penerima Contoh");
+	await page.getByLabel("Nomor WhatsApp", { exact: true }).fill(`0812${String(Math.floor(Math.random() * 1e8)).padStart(8, "0")}`);
+	// Kecamatan first; its only kelurahan is chosen automatically (owner 2026-11-05).
+	await page.getByRole("combobox", { name: "Kecamatan tujuan", exact: true }).fill("Kecamatan Contoh A");
+	await page.getByRole("option", { name: /Kecamatan Contoh A/ }).click();
+	await expect(page.locator("input[type=hidden][name=destination_id]")).toHaveValue("test-malang");
 	await page.getByLabel("Alamat lengkap", { exact: true }).fill("Jalan Contoh 12\nRT 01");
 	await page.getByRole("radio", { name: method }).check();
-	await page.getByRole("button", { name: "Hitung ongkir", exact: true }).click();
+	// Couriers load by themselves once the address is complete (owner 2026-11-05).
 	// Single-page checkout: the quote opens the order step (review box, shipping choices, order button) directly.
 	await expect(page.locator("dl.checkout-review-box")).toBeVisible();
 	await expect(page.getByRole("heading", { name: "Pengiriman", exact: true })).toBeVisible();
-	await expect(page.getByRole("button", { name: /^Buat pesanan · Rp[0-9.]+$/ })).toBeVisible();
+	await expect(page.getByRole("button", { name: "Buat pesanan", exact: true })).toBeVisible();
 }
 const parcelsOf = (orderId: string) =>
 	sql`select f.id,f.revision,f.handover_at,f.booking_id,s.id shipment_id,s.warehouse_id,s.cod_due from app.fulfillment f join app.order_shipment s on s.id=f.shipment_id where s.order_id=${orderId} order by s.id`;
@@ -661,7 +664,8 @@ test("S92 built browser: COD checkout discloses the frozen 3.33% fee line and th
 		await expect(page.locator(".checkout-charges .checkout-total").filter({ visible: true }).first()).toContainText(rupiah(Number(quote.buyer_total) + fee));
 		// The total next to the order button is what the courier collects: the frozen fee is included there too.
 		await expect(page.locator(".checkout-due strong")).toHaveText(rupiah(Number(quote.buyer_total) + fee));
-		await expect(page.getByRole("button", { name: /^Buat pesanan/ })).toHaveAccessibleName(`Buat pesanan · ${rupiah(Number(quote.buyer_total) + fee)}`);
+		await expect(page.getByRole("button", { name: /^Buat pesanan/ })).toHaveAccessibleName("Buat pesanan");
+		await expect(page.locator(".checkout-due strong")).toHaveText(rupiah(Number(quote.buyer_total) + fee));
 		await captureBoth(page, "s92-checkout-cod-review", true);
 		assert.equal((await sql`select count(*)::int n from app.commerce_order where cart_id=${cart}`)[0].n, 0, "the review places no order");
 		assert.deepEqual(buyer.problems, []);

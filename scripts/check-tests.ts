@@ -73,7 +73,7 @@ if (import.meta.main) {
       : selector === "--case=T-32"
       ? mode === "integration" ? ["tests/integration/storefront-order-receipt.test.ts"] : ["tests/browser/storefront-order-receipt.test.ts"]
       : selector === "--case=T-31"
-      ? mode === "integration" ? ["tests/integration/storefront-checkout-contract.test.ts","tests/integration/storefront-checkout-runtime.test.ts","tests/integration/storefront-checkout-payment.test.ts","tests/integration/storefront-checkout-signals.test.ts","tests/integration/storefront-checkout-draft.test.ts"] : ["tests/browser/storefront-checkout.test.ts","tests/browser/storefront-floating-labels.test.ts"]
+      ? mode === "integration" ? ["tests/integration/storefront-checkout-contract.test.ts","tests/integration/destination-lookup.test.ts","tests/integration/storefront-checkout-runtime.test.ts","tests/integration/storefront-checkout-payment.test.ts","tests/integration/storefront-checkout-signals.test.ts","tests/integration/storefront-checkout-draft.test.ts"] : ["tests/browser/storefront-checkout.test.ts","tests/browser/storefront-floating-labels.test.ts"]
       : selector === "--case=PR-21"
       ? mode === "integration"
         ? [
