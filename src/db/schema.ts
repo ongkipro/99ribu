@@ -592,11 +592,13 @@ export const economicReceipt = appSchema.table('economic_receipt',{
 
 export const paymentAttempt = appSchema.table('payment_attempt',{
  id:uuid('id').primaryKey().defaultRandom(),orderId:uuid('order_id').notNull().references(()=>commerceOrder.id,{onDelete:'restrict'}),methodId:text('method_id').notNull(),key:text('key').notNull(),requestHash:text('request_hash').notNull(),creationJobId:uuid('creation_job_id').notNull().unique().references(()=>outboxJob.id,{onDelete:'restrict'}),
- providerOperationId:uuid('provider_operation_id').references(():AnyPgColumn=>localPaymentOperation.id,{onDelete:'restrict'}),receiptId:uuid('receipt_id').references(()=>economicReceipt.id,{onDelete:'restrict'}),expectedAmount:bigint('expected_amount',{mode:'number'}).notNull(),revision:integer('revision').notNull().default(0),status:text('status').notNull().default('preparing'),createdAt:instant('created_at').notNull(),expiresAt:instant('expires_at').notNull(),recordedAt:instant('recorded_at').notNull().default(sql`clock_timestamp()`),
+ providerOperationId:uuid('provider_operation_id').references(():AnyPgColumn=>localPaymentOperation.id,{onDelete:'restrict'}),receiptId:uuid('receipt_id').references(()=>economicReceipt.id,{onDelete:'restrict'}),expectedAmount:bigint('expected_amount',{mode:'number'}).notNull(),paymentFeeAmount:bigint('payment_fee_amount',{mode:'number'}).notNull().default(0),revision:integer('revision').notNull().default(0),status:text('status').notNull().default('preparing'),createdAt:instant('created_at').notNull(),expiresAt:instant('expires_at').notNull(),recordedAt:instant('recorded_at').notNull().default(sql`clock_timestamp()`),
 },t=>[
  unique('payment_attempt_key_unique').on(t.orderId,t.key),
  index('payment_attempt_open_method_idx').on(t.methodId,t.expiresAt).where(sql`${t.status} IN ('preparing','pending','unknown')`),uniqueIndex('payment_attempt_active_unique').on(t.orderId).where(sql`${t.status} IN ('pending','unknown','confirmed')`),
  check('payment_attempt_identity_check',sql`${t.methodId} IN ('local-prepaid','manual-bank','autolaris') AND ${t.key} ~ '^[A-Za-z0-9_-]{16,200}$' AND ${t.requestHash} ~ '^[0-9a-f]{64}$'`),
+ // DEC-029: only an AutoLaris attempt may carry a buyer-borne payment fee (frozen at creation).
+ check('payment_attempt_fee_check',sql`${t.paymentFeeAmount} between 0 and 1000000 AND (${t.paymentFeeAmount}=0 OR ${t.methodId}='autolaris')`),
  check('payment_attempt_value_check',sql`${t.expectedAmount} between 1 and 9007199254740991 AND ${t.expiresAt}>${t.createdAt} AND ${t.revision}>=0 AND ${t.status} IN ('preparing','pending','unknown','confirmed','expired','failed') AND ((${t.status}='preparing')=(${t.revision}=0)) AND (${t.status}<>'confirmed' OR (${t.providerOperationId} IS NOT NULL AND ${t.receiptId} IS NOT NULL))`),
 ]);
 export const paymentAttemptEvent = appSchema.table('payment_attempt_event',{
@@ -1212,7 +1214,7 @@ export const autolarisPayment = appSchema.table('autolaris_payment',{
   AND ((${t.respondedAt} IS NULL AND ${t.trxId} IS NULL AND ${t.instructionKind} IS NULL AND ${t.instructionValue} IS NULL AND ${t.providerAmount} IS NULL AND ${t.adminFee} IS NULL AND ${t.providerTotal} IS NULL AND ${t.refusalCode} IS NULL)
    OR (${t.respondedAt} IS NOT NULL AND ${t.operationId} IS NOT NULL AND ${t.trxId} ~ '^[A-Za-z0-9_-]{1,64}$' AND ${t.instructionKind} IN ('virtual_account','qr','payment_code','url') AND char_length(${t.instructionValue}) between 1 and 2048
     AND ${t.providerAmount} between 1 and 9007199254740991 AND ${t.adminFee} between 0 and 9007199254740991 AND ${t.providerTotal} between 1 and 9007199254740991
-    AND (${t.refusalCode} IS NULL OR ${t.refusalCode} IN ('AUTOLARIS_TOTAL_MISMATCH','AUTOLARIS_AMOUNT_MISMATCH'))
+    AND (${t.refusalCode} IS NULL OR ${t.refusalCode} IN ('AUTOLARIS_TOTAL_MISMATCH','AUTOLARIS_AMOUNT_MISMATCH','AUTOLARIS_FEE_MISMATCH'))
     AND (${t.refusalCode} IS NOT NULL OR (${t.providerAmount}=${t.requestedAmount} AND ${t.providerTotal}=${t.requestedAmount}))))`)]);
 export const autolarisObservation = appSchema.table('autolaris_observation',{
  id:uuid('id').primaryKey().defaultRandom(),attemptId:uuid('attempt_id').notNull().references(()=>autolarisPayment.attemptId,{onDelete:'restrict'}),source:text('source').notNull(),

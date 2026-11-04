@@ -17035,7 +17035,34 @@ components:
           type: integer
           minimum: 0
           maximum: 2000
-          description: DEC-009 buyer COD fee in basis points (333 = 3.33%); frozen per quote.
+          description: DEC-009 COD fee rate in basis points (333 = 3.33%); frozen per quote, charged to the buyer only when cod_fee_bearer is buyer.
+        payment_fee_bearer:
+          type: string
+          enum: [store, buyer]
+          description: DEC-029 who bears the AutoLaris VA/QRIS admin fee. Absent in older versions, which means store.
+        cod_fee_bearer:
+          type: string
+          enum: [buyer, store]
+          description: DEC-029 who bears the COD service fee. Absent in older versions, which means buyer; store freezes a zero buyer COD fee.
+        autolaris_fees:
+          type: object
+          additionalProperties: false
+          description: DEC-029 the store's per-channel AutoLaris fee table that prices a buyer-borne fee; required for every channel when payment_fee_bearer is buyer.
+          patternProperties:
+            ^(VABNI|VAPERMATA|VABCA|VAMANDIRI|VABRI|QRIS)$:
+              oneOf:
+              - type: object
+                additionalProperties: false
+                required: [kind, amount]
+                properties:
+                  kind: {const: fixed}
+                  amount: {type: integer, minimum: 0, maximum: 100000}
+              - type: object
+                additionalProperties: false
+                required: [kind, bps]
+                properties:
+                  kind: {const: bps}
+                  bps: {type: integer, minimum: 0, maximum: 2000}
         enabled_channels:
           type: array
           minItems: 1
@@ -17263,6 +17290,13 @@ components:
           - 'null'
         expected_amount:
           $ref: '#/components/schemas/Money'
+        requested_amount:
+          $ref: '#/components/schemas/Money'
+          description: DEC-029 the AutoLaris bill, expected_amount plus payment_fee_amount.
+        payment_fee_amount:
+          type: integer
+          minimum: 0
+          description: DEC-029 buyer-borne admin fee frozen on the attempt; 0 when the store bears it.
         provider_total:
           type:
           - integer
@@ -17271,7 +17305,7 @@ components:
           type:
           - integer
           - 'null'
-          description: Store-borne AutoLaris fee (DEC-008 (3)); posted as provider_fee_expense at settlement.
+          description: The provider's AutoLaris fee; the part not covered by payment_fee_amount posts as provider_fee_expense at settlement.
         refusal_code:
           type:
           - string
@@ -17279,6 +17313,7 @@ components:
           enum:
           - AUTOLARIS_TOTAL_MISMATCH
           - AUTOLARIS_AMOUNT_MISMATCH
+          - AUTOLARIS_FEE_MISMATCH
           - null
         expires_at:
           $ref: '#/components/schemas/DateTime'
@@ -19781,6 +19816,10 @@ components:
               type: string
             amount:
               $ref: '#/components/schemas/Money'
+            payment_fee_amount:
+              type: integer
+              minimum: 0
+              description: DEC-029 AutoLaris only, the buyer-borne admin fee included in amount; 0 when the store bears it.
             channel_code:
               type: string
               enum: [VABNI, VAPERMATA, VABCA, VAMANDIRI, VABRI, QRIS]

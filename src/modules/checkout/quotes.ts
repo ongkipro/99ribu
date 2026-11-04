@@ -23,11 +23,16 @@ export function normalizeContact(value:unknown){
  if(b.email!==undefined&&b.email!==null){email=text(b.email,254).normalize('NFC').toLowerCase();if(!isValidEmail(email)) throw invalid();}
  return {phone:normalizePhone(b.phone),email};
 }
-export function promotionShipments(plan:ShippingPlan):Shipment[]{
- return plan.packages.map(p=>{const option=p.options.find(o=>o.id===p.selected_option_id);if(!option) throw new AccessError(409,'SHIPPING_OPTION_UNAVAILABLE');return {shipment_id:p.id,origin_warehouse_id:p.warehouse_id,shipping_fee:p.shipping_amount,service_id:option.service_id,region_ids:[plan.destination_id]};});
+// S176: with the real area catalogue (source mengantar) a destination is one of ~80k kelurahan, so a shipping
+// promotion targets provinces: each shipment also carries its province region id. The fixture keeps destination ids.
+export const provinceRegion=(province:string)=>`prov-${province.normalize('NFKC').toLocaleLowerCase('id-ID').replace(/[^a-z0-9]+/g,'-').replace(/^-|-$/g,'').slice(0,90)}`;
+type RegionAddress={province?:string|null;source?:string|null}|null|undefined;
+export function promotionShipments(plan:ShippingPlan,address?:RegionAddress):Shipment[]{
+ const regions=[plan.destination_id,...(address?.source==='mengantar'&&address.province?[provinceRegion(address.province)]:[])];
+ return plan.packages.map(p=>{const option=p.options.find(o=>o.id===p.selected_option_id);if(!option) throw new AccessError(409,'SHIPPING_OPTION_UNAVAILABLE');return {shipment_id:p.id,origin_warehouse_id:p.warehouse_id,shipping_fee:p.shipping_amount,service_id:option.service_id,region_ids:regions};});
 }
 export function parcelBenefits(plan:ShippingPlan,promotions:readonly PromotionAllocation[]){return plan.packages.map(p=>({shipment_id:p.id,amount:promotions.reduce((n,a)=>n+(a.shipments.find(s=>s.shipment_id===p.id)?.amount??0),0)}));}
-export async function previewPromotions(tx:TransactionSql,plan:ShippingPlan,customerKey:string,now:string){
+export async function previewPromotions(tx:TransactionSql,plan:ShippingPlan,customerKey:string,now:string,address?:RegionAddress){
  const rules=await tx<(Rule&{starts_at:string;ends_at:string;budget:string;reserved_amount:string;committed_amount:string;reserved_uses:number;committed_uses:number;per_buyer_limit:number})[]>`
   select v.*,p.reserved_amount,p.committed_amount,coalesce(b.reserved_uses,0)::int reserved_uses,coalesce(b.committed_uses,0)::int committed_uses
   from app.promotion p join app.promotion_version v on v.promotion_id=p.id and v.revision=p.configuration_revision
@@ -35,7 +40,7 @@ export async function previewPromotions(tx:TransactionSql,plan:ShippingPlan,cust
   where v.active and v.starts_at<=${now} and v.ends_at>${now} and ${plan.payment_method}=any(v.payment_methods) and v.minimum_merchandise<=${plan.merchandise_total}
   order by v.priority desc,p.id limit 101`;
  if(rules.length>100) throw new AccessError(422,'PROMOTION_REVIEW_REQUIRED');
- const chosen:(typeof rules)[number][]=[];let allocations:PromotionAllocation[]=[];const shipments=promotionShipments(plan);
+ const chosen:(typeof rules)[number][]=[];let allocations:PromotionAllocation[]=[];const shipments=promotionShipments(plan,address);
  for(const rule of rules){
   if(chosen.some(r=>r.stacking==='exclusive')||(rule.stacking==='exclusive'&&chosen.length)) continue;
   if(rule.reserved_uses+rule.committed_uses>=rule.per_buyer_limit) continue;
@@ -79,7 +84,7 @@ async function persistQuote(tx:TransactionSql,actor:CommerceActor,key:string,has
  const terms=await paymentTerms(tx,now);
  if(channel==='manual-bank'&&!terms.manual_bank_accounts.length)throw new AccessError(409,'MANUAL_BANK_UNAVAILABLE');
  if(!channelEnabled(terms,channel))throw new AccessError(422,'PAYMENT_CHANNEL_UNAVAILABLE');
- const bps=plan.payment_method==='cod'?terms.cod_fee_bps:null,charge=plan.payment_method==='cod'?projectPackages(plan,document.promotions,bps).reduce((n,p)=>n+(p.cod_fee_amount??0),0):0;
+ const bps=plan.payment_method==='cod'?terms.buyer_cod_fee_bps:null,charge=plan.payment_method==='cod'?projectPackages(plan,document.promotions,bps).reduce((n,p)=>n+(p.cod_fee_amount??0),0):0;
  const operationId=randomUUID();const [quote]=await tx<QuoteRow[]>`insert into app.checkout_quote (cart_id,cart_revision,parent_id,operation_id,document,payment_method,merchandise_amount,shipping_amount,subsidy_amount,buyer_total,created_at,expires_at,payment_channel,payment_charge_amount,cod_fee_bps)
   values (${cart.id},${cart.revision},${parent?.id??null},${operationId},${JSON.stringify(document)}::jsonb,${plan.payment_method},${plan.merchandise_total},${plan.shipping_total},${subsidy},${buyerTotal},${now.toISOString()},${expires},${channel},${charge},${bps}) returning *`;
  await tx`update app.cart set active_quote_id=${quote.id} where id=${cart.id}`;
@@ -95,7 +100,7 @@ export async function createQuote(tx:TransactionSql,request:Request,identity:Loc
  await assertCartOpen(tx,cart,version);const lines=await cartLines(tx,cart.id);if(!lines.length) throw new AccessError(422,'CART_EMPTY');
  const plans=await buildShippingPlans(tx,{lines:lines.map(l=>({line_id:l.id,product_id:l.product_id,offer_id:l.offer_id,publication_id:l.publication_id,quantity:l.quantity})),destination_id:address.destination_id,payment_method:method},{clock_namespace:cart.clock_namespace});
  const plan=plans[0];const customerKey=digest(await mac(identity,'promotion-buyer',[contact.phone]));const now=(await cartClock(tx,cart)).toISOString();
- const promotions=await previewPromotions(tx,plan,customerKey,now);const finance=await checkShippingBenefit(tx,plan,parcelBenefits(plan,promotions),affiliateId,cart.owner_user_id);
+ const promotions=await previewPromotions(tx,plan,customerKey,now,address);const finance=await checkShippingBenefit(tx,plan,parcelBenefits(plan,promotions),affiliateId,cart.owner_user_id);
  return persistQuote(tx,actor,key,hash,cart,{plans,selected_plan:plan,address,contact,customer_key:customerKey,promotions,financial_sources:finance.sources,...(affiliateId?{affiliate_id:affiliateId}:{})},null,channel);
 }
 export async function selectQuote(tx:TransactionSql,request:Request,identity:LocalAuth,actor:CommerceActor,quoteId:string,value:unknown){
@@ -112,6 +117,6 @@ export async function selectQuote(tx:TransactionSql,request:Request,identity:Loc
   parcel.selected_option_id=rate.id;parcel.shipping_amount=rate.shipping_amount;
  }
  plan.shipping_total=plan.packages.reduce((n,p)=>n+p.shipping_amount,0);integer(plan.shipping_total,0,Number.MAX_SAFE_INTEGER);
- const promotions=await previewPromotions(tx,plan,quote.document.customer_key,(await cartClock(tx,cart)).toISOString());const finance=await checkShippingBenefit(tx,plan,parcelBenefits(plan,promotions),quote.document.affiliate_id??null,cart.owner_user_id);
+ const promotions=await previewPromotions(tx,plan,quote.document.customer_key,(await cartClock(tx,cart)).toISOString(),quote.document.address);const finance=await checkShippingBenefit(tx,plan,parcelBenefits(plan,promotions),quote.document.affiliate_id??null,cart.owner_user_id);
  return persistQuote(tx,actor,key,hash,cart,{...quote.document,selected_plan:plan,promotions,financial_sources:finance.sources},quote,quote.payment_channel??(plan.payment_method==='cod'?'cod':'local-prepaid'));
 }

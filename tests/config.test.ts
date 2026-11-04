@@ -85,6 +85,7 @@ test("without LOCAL_TAILNET_ORIGIN the profile serves exactly the loopback origi
   for (const value of [undefined, ""]) {
     const config = readLocalConfig({ ...local, LOCAL_TAILNET_ORIGIN: value });
     assert.equal(config.tailnetOrigin, null);
+    assert.equal(config.providerOrigin, null);
     assert.deepEqual(config.trustedOrigins, ["http://127.0.0.1:3099"]);
   }
 });
@@ -114,6 +115,53 @@ test("malformed tailnet origins are refused without echoing the value", () => {
       return true;
     }, value);
   }
+});
+
+// DEC-028 / S163: opt-in stand-in origin (LOCAL_PROVIDER_ORIGIN), an outbound target only.
+test("without LOCAL_PROVIDER_ORIGIN the local profile has no provider origin and the same browser origins", () => {
+  for (const value of [undefined, ""]) {
+    const config = readLocalConfig({ ...local, LOCAL_PROVIDER_ORIGIN: value });
+    assert.equal(config.providerOrigin, null);
+    assert.deepEqual(config.trustedOrigins, [local.APP_ORIGIN]);
+  }
+});
+
+test("a loopback stand-in origin is accepted and never becomes a trusted browser origin", () => {
+  for (const value of ["http://127.0.0.1:8788", "http://127.0.0.1:4000", "http://127.0.0.1:1024", "http://127.0.0.1:65535"]) {
+    const config = readLocalConfig({ ...local, LOCAL_PROVIDER_ORIGIN: value });
+    assert.equal(config.providerOrigin, value);
+    assert.deepEqual(config.trustedOrigins, [local.APP_ORIGIN]);
+    assert.ok(Object.isFrozen(config));
+  }
+});
+
+test("malformed stand-in origins are refused without echoing the value", () => {
+  for (const value of [
+    "http://localhost:8788", "http://127.0.0.2:8788", "http://[::1]:8788", "http://100.127.67.86:8788", "https://127.0.0.1:8788",
+    "http://127.0.0.1:8788/", "http://127.0.0.1:8788/api", "http://127.0.0.1:8788?x=1", "http://u:p@127.0.0.1:8788", "http://127.0.0.1:3099",
+    "http://127.0.0.1:80", "http://127.0.0.1:1023", "http://127.0.0.1:70000", "http://127.0.0.1:08788", "http://127.0.0.1", " http://127.0.0.1:8788",
+    "http://127.0.0.1:8788 ", " ", "http://127.0.0.1:8788#x", "HTTP://127.0.0.1:8788", "http://2130706433:8788",
+  ]) {
+    assert.throws(() => readLocalConfig({ ...local, LOCAL_PROVIDER_ORIGIN: value }), (error: unknown) => {
+      assert.ok(error instanceof Error);
+      // One fixed message: nothing from the value is echoed.
+      assert.equal(error.message, "LOCAL_PROVIDER_ORIGIN must be http://127.0.0.1:<port 1024-65535, not 3099>.");
+      return true;
+    }, value);
+  }
+});
+
+test("the local profile refuses AutoLaris configuration like every other provider credential", () => {
+  for (const name of ["AUTOLARIS_API_KEY", "AUTOLARIS_BASE_URL", "NEXT_PUBLIC_AUTOLARIS_KEY"]) {
+    assert.throws(() => readLocalConfig({ ...local, [name]: "synthetic-sentinel-never-log" }), (error: unknown) => {
+      assert.ok(error instanceof Error);
+      assert.equal(error.message, "Provider configuration is forbidden in the local profile.");
+      return true;
+    }, name);
+  }
+  // The stand-in mode needs no key: the origin alone is accepted, a key beside it is still refused.
+  assert.throws(() => readLocalConfig({ ...local, LOCAL_PROVIDER_ORIGIN: "http://127.0.0.1:8788", AUTOLARIS_API_KEY: "synthetic-sentinel-never-log" }));
+  assert.throws(() => readLocalConfig({ ...local, LOCAL_PROVIDER_ORIGIN: "http://127.0.0.1:8788", MENGANTAR_API_KEY: "synthetic-sentinel-never-log" }));
 });
 
 const loopback = "http://127.0.0.1:3099";
@@ -197,6 +245,7 @@ test("production profile: exact https origin, container listener, one trusted or
   assert.equal(readProductionConfig({ ...production, PORT: "8080" }).port, 8080);
   assert.deepEqual(config.trustedOrigins, [productionOrigin]);
   assert.equal(config.tailnetOrigin, null);
+  assert.equal(config.providerOrigin, null);
   assert.equal(config.clientIpHeader, "x-real-ip");
   assert.ok(!JSON.stringify(config).includes(production.BETTER_AUTH_SECRET), "the secret is never part of the config object");
   assert.ok(!JSON.stringify(config).includes("synthetic-sentinel"), "database passwords are never part of the config object");
@@ -247,6 +296,8 @@ const invalidProduction = [
   ["extra trusted origin", { BETTER_AUTH_TRUSTED_ORIGINS: "https://99ribu.com,https://evil.invalid" }],
   ["other trusted origin", { BETTER_AUTH_TRUSTED_ORIGINS: "https://app.99ribu.com" }],
   ["tailnet switch", { LOCAL_TAILNET_ORIGIN: "http://100.127.67.86:3099" }],
+  ["local provider stand-in origin", { LOCAL_PROVIDER_ORIGIN: "http://127.0.0.1:8788" }],
+  ["loopback Mengantar origin", { SHIPPING_ADAPTER: "mengantar", MENGANTAR_BASE_URL: "http://127.0.0.1:8788", MENGANTAR_API_KEY: "synthetic-sentinel-shipping-key" }],
   ...["PAYMENT", "SHIPPING", "ADS", "NOTIFICATION", "PAYOUT"].flatMap((name) => [
     [`simulated ${name.toLowerCase()} adapter`, { [`${name}_ADAPTER`]: "simulated" }],
     [`live ${name.toLowerCase()} adapter without its gate`, { [`${name}_ADAPTER`]: "live" }],

@@ -35,14 +35,50 @@ const CHANNELS: readonly (readonly [Channel, string])[] = [
 	["cod", "Bayar di tempat (COD)"],
 ];
 const ALL_CHANNELS = CHANNELS.map(([c]) => c);
-const channelsOf = (values: PaymentPolicyValues) => values.enabled_channels ?? ALL_CHANNELS;
+const channelsOf = (values: PaymentPolicyValues) =>
+	values.enabled_channels ?? ALL_CHANNELS;
 const channelText = (values: PaymentPolicyValues) =>
-	CHANNELS.filter(([c]) => channelsOf(values).includes(c)).map(([, label]) => label).join(", ");
+	CHANNELS.filter(([c]) => channelsOf(values).includes(c))
+		.map(([, label]) => label)
+		.join(", ");
+
+// DEC-029: who bears the AutoLaris VA/QRIS admin fee and the COD service fee (absent in older versions = store and
+// buyer), and the store's own per-channel AutoLaris fee table that prices a buyer-borne fee.
+type Bearer = "buyer" | "store";
+type FeeRule = { kind: "fixed"; amount: number } | { kind: "bps"; bps: number };
+const FEE_CHANNELS: readonly (readonly [string, string])[] = [
+	["VABCA", "VA BCA"],
+	["VAMANDIRI", "VA Mandiri"],
+	["VABNI", "VA BNI"],
+	["VABRI", "VA BRI"],
+	["VAPERMATA", "VA Permata"],
+	["QRIS", "QRIS"],
+];
+// Owner 2026-11-04: the AutoLaris rates are QRIS 0,7%, VA BCA Rp6.500 and every other VA Rp3.000 (starting values).
+const DEFAULT_FEES: Record<string, FeeRule> = {
+	VABCA: { kind: "fixed", amount: 6500 },
+	VAMANDIRI: { kind: "fixed", amount: 3000 },
+	VABNI: { kind: "fixed", amount: 3000 },
+	VABRI: { kind: "fixed", amount: 3000 },
+	VAPERMATA: { kind: "fixed", amount: 3000 },
+	QRIS: { kind: "bps", bps: 70 },
+};
+const feeText = (rule: FeeRule | undefined) =>
+	!rule
+		? "–"
+		: rule.kind === "fixed"
+			? `Rp${rule.amount.toLocaleString("id-ID")}`
+			: `${bpsToPercent(rule.bps)}%`;
+const bearerText = (bearer: Bearer | undefined, fallback: Bearer) =>
+	(bearer ?? fallback) === "buyer" ? "Pembeli" : "Platform";
 
 export type PaymentPolicyValues = {
 	cod_fee_bps: number;
 	manual_bank_accounts: BankAccount[];
 	enabled_channels?: Channel[];
+	payment_fee_bearer?: Bearer;
+	cod_fee_bearer?: Bearer;
+	autolaris_fees?: Record<string, FeeRule>;
 };
 
 export type PaymentPolicyVersion = {
@@ -210,7 +246,7 @@ export function SettingsPaymentClient({ canWrite }: { canWrite: boolean }) {
 			<DetailSection
 				id="payment-current-heading"
 				title="Ketentuan yang berlaku sekarang"
-				description="Biaya COD ditanggung pembeli dan dibekukan pada setiap penawaran; perubahan hanya berlaku untuk penawaran baru dan tidak mengubah pesanan yang sudah dibuat."
+				description="Siapa yang menanggung biaya COD dan biaya admin VA/QRIS dibekukan pada setiap penawaran dan instruksi pembayaran; perubahan hanya berlaku untuk yang baru dan tidak mengubah pesanan yang sudah dibuat."
 				testId="payment-policy-current"
 			>
 				{status.kind === "loading" && !history ? (
@@ -263,11 +299,35 @@ export function SettingsPaymentClient({ canWrite }: { canWrite: boolean }) {
 								data-testid="payment-policy-values"
 							>
 								<dt className="text-muted-foreground">Metode di checkout</dt>
-								<dd data-testid="payment-channels">{channelText(current.values)}</dd>
-								<dt className="text-muted-foreground">Biaya COD pembeli</dt>
-								<dd className="font-medium tabular-nums">
-									{bpsToPercent(current.values.cod_fee_bps)}% (
-									{current.values.cod_fee_bps} bps)
+								<dd data-testid="payment-channels">
+									{channelText(current.values)}
+								</dd>
+								<dt className="text-muted-foreground">Biaya layanan COD</dt>
+								<dd className="tabular-nums" data-testid="payment-cod-bearer">
+									<span className="font-medium">
+										{bpsToPercent(current.values.cod_fee_bps)}%
+									</span>{" "}
+									({current.values.cod_fee_bps} bps), ditanggung{" "}
+									{bearerText(
+										current.values.cod_fee_bearer,
+										"buyer",
+									).toLowerCase()}
+								</dd>
+								<dt className="text-muted-foreground">Biaya admin VA/QRIS</dt>
+								<dd data-testid="payment-fee-bearer">
+									Ditanggung{" "}
+									{bearerText(
+										current.values.payment_fee_bearer,
+										"store",
+									).toLowerCase()}
+									{current.values.autolaris_fees && (
+										<span className="block text-xs text-muted-foreground tabular-nums">
+											{FEE_CHANNELS.map(
+												([code, label]) =>
+													`${label} ${feeText(current.values.autolaris_fees?.[code])}`,
+											).join(" · ")}
+										</span>
+									)}
 								</dd>
 								<dt className="text-muted-foreground">
 									Rekening transfer manual
@@ -317,8 +377,8 @@ export function SettingsPaymentClient({ canWrite }: { canWrite: boolean }) {
 						Riwayat versi ketentuan pembayaran
 					</h2>
 					<p className="text-sm text-muted-foreground">
-						Setiap versi tidak dapat diubah dan dirujuk oleh pesanan
-						yang dibuat saat versi tersebut berlaku.
+						Setiap versi tidak dapat diubah dan dirujuk oleh pesanan yang dibuat
+						saat versi tersebut berlaku.
 					</p>
 				</div>
 				<DataTable
@@ -440,7 +500,26 @@ function PaymentPolicyDialog({
 	const [accounts, setAccounts] = useState(
 		current ? formatAccountsLines(current.manual_bank_accounts) : "",
 	);
-	const [channels, setChannels] = useState<Channel[]>(current ? channelsOf(current) : ALL_CHANNELS);
+	const [channels, setChannels] = useState<Channel[]>(
+		current ? channelsOf(current) : ALL_CHANNELS,
+	);
+	const [paymentBearer, setPaymentBearer] = useState<Bearer>(
+		current?.payment_fee_bearer ?? "store",
+	);
+	const [codBearer, setCodBearer] = useState<Bearer>(
+		current?.cod_fee_bearer ?? "buyer",
+	);
+	const [fees, setFees] = useState<Record<string, string>>(() =>
+		Object.fromEntries(
+			FEE_CHANNELS.map(([code]) => {
+				const rule = current?.autolaris_fees?.[code] ?? DEFAULT_FEES[code];
+				return [
+					code,
+					rule.kind === "fixed" ? String(rule.amount) : bpsToPercent(rule.bps),
+				];
+			}),
+		),
+	);
 	const [when, setWhen] = useState<"now" | "later">("now");
 	const [at, setAt] = useState("");
 	const [reason, setReason] = useState("");
@@ -464,6 +543,35 @@ function PaymentPolicyDialog({
 			intent.setError("Nyalakan minimal satu metode pembayaran.");
 			return;
 		}
+		// DEC-029: VA fees in whole rupiah (0–100.000), the QRIS fee as a percent (0–20).
+		// The table is saved whoever bears the fee, so a later switch to the buyer keeps the owner's rates.
+		const feeTable: Record<string, FeeRule> = {};
+		for (const [code, label] of FEE_CHANNELS) {
+			const raw = (fees[code] ?? "").trim();
+			if (code === "QRIS") {
+				const qrisBps = percentToBps(raw);
+				if (qrisBps === null || qrisBps > 2000) {
+					intent.setError(`Biaya ${label} diisi persen 0–20, contoh 0,7.`);
+					return;
+				}
+				feeTable[code] = { kind: "bps", bps: qrisBps };
+			} else {
+				if (
+					!/^[0-9]{1,6}$/.test(raw.replaceAll(".", "")) ||
+					Number(raw.replaceAll(".", "")) > 100000
+				) {
+					intent.setError(
+						`Biaya ${label} diisi rupiah 0–100.000, contoh 3000.`,
+					);
+					return;
+				}
+				feeTable[code] = {
+					kind: "fixed",
+					amount: Number(raw.replaceAll(".", "")),
+				};
+			}
+		}
+
 		let effectiveAt: string | null = null;
 		if (when === "later") {
 			effectiveAt = at ? wibInputToIso(at) : null;
@@ -488,6 +596,9 @@ function PaymentPolicyDialog({
 					cod_fee_bps: bps,
 					manual_bank_accounts: parsedAccounts,
 					enabled_channels: ALL_CHANNELS.filter((c) => channels.includes(c)),
+					payment_fee_bearer: paymentBearer,
+					cod_fee_bearer: codBearer,
+					autolaris_fees: feeTable,
 				},
 				reason: reason.trim(),
 			}),
@@ -517,31 +628,154 @@ function PaymentPolicyDialog({
 			onClose={onClose}
 			onSubmit={() => void submit()}
 		>
-			<fieldset className="flex flex-col gap-1" data-testid="payment-channel-switches">
-				<legend className="mb-1 text-sm font-medium">Metode pembayaran di checkout</legend>
+			<fieldset
+				className="flex flex-col gap-1"
+				data-testid="payment-channel-switches"
+			>
+				<legend className="mb-1 text-sm font-medium">
+					Metode pembayaran di checkout
+				</legend>
 				{CHANNELS.map(([channel, label]) => (
-					<label key={channel} className="flex min-h-9 items-center gap-2 text-sm pointer-coarse:min-h-11">
+					<label
+						key={channel}
+						className="flex min-h-9 items-center gap-2 text-sm pointer-coarse:min-h-11"
+					>
 						<input
 							type="checkbox"
 							className="size-4 accent-primary"
 							checked={channels.includes(channel)}
 							onChange={(e) =>
-								setChannels((all) => (e.target.checked ? [...all, channel] : all.filter((c) => c !== channel)))
+								setChannels((all) =>
+									e.target.checked
+										? [...all, channel]
+										: all.filter((c) => c !== channel),
+								)
 							}
 						/>
 						{label}
 					</label>
 				))}
 				<p className="text-xs text-muted-foreground">
-					Hanya metode yang menyala yang tampil untuk pembeli. Transfer bank tampil bila ada minimal satu
-					rekening. Virtual Account / QRIS baru tampil di situs produksi setelah koneksi AutoLaris asli disetujui.
+					Hanya metode yang menyala yang tampil untuk pembeli. Transfer bank
+					tampil bila ada minimal satu rekening. Virtual Account / QRIS baru
+					tampil di situs produksi setelah koneksi AutoLaris asli disetujui.
 				</p>
+			</fieldset>
+
+			<fieldset
+				className="flex flex-col gap-1"
+				data-testid="payment-fee-bearer-switch"
+			>
+				<legend className="mb-1 text-sm font-medium">
+					Biaya admin Virtual Account / QRIS ditanggung
+				</legend>
+				{(
+					[
+						[
+							"store",
+							"Platform",
+							"Pembeli membayar total pesanan; biaya admin dipotong dari dana yang platform terima.",
+						],
+						[
+							"buyer",
+							"Pembeli",
+							"Biaya admin ditambahkan ke tagihan VA/QRIS; platform menerima total pesanan.",
+						],
+					] as const
+				).map(([value, label, detail]) => (
+					<label
+						key={value}
+						className="flex min-h-9 items-start gap-2 text-sm pointer-coarse:min-h-11"
+					>
+						<input
+							type="radio"
+							name="payment-fee-bearer"
+							className="mt-0.5 size-4 accent-primary"
+							checked={paymentBearer === value}
+							onChange={() => setPaymentBearer(value)}
+						/>
+						<span>
+							<span className="font-medium">{label}</span>
+							<span className="block text-xs text-muted-foreground">
+								{detail}
+							</span>
+						</span>
+					</label>
+				))}
+				<div
+					className="mt-1 grid grid-cols-2 gap-2 sm:grid-cols-3"
+					data-testid="payment-fee-table"
+				>
+					{FEE_CHANNELS.map(([code, label]) => (
+						<FormField
+							key={code}
+							id={`terms-fee-${code}`}
+							label={code === "QRIS" ? `${label} (%)` : `${label} (Rp)`}
+						>
+							<Input
+								id={`terms-fee-${code}`}
+								inputMode={code === "QRIS" ? "decimal" : "numeric"}
+								value={fees[code] ?? ""}
+								onChange={(e) => {
+									const value = e.target.value;
+									setFees((all) => ({ ...all, [code]: value }));
+								}}
+							/>
+						</FormField>
+					))}
+					<p className="col-span-full text-xs text-muted-foreground">
+						Tarif akun AutoLaris. Dipakai menghitung tagihan pembeli bila biaya
+						ditanggung pembeli; pesanan yang sudah ada tidak berubah.
+					</p>
+				</div>
+			</fieldset>
+
+			<fieldset
+				className="flex flex-col gap-1"
+				data-testid="cod-fee-bearer-switch"
+			>
+				<legend className="mb-1 text-sm font-medium">
+					Biaya layanan COD ditanggung
+				</legend>
+				{(
+					[
+						[
+							"buyer",
+							"Pembeli",
+							"Biaya COD ditambahkan ke tagihan yang dibayar ke kurir.",
+						],
+						[
+							"store",
+							"Platform",
+							"Pembeli tidak membayar biaya COD; potongan kurir tetap tercatat saat setoran COD.",
+						],
+					] as const
+				).map(([value, label, detail]) => (
+					<label
+						key={value}
+						className="flex min-h-9 items-start gap-2 text-sm pointer-coarse:min-h-11"
+					>
+						<input
+							type="radio"
+							name="cod-fee-bearer"
+							className="mt-0.5 size-4 accent-primary"
+							checked={codBearer === value}
+							onChange={() => setCodBearer(value)}
+						/>
+						<span>
+							<span className="font-medium">{label}</span>
+							<span className="block text-xs text-muted-foreground">
+								{detail}
+							</span>
+						</span>
+					</label>
+				))}
 			</fieldset>
 
 			<FormField
 				id="terms-cod-fee"
-				label="Biaya COD (%)"
-				hint="Persen dari tagihan COD (0–20%), contoh 3,33."
+				label="Tarif biaya COD (%)"
+				hint="Persen dari tagihan COD (0–20%), contoh 3,33. Dibayar pembeli hanya bila biaya COD ditanggung pembeli."
 			>
 				<div className="flex items-center gap-2">
 					<Input
@@ -606,7 +840,8 @@ function PaymentPolicyDialog({
 						<Input
 							id={`${id}-at`}
 							data-testid="payment-effective-at"
-							type="datetime-local" lang="id"
+							type="datetime-local"
+							lang="id"
 							aria-describedby={`${id}-at-hint`}
 							value={at}
 							onChange={(e) => setAt(e.target.value)}

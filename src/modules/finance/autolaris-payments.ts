@@ -15,7 +15,7 @@ import {nextPageCursor,readPageCursor,STAMP_FORMAT} from './page-cursor.ts';
 // dashboard. The confirmation is a settled observation that settles the attempt's own
 // payment operation, so exact amounts post the S23 receipt and others become recovery.
 async function project(tx:TransactionSql,attemptId:string){
- const [row]=await tx`select l.*,a.status attempt_status,a.expected_amount,a.expires_at,o.id order_id,o.admin_no order_admin_no,o.number,o.status order_status,o.payment_status,
+ const [row]=await tx`select l.*,a.status attempt_status,a.expected_amount,a.payment_fee_amount,a.expires_at,o.id order_id,o.admin_no order_admin_no,o.number,o.status order_status,o.payment_status,
   (select json_build_object('source',x.source,'classification',x.classification,'rc',x.rc,'ket',x.ket,'amount',x.amount,'occurred_at',x.occurred_at,'recorded_at',x.created_at,'reason',x.reason)
    from app.autolaris_observation x where x.attempt_id=l.attempt_id order by x.created_at desc,x.id desc limit 1) latest,
   (select count(*)::int from app.autolaris_observation x where x.attempt_id=l.attempt_id) observations
@@ -23,7 +23,7 @@ async function project(tx:TransactionSql,attemptId:string){
  if(!row)throw new AccessError(404,'NOT_FOUND');
  const latest=row.latest as Record<string,unknown>|null;
  return {id:String(row.attempt_id),order_id:String(row.order_id),order_admin_no:Number(row.order_admin_no),order_number:String(row.number),status:String(row.attempt_status),currency:'IDR' as const,channel_code:String(row.channel_code),reff_id:String(row.reff_id),
-  trx_id:row.trx_id===null?null:String(row.trx_id),expected_amount:Number(row.expected_amount),provider_total:row.provider_total===null?null:Number(row.provider_total),
+  trx_id:row.trx_id===null?null:String(row.trx_id),expected_amount:Number(row.expected_amount),payment_fee_amount:Number(row.payment_fee_amount),requested_amount:Number(row.requested_amount),provider_total:row.provider_total===null?null:Number(row.provider_total),
   // Store-borne: deducted by AutoLaris at settlement and posted as payment cost, never charged to the buyer.
   admin_fee:row.admin_fee===null?null:Number(row.admin_fee),refusal_code:row.refusal_code===null?null:String(row.refusal_code),expires_at:new Date(row.expires_at).toISOString(),
   order_status:String(row.order_status),payment_status:String(row.payment_status),observation_count:Number(row.observations),
@@ -64,7 +64,10 @@ export async function confirmAutolarisPayment(request:Request,identity:LocalAuth
   if(Date.parse(input.paid_at)<new Date(row.created_at).getTime()||Date.parse(input.paid_at)>new Date(clock.now).getTime())throw new AccessError(422,'INVALID_PAYMENT_TIME');
   await consumeAccessProof(tx,principal,'finance.reconcile',selected,proof);
   await tx`insert into app.autolaris_observation (attempt_id,source,classification,amount,occurred_at,actor_id,reason,evidence) values (${selected},'manual','settled',${input.amount},${input.paid_at},${principal.id},${input.reason},${input.evidence})`;
-  await registerProviderEvent(tx,await settleLocalOperation(tx,await financeEnvironment(tx),selected,{amount:input.amount,occurred_at:input.paid_at}));
+  // DEC-029: finance records the bill the provider shows; the collection is that bill minus the frozen buyer fee.
+  const [fee]=await tx`select payment_fee_amount from app.payment_attempt where id=${selected}`;
+  if(input.amount<=Number(fee?.payment_fee_amount??0))throw new AccessError(422,'AUTOLARIS_AMOUNT_BELOW_FEE');
+  await registerProviderEvent(tx,await settleLocalOperation(tx,await financeEnvironment(tx),selected,{amount:input.amount-Number(fee?.payment_fee_amount??0),occurred_at:input.paid_at}));
   const response=await project(tx,selected),operationId=randomUUID();
   await tx`insert into app.access_operation (id,actor_id,action,key,request_hash,response) values (${operationId},${principal.id},'finance.autolaris_confirm',${key},${hash},${JSON.stringify(response)}::jsonb)`;
   await tx`insert into app.audit_event (actor_id,action,subject_id,outcome,reason,details) values (${principal.id},'finance.autolaris_confirm',${selected},'allowed',${input.reason},${JSON.stringify({operation_id:operationId,order_id:order.id,trx_id:String(row.trx_id),amount:input.amount,expected_amount:response.expected_amount})}::jsonb)`;

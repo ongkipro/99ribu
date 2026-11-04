@@ -1,6 +1,10 @@
 import { AccessDenied } from "../../../../../components/admin/access-denied";
 import { type Option, ShippingPromotionsClient } from "../../../../../components/admin/shipping-promotions-client";
+import { getLocalAuth } from "../../../../../modules/access/auth";
+import { provinceRegion } from "../../../../../modules/checkout/quotes";
 import { shippingFixture } from "../../../../../modules/shipping/address";
+import { areaTitle, destinationSource } from "../../../../../modules/shipping/destinations";
+import { COURIERS } from "../../../../../modules/shipping/mengantar";
 import { readStaffAccess } from "../../staff-roles";
 
 export const dynamic = "force-dynamic";
@@ -18,16 +22,23 @@ export default async function ShippingPromotionsPage() {
 				Promo ongkir dapat diatur oleh Super Admin dan Admin E-Commerce dengan verifikasi dua langkah aktif.
 			</AccessDenied>
 		);
-	// Region and service choices come from the local shipping adapter (TEST-ONLY destinations and
-	// services). Without it the form leaves both unrestricted (all regions and services).
+	// S176: choices follow the destination source. With the real Mengantar catalogue (production or local provider
+	// mode): the courier keys rates carry and the provinces of the loaded areas (every shipment carries its province
+	// region id). With the TEST-ONLY fixture: its destinations and services. Otherwise both stay unrestricted.
 	let services: Option[] = [];
 	let regions: Option[] = [];
 	try {
-		const fixture = shippingFixture();
-		services = fixture.services.map((s) => ({ id: s.id, label: s.name }));
-		regions = fixture.destinations.map((d) => ({ id: d.id, label: d.label }));
+		if (destinationSource() === "mengantar") {
+			services = Object.entries(COURIERS).map(([id, label]) => ({ id, label }));
+			const rows = await getLocalAuth().sql<{ province: string }[]>`select distinct province from app.shipping_area order by province`;
+			regions = rows.map((r) => ({ id: provinceRegion(r.province), label: areaTitle(r.province) }));
+		} else {
+			const fixture = shippingFixture();
+			services = fixture.services.map((s) => ({ id: s.id, label: s.name }));
+			regions = fixture.destinations.map((d) => ({ id: d.id, label: d.label }));
+		}
 	} catch {
-		// Production profile: no local fixture.
+		// Shipping disabled or no catalogue: the form leaves regions and services unrestricted.
 	}
 	return <ShippingPromotionsClient services={services} regions={regions} />;
 }

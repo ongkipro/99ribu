@@ -42,6 +42,18 @@ function readTailnetOrigin(value: string | undefined) {
   return value;
 }
 
+// DEC-028 / S163: opt-in origin of a local provider stand-in (the AdsBookCMS dev-providers server), an outbound
+// target only. Exactly http://127.0.0.1:<port>, port 1024-65535 and never the app's own 3099: no hostname, other
+// loopback address, IPv6, https, path, query, userinfo or trailing slash. Unset keeps today's behaviour.
+function readLocalProviderOrigin(value: string | undefined) {
+  if (value === undefined || value === "") return null;
+  const port = /^http:\/\/127\.0\.0\.1:([1-9]\d{3,4})$/.exec(value)?.[1];
+  if (!port || Number(port) < 1024 || Number(port) > 65535 || Number(port) === 3099 || new URL(value).origin !== value) {
+    throw new Error("LOCAL_PROVIDER_ORIGIN must be http://127.0.0.1:<port 1024-65535, not 3099>.");
+  }
+  return value;
+}
+
 // This profile is deliberately local-only. Live activation requires its own gate.
 export function readLocalConfig(env: Environment) {
   if (env.APP_ENV !== "local") throw new Error("APP_ENV must be local.");
@@ -57,7 +69,7 @@ export function readLocalConfig(env: Environment) {
     throw new Error("EXTERNAL_DISPATCH must be disabled.");
   }
   // Do not echo names/values from a provider credential or destination into logs.
-  const providerKey = /^(?:NEXT_PUBLIC_)?(?:VIRGO|MENGANTAR|META|FACEBOOK|GOOGLE_ADS|TIKTOK|SMTP|RESEND|SENDGRID|TWILIO)_/;
+  const providerKey = /^(?:NEXT_PUBLIC_)?(?:VIRGO|MENGANTAR|AUTOLARIS|META|FACEBOOK|GOOGLE_ADS|TIKTOK|SMTP|RESEND|SENDGRID|TWILIO)_/;
   for (const [name, value] of Object.entries(env)) {
     if (value && providerKey.test(name)) {
       throw new Error("Provider configuration is forbidden in the local profile.");
@@ -73,8 +85,9 @@ export function readLocalConfig(env: Environment) {
     throw new Error("Database overrides are forbidden; use the private local socket profile.");
   }
   const tailnetOrigin = readTailnetOrigin(env.LOCAL_TAILNET_ORIGIN);
+  const providerOrigin = readLocalProviderOrigin(env.LOCAL_PROVIDER_ORIGIN);
   return Object.freeze({
-    origin: env.APP_ORIGIN, hostname: "127.0.0.1", port: 3099, tailnetOrigin,
+    origin: env.APP_ORIGIN, hostname: "127.0.0.1", port: 3099, tailnetOrigin, providerOrigin,
     // Exactly the browser origins this profile serves; the listener itself stays on loopback.
     trustedOrigins: Object.freeze(tailnetOrigin ? [env.APP_ORIGIN, tailnetOrigin] : [env.APP_ORIGIN]),
   });

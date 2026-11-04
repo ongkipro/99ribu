@@ -118,7 +118,7 @@ export async function submitOrder(tx:TransactionSql,request:Request,identity:Loc
  }
  let promotionReservationId:string|null=null;
  if(promotionIds.length){
-  const reserved=await reservePromotions(tx,{key:`checkout:${orderId}`,customer_key:document.customer_key,promotion_ids:promotionIds,payment_method:plan.payment_method,lines:plan.lines.map(l=>({line_id:l.line_id,product_id:l.product_id,product_revision:l.product_revision,offer_id:l.offer_id,quantity:l.quantity})),shipments:promotionShipments(plan),expires_at:expires,clock_namespace:cart.clock_namespace,actor_id:actor.kind==='user'?actor.id:null});
+  const reserved=await reservePromotions(tx,{key:`checkout:${orderId}`,customer_key:document.customer_key,promotion_ids:promotionIds,payment_method:plan.payment_method,lines:plan.lines.map(l=>({line_id:l.line_id,product_id:l.product_id,product_revision:l.product_revision,offer_id:l.offer_id,quantity:l.quantity})),shipments:promotionShipments(plan,document.address),expires_at:expires,clock_namespace:cart.clock_namespace,actor_id:actor.kind==='user'?actor.id:null});
   if(!isDeepStrictEqual(reserved.allocations,document.promotions)) throw new AccessError(409,'PROMOTION_REVIEW_REQUIRED');promotionReservationId=reserved.id;
  }
  const purchased=new Map<string,{id:string;price:number;snapshot:unknown;contents:{stock_item_id:string;name:string;quantity:number}[]}>();

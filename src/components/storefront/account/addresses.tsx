@@ -168,15 +168,46 @@ function AddressForm({
 	const [recipient, setRecipient] = useState(target?.address.recipient_name ?? profile.display_name);
 	const [phone, setPhone] = useState(displayPhone(target?.address.phone ?? profile.phone));
 	const [destination, setDestination] = useState(destinations.find((d) => d.id === target?.address.destination_code)?.id ?? "");
+	// S176: with the real area catalogue (Mengantar or local provider mode) the page sends no list; the buyer searches
+	// by kelurahan, kecamatan or postal code, exactly like checkout (GET /api/v1/destinations).
+	const search = destinations.length === 0;
+	// A fixture id (not a 24-hex catalogue area) from before the catalogue: the buyer picks the area again.
+	const saved = target?.address.destination_code && /^[0-9a-f]{24}$/.test(target.address.destination_code)
+		? { id: target.address.destination_code, province: target.address.province ?? "", city: target.address.city ?? "", district: target.address.district ?? "", postal_code: target.address.postcode ?? "", subdistrict: target.address.subdistrict ?? "", label: [target.address.subdistrict, target.address.district, target.address.city, target.address.province].filter(Boolean).join(", ") + (target.address.postcode ? ` ${target.address.postcode}` : "") }
+		: null;
+	const [picked, setPicked] = useState<(Destination & { label: string; subdistrict?: string }) | null>(saved);
+	const [query, setQuery] = useState("");
+	const [results, setResults] = useState<(Destination & { label: string; subdistrict?: string })[]>([]);
+	const [searching, setSearching] = useState(false);
+
+	async function find() {
+		const q = query.trim();
+		if (q.length < 2) return onStatus("Ketik minimal 2 huruf nama kelurahan, kecamatan, atau kode pos.");
+		setSearching(true);
+		try {
+			const res = await fetch(`/api/v1/destinations?q=${encodeURIComponent(q)}&limit=20`);
+			if (!res.ok) return onStatus("Wilayah belum bisa dicari. Coba lagi sebentar lagi.");
+			// The address book needs a five-digit postal code; an area without one cannot be saved here.
+			const items = ((await res.json()) as { items: (Destination & { label: string; subdistrict?: string })[] }).items.filter((d) => /^\d{5}$/.test(d.postal_code));
+			setResults(items);
+			// An empty message hides the page notice, so a stale "not found" never sits above a result list.
+			onStatus("");
+			if (items.length === 0) onStatus("Wilayah tidak ditemukan. Coba nama kelurahan, kecamatan, atau kode pos lain.");
+		} catch {
+			onStatus("Wilayah belum bisa dicari. Coba lagi sebentar lagi.");
+		} finally {
+			setSearching(false);
+		}
+	}
 	const [street, setStreet] = useState(target?.address.street ?? "");
 	const [makeMain, setMakeMain] = useState(false);
 
 	function submit(event: React.FormEvent) {
 		event.preventDefault();
-		const picked = destinations.find((d) => d.id === destination);
-		if (!recipient.trim() || !street.trim() || !picked) return onStatus("Isi nama penerima, wilayah, dan alamat lengkap.");
+		const chosen = search ? picked : destinations.find((d) => d.id === destination);
+		if (!recipient.trim() || !street.trim() || !chosen) return onStatus("Isi nama penerima, wilayah, dan alamat lengkap.");
 		if (!looksLikeWhatsApp(phone)) return onStatus("Nomor HP penerima diawali 08 (nomor seluler).");
-		onSubmit({ label: label.trim(), recipient_name: recipient.trim(), phone, street: street.trim(), district: picked.district, city: picked.city, province: picked.province, postcode: picked.postal_code, destination_code: picked.id }, makeMain);
+		onSubmit({ label: label.trim(), recipient_name: recipient.trim(), phone, street: street.trim(), district: chosen.district, city: chosen.city, province: chosen.province, postcode: chosen.postal_code, destination_code: chosen.id, ...("subdistrict" in chosen && chosen.subdistrict ? { subdistrict: String(chosen.subdistrict) } : {}) }, makeMain);
 	}
 
 	return (
@@ -194,15 +225,36 @@ function AddressForm({
 				Nomor HP penerima
 				<input type="tel" inputMode="numeric" maxLength={24} autoComplete="shipping tel" placeholder="08…" value={phone} onChange={(e) => setPhone(filterContact(e))} />
 			</label>
-			<label>
-				Wilayah pengiriman
-				<select value={destination} onChange={(e) => setDestination(e.target.value)} data-testid="main-address-destination">
-					<option value="">Pilih wilayah</option>
-					{destinations.map((d) => (
-						<option key={d.id} value={d.id}>{d.district}, {d.city}, {d.province} {d.postal_code}</option>
-					))}
-				</select>
-			</label>
+			{search ? (
+				<div className="account-destination-search">
+					<label>
+						Kelurahan atau kode pos
+						<input type="search" value={query} onChange={(e) => setQuery(e.target.value)} maxLength={100} autoComplete="off" data-testid="main-address-query"
+							onKeyDown={(e) => { if (e.key === "Enter") { e.preventDefault(); void find(); } }} />
+					</label>
+					<button type="button" className="button button-secondary account-destination-find" disabled={searching} onClick={() => void find()}>{searching ? "Mencari wilayah…" : "Cari wilayah"}</button>
+					{results.length > 0 && (
+						<ul className="account-destination-results" aria-label="Saran wilayah">
+							{results.map((d) => (
+								<li key={d.id}>
+									<button type="button" aria-pressed={picked?.id === d.id} onClick={() => { setPicked(d); setResults([]); }}>{d.label}</button>
+								</li>
+							))}
+						</ul>
+					)}
+					<p className="account-destination-picked" data-testid="main-address-destination" role="status">{picked ? `Wilayah: ${picked.label}` : target?.address.destination_code ? "Pilih ulang wilayah dari pencarian." : "Belum ada wilayah dipilih."}</p>
+				</div>
+			) : (
+				<label>
+					Wilayah pengiriman
+					<select value={destination} onChange={(e) => setDestination(e.target.value)} data-testid="main-address-destination">
+						<option value="">Pilih wilayah</option>
+						{destinations.map((d) => (
+							<option key={d.id} value={d.id}>{d.district}, {d.city}, {d.province} {d.postal_code}</option>
+						))}
+					</select>
+				</label>
+			)}
 			<label>
 				Alamat lengkap
 				<textarea rows={3} maxLength={240} autoComplete="shipping street-address" value={street} onChange={(e) => setStreet(e.target.value)} data-testid="main-address-street" />

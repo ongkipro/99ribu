@@ -30,7 +30,7 @@ test('S95 production: Mengantar areas are the destinations, the warehouse area i
   await f.identity.sql`update app.warehouse set provider_area_id=${origin} where id in (${warehouses})`;
   await as(production('mengantar'),async()=>{
    const found=await searchDestinations(f.identity.sql,'tebet barat sintetis');
-   assert.deepEqual(found.map(d=>[d.id,d.label,d.source,d.version]),[[destination,'Tebet Barat Sintetis, Tebet, Jakarta Selatan, Dki Jakarta 12810','mengantar',version]]);
+   assert.deepEqual(found.map(d=>[d.id,d.label,d.source,d.version]),[[destination,'Tebet Barat Sintetis, Tebet, Jakarta Selatan, DKI Jakarta 12810','mengantar',version]]);
    assert.equal(await findDestination(f.identity.sql,'test-malang'),null,'fixture ids are not production destinations');
    assert.deepEqual(await searchDestinations(f.identity.sql,'%'),[],'LIKE wildcards are literal');
    const address=await normalizeAddress(f.identity.sql,{recipient_name:'Synthetic Buyer',phone:'081234567890',address_line:'Jl. Sintetis 1',destination_id:destination,postal_code:'12810'});

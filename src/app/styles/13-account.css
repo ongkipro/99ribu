@@ -648,6 +648,45 @@
 	gap: 6px;
 	font-weight: 600;
 }
+/* S176: form text controls stay at 16 px so phones do not zoom on focus (the checkout field system rule). */
+.account-address-form :is(input:not([type="checkbox"]), select, textarea) {
+	font-size: 16px;
+}
+.account-destination-search {
+	display: grid;
+	gap: 8px;
+}
+.account-destination-find {
+	justify-self: start;
+}
+.account-destination-results {
+	display: grid;
+	gap: 4px;
+	width: 100%;
+	margin: 0;
+	padding: 0;
+	list-style: none;
+}
+.account-destination-results button {
+	width: 100%;
+	min-height: 44px;
+	padding: 10px 12px;
+	border: 1px solid var(--hairline);
+	border-radius: 10px;
+	background: var(--canvas);
+	color: inherit;
+	font: inherit;
+	text-align: left;
+	cursor: pointer;
+}
+.account-destination-results button:focus-visible {
+	outline: 3px solid var(--purple);
+	outline-offset: 2px;
+}
+.account-destination-picked {
+	margin: 0;
+	font-weight: 500;
+}
 .account-address-form .account-check {
 	display: flex;
 	align-items: center;
@@ -669,6 +708,10 @@
 	gap: 12px;
 	grid-template-columns: repeat(auto-fit, minmax(min(100%, 9rem), 1fr));
 }
+/* S176: the birth date selects and year stay at 16 px so phones do not zoom on focus. */
+.profile-field-grid :is(input, select) {
+	font-size: 16px;
+}
 .profile-fieldset {
 	display: grid;
 	gap: 4px;
@@ -686,6 +729,7 @@
 	min-height: 44px;
 	font-weight: 500;
 }
+/* biome-ignore lint/style/noDescendingSpecificity: different forms; the signed-out guest form rule above never applies to the profile radios */
 .profile-radio input {
 	width: 20px;
 	height: 20px;

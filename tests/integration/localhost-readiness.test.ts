@@ -199,6 +199,8 @@ test("S65 & S66 integration: assembled localhost journey across all domains enfo
 		port: 3099,
 		// The opt-in tailnet origin is absent by default: loopback is the only served origin.
 		tailnetOrigin: null,
+		// DEC-028 local provider mode is off by default: no stand-in origin.
+		providerOrigin: null,
 		trustedOrigins: ["http://127.0.0.1:3099"],
 	});
 	assert.equal(process.env.APP_ENV, "local");

@@ -305,6 +305,9 @@ type Autolaris = {
 	channel_code: string;
 	trx_id: string | null;
 	expected_amount: number;
+	// DEC-029: requested_amount is the AutoLaris bill (order value plus payment_fee_amount when the buyer bears the fee).
+	requested_amount: number;
+	payment_fee_amount: number;
 	admin_fee: number | null;
 	refusal_code: string | null;
 	status: string;
@@ -342,7 +345,7 @@ function AutolarisPayments({
 						Virtual Account / QRIS (AutoLaris, simulasi lokal)
 					</h2>
 					<p className="max-w-prose text-sm text-muted-foreground">
-						Status dicek otomatis dari laporan AutoLaris; hanya status lunas yang tegas dianggap lunas. Biaya admin ditanggung toko dan dicatat sebagai biaya pembayaran saat dana diselesaikan.
+						Status dicek otomatis dari laporan AutoLaris; hanya status lunas yang tegas dianggap lunas. Biaya admin ditanggung pembeli atau platform sesuai Pengaturan → Pembayaran; bagian yang ditanggung platform dicatat sebagai biaya pembayaran saat dana diselesaikan.
 					</p>
 				</div>
 				<Button variant="outline" className="shrink-0" onClick={() => void list.reload()}>
@@ -391,8 +394,8 @@ function AutolarisPayments({
 					},
 					// Kanal and Status give way md–xl (shown in the stacked card and from xl).
 					{ id: "channel", header: "Kanal", className: "md:max-xl:hidden", cell: (row) => channelLabel(row.channel_code) },
-					{ id: "amount", header: "Tagihan pembeli", stack: "aside", className: "text-right tabular-nums", cell: (row) => rupiah(row.expected_amount) },
-					{ id: "fee", header: "Biaya admin (toko)", className: "text-right tabular-nums", cell: (row) => (row.admin_fee === null ? "—" : rupiah(row.admin_fee)) },
+					{ id: "amount", header: "Tagihan pembeli", stack: "aside", className: "text-right tabular-nums", cell: (row) => rupiah(row.requested_amount) },
+					{ id: "fee", header: "Biaya admin", className: "text-right tabular-nums", cell: (row) => (row.admin_fee === null ? "—" : `${rupiah(row.admin_fee)} · ${row.payment_fee_amount > 0 ? "dibayar pembeli" : "ditanggung platform"}`) },
 					{ id: "status", header: "Status", stack: "status", className: "md:max-xl:hidden", cell: autolarisStatus },
 					{
 						id: "actions",
@@ -424,7 +427,7 @@ function AutolarisPayments({
 	);
 }
 function AutolarisConfirmDialog({ payment, onClose, onDone }: { payment: Autolaris; onClose: () => void; onDone: (message: string) => void }) {
-	const [form, setForm] = useState({ amount: String(payment.expected_amount), time: "", evidence: "", reason: "", password: "" });
+	const [form, setForm] = useState({ amount: String(payment.requested_amount), time: "", evidence: "", reason: "", password: "" });
 	const [error, setError] = useState<string | null>(null);
 	const [pending, setPending] = useState(false);
 	const set = (field: keyof typeof form) => (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => setForm({ ...form, [field]: e.target.value });
@@ -453,11 +456,11 @@ function AutolarisConfirmDialog({ payment, onClose, onDone }: { payment: Autolar
 	return (
 		<FormDialog
 			title={`Konfirmasi manual ${payment.order_number}`}
-			description={`Gunakan hanya setelah memeriksa dasbor AutoLaris (transaksi ${payment.trx_id}). Nominal berbeda dari ${rupiah(payment.expected_amount)} dicatat dan masuk tinjauan.`}
+			description={`Gunakan hanya setelah memeriksa dasbor AutoLaris (transaksi ${payment.trx_id}). Masukkan nominal tagihan di dasbor; nominal berbeda dari ${rupiah(payment.requested_amount)} dicatat dan masuk tinjauan.`}
 			pending={pending}
 			error={error}
 			submitLabel="Simpan konfirmasi"
-			dirty={!!(form.time || form.evidence || form.reason || form.password) || form.amount !== String(payment.expected_amount)}
+			dirty={!!(form.time || form.evidence || form.reason || form.password) || form.amount !== String(payment.requested_amount)}
 			onClose={onClose}
 			onSubmit={() => void submit()}
 		>

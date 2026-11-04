@@ -46,9 +46,10 @@ export async function estimateRates(adapter:RateAdapter,request:RateRequest,rema
   try{
     const result=await Promise.race([adapter.estimate(request,controller.signal),timeout]);
     if(!Array.isArray(result)||result.length>100) throw invalid();
+    const version=adapter.version;
     for(const rate of result){
       object(rate,['id','service_id','courier_name','service_name','shipping_amount','supports_cod','source','version','expires_at']);
-      if(!rate||typeof rate.id!=='string'||!rate.id||rate.id.length>200||typeof rate.service_id!=='string'||!rate.service_id||rate.service_id.length>100||typeof rate.courier_name!=='string'||!rate.courier_name||rate.courier_name.length>200||typeof rate.service_name!=='string'||!rate.service_name||rate.service_name.length>200||typeof rate.supports_cod!=='boolean'||rate.source!==adapter.source||rate.version!==adapter.version||typeof rate.expires_at!=='string'||!Number.isFinite(Date.parse(rate.expires_at))||new Date(rate.expires_at).toISOString()!==rate.expires_at) throw invalid();
+      if(!rate||typeof rate.id!=='string'||!rate.id||rate.id.length>200||typeof rate.service_id!=='string'||!rate.service_id||rate.service_id.length>100||typeof rate.courier_name!=='string'||!rate.courier_name||rate.courier_name.length>200||typeof rate.service_name!=='string'||!rate.service_name||rate.service_name.length>200||typeof rate.supports_cod!=='boolean'||rate.source!==adapter.source||rate.version!==version||typeof rate.expires_at!=='string'||!Number.isFinite(Date.parse(rate.expires_at))||new Date(rate.expires_at).toISOString()!==rate.expires_at) throw invalid();
       integer(rate.shipping_amount,0,Number.MAX_SAFE_INTEGER);
       if(Date.parse(rate.expires_at)<=Date.parse(request.now)) throw new AccessError(409,'SHIPPING_RATE_EXPIRED');
     }

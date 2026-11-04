@@ -55,7 +55,7 @@ if (import.meta.main) {
     "--case=T-26", "--case=T-27", "--case=T-28", "--case=T-29", "--case=T-30", "--case=T-31", "--case=T-32", "--case=T-33",
     "--case=T-34", "--case=T-35", "--case=T-36", "--case=T-37", "--case=T-38", "--case=localhost-readiness",
     "--case=S29-candidate", "--case=S30-candidate", "--case=S31-candidate", "--case=seed-foundation", "--case=seed-commerce",
-    "--case=seed-berlapak", "--case=price-ceiling", "--case=demo-orders", "--case=wave4", "--case=manual-fulfillment", "--case=cod-remittance", "--case=payment-methods", "--case=autolaris-payments", "--case=consignment-payments", "--case=admin-ui-controls", "--case=production-profile", "--case=backup-restore", "--case=admin-orders", "--case=db-hygiene", "--case=admin-kpi-parity", "--case=guest-order-lookup", "--case=sign-in", "--case=ops-screens", "--case=home-banners", "--case=static-pages", "--case=admin-returns", "--case=sign-up", "--case=buyer-profile", "--case=customer-lookup", "--case=audit-log", "--case=system-health", "--case=admin-account", "--case=staff-roles", "--case=catalog-master", "--case=admin-exceptions", "--case=admin-affiliates", "--case=finance-workbench", "--case=settings-hub", "--case=admin-nav", "--case=all-current",
+    "--case=seed-berlapak", "--case=local-providers", "--case=payment-fees", "--case=price-ceiling", "--case=demo-orders", "--case=wave4", "--case=manual-fulfillment", "--case=cod-remittance", "--case=payment-methods", "--case=autolaris-payments", "--case=consignment-payments", "--case=admin-ui-controls", "--case=production-profile", "--case=backup-restore", "--case=admin-orders", "--case=db-hygiene", "--case=admin-kpi-parity", "--case=guest-order-lookup", "--case=sign-in", "--case=ops-screens", "--case=home-banners", "--case=static-pages", "--case=admin-returns", "--case=sign-up", "--case=buyer-profile", "--case=customer-lookup", "--case=audit-log", "--case=system-health", "--case=admin-account", "--case=staff-roles", "--case=catalog-master", "--case=admin-exceptions", "--case=admin-affiliates", "--case=finance-workbench", "--case=settings-hub", "--case=admin-nav", "--case=all-current",
   ];
   const integrationOnlySelectors = ["--case=wave4", "--case=backup-restore", "--case=seed-foundation", "--case=seed-berlapak", "--case=price-ceiling", "--case=demo-orders", "--case=manual-fulfillment", "--case=admin-orders", "--case=db-hygiene", "--case=admin-kpi-parity", "--case=guest-order-lookup", "--case=cod-remittance", "--case=payment-methods", "--case=autolaris-payments", "--case=production-profile", "--case=PR-3", "--case=S29-candidate", "--case=S30-candidate", "--case=S31-candidate", "--case=T-38"];
   if (!["integration", "browser"].includes(mode) || !validSelectors.includes(selector) || extra.length || (mode === "browser" && integrationOnlySelectors.includes(selector)) || (mode === "integration" && ["--case=consignment-payments", "--case=admin-ui-controls", "--case=sign-in", "--case=sign-up", "--case=admin-nav"].includes(selector))) {
@@ -66,6 +66,10 @@ if (import.meta.main) {
       ? currentFiles(mode as "integration" | "browser")
       : selector === "--case=wave4"
       ? ["tests/integration/login-challenge.test.ts", "tests/integration/admin-list-sort.test.ts", "tests/integration/offer-editing.test.ts", "tests/integration/buyer-account-wave.test.ts", "tests/integration/affiliate-dashboard.test.ts", "tests/integration/dashboard-wave.test.ts", "tests/integration/listing-tools.test.ts", "tests/integration/warehouse-flow.test.ts", "tests/integration/product-create-wave.test.ts"]
+      : selector === "--case=payment-fees"
+      ? mode === "integration" ? ["tests/integration/payment-fees.test.ts"] : ["tests/browser/payment-fees.test.ts"]
+      : selector === "--case=local-providers"
+      ? mode === "integration" ? ["tests/integration/local-providers.test.ts","tests/integration/shipping-stand-in.test.ts","tests/integration/shipping-stand-in-behaviour.test.ts","tests/integration/autolaris-stand-in.test.ts"] : ["tests/browser/local-providers-states.test.ts"]
       : selector === "--case=T-32"
       ? mode === "integration" ? ["tests/integration/storefront-order-receipt.test.ts"] : ["tests/browser/storefront-order-receipt.test.ts"]
       : selector === "--case=T-31"
@@ -150,7 +154,7 @@ if (import.meta.main) {
       : selector === "--case=PR-4"
       ? mode === "integration" ? ["tests/integration/checkout-migration.test.ts","tests/integration/checkout-core.test.ts","tests/integration/checkout-contract.test.ts","tests/integration/checkout-access.test.ts","tests/integration/guest-context-cleanup.test.ts","tests/integration/checkout-races.test.ts","tests/integration/checkout-worker.test.ts"] : ["tests/integration/checkout-http.test.ts"]
       : selector === "--case=PR-3"
-      ? ["tests/integration/shipping-address.test.ts","tests/integration/shipping.test.ts","tests/integration/shipping-contribution.test.ts","tests/integration/shipping-mengantar.test.ts"]
+      ? ["tests/integration/shipping-address.test.ts","tests/integration/shipping.test.ts","tests/integration/shipping-contribution.test.ts","tests/integration/shipping-mengantar.test.ts","tests/integration/shipping-stand-in.test.ts","tests/integration/shipping-stand-in-behaviour.test.ts"]
       : selector === "--case=seed-berlapak"
       ? ["tests/integration/berlapak-import.test.ts"]
       : selector === "--case=demo-orders"
@@ -172,7 +176,7 @@ if (import.meta.main) {
       : selector === "--case=production-profile"
       ? ["tests/integration/production-environment.test.ts", "tests/production-database.test.ts", "tests/production-operator.test.ts"]
       : selector === "--case=autolaris-payments"
-      ? ["tests/integration/autolaris-payments.test.ts"]
+      ? ["tests/integration/autolaris-payments.test.ts","tests/integration/autolaris-stand-in.test.ts","tests/integration/payment-fees.test.ts"]
       : selector === "--case=backup-restore"
       ? ["tests/integration/backup-restore.test.ts"]
       : selector === "--case=ops-screens"

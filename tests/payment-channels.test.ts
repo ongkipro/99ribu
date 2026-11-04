@@ -5,7 +5,8 @@ import { assertUsablePaymentChannels, valuesFor } from "../src/modules/settings/
 
 const ACCOUNT = { bank_name: "BCA", account_number: "1234567890", account_holder: "PT Contoh" };
 const terms = (over: Partial<PaymentTerms>): PaymentTerms => ({
-	version_id: null, cod_fee_bps: 0, manual_bank_accounts: [ACCOUNT], enabled_channels: ["manual-bank", "autolaris", "cod"], ...over,
+	version_id: null, cod_fee_bps: 0, buyer_cod_fee_bps: 0, manual_bank_accounts: [ACCOUNT], enabled_channels: ["manual-bank", "autolaris", "cod"],
+	payment_fee_bearer: "store", cod_fee_bearer: "buyer", autolaris_fees: {}, ...over,
 });
 
 test("payment policy: enabled_channels is optional, a non-empty unique subset, stored in a fixed order", () => {

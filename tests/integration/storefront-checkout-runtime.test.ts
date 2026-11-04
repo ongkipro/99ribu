@@ -37,6 +37,15 @@ test('checkout bridge uses real guest authority, native quote/selection, one ord
  const badSearch=await mutateCheckout(f.client.request('/checkout',{}),f.identity,{...intent,navigate:'lookup',query:'\u202eevil'});assert.equal(badSearch.state.phase,'error');assert.ok(badSearch.state.errors.query);assert.equal(badSearch.state.intent.draft.address_line,draft.address_line);
  const defaultLookup=await mutateCheckout(f.client.request('/checkout',{}),f.identity,{...intent,navigate:'stay',query:'not-a-synthetic-destination'});assert.equal(defaultLookup.state.step,'contact');assert.equal(defaultLookup.state.view.destinations.length,0);
  const [beforeQuote]=await f.identity.sql`select count(*)::int n from app.checkout_quote where cart_id=${cartId}`;assert.equal(beforeQuote.n,0);
+ // S168: a provider refusal or timeout on the quote is a known non-effect (the quote rolled back): a retryable error
+ // with the draft kept, never the unknown-outcome recovery.
+ for(const code of ['SHIPPING_RATE_TIMEOUT','SHIPPING_RATE_UNAVAILABLE','SHIPPING_RATE_INVALID']){
+  const failed=await mutateCheckout(f.client.request('/checkout',{}),f.identity,intent,async(request,identity)=>new URL(request.url).pathname==='/api/v1/checkout/quotes'&&request.method==='POST'?Response.json({code},{status:503}):handleCheckout(request,identity));
+  assert.equal(failed.state.phase,'error',code);assert.equal(failed.state.message,'Ongkir belum bisa dihitung. Isian Anda tersimpan. Tunggu sebentar, lalu tekan Hitung ongkir.');
+  assert.equal(failed.state.intent.draft.address_line,draft.address_line);assert.equal(failed.state.intent.draft.buyer_note,draft.buyer_note);assert.equal(failed.order,null);
+ }
+ const generic=await mutateCheckout(f.client.request('/checkout',{}),f.identity,intent,async(request,identity)=>new URL(request.url).pathname==='/api/v1/checkout/quotes'&&request.method==='POST'?Response.json({code:'SERVICE_UNAVAILABLE'},{status:503}):handleCheckout(request,identity));
+ assert.equal(generic.state.phase,'unknown','any other 5xx keeps the unknown-outcome recovery');
  const quoted=await mutateCheckout(f.client.request('/checkout',{}),f.identity,intent);assert.equal(quoted.state.phase,'success');assert.equal(quoted.state.step,'review','single-page checkout: a quote opens the order step directly');assert.equal(quoted.state.intent.kind,'order');assert.equal(quoted.order,null);assert.ok(quoted.state.view.quoteCurrent);
  const quote=quoted.state.view.quote;assert.ok(quote);assert.equal(quote.merchandise_total,198000);assert.equal(quote.buyer_total,quote.merchandise_total+quote.shipping_total-quote.subsidy_total);
  assert.ok(quoted.state.view.allocations.length);assert.ok(quoted.state.view.allocations.every(plan=>quote.allocation_options.some(option=>option.id===plan.id)));assert.ok(quoted.state.view.allocations.every(plan=>plan.packages.every(parcel=>parcel.items.every(item=>item.name&&item.variant&&Number.isSafeInteger(item.quantity)&&item.quantity>0&&item.contents.length>0))));

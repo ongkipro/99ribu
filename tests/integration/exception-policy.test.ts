@@ -40,10 +40,13 @@ test('operational decisions are proposals or escalation and cannot manufacture f
 });
 
 test('identified and unidentified intake stay separate and duplicate component lines cannot inflate an intake',()=>{
- const known={exception_unit_id:first,stock_item_id:second,expected_balance_id:first,quantity:1,identity_confirmed:true};
- const unknown={...known,stock_item_id:null,expected_balance_id:null,identity_confirmed:false};
+ // S161: a confirmed line carries the goods condition; an unidentified line carries none.
+ const known={exception_unit_id:first,stock_item_id:second,expected_balance_id:first,quantity:1,identity_confirmed:true,condition:'baik'};
+ const unknown={exception_unit_id:first,stock_item_id:null,expected_balance_id:null,quantity:1,identity_confirmed:false};
  const input={expected_version:1,physical_outcome_id:second,lines:[unknown,known],reason};
- assert.deepEqual(exceptionIntakeRequest(input).lines,[known,unknown]);
+ assert.deepEqual(exceptionIntakeRequest(input).lines,[known,{...unknown,condition:null}]);
+ assert.throws(()=>exceptionIntakeRequest({...input,lines:[{...known,condition:undefined}]}),{code:'INVALID_INPUT'},'a confirmed line needs its condition');
+ assert.throws(()=>exceptionIntakeRequest({...input,lines:[{...unknown,condition:'baik'}]}),{code:'INVALID_INPUT'},'an unidentified line carries no condition');
  assert.throws(()=>exceptionIntakeRequest({...input,lines:[{...known,identity_confirmed:false}]}),{code:'INVALID_INPUT'});
  assert.throws(()=>exceptionIntakeRequest({...input,lines:[{...known,stock_item_id:null}]}),{code:'INVALID_INPUT'});
  assert.throws(()=>exceptionIntakeRequest({...input,lines:[known,{...known,expected_balance_id:first.toUpperCase(),quantity:2}]}),{code:'DUPLICATE_EXCEPTION_GOODS'});
@@ -71,7 +74,7 @@ test('buyer proposal and verified-destination choices are disjoint and accept on
 });
 
 test('reasons reject hidden controls and no mutation accepts a stale-shaped revision',()=>{
- for(const unsafe of ['',reason+'\u202e',reason+'\u0001','x'.repeat(501)]){
+ for(const unsafe of ['',`${reason}\u202e`,`${reason}\u0001`,'x'.repeat(501)]){
   assert.throws(()=>stockDiscrepancyRequest({...report,reason:unsafe}),{code:'INVALID_INPUT'});
   assert.throws(()=>exceptionDecisionRequest({expected_version:1,decision:'keep_waiting',reason:unsafe}),{code:'INVALID_INPUT'});
  }

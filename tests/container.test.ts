@@ -50,6 +50,8 @@ test("Dockerfile runtime stage: fixed non-root uid, node-only HEALTHCHECK, expli
   // Only the one-shot migrate service receives the owner password, as a mounted file (never an application
   // variable, which Coolify shares with every service); web and worker wait for it to succeed.
   assert.doesNotMatch(compose, /DATABASE_OWNER_PASSWORD:/);
+  // DEC-028: the stand-in origin is local-only and is never passed to a production service.
+  assert.doesNotMatch(compose, /LOCAL_PROVIDER_ORIGIN/);
   assert.equal(compose.match(/^\s+DATABASE_OWNER_PASSWORD_FILE: \/run\/secrets\/database-owner-password$/gm)?.length, 1);
   assert.equal(compose.match(/:\/run\/secrets\/database-owner-password:ro$/gm)?.length, 1);
   assert.match(compose, /migrate:\n(?:.*\n)*?\s+command: \["node", "scripts\/migrate\.ts", "production"\]/);

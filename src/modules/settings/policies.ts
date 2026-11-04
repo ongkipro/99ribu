@@ -22,6 +22,19 @@ function scope(kind: unknown, warehouseId: unknown): { kind: Kind; warehouseId: 
 export const TOGGLEABLE_CHANNELS = ["manual-bank", "autolaris", "cod"] as const;
 export type ToggleableChannel = typeof TOGGLEABLE_CHANNELS[number];
 export type BankAccount = { bank_name: string; account_number: string; account_holder: string };
+// DEC-029: who bears the AutoLaris VA/QRIS admin fee and the COD service fee, and the store's own per-channel
+// AutoLaris fee table used to price a buyer-borne fee before create_payment (the provider answer stays the cost).
+// The channel codes equal AUTOLARIS_CHANNELS (src/modules/payments/autolaris.ts; tests/payment-fees.test.ts pins it).
+export const AUTOLARIS_FEE_CHANNELS = ["VABNI", "VAPERMATA", "VABCA", "VAMANDIRI", "VABRI", "QRIS"] as const;
+export type FeeBearer = "buyer" | "store";
+export type AutolarisFeeRule = { kind: "fixed"; amount: number } | { kind: "bps"; bps: number };
+function feeRules(value: unknown): value is Record<string, AutolarisFeeRule> {
+  return !!value && typeof value === "object" && !Array.isArray(value) && Object.entries(value).every(([code, rule]) =>
+    (AUTOLARIS_FEE_CHANNELS as readonly string[]).includes(code) && !!rule && typeof rule === "object" && !Array.isArray(rule) &&
+    // QRIS is a percentage and every VA a fixed rupiah amount: the owner screen edits them that way (DEC-029).
+    ((rule.kind === "fixed" && code !== "QRIS" && Object.keys(rule).length === 2 && Number.isSafeInteger(rule.amount) && rule.amount >= 0 && rule.amount <= 100000) ||
+     (rule.kind === "bps" && code === "QRIS" && Object.keys(rule).length === 2 && Number.isSafeInteger(rule.bps) && rule.bps >= 0 && rule.bps <= 2000)));
+}
 function bankAccounts(value: unknown): value is BankAccount[] {
   return Array.isArray(value) && value.length >= 1 && value.length <= 5 && value.every((a) => a && typeof a === "object" && !Array.isArray(a) &&
     Object.keys(a).every((key) => ["bank_name", "account_number", "account_holder"].includes(key)) &&
@@ -32,7 +45,9 @@ function bankAccounts(value: unknown): value is BankAccount[] {
 // Write-time rule for a new payment version (never applied when reading stored versions, so a stored row
 // cannot become unreadable under another runtime): at least one switched-on channel must work here. The
 // production profile (APP_ENV=production) never offers the AutoLaris simulator until S97; transfer needs an account.
-export function assertUsablePaymentChannels(values: { manual_bank_accounts: unknown[]; enabled_channels?: readonly string[] }) {
+export function assertUsablePaymentChannels(values: { manual_bank_accounts: unknown[]; enabled_channels?: readonly string[]; payment_fee_bearer?: FeeBearer; autolaris_fees?: Record<string, AutolarisFeeRule> }) {
+  // DEC-029: a buyer-borne AutoLaris fee needs a price for every channel, or a buyer could pick an unpriced one.
+  if (values.payment_fee_bearer === "buyer" && AUTOLARIS_FEE_CHANNELS.some((c) => !values.autolaris_fees?.[c])) throw new AccessError(422, "PAYMENT_FEE_TABLE_INCOMPLETE");
   if (values.enabled_channels && !values.enabled_channels.some((c) => c === "cod" ||
     (c === "manual-bank" && values.manual_bank_accounts.length > 0) ||
     (c === "autolaris" && process.env.APP_ENV !== "production"))) throw new AccessError(422, "PAYMENT_CHANNELS_UNUSABLE");
@@ -50,7 +65,10 @@ export function valuesFor(kind: Kind, value: unknown) {
   }
   if (kind === "payment") {
     // DEC-009 buyer COD fee rate (basis points) and DEC-008 manual transfer accounts.
-    if (Object.keys(data).some((key) => !["cod_fee_bps", "manual_bank_accounts", "enabled_channels"].includes(key)) ||
+    if (Object.keys(data).some((key) => !["cod_fee_bps", "manual_bank_accounts", "enabled_channels", "payment_fee_bearer", "cod_fee_bearer", "autolaris_fees"].includes(key)) ||
+      ("payment_fee_bearer" in data && !["buyer", "store"].includes(data.payment_fee_bearer as string)) ||
+      ("cod_fee_bearer" in data && !["buyer", "store"].includes(data.cod_fee_bearer as string)) ||
+      ("autolaris_fees" in data && !feeRules(data.autolaris_fees)) ||
       !Number.isSafeInteger(data.cod_fee_bps) || Number(data.cod_fee_bps) < 0 || Number(data.cod_fee_bps) > 2000 ||
       ("manual_bank_accounts" in data && !(Array.isArray(data.manual_bank_accounts) && (data.manual_bank_accounts.length === 0 || bankAccounts(data.manual_bank_accounts))))) throw invalid();
     // Owner switches for the buyer-facing channels (absent in older versions = all on). At least one stays on.
@@ -58,7 +76,13 @@ export function valuesFor(kind: Kind, value: unknown) {
     if (enabled !== undefined && (!Array.isArray(enabled) || enabled.length < 1 || new Set(enabled).size !== enabled.length ||
       enabled.some((c) => !(TOGGLEABLE_CHANNELS as readonly unknown[]).includes(c)))) throw invalid();
     return { cod_fee_bps: Number(data.cod_fee_bps), manual_bank_accounts: ((data.manual_bank_accounts ?? []) as BankAccount[]).map((a) => ({ bank_name: a.bank_name.trim(), account_number: a.account_number, account_holder: a.account_holder.trim() })),
-      ...(enabled === undefined ? {} : { enabled_channels: TOGGLEABLE_CHANNELS.filter((c) => (enabled as string[]).includes(c)) }) };
+      ...(enabled === undefined ? {} : { enabled_channels: TOGGLEABLE_CHANNELS.filter((c) => (enabled as string[]).includes(c)) }),
+      ...(data.payment_fee_bearer === undefined ? {} : { payment_fee_bearer: data.payment_fee_bearer as FeeBearer }),
+      ...(data.cod_fee_bearer === undefined ? {} : { cod_fee_bearer: data.cod_fee_bearer as FeeBearer }),
+      ...(data.autolaris_fees === undefined ? {} : { autolaris_fees: Object.fromEntries(AUTOLARIS_FEE_CHANNELS.flatMap((c) => {
+        const rule = (data.autolaris_fees as Record<string, AutolarisFeeRule>)[c];
+        return rule ? [[c, rule.kind === "fixed" ? { kind: "fixed" as const, amount: rule.amount } : { kind: "bps" as const, bps: rule.bps }]] : [];
+      })) }) };
   }
   if (Object.keys(data).some((key) => !["timezone", "year", "working_weekdays", "cutoff_local", "closed_dates", "source", "approval"].includes(key)) ||
     typeof data.timezone !== "string" || !data.timezone || data.timezone.length > 100 ||
@@ -134,7 +158,7 @@ export async function appendPolicyVersion(request: Request, principal: Principal
     (body.effective_at !== null && (typeof body.effective_at !== "string" || !/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{3}Z$/.test(body.effective_at) ||
       !Number.isFinite(Date.parse(body.effective_at)) || new Date(body.effective_at).toISOString() !== body.effective_at))) throw invalid();
   const selected = scope(body.kind, body.warehouse_id); const values = valuesFor(selected.kind, body.values);
-  if (selected.kind === "payment") assertUsablePaymentChannels(values as { manual_bank_accounts: unknown[]; enabled_channels?: readonly string[] });
+  if (selected.kind === "payment") assertUsablePaymentChannels(values as Parameters<typeof assertUsablePaymentChannels>[0]);
   const reauthenticationProof = body.reauthentication_proof; const effectiveInput = body.effective_at;
   const intent = { kind: selected.kind, warehouse_id: selected.warehouseId, effective_at: effectiveInput,
     values, expected_version: Number(body.expected_version), reason: body.reason.trim() };

@@ -6,8 +6,9 @@ import {id,invalid,object} from '../catalog/validation.ts';
 import {lockInventoryClock} from '../inventory/state.ts';
 import type {OrderRow} from '../checkout/orders.ts';
 import {AUTOLARIS_CHANNELS,persistAutolarisIdentity} from './autolaris.ts';
+import {autolarisBuyerFee,paymentTerms} from './methods.ts';
 
-export type AttemptRow={id:string;order_id:string;creation_job_id:string;provider_operation_id:string|null;receipt_id:string|null;status:string;revision:number;expected_amount:string;created_at:string;expires_at:string;request_hash:string};
+export type AttemptRow={id:string;order_id:string;creation_job_id:string;provider_operation_id:string|null;receipt_id:string|null;status:string;revision:number;expected_amount:string;payment_fee_amount?:string;created_at:string;expires_at:string;request_hash:string};
 export async function lockPaymentOrder(tx:TransactionSql,orderId:string){
  const [prior]=await tx<OrderRow[]>`select * from app.commerce_order where id=${id(orderId)}`;if(!prior) throw new AccessError(404,'NOT_FOUND');
  const shipments=await tx`select warehouse_id from app.order_shipment where order_id=${prior.id}`;
@@ -23,7 +24,8 @@ export async function projectAttempt(tx:TransactionSql,orderId:string,attemptId:
  // DEC-008 manual bank: transfer exactly the amount (order total + unique code) to a listed account.
  const action=status!=='pending'?{kind:'none' as const}:a.method_id==='manual-bank'
   ?{kind:'bank_transfer' as const,display_text:`Transfer tepat Rp${Number(a.expected_amount).toLocaleString('id-ID')} (termasuk kode unik ${a.transfer_code}) sebelum batas waktu. Pembayaran dicek manual oleh tim keuangan.`,amount:Number(a.expected_amount),transfer_code:Number(a.transfer_code),accounts:(a.bank_accounts??[]) as {bank_name:string;account_number:string;account_holder:string}[]}
-  :a.method_id==='autolaris'?{kind:'autolaris' as const,channel_code:String(a.channel_code),amount:Number(a.expected_amount),
+  // DEC-029: amount is what the buyer pays; payment_fee_amount the buyer-borne admin fee inside it (0 when the store bears it).
+  :a.method_id==='autolaris'?{kind:'autolaris' as const,channel_code:String(a.channel_code),amount:Number(a.expected_amount)+Number(a.payment_fee_amount),payment_fee_amount:Number(a.payment_fee_amount),
     instruction:a.instruction_kind===null||a.refusal_code!==null?null:{kind:a.instruction_kind as 'virtual_account'|'qr'|'payment_code'|'url',value:String(a.instruction_value)},
     display_text:a.instruction_kind===null?'Instruksi pembayaran sedang dibuat. Perbarui status sebentar lagi.':'Simulasi lokal AutoLaris. Tidak ada rekening atau pembayaran nyata; status diperiksa otomatis.'}
   :{kind:'instructions' as const,display_text:'Simulasi lokal. Tidak ada rekening atau pembayaran nyata.'};
@@ -43,9 +45,15 @@ export async function createAttempt(tx:TransactionSql,orderId:string,key:string,
  if(body.method_id!==(order.payment_channel??'local-prepaid')) throw new AccessError(409,'PAYMENT_METHOD_UNAVAILABLE');
  if((await tx`select id from app.payment_attempt where order_id=${order.id} and status in ('pending','unknown','confirmed')`).length) throw new AccessError(409,'PAYMENT_ATTEMPT_ACTIVE');
  if((await tx`select count(*)::int n from app.payment_attempt where order_id=${order.id}`)[0].n>=5) throw new AccessError(409,'PAYMENT_ATTEMPT_LIMIT');
+ // DEC-029: a buyer-borne AutoLaris fee is priced from the payment policy in force now and frozen on the attempt
+ // (migration 0046 guards the same rule). The attempt stays the order value; only the AutoLaris bill adds the fee.
+ const due=Number(order.buyer_total)+Number(order.payment_charge_amount??0);
+ const fee=body.method_id==='autolaris'?autolarisBuyerFee(await paymentTerms(tx,new Date(clock.now)),String(body.channel_code),due):0;
+ // A fee above the stored ceiling (Rp1.000.000) or an unpriced channel: this channel is not offered for this order.
+ if(fee===null||fee>1_000_000) throw new AccessError(409,'PAYMENT_CHANNEL_UNAVAILABLE');
  const attemptId=randomUUID(),job=await enqueueJob(tx,'payment.create',`payment-create:${attemptId}`,{attemptId});
- const [attempt]=await tx<AttemptRow[]>`insert into app.payment_attempt (id,order_id,method_id,key,request_hash,creation_job_id,expected_amount,created_at,expires_at)
-   values (${attemptId},${order.id},${String(body.method_id)},${key},${hash},${job},${Number(order.buyer_total)+Number(order.payment_charge_amount??0)},${new Date(clock.now).toISOString()},${order.expires_at}) returning *`;
+ const [attempt]=await tx<AttemptRow[]>`insert into app.payment_attempt (id,order_id,method_id,key,request_hash,creation_job_id,expected_amount,payment_fee_amount,created_at,expires_at)
+   values (${attemptId},${order.id},${String(body.method_id)},${key},${hash},${job},${due},${fee},${new Date(clock.now).toISOString()},${order.expires_at}) returning *`;
  await advanceAttempt(tx,attempt,{status:'pending',source_type:'request',source_id:job,occurred_at:new Date(clock.now).toISOString()});
  // reff_id and channel are persisted before any provider call (DEC-008 (2)).
  if(body.method_id==='autolaris') await persistAutolarisIdentity(tx,attempt,String(body.channel_code));

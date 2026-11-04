@@ -1,5 +1,5 @@
 import type {Sql,TransactionSql} from 'postgres';
-import {productionShipping,runtimeTarget} from '../../config/runtime.ts';
+import {productionShipping,readRuntimeConfig,runtimeTarget} from '../../config/runtime.ts';
 import {AccessError} from '../access/policy.ts';
 import {integer,object} from '../catalog/validation.ts';
 import {clean,normalizePhone,shippingFixture} from './address.ts';
@@ -13,14 +13,24 @@ export type DestinationSource='TEST-ONLY'|'mengantar';
 export type Destination={id:string;label:string;province:string;city:string;district:string;subdistrict:string;postal_code:string;version:string;source:DestinationSource};
 type Db=Sql|TransactionSql;
 
+// DEC-028 / S164: where Mengantar-shaped rates come from. Production: the official origin and key. Local or test with
+// LOCAL_PROVIDER_ORIGIN: the loopback stand-in with the literal key `local` (never a credential). Otherwise null.
+export function shippingProvider(env:NodeJS.ProcessEnv=process.env){
+ const config=readRuntimeConfig(env);
+ if(config.profile==='production') return productionShipping(env);
+ return config.providerOrigin?{provider:'mengantar' as const,baseUrl:config.providerOrigin,apiKey:'local',standIn:true as const}:null;
+}
 export function destinationSource():DestinationSource{
- if(runtimeTarget()!=='production') return 'TEST-ONLY';
+ // Local provider mode reuses production's catalogue path (app.shipping_area) and adapter; unset keeps the fixture.
+ if(runtimeTarget()!=='production') return shippingProvider()?'mengantar':'TEST-ONLY';
  if(!productionShipping(process.env)) throw new AccessError(503,'SHIPPING_UNAVAILABLE');
  return 'mengantar';
 }
 const fixtureDestinations=():Destination[]=>{const f=shippingFixture();return f.destinations.map(d=>({...d,version:f.version,source:'TEST-ONLY' as const}));};
 // Mengantar writes names in capitals ("JAKARTA SELATAN", "BOGOR BARAT - KOTA"); buyers read them title-cased.
-const title=(value:string)=>value.toLocaleLowerCase('id-ID').replace(/(^|[\s(/-])(\p{L})/gu,(_,lead:string,letter:string)=>lead+letter.toLocaleUpperCase('id-ID'));
+// "DKI" and "DI" (Daerah Istimewa) are initialisms, not words (S176).
+export const areaTitle=(value:string)=>value.toLocaleLowerCase('id-ID').replace(/(^|[\s(/-])(\p{L})/gu,(_,lead:string,letter:string)=>lead+letter.toLocaleUpperCase('id-ID')).replace(/^Dki\b/,'DKI').replace(/^Di\b/,'DI');
+const title=areaTitle;
 type AreaRow={id:string;province:string;city:string;district:string;subdistrict:string;postal_code:string;dataset_version:string};
 function fromArea(row:AreaRow):Destination{
  const [province,city,district,subdistrict]=[row.province,row.city,row.district,row.subdistrict].map(title);

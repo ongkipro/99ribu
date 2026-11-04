@@ -8,6 +8,7 @@ import {id,integer,invalid,object} from '../catalog/validation.ts';
 import {financeEnvironment} from '../finance/ledger.ts';
 import {registerSettlementEvent,settlementSourceEvent} from '../finance/settlements/local.ts';
 import {advanceAttempt,lockPaymentOrder,type AttemptRow} from './attempts.ts';
+import {liveAutolaris,originBoundFetch,readAutolarisStandInConfig} from './autolaris-live.ts';
 import {openLocalOperation,readProviderEvents,registerProviderEvent,settleLocalOperation} from './local.ts';
 
 // DEC-008 / S93: AutoLaris H2H payments on a LOCAL SIMULATED contract. Shapes follow
@@ -51,14 +52,21 @@ export function enabledChannels(envelope:Envelope){
 
 // Live AutoLaris is gated (S97: static egress IP whitelist, server-secret key,
 // verified advice settlement mapping, owner authorization). It never starts here.
+// DEC-028 / S166: with LOCAL_PROVIDER_ORIGIN set, local and test use the real HTTP client against the loopback
+// stand-in (wire layer only; its settlement shape is not the provider's contract). Unset keeps the simulator.
 export function autolarisClientFor(target:string,sql?:Sql,options?:SimulatorOptions):AutolarisClient{
- if((target==='local'||target==='test')&&sql)return simulatedAutolaris(sql,target,options);
+ if(target==='local'||target==='test'){
+  const standIn=readAutolarisStandInConfig(process.env);
+  if(standIn)return liveAutolaris(standIn,originBoundFetch(standIn.baseUrl));
+  if(sql)return simulatedAutolaris(sql,target,options);
+ }
  throw new AccessError(503,'AUTOLARIS_LIVE_GATED');
 }
 
 // ---- Host-only simulator of the AutoLaris account (database-backed, keyed by reff_id).
 export type SimulatorOptions={feeMode?:'merchant'|'buyer';fault?:'timeout-before'|'timeout-after'};
-const FEES:Record<string,{admin:number;kind:'fix'|'persen'}>={VABNI:{admin:4000,kind:'fix'},VAPERMATA:{admin:4000,kind:'fix'},VABCA:{admin:4500,kind:'fix'},VAMANDIRI:{admin:4000,kind:'fix'},VABRI:{admin:4000,kind:'fix'},QRIS:{admin:0.7,kind:'persen'}};
+// Owner 2026-11-04 (DEC-029): the account's AutoLaris rates are QRIS 0,7%, VA BCA Rp6.500, every other VA Rp3.000.
+const FEES:Record<string,{admin:number;kind:'fix'|'persen'}>={VABNI:{admin:3000,kind:'fix'},VAPERMATA:{admin:3000,kind:'fix'},VABCA:{admin:6500,kind:'fix'},VAMANDIRI:{admin:3000,kind:'fix'},VABRI:{admin:3000,kind:'fix'},QRIS:{admin:0.7,kind:'persen'}};
 function simulatedAutolaris(sql:Sql,target:'local'|'test',options:SimulatorOptions={}):AutolarisClient{
  return {
   async listPayment(){
@@ -93,6 +101,8 @@ function simulatedAutolaris(sql:Sql,target:'local'|'test',options:SimulatorOptio
 }
 // Host command: the simulated buyer pays (or the account reports a status) for an attempt's transaction.
 export async function simulateAutolarisStatus(sql:Sql,target:'local'|'test',attemptId:string,status:'paid'|'generic_success'|'expired'){
+ // In local provider mode payments live at the stand-in; marking the simulator row would silently change nothing.
+ if(readAutolarisStandInConfig(process.env))throw new AccessError(409,'AUTOLARIS_STAND_IN_MODE');
  return sql.begin(async tx=>{
   const [row]=await tx`select l.trx_id,app.reservation_clock(o.clock_namespace) now from app.autolaris_payment l join app.payment_attempt a on a.id=l.attempt_id join app.commerce_order o on o.id=a.order_id where l.attempt_id=${id(attemptId)} and l.environment=${target}`;
   if(!row?.trx_id)throw new AccessError(404,'NOT_FOUND');
@@ -103,9 +113,9 @@ export async function simulateAutolarisStatus(sql:Sql,target:'local'|'test',atte
 
 // ---- Payment creation (leased payment.create job, AutoLaris attempts).
 const reffId=(attemptId:string)=>`99R${attemptId.replaceAll('-','')}`;
-export async function persistAutolarisIdentity(tx:TransactionSql,attempt:{id:string;expected_amount:number|string},channelCode:string){
+export async function persistAutolarisIdentity(tx:TransactionSql,attempt:{id:string;expected_amount:number|string;payment_fee_amount?:number|string},channelCode:string){
  if(!(AUTOLARIS_CHANNELS as readonly string[]).includes(channelCode))throw invalid();
- await tx`insert into app.autolaris_payment (attempt_id,environment,reff_id,channel_code,requested_amount) values (${attempt.id},${await financeEnvironment(tx)},${reffId(attempt.id)},${channelCode},${Number(attempt.expected_amount)})`;
+ await tx`insert into app.autolaris_payment (attempt_id,environment,reff_id,channel_code,requested_amount) values (${attempt.id},${await financeEnvironment(tx)},${reffId(attempt.id)},${channelCode},${Number(attempt.expected_amount)+Number(attempt.payment_fee_amount??0)})`;
 }
 function jakarta(at:Date){
  const p=Object.fromEntries(new Intl.DateTimeFormat('en-GB',{timeZone:'Asia/Jakarta',year:'numeric',month:'2-digit',day:'2-digit',hour:'2-digit',minute:'2-digit',second:'2-digit',hourCycle:'h23'}).formatToParts(at).map(x=>[x.type,x.value]));
@@ -137,7 +147,7 @@ export async function dispatchAutolarisPayment(sql:Sql,target:'local'|'test',att
  const opened=await sql.begin(async tx=>{
   const opened=await openLocalOperation(tx,target,attemptId);
   await tx`update app.autolaris_payment set operation_id=${opened.operation_id} where attempt_id=${attemptId} and operation_id is null`;
-  const [identity]=await tx`select l.*,o.number,o.expires_at,q.document->'contact' contact,q.document->'address'->>'recipient_name' recipient from app.autolaris_payment l join app.payment_attempt a on a.id=l.attempt_id
+  const [identity]=await tx`select l.*,a.payment_fee_amount,o.number,o.expires_at,q.document->'contact' contact,q.document->'address'->>'recipient_name' recipient from app.autolaris_payment l join app.payment_attempt a on a.id=l.attempt_id
    join app.commerce_order o on o.id=a.order_id join app.checkout_quote q on q.id=o.quote_id where l.attempt_id=${attemptId}`;
   if(!identity)throw new AccessError(409,'AUTOLARIS_IDENTITY_MISSING');return {...opened,identity};
  });
@@ -152,8 +162,10 @@ export async function dispatchAutolarisPayment(sql:Sql,target:'local'|'test',att
     expired:jakarta(new Date(l.expires_at)),amount:String(l.requested_amount),callback_url:`${readLocalConfig(process.env).origin}/api/v1/payments/autolaris/callbacks`},signal));
    if(parsed.rejected)await failOperation(sql,target,attemptId);
    else{
-    // DEC-008 (3): the admin fee is store-borne; a total other than the buyer amount is refused.
-    const refusal=parsed.amount!==Number(l.requested_amount)?'AUTOLARIS_AMOUNT_MISMATCH':parsed.total!==Number(l.requested_amount)?'AUTOLARIS_TOTAL_MISMATCH':null;
+    // DEC-008 (3) / DEC-029: the provider bills exactly the requested amount (order value plus any frozen buyer fee) and deducts its fee; any other amount or total is refused.
+    // DEC-029: a buyer-borne fee must not exceed what the provider deducts, or the store would hold buyer money it
+    // cannot settle; refused before any instruction is shown (the attempt fails, the buyer may pick another channel).
+    const refusal=parsed.amount!==Number(l.requested_amount)?'AUTOLARIS_AMOUNT_MISMATCH':parsed.total!==Number(l.requested_amount)?'AUTOLARIS_TOTAL_MISMATCH':parsed.admin<Number(l.payment_fee_amount)?'AUTOLARIS_FEE_MISMATCH':null;
     const record=(tx:TransactionSql)=>tx`update app.autolaris_payment set trx_id=${parsed.trx_id},instruction_kind=${parsed.instruction_kind},instruction_value=${parsed.instruction_value},provider_amount=${parsed.amount},admin_fee=${parsed.admin},provider_total=${parsed.total},refusal_code=${refusal},responded_at=clock_timestamp() where attempt_id=${attemptId} and responded_at is null`;
     if(refusal)await failOperation(sql,target,attemptId,record);
     else await sql.begin(async tx=>{await record(tx);await scheduleAdvice(tx,attemptId,1);});
@@ -169,11 +181,13 @@ export async function dispatchAutolarisPayment(sql:Sql,target:'local'|'test',att
 export function autolarisAdviceAdapter(sql:Sql,target:'local'|'test',client:AutolarisClient=autolarisClientFor(target,sql)):JobAdapter{
  const run=async(claim:Claim,signal:AbortSignal):Promise<Outcome>=>{
   const body=object(claim.payload,['attemptId','poll']),attemptId=id(body.attemptId),poll=integer(body.poll,1,ADVICE_MAX_POLLS+ADVICE_FINAL_POLLS);
-  const [row]=await sql`select l.trx_id,l.refusal_code,p.status operation_status,j.id job from app.autolaris_payment l join app.local_payment_operation p on p.id=l.operation_id
+  const [row]=await sql`select l.trx_id,l.refusal_code,p.status operation_status,a.payment_fee_amount,j.id job from app.autolaris_payment l join app.payment_attempt a on a.id=l.attempt_id join app.local_payment_operation p on p.id=l.operation_id
    join app.outbox_job j on j.dedup_key=${`autolaris-advice:${attemptId}:${poll}`} and j.id=${claim.id} where l.attempt_id=${attemptId} and l.environment=${target}`;
   if(!row?.trx_id||row.refusal_code)return {status:'failed',code:'INVALID_PAYLOAD'};
   if(row.operation_status!=='pending')return {status:'succeeded',receipt:{stopped:'final'}};
-  const envelope=await client.advice({transaction_id:String(row.trx_id)},signal),seen=classifyAdvice(envelope);
+  const envelope=await client.advice({transaction_id:String(row.trx_id)},signal),classified=classifyAdvice(envelope);
+  // DEC-029: a reported bill at or below the frozen buyer fee cannot be a collection; kept as unknown for finance.
+  const seen=classified.classification==='settled'&&(classified.amount as number)-Number(row.payment_fee_amount)<1?{classification:'unknown' as const,amount:null,paid_at:null}:classified;
   const result=await sql.begin(async tx=>{
    const [attempt]=await tx`select order_id from app.payment_attempt where id=${attemptId}`;const order=await lockPaymentOrder(tx,attempt.order_id);
    await tx`select pg_advisory_xact_lock(hashtextextended(${`payment:${attemptId}`},0))`;
@@ -181,7 +195,9 @@ export function autolarisAdviceAdapter(sql:Sql,target:'local'|'test',client:Auto
    if(state.status!=='pending')return 'final';
    const now=new Date(state.now),paidAt=seen.paid_at&&Date.parse(seen.paid_at)<=now.getTime()&&Date.parse(seen.paid_at)>=new Date(state.created_at).getTime()?seen.paid_at:now.toISOString();
    await tx`insert into app.autolaris_observation (attempt_id,source,rc,ket,classification,amount,occurred_at) values (${attemptId},'advice',${String(envelope.rc).slice(0,8)},${String(envelope.ket??'').slice(0,120)},${seen.classification},${seen.amount},${paidAt})`;
-   if(seen.classification==='settled'){await registerProviderEvent(tx,await settleLocalOperation(tx,target,attemptId,{amount:seen.amount as number,occurred_at:paidAt}));return 'settled';}
+   // DEC-029: the provider reports the bill; the collection we record is the bill minus the frozen buyer fee (the order
+   // value when the bill is exact; any other amount still lands in recovery as an amount mismatch).
+   if(seen.classification==='settled'){await registerProviderEvent(tx,await settleLocalOperation(tx,target,attemptId,{amount:(seen.amount as number)-Number(row.payment_fee_amount),occurred_at:paidAt}));return 'settled';}
    // Bounded: stop after the window plus one interval, or the poll budget; manual confirmation remains.
    if(poll<ADVICE_MAX_POLLS&&now.getTime()<new Date(state.expires_at).getTime()+ADVICE_INTERVAL_SECONDS*1000)await scheduleAdvice(tx,attemptId,poll+1);
    return seen.classification;
@@ -191,14 +207,18 @@ export function autolarisAdviceAdapter(sql:Sql,target:'local'|'test',client:Auto
  return {dispatch:run,reconcile:run};
 }
 
-// ---- Store-borne admin fee: the AutoLaris settlement deducts it, posting provider_fee_expense
+// ---- Admin fee: the AutoLaris settlement deducts it, posting the part the store bears as provider_fee_expense
 // through the existing S30 settlement journals (never buyer revenue, Purchase or commission).
 export async function simulateAutolarisSettlement(sql:Sql,target:'local'|'test',attemptId:string){
  return sql.begin(async tx=>{
-  const [row]=await tx`select l.trx_id,l.provider_total,l.admin_fee,r.transaction_id,o.clock_namespace from app.autolaris_payment l join app.payment_attempt a on a.id=l.attempt_id join app.commerce_order o on o.id=a.order_id
+  const [row]=await tx`select l.trx_id,l.provider_total,l.admin_fee,a.payment_fee_amount,r.transaction_id,o.clock_namespace from app.autolaris_payment l join app.payment_attempt a on a.id=l.attempt_id join app.commerce_order o on o.id=a.order_id
    join app.economic_receipt r on r.id=a.receipt_id where l.attempt_id=${id(attemptId)} and l.environment=${target}`;
   if(!row)throw new AccessError(409,'AUTOLARIS_SETTLEMENT_UNAVAILABLE');
-  const gross=Number(row.provider_total),fee=Number(row.admin_fee);
+  // DEC-029: the buyer-paid fee is a pass-through: the statement's gross is the receipt (bill minus that fee) and the
+  // store's cost is only what the provider deducts beyond it. A buyer fee above the provider fee would mean the store
+  // charged the buyer more than the bank took: refused for finance review, never booked silently.
+  const buyerFee=Number(row.payment_fee_amount),gross=Number(row.provider_total)-buyerFee,fee=Number(row.admin_fee)-buyerFee;
+  if(fee<0)throw new AccessError(409,'AUTOLARIS_FEE_VARIANCE');
   const event=await settlementSourceEvent(tx,target,{provider:'local.payment',reference:`autolaris:${row.trx_id}`,direction:'credit',net_amount:gross-fee,clock_namespace:row.clock_namespace,
    statement:{gross_amount:gross,carrier_fee:0,provider_fee:fee,allocation_claims:[{receivable_transaction_id:String(row.transaction_id),gross_amount:gross,reopens_allocation_id:null}],reverses_reference:null}});
   return {event,job:await registerSettlementEvent(tx,event)};

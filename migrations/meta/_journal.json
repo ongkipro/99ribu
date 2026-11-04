@@ -323,6 +323,34 @@
       "when": 1793584083722,
       "tag": "0045_goods_condition",
       "breakpoints": true
+    },
+    {
+      "idx": 46,
+      "version": "7",
+      "when": 1793783663241,
+      "tag": "0046_payment_fee_bearer",
+      "breakpoints": true
+    },
+    {
+      "idx": 47,
+      "version": "7",
+      "when": 1793784354431,
+      "tag": "0047_payment_fee_autolaris_only",
+      "breakpoints": true
+    },
+    {
+      "idx": 48,
+      "version": "7",
+      "when": 1793784427031,
+      "tag": "0048_payment_fee_autolaris_seal",
+      "breakpoints": true
+    },
+    {
+      "idx": 49,
+      "version": "7",
+      "when": 1793785779004,
+      "tag": "0049_autolaris_fee_mismatch",
+      "breakpoints": true
     }
   ]
 }

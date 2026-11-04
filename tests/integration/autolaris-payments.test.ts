@@ -68,7 +68,7 @@ test('AutoLaris payment: reff_id before the call, one provider payment across a 
   assert.equal((await sql`select count(*)::int n from app.local_autolaris_transaction where environment='test' and reff_id=${identity.reff_id}`)[0].n,1,'one provider payment per reff_id');
   const [recorded]=await sql`select trx_id,instruction_kind,provider_total,admin_fee,refusal_code from app.autolaris_payment where attempt_id=${a.id}`;
   assert.equal(recorded.instruction_kind,'virtual_account');assert.equal(recorded.refusal_code,null);assert.equal(Number(recorded.provider_total),Number(order.buyer_total),'admin fee never added to the buyer total');
-  assert.equal(Number(recorded.admin_fee),4000);
+  assert.equal(Number(recorded.admin_fee),3000,'VA BNI: Rp3.000 (owner rates 2026-11-04)');
   await callbacks(f,a.id);
   const shown=await sql.begin(tx=>projectAttempt(tx,order.id,a.id));
   assert.equal(shown.status,'pending');assert.ok(shown.action.kind==='autolaris'&&shown.action.instruction?.kind==='virtual_account'&&shown.action.amount===Number(order.buyer_total));
@@ -101,7 +101,7 @@ test('AutoLaris payment: reff_id before the call, one provider payment across a 
   // AutoLaris settles total minus its admin fee: the fee posts as store payment cost.
   const settled=await simulateAutolarisSettlement(sql,'test',a.id);assert.equal(await runOneJob(sql,{},settled.job),true);
   const [fee]=await sql`select p.amount from app.finance_transaction t join app.finance_posting p on p.transaction_id=t.id where t.kind='settlement_fee' and t.effect_reference like ${`fee:${settled.event.statement_id}:%`} and p.account='provider_fee_expense'`;
-  assert.equal(Number(fee?.amount),4000,'admin fee recorded as provider_fee_expense');
+  assert.equal(Number(fee?.amount),3000,'admin fee recorded as provider_fee_expense');
  }finally{await f.close();}
 });
 
@@ -134,8 +134,9 @@ test('AutoLaris refuses a buyer-borne fee and manual confirmation needs authorit
   assert.equal((await confirm({...body,reauthentication_proof:'x'.repeat(43)},outsider)).status,403,'finance authority required');
   assert.equal((await confirm({...body,reason:'',reauthentication_proof:await proof()})).status,400,'reason required');
   assert.equal((await confirm({...body,reauthentication_proof:'x'.repeat(43)})).payload.code,'REAUTHENTICATION_REQUIRED');
-  const queue=await handleAutolarisPayments(finance.browser.request('/api/v1/admin/autolaris-payments?state=open'),f.identity);assert.equal(queue.status,200);
-  assert.ok((await queue.json()).data.some((p:{id:string;admin_fee:number})=>p.id===a.id&&p.admin_fee===4000));
+  // Page through the open queue with its cursor: other runs may leave many open attempts with the same deadline.
+  let listed=false;for(let cursor:string|null='',pages=0;cursor!==null&&!listed&&pages<200;pages++){const queue=await handleAutolarisPayments(finance.browser.request(`/api/v1/admin/autolaris-payments?state=open${cursor?`&cursor=${cursor}`:''}`),f.identity);assert.equal(queue.status,200);const page=await queue.json() as {data:{id:string;admin_fee:number}[];pagination:{next_cursor:string|null}};listed=page.data.some(p=>p.id===a.id&&p.admin_fee===3000);cursor=page.pagination.next_cursor;}
+  assert.ok(listed,'the attempt is in the open queue with its store-borne admin fee');
   const ok=await confirm({...body,reauthentication_proof:await proof()});assert.equal(ok.status,201,JSON.stringify(ok.payload));await callbacks(f,a.id);
   assert.equal((await sql`select payment_status from app.commerce_order where id=${order.id}`)[0].payment_status,'confirmed');
   const [audit]=await sql`select actor_id,reason from app.audit_event where action='finance.autolaris_confirm' and subject_id=${a.id}`;assert.equal(audit.actor_id,finance.id);assert.equal(audit.reason,body.reason);

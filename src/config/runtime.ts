@@ -118,6 +118,7 @@ export function readProductionConfig(env: Environment) {
   if (env.BETTER_AUTH_SECRETS || env.AUTH_SECRET) throw new Error("Use BETTER_AUTH_SECRET only.");
   assertAuthSecret(env.BETTER_AUTH_SECRET);
   if (env.LOCAL_TAILNET_ORIGIN) throw new Error("LOCAL_TAILNET_ORIGIN is local-only.");
+  if (env.LOCAL_PROVIDER_ORIGIN) throw new Error("LOCAL_PROVIDER_ORIGIN is local-only.");
   for (const name of ["PAYMENT", "ADS", "NOTIFICATION", "PAYOUT"]) {
     // No live adapter has passed its provider gate; simulated adapters would create fake effects.
     if (env[`${name}_ADAPTER`] !== "disabled") throw new Error(`${name}_ADAPTER must be disabled until its provider gate passes.`);
@@ -136,7 +137,7 @@ export function readProductionConfig(env: Environment) {
   if (!clientIpHeader) throw new Error(`CLIENT_IP_HEADER must be one of ${CLIENT_IP_HEADERS.join(", ")}.`);
   return Object.freeze({
     profile: "production" as const, origin, hostname: "0.0.0.0", port: port(env.PORT, "PORT", 3000),
-    tailnetOrigin: null, trustedOrigins: Object.freeze([origin]), clientIpHeader,
+    tailnetOrigin: null, providerOrigin: null, trustedOrigins: Object.freeze([origin]), clientIpHeader,
   });
 }
 

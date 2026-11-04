@@ -9,11 +9,13 @@ import {handleCheckout} from '../checkout/routes.ts';
 import type {projectAttempt} from '../payments/attempts.ts';
 import {handlePayments} from '../payments/routes.ts';
 import {AUTOLARIS_CHANNELS,autolarisClientFor,enabledChannels} from '../payments/autolaris.ts';
+import {autolarisBuyerFee,paymentTerms} from '../payments/methods.ts';
 import {readBrowserCart} from './cart.ts';
 import {assertCheckoutTransport,checkoutApiRequest,type CheckoutOrder} from './checkout.ts';
 
 export type CheckoutAttempt=Awaited<ReturnType<typeof projectAttempt>>;
-export type CheckoutPaymentChannel={channel_code:string;name:string};
+// fee: the buyer-borne admin fee added to the bill (DEC-029); 0 when the store bears it.
+export type CheckoutPaymentChannel={channel_code:string;name:string;fee?:number};
 export type CheckoutPaymentView={kind:'ready';order:CheckoutOrder;attempt:CheckoutAttempt|null;attemptUnavailable:boolean;now:string;channels:CheckoutPaymentChannel[]}|{kind:'denied'|'unavailable';order:null;attempt:null;attemptUnavailable:true;now:null;code:string;channels:[]};
 export type CheckoutPaymentState={phase:'idle'|'success'|'error'|'unknown';order:string;key:string;message:string;code:string|null;blocked:boolean};
 export type CheckoutIssuedCookie={name:string;value:string;path:string;httpOnly:true;sameSite:'lax';secure:boolean;maxAge:number};
@@ -70,7 +72,10 @@ export async function readCheckoutPayment(request:Request,identity:LocalAuth,ord
    if(!res.ok)attemptUnavailable=true;else attempt=data as CheckoutAttempt;
   }
   // DEC-008: AutoLaris channels come from the account's list_payment (simulated locally), never a fixed list.
-  const channels=order.payment_channel==='autolaris'?await autolarisChannels(identity):[];
+  // DEC-029: price each channel with the policy in force now (the attempt freezes the same rule); an unpriced channel
+  // is not offered while the buyer bears the fee.
+  const terms=order.payment_channel==='autolaris'?await paymentTerms(identity.sql,new Date(clock.now)):null;
+  const channels=terms?(await autolarisChannels(identity)).flatMap(c=>{const fee=autolarisBuyerFee(terms,c.channel_code,Number(order.amount_due));return fee===null?[]:[{...c,fee}];}):[];
   return {kind:'ready',order,attempt,attemptUnavailable,now:clock.now,channels};
  }catch(error){return {kind:error instanceof AccessError&&error.status<500?'denied':'unavailable',order:null,attempt:null,attemptUnavailable:true,now:null,code:error instanceof AccessError?error.code:'SERVICE_UNAVAILABLE',channels:[]};}
 }

@@ -11,6 +11,8 @@ import {Icon} from './ui/icon';
 import {CatalogImage} from './ui/media';
 import {EmailSuggestion,filterContact} from './ui/contact-fields';
 import {displayPhone,normalizeEmailInput} from '../../modules/storefront/contact';
+// S168: the shipping provider failed or timed out; the quote can simply be requested again.
+const PROVIDER_RETRY=['SHIPPING_RATE_TIMEOUT','SHIPPING_RATE_UNAVAILABLE','SHIPPING_RATE_INVALID'];
 
 type RetryChild=(capture:(data:FormData|null,snapshot?:CheckoutState)=>void,retry:FormData|null)=>React.ReactNode;
 class CheckoutBoundary extends Component<{children:RetryChild;heading?:boolean;href:string},{failed:boolean;revision:number;retry:FormData|null}>{
@@ -201,7 +203,7 @@ function CheckoutController({initial,capture,retry}:{initial:CheckoutState;captu
  const busy=pending||recovering,unknown=state.phase==='unknown',cart=state.view.cart,quote=state.view.quote;
  const intent={...state.intent,draft,query,allocation_id:allocation};
  const contact=state.step==='contact',review=!contact,firstError=Object.keys(state.errors)[0];
- const recalculate=contact&&['QUOTE_EXPIRED','QUOTE_SUPERSEDED','SHIPPING_RATE_EXPIRED'].includes(state.code??'');
+ const recalculate=contact&&['QUOTE_EXPIRED','QUOTE_SUPERSEDED','SHIPPING_RATE_EXPIRED',...PROVIDER_RETRY].includes(state.code??'');
  // Single page (owner 2026-10-31, Shopify-like): once a quote exists, couriers and the package split stay editable next to
  // the order button; a changed choice is applied (and the total refreshed) before an order can be placed.
  const allocationChanged=Boolean(review&&quote&&allocation&&allocation!==quote.selected_allocation_id),servicePending=Boolean(review&&quote?.packages.some(p=>(services[p.id]??state.intent.packages.find(choice=>choice.package_id===p.id)?.shipping_option_id??p.selected_option_id)!==p.selected_option_id)),selectionPending=allocationChanged||servicePending,draftConflict=state.draftConflict||draftSave.conflict;
@@ -251,7 +253,7 @@ function CheckoutController({initial,capture,retry}:{initial:CheckoutState;captu
        <input autoFocus={firstError==='payment_method'&&index===0} type="radio" name="payment_method" value={m.id} checked={draft.payment_method===m.id} onChange={event=>setField('payment_method',event.currentTarget.value)} required/><span><strong>{m.label}</strong><small>{m.hint}</small></span></label>)}</fieldset>
       <p id="checkout-method-hint" className="checkout-hint">Metode pembayaran ikut menentukan kurir yang tersedia.</p>{state.errors.payment_method&&<p id="checkout-method-error" className="checkout-field-error">{state.errors.payment_method}</p>}
      </section>
-     <section className="checkout-section" aria-labelledby="checkout-shipping-heading"><h2 id="checkout-shipping-heading">Pengiriman</h2><p className="checkout-placeholder">Pilihan kurir dan ongkir tampil setelah alamat dan metode pembayaran diisi.</p></section>
+     <section className="checkout-section" aria-labelledby="checkout-shipping-heading"><h2 id="checkout-shipping-heading">Pengiriman</h2><p className="checkout-placeholder">{contact&&PROVIDER_RETRY.includes(state.code??'')?'Ongkir belum tersedia. Tekan Hitung ongkir untuk mencoba lagi.':'Pilihan kurir dan ongkir tampil setelah alamat dan metode pembayaran diisi.'}</p></section>
     </>:quote?<>
      <h2 id="checkout-step" className="sr-only" tabIndex={-1} ref={heading}>Periksa dan buat pesanan</h2>
      <dl className="checkout-review-box">
@@ -274,12 +276,12 @@ function CheckoutController({initial,capture,retry}:{initial:CheckoutState;captu
  <CheckoutHelp><a className="checkout-text-button" href="#checkout-step">Kembali ke formulir</a></CheckoutHelp></div></div></>;
 }
 
-export function CheckoutPaymentForm({initial,recover=false,channels=[]}:{initial:CheckoutPaymentState;recover?:boolean;channels?:{channel_code:string;name:string}[]}){
+export function CheckoutPaymentForm({initial,recover=false,channels=[]}:{initial:CheckoutPaymentState;recover?:boolean;channels?:{channel_code:string;name:string;fee?:number}[]}){
  return <CheckoutBoundary href={`/checkout/order/${initial.order}`}>{(capture,retry)=><PaymentController initial={initial} recover={recover} channels={channels} capture={capture} retry={retry}/>}</CheckoutBoundary>;
 }
-function PaymentController({initial,recover,channels,capture,retry}:{initial:CheckoutPaymentState;recover:boolean;channels:{channel_code:string;name:string}[];capture:(data:FormData|null,snapshot?:CheckoutState)=>void;retry:FormData|null}){
+function PaymentController({initial,recover,channels,capture,retry}:{initial:CheckoutPaymentState;recover:boolean;channels:{channel_code:string;name:string;fee?:number}[];capture:(data:FormData|null,snapshot?:CheckoutState)=>void;retry:FormData|null}){
  const path=`/checkout/order/${initial.order}`,[state,action,pending]=useActionState(recover?recoverPaymentAccess:preparePayment,initial,path),[recovering,setRecovering]=useState(Boolean(retry)),replayed=useRef(false);
  useEffect(()=>{if(retry&&!replayed.current){replayed.current=true;startTransition(()=>action(retry));}},[retry,action]);
  useEffect(()=>{if(state.phase!=='idle'){setRecovering(false);if(state.phase!=='unknown')capture(null);}},[state,capture]);
- return <form action={action} className="checkout-payment-action" onSubmit={event=>capture(submittedData(event))}><input type="hidden" name="order" value={state.order}/><input type="hidden" name="key" value={state.key}/>{!recover&&channels.length>0&&<fieldset className="checkout-methods"><legend>Bank Virtual Account atau QRIS</legend>{channels.map((c,index)=><label key={c.channel_code}><input type="radio" name="channel_code" value={c.channel_code} defaultChecked={index===0} required/>{c.name}</label>)}<p className="checkout-hint">Biaya layanan pembayaran ditanggung toko.</p></fieldset>}{state.message&&<p role={state.phase==='error'||state.phase==='unknown'?'alert':'status'} className={state.phase==='error'||state.phase==='unknown'?'checkout-field-error':'checkout-hint'}>{state.message}</p>}<button className="button" type="submit" disabled={pending||recovering||state.blocked}>{pending||recovering?'Memeriksa…':state.phase==='unknown'?'Ulangi permintaan yang sama':recover?'Pulihkan akses pesanan':'Siapkan instruksi pembayaran'}</button></form>;
+ return <form action={action} className="checkout-payment-action" onSubmit={event=>capture(submittedData(event))}><input type="hidden" name="order" value={state.order}/><input type="hidden" name="key" value={state.key}/>{!recover&&channels.length>0&&<fieldset className="checkout-methods"><legend>Bank Virtual Account atau QRIS</legend>{channels.map((c,index)=><label key={c.channel_code}><input type="radio" name="channel_code" value={c.channel_code} defaultChecked={index===0} required/>{c.name}{(c.fee??0)>0&&<span className="checkout-hint">Biaya admin {rupiah(c.fee??0)}</span>}</label>)}<p className="checkout-hint">{channels.some(c=>(c.fee??0)>0)?'Biaya admin bank atau QRIS dibayar pembeli dan ditambahkan ke tagihan. Biaya ini tidak dikembalikan bila pesanan dibatalkan setelah dibayar.':'Biaya layanan pembayaran ditanggung toko.'}</p></fieldset>}{state.message&&<p role={state.phase==='error'||state.phase==='unknown'?'alert':'status'} className={state.phase==='error'||state.phase==='unknown'?'checkout-field-error':'checkout-hint'}>{state.message}</p>}<button className="button" type="submit" disabled={pending||recovering||state.blocked}>{pending||recovering?'Memeriksa…':state.phase==='unknown'?'Ulangi permintaan yang sama':recover?'Pulihkan akses pesanan':'Siapkan instruksi pembayaran'}</button></form>;
 }

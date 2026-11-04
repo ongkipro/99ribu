@@ -1,7 +1,7 @@
 import type {Sql,TransactionSql} from 'postgres';
 import {runtimeTarget} from '../../config/runtime.ts';
 import {AccessError} from '../access/policy.ts';
-import {resolvePolicy,TOGGLEABLE_CHANNELS,type BankAccount,type ToggleableChannel} from '../settings/policies.ts';
+import {resolvePolicy,TOGGLEABLE_CHANNELS,type AutolarisFeeRule,type BankAccount,type FeeBearer,type ToggleableChannel} from '../settings/policies.ts';
 
 // DEC-008 payment adapter seam. Order and ledger code depend on the channel, never
 // on a provider: each channel names its method, the adapter that creates its
@@ -45,7 +45,23 @@ export function allocateByWeight(total:number,rows:readonly {id:string;weight:nu
  for(const share of order)if(extra>0n){share.amount++;extra--;}
  return new Map(shares.map(s=>[s.id,Number(s.amount)]));
 }
-export type PaymentTerms={version_id:string|null;cod_fee_bps:number;manual_bank_accounts:BankAccount[];enabled_channels:readonly ToggleableChannel[]};
+// DEC-029: payment_fee_bearer (AutoLaris VA/QRIS admin fee; default store) and cod_fee_bearer (COD service fee; default
+// buyer). cod_fee_bps stays the rate; buyer_cod_fee_bps is what a COD quote freezes for the buyer (0 when the store bears it).
+export type PaymentTerms={version_id:string|null;cod_fee_bps:number;buyer_cod_fee_bps:number;manual_bank_accounts:BankAccount[];enabled_channels:readonly ToggleableChannel[];
+ payment_fee_bearer:FeeBearer;cod_fee_bearer:FeeBearer;autolaris_fees:Readonly<Record<string,AutolarisFeeRule>>};
+// The buyer-borne AutoLaris fee for one channel and amount due (app.autolaris_buyer_fee in migration 0046 is the same
+// rule and guards it). Fixed: the table amount. Basis points: the largest X - due with X - ceil(X x bps / 10000) <= due,
+// so the buyer never pays more than the provider deducts. 0 when the store bears the fee; null for an unpriced channel.
+export function autolarisBuyerFee(terms:Pick<PaymentTerms,'payment_fee_bearer'|'autolaris_fees'>,channel:string,due:number):number|null{
+ if(terms.payment_fee_bearer!=='buyer')return 0;
+ const rule=Object.hasOwn(terms.autolaris_fees,channel)?terms.autolaris_fees[channel]:undefined;if(!rule)return null;
+ if(rule.kind==='fixed')return rule.amount;
+ const d=BigInt(due),bps=BigInt(rule.bps),deducted=(x:bigint)=>x-(x*bps+9999n)/10000n;
+ let x=d*10000n/(10000n-bps);
+ while(deducted(x)>d)x--;
+ while(deducted(x+1n)<=d)x++;
+ return Number(x-d);
+}
 // A channel the buyer may pick: offered by this runtime and switched on in the payment policy. The local
 // simulator ('local-prepaid') is runtime-only. Manual bank also needs at least one account to transfer to.
 export function channelEnabled(terms:PaymentTerms,channel:PaymentChannel,offered:readonly PaymentChannel[]=offeredChannels()){
@@ -58,7 +74,9 @@ export function channelEnabled(terms:PaymentTerms,channel:PaymentChannel,offered
 // means no buyer COD fee and no manual transfer channel.
 export async function paymentTerms(tx:Sql|TransactionSql,at:Date):Promise<PaymentTerms>{
  try{
-  const policy=await resolvePolicy(tx,'payment',null,at),values=policy.values as {cod_fee_bps?:number;manual_bank_accounts?:BankAccount[];enabled_channels?:ToggleableChannel[]};
-  return {version_id:policy.id,cod_fee_bps:values.cod_fee_bps??0,manual_bank_accounts:values.manual_bank_accounts??[],enabled_channels:values.enabled_channels??TOGGLEABLE_CHANNELS};
- }catch(error){if(error instanceof AccessError&&error.code==='POLICY_UNCONFIGURED')return {version_id:null,cod_fee_bps:0,manual_bank_accounts:[],enabled_channels:TOGGLEABLE_CHANNELS};throw error;}
+  const policy=await resolvePolicy(tx,'payment',null,at),values=policy.values as {cod_fee_bps?:number;manual_bank_accounts?:BankAccount[];enabled_channels?:ToggleableChannel[];payment_fee_bearer?:FeeBearer;cod_fee_bearer?:FeeBearer;autolaris_fees?:Record<string,AutolarisFeeRule>};
+  const codBearer=values.cod_fee_bearer??'buyer';
+  return {version_id:policy.id,cod_fee_bps:values.cod_fee_bps??0,buyer_cod_fee_bps:codBearer==='store'?0:values.cod_fee_bps??0,manual_bank_accounts:values.manual_bank_accounts??[],enabled_channels:values.enabled_channels??TOGGLEABLE_CHANNELS,
+   payment_fee_bearer:values.payment_fee_bearer??'store',cod_fee_bearer:codBearer,autolaris_fees:values.autolaris_fees??{}};
+ }catch(error){if(error instanceof AccessError&&error.code==='POLICY_UNCONFIGURED')return {version_id:null,cod_fee_bps:0,buyer_cod_fee_bps:0,manual_bank_accounts:[],enabled_channels:TOGGLEABLE_CHANNELS,payment_fee_bearer:'store',cod_fee_bearer:'buyer',autolaris_fees:{}};throw error;}
 }
