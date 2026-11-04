@@ -1,27 +1,29 @@
 # Status — Serba 99ribu
 
-Updated: 2026-11-04
+Updated: 2026-11-05
 Status: S01–S85, S90–S93, S99/S100, S103–S105 and the S109 cs@ scope implemented and verified on the assembled localhost runtime and database (`0000`–`0037`). Integrated on local main 2026-10-24 (not pushed): admin permission-aware controls, demo-orders fixture, step-up proof/report HMAC/export permission fixes (R4 PASS), DB hot paths + retention (R4 PASS), storefront shop.com polish (design gate round 59 PASS); later the same day S118 guest lookup by order number (R4 PASS), S111 storefront architecture with shop.com filters and PDP, a PDP that keeps the store header (owner call), S112 sign-in page/modal/no-JS (security review PASS), and S113 admin consolidation slices 1–2 plus admin design-review fixes. Local catalog live: 392 Berlapak listings only (test fixtures withdrawn). Storefront design round 64 PASS (codex reviewer). Admin design review round 4 PASS. The final `all-current` run gave integration 530/531 (sitemap timeout, now budgeted) and browser 83/83 on rerun; see BUILD-LOG 2026-10-24. Follow-ups are in TASKS S120–S122. After that come S101/S102/S110 screens and the owner decisions S116/S117/S119, plus the S112/S113 owner questions in BUILD-LOG. Production DEPLOY slices S88/S89 stay gated.
 State: BLOCKED
 Local-Acceptance: REVALIDATION_REQUIRED; historical PASS on 2026-10-24 at `0176403`+`cce3c76` on the production build — `npm run check` PASS; OpenAPI 192 paths / 228 ops; `test:integration -- --case=all-current` 527/528 (184 files; the one failure was a migration-order assertion, fixed in `cce3c76` and `production-profile` re-run 9/9); `test:browser -- --case=all-current` 78/78 (18 files; S99/S100 failed in 2 of 4 runs under concurrency, test now pages the owner queue, cause not proven); `localhost-readiness` 5/5 + 1/1; PR-18 5/5; foundation 30/30 + 10/10; worker, auth, manual-fulfillment 7/7, cod-remittance 3/3, payment-methods 10/10, autolaris 5/5, backup-restore 6/6, admin-orders 1/1, T-34 10/10, consignment-payments 4/4, admin-ui-controls 6/6, demo-orders 1/1, db-hygiene 5/5; catalog withdraw dry-run 0. Previous: 2026-10-24 S68 final-build run (500/500, 65/65).
 Review-Risk: R4 (money-path changes in S91–S93 and the S68 fixes; three independent reviews — S68 final, R4 fix diff, route/storefront security — each REVISE then fixed and re-verified)
 Previous-Claim: `READY_FOR_LOCAL_ACCEPTANCE` / "100% local production readiness" (gemini-4-argon, commits `e34c041` + `bfecdce`). Archived: [`docs/history/STATUS-20261021-pre-audit.md`](docs/history/STATUS-20261021-pre-audit.md)
 
-## Now — 2026-11-04 (read first)
+## Now — 2026-11-05 (read first)
 
-**Deployed 2026-11-04** (owner-approved): `8ada1f9` on `main` (wave 4 S149–S161 and today's S162–S176), Coolify `y1qb4sgt8qgpy70xdqt3r7rm`, migrations 0045–0049 applied, pre-deploy backup `20261104T130351Z` (off-host) plus a local copy in `/data/99ribu-local/backups/production/`; live check PASS (RELEASE "Deployed 2026-11-04"). Production behaviour is unchanged by default: AutoLaris fee borne by the platform (AutoLaris itself still gated, S97), COD fee by the buyer. Done that day: local provider mode S162–S169, fee-bearer switch S172 (DEC-029, owner rates QRIS 0,7%, VA BCA Rp6.500, other VA Rp3.000), lint S173, flake S174, local dummy data S175, catalogue address search and province/courier promotions S176. Cleanup: stale agent worktrees removed (their diffs saved as patches), merged local branches deleted, ignored review slices (1.1 GB) and old test renders moved to `/data/99ribu-local/archive/cleanup-20261104/`.
+**Ready to deploy (owner-approved 2026-11-05: "ya rekomendasimu jalankan"):** the Shopify-style checkout (kecamatan → kelurahan → read-only kode pos from Mengantar's catalogue, automatic courier loading, no email), card hover, PDP colour/size rows, Lighthouse fixes, product meta fix; plus loading the refreshed Mengantar catalogue (82,374 kelurahan, `data/shipping/README.md`) into production after the deploy. Evidence: BUILD-LOG 2026-11-05; two independent reviews (second: nothing blocks release; its buyer-facing follow-ups fixed).
 
 **Owner decisions open (short):**
-1. **Done:** commit grouping and deploy (above).
-2. **Before switching COD to store-borne in production:** add an integration check that the store's COD cost is booked at remittance (review note); the QRIS/VA fee rule kinds are now enforced server-side.
-3. **`.env.example`:** outside the agent's edit permission. Add the commented `LOCAL_PROVIDER_ORIGIN` line and the Turnstile dummy test keys yourself, or allow the edit.
-4. **AutoLaris live (S97):** API key, static egress IP whitelist and the real settled advice shape are needed before VA/QRIS can go live; until then production offers transfer and COD only.
-5. **Mengantar booking and tracking API (S94/S98):** still waits for a separate API account; fulfilment stays manual.
-6. **Province exclusion (S170):** send the list of excluded or COD-disabled provinces when wanted.
-7. **Checkout layout:** at 1440 px the order summary column floats mid-page (pre-existing). Fix it now or leave it.
-8. **Still open from wave 4 (unchanged):** buyer and affiliate policy wording (deferred to the end), per-courier COD and volumetric settings, an accountant's view on affiliate withholding, the storefront social-proof toast, the bearer-key operations API (needs a DEC or ADR), and the unbuilt console pages (Persetujuan, Analitik, Media, Pantauan).
+1. **Product descriptions to production:** 571 rewritten locally (backup + restore in `/data/99ribu-local/product-descriptions/`); apply to production? Before any future dataset import, update the dataset generator or the import restores the old text.
+2. **Products to delist or check:** #295, #476, #489, #545, #458, #571 (medical/sexual claims, covert listening); misleading names or categories (e.g. "Teh Hitam" #497–#505, "Special Summit Mengantar" #484/#488); 387 products miss facts (size charts, net volume, material).
+3. **Vouchers (S177):** the eight decisions in `docs/spec/vouchers/S177.md`; stage 1 UI is built and switched off.
+4. **AutoLaris live (S97):** API key, egress IP, settled advice shape, and now a store email for the required `customer_email` (checkout no longer asks buyers for email).
+5. **Before switching COD to store-borne in production:** integration check that the store's COD cost is booked at remittance.
+6. **`.env.example`, Mengantar booking/tracking (S94/S98), province exclusion (S170), wave 4 leftovers:** unchanged from 2026-11-04.
 
-Next action: none blocking; items 3–8 wait for the owner.
+Next action: finish the pre-deploy checks, then off-host backup → commit/merge to `main` → Coolify deploy → `mengantar-areas.ts load production` + `resolve-warehouses production` → Cloudflare purge → live check and log watch; record in RELEASE.
+
+## Previous — 2026-11-04
+
+Deployed `8ada1f9` (RELEASE "Deployed 2026-11-04"); open items carried into the list above.
 
 ## Wave 4 dashboards — 2026-11-02 (local, read first)
 

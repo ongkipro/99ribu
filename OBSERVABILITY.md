@@ -45,3 +45,28 @@ Implemented 2026-10-24 (CODE only; no server). Details and topology: `RELEASE.md
 - Restore drill: `node scripts/backup.ts drill <set-id|latest> --escrow-private-key <file>` prints `drill: "PASS"` with `rows`, `unbalanced_journals`, `photos`, `referenced_photos`, `missing_photos`, `referenced_artifacts`, `missing_artifacts`, `totp_factors`, the DEC-005 `catalog` counts and `elapsed_ms`; any failed invariant or a live-looking restore server (`99ribu_production` present, same host:port or same system identifier as `BACKUP_DATABASE_URL`) exits 1 with the reason. Restore databases are always `99ribu_restore_<uuid>` and are dropped afterwards, also on `SIGTERM`/`SIGINT` (exit 143/130).
 - Executable checks: `npm run test:integration -- --case=backup-restore` (6 tests: PASS drill with TOTP + photo and verified extract; edited archive object and wrong key refused before any restore; undecryptable TOTP secret fails the drill; restore server holding `99ribu_production` refused; `SIGTERM` mid-drill drops the restore database; a printed label's file key is checked while label-job row ids are not, and a missing label file is reported and fails non-test targets). A populated test set with 5 printed labels: `referenced_artifacts` 5, `missing_artifacts` 0; `npm test` covers SigV4 reference vectors, archive/manifest tamper and unsafe-path refusal, escrow byte bounds, retention, the healthcheck and the image-audit patterns.
 - Local rehearsal results (disposable databases only): catalog-loaded local set — 3,309 rows, 708 photos, 708/708 referenced photos present, 0 unbalanced journals, 14 categories / 49 origin warehouses / 368 `B99_` stock items / 392 `B99_*_OFFER` offers, drill 12.3 s; populated test set — 1,318 rows, 7 staff TOTP factors decrypted with the escrowed secret, drill 8.3 s; production code path inside the built image against throwaway `postgres:18.6` containers over TCP — drill PASS 10.7 s, refusals for live host:port, same cluster under another host name and a live server without `BACKUP_DATABASE_URL`. Off-host bucket and the scheduled DEPLOY run remain unexecuted (S85 DEPLOY part, S88).
+
+## Web performance baseline and guardrails (2026-11-04)
+
+Baseline: Lighthouse 13.6.0 against https://99ribu.com at `8ada1f9`. Mobile runs use Lighthouse's default simulated throttling, the profile PageSpeed Insights uses; desktop runs use `--preset=desktop`. The runs were made from the owner's network because the anonymous PSI API had hit its daily quota. These are lab numbers, not field Core Web Vitals; the targets stay those in `docs/spec/10-DESIGN-SYSTEM-WHITELABEL.md` (p75 LCP ≤ 2.5 s, INP ≤ 200 ms, CLS ≤ 0.1).
+
+| Page | Mobile perf | Desktop perf | Mobile LCP | CLS | Notes |
+|---|---|---|---|---|---|
+| `/` | 94 | 86 | 2.2 s (heading text) | 0 | Desktop LCP is a hero photo: 0.76 s of load delay came from `loading="lazy"` (fixed: the first four load eagerly) |
+| `/kategori/<slug>` | 86 | 86 | 3.5 s | 0–0.001 | LCP is the first card image |
+| `/produk/<slug>` | 95 | 89 | 2.8 s | 0 | Mobile LCP image waits ~1.1 s render delay after it loaded (main thread / CSS) |
+| `/cari?q=` | 85 | 85 | 3.6 s | 0.001 | |
+| `/promo` | 94 | 94 | 2.4 s | 0 | |
+| `/keranjang`, `/checkout`, `/masuk` | 70–97 | 92–96 | 1.9–3.9 s | 0 | SEO 63–66 is intended (`noindex`) |
+
+Accessibility, best practices and SEO were 100 on every indexable page. `/masuk` scored 96 for two reasons, both fixed: the brand link's name now comes from its text, and the inactive sign-in tab now has 4.5:1 contrast.
+
+Hold these when changing the storefront:
+
+- **Edge HTML cache.** Anonymous catalogue HTML is cached for 60 s at the edge. Purge after every deploy (RELEASE 10a). An anonymous GET on those pages must never set a cookie.
+- **Origin vs network.** Origin render time is 40–280 ms (`curl --resolve 99ribu.com:443:127.0.0.1` on the host). The 1–5 s TTFB seen from Indonesia comes from Cloudflare routing: a `cf-ray` ending in `-CDG` means the request went through Paris. Measure the origin before blaming the app.
+- **Images.** Every catalogue image goes through `CatalogImage` (Next optimizer, webp, `q=60`, bounded `srcset`) with `width` and `height` set. Only above-the-fold LCP candidates use `loading="eager"` (the first PDP photo with `fetchPriority="high"`, the first two cards of the first shelves, the first four hero photos at low priority). Everything else is lazy.
+- **Fonts.** One self-hosted Latin subset (`/fonts/inter-4.1/…`, 44 KB), preloaded. The folder is versioned and served `immutable` for a year, so a new font version goes in a new folder.
+- **CSS and JS.** One global stylesheet of about 26 KB is render-blocking. Lighthouse estimates 0 ms savings for removing it, so leave it unless that changes. Client components stay at the leaves (`'use client'` only where interaction needs it). The ~25 KB of unused JS and the "legacy JavaScript" finding (`Array.prototype.at` polyfills) come from the Next runtime chunk and the Cloudflare beacon, and need no app change.
+- **Known non-issues.** Back/forward cache is blocked by `no-store` on dynamic HTML (by design for signed-in and checkout state). Cloudflare Insights' beacon cache lifetime belongs to Cloudflare.
+- **Re-measure after a storefront change:** `CHROME_PATH=/usr/bin/google-chrome npx -y lighthouse@13.6.0 https://99ribu.com<path> --output=json --quiet` (add `--preset=desktop`), or PageSpeed Insights when its quota allows. Record a drop of more than 5 points or a new failing audit in BUILD-LOG with the cause.
