@@ -9,7 +9,7 @@ Previous-Claim: `READY_FOR_LOCAL_ACCEPTANCE` / "100% local production readiness"
 
 ## Now — 2026-11-05 (read first)
 
-**Ready to deploy (owner-approved 2026-11-05: "ya rekomendasimu jalankan"):** the Shopify-style checkout (kecamatan → kelurahan → read-only kode pos from Mengantar's catalogue, automatic courier loading, no email), card hover, PDP colour/size rows, Lighthouse fixes, product meta fix; plus loading the refreshed Mengantar catalogue (82,374 kelurahan, `data/shipping/README.md`) into production after the deploy. Evidence: BUILD-LOG 2026-11-05; two independent reviews (second: nothing blocks release; its buyer-facing follow-ups fixed).
+**Deployed 2026-11-05 (`836fed2`, RELEASE "Deployed 2026-11-05"):** the Shopify-style checkout (kecamatan → kelurahan → read-only kode pos from Mengantar's catalogue, automatic courier loading, no email), card hover, PDP colour/size rows, Lighthouse fixes, product meta fix; plus loading the refreshed Mengantar catalogue (82,374 kelurahan, `data/shipping/README.md`) into production after the deploy. Evidence: BUILD-LOG 2026-11-05; two independent reviews (second: nothing blocks release; its buyer-facing follow-ups fixed).
 
 **Owner decisions open (short):**
 1. **Product descriptions to production:** 571 rewritten locally (backup + restore in `/data/99ribu-local/product-descriptions/`); apply to production? Before any future dataset import, update the dataset generator or the import restores the old text.
@@ -19,7 +19,7 @@ Previous-Claim: `READY_FOR_LOCAL_ACCEPTANCE` / "100% local production readiness"
 5. **Before switching COD to store-borne in production:** integration check that the store's COD cost is booked at remittance.
 6. **`.env.example`, Mengantar booking/tracking (S94/S98), province exclusion (S170), wave 4 leftovers:** unchanged from 2026-11-04.
 
-Next action: finish the pre-deploy checks, then off-host backup → commit/merge to `main` → Coolify deploy → `mengantar-areas.ts load production` + `resolve-warehouses production` → Cloudflare purge → live check and log watch; record in RELEASE.
+Next action: owner decisions 1–4 above (product copy to production, delist list, voucher S177 decisions, AutoLaris store email). Production carries the refreshed area catalogue and all 79 warehouses are mapped.
 
 ## Previous — 2026-11-04
 
