@@ -145,7 +145,7 @@ Only synthetic .test/.invalid email addresses are accepted. Verification/reset i
 ```bash
 npm run test:auth
 # With the built server and database already running:
-PLAYWRIGHT_CHROMIUM_EXECUTABLE=/snap/bin/chromium npm run test:auth:http
+PLAYWRIGHT_CHROMIUM_EXECUTABLE=/usr/bin/google-chrome npm run test:auth:http
 ```
 
 The HTTP check uses the installed Chromium 155.0.8059.39 on this host. Omit PLAYWRIGHT_CHROMIUM_EXECUTABLE when a matching Playwright-managed Chromium is installed. A missing browser/server/database is a failure, not a skipped result. Tests create/delete only their own synthetic actor rows; test:auth also resets its fixed test-database loopback rate buckets and must not run concurrently against that same test database. The HTTP test preserves local rate buckets, so repeated runs can correctly hit the configured rate limit. The probe now creates a pending message through the real web server, owns a separate local worker process, waits for delivery and stops that child. Run it with no other local worker; preserve rate-limit windows between repeats. This is a browser cookie/API probe, not storefront UI acceptance.
@@ -241,7 +241,7 @@ The checksums detect a corrupted, truncated or edited object; they are not an au
 | `DATABASE_APP_PASSWORD`, `DATABASE_OWNER_PASSWORD` | SCRAM passwords of `99ribu_production_app` (web, worker) and `99ribu_production_owner` (migrations only), ≥16 characters. The owner password is given only to the one-shot migrate service, never to web or worker: under Coolify as a mounted file (`DATABASE_OWNER_PASSWORD_FILE`, host file `/data/99ribu/secrets/database-owner-password`), because Coolify shares every application variable with all services |
 | `PORT` | Listener port inside the container (default 3000); the listener is `0.0.0.0:<PORT>` |
 
-Also refused: `LOCAL_TAILNET_ORIGIN`, provider credentials (`AUTOLARIS_`, `MENGANTAR_`, `META_`, …). AutoLaris (S97 preparation, local only): `AUTOLARIS_API_KEY` (secret, server-only, through `secrets-env`, never in `.env.example`) and optional `AUTOLARIS_BASE_URL` (default `https://api-h2h.autolaris.com`) are read by `src/modules/payments/autolaris-live.ts`; no code path constructs that client yet, so payments stay on the simulator until the S97 gate. The process environment wins over the `--env-file=.env.example` that the npm scripts pass, and every adapter must be set explicitly, so a missing variable fails closed.
+Also refused: `LOCAL_TAILNET_ORIGIN`, `LOCAL_PROVIDER_ORIGIN`, provider credentials (`AUTOLARIS_`, `MENGANTAR_`, `META_`, …). Since S163 (DEC-028 D6) the local profile refuses `AUTOLARIS_*` too, so `readAutolarisLiveConfig` (`AUTOLARIS_API_KEY`, optional `AUTOLARIS_BASE_URL`) is reachable from tests only until the S97 gate; payments stay on the simulator, or on the loopback stand-in in local provider mode. The process environment wins over the `--env-file=.env.example` that the npm scripts pass, and every adapter must be set explicitly, so a missing variable fails closed.
 
 What the profile does: Better Auth uses the env secret, `__Secure-` Secure cookies and the configured origin as its only trusted origin; app cookies (`commerce_guest`, `cart_access`, …) share the `__Secure-99ribu-production` prefix. Mutations need the exact `APP_ORIGIN` Host and Origin. Sign-in and the Better Auth ceilings key on the trusted proxy's client IP, guest bootstrap on its IPv4 address or IPv6 /64 (`30/min`, under the global `600/min`) (`503 CLIENT_IP_UNAVAILABLE` without it). Order placement answers `503 CHECKOUT_CLOSED` and money postings `PRODUCTION_MONEY_PATH_GATED` (OD-7: catalog-only launch); sign-up, password reset and verification email answer `503 NOTIFICATION_DISABLED` (S86/OD-8). `public/prototypes/` is rewritten to the 404 page. Every `src/modules/local/*` command, the in-process `local-fixture-command` flows, `fixture`/`login`/`login-codes`/`prune-accounts` and the simulated worker commands keep calling the local reader and refuse. The worker runs only its job loop with every adapter disabled.
 
@@ -277,12 +277,16 @@ Run from this worktree with migrations applied to local and test. Use the exact 
 | `npm run build` | Valid local profile | Production build; does not prove UI or database behavior |
 | `secrets-env run -- node scripts/mengantar-areas.ts harvest`, then `harvest-extra`, then `node scripts/mengantar-areas.ts build` | `MENGANTAR_*` in secrets-env; network | S95: read-only Mengantar area search per Kepmendagri kecamatan → `data/shipping/mengantar-areas.json.gz` (+ coverage report); resumable log `data/shipping/mengantar-harvest.ndjson` (git/docker ignored) |
 | `node --env-file=.env.example scripts/mengantar-areas.ts load local` and `… resolve-warehouses local [--apply]` (production: `docker exec -w /app <web> node scripts/mengantar-areas.ts load production` etc.) | Migrated DB (`0042`) | S95: upsert the area dataset into `app.shipping_area`; map each active warehouse to an area of its own kecamatan (dry run unless `--apply`) |
+| `LOCAL_PROVIDER_ORIGIN=http://127.0.0.1:8788` (local profile only; off by default, not in `.env.example` because that file is outside the S163 edit permission) | AdsBookCMS stand-in running: `cd ~/Projects/adsbookcms && DEV_PROVIDERS_PORT=8788 npm run dev:providers`; local catalogue loaded (row below) | DEC-028 local provider mode: destinations from `app.shipping_area`, Mengantar-shaped rates from the stand-in (rate version `mengantar-estimate-v1+stand-in`, key literal `local`), AutoLaris wire calls to the stand-in (bearer `local`). Exactly `http://127.0.0.1:<1024-65535, not 3099>`; production refuses it. The stand-in forgets everything on restart and does not serve `create_payment` (S171 review-only, owner 2026-11-04) |
+| `npm run test:integration -- --case=local-providers` and `PLAYWRIGHT_CHROMIUM_EXECUTABLE=/usr/bin/google-chrome npm run test:browser -- --case=local-providers` (S169) | Integration: `~/Projects/adsbookcms` present (the case spawns `npm run dev:providers` itself on a probed free port and stops it), isolated test DB migrated; it FAILS when the stand-in cannot start. Browser: built web started as `LOCAL_PROVIDER_ORIGIN=http://127.0.0.1:18790 npm start`, local catalogue loaded (row below); the test runs its own fake provider on 18790; one-minute load below 4 and no integration suite running | Integration (4 files, 17 tests on 2026-11-04): the real stand-in answers the expected shapes (its AdsBookCMS `HEAD` is printed and recorded in the delivery evidence); a prepaid guest order in provider mode, with synthetic `app.shipping_area` rows inserted by the test, freezes the destination, real-key couriers and the `+stand-in` rate version; AutoLaris `list_payment` works while `create_payment` is the asserted S171 gap (job unknown, no reference invented; the attempt is then closed by a refusal, nothing is paid); fault, refusal and invented-settle-shape branches run only against in-test fakes and prove neither the real stand-in nor the provider. Not covered against the real stand-in: COD order, payment instruction, order expiry, duplicate `reff_id`, amount mismatch, faults. Browser (3 tests): area none, couriers, provider down, no courier, COD unavailable at 390/768/1440 against its own fake on 18790 (it does not exercise the real stand-in, so it does not fail when the stand-in is down). Run simulator suites (`autolaris-payments`, `PR-5`) without `LOCAL_PROVIDER_ORIGIN` exported |
+| `LOCAL_PROVIDER_ORIGIN=http://127.0.0.1:8788 node --env-file=.env.example scripts/local-providers.ts check` (S167) | The stand-in started as in the row above (owned by AdsBookCMS, called, never copied; give tests and checks their own port, e.g. `DEV_PROVIDERS_PORT=18788`, so a running AdsBookCMS `dev:local` store is not shared) | Exits 0 when `/`, `address/search`, `order/estimate` (keyed by courier) and `list_payment` answer the expected shapes; prints the origin and the AdsBookCMS `HEAD` (2026-11-04: `a913fcb`). `create_payment` is reported as `GAP` (the stand-in does not serve it; S171, which would add it in AdsBookCMS, is review-only by owner decision 2026-11-04). Exits 1 with the start command when the variable is unset, the stand-in is down or a shape is wrong |
+| `node --env-file=.env.example scripts/mengantar-areas.ts load local` then `… resolve-warehouses local --apply` (S164, owner go-ahead 2026-11-04) | Local DB migrated (`0042`) | Loaded 2026-11-04: dataset `mengantar-2026-10-30-79391` (file `data/shipping/mengantar-areas.json.gz`, sha256 `f1712dc09dbe112e26197ae1d310024834e330d10ea0b95692ddc02efddd2e02`, commit `f6c063a`), 79,391 areas; before: 0 areas, 0 mapped warehouses; after: 72 of 251 active warehouses mapped (178 fixture "Gudang Contoh" warehouses and Gresik/Ujung Pangkah unmatched). A second load changes 0 rows. **Reversal** (local only; proven on `99ribu_test`): `docker exec 99ribu-029713fa30-database-1 psql -U bootstrap -d 99ribu_local -v ON_ERROR_STOP=1 -c "begin; update app.warehouse set provider_area_id=null where provider_area_id in (select id from app.shipping_area where dataset_version='mengantar-2026-10-30-79391'); delete from app.shipping_area where dataset_version='mengantar-2026-10-30-79391'; commit;"` (the only foreign key to the areas is the warehouse one; quotes keep their own copy of the address) |
 | `npm run test:integration -- --case=foundation` | Isolated test DB migrated and running | 5 files, 24 database/storage/key/auth/worker checks |
 | `npm run test:integration -- --case=all-current` | Isolated test DB migrated (`0000`–`0038`); built web running on `127.0.0.1:3099`; `PLAYWRIGHT_CHROMIUM_EXECUTABLE` set | All 178 current runtime integration test files (historical pre-migration candidates live in `tests/historical/`) |
 | `npm run test:integration -- --case=localhost-readiness` | Built web + local/test DB migrated | Assembled S65–S68 localhost readiness + real `pg_dump -Fc` / `pg_restore` into disposable DB |
 | `npm start` | Successful build | Web at `http://127.0.0.1:3099` only |
-| `PLAYWRIGHT_CHROMIUM_EXECUTABLE=/snap/bin/chromium npm run test:browser -- --case=foundation` | Built web + local DB; no other local worker; Chromium installed | 2 files, 3 HTTP/cookie/worker-delivery checks |
-| `PLAYWRIGHT_CHROMIUM_EXECUTABLE=/snap/bin/chromium npm run test:browser -- --case=localhost-readiness` | Built web + local DB; Chromium installed | Multi-viewport (`390`/`768`/`1440`) buyer/affiliate/staff localhost readiness |
+| `PLAYWRIGHT_CHROMIUM_EXECUTABLE=/usr/bin/google-chrome npm run test:browser -- --case=foundation` | Built web + local DB; no other local worker; Chromium installed | 2 files, 3 HTTP/cookie/worker-delivery checks |
+| `PLAYWRIGHT_CHROMIUM_EXECUTABLE=/usr/bin/google-chrome npm run test:browser -- --case=localhost-readiness` | Built web + local DB; Chromium installed | Multi-viewport (`390`/`768`/`1440`) buyer/affiliate/staff localhost readiness |
 | `npm run health -- ready` | Built web + local DB | Exact 200 readiness envelope and no-store |
 | `npm run health -- unavailable` | Built web running; owned DB intentionally stopped | Exact 503 unavailable envelope and no-store |
 | `npm run catalog:dataset` | Raw Berlapak snapshot on this host (`BERLAPAK_DATA_DIR`, default `/data/99ribu-berlapak-data`) | Regenerates the committed DEC-005 dataset `data/catalog/berlapak/` (catalog.json, manifest.json, photos/<sha256>.webp); deterministic, a rerun on the same snapshot changes no file |
@@ -315,9 +319,11 @@ Run from this worktree with migrations applied to local and test. Use the exact 
 | `npm run test:integration -- --case=cod-remittance` | Isolated test DB migrated (`0031`) | S91: COD collectible parcels, remittance matching and settlement |
 | `npm run test:integration -- --case=payment-methods` | Isolated test DB migrated (`0032`) | S92: manual bank transfer (unique code added, 24h), COD fee 3.33% of goods + shipping |
 | `npm run test:integration -- --case=production-profile` | Isolated test DB migrated (`0035`); Docker with the pinned `postgres:18.6` image | S83: `0035` recorded and a test-DB re-run applies nothing; the 8 real-flow `environment` CHECKs list `local`/`test`/`production` and the 11 simulator stores exactly `local`/`test` (a simulator store rejects `production`); plus a disposable TCP + SCRAM container: `bootstrap-production.sql` applies once (second run fails, nothing changed), two concurrent `db:migrate -- production` runs both exit 0 with one applying, app role refused DDL/`TRUNCATE`/other databases, a real-flow table accepts `production` there while a simulator store rejects it, per-IP guest budget, production worker starts with dispatch disabled; container removed afterwards |
-| `npm run test:integration -- --case=autolaris-payments` | Isolated test DB migrated (`0034`) | S93: AutoLaris VA/QRIS simulated contract, advice, store-borne fee |
+| `npm run test:integration -- --case=autolaris-payments` | Isolated test DB migrated (`0049`) | S93: AutoLaris VA/QRIS simulated contract, advice, platform-borne fee (owner rates QRIS 0,7%, VA BCA Rp6.500, other VA Rp3.000); also runs the S166 wire tests and `payment-fees.test.ts` |
+| `npm run test:integration -- --case=payment-fees` / `PLAYWRIGHT_CHROMIUM_EXECUTABLE=/usr/bin/google-chrome npm run test:browser -- --case=payment-fees` | Isolated test DB migrated (`0049`); browser: built web on `127.0.0.1:3099` in the default mode, local payment terms present | S172 / DEC-029: fee bearer switches (Pembeli/Platform), buyer fee frozen per attempt and billed on top, receipt stays the order value, settlement nets the fee, `AUTOLARIS_FEE_MISMATCH`, bill ≤ fee stays unknown, finance confirmation with a fee; browser: Super Admin switches and the buyer's per-bank fee and instruction. The browser test writes two local payment-policy versions per run (buyer, then the previous terms) |
 | `npm run fixture -- payment-terms local <ns>` | Migrated local DB | DEC-008/009 payment terms for local checkout (idempotent) |
 | `npm run fixture -- demo-orders local [<ns>]` | Migrated local DB, payment/commercial terms, catalog with initial stock, `fixture -- login local` | Local-only demo orders in every order state through the real flows ("Local demo orders"); idempotent per namespace, no reset |
+| S175 dummy data (owner 2026-11-04: local only, develop and test) | `npm run fixture -- login local` then `npm run fixture -- demo-orders local <ns>` (run on 2026-11-04 with `demo-1104`) | Sign in at `/masuk` with `pembeli@99ribu.test`, `pembeli2@99ribu.test` (buyers) or `afiliasi@99ribu.test` (affiliate), password `LOCAL_DUMMY_PASSWORD` in `src/modules/local/logins.ts`; staff accounts as in the table above. Their orders (manual bank, COD, AutoLaris simulated, every state) appear in the local admin `/admin` because they go through the real checkout, payment and fulfilment services. **Removal when development ends:** orders, receipts and postings are immutable by design, so there is no delete command; rebuild `99ribu_local` with the owner-approved procedure above (backup first). Never run these fixtures against production (the commands refuse targets other than `local`/`test`). |
 | `npm run test:integration -- --case=demo-orders` | Isolated test DB migrated | The demo-orders fixture in its own TEST namespace: each state visible in the buyer order projection and admin queues; rerun creates nothing |
 | `npm run fixture -- commercial-terms local <ns>` | Migrated local DB | Commercial policy baseline (1000 bps default commission, IDR 99,000 minimum payout) through the owner policy route, required for catalog publication (idempotent) |
 | `npm run worker -- --autolaris-paid <ATTEMPT_ID>` | Local worker profile | Simulate an AutoLaris paid advice for one local attempt (refused outside local/test) |
@@ -334,7 +340,7 @@ Browser and storefront suites rewrite their captures under `docs/spec/design/ren
 With the built loopback web running, open <http://127.0.0.1:3099/prototypes/index.html>. The screen selector exposes home/search, product, checkout, order/return, affiliate, warehouse and chat compositions. Every screen is labeled as prototype data. These static fixtures make no domain/API calls and create no orders, messages, transfers or auth sessions; the actual root storefront remains unimplemented. CSP denies outbound connections/form submissions. Keep this review surface out of a future live release unless explicitly retained.
 
 ```bash
-PLAYWRIGHT_CHROMIUM_EXECUTABLE=/snap/bin/chromium npm run test:prototype
+PLAYWRIGHT_CHROMIUM_EXECUTABLE=/usr/bin/google-chrome npm run test:prototype
 ```
 
 The command runs pinned Biome plus 36 Node/Playwright checks. It captures nine screens at 390/768/1440 and exercises query/filter/Back, modal keyboard focus, checkout validation/stale-quote input retention, split COD review, pending payment return, unsent chat draft, warehouse filtered-zero and 320px/200% text. Captures live under `docs/spec/design/renders/s08/`; the selected composition and critique remain in the canonical design document. A missing browser/server fails. Real OS virtual keyboard/IME, Safari/native WebView and full commerce behavior require their later evidence.
@@ -351,7 +357,7 @@ The built application now mounts GET /api/v1/me, GET /api/v1/admin/warehouses, P
 ```bash
 npm run test:integration -- --case=PR-13
 # With the newly built server, migrated local DB and installed Chromium:
-PLAYWRIGHT_CHROMIUM_EXECUTABLE=/snap/bin/chromium npm run test:browser -- --case=PR-13
+PLAYWRIGHT_CHROMIUM_EXECUTABLE=/usr/bin/google-chrome npm run test:browser -- --case=PR-13
 ```
 
 The integration selector executes five real PostgreSQL scenario groups: all seven roles/guest and scoped projections; atomic grant concurrency/replay; expired proof/fresh-factor/persistent rate limits; exact-session MFA and recovery reuse; database-observed blocking during competing owner demotion/session deletion. The browser selector executes one actual built-server cookie/MFA/warehouse-scope probe. Integration fixtures use only the isolated test database and clear their own fixed auth rate buckets; do not run auth/integration suites concurrently against it. Browser probes preserve local rate limits. Tests retain append-only synthetic audit events and delete only their own mutable fixtures. Pure order/finance/export access predicates are verified, but actual business handlers and their acceptance must be tested when implemented.
@@ -369,7 +375,7 @@ The S10 checkpoint established four implemented access operations; S13 adds two 
 ```bash
 npm run test:integration -- --case=PR-18
 # Requires the current production build running on 127.0.0.1:3099:
-PLAYWRIGHT_CHROMIUM_EXECUTABLE=/snap/bin/chromium npm run test:browser -- --case=PR-18
+PLAYWRIGHT_CHROMIUM_EXECUTABLE=/usr/bin/google-chrome npm run test:browser -- --case=PR-18
 python3 docs/spec/scripts/check-openapi-contract.py
 npx --no-install @redocly/cli@2.64.0 lint docs/spec/openapi.yaml --extends recommended --format summary
 ```
@@ -417,7 +423,7 @@ npm run fixture -- prune-accounts local --apply  # delete them
 
 Every staff role requires an MFA-verified session, so `login` enrolls TOTP through the real auth handler and prints `totp_uri`/`totp_secret` (add to an authenticator app) and `current_code`; backup codes are printed only on first enrollment, and reruns keep the enrollment. After the password, `/masuk` asks for the authenticator code (or a backup code). A validated same-origin `?next=` overrides the landing page. Staff get the permissions their workspace needs (labels/exports/order history/finance); `gudang@`, `ecommerce@` and `cs@` are scoped to every active origin warehouse (S109: order history/search and return review show only orders whose every parcel is in the reader's warehouses; the CS dashboard itself is company-wide and unchanged) once the catalog is imported (S90), else to the `demo` namespace's Malang warehouse (or the oldest active Malang warehouse). The command is subject to the normal per-account sign-in limit (5 per minute).
 
-`prune-accounts` only considers `@example.invalid`/`@example.test` users: unmapped test users (`access-*`, `browser-*`, orphan seed operators) and principals of per-run fixture namespaces (8-hex run suffix, plus the retired `signin-check`). It keeps any user still referenced by orders, carts, audit, operations, support or buyer/affiliate data, every principal of a fixed namespace (`demo`, `berlapak`, `commerce-demo`, ...; their seed reruns need the full mapping), and users created in the last 15 minutes; an FK refusal skips the user. All commands refuse the `test` target and any non-local profile. Browser check: `PLAYWRIGHT_CHROMIUM_EXECUTABLE=/snap/bin/chromium npm run test:browser -- --case=foundation`.
+`prune-accounts` only considers `@example.invalid`/`@example.test` users: unmapped test users (`access-*`, `browser-*`, orphan seed operators) and principals of per-run fixture namespaces (8-hex run suffix, plus the retired `signin-check`). It keeps any user still referenced by orders, carts, audit, operations, support or buyer/affiliate data, every principal of a fixed namespace (`demo`, `berlapak`, `commerce-demo`, ...; their seed reruns need the full mapping), and users created in the last 15 minutes; an FK refusal skips the user. All commands refuse the `test` target and any non-local profile. Browser check: `PLAYWRIGHT_CHROMIUM_EXECUTABLE=/usr/bin/google-chrome npm run test:browser -- --case=foundation`.
 
 Business clock updates use optimistic versions and cannot move backwards. Each advance is at most 366 days. They never change host time or real auth/session/MFA expiry. Future scenario consumers must explicitly use this clock through a trusted context. No reset command exists; unsafe/remote targets and mixed/live config fail. Run database integration suites sequentially. The full T-38 provider/domain scenario set remains unaccepted until its owned later slices pass.
 
@@ -492,7 +498,7 @@ Commercial values accept default_commission_bps and minimum_payout_idr. Fixed pr
 
 ```bash
 npm run test:integration -- --case=PR-20
-PLAYWRIGHT_CHROMIUM_EXECUTABLE=/snap/bin/chromium npm run test:browser -- --case=PR-20
+PLAYWRIGHT_CHROMIUM_EXECUTABLE=/usr/bin/google-chrome npm run test:browser -- --case=PR-20
 ```
 
 The access proof endpoint now permits reviewed company_policy.version and warehouse_calendar.version purposes in addition to staff_roles.replace. Issuance idempotency spans purposes in the same session; changing purpose/subject with the same key conflicts. Calendar UUID subjects normalize case. Consumption uses wall time after a database lock wait; expiry rolls back the entire mutation. Rechecks lock current owner/session/factor rows. No raw proof/password is stored in policy/audit results. OAS proof groups cover access and settings independently while preserving complete implemented-operation registration.
@@ -573,7 +579,7 @@ One switch and one route table decide indexing. `SITE_INDEXING` (`src/config/sit
 
 ```bash
 npm run test:integration -- --case=PR-1
-PLAYWRIGHT_CHROMIUM_EXECUTABLE=/snap/bin/chromium npm run test:browser -- --case=PR-1
+PLAYWRIGHT_CHROMIUM_EXECUTABLE=/usr/bin/google-chrome npm run test:browser -- --case=PR-1
 ```
 
 The PR-1 selector covers inactive S14 catalog only. Eight private catalog operations create/list taxonomy and physical SKUs and create/read/edit products. Each unit, multipack or bundle is one IDR 99000 offer; component quantities add no separate charge. Product edits use expected_version and explicit create/update/retire changes. Identity, original components and old revisions remain immutable. Catalog writes consume current real cookie/MFA/warehouse scope and atomic actor-scoped retry identity. Tests retain synthetic catalog history and archive only their own warehouses. Publication/media/category/HPP guard belongs to S16, real stock races to S15, and real order snapshots to checkout. No UI, published stock, order or full PR-1 acceptance is implied by this selector.
@@ -582,7 +588,7 @@ The PR-1 selector covers inactive S14 catalog only. Eight private catalog operat
 
 ```bash
 npm run test:integration -- --case=PR-2
-PLAYWRIGHT_CHROMIUM_EXECUTABLE=/snap/bin/chromium npm run test:browser -- --case=PR-2
+PLAYWRIGHT_CHROMIUM_EXECUTABLE=/usr/bin/google-chrome npm run test:browser -- --case=PR-2
 ```
 
 The PR-2 selector executes 14 native checks across 4 files and one built-browser flow. Twelve private HTTP operations cover scoped lots/positions/movements and transfer list/detail/create/dispatch/receipt/cancel. Transfers preserve batch identity, reserve before dispatch, remove source stock only on dispatch and credit destination only on explicit per-source-position receipts. Partial/zero receipts remain exceptions; damaged/expired incoming units are quarantined. At most 100 source positions belong to one transfer; split larger manifests.
@@ -597,7 +603,7 @@ The native suite proves actual shared-component/receiver lock contention, aggreg
 
 ```bash
 npm run test:integration -- --case=PR-19
-PLAYWRIGHT_CHROMIUM_EXECUTABLE=/snap/bin/chromium npm run test:browser -- --case=PR-19
+PLAYWRIGHT_CHROMIUM_EXECUTABLE=/usr/bin/google-chrome npm run test:browser -- --case=PR-19
 ```
 
 The S16 selector executes 9 native checks across 4 files and one built-browser flow. It covers prospective component HPP, explicit nullable offer assumptions, private contribution estimates and guarded publication. Actual recognized contribution/expenses/lot acquisition costing remain S34/T-12. Immutable 0011 adds six tables;42 total. Never rewrite applied SQL/snapshots.
@@ -613,7 +619,7 @@ Editing a draft preserves the earlier published content. Changed cost/assumption
 
 ```bash
 npm run test:integration -- --case=PR-11
-PLAYWRIGHT_CHROMIUM_EXECUTABLE=/snap/bin/chromium npm run test:browser -- --case=PR-11
+PLAYWRIGHT_CHROMIUM_EXECUTABLE=/usr/bin/google-chrome npm run test:browser -- --case=PR-11
 ```
 
 The PR-11 selector executes 12 native checks across 4 files and one built-browser flow. Five private company configuration operations cover list/create/detail/version history/append, current cookie/MFA owner/ecommerce authority, immutable expected-version edits, bounded integer IDR, closed JSON and actor-scoped committed retry. Configuration edits never reset lifetime campaign budget or customer quota. The old configuration stays immutable; history budget_state reports current counters. Committed campaign budget is not cash/expense.
@@ -632,7 +638,7 @@ npm run fixture -- commerce local commerce-demo
 npm run fixture -- berlapak local berlapak   # local supplier snapshot (BERLAPAK_DATA_DIR, default /data/99ribu-berlapak-data) + 16 dummy orders
 npm run test:integration -- --case=seed-berlapak
 npm run test:integration -- --case=seed-commerce
-PLAYWRIGHT_CHROMIUM_EXECUTABLE=/snap/bin/chromium npm run test:browser -- --case=seed-commerce
+PLAYWRIGHT_CHROMIUM_EXECUTABLE=/usr/bin/google-chrome npm run test:browser -- --case=seed-commerce
 ```
 
 This developer-only host harness extends the S11 namespace with 3 actual StockItems,4 complete 99000 offers,6 physical positions, prospective nullable HPP/assumptions and one actual initial stock hold. It reuses the repository BrowserSession/enroll helpers to create a temporary verified/MFA synthetic owner, invokes real guarded domain writers, then removes only its exact temporary identity, deliveries and operation records. Existing shared auth rate-limit buckets remain enabled and are never cleared by this CLI. Existing fixture principals, passwords/MFA, roles, clock and domain edits remain intact. Generated passwords, verification URLs, MFA setup and cookies stay in process memory; output contains IDs, publication/blocker metadata and scope only. It requires the repository test helpers and is not an application/guest HTTP endpoint.
@@ -669,7 +675,7 @@ checkShippingBenefit evaluates actual S17 configured rule allocations against cu
 
 ```bash
 npm run test:integration -- --case=PR-4
-PLAYWRIGHT_CHROMIUM_EXECUTABLE=/snap/bin/chromium npm run test:browser -- --case=PR-4
+PLAYWRIGHT_CHROMIUM_EXECUTABLE=/usr/bin/google-chrome npm run test:browser -- --case=PR-4
 ```
 
 The selector executes 11 native tests across 6 files and one built-browser flow. Applied additive 0013 adds 12 tables (63 total in each isolated database);0000–0012 remain immutable. Real guest/account ownership, versioned complete-offer carts, immutable authoritative quotes/selection, normalized Indonesian address and separate optional-email buyer contact, original per-unit fulfillment/lot snapshots and atomic stock/subsidy holds share PostgreSQL transactions. Twelve checkout operations have observed success and denial parity; OpenAPI has 50 implemented operations in total. Two new read paths recover the current browser cart and an owned quote after navigation.
@@ -686,7 +692,7 @@ The rate phase uses each request's remaining 3s total budget (max 2s individuall
 
 ```bash
 npm run test:integration -- --case=T-31
-PLAYWRIGHT_CHROMIUM_EXECUTABLE=/snap/bin/chromium npm run test:browser -- --case=T-31
+PLAYWRIGHT_CHROMIUM_EXECUTABLE=/usr/bin/google-chrome npm run test:browser -- --case=T-31
 ```
 
 The explicit selector registers five native files and one progressive checkout browser file; it selects no migration or candidate executor. Forms call the existing checkout/payment domains and preserve scoped drafts, no-JavaScript task exits, competing-tab conflict checks, exact unknown-result retry and native-only money/payment authority. Issued package allocations and per-package services use wrapping native radio rows; the closed HTML parser pairs each service with its parcel and rejects mixed, duplicate or orphaned encodings. Native request schemas remain unchanged. Implicit Enter searches destinations on contact and preserves the current shipping/review step; financial confirmation stays explicit.
@@ -700,7 +706,7 @@ Browser fixtures create an owned namespace, align its new simulation clock for r
 ```bash
 npm run fixture -- storefront local commerce-demo
 npm run test:integration -- --case=PR-17
-PLAYWRIGHT_CHROMIUM_EXECUTABLE=/snap/bin/chromium npm run test:browser -- --case=PR-17
+PLAYWRIGHT_CHROMIUM_EXECUTABLE=/usr/bin/google-chrome npm run test:browser -- --case=PR-17
 python3 /data/ai/codex/skills/design-taste/scripts/design-gate.py . --design docs/spec/10-DESIGN-SYSTEM-WHITELABEL.md --src src
 ```
 
@@ -713,7 +719,7 @@ The fixture command uses actual temporary owner/MFA and non-destructive writers,
 npm run db:migrate -- test
 npm run db:migrate -- local
 npm run test:integration -- --case=PR-12
-PLAYWRIGHT_CHROMIUM_EXECUTABLE=/snap/bin/chromium npm run test:browser -- --case=PR-12
+PLAYWRIGHT_CHROMIUM_EXECUTABLE=/usr/bin/google-chrome npm run test:browser -- --case=PR-12
 ```
 
 Applied immutable 0014 adds three finance tables; additive 0015 adds truthful new order-event ingestion timestamps and keyset indexes. At S23 acceptance both isolated databases had 66 application tables; S24 adds the six payment-domain tables. The 7 native checks and 1 built-browser check execute real PostgreSQL, cookie/MFA, whole-order warehouse scope, exact safe-integer journals, replay/race/crash recovery, original money allocations and linked full reversals. New timestamps are server-set; legacy ingestion stays null. Receipts record provider receivable/buyer-funds liability and never bank settlement, payment-state confirmation, revenue recognition or Purchase. Only trusted internal consumers can post receipts/journals. S24/S28 must validate durable simulator/provider evidence before use; S30/S34 own settlement/realized reporting. No generic financial-write endpoint exists.
@@ -725,7 +731,7 @@ Two history GET adapters are implemented with no-store/no-referrer/nosniff, expl
 
 ```bash
 npm run test:integration -- --case=PR-5
-PLAYWRIGHT_CHROMIUM_EXECUTABLE=/snap/bin/chromium npm run test:browser -- --case=PR-5
+PLAYWRIGHT_CHROMIUM_EXECUTABLE=/usr/bin/google-chrome npm run test:browser -- --case=PR-5
 ```
 
 At S24 acceptance, PR-5 selected 16 native tests and 1 built-browser test; the current selector also includes the S28 COD checkpoint described below. The original prepaid tests execute actual PostgreSQL attempts/events, signed local simulator evidence, receipt/posting transactions, private owned-order transport and callback recovery. S24 introduced 0016 and 72 app tables; S25 extends both isolated databases to 82 tables/18 source-matching migrations and adds the canonical first-party Purchase/outbox. No bank settlement, live provider, recognized profit or complete commerce acceptance is implied.
@@ -746,7 +752,7 @@ Collection must precede the original deadline strictly. Equality is expired rega
 
 ```bash
 npm run test:integration -- --case=T-26
-PLAYWRIGHT_CHROMIUM_EXECUTABLE=/snap/bin/chromium npm run test:browser -- --case=T-26
+PLAYWRIGHT_CHROMIUM_EXECUTABLE=/usr/bin/google-chrome npm run test:browser -- --case=T-26
 ```
 
 At S25 acceptance, the checkpoint had 12 native tests across 9 files and 1 build-backed Chromium test. The current selector also includes S28 COD proof described below. Five operations cover visitor bootstrap, consent read/write, closed observed funnel intake and the nested owned-order funnel path. Visitor context never grants commerce access; guest order cookies retain their narrow path. Verified prepaid receipt/postings/funding and one canonical merchandise Purchase/full original-item allocation/three platform decisions commit together. Browser observations cannot supply Purchase or money. Actual rollback, duplicate/reload, denial/no-backfill, withdrawal, original local sink reconciliation, stale sender fencing and concurrent worker checks pass. All payloads use canonical local metadata without raw buyer contact, order capabilities, HPP or chat data.
@@ -758,9 +764,9 @@ Applied 0017 is immutable; the S25 checkpoint had 82 app tables/18 migrations; S
 
 ```bash
 npm run test:integration -- --case=PR-5
-PLAYWRIGHT_CHROMIUM_EXECUTABLE=/snap/bin/chromium npm run test:browser -- --case=PR-5
+PLAYWRIGHT_CHROMIUM_EXECUTABLE=/usr/bin/google-chrome npm run test:browser -- --case=PR-5
 npm run test:integration -- --case=T-26
-PLAYWRIGHT_CHROMIUM_EXECUTABLE=/snap/bin/chromium npm run test:browser -- --case=T-26
+PLAYWRIGHT_CHROMIUM_EXECUTABLE=/usr/bin/google-chrome npm run test:browser -- --case=T-26
 node --env-file=.env.example scripts/worker.ts local --collect-cod SHIPMENT_ID
 node --env-file=.env.example scripts/worker.ts local --refuse-cod SHIPMENT_ID
 node --env-file=.env.example scripts/worker.ts local --reconcile-cod SHIPMENT_ID
@@ -810,7 +816,7 @@ The current finance selector covers immutable ledger/history, allocation and sig
 
 ```bash
 npm run test:integration -- --case=PR-12
-PLAYWRIGHT_CHROMIUM_EXECUTABLE=/snap/bin/chromium npm run test:browser -- --case=PR-12
+PLAYWRIGHT_CHROMIUM_EXECUTABLE=/usr/bin/google-chrome npm run test:browser -- --case=PR-12
 npm run health -- ready
 ```
 
@@ -831,7 +837,7 @@ S31 quantity returns/inspection/refunds is accepted in RUN-20261018T190944Z-520b
 
 ```bash
 npm run test:integration -- --case=PR-7
-PLAYWRIGHT_CHROMIUM_EXECUTABLE=/snap/bin/chromium npm run test:browser -- --case=PR-7
+PLAYWRIGHT_CHROMIUM_EXECUTABLE=/usr/bin/google-chrome npm run test:browser -- --case=PR-7
 ```
 
 The current registered native run passes 33 tests across 13 explicit files: policy/signatures/current authority/original collection, separately committed COD/prepaid lifecycle, scoped readers, actual 13-operation wire contracts, order/history projections, four uncertainty/recovery cases, four PostgreSQL contention cases and app-role native seals. Current build lqdvVaUI0ULANm_WiMvK_ passes the built Chromium/host case for all 13 success/denial contracts and actual buyer order/history progress, plus 9 affected built cases across 8 files. STATUS owns acceptance and the running artifact identity. Parent PR-7 remains incomplete until S32 replacement lineage and effective affiliate override costing are implemented and accepted.

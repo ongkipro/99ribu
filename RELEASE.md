@@ -67,6 +67,13 @@ Every external adapter in 99ribu is a local sink or simulation today (for exampl
 
 Not covered by this list because it needs a decision first: per-courier COD fee, remittance days and volumetric divisor (read from the Mengantar documentation, never constants), and the legal and tax wording that needs an accountant or a lawyer.
 
+## Pending for the next deploy (recorded 2026-11-04, nothing authorised)
+
+- Migrations `0045` (goods condition) and `0046`–`0049` (DEC-029: `payment_attempt.payment_fee_amount`, `app.autolaris_buyer_fee`, guard and seal replacements, `AUTOLARIS_FEE_MISMATCH`). All are expand-only (new column with default 0, function replacements, one check widened); existing rows and older policy versions keep today's behaviour (AutoLaris fee borne by the platform, COD fee by the buyer).
+- No new environment variable for production; `LOCAL_PROVIDER_ORIGIN` must stay unset (refused).
+- AutoLaris stays gated in production (S97): the fee-bearer switch affects production only for the COD fee until then.
+- Checks to re-run on the release commit: `npm test`, typecheck, lint, OpenAPI contract, `--case=PR-4`, `PR-5`, `payment-fees`, `autolaris-payments`, `T-31`, `PR-3`, `PR-11`, and the S68 `localhost-readiness` acceptance.
+
 ## Production migration (Vultr + Coolify)
 
 Planned 2026-10-22; nothing below is executed or authorised. Slices S82–S89 in `TASKS.md` ("Production migration slices"). Hosting choice is ADR-0005 (Vultr `sgp`, `vhp-4c-8gb-amd`, Coolify); catalog content is DEC-005. Goal: the Berlapak catalog and its 708 photos appear in the live storefront and admin exactly as locally, rebuilt on the server from committed content — not copied from the local database.
@@ -76,7 +83,7 @@ Planned 2026-10-22; nothing below is executed or authorised. Slices S82–S89 in
 - The local database (`99ribu_local`, `99ribu_test`) in any form — no dump, no restore, no row copy. It mixes catalog rows with fixture principals, synthetic orders, test publications and local delivery rows.
 - Dummy/synthetic accounts (`<role>@99ribu.test`, `*@example.invalid`, seed operators) and the `fixture`/`login`/`login-codes`/`prune-accounts` commands.
 - Local signing keys (`.local/auth/*.key`), `.local/postgres`, `.local/pgsocket`, local `.local/artifacts` (synthetic evidence/labels) and `.local/catalog-media` (rebuilt by the import from `data/catalog/berlapak/photos/`).
-- `LOCAL_TAILNET_ORIGIN`, the loopback origin `http://127.0.0.1:3099`, `tailscale serve`, and any non-Secure cookie setting.
+- `LOCAL_TAILNET_ORIGIN`, `LOCAL_PROVIDER_ORIGIN` (DEC-028; the production profile refuses it), the loopback origin `http://127.0.0.1:3099`, `tailscale serve`, and any non-Secure cookie setting.
 - `simulated` adapters and the simulated worker commands (`--confirm-payment`, `--collect-cod`, …): on a real server they would create fake paid orders. Unissued providers are `disabled`.
 - The S69 Berlapak fixture (`public/catalog-local/`, 16 dummy orders) and the raw snapshot in the image or repository (it is uploaded to the server only for S87, then removed unless the owner keeps it).
 
@@ -115,7 +122,7 @@ Rollback after go-live: Coolify rollback to the previous image when migrations w
 
 ### Pre-deployment database review — 2026-10-29
 
-The current migration authority is the 42 ordered SQL files (`0000`–`0041`) and `migrations/meta/_journal.json`; `src/db/schema.ts` is the typed mirror. Keep applied SQL immutable. Do not squash or rename applied migrations, copy the synthetic local database, or introduce schema push as another authority.
+The current migration authority is the 50 ordered SQL files (`0000`–`0049`; 2026-11-04 local, not deployed: `0045` goods condition, `0046`–`0049` DEC-029 payment-fee bearer) and `migrations/meta/_journal.json`; `src/db/schema.ts` is the typed mirror. Keep applied SQL immutable. Do not squash or rename applied migrations, copy the synthetic local database, or introduce schema push as another authority.
 
 - The migration runner validates the full applied hash/timestamp prefix under its advisory lock before applying SQL or granting privileges. A mismatch requires investigation and the matching release, not journal rewriting. An older image cannot rerun migrations against a newer database; rollback may start an already-compatible old web/worker image without rerunning its migrator, after rehearsal, or use a forward fix.
 - PostgreSQL container processes need an init/reaper (local Compose now uses `init: true`; disposable rehearsal uses `--init`). The local postmaster previously ran as PID 1 and entered crash recovery after an orphan tool exited 2. Confirm the actual Coolify database process topology separately before scheduling in-container backup tools. [PostgreSQL crash handling source](https://raw.githubusercontent.com/postgres/postgres/REL_18_STABLE/src/backend/postmaster/postmaster.c).
