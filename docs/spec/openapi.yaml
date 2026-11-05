@@ -22735,6 +22735,36 @@ components:
           - shipping
           - merchandise
           description: S177 stage 2B. `shipping` reduces parcel shipping fees; `merchandise` (store voucher) discounts the product subtotal, frozen per unit.
+        margin_preview:
+          type: object
+          description: S177 decision 10 (store vouchers only, single reads). Worst case per live offer at the minimum purchase against the publication's estimated contribution and floor; approving is the owner's floor exception.
+          properties:
+            offers:
+              type: integer
+              minimum: 0
+            unknown_contribution:
+              type: integer
+              minimum: 0
+            below_floor:
+              type: integer
+              minimum: 0
+            worst:
+              oneOf:
+              - type: 'null'
+              - type: object
+                properties:
+                  name:
+                    type: string
+                  label:
+                    type: string
+                  contribution_after:
+                    type: integer
+                  floor:
+                    type: integer
+                required: [name, label, contribution_after, floor]
+                additionalProperties: false
+          required: [offers, unknown_contribution, below_floor, worst]
+          additionalProperties: false
         budget_state:
           type: object
           properties:

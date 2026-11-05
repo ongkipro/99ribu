@@ -57,6 +57,10 @@ type Promotion = {
 	used_count: number;
 	/** A version of it has been active and started: a voucher's terms stay locked for good (S177 decision 8). */
 	has_run: boolean;
+	/** S177 2B: what the benefit reduces; `merchandise` = store voucher (product subtotal). */
+	target?: "shipping" | "merchandise";
+	/** Store vouchers, single reads only: worst case per live offer at the minimum purchase (S177 decision 10). */
+	margin_preview?: { offers: number; unknown_contribution: number; below_floor: number; worst: { name: string; label: string; contribution_after: number; floor: number } | null };
 };
 
 // decideProposal records a rejection as an inactive, no longer proposed version with this reason prefix.
@@ -70,10 +74,11 @@ function phase(p: Promotion, now: number | null): [string, StatusTone] {
 }
 /** Active and not yet over: can still be ended. */
 const live = (p: Promotion, now: number | null) => p.active && (now === null || Date.parse(p.ends_at) > now);
-const benefit = (p: Pick<Promotion, "kind" | "value" | "maximum_per_order">) =>
+const subject = (p: Pick<Promotion, "target">) => (p.target === "merchandise" ? "harga produk" : "ongkir");
+const benefit = (p: Pick<Promotion, "kind" | "value" | "maximum_per_order" | "target">) =>
 	p.kind === "fixed"
-		? `Potongan ongkir ${rupiah(p.value)} per pesanan`
-		: `Potongan ongkir ${bpsToPercent(p.value)}%, maks. ${rupiah(p.maximum_per_order)} per pesanan`;
+		? `Potongan ${subject(p)} ${rupiah(p.value)} per pesanan`
+		: `Potongan ${subject(p)} ${bpsToPercent(p.value)}%, maks. ${rupiah(p.maximum_per_order)} per pesanan`;
 const discount = (p: Promotion) =>
 	p.kind === "fixed" ? rupiah(p.value) : `${bpsToPercent(p.value)}% maks ${rupiah(p.maximum_per_order)}`;
 const METHODS: Record<string, string> = { prepaid: "Prabayar", cod: "COD" };
@@ -242,6 +247,7 @@ export function ShippingPromotionsClient({
 						<span className="flex flex-col max-md:items-end">
 							{discount(p)}
 							<span className="text-xs text-muted-foreground">
+								{voucher ? `${p.target === "merchandise" ? "harga produk" : "ongkir"} · ` : ""}
 								{p.minimum_merchandise ? `min. belanja ${rupiah(p.minimum_merchandise)}` : "tanpa min. belanja"}
 							</span>
 						</span>
@@ -399,6 +405,7 @@ const body = (p: Promotion) => ({
 	stacking: p.stacking,
 	priority: p.priority,
 	...(p.code ? { code: p.code } : {}),
+	...(p.target ? { target: p.target } : {}),
 });
 const idr = (value: string) => (/^\d{1,15}$/.test(value.trim()) ? Number(value) : null);
 const CODE = /^[A-Z0-9][A-Z0-9-]{2,31}$/;
@@ -436,6 +443,7 @@ function PromotionDialog({
 		active: canDecide ? (row?.active ?? true) : false,
 		starts: row ? wibInput(row.starts_at) : "",
 		ends: row ? wibInput(row.ends_at) : "",
+		target: row?.target ?? ("shipping" as "shipping" | "merchandise"),
 		kind: row?.kind ?? ("fixed" as "fixed" | "percentage"),
 		value: row ? (row.kind === "percentage" ? bpsToPercent(row.value) : String(row.value)) : "",
 		maximum: row ? String(row.maximum_per_order) : "",
@@ -477,6 +485,9 @@ function PromotionDialog({
 		if (row && locked && Date.parse(ends) < Date.parse(row.ends_at)) return setError("Voucher yang berjalan hanya bisa diperpanjang; selesai tidak boleh lebih awal.");
 		if (row && locked && budget < row.budget) return setError("Anggaran voucher yang berjalan hanya bisa ditambah.");
 		if (form.active && (!value || !maximum || !budget)) return setError(`${voucher ? "Voucher" : "Promo"} aktif perlu potongan, potongan maksimum dan anggaran lebih dari nol.`);
+		// S177 decision 1: a percentage store voucher needs a cap that covers that percentage of the minimum purchase.
+		if (voucher && form.target === "merchandise" && form.kind === "percentage" && value && (!maximum || maximum * 10_000 < value * minimum))
+			return setError("Potongan maksimum harus minimal persen × minimum belanja.");
 		if (!form.reason.trim()) return setError("Alasan wajib diisi.");
 		setPending(true);
 		setError(null);
@@ -497,6 +508,7 @@ function PromotionDialog({
 			stacking: form.stacking,
 			priority,
 			reason: form.reason.trim(),
+			...(voucher ? { target: form.target } : {}),
 			expected_version: row?.version ?? 0,
 			// The code is set at creation; later versions repeat it.
 			...(voucher ? { code: row?.code ?? code } : {}),
@@ -599,17 +611,29 @@ function PromotionDialog({
 					<Input id="promo-ends" type="datetime-local" lang="id" autoFocus={focus === "ends"} value={form.ends} onChange={set("ends")} />
 				</FormField>
 			</div>
+			{voucher && (
+				<FormField
+					id="promo-target"
+					label="Voucher untuk"
+					hint={form.target === "merchandise" ? "Memotong harga produk; bisa digabung dengan gratis ongkir otomatis." : "Memotong ongkir; pembeli dapat yang lebih besar antara voucher ini dan promo ongkir otomatis."}
+				>
+					<select id="promo-target" className={`${nativeSelectClass} w-full`} disabled={locked || Boolean(row?.has_run)} aria-describedby="promo-target-hint" value={form.target} onChange={set("target")}>
+						<option value="shipping">Ongkir</option>
+						<option value="merchandise">Harga produk</option>
+					</select>
+				</FormField>
+			)}
 			<div className="grid gap-3 sm:grid-cols-2">
 				<FormField id="promo-kind" label="Jenis potongan">
 					<select id="promo-kind" className={`${nativeSelectClass} w-full`} disabled={locked} value={form.kind} onChange={set("kind")}>
 						<option value="fixed">Nominal (Rp)</option>
-						<option value="percentage">Persen ongkir</option>
+						<option value="percentage">{form.target === "merchandise" ? "Persen harga produk" : "Persen ongkir"}</option>
 					</select>
 				</FormField>
 				<FormField
 					id="promo-value"
 					label={form.kind === "fixed" ? "Potongan per pesanan (Rp)" : "Potongan (%)"}
-					hint={voucher ? "Dipotong dari ongkir, tidak lebih dari ongkirnya." : undefined}
+					hint={voucher ? (form.target === "merchandise" ? "Dipotong dari total harga produk; setiap barang tetap minimal Rp1." : "Dipotong dari ongkir, tidak lebih dari ongkirnya.") : undefined}
 				>
 					<Input
 						id="promo-value"
@@ -750,6 +774,21 @@ function DecisionDialog({
 	const [pending, setPending] = useState(false);
 	const key = useOperationKey();
 	const approve = decision === "approve";
+	// S177 decision 10: approving a store voucher accepts its margin; show the worst case first (single read computes it).
+	const [preview, setPreview] = useState<Promotion["margin_preview"] | "loading" | "error">(approve && row.target === "merchandise" ? "loading" : undefined);
+	useEffect(() => {
+		if (!(approve && row.target === "merchandise")) return;
+		const controller = new AbortController();
+		fetch(`/api/v1/admin/shipping-promotions/${row.id}`, { signal: controller.signal, headers: { accept: "application/json" } })
+			.then(async (response) => {
+				if (!response.ok) throw new Error(String(response.status));
+				setPreview(((await response.json()) as Promotion).margin_preview ?? "error");
+			})
+			.catch(() => {
+				if (!controller.signal.aborted) setPreview("error");
+			});
+		return () => controller.abort();
+	}, [approve, row.id, row.target]);
 	async function submit() {
 		if (!reason.trim()) return setError("Alasan wajib diisi.");
 		setPending(true);
@@ -802,6 +841,21 @@ function DecisionDialog({
 				<dt className="text-muted-foreground">Alasan usulan</dt>
 				<dd className="break-words">{row.reason}</dd>
 			</dl>
+			{preview !== undefined && (
+				<Alert data-testid="margin-preview" variant={typeof preview === "object" && preview.below_floor > 0 ? "destructive" : "default"}>
+					<Info className="size-4" aria-hidden />
+					<AlertDescription>
+						{preview === "loading"
+							? "Menghitung dampak ke margin…"
+							: preview === "error" || !preview
+								? "Dampak ke margin belum dapat dihitung. Muat ulang lalu buka lagi."
+								: preview.below_floor > 0
+									? `Pada potongan maksimum, ${preview.below_floor} dari ${preview.offers} produk aktif turun di bawah batas margin. Terendah: ${preview.worst?.name}${preview.worst?.label ? ` (${preview.worst.label})` : ""}, ${rupiah(preview.worst?.contribution_after ?? 0)} per barang (batas ${rupiah(preview.worst?.floor ?? 0)}). Menyetujui berarti menerima margin ini.`
+									: `Semua ${preview.offers - preview.unknown_contribution} produk dengan biaya lengkap tetap di atas batas margin pada potongan maksimum.`}
+						{typeof preview === "object" && preview && preview.unknown_contribution > 0 && ` ${preview.unknown_contribution} produk belum punya data biaya.`}
+					</AlertDescription>
+				</Alert>
+			)}
 			<FormField id="decision-reason" label={approve ? "Alasan persetujuan" : "Alasan penolakan"}>
 				<Input id="decision-reason" maxLength={480} value={reason} onChange={(e) => setReason(e.target.value)} />
 			</FormField>

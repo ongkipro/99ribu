@@ -51,6 +51,9 @@ export function merchandiseShares(plan:ShippingPlan,promotions:readonly Promotio
    const total=perLine.get(l.line_id)??0,q=quantity.get(l.line_id)??1;return {line_id:l.line_id,unit_index:index,amount:Math.floor(total/q)+(index<=total%q?1:0)};}));
   return {shipment_id:p.id,amount:units.reduce((n,u)=>n+u.amount,0),units};});
 }
+// S177 decision 10: an approved voucher is the owner's margin-floor exception, so the per-order floor check
+// (checkShippingBenefit, app.assert_attributed_checkout_cost) counts only the automatic shipping subsidy.
+export const floorBenefits=(plan:ShippingPlan,promotions:readonly PromotionAllocation[],voucher?:QuoteVoucher)=>parcelBenefits(plan,promotions.filter(a=>!(voucher?.status==='applied'&&a.promotion_id===voucher.promotion_id)));
 export const shippingSubsidy=(promotions:readonly PromotionAllocation[])=>promotions.filter(a=>!a.lines?.length).reduce((n,a)=>n+a.amount,0);
 export const merchandiseDiscount=(promotions:readonly PromotionAllocation[])=>promotions.filter(a=>a.lines?.length).reduce((n,a)=>n+a.amount,0);
 async function planPrices(tx:TransactionSql,plan:ShippingPlan){
@@ -174,7 +177,7 @@ export async function createQuote(tx:TransactionSql,request:Request,identity:Loc
  await assertCartOpen(tx,cart,version);const lines=await cartLines(tx,cart.id);if(!lines.length) throw new AccessError(422,'CART_EMPTY');
  const plans=await buildShippingPlans(tx,{lines:lines.map(l=>({line_id:l.id,product_id:l.product_id,offer_id:l.offer_id,publication_id:l.publication_id,quantity:l.quantity})),destination_id:address.destination_id,payment_method:method},{clock_namespace:cart.clock_namespace});
  const plan=plans[0];const customerKey=digest(await mac(identity,'promotion-buyer',[contact.phone]));const now=(await cartClock(tx,cart)).toISOString();
- const {promotions,voucher}=await previewPromotions(tx,plan,customerKey,now,address,code);const finance=await checkShippingBenefit(tx,plan,parcelBenefits(plan,promotions),affiliateId,cart.owner_user_id);
+ const {promotions,voucher}=await previewPromotions(tx,plan,customerKey,now,address,code);const finance=await checkShippingBenefit(tx,plan,floorBenefits(plan,promotions,voucher),affiliateId,cart.owner_user_id);
  return persistQuote(tx,actor,key,hash,cart,{plans,selected_plan:plan,address,contact,customer_key:customerKey,promotions,...(voucher?{voucher}:{}),financial_sources:finance.sources,...(affiliateId?{affiliate_id:affiliateId}:{})},null,channel);
 }
 export async function selectQuote(tx:TransactionSql,request:Request,identity:LocalAuth,actor:CommerceActor,quoteId:string,value:unknown){
@@ -191,7 +194,7 @@ export async function selectQuote(tx:TransactionSql,request:Request,identity:Loc
   parcel.selected_option_id=rate.id;parcel.shipping_amount=rate.shipping_amount;
  }
  plan.shipping_total=plan.packages.reduce((n,p)=>n+p.shipping_amount,0);integer(plan.shipping_total,0,Number.MAX_SAFE_INTEGER);
- const {promotions,voucher}=await previewPromotions(tx,plan,quote.document.customer_key,(await cartClock(tx,cart)).toISOString(),quote.document.address,quote.document.voucher?.code);const finance=await checkShippingBenefit(tx,plan,parcelBenefits(plan,promotions),quote.document.affiliate_id??null,cart.owner_user_id);
+ const {promotions,voucher}=await previewPromotions(tx,plan,quote.document.customer_key,(await cartClock(tx,cart)).toISOString(),quote.document.address,quote.document.voucher?.code);const finance=await checkShippingBenefit(tx,plan,floorBenefits(plan,promotions,voucher),quote.document.affiliate_id??null,cart.owner_user_id);
  const {voucher:_previous,...rest}=quote.document;
  return persistQuote(tx,actor,key,hash,cart,{...rest,selected_plan:plan,promotions,...(voucher?{voucher}:{}),financial_sources:finance.sources},quote,quote.payment_channel??(plan.payment_method==='cod'?'cod':'local-prepaid'));
 }

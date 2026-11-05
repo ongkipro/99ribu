@@ -15,7 +15,7 @@ import {checkShippingBenefit} from '../shipping/contribution.ts';
 import {enqueueJob} from '../../jobs/outbox.ts';
 import {authorizeCart,capability,cookie,digest,lockActor,prefix,type CommerceActor} from './access.ts';
 import {cartClock,expectedCartVersion,intentHash,mutationKey,priorOperation,recordOperation} from './carts.ts';
-import {assertQuoteCurrent,ownedQuote,merchandiseShares,parcelBenefits,promotionShipments} from './quotes.ts';
+import {assertQuoteCurrent,floorBenefits,ownedQuote,merchandiseShares,parcelBenefits,promotionShipments} from './quotes.ts';
 import {captureOrderPlacement} from '../advertising/events.ts';
 import {confirmCodOrder} from '../payments/cod.ts';
 import {buyerFulfillmentProgress,originalParcelReceiptProgress,originalWaybillProgress} from '../fulfillment/core.ts';
@@ -86,7 +86,7 @@ export async function submitOrder(tx:TransactionSql,request:Request,identity:Loc
  await assertQuoteCurrent(tx,cart,quote,version);const document=quote.document,plan=document.selected_plan;
  const origins=[...new Set(plan.packages.map(p=>p.warehouse_id))].sort();await lockInventoryClock(tx,cart.clock_namespace,origins);
  if((await tx`select id from app.warehouse where id in ${tx(origins)} and active order by id for share`).length!==origins.length) throw new AccessError(409,'WAREHOUSE_UNAVAILABLE');
- const financial=await checkShippingBenefit(tx,plan,parcelBenefits(plan,document.promotions),document.affiliate_id??null,cart.owner_user_id);
+ const financial=await checkShippingBenefit(tx,plan,floorBenefits(plan,document.promotions,document.voucher),document.affiliate_id??null,cart.owner_user_id);
  if(!isDeepStrictEqual(financial.sources,document.financial_sources)) throw new AccessError(409,'FINANCIAL_REVIEW_REQUIRED');
  const promotionIds=document.promotions.map(a=>a.promotion_id).sort();
  if(promotionIds.length){
@@ -167,7 +167,7 @@ export async function submitOrder(tx:TransactionSql,request:Request,identity:Loc
  // Re-evaluate after every promotion/balance wait and snapshot insert: an
  // already-scheduled cost may become effective without a writer changing a row.
  await lockActor(tx,actor);await authorizeCart(tx,request,identity,actor,cart.id);await assertQuoteCurrent(tx,cart,quote,version);
- const acceptedFinancial=await checkShippingBenefit(tx,plan,parcelBenefits(plan,document.promotions),document.affiliate_id??null,cart.owner_user_id);
+ const acceptedFinancial=await checkShippingBenefit(tx,plan,floorBenefits(plan,document.promotions,document.voucher),document.affiliate_id??null,cart.owner_user_id);
  if(!isDeepStrictEqual(acceptedFinancial.sources,document.financial_sources)) throw new AccessError(409,'FINANCIAL_REVIEW_REQUIRED');
  await tx`insert into app.order_event (order_id,revision,status,payment_status,reason,source_id,created_at) values (${order.id},1,'pending','pending','Buyer submitted the frozen checkout',${operationId},${now.toISOString()})`;
  await tx`update app.commerce_order set revision=1,status='pending' where id=${order.id}`;

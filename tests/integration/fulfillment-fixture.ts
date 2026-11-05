@@ -8,6 +8,7 @@ import {paymentAdapter} from '../../src/modules/payments/worker.ts';
 import {simulateCollection,ingestProviderEvent} from '../../src/modules/payments/local.ts';
 import {createAttempt} from '../../src/modules/payments/attempts.ts';
 import {runOneJob} from '../../src/jobs/worker.ts';
+import {refreshMfa} from '../../src/modules/local/synthetic-session.ts';
 import {releaseReservation} from '../../src/modules/inventory/reservations.ts';
 import {expireOwnedOrderJob} from '../../src/modules/checkout/expiry.ts';
 import {readFixtureClock,advanceFixtureClock} from '../../src/modules/local/fixtures.ts';
@@ -33,6 +34,8 @@ export async function closeFulfillmentActor(identity:LocalAuth,user:{id:string;e
 
 export async function installFulfillmentCalendars(identity:LocalAuth,owner:Awaited<ReturnType<typeof actor>>,namespace:string){
  const warehouses=await identity.sql`select w.id,w.timezone,extract(year from (greatest(n.clock,clock_timestamp()) at time zone w.timezone))::int calendar_year from app.warehouse w join app.local_fixture_warehouse fixture on fixture.warehouse_id=w.id join app.local_fixture_namespace n on n.name=fixture.namespace where fixture.namespace=${namespace} order by w.id`;
+ // Long fixtures (S99 seeds >100 parcels) can outlive the 5-minute fresh-MFA window on a loaded host.
+ await refreshMfa(owner.browser);
  for(const warehouse of warehouses){
   const proofRequest=owner.browser.request('/api/v1/me/reauthentication-proofs',{password:owner.password,action:'warehouse_calendar.version',subject_id:warehouse.id});proofRequest.headers.set('idempotency-key',randomUUID());
   const proof=await handleAccess(proofRequest,identity);assert.equal(proof.status,201);

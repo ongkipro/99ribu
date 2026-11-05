@@ -68,7 +68,37 @@ export async function insertVersion(tx:TransactionSql,promotionId:string,input:R
 export async function readConfiguration(tx:TransactionSql,promotionId:string){
   const [row]=await tx`select v.*,${columns(tx)} from app.promotion p join app.promotion_version v
     on v.promotion_id=p.id and v.revision=p.configuration_revision where p.id=${promotionId}`;
-  if(!row) throw new AccessError(404,'NOT_FOUND');return project(row);
+  if(!row) throw new AccessError(404,'NOT_FOUND');
+  const result=project(row);
+  return result.target==='merchandise'?{...result,margin_preview:await marginPreview(tx,result)}:result;
+}
+// S177 decision 10: approving a store voucher is the owner's margin-floor exception, so the approver sees its worst case
+// first. Per live offer: the smallest order of that offer meeting the minimum purchase (q units), the voucher's benefit on
+// it spread per unit (rounded up), against the publication's estimated contribution and its own floor. Commission on the
+// net would lower the cost slightly, so this is a conservative preview. Offers without a known contribution are counted apart.
+async function marginPreview(tx:TransactionSql,terms:{kind:string;value:number;maximum_per_order:number;minimum_merchandise:number}){
+  const [row]=await tx<{offers:number;unknown:number;below:number;worst_name:string|null;worst_label:string|null;worst_after:string|null;worst_floor:number|null}[]>`
+    with live as (
+      select o.offer_id,r.name,orv.label,orv.price::numeric price,o.estimated_contribution::numeric contribution,v.minimum_contribution_idr floor
+      from app.publication_head h join app.publication_version v on v.product_id=h.product_id and v.revision=h.revision
+      join app.publication_offer o on o.publication_id=v.id
+      join app.offer_revision orv on orv.product_id=o.product_id and orv.revision=o.product_revision and orv.offer_id=o.offer_id
+      join app.product_revision r on r.product_id=v.product_id and r.revision=v.product_revision
+      where h.revision>0 and not orv.retired and not exists (select 1 from app.publication_withdrawal w where w.publication_id=v.id)
+    ), sized as (
+      select live.*,greatest(1,ceil(${terms.minimum_merchandise}::numeric/price)) q from live
+    ), costed as (
+      select sized.*,ceil(least(case when ${terms.kind}='fixed' then ${terms.value}::numeric else floor((q*price*${terms.value}+5000)/10000) end,${terms.maximum_per_order}::numeric,q*(price-1))/q) per_unit from sized
+    )
+    select count(*)::int offers,count(*) filter (where contribution is null)::int unknown,
+      count(*) filter (where contribution is not null and contribution-per_unit<floor)::int below,
+      (array_agg(name order by contribution-per_unit) filter (where contribution is not null))[1] worst_name,
+      (array_agg(label order by contribution-per_unit) filter (where contribution is not null))[1] worst_label,
+      min(contribution-per_unit)::text worst_after,
+      (array_agg(floor order by contribution-per_unit) filter (where contribution is not null))[1] worst_floor
+    from costed`;
+  return {offers:row.offers,unknown_contribution:row.unknown,below_floor:row.below,
+    worst:row.worst_name===null?null:{name:row.worst_name,label:row.worst_label??'',contribution_after:Number(row.worst_after),floor:Number(row.worst_floor)}};
 }
 // Head columns every projection reads: code and lifetime committed uses (orders that used the promotion).
 const columns=(tx:TransactionSql)=>tx`p.reserved_amount,p.committed_amount,p.budget_revision,p.code,(select coalesce(sum(b.committed_uses),0)::int from app.promotion_buyer_usage b where b.promotion_id=p.id) used_count,

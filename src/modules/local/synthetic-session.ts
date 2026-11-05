@@ -25,6 +25,8 @@ export function totp(uri:string){
 // headers the trusted proxy would add; local fixtures keep the loopback origin.
 export class BrowserSession{
   cookies=new Map<string,string>();
+  // The synthetic authenticator secret from enroll(), so a long fixture can re-verify (refreshMfa) like a staff member would.
+  totpURI:string|null=null;
   readonly identity:LocalAuth;readonly base:string;readonly headers:Record<string,string>;
   constructor(identity:LocalAuth,base=origin,headers:Record<string,string>={}){this.identity=identity;this.base=base;this.headers=headers;}
   request(path:string,body?:Record<string,unknown>){
@@ -48,7 +50,13 @@ export async function enroll(browser:BrowserSession,password:string){
   if(response.status!==200) throw new AccessError(409,'SYNTHETIC_MFA_ENABLE_REJECTED');
   const setup=await response.json();
   if((await browser.auth('/two-factor/verify-totp',{code:totp(setup.totpURI)})).status!==200) throw new AccessError(409,'SYNTHETIC_MFA_VERIFY_REJECTED');
+  browser.totpURI=setup.totpURI;
   return setup as {totpURI:string;backupCodes:string[]};
+}
+// Re-verify the authenticator on the same session: a step that needs fresh MFA (5 minutes) after a long setup.
+export async function refreshMfa(browser:BrowserSession){
+  if(!browser.totpURI) return;
+  if((await browser.auth('/two-factor/verify-totp',{code:totp(browser.totpURI)})).status!==200) throw new AccessError(409,'SYNTHETIC_MFA_VERIFY_REJECTED');
 }
 
 export class CommerceClient{
