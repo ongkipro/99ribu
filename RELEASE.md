@@ -67,6 +67,11 @@ Every external adapter in 99ribu is a local sink or simulation today (for exampl
 
 Not covered by this list because it needs a decision first: per-courier COD fee, remittance days and volumetric divisor (read from the Mengantar documentation, never constants), and the legal and tax wording that needs an accountant or a lawyer.
 
+## Deployed 2026-11-05 (`6f53743`, owner-approved: "ya lanjut dan rekomendasimu jalankan juga sempurnakan")
+
+- Change: performance fix for the S177 2B order seal (`0056`: `app.quote_unit_discounts` as a plpgsql loop; the inlined SQL version made every order seal take seconds), plus test-only fixes. 57 migrations applied; the function is `plpgsql` in production.
+- Backup before push: off-host `20261105T142937Z`. Coolify deployed web/worker `20261105T143226` (both healthy). Cloudflare cache purged. Live: PDP "Beli sekarang" → usable `/checkout`; web log without errors. No order had been placed in production while the slow version was live.
+
 ## Deployed 2026-11-05 (`732a0dd`, owner-approved: "ya lanjut dan rekomendasimu jalankan juga sempurnakan")
 
 - Change: S177 stage 2B store voucher (code-gated merchandise discount frozen per unit, net basis downstream, admin "Voucher untuk" + approval margin preview, voucher floor exception), R4 fixes (incl. the latent 2A re-selection guard), finance summary subsidy double count fix, stale-test fixes. Migrations `0051`–`0055` (56 applied in total; `app.promotion_line_allocation`, `app.quote_unit_discounts`, four `merchandise_discount` columns present).
