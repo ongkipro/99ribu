@@ -1,5 +1,12 @@
 # Build log — Serba 99ribu
 
+## 2026-11-05 — Performance regression from S177 2B found and fixed (`0056`); corrections
+
+- Symptom: S99 kept exceeding its 10-minute limit; the test DB showed ~8 s between orders in today's S99 runs against ~0.15 s on 2026-11-01. `log_min_duration_statement` + `auto_explain` (nested, test DB only, reset afterwards) put the time in `SET CONSTRAINTS ALL IMMEDIATE`, i.e. the deferred `seal_commerce_order`, on the two checks added in `0052` that call `app.quote_unit_discounts(q.document)`: ~0.7 s per call.
+- Root cause: `app.quote_unit_discounts` was an inlinable SQL function; the planner estimated ~10M rows (default 100 rows for `jsonb_array_elements` × 1000 for `generate_series`) and built huge sorts/hash tables for a handful of units, several times per order. It shipped to production in `732a0dd` (production had no orders yet).
+- Fix: `migrations/0056_quote_unit_discounts_fast.sql` rewrites it as a plpgsql loop (`ROWS 50`) with the same numbering (package order, line order, quantity; TS twin `merchandiseShares`). `checkout-core.test.ts` 12.4 s → 4.0 s with no statement over 300 ms; S99 passes in 30 s (was > 770 s); `--case=vouchers` 6/6.
+- Corrections to earlier entries: S99 "pre-existing, environment" was wrong — the pre-2B worktree used the same migrated test DB, so the comparison shared the slow seal. Many `timed out after 30000ms` failures in today's full runs and the T-34 receipt arriving 5–6 s after its order are consistent with this regression rather than host load alone; the full suite should be rerun once on the fixed code.
+
 ## 2026-11-05 (local) — Full integration rerun for S177 2B (pre-deploy)
 
 - `--case=all-current` on this shared host (load 4–8 from another project's Playwright) reported 35 failures, mostly `timed out after 30000ms`; the run was stopped and every failing file rerun alone: `admin-kpis` 6/6, `admin-list-sort` 1/1, `autolaris-stand-in` 6/6, `backup-restore` 4/4, `berlapak-import` 5/5, `buyer-account` 2/2, `buyer-account-wave` 2/2, `buyer-profile` 1/1, `catalog-feed` 1/1, `catalog-http` 1/1, `catalog-import` 11/11, `cod-http` 1/1, `cod-remittance` 3/3, `finance-workbench` 5/5, `cod-candidate` 1/1, `cod-checkout-candidate` 1/1, `cod-contract` 1/1, `catalog-master` 4/4, `advertising-diagnostics` 1/1, `fulfillment-lifecycle` 5/5.

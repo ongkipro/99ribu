@@ -393,6 +393,13 @@
       "when": 1793880215685,
       "tag": "0055_store_voucher_fixes",
       "breakpoints": true
+    },
+    {
+      "idx": 56,
+      "version": "7",
+      "when": 1793888867245,
+      "tag": "0056_quote_unit_discounts_fast",
+      "breakpoints": true
     }
   ]
 }
