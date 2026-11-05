@@ -346,13 +346,17 @@ test('carrier-simulator COD with a pinned 333 bps payment policy: waybill, order
  try{await enroll(staff.browser,staff.password);terms=await withCommercialTerms(f,{cod_fee_bps:333});await codThroughCarrier(f,333,staff);}
  finally{await closeFulfillmentActor(f.identity,staff).catch(()=>{});try{await terms?.restore();}finally{await f.close();}}
 });
-test('carrier-simulator COD with no payment policy in force: fee-less waybill, order page and receipt',async()=>{
- const f=await paymentFixture(),staff=await actor(f.identity,'owner',[]);
+test('carrier-simulator COD with no COD fee in force: fee-less waybill, order page and receipt',async()=>{
+ const f=await paymentFixture(),staff=await actor(f.identity,'owner',[]);let terms:Awaited<ReturnType<typeof withCommercialTerms>>|undefined;
  try{
   await enroll(staff.browser,staff.password);
   // A fresh fixture namespace starts before any payment-policy version takes effect.
   const [now]=await f.identity.sql`select app.reservation_clock(${f.namespace}) now`;
   assert.equal((await f.identity.sql.begin(tx=>paymentTerms(tx,new Date(now.now)))).version_id,null,'no payment policy is in force at this business instant');
+  // The carrier path installs warehouse calendars, which moves the namespace to wall time. On a shared test database an
+  // earlier run has left a company payment policy in force there, so the fee-less case pins 0 bps (restored after).
+  const [wall]=await f.identity.sql`select clock_timestamp() now`;
+  if((await f.identity.sql.begin(tx=>paymentTerms(tx,new Date(wall.now)))).version_id!==null)terms=await withCommercialTerms(f,{cod_fee_bps:0});
   await codThroughCarrier(f,0,staff);
- }finally{await closeFulfillmentActor(f.identity,staff).catch(()=>{});await f.close();}
+ }finally{await closeFulfillmentActor(f.identity,staff).catch(()=>{});try{await terms?.restore();}finally{await f.close();}}
 });
