@@ -386,6 +386,13 @@
       "when": 1793877598019,
       "tag": "0054_store_voucher_floor",
       "breakpoints": true
+    },
+    {
+      "idx": 55,
+      "version": "7",
+      "when": 1793880215685,
+      "tag": "0055_store_voucher_fixes",
+      "breakpoints": true
     }
   ]
 }

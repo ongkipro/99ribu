@@ -775,14 +775,15 @@ function DecisionDialog({
 	const key = useOperationKey();
 	const approve = decision === "approve";
 	// S177 decision 10: approving a store voucher accepts its margin; show the worst case first (single read computes it).
-	const [preview, setPreview] = useState<Promotion["margin_preview"] | "loading" | "error">(approve && row.target === "merchandise" ? "loading" : undefined);
+	const [preview, setPreview] = useState<Promotion["margin_preview"] | "loading" | "error" | "hidden">(approve && row.target === "merchandise" ? "loading" : undefined);
 	useEffect(() => {
 		if (!(approve && row.target === "merchandise")) return;
 		const controller = new AbortController();
 		fetch(`/api/v1/admin/shipping-promotions/${row.id}`, { signal: controller.signal, headers: { accept: "application/json" } })
 			.then(async (response) => {
 				if (!response.ok) throw new Error(String(response.status));
-				setPreview(((await response.json()) as Promotion).margin_preview ?? "error");
+				// Cost and contribution data are for finance.costs.read holders (Super Admin) only (IAM spec 07).
+				setPreview(((await response.json()) as Promotion).margin_preview ?? "hidden");
 			})
 			.catch(() => {
 				if (!controller.signal.aborted) setPreview("error");
@@ -847,7 +848,9 @@ function DecisionDialog({
 					<AlertDescription>
 						{preview === "loading"
 							? "Menghitung dampak ke margin…"
-							: preview === "error" || !preview
+							: preview === "hidden"
+								? "Dampak ke margin hanya terlihat oleh Super Admin (data biaya). Menyetujui voucher ini berarti menerima marginnya."
+								: preview === "error" || !preview
 								? "Dampak ke margin belum dapat dihitung. Muat ulang lalu buka lagi."
 								: preview.below_floor > 0
 									? `Pada potongan maksimum, ${preview.below_floor} dari ${preview.offers} produk aktif turun di bawah batas margin. Terendah: ${preview.worst?.name}${preview.worst?.label ? ` (${preview.worst.label})` : ""}, ${rupiah(preview.worst?.contribution_after ?? 0)} per barang (batas ${rupiah(preview.worst?.floor ?? 0)}). Menyetujui berarti menerima margin ini.`

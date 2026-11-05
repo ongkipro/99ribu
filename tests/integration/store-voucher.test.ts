@@ -9,6 +9,7 @@ import {handlePayments} from '../../src/modules/payments/routes.ts';
 import {paymentAdapter} from '../../src/modules/payments/worker.ts';
 import {ingestProviderEvent,simulateCollection} from '../../src/modules/payments/local.ts';
 import {runOneJob} from '../../src/jobs/worker.ts';
+import {actor,enroll} from '../contract/access-fixture.ts';
 import {checkoutFixture} from './checkout-fixture.ts';
 
 // S177 stage 2B (docs/spec/vouchers/S177-stage-2b-design.md): a store voucher discounts the merchandise subtotal, stacks
@@ -105,6 +106,47 @@ test('store voucher, prepaid: the receipt and the Purchase signal carry the net;
   const [allocated]=await f.identity.sql`select sum(merchandise_amount)::int amount,sum(quantity)::int units from app.purchase_allocation where event_id=${purchase.id}`;assert.deepEqual(allocated,{amount:gross.amount-1000,units:3});
  }finally{
   if(voucherId)await write(`/${voucherId}/versions`,{...config,expected_version:1,active:false,reason:'Synthetic cleanup'}).catch(()=>{});
+  await f.close();
+ }
+});
+
+test('R4 review: margin preview only for cost readers; a courier re-selection may change the voucher',async()=>{
+ const f=await checkoutFixture();const owned:{id:string;config:Record<string,unknown>}[]=[];
+ const write=async(path:string,body:Record<string,unknown>,user=f.owner)=>{const request=user.browser.request(`/api/v1/admin/shipping-promotions${path}`,body);request.headers.set('idempotency-key',randomUUID());const response=await handlePromotions(request,f.identity);const payload=await response.json();assert.equal(response.status,201,JSON.stringify(payload));return payload;};
+ const read=async(id:string,user:{browser:{request:(path:string)=>Request}})=>(await handlePromotions(user.browser.request(`/api/v1/admin/shipping-promotions/${id}`),f.identity)).json();
+ const marketing=await actor(f.identity,'marketing',[]);
+ try{
+  await enroll(marketing.browser,marketing.password);
+  await f.identity.sql`delete from app.auth_rate_limit where key like 'rl:voucher-code:%'`;
+  const [window]=await f.identity.sql`select max(v.ends_at)::text ends from app.promotion p join app.promotion_version v on v.promotion_id=p.id and v.revision=p.configuration_revision where v.active`;
+  const target=Math.max(Date.now(),Date.parse(window.ends??new Date().toISOString()))+1000;let clock=await readFixtureClock('test',f.namespace);
+  while(Date.parse(clock.now)<target) clock=await advanceFixtureClock('test',f.namespace,Math.min(31622400,Math.ceil((target-Date.parse(clock.now))/1000)),clock.version);
+  const base={expected_version:0,name:'SYNTHETIC review',active:false,starts_at:clock.now,ends_at:new Date(Date.parse(clock.now)+3600000).toISOString(),kind:'fixed',value:5000,maximum_per_order:5000,minimum_merchandise:1,budget:100000,per_buyer_limit:1,payment_methods:['prepaid','cod'],region_ids:[],service_ids:[],stacking:'exclusive',priority:10,reason:'Synthetic'};
+  // Cost and contribution data (IAM spec 07): the owner's single read has the preview; marketing's proposal and read do not.
+  const proposal=await write('',{...base,code:unique('usulan'),target:'merchandise'},marketing);owned.push({id:proposal.id,config:{}});
+  assert.equal(proposal.margin_preview,undefined,'no preview in a write response');
+  assert.equal((await read(proposal.id,marketing)).margin_preview,undefined,'marketing never sees cost data');
+  const preview=(await read(proposal.id,f.owner)).margin_preview;
+  assert.ok(preview&&Number.isInteger(preview.offers)&&Number.isInteger(preview.below_floor)&&Number.isInteger(preview.unknown_contribution));
+  // A percentage shipping voucher: switching to another courier changes its amount and the selection still succeeds.
+  const code=unique('persen');const shipping=await write('',{...base,active:true,code,kind:'percentage',value:5000,maximum_per_order:1000000});owned.push({id:shipping.id,config:{}});
+  assert.equal((await f.client.call('/api/v1/carts',{})).response.status,401);
+  const request=f.client.request('/api/v1/carts',{}),buyer=await commerceActor(request,f.identity);assert.ok(buyer?.kind==='guest');
+  const created=await f.identity.sql.begin(tx=>createCart(tx,request,f.identity,buyer,{lines:[f.line('fixture-offer-shirt',1)]},{clock_namespace:f.namespace}));
+  const p=await prefix(f.identity),token=await capability(f.identity,'cart',created.cart.id,buyer.id,created.cart.cap_issued_at as string);f.client.cookies.set(`${p}.cart_access:/`,{name:`${p}.cart_access`,value:`${created.cart.id}.${token}`,path:'/'});
+  const quote=await f.client.call('/api/v1/checkout/quotes',{cart_id:created.cart.id,address:f.address,contact:f.contact(),payment_method:'prepaid',voucher_code:code},{version:1});
+  assert.equal(quote.response.status,201,JSON.stringify(quote.payload));assert.equal(quote.payload.voucher.status,'applied');
+  type Option={id:string;shipping_amount:number};type Package={id:string;selected_option_id:string;shipping_amount:number;options:Option[]};
+  const pkg=(quote.payload.packages as Package[]).find(x=>x.options.some(o=>o.shipping_amount!==x.shipping_amount));
+  assert.ok(pkg,'the fixture offers a courier at another price');
+  const other=pkg.options.find(o=>o.shipping_amount!==pkg.shipping_amount) as Option;
+  const reselected=await f.client.call(`/api/v1/checkout/quotes/${quote.payload.id}/selection`,{packages:(quote.payload.packages as Package[]).map(x=>({package_id:x.id,shipping_option_id:x.id===pkg.id?other.id:x.selected_option_id}))},{version:1});
+  assert.equal(reselected.response.status,201,JSON.stringify(reselected.payload));
+  assert.equal(reselected.payload.voucher.status,'applied');assert.notEqual(reselected.payload.voucher.amount,quote.payload.voucher.amount,'the voucher follows the new shipping fee');
+ }finally{
+  for(const {id} of owned){const [current]=await f.identity.sql`select v.*,p.code from app.promotion p join app.promotion_version v on v.promotion_id=p.id and v.revision=p.configuration_revision where p.id=${id}`;
+   if(!current.active)continue;
+   await write(`/${id}/versions`,{expected_version:current.revision,name:current.name,active:false,starts_at:new Date(current.starts_at).toISOString(),ends_at:new Date(current.ends_at).toISOString(),kind:current.kind,value:Number(current.value),maximum_per_order:Number(current.maximum_per_order),minimum_merchandise:Number(current.minimum_merchandise),budget:Number(current.budget),per_buyer_limit:current.per_buyer_limit,payment_methods:current.payment_methods,region_ids:current.region_ids,service_ids:current.service_ids,stacking:current.stacking,priority:current.priority,reason:'Synthetic cleanup',code:current.code,target:current.target}).catch(()=>{});}
   await f.close();
  }
 });

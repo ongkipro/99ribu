@@ -20,7 +20,7 @@ export async function postEconomicReceipt(tx:TransactionSql,value:ReceiptInput){
  if((kind==='prepaid'&&(shipmentId!==null||input.source!=='local.payment'))||(kind==='cod'&&(shipmentId===null||input.source!=='local.cod'))) throw invalid();
  // DEC-008/009: the buyer-paid payment charge (transfer code or COD fee) is its own component.
  let merchandise=BigInt(order.merchandise_amount)-BigInt(order.merchandise_discount??0),shipping=BigInt(order.shipping_amount)-BigInt(order.subsidy_amount),charge=BigInt(order.payment_charge_amount??0),due=BigInt(order.buyer_total)+charge;
- if(kind==='cod'){const [shipment]=await tx`select * from app.order_shipment where id=${shipmentId} and order_id=${orderId}`;if(!shipment) throw new AccessError(404,'NOT_FOUND');merchandise=BigInt(shipment.merchandise_amount);shipping=BigInt(shipment.buyer_shipping);charge=BigInt(shipment.payment_charge??0);due=BigInt(shipment.cod_due);}
+ if(kind==='cod'){const [shipment]=await tx`select * from app.order_shipment where id=${shipmentId} and order_id=${orderId}`;if(!shipment) throw new AccessError(404,'NOT_FOUND');merchandise=BigInt(shipment.merchandise_amount)-BigInt(shipment.merchandise_discount??0);shipping=BigInt(shipment.buyer_shipping);charge=BigInt(shipment.payment_charge??0);due=BigInt(shipment.cod_due);}
  if(kind==='cod'){
   const [schema]=await tx`select to_regclass('app.commerce_exception') is not null installed`;
   if(schema.installed){const basis=await codCollectionBasis(tx,shipmentId as string,effect);merchandise=BigInt(basis.merchandise_amount);shipping=BigInt(basis.buyer_shipping);charge=BigInt(basis.payment_charge);due=BigInt(basis.amount);}

@@ -348,7 +348,7 @@ export async function projectOrderReceipt(
 		} else {
 			const rows = await tx<
 				{ id: string; merchandise_amount: string; buyer_shipping: string; payment_charge: string }[]
-			>`select id,merchandise_amount,buyer_shipping,payment_charge from app.order_shipment where order_id=${o.id} order by parcel_id,id limit 51`;
+			>`select id,merchandise_amount-merchandise_discount merchandise_amount,buyer_shipping,payment_charge from app.order_shipment where order_id=${o.id} order by parcel_id,id limit 51`;
 			collectionsComplete = rows.length <= 50;
 			for (const s of rows.slice(0, 50))
 				collections.push({

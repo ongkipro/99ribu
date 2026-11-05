@@ -163,7 +163,8 @@ async function computeMoneyMetrics(
 	>`
     select oi.id as item_id,
            oi.quantity,
-           oi.unit_price,
+           -- S177 2B: revenue per item is net of its frozen store-voucher shares (spread back per unit).
+           oi.unit_price - (select coalesce(sum(f.merchandise_discount),0) from app.fulfillment_item f where f.order_item_id = oi.id)::numeric / oi.quantity as unit_price,
            oi.offer_id,
            oi.publication_id,
            o.subsidy_amount::text as subsidy_amount,

@@ -1,7 +1,7 @@
 import {createHash,randomUUID} from 'node:crypto';
 import type {TransactionSql} from 'postgres';
 import type {LocalAuth} from '../access/auth.ts';
-import {AccessError,type Principal} from '../access/policy.ts';
+import {AccessError,hasPermission,type Principal} from '../access/policy.ts';
 import {array,id,integer,invalid,object,pageInput,text} from '../catalog/validation.ts';
 
 export const MAX_MONEY=Number.MAX_SAFE_INTEGER;
@@ -65,12 +65,13 @@ export async function insertVersion(tx:TransactionSql,promotionId:string,input:R
     values (${promotionId},${input.expected_version+1},${input.name},${input.active},${input.starts_at},${input.ends_at},${input.kind},${input.value},${input.maximum_per_order},${input.minimum_merchandise},${input.budget},${input.per_buyer_limit},${input.payment_methods},${input.region_ids},${input.service_ids},${input.stacking},${input.priority},${actorId},${input.reason},${proposed},${input.target})`;
   await tx`update app.promotion set configuration_revision=configuration_revision+1 where id=${promotionId}`;
 }
-export async function readConfiguration(tx:TransactionSql,promotionId:string){
+// preview: only for a reader holding finance.costs.read (IAM spec 07: cost and contribution data), never in write responses.
+export async function readConfiguration(tx:TransactionSql,promotionId:string,preview=false){
   const [row]=await tx`select v.*,${columns(tx)} from app.promotion p join app.promotion_version v
     on v.promotion_id=p.id and v.revision=p.configuration_revision where p.id=${promotionId}`;
   if(!row) throw new AccessError(404,'NOT_FOUND');
   const result=project(row);
-  return result.target==='merchandise'?{...result,margin_preview:await marginPreview(tx,result)}:result;
+  return preview&&result.target==='merchandise'?{...result,margin_preview:await marginPreview(tx,result)}:result;
 }
 // S177 decision 10: approving a store voucher is the owner's margin-floor exception, so the approver sees its worst case
 // first. Per live offer: the smallest order of that offer meeting the minimum purchase (q units), the voucher's benefit on
@@ -151,7 +152,7 @@ export async function listConfigurations(identity:LocalAuth,principal:Principal,
   }
   return identity.sql.begin(async(tx)=>{
     await promotionAuthority(tx,principal);
-    if(selected&&!history){if(url.search) throw invalid();return readConfiguration(tx,selected);}
+    if(selected&&!history){if(url.search) throw invalid();return readConfiguration(tx,selected,hasPermission(principal,'finance.costs.read'));}
     if(selected){if(!(await tx`select id from app.promotion where id=${selected} for share`).length) throw new AccessError(404,'NOT_FOUND');}
     const rows=history?await tx`select v.*,${columns(tx)} from app.promotion_version v join app.promotion p on p.id=v.promotion_id
       where p.id=${selected} and (${cursor}::int is null or v.revision<${cursor}::int) order by v.revision desc limit ${limit+1}`
@@ -182,9 +183,12 @@ export async function decideProposal(request:Request,identity:LocalAuth,principa
     const terms={expected_version:current.version,name:current.name,active:decision==='approve',starts_at:current.starts_at,ends_at:current.ends_at,kind:current.kind,value:current.value,
       maximum_per_order:current.maximum_per_order,minimum_merchandise:current.minimum_merchandise,budget:current.budget,per_buyer_limit:current.per_buyer_limit,payment_methods:current.payment_methods,
       region_ids:current.region_ids,service_ids:current.service_ids,stacking:current.stacking,priority:current.priority,reason:`${decision==='approve'?'Disetujui':'Ditolak'}: ${reason}`.slice(0,500),code:current.code,target:current.target};
+    // S177 decision 10: approving a store voucher is the margin-floor exception; the audit keeps the preview the
+    // approver could see (cost readers only), so the accepted worst case stays on record.
+    const accepted=decision==='approve'&&current.target==='merchandise'&&hasPermission(principal,'finance.costs.read')?await marginPreview(tx,current):null;
     await insertVersion(tx,promotionId,terms,principal.id);const response=await readConfiguration(tx,promotionId);
     await tx`insert into app.audit_event (actor_id,action,subject_id,outcome,reason,details)
-      values (${principal.id},${`promotion.${decision}`},${promotionId},'allowed',${reason},${JSON.stringify({version_id:response.version_id,version:response.version,proposal_version:current.version})}::jsonb)`;
+      values (${principal.id},${`promotion.${decision}`},${promotionId},'allowed',${reason},${JSON.stringify({version_id:response.version_id,version:response.version,proposal_version:current.version,...(accepted?{margin_preview:accepted}:{})})}::jsonb)`;
     await tx`insert into app.access_operation (actor_id,action,key,request_hash,response) values (${principal.id},'promotion.decide',${key},${hash},${JSON.stringify(response)}::jsonb)`;
     return response;
   });

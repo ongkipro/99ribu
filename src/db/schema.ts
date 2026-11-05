@@ -469,7 +469,7 @@ export const promotionReservation = appSchema.table("promotion_reservation",{
   index("promotion_reservation_expiry_idx").on(t.expiresAt).where(sql`${t.status}='active'`),
   check("promotion_reservation_identity_check",sql`${t.requestHash} ~ '^[0-9a-f]{64}$' AND ${t.customerKey} ~ '^[0-9a-f]{64}$' AND char_length(${t.key}) between 1 and 200`),
   check("promotion_reservation_state_check",sql`${t.status} IN ('preparing','active','released','expired','consumed') AND ${t.paymentMethod} IN ('prepaid','cod')`),
-  check("promotion_reservation_amount_check",sql`${t.merchandiseAmount} between 1 and 9007199254740991 AND ${t.shippingAmount} between 1 and 9007199254740991 AND ${t.subsidyAmount}>=0 AND ${t.subsidyAmount}<=${t.shippingAmount} AND ${t.discountAmount}>=0 AND ${t.discountAmount}<${t.merchandiseAmount} AND ${t.subsidyAmount}+${t.discountAmount}>0`),
+  check("promotion_reservation_amount_check",sql`${t.merchandiseAmount} between 1 and 9007199254740991 AND ${t.shippingAmount} between 0 and 9007199254740991 AND ${t.subsidyAmount}>=0 AND ${t.subsidyAmount}<=${t.shippingAmount} AND ${t.discountAmount}>=0 AND ${t.discountAmount}<${t.merchandiseAmount} AND ${t.subsidyAmount}+${t.discountAmount}>0`),
   check("promotion_reservation_deadline_check",sql`${t.expiresAt}>${t.createdAt} AND ${t.expiresAt}<=${t.createdAt}+interval '24 hours'`),
   check("promotion_reservation_resolution_check",sql`(${t.status} IN ('preparing','active') AND ${t.resolvedAt} IS NULL AND ${t.resolutionReason} IS NULL) OR (${t.status} IN ('released','expired','consumed') AND ${t.resolvedAt} IS NOT NULL AND ${t.resolutionReason} IS NOT NULL AND char_length(${t.resolutionReason}) between 1 and 500)`),
 ]);
