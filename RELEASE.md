@@ -67,6 +67,12 @@ Every external adapter in 99ribu is a local sink or simulation today (for exampl
 
 Not covered by this list because it needs a decision first: per-courier COD fee, remittance days and volumetric divisor (read from the Mengantar documentation, never constants), and the legal and tax wording that needs an accountant or a lawyer.
 
+## Deployed 2026-11-05 (`732a0dd`, owner-approved: "ya lanjut dan rekomendasimu jalankan juga sempurnakan")
+
+- Change: S177 stage 2B store voucher (code-gated merchandise discount frozen per unit, net basis downstream, admin "Voucher untuk" + approval margin preview, voucher floor exception), R4 fixes (incl. the latent 2A re-selection guard), finance summary subsidy double count fix, stale-test fixes. Migrations `0051`–`0055` (56 applied in total; `app.promotion_line_allocation`, `app.quote_unit_discounts`, four `merchandise_discount` columns present).
+- Backup before push: off-host `20261105T140222Z` (225 tables, 131,650 rows, 2,861 files). Coolify deployed web/worker `20261105T140509` (both healthy). Cloudflare cache purged.
+- Live check (no order placed; leaves one guest cart line): `/`, `/promo`, `/keranjang` 200; PDP "Beli sekarang" → usable `/checkout`; web log without errors. Production has no voucher yet, so the store-voucher path is proven locally (integration `--case=vouchers` 6/6, browser store-voucher test) and needs one live check once the owner creates a voucher (Pemasaran → Voucher → Voucher untuk: Harga produk; approval by Super Admin shows the margin preview).
+
 ## Deployed 2026-11-05 (`287bfed`, owner-approved: "ya lanjutkan dan review,audit juga sempurnakan")
 
 - Change: `src/proxy.ts` refuses Next's internal Server Action redirect render (non-public Host) with 421, so every storefront action `redirect()` ("Beli sekarang", post-order, payment, receipt, reorder) loads its target as a full page (BUILD-LOG top entry). No migration.
