@@ -18,17 +18,13 @@ async function writeCookies(issued:string[]){
 }
 export async function changeCart(_previous:CartMutationState,data:FormData):Promise<CartMutationState>{
  // PDP "Beli sekarang" (DEC-020): the same add mutation, then checkout once it is committed (works without JS).
- const checkout=data.get('then')==='checkout',enhanced=data.get('via')==='js';data.delete('then');data.delete('via');
+ const checkout=data.get('then')==='checkout';data.delete('then');
  let input:unknown;
  try{input=cartFormInput(data);}catch{return failedCartMutation(Object.fromEntries(data));}
  const reply=await mutateBrowserCart(await storefrontRequest('POST'),getLocalAuth(),input);
  await writeCookies(reply.cookies);
  // The authoritative cart badge appears in every storefront shell.
  if(reply.state.phase==='success'||reply.state.phase==='error')revalidatePath('/','layout');
- // Production 2026-11-05: rendering /checkout inside this action's redirect showed "Sesi belanja perlu diperiksa" although a
- // fresh load of /checkout with the same cookies works. With JavaScript the client therefore loads /checkout as a normal
- // page; without it the 303 redirect below already makes the browser fetch /checkout afresh.
- if(checkout&&reply.state.phase==='success'&&enhanced)return {...reply.state,navigate:'/checkout'};
  if(checkout&&reply.state.phase==='success')redirect('/checkout');
  return reply.state;
 }

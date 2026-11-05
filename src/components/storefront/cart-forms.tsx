@@ -61,12 +61,10 @@ function Controller({initial,permalink,children,capture,settle,retry,activeLines
  const [recovering,setRecovering]=useState(retry.length>0);const continued=useRef(new Set<string>());const replayed=useRef(false);const buyNow=useRef<string|null>(null);const lastForm=useRef<HTMLFormElement|null>(null);const flown=useRef<string|null>(null);
  useEffect(()=>{if(state.phase!=='success'||state.intent.kind!=='add'||flown.current===state.intent.key||buyNow.current===state.intent.key)return;flown.current=state.intent.key;flyToCart(lastForm.current);},[state]);
  useEffect(()=>{if(state.acknowledgedKey)settle(state.acknowledgedKey);},[state.acknowledgedKey,settle]);
- // "Beli sekarang": the cart line is saved; open checkout as a full page load (see changeCart).
- useEffect(()=>{if(state.phase==='success'&&state.navigate)window.location.assign(state.navigate);},[state]);
  useEffect(()=>{
   if(state.phase!=='bootstrap'||continued.current.has(state.intent.key))return;
   // A guest bootstrap replays the same intent; keep "Beli sekarang" on it.
-  continued.current.add(state.intent.key);const data=formData(state.intent);if(buyNow.current===state.intent.key){data.set('then','checkout');data.set('via','js');}startTransition(()=>action(data));
+  continued.current.add(state.intent.key);const data=formData(state.intent);if(buyNow.current===state.intent.key)data.set('then','checkout');startTransition(()=>action(data));
  },[state,action]);
  useEffect(()=>{
   if(replayed.current||!retry.length)return;replayed.current=true;
@@ -158,8 +156,6 @@ function CartControls({intent:base,label,subject,disabled=false,quantity=true,no
    return stepper?<div className="cart-quantity"><label htmlFor={quantityId} className={subject?'sr-only':undefined}>Jumlah pilihan</label><span className="quantity-stepper"><button type="button" aria-label={subject?`Kurangi jumlah ${subject}`:'Kurangi jumlah'} disabled={unknown||disabled||value<=1} onClick={()=>step(false)}><Icon name="subtract" size={subject?20:24}/></button>{input}<button type="button" aria-label={subject?`Tambah jumlah ${subject}`:'Tambah jumlah'} disabled={unknown||disabled||value>=50} onClick={()=>step(true)}><Icon name="add" size={subject?20:24}/></button></span></div>:
     // biome-ignore lint/a11y/noLabelWithoutControl: the label wraps the number input held in `input`.
     <label>Jumlah pilihan{input}</label>;})():<input type="hidden" name="quantity" value={intent.quantity}/>}
-  {/* With JavaScript, "Beli sekarang" opens checkout as a full page load after the add (keranjang/actions.ts changeCart). */}
-  {buyNow&&live&&<input type="hidden" name="via" value="js"/>}
   {/* PDP (DEC-020, shop.com action row): add to cart first in the DOM and tab order, shown on the right; "Beli sekarang" submits the same add, then checkout. Hidden while an unknown result offers the retry. */}
   {buyNow&&!disabled&&!unknown?<div className="purchase-actions"><button ref={submit} type="submit" aria-describedby={!quantity?describedBy:undefined} aria-label={subject?`${label} ${subject}`:undefined} className={`button${intent.kind==='remove'?' quiet':intent.kind==='add'||reviewId||dirty?'':' secondary'}`} disabled={!unknown&&disabled}>{intent.kind==='remove'&&<Icon name="close"/>}{buttonText}</button><button type="submit" name="then" value="checkout" className="button buy-now">{busy?'Menyimpan…':'Beli sekarang'}</button></div>:autoSave&&!retained?null:<button ref={submit} type="submit" aria-describedby={!quantity?describedBy:undefined} aria-label={subject?`${label} ${subject}`:undefined} className={`button${intent.kind==='remove'?' quiet':intent.kind==='add'||reviewId||dirty?'':' secondary'}`} disabled={!unknown&&disabled}>{intent.kind==='remove'&&<Icon name="close"/>}{buttonText}</button>}
   {/* The live region stays mounted on every auto-save line, so the first save is announced too. */}

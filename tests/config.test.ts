@@ -5,6 +5,8 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { randomBytes } from "node:crypto";
 import test from "node:test";
+import { NextRequest } from "next/server.js";
+import { config as proxyConfig, proxy } from "../src/proxy.ts";
 import { assertLocalNextCommand, readLocalConfig } from "../src/config/local.ts";
 import { appOrigin, assertProductionNextCommand, productionDatabase, readProductionConfig, readRuntimeConfig, runtimeTarget } from "../src/config/runtime.ts";
 import { connectDatabase } from "../src/db/client.ts";
@@ -393,6 +395,30 @@ test("production origin and client IP: exact Host only, and only the configured 
     assert.throws(() => clientIp(request(headers)), (error: unknown) => error instanceof AccessError && error.status === 503 && error.code === "CLIENT_IP_UNAVAILABLE");
   }
 }));
+
+// Production 2026-11-05 ("Beli sekarang" landed on "Sesi belanja perlu diperiksa"): Next renders a Server Action's
+// redirect target through an internal fetch that loses the public Host. The proxy refuses exactly that render with a
+// non-RSC answer so Next falls back to a plain redirect the browser loads itself; real browser requests pass.
+test("production proxy: the action-redirect loopback render (RSC, internal Host) is refused; browser requests pass", () => asProduction({}, () => {
+  // The matcher admits only RSC requests outside /admin; Next strips the `rsc` header before proxy() runs.
+  const rsc = (host: string, path = "/checkout") => proxy(new NextRequest(`http://0.0.0.0:3000${path}`, { headers: { host } }));
+  for (const host of ["bf40801545ea:3000", "0.0.0.0:3000", "localhost:3000", "evil.invalid"]) {
+    const response = rsc(host);
+    assert.equal(response.status, 421, host);
+    assert.equal(response.headers.get("x-middleware-next"), null, `${host} is answered here, not rendered`);
+  }
+  for (const path of ["/checkout", "/keranjang", "/", "/admin"]) assert.equal(rsc("99ribu.com", path).headers.get("x-middleware-next"), "1", `${path} through the public Host continues to the page`);
+  const matchers = (proxyConfig.matcher as (string | { source: string; has?: { type: string; key: string; value?: string }[] })[]).filter(m => typeof m !== "string");
+  assert.deepEqual(matchers, [{ source: "/((?!_next/|api/).*)", has: [{ type: "header", key: "rsc", value: "1" }] }], "outside /admin only RSC requests reach the proxy; /api (health check) never does");
+  assert.equal(rsc("99ribu.com", "/admin/orders").status, 308, "old admin paths still redirect");
+}));
+
+test("local proxy: requests are never refused for their Host", () => {
+  const saved = process.env;
+  process.env = { ...local } as NodeJS.ProcessEnv;
+  try { assert.equal(proxy(new NextRequest("http://127.0.0.1:3099/checkout", { headers: { host: "127.0.0.1:3000" } })).headers.get("x-middleware-next"), "1"); }
+  finally { process.env = saved; }
+});
 
 test("client budget keys: IPv4 as is, IPv6 by its /64, IPv4-mapped IPv6 as IPv4", () => {
   assert.equal(addressBucket("203.0.113.7"), "203.0.113.7");

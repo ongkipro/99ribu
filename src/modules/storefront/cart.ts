@@ -12,9 +12,7 @@ import {publicProduct,type PublicProduct} from './catalog.ts';
 export type BrowserCart=Awaited<ReturnType<typeof projectCart>>;
 export type CartRead={kind:'ready';cart:BrowserCart;code:null;now:string;namespace:string|null}|{kind:'none'|'denied'|'unavailable';cart:null;code:string};
 export type CartIntent={key:string;kind:'add'|'update'|'remove';product:string;variant:string;publication:string;quantity:string;cart:string;version:string;line:string;generation:string};
-export type CartMutationState={phase:'idle'|'bootstrap'|'success'|'error'|'unknown';intent:CartIntent;message:string;code:string|null;count:number|null;total:number|null;blocked:boolean;acknowledgedKey:string|null;
- // "Beli sekarang" with JavaScript: the client loads this path as a full page (see keranjang/actions.ts changeCart).
- navigate?:string};
+export type CartMutationState={phase:'idle'|'bootstrap'|'success'|'error'|'unknown';intent:CartIntent;message:string;code:string|null;count:number|null;total:number|null;blocked:boolean;acknowledgedKey:string|null};
 const fields=['key','kind','product','variant','publication','quantity','cart','version','line','generation'] as const;
 export const cartUnits=(cart:BrowserCart)=>cart.lines.reduce((n,line)=>n+line.quantity,0);
 export const initialCartIntent=(values:Partial<CartIntent>={}):CartIntent=>({key:randomUUID(),kind:'add',product:'',variant:'',publication:'',quantity:'1',cart:'',version:'',line:'',generation:'',...values});

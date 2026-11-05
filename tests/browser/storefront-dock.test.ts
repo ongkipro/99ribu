@@ -297,9 +297,9 @@ test("phone product page: the search header gives way to a back / share / cart /
 	}
 });
 
-// Production 2026-11-05: rendering /checkout inside the add action's redirect showed "Sesi belanja perlu diperiksa";
-// with JavaScript the add now returns `navigate` and the client loads /checkout as a full page.
-test("Beli sekarang saves the line and opens a usable checkout page (full page load)", async () => {
+// Production 2026-11-05: "Beli sekarang" showed "Sesi belanja perlu diperiksa" (Next's internal redirect render lost the
+// public Host; fixed in src/proxy.ts, unit-tested in tests/config.test.ts). Locally this guards the journey end to end.
+test("Beli sekarang saves the line and opens a usable checkout page", async () => {
 	const { page, errors, close } = await phone();
 	try {
 		await page.goto(`${origin}/`);

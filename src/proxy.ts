@@ -1,4 +1,5 @@
 import { type NextRequest, NextResponse } from "next/server.js";
+import { requestOrigin } from "./modules/access/http.ts";
 import { CONSOLE_PATH_HEADER } from "./modules/access/return-to.ts";
 
 // S-U1 (redesign plan §4.2): admin page routes moved from English to Indonesian slugs. Every old page path answers
@@ -52,6 +53,16 @@ export function legacyAdminPath(pathname: string): string | null {
 // signed-out production request to /portal?next=<path>. The value is always overwritten here (a client copy
 // never survives) and is still validated as a console path before use. No auth decision is made here.
 export function proxy(request: NextRequest) {
+	// Production 2026-11-05: a fetch Server Action that calls redirect() makes Next render the target page through an
+	// internal fetch to its own listener (app-render/action-handler.js createRedirectRenderResult). Node's fetch drops
+	// the forwarded Host, so requestOrigin() refuses that render and the buyer saw "Sesi belanja perlu diperiksa" right
+	// after "Beli sekarang" (and after any other storefront action redirect). Answering it with a non-RSC response makes
+	// Next send only the redirect; the browser then loads the target itself through the proxy, with the action's cookies.
+	// Outside /admin the matcher only lets RSC requests in (Next strips the `rsc` header before this function sees it).
+	// Every real production request carries the public Host, so this refuses only that internal render.
+	if (process.env.APP_ENV === "production" && requestOrigin(request) === null) return new NextResponse(null, { status: 421 });
+	const { pathname } = request.nextUrl;
+	if (pathname !== "/admin" && !pathname.startsWith("/admin/")) return NextResponse.next();
 	const moved = legacyAdminPath(request.nextUrl.pathname);
 	if (moved) {
 		const url = request.nextUrl.clone();
@@ -66,4 +77,6 @@ export function proxy(request: NextRequest) {
 	return NextResponse.next({ request: { headers } });
 }
 
-export const config = { matcher: ["/admin", "/admin/:path*"] };
+export const config = {
+	matcher: ["/admin", "/admin/:path*", { source: "/((?!_next/|api/).*)", has: [{ type: "header", key: "rsc", value: "1" }] }],
+};

@@ -140,7 +140,7 @@ The web app is one Next.js process on `127.0.0.1:3099`: storefront pages read mo
 │   ├── jobs/                outbox.ts (enqueue), leases.ts (claim/fence), worker.ts (job registry), retention.ts (retention registry), probes.ts
 │   ├── modules/             26 domain modules, see Module map
 │   ├── ops/                 backup.ts (S85 backup sets, retention, restore drill)
-│   ├── proxy.ts             /admin only: forwards the request path, no auth decision
+│   ├── proxy.ts             /admin: legacy 308s + forwards the request path (no auth decision); production RSC requests with a non-public Host (Next's internal action-redirect render) get 421 so the browser loads the redirect target itself
 │   └── storage/             private.ts (artifacts), catalog-media.ts (photos), media-sniff.ts (magic bytes)
 ├── migrations/              0000–0041 SQL + drizzle meta journal/snapshots (immutable once applied)
 ├── scripts/                 run-local, worker, migrate, database, seed, catalog, backup, check-tests, check-health, healthcheck, image-audit
