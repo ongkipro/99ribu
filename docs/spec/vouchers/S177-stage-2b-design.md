@@ -1,6 +1,6 @@
 # S177 stage 2B — store voucher (merchandise discount): design
 
-Status: **design, not built** (2026-11-05), revised after a separate-agent R4 review the same day (verdict "sound with changes"; findings F1–F11 folded in below). Owner decisions 1–9 in `S177.md` apply; this file designs stage 2B and lists the open questions (§8) the owner must answer before build. `TASKS.md` row S177 owns scope; `STATUS.md` owns state. Impact evidence: two read-only sweeps on 2026-11-05 (order money model + DB guards; downstream consumers), summarised in §2.
+Status: **design, not built** (2026-11-05), revised after a separate-agent R4 review the same day (verdict "sound with changes"; findings F1–F11 folded in below). Owner decisions 1–13 in `S177.md` apply (10–13 answer this design's §8 questions; decision 11 changes stacking for store vouchers). `TASKS.md` row S177 owns scope; `STATUS.md` owns state. Impact evidence: two read-only sweeps on 2026-11-05 (order money model + DB guards; downstream consumers), summarised in §2.
 
 ## 1. What the buyer and staff get
 
@@ -46,7 +46,7 @@ Per unit *u*: `price_u` = frozen `order_item.unit_price` (unchanged), `discount_
 10. **Ad Purchase value (F10).** Value = Σ `net_u`. Meta/TikTok need an integer price per content and Σ contents = value, so contents are grouped per (offer, `net_u`) — at most two per line; `content_ids` stays de-duplicated. The same grouping goes into `purchase_signal_payload` and `purchase_receipt_payload`, which `guard_commerce_event` compares with the stored payload.
 11. **Refunds.** A returned or cancelled-after-payment unit refunds `net_u + buyer_shipping_u + payment_charge_u`. Payment fees stay non-refundable (DEC-029). Caps against `economic_receipt.amount` hold because both sides are net.
 12. **Budget and usage.** Reservation and movement rows are reused. `promotion_reservation` gains `discount_amount`; its check becomes `subsidy_amount + discount_amount > 0`, `subsidy_amount ≤ shipping_amount`, `discount_amount ≤ merchandise_amount − units`. New `promotion_line_allocation(reservation_id, promotion_id, line_id, amount)` for merchandise rules; `readPromotionReservation` and the reserved-vs-quote comparison (`orders.ts:121`) include it. `expected_promotion_allocations` (`0012:288`) skips merchandise rules; a merchandise oracle checks line allocations. Unpaid expiry releases; first handover consumes; staff unit cancellation releases the cancelled units' share (`exception_promotion_unit_shares` gains a unit branch over `fulfillment_item.merchandise_discount`; with one voucher per order the interval method reduces to Σ of the cancelled units). A return after delivery does not restore budget or the buyer's use (Q3).
-13. **No stacking (decision 4; F11).** An order carries either one voucher (shipping or merchandise) or the automatic shipping promotions. The checkout compares the final **`amount_due`** of both options (the discount also moves the COD fee and transfer spread) and keeps the lower; otherwise `STACKING_CONFLICT` as in 2A.
+13. **Stacking (decisions 4 and 11; F11).** One code per order. A **store voucher stacks** with the automatic shipping promotions (decision 11): the order carries the merchandise allocation and the automatic shipping allocations together, so a unit may have both `subsidy_amount` and `merchandise_discount` and the reservation holds both kinds. A **shipping voucher** still does not stack (decision 4): the checkout compares the final `amount_due` of the voucher against the automatic promotions and keeps the lower, otherwise `STACKING_CONFLICT`. Minimum-purchase rules of automatic promotions keep reading gross merchandise. Partial cancellation releases each kind by its own unit amounts (shipping by `subsidy_amount` intervals per shipment as today, merchandise by `merchandise_discount`).
 
 ## 4. Promotion configuration and quote document
 
@@ -69,7 +69,7 @@ Per unit *u*: `price_u` = frozen `order_item.unit_price` (unchanged), `discount_
 - **Buyer UI:** checkout summary (voucher row under Produk), payment page, order page charges block, receipt. Item lines keep the frozen price.
 - **Admin UI:** voucher form (jenis, cap rule), approval panel with the margin preview (§6), order detail "Diskon voucher" row.
 - **Contract:** `docs/spec/openapi.yaml` (`target`, `merchandise_discount_total`, `QuoteVoucher.target`), PR-11 samples.
-- **Decisions (F9):** DEC-025 says COD fee base, unit refunds, commissions and Purchase signals use the frozen unit price. Moving them to the net (price minus the frozen voucher share) amends DEC-025 beyond decision 6. Recorded as a `DECISIONS.md` amendment once the owner confirms Q4.
+- **Decisions (F9):** DEC-025 says COD fee base, unit refunds, commissions and Purchase signals use the frozen unit price. Moving them to the net (price minus the frozen voucher share) amends DEC-025 beyond decision 6. Recorded as a DEC-025 amendment in `DECISIONS.md` (owner Q4, 2026-11-05).
 
 ## 6. Margin floor (DEC-025 minimum contribution; F5)
 
@@ -80,16 +80,18 @@ Recommended: the **approval is the owner exception**. The approval panel shows, 
 ## 7. Tests (done-when)
 
 - Unit: allocation sums exactly, ties deterministic, `1 ≤ net_u`, TS ↔ SQL parity on random carts; percentage cap rule; ad content grouping keeps integer prices and exact sums; per-unit commission groups.
-- Integration (`--case=vouchers` grows): apply → quote and order freeze the discount per unit; seal refuses a tampered unit share; COD fee and `cod_due` after discount; manual-bank code spread; prepaid and COD receipts net; return refund = net; recovery refund and exception cancellation caps; commission on net; Purchase value net (Meta/TikTok/Google payloads); partial cancel releases unit shares; expiry releases; handover consumes; last-quota race; stacking choice by `amount_due`; affiliate-attributed order with an approved below-floor voucher; finance summary on a subsidised and a discounted order (closes the PR-19 fixture gap).
+- Integration (`--case=vouchers` grows): apply → quote and order freeze the discount per unit; seal refuses a tampered unit share; COD fee and `cod_due` after discount; manual-bank code spread; prepaid and COD receipts net; return refund = net; recovery refund and exception cancellation caps; commission on net; Purchase value net (Meta/TikTok/Google payloads); partial cancel releases unit shares; expiry releases; handover consumes; last-quota race; shipping-voucher stacking choice by `amount_due`; store voucher stacked with an automatic shipping promotion (unit carries both, partial cancel releases both kinds); affiliate-attributed order with an approved below-floor voucher; finance summary on a subsidised and a discounted order (closes the PR-19 fixture gap).
 - Browser: checkout row at 390/1440, no-JS apply, order page and receipt rows, admin form + approval preview.
 - R4 review by a separate agent on the final surface; deploy only on the owner's word after a backup.
 
 ## 8. Open questions for the owner
 
-- **Q1 Margin floor:** approval = owner exception for both voucher kinds (recommended, §6), or refuse a voucher at checkout when any unit falls below Rp9.900?
-- **Q2 Stacking:** keep decision 4 (one voucher or the automatic shipping promos, buyer gets the lower total; recommended), or allow a store voucher plus automatic free shipping as Shopee does?
-- **Q3 Returns:** a return does not restore budget or the buyer's use (recommended, anti-abuse, same as 2A)?
-- **Q4 Net basis:** refunds, COD amount, affiliate commission and ad Purchase value all use the price after the voucher (recommended; amends DEC-025 wording)?
+Answered by the owner 2026-11-05 (recorded as S177 decisions 10–13):
+
+- **Q1 Margin floor → approval is the owner exception** for both voucher kinds (§6).
+- **Q2 Stacking → a store voucher may stack with the automatic shipping promotions** (Shopee-style; §3.13). A shipping voucher still competes with them.
+- **Q3 Returns → a return does not restore budget or the buyer's use.**
+- **Q4 Net basis → refunds, COD amount, affiliate commission and ad Purchase value use the price after the voucher** (DEC-025 amendment recorded).
 
 ## 9. Order of work
 
