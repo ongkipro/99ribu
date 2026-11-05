@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { promotionShipments, provinceRegion } from "../src/modules/checkout/quotes.ts";
+import { districtRegion, promotionShipments, provinceRegion } from "../src/modules/checkout/quotes.ts";
+import { COURIERS } from "../src/modules/shipping/mengantar.ts";
 import { allocate, type Rule } from "../src/modules/promotions/allocation.ts";
 import type { ShippingPlan } from "../src/modules/shipping/quotes.ts";
 
@@ -34,4 +35,24 @@ test("a province-scoped, courier-scoped promotion applies only inside that provi
 	assert.equal(allocate([rule(["prov-dki-jakarta"])], bandung)[0]?.amount ?? 0, 0);
 	assert.equal(allocate([rule(["prov-dki-jakarta"], ["SiCepat"])], jakarta)[0]?.amount ?? 0, 0, "other courier");
 	assert.equal(allocate([rule(["prov-dki-jakarta"], ["JNE"])], jakarta)[0]?.amount, 5000);
+});
+
+// S177 x Mengantar: a voucher's courier and area filters must use the same keys checkout shipments carry.
+const planFor = (service: string) => ({ destination_id: "mgt-area-1", packages: [{ id: "p1", warehouse_id: "w1", shipping_amount: 9000, selected_option_id: "o1", options: [{ id: "o1", service_id: service }] }] }) as unknown as ShippingPlan;
+const address = { source: "mengantar", province: "DKI JAKARTA", city: "JAKARTA SELATAN", district: "TEBET" };
+
+test("a Mengantar shipment carries its area, province and kecamatan region ids", () => {
+	const [shipment] = promotionShipments(planFor("JNE"), address);
+	assert.deepEqual(shipment.region_ids, ["mgt-area-1", "prov-dki-jakarta", "dist-dki-jakarta--jakarta-selatan--tebet"]);
+	assert.equal(provinceRegion("DKI JAKARTA"), "prov-dki-jakarta");
+	assert.equal(districtRegion("DKI JAKARTA", "JAKARTA SELATAN", "TEBET"), shipment.region_ids[2]);
+	for (const id of shipment.region_ids) assert.match(id, /^[A-Za-z0-9_-]{1,100}$/, "valid promotion region id");
+});
+
+test("the shipment service id is the Mengantar courier key the admin courier filter offers", () => {
+	for (const courier of Object.keys(COURIERS)) assert.equal(promotionShipments(planFor(courier), address)[0].service_id, courier);
+});
+
+test("the test fixture keeps only its destination id (no province or kecamatan ids)", () => {
+	assert.deepEqual(promotionShipments(planFor("regular"), { source: "TEST-ONLY", province: "X", city: "Y", district: "Z" })[0].region_ids, ["mgt-area-1"]);
 });

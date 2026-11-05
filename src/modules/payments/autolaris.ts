@@ -15,6 +15,9 @@ import {openLocalOperation,readProviderEvents,registerProviderEvent,settleLocalO
 // the documented Create Payment / list_payment / advice envelopes (ongkipro/autolaris
 // e61b3cc). Unverified facts stay gated in S97: reff_id replay semantics, the `expired`
 // timezone, the advice status list and the callback contract. No network, no key.
+// AutoLaris create_payment requires customer_email; checkout asks buyers no email (owner 2026-11-05), so every payment
+// carries the store's address the owner chose (2026-11-05). AutoLaris may send payment notices there.
+export const AUTOLARIS_STORE_EMAIL='ongkiardiansyah@gmail.com';
 export type Envelope={rc:string;ket:string;data:unknown};
 export type CreatePaymentBody={reff_id:string;channel_code:string;customer_id:string;customer_name:string;customer_phone:string;customer_email:string;expired:string;amount:string;callback_url:string};
 export type AutolarisClient={listPayment:(signal?:AbortSignal)=>Promise<Envelope>;createPayment:(body:CreatePaymentBody,signal?:AbortSignal)=>Promise<Envelope>;advice:(body:{transaction_id:string},signal?:AbortSignal)=>Promise<Envelope>};
@@ -158,7 +161,7 @@ export async function dispatchAutolarisPayment(sql:Sql,target:'local'|'test',att
   else{
    const contact=l.contact as {phone:string;email:string|null};
    // A timeout or lost response leaves responded_at empty; the reconciliation pass replays the SAME reff_id (gated S97 assumption).
-   const parsed=parseCreatePayment(await client.createPayment({reff_id:l.reff_id,channel_code:l.channel_code,customer_id:l.number,customer_name:String(l.recipient).slice(0,100),customer_phone:contact.phone,customer_email:contact.email??'',
+   const parsed=parseCreatePayment(await client.createPayment({reff_id:l.reff_id,channel_code:l.channel_code,customer_id:l.number,customer_name:String(l.recipient).slice(0,100),customer_phone:contact.phone,customer_email:contact.email||AUTOLARIS_STORE_EMAIL,
     expired:jakarta(new Date(l.expires_at)),amount:String(l.requested_amount),callback_url:`${readLocalConfig(process.env).origin}/api/v1/payments/autolaris/callbacks`},signal));
    if(parsed.rejected)await failOperation(sql,target,attemptId);
    else{

@@ -48,7 +48,7 @@ test("S-V1 nav per role lens: exactly the plan §4.1 items each principal's gran
 				["Beranda", "/admin"],
 				["Pantauan", "/admin/pantauan", ["Pesanan", "Produk", "Stok", "Kendala Pengiriman", "Retur"]],
 				["Keuangan", "/admin/keuangan", ["Laporan Keuangan", "Rekonsiliasi", "Komisi Afiliasi"]],
-				["Pemasaran", "/admin/pemasaran"],
+				["Pemasaran", "/admin/pemasaran", ["Voucher"]],
 				["Pengaturan", "/admin/pengaturan", SETTINGS_ALL],
 			],
 		],
@@ -60,7 +60,7 @@ test("S-V1 nav per role lens: exactly the plan §4.1 items each principal's gran
 				["Beranda", "/admin"],
 				["Pesanan", "/admin/pesanan?tab=perlu_dikirim", ["Semua Pesanan", "Input Resi", "Cetak Label"]],
 				["Produk", "/admin/produk", ["Tambah Produk", "Kategori", "Inventori", "Transfer Stok"]],
-				["Promo", "/admin/promo/ongkir", ["Banner", "Segmen Pembeli"]],
+				["Promo", "/admin/promo/ongkir", ["Voucher", "Banner", "Segmen Pembeli"]],
 				["Toko Online", "/admin/halaman"],
 				["Pengaturan", "/admin/pengaturan"],
 			],
@@ -113,6 +113,8 @@ test("S-V1 nav per role lens: exactly the plan §4.1 items each principal's gran
 				["Pengaturan", "/admin/pengaturan"],
 			],
 		],
+		// S177: marketing proposes vouchers and shipping promotions; it has no dashboard, so no Beranda row.
+		["marketing", ["marketing", ["marketing"], []], [["Pemasaran", "/admin/pemasaran", ["Voucher", "Promo Ongkir"]]]],
 		["signed-out preview", ["owner", [], []], [["Beranda", "/admin"]]],
 	];
 	for (const [name, args, expected] of cases) assert.deepEqual(shape(navFor(...args)), expected, name);
@@ -137,11 +139,13 @@ test("S-V1 every unbuilt page is defined in the nav, hidden, and has no route ye
 });
 
 test("S-V1 every guard-allowed page is reachable from the nav, except the listed deliberate omissions", () => {
-	const lenses = ["owner", "ecommerce_admin", "warehouse", "customer_service", "finance"] as const;
+	const lenses = ["owner", "ecommerce_admin", "marketing", "warehouse", "customer_service", "finance"] as const;
 	// [account, roles, grants, guard-allowed pages deliberately left out of every lens it may open]
 	const cases: [string, string[], string[], string[]][] = [
 		["owner", ["owner"], [], []],
 		["ecommerce_admin", ["ecommerce_admin"], ["orders.history.read"], []],
+		// S177: marketing reaches exactly the Pemasaran hub, Voucher and Promo Ongkir (Beranda redirects to the hub).
+		["marketing", ["marketing"], [], ["/admin"]],
 		// Plan §4.1: the warehouse Produk row opens Inventori; the product list is catalog work.
 		["warehouse", ["warehouse"], [], ["/admin/produk"]],
 		["customer_service", ["customer_service"], ["orders.history.read"], []],
@@ -244,4 +248,12 @@ test("S-V1 list tabs map to filters the APIs accept; old links open the matching
 	assert.equal(catalogTabStatus("x", "x"), "");
 	assert.equal(catalogTabKey("ready"), "siap");
 	assert.equal(catalogTabKey(""), "semua");
+});
+
+test("S177 marketing opens only the Pemasaran hub, Voucher and Promo Ongkir; owner and ecommerce_admin open Voucher", () => {
+	const open = (roles: string[]) => GUARDED_PAGES.filter((path) => canOpen(path, roles, []) && path !== "/admin").sort();
+	assert.deepEqual(open(["marketing"]), ["/admin/pemasaran", "/admin/pemasaran/voucher", "/admin/promo/ongkir"]);
+	assert.ok(canOpen("/admin/pemasaran/voucher", ["owner"], []));
+	assert.ok(canOpen("/admin/pemasaran/voucher", ["ecommerce_admin"], []));
+	for (const role of ["warehouse", "customer_service", "finance"]) assert.equal(canOpen("/admin/pemasaran/voucher", [role], []), false, role);
 });

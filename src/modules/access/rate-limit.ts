@@ -20,6 +20,8 @@ export const LIMITS = {
 	// R4 (S92): checkout quotes/orders per commerce actor (guest context or account); orders hold stock.
 	checkoutQuotePerActor: [60, 60_000],
 	checkoutOrderPerActor: [10, 600_000],
+	// S177: quotes that carry a voucher code, per client address, so shared codes cannot be guessed by rotating guest contexts.
+	voucherCodePerAddress: [20, 600_000],
 	// S95: public destination search (an ILIKE scan of ~80k Mengantar areas) per client address and overall.
 	destinationSearchPerAddress: [30, 60_000],
 	destinationSearchGlobal: [600, 60_000],

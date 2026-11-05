@@ -5205,6 +5205,7 @@ paths:
       x-allowed-roles:
       - owner
       - ecommerce_admin
+      - marketing
       x-proof-group: promotions
       x-implementation: src/app/api/v1/admin/shipping-promotions/route.ts
       parameters:
@@ -5265,6 +5266,7 @@ paths:
       x-allowed-roles:
       - owner
       - ecommerce_admin
+      - marketing
       x-proof-group: promotions
       x-implementation: src/app/api/v1/admin/shipping-promotions/route.ts
       parameters:
@@ -14553,6 +14555,7 @@ paths:
       x-allowed-roles:
       - owner
       - ecommerce_admin
+      - marketing
       x-proof-group: promotions
       x-implementation: src/app/api/v1/admin/shipping-promotions/[promotionId]/route.ts
       parameters:
@@ -14609,6 +14612,7 @@ paths:
       x-allowed-roles:
       - owner
       - ecommerce_admin
+      - marketing
       x-proof-group: promotions
       x-implementation: src/app/api/v1/admin/shipping-promotions/[promotionId]/versions/route.ts
       parameters:
@@ -14676,6 +14680,7 @@ paths:
       x-allowed-roles:
       - owner
       - ecommerce_admin
+      - marketing
       x-proof-group: promotions
       x-implementation: src/app/api/v1/admin/shipping-promotions/[promotionId]/versions/route.ts
       parameters:
@@ -14727,6 +14732,82 @@ paths:
           application/json:
             schema:
               $ref: '#/components/schemas/PromotionInput'
+  /admin/shipping-promotions/{promotionId}/decisions:
+    post:
+      operationId: decideShippingPromotionProposal
+      summary: decideShippingPromotionProposal
+      description: S177. Owner or ecommerce_admin (current cookie/MFA) approves or rejects a marketing proposal. Approve appends the
+        proposed terms as the active version; reject appends them inactive and no longer proposed. Expected version, reason,
+        audit (promotion.approve / promotion.reject) and actor-scoped idempotent retry.
+      tags:
+      - Promotions
+      security:
+      - sessionCookie: []
+      x-contract-status: implemented-local
+      x-domain-owner: promotions
+      x-primary-requirement: PR-11
+      x-allowed-roles:
+      - owner
+      - ecommerce_admin
+      x-proof-group: promotions
+      x-implementation: src/app/api/v1/admin/shipping-promotions/[promotionId]/decisions/route.ts
+      parameters:
+      - name: promotionId
+        in: path
+        required: true
+        schema:
+          $ref: '#/components/schemas/CatalogUuid'
+      - $ref: '#/components/parameters/IdempotencyKey'
+      responses:
+        '201':
+          description: Decision recorded; the new current configuration.
+          headers:
+            Cache-Control:
+              schema:
+                const: no-store
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Promotion'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '409':
+          $ref: '#/components/responses/Conflict'
+        '503':
+          $ref: '#/components/responses/Unavailable'
+        default:
+          description: Safe application Problem; a gateway may return non-Problem failure.
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+      x-request-body-limit-bytes: 16384
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                expected_version:
+                  type: integer
+                  minimum: 1
+                  maximum: 2147483647
+                decision:
+                  type: string
+                  enum: [approve, reject]
+                reason:
+                  type: string
+                  minLength: 1
+                  maxLength: 500
+              required: [expected_version, decision, reason]
+              additionalProperties: false
   /admin/buyer-segments:
     get:
       operationId: getBuyerSegments
@@ -19182,12 +19263,53 @@ components:
           - cod
         contact:
           $ref: '#/components/schemas/CheckoutContact'
+        voucher_code:
+          $ref: '#/components/schemas/VoucherCode'
       required:
       - cart_id
       - address
       - payment_method
       - contact
       additionalProperties: false
+    VoucherCode:
+      type: string
+      minLength: 3
+      maxLength: 40
+      description: S177 voucher code; NFKC, trimmed and upper-cased before matching ^[A-Z0-9][A-Z0-9-]{2,31}$. A malformed code is
+        INVALID_INPUT; a well-formed unknown or inactive one is answered in the quote as refused NOT_FOUND.
+    QuoteVoucher:
+      oneOf:
+      - type: object
+        properties:
+          code:
+            type: string
+          status:
+            const: applied
+          promotion_id:
+            $ref: '#/components/schemas/CatalogUuid'
+          amount:
+            $ref: '#/components/schemas/Money'
+        required: [code, status, promotion_id, amount]
+        additionalProperties: false
+      - type: object
+        properties:
+          code:
+            type: string
+          status:
+            const: refused
+          reason:
+            type: string
+            enum: [NOT_FOUND, NOT_STARTED, EXPIRED, EXHAUSTED, PER_BUYER_LIMIT, MIN_SUBTOTAL, METHOD_NOT_ELIGIBLE, DESTINATION_NOT_ELIGIBLE, SHIPPING_METHOD_NOT_ELIGIBLE, STACKING_CONFLICT]
+          minimum_merchandise:
+            $ref: '#/components/schemas/Money'
+          payment_methods:
+            type: array
+            items:
+              type: string
+              enum: [prepaid, cod]
+        required: [code, status, reason]
+        additionalProperties: false
+      description: S177. Applied = the voucher is the quote's only shipping promotion (no stacking); refused = automatic promotions stay.
     ShippingOption:
       type: object
       properties:
@@ -19364,6 +19486,10 @@ components:
         source:
           type: string
           const: TEST-ONLY
+        voucher:
+          oneOf:
+          - $ref: '#/components/schemas/QuoteVoucher'
+          - type: 'null'
       required:
       - id
       - cart_id
@@ -22359,6 +22485,11 @@ components:
     PromotionInput:
       type: object
       properties:
+        code:
+          oneOf:
+          - $ref: '#/components/schemas/VoucherCode'
+          - type: 'null'
+          description: S177. Set only when the promotion is created (a voucher); null/absent = automatic. Later versions must repeat it or omit it (VOUCHER_CODE_IMMUTABLE); a taken code is VOUCHER_CODE_TAKEN.
         expected_version:
           type: integer
           minimum: 0
@@ -22563,6 +22694,21 @@ components:
           $ref: '#/components/schemas/DateTime'
         currency:
           const: IDR
+        code:
+          type:
+          - string
+          - 'null'
+          pattern: ^[A-Z0-9][A-Z0-9-]{2,31}$
+        proposed:
+          type: boolean
+          description: S177. A marketing proposal (never active) waiting for an owner/ecommerce_admin decision.
+        used_count:
+          type: integer
+          minimum: 0
+          description: Lifetime committed uses (orders) across buyers.
+        has_run:
+          type: boolean
+          description: S177. Some version has been active and started; a voucher's terms stay locked for good.
         budget_state:
           type: object
           properties:
@@ -22607,6 +22753,10 @@ components:
       - recorded_at
       - currency
       - budget_state
+      - code
+      - proposed
+      - used_count
+      - has_run
       additionalProperties: false
       description: Immutable configuration plus observed lifetime campaign counters, not posted expense/cash. History
         keeps old rules; budget_state is current at this read.

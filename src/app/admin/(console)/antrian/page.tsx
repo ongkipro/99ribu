@@ -1,7 +1,8 @@
 import { AdminWorkspacesClient } from "../../../../components/admin/admin-workspaces-client";
 import { consoleAccess } from "../../../../components/admin/console-access";
 import { canReadOrders } from "../../../../components/admin/order-model";
-import { readStaffAccess } from "../staff-roles";
+import { redirect } from "next/navigation";
+import { dashboardRoles, readStaffAccess } from "../staff-roles";
 
 export const dynamic = "force-dynamic";
 export const metadata = {
@@ -17,7 +18,9 @@ export default async function AdminQueuePage({
 }: {
 	searchParams: Promise<{ [key: string]: string | string[] | undefined }>;
 }) {
-	const [{ roles: staffRoles, permissions }, params] = await Promise.all([readStaffAccess(), searchParams]);
+	const [{ roles, permissions }, params] = await Promise.all([readStaffAccess(), searchParams]);
+	const staffRoles = dashboardRoles(roles);
+	if (roles.length > 0 && staffRoles.length === 0) redirect("/admin/pemasaran");
 	const text = (key: string) => (typeof params[key] === "string" ? params[key] : null);
 	const workspace = text("workspace");
 	const warehouseId = text("warehouse_id") ?? "";

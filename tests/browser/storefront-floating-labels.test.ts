@@ -73,8 +73,8 @@ async function close(f:Awaited<ReturnType<typeof start>>){
 // The buyer note lives in a collapsed disclosure inside the order summary (owner 2026-11-05); open both (the summary is
 // itself collapsed on phones) the way a buyer would before typing.
 async function note(page:Page){
- if(!await page.locator('.checkout-note > summary').isVisible())await page.locator('.checkout-summary > details > summary').click();
- if(!await page.locator('.checkout-note').evaluate(el=>(el as HTMLDetailsElement).open))await page.locator('.checkout-note > summary').click();
+ if(!await page.locator('.checkout-note:not(.checkout-voucher) > summary').isVisible())await page.locator('.checkout-summary > details > summary').click();
+ if(!await page.locator('.checkout-note:not(.checkout-voucher)').evaluate(el=>(el as HTMLDetailsElement).open))await page.locator('.checkout-note:not(.checkout-voucher) > summary').click();
  return page.getByLabel('Catatan pengiriman (opsional)',{exact:true});
 }
 // Couriers load by themselves once the address is complete (owner 2026-11-05). Without JavaScript "Cek ongkir" asks for
@@ -178,7 +178,7 @@ for(const javaScriptEnabled of [true,false])test(`server-prefilled values and se
   await expect(f.page.getByLabel('Nama lengkap',{exact:true})).toHaveValue('Penerima Contoh');
   assert.equal(await raised(f.page,'checkout-recipient_name'),true,'a server-prefilled value renders with the label raised (CSS only)');
   assert.equal(await raised(f.page,'checkout-buyer_note'),true,'a prefilled note renders with the label raised');
-  await expect(f.page.locator('.checkout-note')).toHaveAttribute('open','');
+  await expect(f.page.locator('.checkout-note:not(.checkout-voucher)')).toHaveAttribute('open','');
   // No kecamatan yet: the kelurahan field is disabled, so the kecamatan field carries that error (review 2026-11-05).
   for(const id of ['checkout-phone','checkout-query','checkout-address_line']){
    const control=f.page.locator(`#${id}`);await expect(control).toHaveAttribute('aria-invalid','true');
@@ -229,7 +229,7 @@ test('the order summary shows each line with a quantity badge and no "Isi:" line
   await expect(f.page.locator('.checkout-summary .checkout-contents')).toHaveCount(0);await expect(f.page.locator('.checkout-summary')).not.toContainText('Isi per pilihan');
   assert.ok(Number.parseFloat(await line.locator('.checkout-summary-text>span').evaluate(el=>getComputedStyle(el).fontSize))>=Number.parseFloat(cart),'the summary variant line is at least the cart caption size');
   // Buyer note: collapsed by default, after the product lines and before the charges, and still part of the checkout form.
-  const noteBox=f.page.locator('.checkout-summary .checkout-note');await expect(noteBox).not.toHaveAttribute('open',/.*/);await expect(noteBox.locator('summary')).toHaveText('Tambah catatan pengiriman');
+  const noteBox=f.page.locator('.checkout-summary .checkout-note:not(.checkout-voucher)');await expect(noteBox).not.toHaveAttribute('open',/.*/);await expect(noteBox.locator('summary')).toHaveText('Tambah catatan pengiriman');
   assert.ok(await noteBox.evaluate(el=>{const lines=document.querySelector('.checkout-summary-lines'),charges=document.querySelector('.checkout-summary .checkout-charges');return Boolean(lines&&charges&&lines.compareDocumentPosition(el)&Node.DOCUMENT_POSITION_FOLLOWING&&el.compareDocumentPosition(charges)&Node.DOCUMENT_POSITION_FOLLOWING);}),'the note sits between the lines and the charges');
   await expect(f.page.locator('#checkout-buyer_note')).toHaveAttribute('form','checkout-form');
   await noteBox.locator('summary').click();await expect(f.page.locator('#checkout-buyer_note')).toBeVisible();

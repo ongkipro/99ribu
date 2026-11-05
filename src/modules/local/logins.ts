@@ -19,12 +19,14 @@ export const LOCAL_ACCOUNTS: readonly { email: string; name: string; role: Role;
   { email: "ecommerce@99ribu.test", name: "Admin E-Commerce", role: "ecommerce_admin", password: LOCAL_DUMMY_PASSWORD, permissions: ["orders.history.read", ...labels, ...exportsAll], landing: "/admin" },
   { email: "gudang@99ribu.test", name: "Staf Gudang", role: "warehouse", password: LOCAL_DUMMY_PASSWORD, permissions: [...labels, ...exportsAll], landing: "/admin" },
   { email: "cs@99ribu.test", name: "Layanan Pelanggan", role: "customer_service", password: LOCAL_DUMMY_PASSWORD, permissions: ["orders.history.read"], landing: "/admin" },
+  // S177: marketing proposes promotions and vouchers; owner@ or ecommerce@ approves them.
+  { email: "marketing@99ribu.test", name: "Marketing", role: "marketing", password: LOCAL_DUMMY_PASSWORD, permissions: [], landing: "/admin/pemasaran" },
   { email: "keuangan@99ribu.test", name: "Keuangan", role: "finance", password: LOCAL_DUMMY_PASSWORD, permissions: [...finance, "orders.history.read", ...exportsAll], landing: "/admin" },
   { email: "pembeli@99ribu.test", name: "Pembeli Satu", role: "buyer", password: LOCAL_DUMMY_PASSWORD, permissions: [], landing: "/akun" },
   { email: "pembeli2@99ribu.test", name: "Pembeli Dua", role: "buyer", password: LOCAL_DUMMY_PASSWORD, permissions: [], landing: "/akun" },
   { email: "afiliasi@99ribu.test", name: "Mitra Afiliasi", role: "affiliate", password: LOCAL_DUMMY_PASSWORD, permissions: [], landing: "/akun" },
 ];
-const STAFF = new Set<Role>(["owner", "ecommerce_admin", "warehouse", "customer_service", "finance"]);
+const STAFF = new Set<Role>(["owner", "ecommerce_admin", "marketing", "warehouse", "customer_service", "finance"]);
 // Membership-scoped staff (S91 manual queue, pickup profile) share the catalog origin warehouses. S109: cs@ too,
 // since order history/search and return review only show orders whose every parcel is in the reader's warehouses.
 const SCOPED = new Set<Role>(["ecommerce_admin", "warehouse", "customer_service"]);

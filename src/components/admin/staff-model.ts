@@ -9,6 +9,7 @@ export const GRANTABLE_ROLES: readonly string[] = staffRoles;
 
 export const ROLE_HINT: Record<string, string> = {
 	ecommerce_admin: "Katalog, stok, promosi, dan pesanan di gudang yang dipilih.",
+	marketing: "Membuat usulan promo ongkir dan voucher. Usulan berjalan setelah disetujui Admin E-Commerce atau Super Admin.",
 	warehouse: "Pengiriman dan stok di gudang yang dipilih. Gudang wajib dipilih.",
 	customer_service: "Pesanan, retur, dan obrolan pembeli.",
 	finance: "Pembayaran dan keuangan. Izin keuangan dipilih di bawah.",

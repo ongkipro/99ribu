@@ -42,9 +42,16 @@ const FAMILIES: readonly (readonly [string, string])[] = [
 	["support.", "Layanan pelanggan"],
 	["advertising.", "Iklan"],
 	["home_banner.", "Banner beranda"],
+	["promotion.", "Promo ongkir dan voucher"],
 	["audit.", "Pembacaan log audit"],
 	["local.", "Pemulihan otomatis"],
 ];
+// Exact action -> label, ahead of its family label (S177: marketing proposals and their decisions).
+const ACTIONS: Readonly<Record<string, string>> = {
+	"promotion.configure": "Promo atau voucher diatur",
+	"promotion.approve": "Usulan promo atau voucher disetujui",
+	"promotion.reject": "Usulan promo atau voucher ditolak",
+};
 const MONEY_FAMILIES = [
 	"finance.",
 	"payout.",
@@ -316,7 +323,8 @@ export function AuditLogClient({ scope }: { scope: AuditScope }) {
 							cell: (row) => (
 								<span className="flex min-w-0 flex-col">
 									<span className="font-medium">
-										{FAMILIES.find(([prefix]) => row.action.startsWith(prefix))?.[1] ??
+										{ACTIONS[row.action] ??
+											FAMILIES.find(([prefix]) => row.action.startsWith(prefix))?.[1] ??
 											"Tindakan lain"}
 									</span>
 									<span className="font-mono text-xs font-normal break-all text-muted-foreground">

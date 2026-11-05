@@ -3,8 +3,7 @@ import { cookies, headers } from "next/headers";
 import { redirect } from "next/navigation";
 import "./admin.css";
 import { AdminShell } from "../../../components/admin/admin-shell";
-import { LENS_COOKIE } from "../../../components/admin/admin-nav";
-import type { CanonicalWorkspace } from "../../../components/admin/admin-workspaces-client";
+import { type ConsoleLens, LENS_COOKIE } from "../../../components/admin/admin-nav";
 import { readRuntimeConfig } from "../../../config/runtime";
 import { getLocalAuth } from "../../../modules/access/auth";
 import {
@@ -17,7 +16,7 @@ import { readStaffAccess } from "./staff-roles";
 // bars and page gutters (admin.css).
 export const viewport: Viewport = { viewportFit: "cover" };
 
-const ALL_WORKSPACES: CanonicalWorkspace[] = [
+const ALL_WORKSPACES: ConsoleLens[] = [
 	"owner",
 	"ecommerce_admin",
 	"warehouse",
@@ -47,11 +46,12 @@ export default async function AdminConsoleLayout({
 	);
 	if (signIn) redirect(signIn);
 	const [{ roles, permissions }, jar] = await Promise.all([readStaffAccess(), cookies()]);
-	// Owner and the signed-out local preview see every workspace (unchanged S08 behavior).
+	// Owner and the signed-out local preview see every workspace (unchanged S08 behavior). The marketing lens
+	// (S177) is only for accounts holding that role; the owner reaches the same pages under Pemasaran.
 	const workspaces =
 		roles.length === 0 || roles.includes("owner")
 			? ALL_WORKSPACES
-			: ALL_WORKSPACES.filter((ws) => roles.includes(ws));
+			: [...ALL_WORKSPACES, "marketing" as const].filter((ws) => roles.includes(ws));
 	return (
 		<div className="admin-app">
 			<AdminShell

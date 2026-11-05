@@ -22,6 +22,13 @@ const CODE_MESSAGES: Record<string, string> = {
 	INVALID_WAREHOUSE_SCOPE: "Gudang tidak aktif atau di luar cakupan Anda.",
 	BUDGET_ENCUMBERED: "Anggaran tidak boleh lebih kecil dari yang sudah terpakai atau dipesan.",
 	PROMOTION_ALREADY_ENDED: "Promo aktif harus berakhir di masa depan.",
+	VOUCHER_CODE_TAKEN: "Kode sudah dipakai voucher lain.",
+	VOUCHER_CODE_IMMUTABLE: "Kode voucher tidak bisa diubah setelah dibuat.",
+	VOUCHER_TERMS_LOCKED: "Voucher yang pernah berjalan hanya bisa diperpanjang, ditambah anggarannya, atau diakhiri; syarat potongannya tetap.",
+	PROMOTION_APPROVAL_REQUIRED:
+		"Marketing hanya mengirim usulan. Promo atau voucher yang aktif diubah oleh Super Admin atau Admin E-Commerce.",
+	PROPOSAL_REQUIRED: "Versi terbaru bukan usulan lagi. Muat ulang daftar lalu periksa statusnya.",
+	PROPOSAL_INCOMPLETE: "Usulan belum lengkap: potongan, potongan maksimum dan anggaran harus lebih dari nol. Ubah usulan dulu.",
 	CATALOG_IDENTITY_CONFLICT: "Data katalog bentrok dengan data yang sudah ada.",
 	COMPONENT_NAME_MISMATCH: "Nama isi paket tidak sama dengan nama SKU-nya.",
 	PRODUCT_PHOTO_TOO_SMALL: "Foto terlalu kecil; sisi terpendek minimal 300 px.",

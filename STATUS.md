@@ -14,12 +14,13 @@ Previous-Claim: `READY_FOR_LOCAL_ACCEPTANCE` / "100% local production readiness"
 **Owner decisions open (short):**
 1. **Product descriptions: done in production 2026-11-05** (owner approved). Off-host backup `20261105T025545Z` + local dump; owner ran the apply in the owner MFA session: 570 PATCHED, 452 REPUBLISHED, 1 CHANGED_SINCE_BACKUP (#353 SR12 Gomilku, staff-edited in production, left as is). Read-back 570/570 new text; edge cache purged; 5/5 sampled live PDPs show the new text. Log `/data/99ribu-local/product-descriptions/apply-production-20261105T0312Z.log.jsonl`. The dataset carries the rewrites (`src/modules/local/berlapak-descriptions.json`), so a later import keeps them.
 2. **Flagged products (#295, #476, #489, #545, #458, #571, misleading names):** owner 2026-11-05: leave as listed (Berlapak products); no action.
-3. **Vouchers (S177):** the eight decisions in `docs/spec/vouchers/S177.md`; recommendations given 2026-11-05 (shipping discount first, prepaid by default, store bears cost, no stacking/best-for-buyer, one per order, WhatsApp identity, commission after discount, shared codes first); awaiting the owner's yes.
-4. **AutoLaris live (S97):** API key, egress IP, settled advice shape, and a store email (owner picks the address) for the required `customer_email` (checkout no longer asks buyers for email).
+3. **Vouchers (S177):** decided 2026-11-05 from market research (`docs/spec/vouchers/S177.md`, `market-research-2026-11.md`). **Stage 2A (shipping voucher) complete locally:** migration `0050` (voucher code, proposal flag, role `marketing`), marketing proposes and owner/ecommerce_admin approve or reject, `/admin/pemasaran/voucher` with kecamatan picker, checkout "Punya kode voucher?" with reasons, rate limit, no stacking, last-quota race proven; demo login `marketing@99ribu.test`. Two separate-agent reviews: nothing blocking, all should-fix items fixed. Checks: BUILD-LOG top entry. Owner 2026-11-05: deploy after review; then stage 2B (store voucher on the product subtotal).
+5b. **Checkout couriers:** the first enabled non-COD payment method is preselected (`defaultPaymentMethod`), so couriers load as soon as the address and kelurahan are complete (owner 2026-11-05).
+4. **AutoLaris live (S97):** API key, egress IP, settled advice shape. Store email decided (owner 2026-11-05): `AUTOLARIS_STORE_EMAIL` in `src/modules/payments/autolaris.ts` fills the required `customer_email` (checkout asks buyers no email); `--case=autolaris-payments` 14/14.
 5. **Before switching COD to store-borne in production:** integration check that the store's COD cost is booked at remittance.
 6. **`.env.example`, Mengantar booking/tracking (S94/S98), province exclusion (S170), wave 4 leftovers:** unchanged from 2026-11-04.
 
-Next action: owner confirms the S177 voucher recommendations and names the AutoLaris store email. Production carries the refreshed area catalogue and all 79 warehouses are mapped.
+Next action: deploy S177 stage 2A (owner 2026-11-05 "jika sudah review dan deploy"; off-host backup first, migration 0050), then stage 2B store voucher. Production carries the refreshed area catalogue and all 79 warehouses are mapped.
 
 ## Previous — 2026-11-04
 

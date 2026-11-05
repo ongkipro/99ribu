@@ -3,8 +3,7 @@
 import { usePathname, useSearchParams } from "next/navigation";
 import { type ReactNode, useEffect, useMemo, useState } from "react";
 import { TooltipProvider } from "@/components/ui/tooltip";
-import { activeHref, LENS_COOKIE, type NavBadgeKey, type NavCounts, navFor } from "./admin-nav";
-import type { CanonicalWorkspace } from "./admin-workspaces-client";
+import { activeHref, type ConsoleLens, LENS_COOKIE, type NavBadgeKey, type NavCounts, navFor } from "./admin-nav";
 import { NavLinks } from "./nav-links";
 import { Brand, type ConsoleAccount, Topbar } from "./topbar";
 
@@ -35,7 +34,7 @@ function useTablet() {
  * Live nav counts for the lens, from the role-scoped dashboard API (hidden at zero, silent on
  * failure). Refetched on every navigation so a claimed chat does not leave a stale badge.
  */
-function useNavCounts(lens: CanonicalWorkspace, keys: NavBadgeKey[], signedIn: boolean, pathname: string) {
+function useNavCounts(lens: ConsoleLens, keys: NavBadgeKey[], signedIn: boolean, pathname: string) {
 	const [counts, setCounts] = useState<NavCounts>({});
 	const wanted = keys.join(",");
 	// biome-ignore lint/correctness/useExhaustiveDependencies: pathname only triggers the refetch
@@ -69,8 +68,8 @@ function Shell({
 	storedLens,
 	children,
 }: {
-	workspaces: CanonicalWorkspace[];
-	roles: CanonicalWorkspace[];
+	workspaces: ConsoleLens[];
+	roles: ConsoleLens[];
 	permissions: string[];
 	account: ConsoleAccount;
 	storedLens: string | null;
@@ -81,10 +80,11 @@ function Shell({
 	// params are known on the server. No Suspense here: its fallback would render the whole page a second time.
 	const search = useSearchParams();
 	const valid = (ws: string | null | undefined) => workspaces.find((w) => w === ws) ?? null;
-	// The home and the full queue page carry the lens in `?workspace=`; elsewhere the last one holds.
-	const requested = pathname === "/admin" || pathname === "/admin/antrian" ? valid(search.get("workspace")) : null;
+	// The home, the full queue page and the Pemasaran hub (marketing lens, S177) carry the lens in `?workspace=`;
+	// elsewhere the last one holds.
+	const requested = ["/admin", "/admin/antrian", "/admin/pemasaran"].includes(pathname) ? valid(search.get("workspace")) : null;
 	const [remembered, setRemembered] = useState(() => valid(storedLens));
-	const lens: CanonicalWorkspace = requested ?? remembered ?? roles[0] ?? workspaces[0] ?? "owner";
+	const lens: ConsoleLens = requested ?? remembered ?? roles[0] ?? workspaces[0] ?? "owner";
 	useEffect(() => {
 		if (!requested || requested === remembered) return;
 		setRemembered(requested);
@@ -150,8 +150,8 @@ function Shell({
 }
 
 export function AdminShell(props: {
-	workspaces: CanonicalWorkspace[];
-	roles: CanonicalWorkspace[];
+	workspaces: ConsoleLens[];
+	roles: ConsoleLens[];
 	permissions: string[];
 	account: ConsoleAccount;
 	/** Last lens from the `admin_lens` cookie (validated against `workspaces` here). */

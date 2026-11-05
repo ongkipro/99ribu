@@ -351,6 +351,13 @@
       "when": 1793785779004,
       "tag": "0049_autolaris_fee_mismatch",
       "breakpoints": true
+    },
+    {
+      "idx": 50,
+      "version": "7",
+      "when": 1793849850474,
+      "tag": "0050_voucher_code_marketing",
+      "breakpoints": true
     }
   ]
 }

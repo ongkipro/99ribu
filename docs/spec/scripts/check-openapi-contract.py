@@ -621,7 +621,10 @@ check('spent_amount' not in spec['components']['schemas']['Promotion']['properti
 for path in ['/admin/shipping-promotions', '/admin/shipping-promotions/{promotionId}', '/admin/shipping-promotions/{promotionId}/versions']:
     for operation in spec['paths'][path].values():
         check(operation['x-proof-group'] == 'promotions' and operation['x-contract-status'] == 'implemented-local', 'promotion wire proof is explicit')
-        check(operation['x-allowed-roles'] == ['owner', 'ecommerce_admin'], 'company promotion delegation is explicit')
+        # S177: marketing proposes (inactive versions only); owner/ecommerce_admin decide.
+        check(operation['x-allowed-roles'] == ['owner', 'ecommerce_admin', 'marketing'], 'company promotion delegation is explicit')
+for operation in spec['paths']['/admin/shipping-promotions/{promotionId}/decisions'].values():
+    check(operation['x-allowed-roles'] == ['owner', 'ecommerce_admin'], 'only owner/admin decide promotion proposals')
 
 # S30's five candidate finance operations share closed source/matching contracts.
 settlement_id = '00000000-0000-0000-0000-000000000001'

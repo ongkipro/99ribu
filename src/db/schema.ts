@@ -51,7 +51,7 @@ export const roleGrant = appSchema.table("role_grant", {
   permissions: text("permissions").array().notNull().default(sql`ARRAY[]::text[]`),
   revision: integer("revision").notNull().default(1),
 }, (table) => [
-  check("role_grant_roles_check", sql`${table.roles} <@ ARRAY['owner','ecommerce_admin','warehouse','customer_service','finance','buyer','affiliate']::text[] AND array_position(${table.roles}, NULL) IS NULL`),
+  check("role_grant_roles_check", sql`${table.roles} <@ ARRAY['owner','ecommerce_admin','marketing','warehouse','customer_service','finance','buyer','affiliate']::text[] AND array_position(${table.roles}, NULL) IS NULL`),
   check("role_grant_revision_check", sql`${table.revision} > 0`),
   check("role_grant_finance_check", sql`NOT (${table.permissions} && ARRAY['finance.summary.read','finance.costs.read','finance.costs.write','finance.reconciliation.read','finance.reconciliation.write','finance.refunds.read','finance.refunds.write']::text[]) OR ${table.roles} && ARRAY['owner','finance']::text[]`),
 ]);
@@ -418,7 +418,11 @@ export const promotion = appSchema.table("promotion",{
   id:uuid("id").primaryKey().defaultRandom(),configurationRevision:integer("configuration_revision").notNull().default(0),
   budgetRevision:integer("budget_revision").notNull().default(0),reservedAmount:bigint("reserved_amount",{mode:"number"}).notNull().default(0),
   committedAmount:bigint("committed_amount",{mode:"number"}).notNull().default(0),createdAt:instant("created_at").notNull().default(sql`clock_timestamp()`),
+  // S177: a voucher is a promotion with a code (set at creation, immutable); without one it applies automatically.
+  code:text("code"),
 },(t)=>[
+  uniqueIndex("promotion_code_unique").on(t.code),
+  check("promotion_code_check",sql`${t.code} IS NULL OR ${t.code} ~ '^[A-Z0-9][A-Z0-9-]{2,31}$'`),
   check("promotion_revisions_check",sql`${t.configurationRevision}>=0 AND ${t.budgetRevision}>=0`),
   check("promotion_money_check",sql`${t.reservedAmount}>=0 AND ${t.committedAmount}>=0 AND ${t.reservedAmount}::numeric+${t.committedAmount}::numeric<=9007199254740991`),
 ]);
@@ -430,7 +434,10 @@ export const promotionVersion = appSchema.table("promotion_version",{
   regionIds:text("region_ids").array().notNull().default(sql`ARRAY[]::text[]`),serviceIds:text("service_ids").array().notNull().default(sql`ARRAY[]::text[]`),
   stacking:text("stacking").notNull(),priority:integer("priority").notNull().default(0),actorId:text("actor_id").notNull(),reason:text("reason").notNull(),
   createdAt:instant("created_at").notNull().default(sql`clock_timestamp()`),
+  // S177: a marketing proposal (never active) waiting for an owner/admin decision.
+  proposed:boolean("proposed").notNull().default(false),
 },(t)=>[
+  check("promotion_version_proposal_check",sql`NOT (${t.proposed} AND ${t.active})`),
   unique("promotion_version_unique").on(t.promotionId,t.revision),unique("promotion_version_identity_unique").on(t.id,t.promotionId),
   check("promotion_version_metadata_check",sql`${t.revision}>0 AND char_length(${t.name}) between 1 and 200 AND char_length(${t.reason}) between 1 and 500 AND ${t.startsAt}<${t.endsAt}`),
   check("promotion_version_money_check",sql`${t.value} between 0 and 9007199254740991 AND ${t.maximumPerOrder} between 0 and 9007199254740991 AND ${t.minimumMerchandise} between 0 and 9007199254740991 AND ${t.budget} between 0 and 9007199254740991`),

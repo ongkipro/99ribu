@@ -49,11 +49,12 @@ test("login sets each role's dummy password and enrolls TOTP for staff only", as
 	accounts = JSON.parse(result.stdout).accounts;
 	assert.deepEqual(accounts.map((account) => account.email), LOCAL_ACCOUNTS.map((account) => account.email));
 	for (const account of accounts) {
-		assert.equal(account.mfa, account.landing === "/admin", account.email);
+		// Staff land in the console (marketing on its /admin/pemasaran hub, S177); only staff enrol TOTP.
+		assert.equal(account.mfa, account.landing.startsWith("/admin"), account.email);
 		assert.equal(Boolean(account.totp_uri), account.mfa, account.email);
 	}
 	const codes = JSON.parse((await cli(["login-codes", "local"])).stdout);
-	assert.equal(codes.codes.length, 5);
+	assert.equal(codes.codes.length, LOCAL_ACCOUNTS.filter((account) => account.landing.startsWith("/admin")).length);
 });
 
 test("prune dry run reports without deleting and never lists the local accounts", async () => {
@@ -62,7 +63,7 @@ test("prune dry run reports without deleting and never lists the local accounts"
 	const report = JSON.parse(result.stdout);
 	assert.equal(report.applied, false);
 	assert.ok(!result.stdout.includes("99ribu.test"));
-	assert.equal(JSON.parse((await cli(["login-codes", "local"])).stdout).codes.length, 5);
+	assert.equal(JSON.parse((await cli(["login-codes", "local"])).stdout).codes.length, LOCAL_ACCOUNTS.filter((account) => account.landing.startsWith("/admin")).length);
 });
 
 test("staff signs in through /portal (sign-in only, no sign-up, no shop link) with the TOTP step and lands on /admin", async () => {

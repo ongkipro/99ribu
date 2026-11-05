@@ -21,6 +21,7 @@ import {
 	ScrollText,
 	Settings,
 	Store,
+	Ticket,
 	TicketPercent,
 	UserCog,
 	UsersRound,
@@ -65,6 +66,12 @@ export type NavItem = {
 export type NavSection = { label?: string; items: NavItem[] };
 
 /**
+ * A nav lens: the dashboard workspaces plus `marketing` (S177), which has no work-queue dashboard and
+ * lands on the Pemasaran hub instead of Beranda.
+ */
+export type ConsoleLens = CanonicalWorkspace | "marketing";
+
+/**
  * The built flag list: pages defined in the nav whose route does not exist yet. A row that opens
  * onto nothing is not shown (tokophi IA rule). The slice that builds a page deletes its line here.
  */
@@ -80,7 +87,7 @@ export const UNBUILT_PAGES: ReadonlySet<string> = new Set([
 const HOME: NavItem = { label: "Beranda", href: "/admin", icon: House };
 
 /** Plan §4.1, one tree per role lens. Parent rows link to their main page; the chevron opens the children. */
-export const NAV_BY_LENS: Record<CanonicalWorkspace, NavSection[]> = {
+export const NAV_BY_LENS: Record<ConsoleLens, NavSection[]> = {
 	// Monitor, approver, governor (not an operator). Until S-O1 merges, "Pantauan" keeps the existing
 	// operational pages as transition links (plan §4.1 "Transition (for S-V1)").
 	owner: [
@@ -114,7 +121,12 @@ export const NAV_BY_LENS: Record<CanonicalWorkspace, NavSection[]> = {
 					],
 				},
 				{ label: "Analitik", href: "/admin/analitik", icon: ChartColumn },
-				{ label: "Pemasaran", href: "/admin/pemasaran", icon: Megaphone },
+				{
+					label: "Pemasaran",
+					href: "/admin/pemasaran",
+					icon: Megaphone,
+					children: [{ label: "Voucher", href: "/admin/pemasaran/voucher" }],
+				},
 				{
 					label: "Pengaturan",
 					href: "/admin/pengaturan",
@@ -166,6 +178,7 @@ export const NAV_BY_LENS: Record<CanonicalWorkspace, NavSection[]> = {
 					href: "/admin/promo/ongkir",
 					icon: TicketPercent,
 					children: [
+						{ label: "Voucher", href: "/admin/pemasaran/voucher" },
 						{ label: "Banner", href: "/admin/banner" },
 						{ label: "Segmen Pembeli", href: "/admin/pelanggan/segmen" },
 					],
@@ -221,6 +234,22 @@ export const NAV_BY_LENS: Record<CanonicalWorkspace, NavSection[]> = {
 			],
 		},
 	],
+	// S177: proposes vouchers and shipping promotions only; no work-queue dashboard, so no Beranda row.
+	marketing: [
+		{
+			items: [
+				{
+					label: "Pemasaran",
+					href: "/admin/pemasaran",
+					icon: Megaphone,
+					children: [
+						{ label: "Voucher", href: "/admin/pemasaran/voucher" },
+						{ label: "Promo Ongkir", href: "/admin/promo/ongkir" },
+					],
+				},
+			],
+		},
+	],
 	finance: [
 		{
 			items: [
@@ -250,6 +279,7 @@ export type HubCard = { href: string; label: string; description: string; icon: 
 
 /** Pemasaran hub (`/admin/pemasaran`): one card per marketing page; each shows only when its own guard opens it. */
 export const MARKETING_CARDS: HubCard[] = [
+	{ href: "/admin/pemasaran/voucher", label: "Voucher", icon: Ticket, description: "Kode potongan ongkir yang diketik pembeli saat checkout. Usulan Marketing berjalan setelah disetujui." },
 	{ href: "/admin/promo/ongkir", label: "Promo Ongkir", icon: TicketPercent, description: "Subsidi ongkir yang dipotong saat pembeli membayar. Setiap perubahan disimpan sebagai versi baru." },
 	{ href: "/admin/banner", label: "Banner Beranda", icon: Store, description: "Gambar, teks dan tujuan kartu di beranda toko, dengan jadwal tayang dalam WIB." },
 	{ href: "/admin/pelanggan/segmen", label: "Segmen Pembeli", icon: UsersRound, description: "Jumlah pembeli per bulan lahir, kategori favorit dan persetujuan promo. Hanya angka." },
@@ -310,7 +340,9 @@ const PAGE_RULES: Record<string, Rule> = {
 	"/admin/produk/inventori": (r, p) => consoleAccess(r, p).inventory,
 	"/admin/produk/inventori/transfer": (r, p) => consoleAccess(r, p).inventory,
 	"/admin/produk/gudang": (r, p) => consoleAccess(r, p).inventory,
+	// Promotions API (promotionAuthority): owner and ecommerce_admin decide, marketing proposes.
 	"/admin/promo/ongkir": (r, p) => consoleAccess(r, p).shippingPromo,
+	"/admin/pemasaran/voucher": (r, p) => consoleAccess(r, p).shippingPromo,
 	"/admin/banner": (r, p) => consoleAccess(r, p).banners,
 	// handleStaticPages: owner and ecommerce_admin.
 	"/admin/halaman": any("owner", "ecommerce_admin"),
@@ -335,8 +367,9 @@ const PAGE_RULES: Record<string, Rule> = {
 // The settings index opens when at least one of its cards does.
 PAGE_RULES["/admin/pengaturan"] = (r, p) =>
 	SETTINGS_CARDS.some((card) => PAGE_RULES[card.href]?.(r, p) ?? false);
-// The hubs carry a nav row only in the owner lens (plan §4.1); other roles reach the same pages from their own rows.
-PAGE_RULES["/admin/pemasaran"] = any("owner");
+// The hubs carry a nav row only in the owner and marketing lenses (plan §4.1, S177); other roles reach the same
+// pages from their own rows.
+PAGE_RULES["/admin/pemasaran"] = any("owner", "marketing");
 PAGE_RULES["/admin/pantauan"] = any("owner");
 /** Every list page with a nav rule (the nav-model test checks which of them each role reaches). */
 export const GUARDED_PAGES: readonly string[] = Object.keys(PAGE_RULES);
@@ -356,7 +389,7 @@ export function canOpen(href: string, roles: readonly string[], permissions: rea
  * pages such as Log Audit (finance) or Balasan CS stay reachable.
  */
 export function navFor(
-	lens: CanonicalWorkspace,
+	lens: ConsoleLens,
 	roles: readonly string[],
 	permissions: readonly string[],
 ): NavSection[] {

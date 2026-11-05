@@ -17,8 +17,10 @@ export type ConsoleAccess = {
 	support: boolean;
 	/** Stok Gudang and Transfer Stok pages (inventory page guard). */
 	inventory: boolean;
-	/** Promo Ongkir page (promotions/shipping page guard). */
+	/** Promo Ongkir and Voucher pages (promotionAuthority): read and write, marketing as proposals. */
 	shippingPromo: boolean;
+	/** Approve or reject a marketing proposal and write running promotions (S177): owner and ecommerce_admin. */
+	promotionDecide: boolean;
 	/** Banner Beranda page (banners page guard). */
 	banners: boolean;
 };
@@ -41,7 +43,8 @@ export function consoleAccess(
 		print: owner || any("warehouse", "ecommerce_admin"),
 		support: owner || roles.includes("customer_service"),
 		inventory: owner || any("ecommerce_admin", "warehouse"),
-		shippingPromo: owner || roles.includes("ecommerce_admin"),
+		shippingPromo: owner || any("ecommerce_admin", "marketing"),
+		promotionDecide: owner || roles.includes("ecommerce_admin"),
 		banners: owner || roles.includes("ecommerce_admin"),
 	};
 }

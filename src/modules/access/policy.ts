@@ -1,8 +1,8 @@
 import type { LocalAuth } from "./auth.ts";
 
-export const roles = ["owner", "ecommerce_admin", "warehouse", "customer_service", "finance", "buyer", "affiliate"] as const;
+export const roles = ["owner", "ecommerce_admin", "marketing", "warehouse", "customer_service", "finance", "buyer", "affiliate"] as const;
 /** Roles the staff-grant endpoint may assign. `owner` is bootstrap-only: it is never granted here, only removed. */
-export const staffRoles = ["ecommerce_admin", "warehouse", "customer_service", "finance"] as const;
+export const staffRoles = ["ecommerce_admin", "marketing", "warehouse", "customer_service", "finance"] as const;
 export type Role = typeof roles[number];
 export const permissions = ["orders.history.read", "finance.summary.read", "finance.costs.read", "finance.costs.write", "finance.reconciliation.read", "finance.reconciliation.write", "finance.refunds.read", "finance.refunds.write", "exports.read", "exports.download", "shipping.labels.read", "shipping.labels.generate", "shipping.labels.print"] as const;
 export type Permission = typeof permissions[number];

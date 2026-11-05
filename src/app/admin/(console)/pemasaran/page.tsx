@@ -18,13 +18,13 @@ export default async function MarketingIndexPage() {
 	if (cards.length === 0)
 		return (
 			<AccessDenied title="Pemasaran" heading="Tidak ada halaman pemasaran untuk peran Anda">
-				Promo ongkir, banner, segmen pembeli, afiliasi dan integrasi iklan dikelola Super Admin dan Admin
-				E-Commerce. Verifikasi dua langkah (MFA) harus aktif.
+				Voucher, promo ongkir, banner, segmen pembeli, afiliasi dan integrasi iklan dikelola Super Admin, Admin
+				E-Commerce dan Marketing. Verifikasi dua langkah (MFA) harus aktif.
 			</AccessDenied>
 		);
 	return (
 		<AdminPage testId="marketing-index">
-			<PageHeader title="Pemasaran" description="Promo, banner beranda, segmen pembeli, afiliasi dan iklan." />
+			<PageHeader title="Pemasaran" description="Voucher, promo ongkir, banner beranda, segmen pembeli, afiliasi dan iklan." />
 			<HubCards cards={cards} label="Daftar halaman pemasaran" />
 		</AdminPage>
 	);

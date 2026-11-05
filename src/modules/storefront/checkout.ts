@@ -7,6 +7,7 @@ import {id,invalid} from '../catalog/validation.ts';
 import {commerceActor,cookie,prefix} from '../checkout/access.ts';
 import {expectedCartVersion,mutationKey} from '../checkout/carts.ts';
 import type {projectOrder} from '../checkout/orders.ts';
+import {voucherCode} from '../promotions/configuration.ts';
 import {normalizeContact,ownedQuote,type projectQuote,type QuoteDocument} from '../checkout/quotes.ts';
 import {handleCheckout} from '../checkout/routes.ts';
 import {channelEnabled,offeredChannels,paymentTerms,type PaymentTerms} from '../payments/methods.ts';
@@ -22,19 +23,23 @@ export type CheckoutQuote=ReturnType<typeof projectQuote>;
 export type CheckoutOrder=Awaited<ReturnType<typeof projectOrder>>;
 export type Destination=ShippingDestination;
 export type CheckoutAllocation={id:string;shipping_total:number;packages:{id:string;origin_city:string;items:{name:string;variant:string;quantity:number;contents:string[]}[];service:string;service_name:string;alternatives:string[];shipping_amount:number}[];equivalent_count:number};
-export type CheckoutIntent={kind:'quote'|'shipping'|'order';key:string;cart:string;version:string;quote:string;allocation_id:string;query:string;draft:CheckoutDraft;packages:{package_id:string;shipping_option_id:string}[];navigate:string;draft_writer:string;draft_sequence:string;draft_revision:string};
+export type CheckoutIntent={kind:'quote'|'shipping'|'order';key:string;cart:string;version:string;quote:string;allocation_id:string;query:string;draft:CheckoutDraft;packages:{package_id:string;shipping_option_id:string}[];navigate:string;draft_writer:string;draft_sequence:string;draft_revision:string;voucher:string};
 export type CheckoutView={kind:'ready'|'none'|'denied'|'unavailable';cart:BrowserCart|null;quote:CheckoutQuote|null;allocations:CheckoutAllocation[];quoteCurrent:boolean;draft:CheckoutDraft;progress:CheckoutProgress|null;draftExpired:boolean;destinations:Destination[];methods:string[];drafts:boolean;images:Record<string,{src:string;width:number;height:number}>;now:string|null;issue:'cart'|'expired'|'submitted'|null;code:string|null};
-export type CheckoutState={phase:'idle'|'success'|'error'|'unknown';step:'contact'|'shipping'|'review';intent:CheckoutIntent;view:CheckoutView;errors:Partial<Record<keyof CheckoutDraft|'query',string>>;message:string;code:string|null;blocked:boolean;draftConflict:boolean;previousTotal?:number};
+export type CheckoutState={phase:'idle'|'success'|'error'|'unknown';step:'contact'|'shipping'|'review';intent:CheckoutIntent;view:CheckoutView;errors:Partial<Record<keyof CheckoutDraft|'query'|'voucher',string>>;message:string;code:string|null;blocked:boolean;draftConflict:boolean;previousTotal?:number};
 const draftFields=checkoutDraftFields;
-const scalarFields=['kind','key','cart','version','quote','allocation_id','query','navigate','draft_writer','draft_sequence','draft_revision',...draftFields];
-const lengths:Record<string,number>={kind:10,key:200,cart:36,version:10,quote:36,allocation_id:100,query:100,navigate:10,draft_writer:36,draft_sequence:16,draft_revision:16,...checkoutDraftLimits};
+const scalarFields=['kind','key','cart','version','quote','allocation_id','query','navigate','draft_writer','draft_sequence','draft_revision','voucher','voucher_input','voucher_apply','voucher_remove',...draftFields];
+const lengths:Record<string,number>={kind:10,key:200,cart:36,version:10,quote:36,allocation_id:100,query:100,navigate:10,draft_writer:36,draft_sequence:16,draft_revision:16,voucher:40,voucher_input:40,voucher_apply:1,voucher_remove:1,...checkoutDraftLimits};
 // Form method → payment channel. Only offered channels are listed or accepted (production: transfer and COD).
 const DRAFT_METHODS={prepaid:'local-prepaid',transfer:'manual-bank',va:'autolaris',cod:'cod'} as const;
 export const offeredMethods=()=>Object.entries(DRAFT_METHODS).filter(([,channel])=>offeredChannels().includes(channel)).map(([method])=>method);
 // What the checkout lists: the runtime's channels the owner's payment policy has switched on (the quote re-checks).
 export const enabledMethods=(terms:PaymentTerms)=>Object.entries(DRAFT_METHODS).filter(([,channel])=>channelEnabled(terms,channel)).map(([method])=>method);
-export const emptyCheckoutDraft=():CheckoutDraft=>({recipient_name:'',phone:'',email:'',destination_id:'',address_line:'',buyer_note:'',payment_method:offeredMethods().includes('prepaid')?'prepaid':''});
-export const initialCheckoutIntent=(values:Partial<CheckoutIntent>={}):CheckoutIntent=>({kind:'quote',key:randomUUID(),cart:'',version:'',quote:'',allocation_id:'',query:'',draft:emptyCheckoutDraft(),packages:[],navigate:'',draft_writer:randomUUID(),draft_sequence:'0',draft_revision:'0',...values});
+// The first offered method is preselected (owner 2026-11-05, like Shopify): couriers then load as soon as the address is
+// complete instead of waiting for a payment choice further down. A prepaid channel first; COD (fee, fewer couriers) only
+// when it is the sole method. Changing the method recomputes the couriers.
+export const defaultPaymentMethod=(methods:readonly string[]=offeredMethods())=>methods.find(m=>m!=='cod')??methods[0]??'';
+export const emptyCheckoutDraft=():CheckoutDraft=>({recipient_name:'',phone:'',email:'',destination_id:'',address_line:'',buyer_note:'',payment_method:defaultPaymentMethod()});
+export const initialCheckoutIntent=(values:Partial<CheckoutIntent>={}):CheckoutIntent=>({kind:'quote',key:randomUUID(),cart:'',version:'',quote:'',allocation_id:'',query:'',draft:emptyCheckoutDraft(),packages:[],navigate:'',draft_writer:randomUUID(),draft_sequence:'0',draft_revision:'0',voucher:'',...values});
 export const checkoutUnavailableView=():CheckoutView=>({kind:'unavailable',cart:null,quote:null,allocations:[],quoteCurrent:false,draft:emptyCheckoutDraft(),progress:null,draftExpired:false,destinations:[],methods:[],drafts:false,images:{},now:null,issue:null,code:'SERVICE_UNAVAILABLE'});
 
 export function checkoutAllocationChoices(document:QuoteDocument,cart:BrowserCart,preferred:string){
@@ -64,9 +69,10 @@ export function initialCheckoutState(view:CheckoutView):CheckoutState{
  const step=view.quoteCurrent&&same&&!view.draftExpired&&progress?.step!=='contact'?'review':'contact';
  const allocation=progress&&q&&progress.quote===q.id&&q.allocation_options.some(p=>p.id===progress.allocation_id)?progress.allocation_id:q?.selected_allocation_id??'';
  const packages=progress&&q&&progress.quote===q.id?progress.packages.filter(p=>q.packages.some(parcel=>parcel.id===p.package_id&&parcel.options.some(o=>o.id===p.shipping_option_id))):[];
- return {phase:'idle',step,intent:initialCheckoutIntent({kind:step==='review'?'order':'quote',cart:view.cart?.id??'',version:String(view.cart?.version??''),quote:q?.id??'',allocation_id:allocation,draft:view.draft,query:progress?.query||districtLabel(view.destinations.find(d=>d.id===view.draft.destination_id)),packages,draft_revision:String(progress?.revision??0)}),view,errors:{},message:view.draftExpired?'Draf sebelumnya sudah berakhir. Periksa isian sebelum melanjutkan.':'',code:null,blocked:view.kind!=='ready',draftConflict:false};
+ return {phase:'idle',step,intent:initialCheckoutIntent({kind:step==='review'?'order':'quote',cart:view.cart?.id??'',version:String(view.cart?.version??''),quote:q?.id??'',allocation_id:allocation,draft:view.draft.payment_method&&view.methods.includes(view.draft.payment_method)?view.draft:{...view.draft,payment_method:defaultPaymentMethod(view.methods)},query:progress?.query||districtLabel(view.destinations.find(d=>d.id===view.draft.destination_id)),packages,draft_revision:String(progress?.revision??0),voucher:q?.voucher?.status==='applied'?q.voucher.code:''}),view,errors:{},message:view.draftExpired?'Draf sebelumnya sudah berakhir. Periksa isian sebelum melanjutkan.':'',code:null,blocked:view.kind!=='ready',draftConflict:false};
 }
 
+const quoteVoucher=(value:string)=>{try{return voucherCode(value||null);}catch{return null;}};
 export function checkoutFormInput(data:FormData):CheckoutIntent{
  const packageIds=data.getAll('package_id');
  if(packageIds.length>50||packageIds.some(value=>typeof value!=='string'||value.length>100))throw invalid();
@@ -86,13 +92,18 @@ export function checkoutFormInput(data:FormData):CheckoutIntent{
  const writer=values.draft_writer?id(values.draft_writer):randomUUID();
  for(const name of ['draft_sequence','draft_revision'])if(values[name]&&(!/^(?:0|[1-9]\d{0,15})$/.test(values[name])||!Number.isSafeInteger(Number(values[name]))))throw invalid();
  if(values.kind!=='quote'&&!quote)throw invalid();
+ // S177: "Pakai"/remove recomputes the quote with (or without) the typed code; the courier choices are then reissued.
+ // The typed text is kept as typed (trimmed, upper-case); the action sends only a well-formed code (`quoteVoucher`).
+ const voucherAction=values.voucher_apply?'apply':values.voucher_remove?'remove':null;
+ const voucher=voucherAction==='remove'?'':voucherAction==='apply'?values.voucher_input.normalize('NFKC').trim().toUpperCase():values.voucher;
+ if(voucherAction)return {kind:'quote',key:randomUUID(),cart,version:values.version,quote,allocation_id:'',query:values.query,navigate:'',draft:Object.fromEntries(draftFields.map(name=>[name,values[name]])) as CheckoutDraft,packages:[],draft_writer:writer,draft_sequence:values.draft_sequence||'0',draft_revision:values.draft_revision||'0',voucher};
  const named=packageIds.some(value=>data.has(`shipping_option:${value}`));
  if(named&&data.has('shipping_option_id'))throw invalid();
  const options=named?packageIds.map(value=>{const choices=data.getAll(`shipping_option:${value}`);if(choices.length!==1)throw invalid();return choices[0];}):data.getAll('shipping_option_id');
  if(packageIds.length!==options.length||packageIds.length>50||values.kind==='quote'&&packageIds.length)throw invalid();
  const packages=packageIds.map((value,index)=>{if(typeof value!=='string'||typeof options[index]!=='string'||value.length>100||String(options[index]).length>100)throw invalid();return {package_id:value,shipping_option_id:String(options[index])};});
  if(new Set(packages.map(p=>p.package_id)).size!==packages.length)throw invalid();
- return {kind:values.kind as CheckoutIntent['kind'],key:values.key,cart,version:values.version,quote,allocation_id:values.allocation_id,query:values.query,navigate:values.navigate,draft:Object.fromEntries(draftFields.map(name=>[name,values[name]])) as CheckoutDraft,packages,draft_writer:writer,draft_sequence:values.draft_sequence||'0',draft_revision:values.draft_revision||'0'};
+ return {kind:values.kind as CheckoutIntent['kind'],key:values.key,cart,version:values.version,quote,allocation_id:values.allocation_id,query:values.query,navigate:values.navigate,draft:Object.fromEntries(draftFields.map(name=>[name,values[name]])) as CheckoutDraft,packages,draft_writer:writer,draft_sequence:values.draft_sequence||'0',draft_revision:values.draft_revision||'0',voucher};
 }
 
 // Line breaks are a form presentation detail; the existing wire accepts a
@@ -250,8 +261,8 @@ export async function mutateCheckout(request:Request,identity:LocalAuth,intent:C
   }
   const wire=validation.wire;
   if(intent.kind==='quote'){
-   const reply=await call('/api/v1/checkout/quotes','POST',{cart_id:intent.cart,address:wire.address,contact:wire.contact,payment_method:wire.payment_method,payment_channel:wire.payment_channel},intent.key,intent.version);
-   const state=await acceptedQuote(reply.data as CheckoutQuote);return {state:{...state,phase:'success',step:'review',intent:{...state.intent,draft:intent.draft,kind:'order',query:intent.query},message:''},cookies,order:null};
+   const reply=await call('/api/v1/checkout/quotes','POST',{cart_id:intent.cart,address:wire.address,contact:wire.contact,payment_method:wire.payment_method,payment_channel:wire.payment_channel,...(quoteVoucher(intent.voucher)?{voucher_code:quoteVoucher(intent.voucher)}:{})},intent.key,intent.version);
+   const state=await acceptedQuote(reply.data as CheckoutQuote);return {state:{...state,phase:'success',step:'review',intent:{...state.intent,draft:intent.draft,kind:'order',query:intent.query},errors:intent.voucher&&!quoteVoucher(intent.voucher)?{voucher:'Kode voucher tidak ditemukan.'}:{},message:''},cookies,order:null};
   }
   const quote=(await call(`/api/v1/checkout/quotes/${intent.quote}`)).data as CheckoutQuote;
   if(!isDeepStrictEqual(quote.address,wire.canonicalAddress)||!isDeepStrictEqual(quote.contact,wire.contact)||quote.payment_method!==wire.payment_method||quote.payment_channel!==wire.payment_channel){

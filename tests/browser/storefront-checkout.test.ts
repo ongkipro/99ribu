@@ -88,8 +88,8 @@ async function holdTwoOriginStock(){
 // The buyer note lives in a collapsed disclosure inside the order summary (owner 2026-11-05); open both (the summary is
 // itself collapsed on phones) the way a buyer would before typing.
 async function note(page:Page){
- if(!await page.locator('.checkout-note > summary').isVisible())await page.locator('.checkout-summary > details > summary').click();
- if(!await page.locator('.checkout-note').evaluate(el=>(el as HTMLDetailsElement).open))await page.locator('.checkout-note > summary').click();
+ if(!await page.locator('.checkout-note:not(.checkout-voucher) > summary').isVisible())await page.locator('.checkout-summary > details > summary').click();
+ if(!await page.locator('.checkout-note:not(.checkout-voucher)').evaluate(el=>(el as HTMLDetailsElement).open))await page.locator('.checkout-note:not(.checkout-voucher) > summary').click();
  return page.getByLabel('Catatan pengiriman (opsional)',{exact:true});
 }
 // Fixture kelurahan and the kecamatan that holds each (one kelurahan per kecamatan in the TEST-ONLY catalogue).
@@ -465,6 +465,46 @@ test('a current owned shipping subsidy is disclosed in each parcel and the final
   const expiryClock=await readFixtureClock('local',namespace);await advanceFixtureClock('local',namespace,1860,expiryClock.version);const [expiry]=await identity.sql`select id,kind,payload from app.outbox_job where kind='checkout.order.expire' and payload->>'orderId'=${order.id}`;assert.ok(expiry);await identity.sql.begin(tx=>expireOwnedOrderJob(tx,{id:expiry.id,kind:expiry.kind,payload:expiry.payload}));
   await f.page.reload();await expect(f.page.getByRole('heading',{name:'Pembayaran tidak tersedia',exact:true})).toBeVisible();await expect(f.page.getByRole('button',{name:'Siapkan instruksi pembayaran',exact:true})).toHaveCount(0);await expect(f.page.locator('.checkout-payment').getByRole('link',{name:'Lihat produk',exact:true})).toBeVisible();await expect(f.page.locator('.checkout-payment').getByText('Tarif pengiriman',{exact:true})).toBeVisible();await expect(f.page.locator('.checkout-payment').getByText('Ongkir',{exact:true})).toHaveCount(0);await capture(f.page,'payment-expired-390');await f.page.locator('.checkout-payment').getByRole('link',{name:'Lihat produk',exact:true}).click();await expect(f.page).toHaveURL(`${origin}/cari`);assert.equal((await identity.sql`select count(*)::int n from app.commerce_order where cart_id=${f.cart.id}`)[0].n,1);assert.equal((await identity.sql`select count(*)::int n from app.commerce_event where order_id=${order.id} and name='Purchase'`)[0].n,0);assert.deepEqual(f.errors,[]);
  }finally{try{if(f)await close(f);}finally{await save(campaign.id,{...config,expected_version:1,active:false,reason:'Owned S26 scenario finished; retain configuration and history'});}}
+});
+
+test('S177: a voucher code is applied in the summary, a wrong code explains itself, removal restores the total and the order keeps the voucher',async()=>{
+ const [window]=await identity.sql`select max(v.ends_at)::text ends from app.promotion p join app.promotion_version v on v.promotion_id=p.id and v.revision=p.configuration_revision where v.active`;
+ const target=Math.max(Date.now(),Date.parse(window.ends??new Date().toISOString()))+1000;let clock=await readFixtureClock('local',namespace);
+ while(Date.parse(clock.now)<target)clock=await advanceFixtureClock('local',namespace,Math.min(31622400,Math.ceil((target-Date.parse(clock.now))/1000)),clock.version);
+ await identity.sql`delete from app.auth_rate_limit where key like 'rl:voucher-code:%'`;
+ const code=`HEMAT-${randomUUID().slice(0,6)}`.toUpperCase();
+ const config={expected_version:0,name:'Contoh voucher ongkir',active:true,starts_at:clock.now,ends_at:new Date(Date.parse(clock.now)+3600000).toISOString(),kind:'fixed',value:2000,maximum_per_order:2000,minimum_merchandise:1,budget:100000,per_buyer_limit:10,payment_methods:['prepaid','cod'],region_ids:[],service_ids:[],stacking:'exclusive',priority:10,reason:'Owned S177 voucher proof',code};
+ const save=async(id:string|null,body:Record<string,unknown>)=>{const request=owner.browser.request(`/api/v1/admin/shipping-promotions${id?`/${id}/versions`:''}`,body);request.headers.set('idempotency-key',randomUUID());const response=await handlePromotions(request,identity);assert.equal(response.status,201);return response.json();};
+ const voucher=await save(null,config);
+ for(const width of [390,1440]){
+  let f:Awaited<ReturnType<typeof start>>|undefined;
+  try{
+   f=await start(width);await f.page.goto(`${origin}/checkout`);await contact(f.page);await calculate(f.page);await expectOrderStep(f.page);
+   const summary=f.page.locator('.checkout-summary > details');if(!await summary.evaluate(el=>(el as HTMLDetailsElement).open))await summary.locator('> summary').click();
+   const before=(await activeQuote(f.page)).quote;
+   await f.page.getByText('Punya kode voucher?',{exact:true}).click();
+   await f.page.getByLabel('Kode voucher',{exact:true}).fill('tidak-ada');await f.page.getByRole('button',{name:'Pakai',exact:true}).click();
+   await expect(f.page.locator('#checkout-voucher-error')).toHaveText('Kode voucher tidak ditemukan.');await expectOrderStep(f.page);
+   if(!await summary.evaluate(el=>(el as HTMLDetailsElement).open))await summary.locator('> summary').click();
+   await f.page.getByLabel('Kode voucher',{exact:true}).fill(code.toLowerCase());await f.page.getByRole('button',{name:'Pakai',exact:true}).click();
+   await expect(f.page.locator('.checkout-voucher-chip')).toContainText(code);
+   if(!await summary.evaluate(el=>(el as HTMLDetailsElement).open))await summary.locator('> summary').click();
+   await expect(f.page.locator('.checkout-summary .checkout-charges')).toContainText(`Voucher ${code}`);await expect(f.page.locator('.checkout-summary .checkout-charges')).toContainText(`−${rupiah(2000)}`);
+   const applied=(await activeQuote(f.page)).quote;assert.equal(applied.voucher.status,'applied');assert.equal(Number(applied.amount_due),Number(before.amount_due)-2000);
+   assert.ok(await f.page.evaluate(()=>document.documentElement.scrollWidth<=window.innerWidth),'no horizontal overflow');
+   await mkdir('/tmp/claude-1000/-home-ongki-Projects-99ribu/181693a8-6ed1-4c76-b5c0-d7cc94c826fc/scratchpad/checkout-voucher',{recursive:true});
+   await f.page.screenshot({path:`/tmp/claude-1000/-home-ongki-Projects-99ribu/181693a8-6ed1-4c76-b5c0-d7cc94c826fc/scratchpad/checkout-voucher/applied-${width}.png`,fullPage:true});
+   if(width===390){
+    await f.page.getByRole('button',{name:`Hapus voucher ${code}`,exact:true}).click();await expect(f.page.locator('.checkout-voucher-chip')).toHaveCount(0);
+    const removed=(await activeQuote(f.page)).quote;assert.equal(removed.voucher,null);assert.equal(Number(removed.amount_due),Number(before.amount_due));
+   }else{
+    await f.page.getByRole('button',{name:/^Buat pesanan/}).click();await f.page.waitForURL(/\/checkout\/order\/[0-9a-f-]+$/);
+    const [order]=await identity.sql`select buyer_total,subsidy_amount from app.commerce_order where cart_id=${f.cart.id}`;assert.equal(Number(order.subsidy_amount),2000);assert.equal(Number(order.buyer_total),Number(applied.buyer_total));
+   }
+   assert.deepEqual(f.errors,[]);
+  }finally{if(f)await close(f);}
+ }
+ await save(voucher.id,{...config,expected_version:1,active:false,reason:'Owned S177 scenario finished'});
 });
 
 test('the two-origin order step at 320px with 200% text keeps every section inside the viewport',async()=>{

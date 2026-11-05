@@ -5,6 +5,7 @@
 export const ROLE_LABEL: Record<string, string> = {
 	owner: "Super Admin",
 	ecommerce_admin: "Admin E-Commerce",
+	marketing: "Marketing",
 	warehouse: "Gudang",
 	customer_service: "Layanan Pelanggan",
 	finance: "Keuangan",

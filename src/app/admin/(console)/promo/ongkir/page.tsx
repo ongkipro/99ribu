@@ -1,11 +1,8 @@
 import { AccessDenied } from "../../../../../components/admin/access-denied";
-import { type Option, ShippingPromotionsClient } from "../../../../../components/admin/shipping-promotions-client";
-import { getLocalAuth } from "../../../../../modules/access/auth";
-import { provinceRegion } from "../../../../../modules/checkout/quotes";
-import { shippingFixture } from "../../../../../modules/shipping/address";
-import { areaTitle, destinationSource } from "../../../../../modules/shipping/destinations";
-import { COURIERS } from "../../../../../modules/shipping/mengantar";
+import { consoleAccess } from "../../../../../components/admin/console-access";
+import { ShippingPromotionsClient } from "../../../../../components/admin/shipping-promotions-client";
 import { readStaffAccess } from "../../staff-roles";
+import { promotionOptions } from "../promotion-options";
 
 export const dynamic = "force-dynamic";
 export const metadata = {
@@ -13,32 +10,17 @@ export const metadata = {
 	robots: { index: false, follow: false },
 };
 
-// Navigation gate only; the promotion API rechecks owner/ecommerce_admin, MFA and the actor lock.
+// Navigation gate only; the promotion API rechecks the role (promotionAuthority), MFA and the actor lock.
 export default async function ShippingPromotionsPage() {
-	const { roles } = await readStaffAccess();
-	if (!roles.includes("owner") && !roles.includes("ecommerce_admin"))
+	const { roles, permissions } = await readStaffAccess();
+	const access = consoleAccess(roles, permissions);
+	if (!access.shippingPromo)
 		return (
 			<AccessDenied title="Promo Ongkir" heading="Akses promo diperlukan">
-				Promo ongkir dapat diatur oleh Super Admin dan Admin E-Commerce dengan verifikasi dua langkah aktif.
+				Promo ongkir dapat diatur oleh Super Admin dan Admin E-Commerce, dan diusulkan oleh Marketing, dengan
+				verifikasi dua langkah aktif.
 			</AccessDenied>
 		);
-	// S176: choices follow the destination source. With the real Mengantar catalogue (production or local provider
-	// mode): the courier keys rates carry and the provinces of the loaded areas (every shipment carries its province
-	// region id). With the TEST-ONLY fixture: its destinations and services. Otherwise both stay unrestricted.
-	let services: Option[] = [];
-	let regions: Option[] = [];
-	try {
-		if (destinationSource() === "mengantar") {
-			services = Object.entries(COURIERS).map(([id, label]) => ({ id, label }));
-			const rows = await getLocalAuth().sql<{ province: string }[]>`select distinct province from app.shipping_area order by province`;
-			regions = rows.map((r) => ({ id: provinceRegion(r.province), label: areaTitle(r.province) }));
-		} else {
-			const fixture = shippingFixture();
-			services = fixture.services.map((s) => ({ id: s.id, label: s.name }));
-			regions = fixture.destinations.map((d) => ({ id: d.id, label: d.label }));
-		}
-	} catch {
-		// Shipping disabled or no catalogue: the form leaves regions and services unrestricted.
-	}
-	return <ShippingPromotionsClient services={services} regions={regions} />;
+	const { services, regions, districts } = await promotionOptions();
+	return <ShippingPromotionsClient mode="automatic" canDecide={access.promotionDecide} services={services} regions={regions} districts={districts} />;
 }

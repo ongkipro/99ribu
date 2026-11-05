@@ -66,17 +66,19 @@ const EXPECTED: [string, Role[], string[], [string, string[]][]][] = [
 		["Beranda", []],
 		["Pantauan", ["Pesanan", "Produk", "Stok", "Kendala Pengiriman", "Retur"]],
 		["Keuangan", ["Laporan Keuangan", "Rekonsiliasi", "Komisi Afiliasi"]],
-		["Pemasaran", []],
+		["Pemasaran", ["Voucher"]],
 		["Pengaturan", SETTINGS],
 	]],
 	["ecommerce_admin", ["ecommerce_admin"], ["orders.history.read"], [
 		["Beranda", []],
 		["Pesanan", ["Semua Pesanan", "Input Resi", "Cetak Label"]],
 		["Produk", ["Tambah Produk", "Kategori", "Inventori", "Transfer Stok"]],
-		["Promo", ["Banner", "Segmen Pembeli"]],
+		["Promo", ["Voucher", "Banner", "Segmen Pembeli"]],
 		["Toko Online", []],
 		["Pengaturan", []],
 	]],
+	// S177: no dashboard; /admin/antrian redirects to the Pemasaran hub.
+	["marketing", ["marketing"], [], [["Pemasaran", ["Voucher", "Promo Ongkir"]]]],
 	["warehouse", ["warehouse"], [], [
 		["Beranda", []],
 		["Pesanan", ["Input Resi", "Cetak Label", "Kendala Pengiriman", "Retur"]],

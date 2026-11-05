@@ -57,7 +57,9 @@ export async function handleCheckout(request:Request,identity:LocalAuth){
   }
   if(path==='/api/v1/checkout/quotes'&&request.method==='POST'){
    await rateLimit(identity.sql,`checkout.quote:${actor.kind}:${actor.id}`,LIMITS.checkoutQuotePerActor);
-   const body=await readBody(request);return privateJson(await identity.sql.begin(tx=>createQuote(tx,request,identity,actor,body)),201);
+   const body=await readBody(request);
+   if(body&&typeof body==='object'&&'voucher_code' in body&&body.voucher_code!=null)await rateLimit(identity.sql,`voucher-code:ip:${addressBucket(clientIp(request))}`,LIMITS.voucherCodePerAddress);
+   return privateJson(await identity.sql.begin(tx=>createQuote(tx,request,identity,actor,body)),201);
   }
   const quote=/^\/api\/v1\/checkout\/quotes\/([^/]+)$/.exec(path),selection=/^\/api\/v1\/checkout\/quotes\/([^/]+)\/selection$/.exec(path);
   if(quote&&request.method==='GET') return await identity.sql.begin(async tx=>{await lockActor(tx,actor);const {quote:owned}=await ownedQuote(tx,request,identity,actor,quote[1]);return privateJson(projectQuote(owned));});

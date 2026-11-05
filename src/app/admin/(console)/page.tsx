@@ -1,7 +1,8 @@
 import { AdminWorkspacesClient } from "../../../components/admin/admin-workspaces-client";
 import { consoleAccess } from "../../../components/admin/console-access";
 import { canReadOrders } from "../../../components/admin/order-model";
-import { readStaffAccess } from "./staff-roles";
+import { redirect } from "next/navigation";
+import { dashboardRoles, readStaffAccess } from "./staff-roles";
 
 export const dynamic = "force-dynamic";
 export const metadata = {
@@ -14,10 +15,13 @@ export default async function AdminWorkspacesPage({
 }: {
 	searchParams: Promise<{ [key: string]: string | string[] | undefined }>;
 }) {
-	const [{ roles: staffRoles, permissions }, params] = await Promise.all([
+	const [{ roles, permissions }, params] = await Promise.all([
 		readStaffAccess(),
 		searchParams,
 	]);
+	// S177: marketing has no work-queue dashboard; a marketing-only account starts at the Pemasaran hub.
+	const staffRoles = dashboardRoles(roles);
+	if (roles.length > 0 && staffRoles.length === 0) redirect("/admin/pemasaran");
 	const workspace =
 		typeof params.workspace === "string" ? params.workspace : null;
 	const warehouseId =

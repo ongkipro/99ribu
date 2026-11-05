@@ -80,6 +80,7 @@ const INSTANT =
 const STAFF_ROLES = [
 	"owner",
 	"ecommerce_admin",
+	"marketing",
 	"warehouse",
 	"customer_service",
 	"finance",

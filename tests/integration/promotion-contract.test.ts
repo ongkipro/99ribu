@@ -2,7 +2,7 @@ import assert from 'node:assert/strict';
 import {randomUUID} from 'node:crypto';
 import test from 'node:test';
 import {handlePromotions} from '../../src/modules/promotions/routes.ts';
-import {BrowserSession} from '../contract/access-fixture.ts';
+import {actor,BrowserSession,enroll} from '../contract/access-fixture.ts';
 import {validateExchanges,type Exchange} from '../contract/openapi-probe.ts';
 import {promotionFixture} from './promotion-fixture.ts';
 test('all five promotion operations match actual request/response/private-header contracts for success and denial',async()=>{
@@ -26,6 +26,13 @@ test('all five promotion operations match actual request/response/private-header
   const noKey=f.request('',input);noKey.headers.delete('idempotency-key');await observe(noKey,400,false);
   await observe(f.request('',f.config({reason:'x'.repeat(17000)})),413,false);
   const mixed=f.request('');mixed.headers.set('x-cart-token','synthetic-unsupported');await observe(mixed,401,true);
+  // S177 decisions: a proposal is approved (201); deciding a non-proposal is a conflict; a guest is refused.
+  await observe(guest.request(`/api/v1/admin/shipping-promotions/${dummy}/decisions`,{}),401);
+  const marketing=await actor(f.identity,'marketing',[]);f.users.push(marketing);await enroll(marketing.browser,marketing.password);
+  const proposed=await observe(f.request('',f.config({active:false,code:`C-${randomUUID().slice(0,8)}`.toUpperCase()}),randomUUID(),marketing),201,true);
+  await observe(f.request(`/${proposed.id}/decisions`,{expected_version:1,decision:'approve',reason:'Synthetic decision'}),201,true);
+  await observe(f.request(`/${proposed.id}/decisions`,{expected_version:2,decision:'reject',reason:'Synthetic decision'}),409,true);
+  await observe(f.request(`/${proposed.id}/decisions`,{expected_version:2,decision:'maybe',reason:'Synthetic'}),400,false);
   validateExchanges(samples,'promotions');
  }finally{await f.close();}
 });

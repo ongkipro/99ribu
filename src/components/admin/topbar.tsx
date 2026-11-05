@@ -14,16 +14,17 @@ import {
 	DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { Sheet, SheetContent, SheetTitle, SheetTrigger } from "@/components/ui/sheet";
-import type { CanonicalWorkspace } from "./admin-workspaces-client";
+import type { ConsoleLens } from "./admin-nav";
 
 // S-V1 port of tokophi `topbar.tsx` (structure only): sticky translucent bar with the phone nav
 // sheet, the rail toggle (md+), a slot for the command search (S-N1), the role chip for accounts
 // with more than one lens (replaces the "Ruang Kerja" sidebar group; `?workspace=` stays the lens)
 // and the avatar menu. No balance chip, store switcher or theme toggle (plan §2.8).
 
-export const WORKSPACE_LABELS: Record<CanonicalWorkspace, string> = {
+export const WORKSPACE_LABELS: Record<ConsoleLens, string> = {
 	owner: "Super Admin",
 	ecommerce_admin: "Admin E-Commerce",
+	marketing: "Marketing",
 	warehouse: "Gudang",
 	customer_service: "Layanan Pelanggan",
 	finance: "Keuangan",
@@ -48,7 +49,7 @@ export function Brand({ compact = false }: { compact?: boolean }) {
 	);
 }
 
-function RoleChip({ workspaces, lens }: { workspaces: CanonicalWorkspace[]; lens: CanonicalWorkspace }) {
+function RoleChip({ workspaces, lens }: { workspaces: ConsoleLens[]; lens: ConsoleLens }) {
 	return (
 		<DropdownMenu>
 			<DropdownMenuTrigger asChild>
@@ -61,7 +62,7 @@ function RoleChip({ workspaces, lens }: { workspaces: CanonicalWorkspace[]; lens
 				<DropdownMenuLabel>Ruang kerja</DropdownMenuLabel>
 				{workspaces.map((ws) => (
 					<DropdownMenuItem key={ws} asChild>
-						<Link href={`/admin?workspace=${ws}`} data-testid={`workspace-tab-${ws}`} aria-current={ws === lens ? "true" : undefined}>
+						<Link href={ws === "marketing" ? "/admin/pemasaran?workspace=marketing" : `/admin?workspace=${ws}`} data-testid={`workspace-tab-${ws}`} aria-current={ws === lens ? "true" : undefined}>
 							<span className="flex-1">{WORKSPACE_LABELS[ws]}</span>
 							{ws === lens && <Check aria-hidden="true" className="text-primary" />}
 						</Link>
@@ -72,7 +73,7 @@ function RoleChip({ workspaces, lens }: { workspaces: CanonicalWorkspace[]; lens
 	);
 }
 
-function AccountMenu({ account, roles }: { account: ConsoleAccount; roles: CanonicalWorkspace[] }) {
+function AccountMenu({ account, roles }: { account: ConsoleAccount; roles: ConsoleLens[] }) {
 	const [signOut, setSignOut] = useState<"idle" | "pending" | "failed">("idle");
 	if (!account)
 		return (
@@ -190,9 +191,9 @@ export function Topbar({
 	search,
 }: {
 	account: ConsoleAccount;
-	roles: CanonicalWorkspace[];
-	workspaces: CanonicalWorkspace[];
-	lens: CanonicalWorkspace;
+	roles: ConsoleLens[];
+	workspaces: ConsoleLens[];
+	lens: ConsoleLens;
 	/** Effective rail state once known on the client (null before mount). */
 	rail: boolean | null;
 	onToggleRail: () => void;
