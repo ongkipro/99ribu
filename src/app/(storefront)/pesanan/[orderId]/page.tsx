@@ -1206,6 +1206,13 @@ export default async function OrderReceiptPage({
 									<dt>Produk</dt>
 									<dd>{rupiah(order.merchandise_total)}</dd>
 								</div>
+								{/* S177 2B: the store voucher is frozen on the order; item lines keep the frozen price. */}
+								{order.merchandise_discount_total > 0 && (
+									<div>
+										<dt>Diskon voucher</dt>
+										<dd>−{rupiah(order.merchandise_discount_total)}</dd>
+									</div>
+								)}
 								{order.subsidy_total > 0 && (
 									<>
 										<div>

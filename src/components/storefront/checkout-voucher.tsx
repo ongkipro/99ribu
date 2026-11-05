@@ -24,7 +24,8 @@ export function CheckoutVoucher({state,disabled=false}:{state:VoucherState;disab
   </div>
  </details>;
 }
-// The charges row for an applied voucher, rendered above the total (it replaces the automatic shipping subsidy row).
+// The charges row for an applied voucher: a shipping voucher above the total (it replaces the automatic shipping subsidy
+// row); a store voucher right under Produk (S177 2B).
 export function VoucherDiscountRow({state}:{state:VoucherState}){
  return state.kind==='applied'?<div className="checkout-voucher-discount"><dt>Voucher {state.code}</dt><dd>−{rupiah(state.discount)}</dd></div>:null;
 }

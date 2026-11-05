@@ -759,6 +759,7 @@ test("S126 buyer profile completion, promo consent, segments and checkout prefil
 		assert.equal(anonymous.status, 401);
 
 		// 8. Checkout prefill from the main address; a guest gets nothing; address delete keeps no personal data.
+		// Checkout no longer asks for an email (d400218), so the prefill leaves it empty.
 		const book = (await call(buyer, "/api/v1/me/addresses")).body;
 		const address = {
 			label: "Rumah",
@@ -786,7 +787,7 @@ test("S126 buyer profile completion, promo consent, segments and checkout prefil
 			{
 				recipient_name: "Penerima Uji",
 				phone: "081234560003",
-				email: buyer.email,
+				email: "",
 				destination_id: "test-malang",
 				address_line: "Jl. Contoh No. 1",
 				buyer_note: "",
@@ -798,7 +799,7 @@ test("S126 buyer profile completion, promo consent, segments and checkout prefil
 			{
 				recipient_name: "",
 				phone: "",
-				email: other.email,
+				email: "",
 				destination_id: "",
 				address_line: "",
 				buyer_note: "",

@@ -210,6 +210,10 @@ export async function releaseCancelledPromotionUnits(tx:TransactionSql,operation
   const shares=cancelledPromotionAmounts(campaigns.map(row=>({...row,amount:Number(row.amount)})),units.map(row=>({...row,subsidy_amount:Number(row.subsidy_amount)})),selected.filter(row=>row.shipment_id===shipmentId).map(row=>row.id));
   for(const share of shares)amounts.set(share.promotion_id,integer((amounts.get(share.promotion_id)??0)+share.amount,1,MAX_MONEY));
  }
+ // S177 stage 2B: a store voucher releases each cancelled unit's frozen discount (app.exception_promotion_unit_shares).
+ const [store]=await tx<{promotion_id:string}[]>`select distinct promotion_id from app.promotion_line_allocation where reservation_id=${state.header.id}`;
+ if(store&&selected.length){const [released]=await tx`select coalesce(sum(merchandise_discount),0)::text amount from app.fulfillment_item where id in ${tx(selected.map(row=>row.id))}`;
+  if(Number(released.amount)>0)amounts.set(store.promotion_id,integer((amounts.get(store.promotion_id)??0)+Number(released.amount),1,MAX_MONEY));}
  for(const [promotionId,amount] of [...amounts].sort(([a],[b])=>compare(a,b))){
   const prior=await tx`select amount from app.promotion_movement where reservation_id=${state.header.id} and promotion_id=${promotionId} and exception_operation_id=${operationId}`;
   if(prior.length){if(prior.length!==1||Number(prior[0].amount)!==amount)throw new AccessError(409,'PROMOTION_CANCELLATION_CONFLICT');continue;}

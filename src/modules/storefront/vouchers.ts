@@ -23,4 +23,4 @@ export function voucherMessage(reason:VoucherReason,detail?:VoucherDetail){
  if(reason==='METHOD_NOT_ELIGIBLE'&&detail?.method)return `Voucher tidak berlaku untuk ${detail.method}.`;
  return VOUCHER_REASONS[reason];
 }
-export type VoucherState={kind:'idle'}|{kind:'applied';code:string;discount:number}|{kind:'error';reason:VoucherReason;detail?:VoucherDetail;code?:string};
+export type VoucherState={kind:'idle'}|{kind:'applied';code:string;discount:number;target?:'shipping'|'merchandise'}|{kind:'error';reason:VoucherReason;detail?:VoucherDetail;code?:string};

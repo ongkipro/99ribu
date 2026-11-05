@@ -372,6 +372,13 @@
       "when": 1793868116115,
       "tag": "0052_store_voucher_orders",
       "breakpoints": true
+    },
+    {
+      "idx": 53,
+      "version": "7",
+      "when": 1793868507517,
+      "tag": "0053_store_voucher_downstream",
+      "breakpoints": true
     }
   ]
 }

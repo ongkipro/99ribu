@@ -233,6 +233,12 @@ export async function projectOrderReceipt(
 	const originalShipments = order.shipments.filter(
 		(s) => s.kind === "original",
 	);
+	// S177 2B: each unit's frozen store-voucher share; parcel merchandise below is what the buyer paid.
+	const unitDiscount = new Map(
+		(
+			await tx<{ id: string; amount: number }[]>`select f.id,f.merchandise_discount::int amount from app.fulfillment_item f join app.order_item i on i.id=f.order_item_id where i.order_id=${o.id} and f.merchandise_discount>0`
+		).map((row) => [String(row.id), Number(row.amount)]),
+	);
 	const fallbackShipmentId =
 		originalShipments[0]?.id ?? order.shipments[0]?.id ?? o.id;
 	// DEC-008: a manual-bank unique code is a buyer-paid charge frozen per parcel; it is shown
@@ -267,7 +273,8 @@ export async function projectOrderReceipt(
 					.filter((i) => !i.cancelled)
 					.reduce((sum, u) => {
 						const item = order.items.find((it) => it.id === u.order_item_id);
-						return sum + (item ? item.unit_price * u.quantity : 0);
+						// S177 2B: the buyer paid the unit price net of its frozen store-voucher share.
+						return sum + (item ? item.unit_price * u.quantity - (unitDiscount.get(u.fulfillment_item_id) ?? 0) : 0);
 					}, 0);
 				collections.push({
 					id: String(receipts[0].id),
@@ -290,7 +297,8 @@ export async function projectOrderReceipt(
 					.filter((i) => !i.cancelled)
 					.reduce((sum, u) => {
 						const item = order.items.find((it) => it.id === u.order_item_id);
-						return sum + (item ? item.unit_price * u.quantity : 0);
+						// S177 2B: the buyer paid the unit price net of its frozen store-voucher share.
+						return sum + (item ? item.unit_price * u.quantity - (unitDiscount.get(u.fulfillment_item_id) ?? 0) : 0);
 					}, 0);
 				collections.push({
 					id: attempt?.id ?? s.id,
@@ -306,7 +314,7 @@ export async function projectOrderReceipt(
 					id: attempt?.id ?? o.id,
 					shipment_id: fallbackShipmentId,
 					status: st,
-					merchandise_amount: order.merchandise_total,
+					merchandise_amount: order.merchandise_total - (order.merchandise_discount_total ?? 0),
 					shipping_and_fees_amount:
 						Math.max(0, order.shipping_total - order.subsidy_total) +
 						order.payment_charge_total,

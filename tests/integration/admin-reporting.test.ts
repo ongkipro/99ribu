@@ -128,8 +128,12 @@ test("T-34: role-scoped dashboards, unknown vs zero cost metrics, drilldown cons
 		const narrowFrom = new Date(
 			Date.parse(orderRow.created_at) - 2000,
 		).toISOString();
+		// The window spans the order and its receipt: on a loaded host payment completes seconds after the order.
+		const [receiptRow] = await f.identity.sql<{ occurred_at: string }[]>`
+      select max(occurred_at)::text occurred_at from app.economic_receipt where order_id = ${placedOrder.id}::uuid
+    `;
 		const narrowTo = new Date(
-			Date.parse(orderRow.created_at) + 2000,
+			Math.max(Date.parse(orderRow.created_at), Date.parse(receiptRow.occurred_at)) + 2000,
 		).toISOString();
 
 		const finDashRes = await handleReporting(

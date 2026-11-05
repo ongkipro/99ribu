@@ -50,11 +50,14 @@ export async function recordPurchase(tx:TransactionSql,receiptId:string){
  const consent=visitor?choice:null;
  const funded=receipt.kind==='cod'?await receiptUnitIds(tx,String(receipt.id)):null;
  if(funded&&!funded.length)throw new AccessError(409,'PURCHASE_SOURCE_NOT_ELIGIBLE');
- const items=funded===null?await tx`select i.id,i.quantity,i.unit_price,o.catalog_id from app.order_item i join app.offer o on o.id=i.offer_id where i.order_id=${receipt.order_id} order by i.id`:
-  await tx`select i.id,count(*)::int quantity,i.unit_price,o.catalog_id from app.fulfillment_item f join app.order_item i on i.id=f.order_item_id join app.offer o on o.id=i.offer_id where f.shipment_id=${receipt.shipment_id} and i.order_id=${receipt.order_id} and f.id in ${tx(funded)} group by i.id,i.unit_price,o.catalog_id order by i.id`;
- const contents=items.map(i=>({id:String(i.catalog_id),quantity:Number(i.quantity),merchandise_amount:Number(i.unit_price)*Number(i.quantity)}));
+ // S177 2B: values are net of the frozen store-voucher share; one content per (line, unit net) keeps integer unit prices
+ // (units of a line differ by at most Rp1). Mirrors app.purchase_signal_payload / purchase_receipt_payload.
+ const groups=funded===null?await tx`select i.id,(i.unit_price-f.merchandise_discount)::int net,count(*)::int quantity,o.catalog_id from app.fulfillment_item f join app.order_item i on i.id=f.order_item_id join app.offer o on o.id=i.offer_id where i.order_id=${receipt.order_id} group by i.id,net,o.catalog_id order by i.id,net desc`:
+  await tx`select i.id,(i.unit_price-f.merchandise_discount)::int net,count(*)::int quantity,o.catalog_id from app.fulfillment_item f join app.order_item i on i.id=f.order_item_id join app.offer o on o.id=i.offer_id where f.shipment_id=${receipt.shipment_id} and i.order_id=${receipt.order_id} and f.id in ${tx(funded)} group by i.id,net,o.catalog_id order by i.id,net desc`;
+ const contents=groups.map(g=>({id:String(g.catalog_id),quantity:Number(g.quantity),merchandise_amount:Number(g.net)*Number(g.quantity)}));
+ const items=[...new Set(groups.map(g=>String(g.id)))].map(itemId=>{const mine=groups.filter(g=>String(g.id)===itemId);return {id:itemId,quantity:mine.reduce((n,g)=>n+Number(g.quantity),0),merchandise_amount:mine.reduce((n,g)=>n+Number(g.net)*Number(g.quantity),0)};});
  const event=await appendCommerceEvent(tx,{name:'Purchase',source_kind:'economic_receipt',source_reference:String(receipt.id),occurred_at:new Date(receipt.occurred_at).toISOString(),order_id:String(receipt.order_id),receipt_id:String(receipt.id),merchandise_amount:Number(receipt.merchandise_amount),payload:{currency:'IDR',contents,content_ids:contents.map(i=>i.id)},visitor:visitor??null,consent});
- for(const item of items) await tx`insert into app.purchase_allocation (event_id,order_item_id,quantity,merchandise_amount) values (${event},${item.id},${item.quantity},${Number(item.unit_price)*Number(item.quantity)})`;
+ for(const item of items) await tx`insert into app.purchase_allocation (event_id,order_item_id,quantity,merchandise_amount) values (${event},${item.id},${item.quantity},${item.merchandise_amount})`;
  return event;
 }
 async function optionalCapture(tx:TransactionSql,run:(inner:TransactionSql)=>Promise<void>){

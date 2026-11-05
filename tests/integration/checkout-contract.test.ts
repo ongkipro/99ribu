@@ -40,7 +40,9 @@ test('twelve checkout operations have real success/denial parity and committed b
   await observe(guest,'/api/v1/orders',401,orderBody,{version:cart.version},true);await observe(f.client,'/api/v1/orders',409,orderBody,{version:cart.version},true);
   await observe(f.client,`/api/v1/orders/${created.order.id}`,200,undefined,{},true);await observe(guest,`/api/v1/orders/${created.order.id}`,401);
   await observe(f.client,'/api/v1/carts/current',200,undefined,{},true);
-  await observe(guest,'/api/v1/destinations?q=synthetic',200,undefined,{},true);await observe(guest,'/api/v1/destinations',400,undefined,{},false);
+  await observe(guest,'/api/v1/destinations?q=synthetic',200,undefined,{},true);// d400218 made q optional (exactly one of q or district, which query parameters cannot express): no parameter is
+  // schema-valid and refused by the route; an unknown group value is schema-invalid.
+  await observe(guest,'/api/v1/destinations',400,undefined,{},true);await observe(guest,'/api/v1/destinations?q=synthetic&group=bogus',400,undefined,{},false);
   validateExchanges(samples,'checkout');
  }finally{await f.close();}
 });

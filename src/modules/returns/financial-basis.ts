@@ -19,9 +19,11 @@ export async function lockRefundCollectionBasis(tx:TransactionSql,orderId:string
  if(!environment)throw invalid();
  const occurredAt=await fulfillmentClock(tx,order.clock_namespace),provider=order.payment_method==='cod'?'local.cod':'local.payment';
  const [exceptions]=await tx`select to_regclass('app.commerce_exception') is not null installed`;
- const funded=exceptions.installed?tx`and f.id in (select id from app.receipt_entitled_unit_ids(r.id) id)`:tx``;
- const rows=await tx`select f.id,f.order_item_id,f.shipment_id,f.buyer_shipping,f.payment_charge,i.unit_price,r.id receipt_id,r.transaction_id,r.effect_reference,r.merchandise_amount receipt_merchandise,r.amount receipt_amount,r.occurred_at,
-  e.id purchase_id,e.order_id purchase_order_id,e.merchandise_amount purchase_merchandise,e.occurred_at purchase_occurred_at
+ const funded=exceptions.installed?tx`and f.id in (select id from app.receipt_entitled_unit_ids(r.id) id)`:tx``,fundedPeer=exceptions.installed?tx`and peer.id in (select id from app.receipt_entitled_unit_ids(r.id) id)`:tx``;
+ const rows=await tx`select f.id,f.order_item_id,f.shipment_id,f.buyer_shipping,f.payment_charge,(i.unit_price-f.merchandise_discount) unit_price,r.id receipt_id,r.transaction_id,r.effect_reference,r.merchandise_amount receipt_merchandise,r.amount receipt_amount,r.occurred_at,
+  e.id purchase_id,e.order_id purchase_order_id,e.merchandise_amount purchase_merchandise,e.occurred_at purchase_occurred_at,
+  -- S177 2B: the Purchase allocation of this line is the net of the units its receipt funded (events.ts).
+  (select sum(i.unit_price-peer.merchandise_discount) from app.fulfillment_item peer where peer.order_item_id=f.order_item_id and (r.kind='prepaid' or peer.shipment_id=f.shipment_id) ${order.payment_method==='cod'?fundedPeer:tx``}) purchase_item_net
   from app.fulfillment_item f join app.order_item i on i.id=f.order_item_id
   left join app.economic_receipt r on r.order_id=i.order_id and r.environment=${environment} and r.source=${provider}
    and ((${order.payment_method}='cod' and r.kind='cod' and r.shipment_id=f.shipment_id) or (${order.payment_method}='prepaid' and r.kind='prepaid' and r.shipment_id is null)) ${funded}
@@ -38,7 +40,7 @@ export async function lockRefundCollectionBasis(tx:TransactionSql,orderId:string
   if(original?.source_basis!=='qualified'||original.order_id!==order.id||original.receipt_id!==row.receipt_id||original.clock_namespace!==order.clock_namespace||original.occurred_at!==occurred||original.gross_amount!==Number(row.receipt_amount))throw new AccessError(409,'REFUND_COLLECTION_NOT_QUALIFIED');
   if(row.purchase_id){
    const allocation=purchases.find(p=>p.event_id===row.purchase_id&&p.order_item_id===row.order_item_id),claimed=rows.filter(r=>r.purchase_id===row.purchase_id&&r.order_item_id===row.order_item_id).length;
-   if(row.purchase_order_id!==order.id||Number(row.purchase_merchandise)!==Number(row.receipt_merchandise)||new Date(row.purchase_occurred_at).toISOString()!==occurred||!allocation||Number(allocation.quantity)<claimed||Number(allocation.merchandise_amount)!==Number(allocation.quantity)*Number(row.unit_price))throw new AccessError(409,'REFUND_PURCHASE_CONTEXT_MISMATCH');
+   if(row.purchase_order_id!==order.id||Number(row.purchase_merchandise)!==Number(row.receipt_merchandise)||new Date(row.purchase_occurred_at).toISOString()!==occurred||!allocation||Number(allocation.quantity)<claimed||Number(allocation.merchandise_amount)!==Number(row.purchase_item_net))throw new AccessError(409,'REFUND_PURCHASE_CONTEXT_MISMATCH');
   }
   units.push({fulfillment_item_id:String(row.id),order_item_id:String(row.order_item_id),shipment_id:String(row.shipment_id),receipt_id:String(row.receipt_id),transaction_id:String(row.transaction_id),original_payment_operation_id:order.payment_method==='prepaid'?String(row.effect_reference):null,purchase_event_id:row.purchase_id===null?null:String(row.purchase_id),original_occurred_at:occurred,...returnEntitlement(Number(row.unit_price),Number(row.buyer_shipping),Number(row.payment_charge))});
  }

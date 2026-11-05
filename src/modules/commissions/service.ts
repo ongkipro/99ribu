@@ -150,7 +150,7 @@ export async function accrueOrderCommissions(
 			unit_price: string;
 		}[]
 	>`
-    select fi.id as fulfillment_item_id, fi.order_item_id, oi.order_id, fi.unit_index, oi.unit_price
+    select fi.id as fulfillment_item_id, fi.order_item_id, oi.order_id, fi.unit_index, (oi.unit_price - fi.merchandise_discount) as unit_price
     from app.fulfillment_item fi
     join app.order_item oi on oi.id = fi.order_item_id
     where oi.order_id = ${input.orderId}

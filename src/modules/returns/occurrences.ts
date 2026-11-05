@@ -13,10 +13,10 @@ export async function readReturnOccurrences(tx:TransactionSql,orderId:string,inp
  const selected=id(orderId),take=integer(input.limit??100,1,101),after=input.after===undefined||input.after===null?null:id(input.after),ids=input.ids?.map(id);
  const [installed]=await tx`select to_regclass('app.replacement_link') is not null installed`;
  const originals=tx`select f.id,f.id fulfillment_item_id,null::uuid replacement_link_id,i.order_id,f.order_item_id,f.shipment_id,s.warehouse_id,
-  f.unit_index,f.buyer_shipping,f.payment_charge,i.unit_price,receipt.id buyer_receipt_id,receipt.id receipt_id,receipt.source_id,receipt.received_at
+  f.unit_index,f.buyer_shipping,f.payment_charge,(i.unit_price-f.merchandise_discount) unit_price,receipt.id buyer_receipt_id,receipt.id receipt_id,receipt.source_id,receipt.received_at
   from app.fulfillment_item f join app.order_item i on i.id=f.order_item_id join app.order_shipment s on s.id=f.shipment_id left join app.buyer_receipt receipt on receipt.fulfillment_item_id=f.id`;
  const replacements=installed.installed?tx`union all select link.id,f.id fulfillment_item_id,link.id replacement_link_id,i.order_id,f.order_item_id,parcel.id shipment_id,parcel.warehouse_id,
-  f.unit_index,f.buyer_shipping,f.payment_charge,i.unit_price,original.id buyer_receipt_id,receipt.id receipt_id,receipt.source_id,receipt.received_at
+  f.unit_index,f.buyer_shipping,f.payment_charge,(i.unit_price-f.merchandise_discount) unit_price,original.id buyer_receipt_id,receipt.id receipt_id,receipt.source_id,receipt.received_at
   from app.replacement_link link join app.replacement_shipment parcel on parcel.id=link.shipment_id
   join app.fulfillment_item f on f.id=link.original_fulfillment_item_id join app.order_item i on i.id=f.order_item_id
   join app.buyer_receipt original on original.fulfillment_item_id=f.id left join app.replacement_buyer_receipt receipt on receipt.replacement_link_id=link.id`:tx``;

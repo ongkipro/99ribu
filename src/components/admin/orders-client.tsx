@@ -552,6 +552,7 @@ type Order = {
 	merchandise_total: number;
 	shipping_total: number;
 	subsidy_total: number;
+	merchandise_discount_total?: number;
 	buyer_total: number;
 	amount_due: number;
 	refund_total: number;
@@ -743,6 +744,7 @@ export function OrderDetailClient({
 							<dd className="text-right">{paymentLabel(o.payment_method, o.payment_status)}</dd>
 						</div>
 						<Money label="Barang" value={rupiah(o.merchandise_total)} />
+						{(o.merchandise_discount_total ?? 0) > 0 && <Money label="Diskon voucher" value={`−${rupiah(o.merchandise_discount_total ?? 0)}`} />}
 						<Money label="Ongkos kirim" value={rupiah(o.shipping_total)} />
 						{o.subsidy_total > 0 && <Money label="Subsidi ongkir" value={`−${rupiah(o.subsidy_total)}`} />}
 						{/* The orders list shows this total; the fee or transfer code below makes the amount due. */}

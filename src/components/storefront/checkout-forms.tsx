@@ -104,7 +104,10 @@ function Contents({contents}:{contents:NonNullable<CheckoutState['view']['cart']
 // DEC-009 label follows the frozen rate, e.g. 333 bps -> "3,33%".
 export function codFeePercent(bps:number|null){return `${((bps??0)/100).toLocaleString('id-ID',{minimumFractionDigits:2,maximumFractionDigits:2})}%`;}
 function QuoteCharges({quote,voucher={kind:'idle'}}:{quote:CheckoutQuote;voucher?:VoucherState}){
- return <><dl className="checkout-charges"><div><dt>Produk</dt><dd>{rupiah(quote.merchandise_total)}</dd></div><div><dt>Tarif pengiriman {quote.packages.length} paket</dt><dd>{rupiah(quote.shipping_total)}</dd></div>{quote.subsidy_total>0&&voucher.kind!=='applied'&&<div><dt>Subsidi ongkir</dt><dd>−{rupiah(quote.subsidy_total)}</dd></div>}{quote.cod_fee_total>0&&<div><dt>Biaya COD ({codFeePercent(quote.cod_fee_bps)})</dt><dd>{rupiah(quote.cod_fee_total)}</dd></div>}<VoucherDiscountRow state={voucher}/><div className="checkout-total"><dt>{quote.payment_method==='cod'?`Total COD (${quote.packages.length} paket)`:'Total'}</dt><dd>{rupiah(quote.amount_due)}</dd></div></dl>{quote.payment_channel==='manual-bank'&&<p className="checkout-hint">Kode unik 1–999 rupiah ditambahkan ke total saat pesanan dibuat untuk mencocokkan transfer.</p>}</>;
+ // S177 2B: a store voucher discounts the products (its row follows Produk) and stacks with the automatic shipping
+ // subsidy; a shipping voucher replaces that subsidy row.
+ const store=voucher.kind==='applied'&&voucher.target==='merchandise';
+ return <><dl className="checkout-charges"><div><dt>Produk</dt><dd>{rupiah(quote.merchandise_total)}</dd></div>{store&&<VoucherDiscountRow state={voucher}/>}<div><dt>Tarif pengiriman {quote.packages.length} paket</dt><dd>{rupiah(quote.shipping_total)}</dd></div>{quote.subsidy_total>0&&(voucher.kind!=='applied'||store)&&<div><dt>Subsidi ongkir</dt><dd>−{rupiah(quote.subsidy_total)}</dd></div>}{quote.cod_fee_total>0&&<div><dt>Biaya COD ({codFeePercent(quote.cod_fee_bps)})</dt><dd>{rupiah(quote.cod_fee_total)}</dd></div>}{!store&&<VoucherDiscountRow state={voucher}/>}<div className="checkout-total"><dt>{quote.payment_method==='cod'?`Total COD (${quote.packages.length} paket)`:'Total'}</dt><dd>{rupiah(quote.amount_due)}</dd></div></dl>{quote.payment_channel==='manual-bank'&&<p className="checkout-hint">Kode unik 1–999 rupiah ditambahkan ke total saat pesanan dibuat untuk mencocokkan transfer.</p>}</>;
 }
 // The buyer note sits in the summary (owner 2026-11-05) but still belongs to the checkout form (form="checkout-form").
 function NoteDisclosure({value,error,onChange}:{value:string;error?:string;onChange:(name:keyof CheckoutDraft,value:string)=>void}){
@@ -115,7 +118,7 @@ function NoteDisclosure({value,error,onChange}:{value:string;error?:string;onCha
 // S177: what the current quote made of the code (applied or refused), or a code of the wrong shape the action never sent.
 export function voucherState(state:CheckoutState):VoucherState{
  const v=state.view.quote?.voucher,quote=state.view.quote;
- if(v?.status==='applied')return {kind:'applied',code:v.code,discount:v.amount};
+ if(v?.status==='applied')return {kind:'applied',code:v.code,discount:v.amount,target:v.target??'shipping'};
  if(v?.status==='refused')return {kind:'error',reason:v.reason,code:v.code,detail:{
   ...(v.reason==='MIN_SUBTOTAL'&&v.minimum_merchandise!==undefined&&quote?{shortfall:rupiah(Math.max(0,v.minimum_merchandise-quote.merchandise_total))}:{}),
   ...(v.reason==='METHOD_NOT_ELIGIBLE'?{method:quote?.payment_method==='cod'?'COD':'pembayaran di muka'}:{})}};

@@ -19289,6 +19289,10 @@ components:
             $ref: '#/components/schemas/CatalogUuid'
           amount:
             $ref: '#/components/schemas/Money'
+          target:
+            type: string
+            enum: [shipping, merchandise]
+            description: S177 2B. `merchandise` = store voucher (stacks with automatic shipping promotions); `shipping` = shipping voucher.
         required: [code, status, promotion_id, amount]
         additionalProperties: false
       - type: object
@@ -19377,6 +19381,9 @@ components:
           $ref: '#/components/schemas/Id'
         merchandise_amount:
           $ref: '#/components/schemas/Money'
+        merchandise_discount_amount:
+          $ref: '#/components/schemas/Money'
+          description: S177 2B. This parcel's share of the store-voucher discount (sum of its units); COD amounts use the net.
         shipping_amount:
           $ref: '#/components/schemas/Money'
         subsidy_amount:
@@ -19438,6 +19445,9 @@ components:
           minItems: 1
         merchandise_total:
           $ref: '#/components/schemas/Money'
+        merchandise_discount_total:
+          $ref: '#/components/schemas/Money'
+          description: S177 2B. Store-voucher discount on the products; buyer_total = merchandise_total − merchandise_discount_total + shipping_total − subsidy_total.
         shipping_total:
           $ref: '#/components/schemas/Money'
         subsidy_total:
@@ -19858,6 +19868,9 @@ components:
             $ref: '#/components/schemas/Shipment'
         merchandise_total:
           $ref: '#/components/schemas/Money'
+        merchandise_discount_total:
+          $ref: '#/components/schemas/Money'
+          description: S177 2B. Store-voucher discount frozen on the order (per unit); merchandise_total stays the gross Σ unit price.
         shipping_total:
           $ref: '#/components/schemas/Money'
         subsidy_total:

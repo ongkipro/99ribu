@@ -334,7 +334,7 @@ export async function readFinanceSummary(
           f.subsidy_amount,
           i.line_id,
           i.offer_id,
-          i.unit_price,
+          (i.unit_price - f.merchandise_discount) as unit_price,
           q.document as quote_doc,
           exists(
             select 1 from app.exception_cancellation ec
