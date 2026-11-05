@@ -1,5 +1,18 @@
 # Build log — Serba 99ribu
 
+## 2026-11-06 — Step 0: fresh `99ribu_test` (owner-approved) and the S85 drill
+
+- Target confirmed before the drop (`99ribu_test` only, 0 connections); `99ribu_local` and production untouched. Under `heavy-run --lock 99ribu-env`: `DROP DATABASE "99ribu_test" WITH (FORCE)`, the bootstrap `CREATE`/`REVOKE`/`GRANT`/`REVOKE CREATE ON SCHEMA public` statements, `ALTER DATABASE "99ribu_test" SET synchronous_commit = off` (per database; `pg_db_role_setting` shows it only on `99ribu_test`), `npm run db:migrate -- test` (57 newly applied, 5 s).
+- Size: `99ribu_test` 595 MB (623,736,511 B) → 21 MB (21,501,631 B); `99ribu_local` 132 MB before and after.
+- `npm run test:integration -- --case=backup-restore`: **6/6 PASS**, 276 s wall for the file, no queue wait, host load ~10 from other projects. Previous (2026-11-05, 595 MB): 3 passed, 3 over the 180 s drill limit (83–180 s per stage).
+
+## 2026-11-06 — Production image build path with `scripts/heavy.sh` (push deferred)
+
+- Owner: prove the build path before pushing `815737c`/`dca87c2`/`75a9a26`. Ran `heavy-run --lock 99ribu-env --label "99ribu docker build" -- sh -c 'git archive --format=tar 75a9a262 | docker build --no-cache --progress=plain -t 99ribu:verify-75a9a26 -'` (the committed tree only, same Dockerfile, no build args, no secrets; Coolify builds `compose.production.yaml` `build: .` the same way).
+- Result PASS (second attempt, exit 0, 1009 s wall including the queue wait): step `[build 7/7] RUN npm run build` logged `npm notice run scripts/heavy.sh build node --env-file=.env.example scripts/run-local.ts build`, `✓ Compiled successfully in 28.4s`, step done in 174.5 s; image `99ribu:verify-75a9a26` tagged. `heavy-run` does not exist in the image, so `scripts/heavy.sh` falls through to `exec "$@"` (the plain build).
+- First attempt: the same build reached the route table, then an external `dockerd` restart at 03:12 WIB (not from this session; it also stopped the 99ribu DB container, restarted) cut the client (`rpc error … EOF`).
+- Push stays deferred: only together with the next real change and on the owner's explicit "push".
+
 ## 2026-11-06 — Checkpoint (machine maintenance)
 
 - State saved in STATUS "CHECKPOINT 2026-11-06": production `6f53743`; five docs/tests/tooling commits local and unpushed; dotfiles `heavy-run` work uncommitted; no delivery-ledger run active (`activeRun: null`). No new work, builds or tests were started for this checkpoint.
