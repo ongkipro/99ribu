@@ -29,7 +29,7 @@ for(const method of ['cod','prepaid'] as const)test(`${method} refund of a recei
   const delivered=await simulateReplacementReceipt(sql,'test',{reference:randomUUID(),booking_id:bookingId,unit_ids:f.head.items.map((item:{id:string})=>item.id)});
   await run(await ingestReplacementReceiptSource(sql,delivered));
   const unit=f.head.items[0],buyer=await commerceActor(f.client.request('/api/v1/carts'),f.identity);assert.ok(buyer);
-  const [economicUnit]=await sql`select f.id,f.buyer_shipping,r.id receipt_id from app.fulfillment_item f join app.economic_receipt r on r.order_id=${f.order.id}
+  const [economicUnit]=await sql`select f.id,f.buyer_shipping,f.payment_charge,r.id receipt_id from app.fulfillment_item f join app.economic_receipt r on r.order_id=${f.order.id}
     and (r.kind='prepaid' or (r.kind='cod' and r.shipment_id=f.shipment_id)) where f.id=${unit.original_fulfillment_item_id}`;
   const input={items:[{order_item_id:unit.order_item_id,delivered_fulfillment_item_id:unit.id,quantity:1,reason:'defective',details:'SYNTHETIC replacement itself arrived defective'}],requested_resolution:'refund'};
   stage='new physical receipt owns this claim window while the original economic root is retained';
@@ -58,7 +58,7 @@ for(const method of ['cod','prepaid'] as const)test(`${method} refund of a recei
   const request=f.finance.browser.request('/api/v1/admin/refunds',queue);request.headers.set('idempotency-key',randomUUID());
   stage='fresh finance obligation binds the original collection and frozen per-unit shipping';
   let refund=await queueRefund(request,f.identity,f.financePrincipal,queue) as Awaited<ReturnType<typeof projectBuyerRefund>>;
-  assert.equal(refund.amount,99000+Number(economicUnit.buyer_shipping));
+  assert.equal(refund.amount,99000+Number(economicUnit.buyer_shipping)+Number(economicUnit.payment_charge),"includes the unit COD fee share when a policy charges one");
   assert.deepEqual(await queueRefund(request,f.identity,f.financePrincipal,queue),refund);
   const allocations=await sql`select a.receipt_id,a.merchandise_amount,a.buyer_shipping,a.amount,r.fulfillment_item_id,r.replacement_link_id from app.refund_allocation a join app.return_item r on r.id=a.return_item_id where r.fulfillment_item_id=${unit.original_fulfillment_item_id}`;
   assert.equal(allocations.length,1);assert.equal(allocations[0].receipt_id,economicUnit.receipt_id);assert.equal(allocations[0].replacement_link_id,unit.id);

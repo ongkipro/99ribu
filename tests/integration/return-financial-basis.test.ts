@@ -9,12 +9,13 @@ import {fulfillmentFixture} from './fulfillment-fixture.ts';
 test('a COD refund basis uses only qualified original parcel money and frozen whole-offer shipping shares',async()=>{
  const f=await fulfillmentFixture('cod');
  try{
-  const sql=f.identity.sql,units=await sql`select id,shipment_id,buyer_shipping from app.fulfillment_item where shipment_id in ${sql(f.parcels.map(p=>p.shipment_id))} order by id`;
+  const sql=f.identity.sql,units=await sql`select id,shipment_id,buyer_shipping,payment_charge from app.fulfillment_item where shipment_id in ${sql(f.parcels.map(p=>p.shipment_id))} order by id`;
   const paid=units.filter(u=>u.shipment_id===f.parcels[0].shipment_id),unpaid=units.filter(u=>u.shipment_id===f.parcels[1].shipment_id);
   const event=await simulateCodCollection(sql,'test',f.parcels[0].shipment_id);await f.run(await ingestCodEvent(sql,event));
   const basis=await sql.begin(tx=>lockRefundCollectionBasis(tx,f.order.id,paid.map(u=>u.id).reverse()));
   assert.equal(basis.units.length,paid.length);assert.equal(basis.environment,'test');assert.equal(basis.order.clock_namespace,f.namespace);
-  assert.equal(basis.amount,paid.reduce((n,u)=>n+99000+Number(u.buyer_shipping),0));
+  // The unit's frozen COD fee share is part of the refundable original collection when a payment policy charges one.
+  assert.equal(basis.amount,paid.reduce((n,u)=>n+99000+Number(u.buyer_shipping)+Number(u.payment_charge),0));
   for(const unit of basis.units){assert.equal(unit.merchandise_amount,99000);assert.equal(unit.original_payment_operation_id,null);assert.ok(unit.purchase_event_id);assert.equal(unit.original_occurred_at,event.occurred_at);}
   assert.equal(new Set(basis.units.map(u=>u.receipt_id)).size,1);
   for(const ids of [unpaid.map(u=>u.id),[paid[0].id,unpaid[0].id]])await assert.rejects(sql.begin(tx=>lockRefundCollectionBasis(tx,f.order.id,ids)),{code:'REFUND_COLLECTION_NOT_QUALIFIED'});

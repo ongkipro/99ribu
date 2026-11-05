@@ -21,7 +21,7 @@ test('built promotion API enforces browser MFA cookies, immutable configuration 
   };
   const root='/api/v1/admin/shipping-promotions';const dummy=randomUUID();const key=()=>({'idempotency-key':randomUUID()});
   for(const path of ['',`/${dummy}`,`/${dummy}/versions`]) assert.equal((await call(root+path)).status,401);
-  for(const path of ['',`/${dummy}/versions`]) assert.equal((await call(root+path,{},key())).status,401);
+  for(const path of ['',`/${dummy}/versions`,`/${dummy}/decisions`]) assert.equal((await call(root+path,{},key())).status,401);
   assert.equal((await call('/api/auth/sign-up/email',{name:'Synthetic Promotion Browser Owner',email,phone:'081234567890'})).status,200);
   const [user]=await sql`select id from app.auth_user where email=${email}`;userId=user.id;
   await activateOverHttp(sql,context.request,email,password);
@@ -37,6 +37,15 @@ test('built promotion API enforces browser MFA cookies, immutable configuration 
   assert.equal((await call(`${root}/${first.payload.id}/versions`,edit,key())).status,409);
   const history=await call(`${root}/${first.payload.id}/versions?limit=1`);assert.equal(history.status,200);assert.equal(history.payload.pagination.next_cursor,'2');
   const old=await call(`${root}/${first.payload.id}/versions?cursor=2`);assert.equal(old.payload.data[0].value,5000);assert.equal(old.payload.data[0].version_id,first.payload.version_id);
+  // S177 decisions: a running campaign is not a proposal (denial); a marketing proposal is approved by the owner (success).
+  // The same browser session switches role through its grant, which promotionAuthority reads on every request.
+  assert.equal((await call(`${root}/${first.payload.id}/decisions`,{expected_version:2,decision:'approve',reason:'Synthetic'},key())).payload.code,'PROPOSAL_REQUIRED');
+  await sql`update app.role_grant set roles=ARRAY['marketing']::text[] where user_id=${userId}`;
+  const proposal=await call(root,{...input,active:false,name:'Synthetic browser proposal'},key());
+  await sql`update app.role_grant set roles=ARRAY['owner']::text[] where user_id=${userId}`;
+  assert.equal(proposal.status,201,JSON.stringify(proposal.payload));assert.equal(proposal.payload.proposed,true);
+  const decided=await call(`${root}/${proposal.payload.id}/decisions`,{expected_version:1,decision:'reject',reason:'Synthetic browser proposal declined'},key());
+  assert.equal(decided.status,201,JSON.stringify(decided.payload));assert.equal(decided.payload.active,false);assert.equal(decided.payload.proposed,false);
   // Retire the campaign so later suites on this database never see a live synthetic window.
   assert.equal((await call(`${root}/${first.payload.id}/versions`,{...edit,expected_version:2,active:false,reason:'Synthetic browser campaign finished'},key())).status,201);
   assert.equal((await call(`${root}/${first.payload.id}?as_of=2030`)).status,400);assert.equal((await call(root,undefined,{'x-order-token':'synthetic-unsupported'})).status,401);

@@ -61,7 +61,9 @@ for(const method of ['cod','prepaid'] as const)test(`app-role ${method} receipt 
    const queue={return_case_id:created.id,expected_version:3,reason:'SYNTHETIC approved original-unit obligation',reauthentication_proof:await proof(created.id)},queueKey=randomUUID(),queueRequest=command('/api/v1/admin/refunds',queue,queueKey,f.finance.browser);
    await assert.rejects(queueRefund(command('/api/v1/admin/refunds',{...queue,expected_version:999},randomUUID(),f.finance.browser),identity,f.financePrincipal,{...queue,expected_version:999}),{code:'VERSION_CONFLICT'});
    let refund=await queueRefund(queueRequest,identity,f.financePrincipal,queue) as RefundResult;
-   assert.equal(refund.amount,99000+Number(unit.buyer_shipping));assert.equal(refund.status,method==='cod'?'awaiting_destination':'queued');assert.equal(await cashCount(),0);
+   // The unit's frozen COD fee share is refundable original money when a payment policy charges one.
+   const [charged]=await tx`select payment_charge from app.fulfillment_item where id=${unit.id}`;
+   assert.equal(refund.amount,99000+Number(unit.buyer_shipping)+Number(charged.payment_charge));assert.equal(refund.status,method==='cod'?'awaiting_destination':'queued');assert.equal(await cashCount(),0);
    assert.deepEqual(await queueRefund(queueRequest,identity,f.financePrincipal,queue),refund);
    await tx`update app.auth_user set email_verified=false where id=${f.finance.id}`;
    await assert.rejects(queueRefund(queueRequest,identity,f.financePrincipal,queue),{code:'FORBIDDEN'});await tx`update app.auth_user set email_verified=true where id=${f.finance.id}`;
