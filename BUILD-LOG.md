@@ -1,5 +1,10 @@
 # Build log — Serba 99ribu
 
+## 2026-11-05 (local) — S177 stage 2B design (store voucher)
+
+- `docs/spec/vouchers/S177-stage-2b-design.md`: merchandise discount frozen per unit (`fulfillment_item.merchandise_discount`), gross `merchandise_amount` kept, downstream rows hold net, `1 ≤ net_u` via a cap of `M − units` and line weights `q × (price − 1)`; full surface list (migration `0051` functions, TS files, UI, contract); margin-floor, stacking, returns and net-basis questions Q1–Q4 for the owner.
+- Evidence: two read-only impact sweeps (order money model + DB guards; downstream consumers); separate-agent R4 review of the design (F1 net-0 unit breaks ≥1 checks, F2/F3 missed recovery/exception/return functions and files, F4 allocation ordering, F5 attributed-checkout floor guard, F6 per-unit commission estimate, F7–F11) — all folded in. Allocation property check: 200,000 random carts, sums exact and every unit keeps ≥ Rp1 (scratch script, not a repo test; the repo test comes with the build).
+
 ## 2026-11-05 (local) — Finance summary: shipping subsidy no longer subtracted twice
 
 - Found while mapping S177 stage 2B: `src/modules/finance/realized-contribution.ts` added `netBuyerShipping` (receipts carry `shipping − subsidy`) and subtracted the full settled carrier fee, then also subtracted `Σ fulfillment_item.subsidy_amount`, counting every shipping subsidy twice (spec 11 contribution rule: "without double-counting allocated components"). Reporting only; no money movement or posting is affected. The extra term is removed.
