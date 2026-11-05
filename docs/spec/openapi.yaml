@@ -22490,6 +22490,13 @@ components:
           - $ref: '#/components/schemas/VoucherCode'
           - type: 'null'
           description: S177. Set only when the promotion is created (a voucher); null/absent = automatic. Later versions must repeat it or omit it (VOUCHER_CODE_IMMUTABLE); a taken code is VOUCHER_CODE_TAKEN.
+        target:
+          type: string
+          enum:
+          - shipping
+          - merchandise
+          default: shipping
+          description: S177 stage 2B. What the benefit reduces. `merchandise` (store voucher) requires a code; a percentage store voucher requires maximum_per_order ≥ value × minimum_merchandise / 10000. A locked term once the voucher has run.
         expected_version:
           type: integer
           minimum: 0
@@ -22709,6 +22716,12 @@ components:
         has_run:
           type: boolean
           description: S177. Some version has been active and started; a voucher's terms stay locked for good.
+        target:
+          type: string
+          enum:
+          - shipping
+          - merchandise
+          description: S177 stage 2B. `shipping` reduces parcel shipping fees; `merchandise` (store voucher) discounts the product subtotal, frozen per unit.
         budget_state:
           type: object
           properties:
@@ -22757,6 +22770,7 @@ components:
       - proposed
       - used_count
       - has_run
+      - target
       additionalProperties: false
       description: Immutable configuration plus observed lifetime campaign counters, not posted expense/cash. History
         keeps old rules; budget_state is current at this read.

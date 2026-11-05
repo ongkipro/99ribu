@@ -31,17 +31,21 @@ export async function promotionAuthority(tx:TransactionSql,principal:Principal){
   return {approver};
 }
 export function configurationInput(value:unknown){
-  const body=object(value,['expected_version','name','active','starts_at','ends_at','kind','value','maximum_per_order','minimum_merchandise','budget','per_buyer_limit','payment_methods','region_ids','service_ids','stacking','priority','reason','code']);
+  const body=object(value,['expected_version','name','active','starts_at','ends_at','kind','value','maximum_per_order','minimum_merchandise','budget','per_buyer_limit','payment_methods','region_ids','service_ids','stacking','priority','reason','code','target']);
   const kind=choices(body.kind,['fixed','percentage']);const methods=unique(body.payment_methods,2);
   if(typeof body.active!=='boolean'||!methods.length||methods.some((m)=>!['prepaid','cod'].includes(m))) throw invalid();
   const input={expected_version:integer(body.expected_version,0),name:text(body.name,200),active:body.active,starts_at:instant(body.starts_at),ends_at:instant(body.ends_at),kind,
     value:integer(body.value,0,kind==='percentage'?10000:MAX_MONEY),maximum_per_order:integer(body.maximum_per_order,0,MAX_MONEY),minimum_merchandise:integer(body.minimum_merchandise,0,MAX_MONEY),
     budget:integer(body.budget,0,MAX_MONEY),per_buyer_limit:integer(body.per_buyer_limit,1,1000000),payment_methods:methods,region_ids:unique(body.region_ids),service_ids:unique(body.service_ids),
-    stacking:choices(body.stacking,['exclusive','allowed']),priority:integer(body.priority,0,10000),reason:text(body.reason,500),code:voucherCode(body.code)};
-  if(input.starts_at>=input.ends_at||(input.active&&(!input.value||!input.maximum_per_order||!input.budget))) throw invalid();return input;
+    stacking:choices(body.stacking,['exclusive','allowed']),priority:integer(body.priority,0,10000),reason:text(body.reason,500),code:voucherCode(body.code),target:body.target===undefined?'shipping':choices(body.target,['shipping','merchandise'])};
+  if(input.starts_at>=input.ends_at||(input.active&&(!input.value||!input.maximum_per_order||!input.budget))) throw invalid();
+  // S177 stage 2B: a store voucher always has a code, and a percentage one a cap that covers the minimum purchase (decision 1).
+  if(input.target==='merchandise'&&(input.code===null||(input.kind==='percentage'&&input.value>0&&(!input.maximum_per_order
+    ||BigInt(input.maximum_per_order)*10000n<BigInt(input.value)*BigInt(input.minimum_merchandise))))) throw invalid();
+  return input;
 }
 // Terms a running voucher keeps (S177 decision 8): only the end, the budget, the name and the active flag move.
-const LOCKED=['kind','value','maximum_per_order','minimum_merchandise','per_buyer_limit','payment_methods','region_ids','service_ids','stacking','priority','starts_at'] as const;
+const LOCKED=['target','kind','value','maximum_per_order','minimum_merchandise','per_buyer_limit','payment_methods','region_ids','service_ids','stacking','priority','starts_at'] as const;
 export async function insertVersion(tx:TransactionSql,promotionId:string,input:ReturnType<typeof configurationInput>,actorId:string,proposed=false){
   const [head]=await tx`select * from app.promotion where id=${promotionId} for update`;
   if(!head) throw new AccessError(404,'NOT_FOUND');
@@ -57,8 +61,8 @@ export async function insertVersion(tx:TransactionSql,promotionId:string,input:R
   }
   if(BigInt(input.budget)<BigInt(head.reserved_amount)+BigInt(head.committed_amount)) throw new AccessError(409,'BUDGET_ENCUMBERED');
   if(input.active&&Date.parse(input.ends_at)<=Date.now()) throw new AccessError(400,'PROMOTION_ALREADY_ENDED');
-  await tx`insert into app.promotion_version (promotion_id,revision,name,active,starts_at,ends_at,kind,value,maximum_per_order,minimum_merchandise,budget,per_buyer_limit,payment_methods,region_ids,service_ids,stacking,priority,actor_id,reason,proposed)
-    values (${promotionId},${input.expected_version+1},${input.name},${input.active},${input.starts_at},${input.ends_at},${input.kind},${input.value},${input.maximum_per_order},${input.minimum_merchandise},${input.budget},${input.per_buyer_limit},${input.payment_methods},${input.region_ids},${input.service_ids},${input.stacking},${input.priority},${actorId},${input.reason},${proposed})`;
+  await tx`insert into app.promotion_version (promotion_id,revision,name,active,starts_at,ends_at,kind,value,maximum_per_order,minimum_merchandise,budget,per_buyer_limit,payment_methods,region_ids,service_ids,stacking,priority,actor_id,reason,proposed,target)
+    values (${promotionId},${input.expected_version+1},${input.name},${input.active},${input.starts_at},${input.ends_at},${input.kind},${input.value},${input.maximum_per_order},${input.minimum_merchandise},${input.budget},${input.per_buyer_limit},${input.payment_methods},${input.region_ids},${input.service_ids},${input.stacking},${input.priority},${actorId},${input.reason},${proposed},${input.target})`;
   await tx`update app.promotion set configuration_revision=configuration_revision+1 where id=${promotionId}`;
 }
 export async function readConfiguration(tx:TransactionSql,promotionId:string){
@@ -77,7 +81,7 @@ function project(row:Record<string,unknown>){
     minimum_merchandise:Number(row.minimum_merchandise),budget:Number(row.budget),per_buyer_limit:Number(row.per_buyer_limit),payment_methods:row.payment_methods as string[],region_ids:row.region_ids as string[],service_ids:row.service_ids as string[],
     stacking:String(row.stacking),priority:Number(row.priority),recorded_by:String(row.actor_id),reason:String(row.reason),recorded_at:new Date(String(row.created_at)).toISOString(),currency:'IDR',
     budget_state:{version:Number(row.budget_revision),reserved:Number(row.reserved_amount),committed:Number(row.committed_amount)},
-    code:row.code===null?null:String(row.code),proposed:Boolean(row.proposed),used_count:Number(row.used_count),has_run:Boolean(row.has_run)};
+    code:row.code===null?null:String(row.code),proposed:Boolean(row.proposed),target:String(row.target??'shipping'),used_count:Number(row.used_count),has_run:Boolean(row.has_run)};
 }
 export async function writeConfiguration(request:Request,identity:LocalAuth,principal:Principal,scope:string|null,value:unknown){
   const input=configurationInput(value);const promotionId=scope===null?null:id(scope);
@@ -147,7 +151,7 @@ export async function decideProposal(request:Request,identity:LocalAuth,principa
     if(decision==='approve'&&Date.parse(current.ends_at)<=Date.now()) throw new AccessError(400,'PROMOTION_ALREADY_ENDED');
     const terms={expected_version:current.version,name:current.name,active:decision==='approve',starts_at:current.starts_at,ends_at:current.ends_at,kind:current.kind,value:current.value,
       maximum_per_order:current.maximum_per_order,minimum_merchandise:current.minimum_merchandise,budget:current.budget,per_buyer_limit:current.per_buyer_limit,payment_methods:current.payment_methods,
-      region_ids:current.region_ids,service_ids:current.service_ids,stacking:current.stacking,priority:current.priority,reason:`${decision==='approve'?'Disetujui':'Ditolak'}: ${reason}`.slice(0,500),code:current.code};
+      region_ids:current.region_ids,service_ids:current.service_ids,stacking:current.stacking,priority:current.priority,reason:`${decision==='approve'?'Disetujui':'Ditolak'}: ${reason}`.slice(0,500),code:current.code,target:current.target};
     await insertVersion(tx,promotionId,terms,principal.id);const response=await readConfiguration(tx,promotionId);
     await tx`insert into app.audit_event (actor_id,action,subject_id,outcome,reason,details)
       values (${principal.id},${`promotion.${decision}`},${promotionId},'allowed',${reason},${JSON.stringify({version_id:response.version_id,version:response.version,proposal_version:current.version})}::jsonb)`;

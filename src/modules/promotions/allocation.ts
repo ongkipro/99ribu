@@ -23,3 +23,26 @@ export function allocate(rules:readonly Rule[],shipments:readonly Shipment[]){
   }
   return allocations;
 }
+
+// S177 stage 2B (store voucher): the merchandise discount is frozen per unit and every unit keeps at least Rp1
+// (design §3.3–3.4). Order → lines by weight q × (price − 1) with largest remainder (ties by line_id); line → units in
+// the given unit order, floor(share / q) each and +1 to the first (share mod q). The SQL twin in the seal trigger and
+// the reservation guard must give the same rows.
+export type MerchandiseLine={line_id:string;unit_price:number;quantity:number};
+export const merchandiseCapacity=(lines:readonly MerchandiseLine[])=>lines.reduce((sum,l)=>sum+BigInt(l.quantity)*BigInt(l.unit_price-1),0n);
+export function merchandiseBenefit(rule:{kind:string;value:string|number;maximum_per_order:string|number},lines:readonly MerchandiseLine[]){
+  const gross=lines.reduce((sum,l)=>sum+BigInt(l.quantity)*BigInt(l.unit_price),0n);
+  const requested=rule.kind==='fixed'?BigInt(rule.value):(gross*BigInt(rule.value)+5000n)/10000n;
+  return safeMoney([requested,BigInt(rule.maximum_per_order),merchandiseCapacity(lines)].reduce((a,b)=>a<b?a:b));
+}
+export function allocateMerchandise(amount:number,lines:readonly MerchandiseLine[]){
+  const total=BigInt(amount),capacity=merchandiseCapacity(lines);
+  if(total<0n||total>capacity) throw new AccessError(409,'PROMOTION_AMOUNT_LIMIT');
+  const sorted=[...lines].sort((a,b)=>compare(a.line_id,b.line_id));
+  const portions=sorted.map((l)=>{const weight=BigInt(l.quantity)*BigInt(l.unit_price-1);const numerator=capacity?total*weight:0n;
+    return {line:l,amount:capacity?numerator/capacity:0n,remainder:capacity?numerator%capacity:0n};});
+  let extra=total-portions.reduce((sum,p)=>sum+p.amount,0n);
+  for(const p of [...portions].sort((a,b)=>a.remainder===b.remainder?compare(a.line.line_id,b.line.line_id):a.remainder>b.remainder?-1:1)) if(extra>0n){p.amount++;extra--;}
+  return portions.map((p)=>{const q=BigInt(p.line.quantity);
+    return {line_id:p.line.line_id,amount:safeMoney(p.amount),units:Array.from({length:p.line.quantity},(_,i)=>safeMoney(p.amount/q+(BigInt(i)<p.amount%q?1n:0n)))};});
+}

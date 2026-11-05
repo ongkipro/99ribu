@@ -4,18 +4,22 @@ import {enqueueJob} from '../../jobs/outbox.ts';
 import {AccessError} from '../access/policy.ts';
 import {array,id,integer,invalid,object,text} from '../catalog/validation.ts';
 import {lockInventoryClock} from '../inventory/state.ts';
-import {allocate,compare,safeMoney,type Rule,type Shipment} from './allocation.ts';
+import {allocate,allocateMerchandise,compare,merchandiseBenefit,safeMoney,type Rule,type Shipment} from './allocation.ts';
 import {identifier,instant,MAX_MONEY} from './configuration.ts';
 
 type Line={line_id:string;product_id:string;product_revision:number;offer_id:string;quantity:number};
-type Header={id:string;key:string;request_hash:string;customer_key:string;status:string;payment_method:string;merchandise_amount:string;shipping_amount:string;subsidy_amount:string;clock_namespace:string|null;expires_at:string;created_at:string;resolved_at:string|null;resolution_reason:string|null};
+type Header={id:string;key:string;request_hash:string;customer_key:string;status:string;payment_method:string;merchandise_amount:string;shipping_amount:string;subsidy_amount:string;discount_amount:string;clock_namespace:string|null;expires_at:string;created_at:string;resolved_at:string|null;resolution_reason:string|null};
 export async function readPromotionReservation(sql:Sql|TransactionSql,reservationId:string){
   const [header]=await sql<Header[]>`select * from app.promotion_reservation where id=${id(reservationId)}`;
   if(!header) throw new AccessError(404,'NOT_FOUND');
   const allocations=await sql<{promotion_id:string;version_id:string;amount:string}[]>`select promotion_id,version_id,amount from app.promotion_allocation where reservation_id=${header.id} order by promotion_id`;
   const shipments=await sql<{promotion_id:string;shipment_id:string;amount:string}[]>`select promotion_id,shipment_id,amount from app.promotion_shipment_allocation where reservation_id=${header.id} order by promotion_id,shipment_id`;
-  return {id:header.id,status:header.status,merchandise_amount:Number(header.merchandise_amount),shipping_amount:Number(header.shipping_amount),subsidy_amount:Number(header.subsidy_amount),expires_at:new Date(header.expires_at).toISOString(),
-    allocations:allocations.map((a)=>({...a,amount:Number(a.amount),shipments:shipments.filter((s)=>s.promotion_id===a.promotion_id).map((s)=>({shipment_id:s.shipment_id,amount:Number(s.amount)}))}))};
+  const lines=await sql<{promotion_id:string;line_id:string;amount:string}[]>`select promotion_id,line_id,amount from app.promotion_line_allocation where reservation_id=${header.id} order by promotion_id,line_id`;
+  return {id:header.id,status:header.status,merchandise_amount:Number(header.merchandise_amount),shipping_amount:Number(header.shipping_amount),subsidy_amount:Number(header.subsidy_amount),discount_amount:Number(header.discount_amount),expires_at:new Date(header.expires_at).toISOString(),
+    // Same shape as the quote document's promotions[]: a shipping benefit lists parcels; a store voucher has no parcels and lists cart lines.
+    allocations:allocations.map((a)=>{const mine=lines.filter((l)=>l.promotion_id===a.promotion_id);
+      const parcels=shipments.filter((s)=>s.promotion_id===a.promotion_id).map((s)=>({shipment_id:s.shipment_id,amount:Number(s.amount)}));
+      return mine.length?{...a,amount:Number(a.amount),shipments:parcels,lines:mine.map((l)=>({line_id:l.line_id,amount:Number(l.amount)}))}:{...a,amount:Number(a.amount),shipments:parcels};})};
 }
 async function lockRules(tx:TransactionSql,promotionIds:readonly string[]){
   const rows=await tx`select id from app.promotion where id in ${tx([...promotionIds].sort())} order by id for update`;
@@ -99,18 +103,31 @@ export async function reservePromotions(tx:TransactionSql,value:{key:string;cust
   const shipping=safeMoney(shipments.reduce((sum,s)=>sum+BigInt(s.shipping_fee),0n));
   const [wall]=await tx`select clock_timestamp()::text as now`;const now=namespace===null?wall.now:clock.now.toISOString();
   const duration=Date.parse(expiresAt)-Date.parse(now);if(duration<=0) throw new AccessError(409,'RESERVATION_EXPIRED');if(duration>86400000) throw new AccessError(400,'RESERVATION_DEADLINE_TOO_DISTANT');
-  const rules=await tx<(Rule&{active:boolean;starts_at:string;ends_at:string;payment_methods:string[];minimum_merchandise:string;budget:string;reserved_amount:string;committed_amount:string;reserved_uses:number;committed_uses:number;per_buyer_limit:number})[]>`
-    select v.*,p.reserved_amount,p.committed_amount,b.reserved_uses,b.committed_uses from app.promotion p
+  const rules=await tx<(Rule&{target:string;code:string|null;active:boolean;starts_at:string;ends_at:string;payment_methods:string[];minimum_merchandise:string;budget:string;reserved_amount:string;committed_amount:string;reserved_uses:number;committed_uses:number;per_buyer_limit:number})[]>`
+    select v.*,p.code,p.reserved_amount,p.committed_amount,b.reserved_uses,b.committed_uses from app.promotion p
     join app.promotion_version v on v.promotion_id=p.id and v.revision=p.configuration_revision
     join app.promotion_buyer_usage b on b.promotion_id=p.id and b.customer_key=${value.customer_key} where p.id in ${tx(promotionIds)}`;
   for(const rule of rules) if(!rule.active||Date.parse(now)<Date.parse(rule.starts_at)||Date.parse(now)>=Date.parse(rule.ends_at)||!rule.payment_methods.includes(value.payment_method)||BigInt(merchandise)<BigInt(rule.minimum_merchandise)) throw new AccessError(409,'PROMOTION_INELIGIBLE');
-  const allocations=allocate(rules,shipments);if(!allocations.length) throw new AccessError(409,'NO_PROMOTION_BENEFIT');
+  // S177 stage 2B: shipping rules share the parcels' fees; one store voucher (merchandise) discounts the lines with
+  // order-level filters (every parcel's service and region must match) and stacks with them (owner decision 11).
+  const shippingRules=rules.filter((r)=>r.target!=='merchandise'),merchandiseRules=rules.filter((r)=>r.target==='merchandise');
+  if(merchandiseRules.length>1||merchandiseRules.some((r)=>r.code===null)) throw new AccessError(409,'PROMOTION_STACKING_CONFLICT');
+  const allocations:{promotion_id:string;version_id:string;amount:number;shipments:{shipment_id:string;amount:number}[];lines:{line_id:string;amount:number}[]}[]=
+    allocate(shippingRules,shipments).map((a)=>({...a,lines:[]}));
+  for(const rule of merchandiseRules){
+    if(shipments.some((s)=>(rule.service_ids.length&&!rule.service_ids.includes(s.service_id))||(rule.region_ids.length&&!s.region_ids.some((id)=>rule.region_ids.includes(id))))) throw new AccessError(409,'PROMOTION_INELIGIBLE');
+    const priced=definitions.map((d)=>({line_id:String(d.line_id),unit_price:Number(d.price),quantity:Number(d.quantity)}));
+    const amount=merchandiseBenefit(rule,priced);
+    if(amount>0) allocations.push({promotion_id:rule.promotion_id,version_id:rule.id,amount,shipments:[],lines:allocateMerchandise(amount,priced).filter((l)=>l.amount>0).map(({line_id,amount})=>({line_id,amount}))});
+  }
+  if(!allocations.length) throw new AccessError(409,'NO_PROMOTION_BENEFIT');
   for(const a of allocations){const rule=rules.find((r)=>r.promotion_id===a.promotion_id);if(!rule) throw new AccessError(503,'PROMOTION_INVALID');
     if(BigInt(rule.reserved_amount)+BigInt(rule.committed_amount)+BigInt(a.amount)>BigInt(rule.budget)) throw new AccessError(409,'PROMOTION_BUDGET_EXHAUSTED');
     if(rule.reserved_uses+rule.committed_uses>=rule.per_buyer_limit) throw new AccessError(409,'PROMOTION_BUYER_LIMIT');}
-  const subsidy=safeMoney(allocations.reduce((sum,a)=>sum+BigInt(a.amount),0n));
-  const inserted=await tx`insert into app.promotion_reservation (key,request_hash,customer_key,payment_method,merchandise_amount,shipping_amount,subsidy_amount,clock_namespace,expires_at,created_at)
-    values (${value.key},${hash},${value.customer_key},${value.payment_method},${merchandise},${shipping},${subsidy},${namespace},${expiresAt},${now}) on conflict (key) do nothing returning id`;
+  const subsidy=safeMoney(allocations.filter((a)=>!a.lines.length).reduce((sum,a)=>sum+BigInt(a.amount),0n));
+  const discount=safeMoney(allocations.filter((a)=>a.lines.length).reduce((sum,a)=>sum+BigInt(a.amount),0n));
+  const inserted=await tx`insert into app.promotion_reservation (key,request_hash,customer_key,payment_method,merchandise_amount,shipping_amount,subsidy_amount,discount_amount,clock_namespace,expires_at,created_at)
+    values (${value.key},${hash},${value.customer_key},${value.payment_method},${merchandise},${shipping},${subsidy},${discount},${namespace},${expiresAt},${now}) on conflict (key) do nothing returning id`;
   const [header]=await tx<Header[]>`select * from app.promotion_reservation where key=${value.key} for update`;
   if(header.request_hash!==hash) throw new AccessError(409,'IDEMPOTENCY_CONFLICT');
   if(!inserted.length) return readPromotionReservation(tx,header.id);
@@ -119,7 +136,8 @@ export async function reservePromotions(tx:TransactionSql,value:{key:string;cust
   for(const a of [...allocations].sort((a,b)=>compare(a.promotion_id,b.promotion_id))){
     await tx`insert into app.promotion_allocation (reservation_id,promotion_id,version_id,amount) values (${header.id},${a.promotion_id},${a.version_id},${a.amount})`;
     for(const s of a.shipments) await tx`insert into app.promotion_shipment_allocation (reservation_id,promotion_id,shipment_id,amount) values (${header.id},${a.promotion_id},${s.shipment_id},${s.amount})`;
-    await post(tx,header.id,a.promotion_id,value.customer_key,a.amount,'reserve','Reserve frozen shipping benefit',actorId);
+    for(const l of a.lines) await tx`insert into app.promotion_line_allocation (reservation_id,promotion_id,line_id,amount) values (${header.id},${a.promotion_id},${l.line_id},${l.amount})`;
+    await post(tx,header.id,a.promotion_id,value.customer_key,a.amount,'reserve',a.lines.length?'Reserve frozen store voucher discount':'Reserve frozen shipping benefit',actorId);
   }
   await tx`update app.promotion_reservation set status='active' where id=${header.id}`;
   const jobId=await enqueueJob(tx,'promotion.reservation.expire',`promotion-expire:${header.id}`,{reservationId:header.id});
