@@ -22,6 +22,10 @@ Before a slice, verify the actual Git root/HEAD and inspect all dirty paths. Dec
 
 Use the executed command registry in README and the current evidence in STATUS. PR-7 selects 29 explicit native runtime files and two built browser entries; it excludes historical rollback candidates and separately gated isolated upgrade executors. Other implemented selectors retain their existing domain ownership. Required skipped/TODO/empty tests and unavailable dependencies must fail. Prefer `delivery-ledger record --check NAME --command '<actual command>'` for executable evidence. Record changed behavior, commands/results and unresolved gaps; run `check-boundary` against the final surface. Every R3/R4 slice requires a real separate-agent review bound to the current surface; self-review under another name is invalid. Recheck and review after material changes. Finish the run before any separately authorized commit.
 
+## Shared machine: heavy work goes through the queue
+
+Several AI terminals share one host. Builds, test suites and browser runs use `scripts/heavy.sh` (machine-wide `heavy-run` pool slot plus the `99ribu-env` lock for the built server and the local/test databases): `npm run build`, `test:integration`, `test:browser` and `test:file -- <file>` already do. Never start a second suite, a build or a server restart while another run holds the lock (`heavy-run --status`), never run integration and browser suites together, and run a single test file with `npm run test:file`, not a bare `node --test`. Without `heavy-run` (CI, Docker) the wrapper just runs the command. Dotfiles memory `development.md` "Parallel AI terminals" has the full rules.
+
 ## Stop and resume
 
 On interruption or a failed check, record the active slice, actual dirty surface, evidence/run reference, failure, exact next command and state to resume in STATUS. Preserve work; do not reset, clean, silently retry ambiguous financial effects or mark partial work complete. Missing external credentials do not block authorized simulated journeys. Missing local auth, persistence or browser proof remains an implementation gap.

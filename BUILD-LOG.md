@@ -1,5 +1,12 @@
 # Build log — Serba 99ribu
 
+## 2026-11-05 — Multi-terminal coordination: `heavy-run` queue (dotfiles) and `scripts/heavy.sh`
+
+- Problem (owner: "kalo kita berbagi kontainer dan saling nunggu gak bakal kelar2"): ≥6 AI terminals and several projects share 8 cores; full suites, builds, Playwright and bare `node --test` runs stacked on one `99ribu_test` database and one built server (parallel runs timed out each other, company-wide state such as the payment policy leaked between tests, a rebuild or server restart under a running suite broke it). The existing `check-tests.ts` advisory DB lock only covered runs through that script; `focus` only records intent.
+- Fix: dotfiles `bin/heavy-run` (+ `heavy-run-test`, kernel `flock`, no stale locks): machine-wide pool (default 2 slots on this host, `AI_HEAVY_SLOTS`), named exclusive locks, `--status`, `--wait-max`, `--timeout`, nice 10, jobs keep their locks if the wrapper is killed. Repo side: `scripts/heavy.sh` behind `npm run build`, `test:integration`, `test:browser` and new `test:file` (lock `99ribu-env`; plain run when `heavy-run` is absent or `CI` is set, so Docker/Coolify builds are unchanged). Rule recorded in dotfiles `CORE.md` (one line), memory `development.md` "Parallel AI terminals", the system map, and 99ribu `AGENTS.md`.
+- Checks: `heavy-run-test` ok (5 consecutive runs after replacing fixed sleeps with state polling); `npm run test:file -- tests/launcher.test.ts` 9/9 with the slot and lock visible in `--status` and released afterwards; dotfiles `ai-policy-lint` PASSED, `system-map --check` current, hot-context budgets (CORE 8,053/8,192; omp 10,231/10,240).
+- Not built (recorded in STATUS): per-run template databases, a test-only tuned Postgres, sharding, CI.
+
 ## 2026-11-05 — Full integration run on the fixed seal (`6f53743` + test fixes)
 
 - `npm run test:integration -- --case=all-current`: 225 files, 694 passed, 5 failed, 1 empty-file report (35 failures in the run before the `0056` fix). Fixed after the run (`5199dfc`): `promotion-http.test.ts` now records success and denial samples for `POST /admin/shipping-promotions/{id}/decisions` (the S177 2A operation was never exercised there; the contract probe requires both); `return-financial-basis`, `replacement-refund`, `return-lifecycle` expected refunds without the unit's frozen COD fee share, but the shared test DB has a COD fee policy in force — they now read `fulfillment_item.payment_charge`. Each passes alone.
