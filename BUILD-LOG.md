@@ -1,5 +1,10 @@
 # Build log — Serba 99ribu
 
+## 2026-11-05 — Full integration run on the fixed seal (`6f53743` + test fixes)
+
+- `npm run test:integration -- --case=all-current`: 225 files, 694 passed, 5 failed, 1 empty-file report (35 failures in the run before the `0056` fix). Fixed after the run (`5199dfc`): `promotion-http.test.ts` now records success and denial samples for `POST /admin/shipping-promotions/{id}/decisions` (the S177 2A operation was never exercised there; the contract probe requires both); `return-financial-basis`, `replacement-refund`, `return-lifecycle` expected refunds without the unit's frozen COD fee share, but the shared test DB has a COD fee policy in force — they now read `fulfillment_item.payment_charge`. Each passes alone.
+- Remaining: `backup-restore.test.ts` (S85 drill) — 3 passed, 3 hit the 180 s drill limit; dump/restore of the 595 MB test database (grown by today's runs) takes 83–180 s per stage. Environment size, not 2B code; recreating the test database would bring it back under the limit (destructive for local test data, left to the owner).
+
 ## 2026-11-05 — Performance regression from S177 2B found and fixed (`0056`); corrections
 
 - Symptom: S99 kept exceeding its 10-minute limit; the test DB showed ~8 s between orders in today's S99 runs against ~0.15 s on 2026-11-01. `log_min_duration_statement` + `auto_explain` (nested, test DB only, reset afterwards) put the time in `SET CONSTRAINTS ALL IMMEDIATE`, i.e. the deferred `seal_commerce_order`, on the two checks added in `0052` that call `app.quote_unit_discounts(q.document)`: ~0.7 s per call.
