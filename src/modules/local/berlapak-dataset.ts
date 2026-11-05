@@ -652,6 +652,8 @@ const keepCaps=(word:string)=>{const letters=word.replace(/[^\p{L}]/gu,'');retur
 const recase=(word:string)=>{if(keepCaps(word)||word.replace(/[^\p{L}]/gu,'').length<4) return word;const lower=word.toLowerCase();return lower.charAt(0).toUpperCase()+lower.slice(1);};
 // Merchant feeds cap descriptions at 5,000 characters; product text stays below that.
 export const DETAILS_LIMIT=4500;
+// Reviewed product descriptions keyed by product key, each bound to the SHA-256 of the generated text it replaces.
+const DESCRIPTIONS:Readonly<Record<string,{source_sha256:string;description:string}>>=JSON.parse(readFileSync(new URL('./berlapak-descriptions.json',import.meta.url),'utf8'));
 export function cleanDetails(raw:string,options:{suppliers:readonly RegExp[];names:readonly string[];warehouses:readonly string[]}){
   const claims=new Set<string>();const out:string[]=[];let skipMaker=false;
   const seen=new Set(options.names.map((n)=>squash(n)));const titleWords=new Set(options.names.flatMap((n)=>words(n).map(squash)));
@@ -724,7 +726,7 @@ export function classifyOffers(source:Pick<ReturnType<typeof readBerlapakSource>
   return result;
 }
 
-export type BerlapakDataset={catalog:CatalogDocument;text:string;manifest:ManifestDocument;photos:Map<string,{bytes:Buffer;width:number;height:number}>;skipped:Record<string,number>};
+export type BerlapakDataset={catalog:CatalogDocument;text:string;manifest:ManifestDocument;photos:Map<string,{bytes:Buffer;width:number;height:number}>;skipped:Record<string,number>;reviewedDescriptions:{applied:number;stale:string[]}};
 // `minimumPerCategory`/`requireOverrides` exist for small synthetic snapshots in tests only; the
 // catalog command always uses the defaults.
 // `stockNames`: stock item names already committed (immutable rows once imported); an item keeps its committed name
@@ -755,6 +757,7 @@ export function buildBerlapakDataset(sourceDir:string,options:{minimumPerCategor
   const warehouseNames=[...new Set(source.stocks.map((s)=>s.warehouse.name.toLowerCase().trim()))].filter((n)=>n.length>=4&&!/^(?:rumah|gudang|toko|kantor)$/.test(n));
   const suppliers=supplierPatterns(source.supplierNames);
   const details=new Map(source.stocks.map((s)=>[s.key,cleanDetails(s.details,{suppliers,names:[s.title,s.name],warehouses:warehouseNames})]));
+  const descriptions={applied:0,stale:[] as string[]};
   const describe=(o:(typeof source.offers)[number])=>{
     const variants=groups.get(o.productKey) as (typeof source.offers);
     const head=o.kind==='bundle'&&titles.get(o.key)!==o.name?`${o.name}\n${o.description}`:o.kind==='bundle'||!variants.some((v)=>v.image)?o.description:
@@ -762,7 +765,14 @@ export function buildBerlapakDataset(sourceDir:string,options:{minimumPerCategor
     const parts=o.parts.map((p)=>({name:(source.stocks.find((s)=>s.key===p.stock) as (typeof source.stocks)[number]).name,text:details.get(p.stock)?.text??''})).filter((p)=>p.text);
     const body=o.kind==='bundle'?parts.map((p)=>`${p.name}\n${p.text}`).join('\n\n'):parts[0]?.text??'';
     const full=body?`${head}\n\n${body}`:head;
-    return full.length<=DETAILS_LIMIT?full:o.kind==='bundle'?head:(()=>{throw new Error(`Product ${o.key} details exceed ${DETAILS_LIMIT} characters; tighten cleanDetails.`);})();
+    const generated=full.length<=DETAILS_LIMIT?full:o.kind==='bundle'?head:(()=>{throw new Error(`Product ${o.key} details exceed ${DETAILS_LIMIT} characters; tighten cleanDetails.`);})();
+    // Reviewed rewrite (2026-11-05): replaces the generated text only while the supplier source it was written from is
+    // unchanged. A changed source keeps the generated text and is reported (`reviewed_descriptions.stale`) for re-review.
+    const reviewed=DESCRIPTIONS[o.key];
+    if(!reviewed) return generated;
+    if(createHash('sha256').update(generated).digest('hex')!==reviewed.source_sha256){descriptions.stale.push(o.key);return generated;}
+    descriptions.applied++;
+    return reviewed.description;
   };
   // Photo alt text (image SEO, owner decision 2026-10-23): the clean card title, ", foto N" from
   // the second photo; a bundle photo names the component it shows. Claim terms and anything past
@@ -834,7 +844,7 @@ export function buildBerlapakDataset(sourceDir:string,options:{minimumPerCategor
   const catalogSha256=createHash('sha256').update(text).digest('hex');
   const manifest:ManifestDocument={format:MANIFEST_FORMAT,catalog_sha256:catalogSha256,
     photos:[...photos].sort(([a],[b])=>a<b?-1:1).map(([sha256,p])=>({sha256,bytes:p.bytes.length,width:p.width,height:p.height}))};
-  return {catalog,text,manifest,photos,skipped:source.skipped};
+  return {catalog,text,manifest,photos,skipped:source.skipped,reviewedDescriptions:descriptions};
 }
 
 export function writeBerlapakDataset(sourceDir:string,outDir=defaultDatasetDir,options:{minimumPerCategory?:number;requireOverrides?:boolean}={}){
@@ -853,7 +863,7 @@ export function writeBerlapakDataset(sourceDir:string,outDir=defaultDatasetDir,o
   const catalogWritten=write(join(outDir,'catalog.json'),built.text),manifestWritten=write(join(outDir,'manifest.json'),`${JSON.stringify(built.manifest,null,2)}\n`);
   return {dir:outDir,catalog_sha256:built.manifest.catalog_sha256,categories:built.catalog.categories.length,warehouses:built.catalog.warehouses.length,stock_items:built.catalog.stock_items.length,
     products:built.catalog.products.length,offers:built.catalog.products.reduce((n,p)=>n+p.offers.length,0),bundles:built.catalog.products.filter((p)=>p.offers[0].kind==='bundle').length,photos:built.photos.size,
-    photo_bytes:[...built.photos.values()].reduce((n,p)=>n+p.bytes.length,0),catalog_written:catalogWritten,manifest_written:manifestWritten,photos_written:written,photos_removed:removed,skipped:built.skipped};
+    photo_bytes:[...built.photos.values()].reduce((n,p)=>n+p.bytes.length,0),catalog_written:catalogWritten,manifest_written:manifestWritten,photos_written:written,photos_removed:removed,skipped:built.skipped,reviewed_descriptions:built.reviewedDescriptions};
 }
 
 // DEC-005 operator step: initial physical stock and component HPP for the imported catalog,

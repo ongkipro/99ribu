@@ -12,14 +12,14 @@ Previous-Claim: `READY_FOR_LOCAL_ACCEPTANCE` / "100% local production readiness"
 **Deployed 2026-11-05 (`836fed2`, RELEASE "Deployed 2026-11-05"):** the Shopify-style checkout (kecamatan → kelurahan → read-only kode pos from Mengantar's catalogue, automatic courier loading, no email), card hover, PDP colour/size rows, Lighthouse fixes, product meta fix; plus loading the refreshed Mengantar catalogue (82,374 kelurahan, `data/shipping/README.md`) into production after the deploy. Evidence: BUILD-LOG 2026-11-05; two independent reviews (second: nothing blocks release; its buyer-facing follow-ups fixed).
 
 **Owner decisions open (short):**
-1. **Product descriptions to production:** 571 rewritten locally (backup + restore in `/data/99ribu-local/product-descriptions/`); apply to production? Before any future dataset import, update the dataset generator or the import restores the old text.
-2. **Products to delist or check:** #295, #476, #489, #545, #458, #571 (medical/sexual claims, covert listening); misleading names or categories (e.g. "Teh Hitam" #497–#505, "Special Summit Mengantar" #484/#488); 387 products miss facts (size charts, net volume, material).
-3. **Vouchers (S177):** the eight decisions in `docs/spec/vouchers/S177.md`; stage 1 UI is built and switched off.
-4. **AutoLaris live (S97):** API key, egress IP, settled advice shape, and now a store email for the required `customer_email` (checkout no longer asks buyers for email).
+1. **Product descriptions: done in production 2026-11-05** (owner approved). Off-host backup `20261105T025545Z` + local dump; owner ran the apply in the owner MFA session: 570 PATCHED, 452 REPUBLISHED, 1 CHANGED_SINCE_BACKUP (#353 SR12 Gomilku, staff-edited in production, left as is). Read-back 570/570 new text; edge cache purged; 5/5 sampled live PDPs show the new text. Log `/data/99ribu-local/product-descriptions/apply-production-20261105T0312Z.log.jsonl`. The dataset carries the rewrites (`src/modules/local/berlapak-descriptions.json`), so a later import keeps them.
+2. **Flagged products (#295, #476, #489, #545, #458, #571, misleading names):** owner 2026-11-05: leave as listed (Berlapak products); no action.
+3. **Vouchers (S177):** the eight decisions in `docs/spec/vouchers/S177.md`; recommendations given 2026-11-05 (shipping discount first, prepaid by default, store bears cost, no stacking/best-for-buyer, one per order, WhatsApp identity, commission after discount, shared codes first); awaiting the owner's yes.
+4. **AutoLaris live (S97):** API key, egress IP, settled advice shape, and a store email (owner picks the address) for the required `customer_email` (checkout no longer asks buyers for email).
 5. **Before switching COD to store-borne in production:** integration check that the store's COD cost is booked at remittance.
 6. **`.env.example`, Mengantar booking/tracking (S94/S98), province exclusion (S170), wave 4 leftovers:** unchanged from 2026-11-04.
 
-Next action: owner decisions 1–4 above (product copy to production, delist list, voucher S177 decisions, AutoLaris store email). Production carries the refreshed area catalogue and all 79 warehouses are mapped.
+Next action: owner confirms the S177 voucher recommendations and names the AutoLaris store email. Production carries the refreshed area catalogue and all 79 warehouses are mapped.
 
 ## Previous — 2026-11-04
 
