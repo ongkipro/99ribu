@@ -70,7 +70,7 @@ test('mixed COD parcels keep distinct original collection sources and no receipt
   const units=await sql`select id from app.fulfillment_item where shipment_id in ${sql(f.parcels.map(p=>p.shipment_id))}`;
   const basis=await sql.begin(tx=>lockRecoveryCollectionBasis(tx,f.order.id,{kind:'purchased_units',fulfillment_item_ids:units.map(u=>u.id)}));
   assert.equal(basis.basis_kind,'purchased_units');assert.equal(basis.sources.length,2);assert.deepEqual(basis.sources.map(s=>s.source_event_id).sort(),[first.id,second.id].sort());
-  assert.ok(basis.sources.every(s=>s.amount===s.source_amount&&s.original_payment_operation_id===null));assert.equal(basis.sources.reduce((sum,s)=>sum+s.amount,0),f.order.buyer_total);
+  assert.ok(basis.sources.every(s=>s.amount===s.source_amount&&s.original_payment_operation_id===null));assert.equal(basis.sources.reduce((sum,s)=>sum+s.amount,0),f.order.buyer_total+(f.order.payment_charge_total??0),"the collected COD includes the frozen COD fee when a policy charges one");
   const extra=await simulateCodCollection(sql,'test',f.parcels[0].shipment_id,{reference:randomUUID()});await f.run(await ingestCodEvent(sql,extra));
   const [result]=await sql`select transaction_id from app.cod_event_result where event_id=${extra.id}`;
   const unallocated=await sql.begin(tx=>lockRecoveryCollectionBasis(tx,f.order.id,{kind:'unallocated_collection',source_transaction_id:result.transaction_id}));

@@ -39,9 +39,9 @@ test('aggregate original money uses exact integers and rejects overflowing or ex
 test('original COD source, economic receipt, refund entitlement and Purchase retain one exact funded parcel scope',async()=>{
  const f=await fulfillmentFixture('cod');try{
   const sql=f.identity.sql,shipment=String(f.parcels[0].shipment_id),other=String(f.parcels[1].shipment_id);
-  const original=await sql`select f.id,f.order_item_id,f.shipment_id,f.buyer_shipping,f.subsidy_amount,i.unit_price from app.fulfillment_item f join app.order_item i on i.id=f.order_item_id where i.order_id=${f.order.id} order by f.id`;
+  const original=await sql`select f.id,f.order_item_id,f.shipment_id,f.buyer_shipping,f.subsidy_amount,f.payment_charge,i.unit_price from app.fulfillment_item f join app.order_item i on i.id=f.order_item_id where i.order_id=${f.order.id} order by f.id`;
   const wanted=original.filter(unit=>unit.shipment_id===shipment),basis=await sql.begin(tx=>codCollectionBasis(tx,shipment));
-  assert.deepEqual(basis,collectionUnitTotals(wanted.map(unit=>({id:String(unit.id),unit_price:Number(unit.unit_price),buyer_shipping:Number(unit.buyer_shipping)}))));
+  assert.deepEqual(basis,collectionUnitTotals(wanted.map(unit=>({id:String(unit.id),unit_price:Number(unit.unit_price),buyer_shipping:Number(unit.buyer_shipping),payment_charge:Number(unit.payment_charge)}))));
   const event=await simulateCodCollection(sql,'test',shipment);
   assert.equal(event.amount,basis.amount);
   assert.deepEqual(await sql.begin(tx=>codCollectionBasis(tx,shipment,event.operation_id)),basis);
@@ -61,6 +61,6 @@ test('original COD source, economic receipt, refund entitlement and Purchase ret
   await f.run(await ingestCodEvent(sql,retry));
   assert.equal((await sql`select count(*)::int n from app.economic_receipt where shipment_id=${shipment}`)[0].n,1);
   assert.equal((await sql`select count(*)::int n from app.commerce_event where receipt_id=${receipt.id} and name='Purchase'`)[0].n,1);
-  assert.deepEqual(await sql`select f.id,f.order_item_id,f.shipment_id,f.buyer_shipping,f.subsidy_amount,i.unit_price from app.fulfillment_item f join app.order_item i on i.id=f.order_item_id where i.order_id=${f.order.id} order by f.id`,original);
+  assert.deepEqual(await sql`select f.id,f.order_item_id,f.shipment_id,f.buyer_shipping,f.subsidy_amount,f.payment_charge,i.unit_price from app.fulfillment_item f join app.order_item i on i.id=f.order_item_id where i.order_id=${f.order.id} order by f.id`,original);
  }finally{await f.close();}
 });
