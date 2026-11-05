@@ -283,7 +283,7 @@ test("S34 GET /api/v1/admin/finance/summary computes complete and incomplete rea
 			Number(receipt.buyer_shipping) -
 			30000 -
 			carrierFee -
-			Number(unit.subsidy_amount) -
+			// buyer_shipping is already net of the unit's subsidy; it is not subtracted twice.
 			providerFee -
 			frozen.packaging -
 			6930;

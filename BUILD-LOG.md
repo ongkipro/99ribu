@@ -1,5 +1,10 @@
 # Build log — Serba 99ribu
 
+## 2026-11-05 (local) — Finance summary: shipping subsidy no longer subtracted twice
+
+- Found while mapping S177 stage 2B: `src/modules/finance/realized-contribution.ts` added `netBuyerShipping` (receipts carry `shipping − subsidy`) and subtracted the full settled carrier fee, then also subtracted `Σ fulfillment_item.subsidy_amount`, counting every shipping subsidy twice (spec 11 contribution rule: "without double-counting allocated components"). Reporting only; no money movement or posting is affected. The extra term is removed.
+- `tests/integration/finance-realized-contribution.test.ts` expected the old formula; updated. Its fixture order has no promotion (subsidy 0), so it cannot tell the two formulas apart; a subsidised-order case comes with the S177 2B integration tests. `--case=PR-19` 10/10.
+
 ## 2026-11-05 (local) — Server Action redirects in production: root cause and central fix (PDP "Beli sekarang")
 
 - Symptom (production live check after `e0ebea7`, pre-existing): PDP "Beli sekarang" landed on "Sesi belanja perlu diperiksa"; a reload of `/checkout`, or "Tambah ke keranjang" → "Lanjut ke checkout", worked. Local did not reproduce. Production had 0 orders at the time (read-only count), so no placed order was affected.

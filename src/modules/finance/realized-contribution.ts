@@ -309,7 +309,6 @@ export async function readFinanceSummary(
 
 		let recognizedHppTotal = 0n;
 		let estimatedContributionTotal = 0n;
-		let actualShippingSubsidyTotal = 0n;
 		let packagingCostTotal = 0n;
 
 		for (const receipt of receipts) {
@@ -352,7 +351,6 @@ export async function readFinanceSummary(
 
 			for (const unit of unitRows) {
 				if (unit.released) continue;
-				actualShippingSubsidyTotal += BigInt(unit.subsidy_amount);
 
 				const sources = Array.isArray(unit.quote_doc?.financial_sources)
 					? unit.quote_doc.financial_sources
@@ -625,8 +623,10 @@ export async function readFinanceSummary(
 			netMerchandiseRevenue +
 			netBuyerShipping -
 			recognizedHppTotal -
+			// The shipping subsidy is already inside netBuyerShipping (receipts carry shipping − subsidy) while the
+			// carrier cost is the full fee, so subtracting fulfillment_item.subsidy_amount again would count it twice
+			// (spec 11 §contribution: "without double-counting allocated components"; fixed 2026-11-05).
 			actualCarrierCostTotal -
-			actualShippingSubsidyTotal -
 			actualProviderFeeTotal -
 			packagingCostTotal -
 			writeOffCostTotal -
