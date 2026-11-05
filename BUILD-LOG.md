@@ -1,5 +1,9 @@
 # Build log — Serba 99ribu
 
+## 2026-11-06 — Checkpoint (machine maintenance)
+
+- State saved in STATUS "CHECKPOINT 2026-11-06": production `6f53743`; five docs/tests/tooling commits local and unpushed; dotfiles `heavy-run` work uncommitted; no delivery-ledger run active (`activeRun: null`). No new work, builds or tests were started for this checkpoint.
+
 ## 2026-11-05 — Multi-terminal coordination: `heavy-run` queue (dotfiles) and `scripts/heavy.sh`
 
 - Problem (owner: "kalo kita berbagi kontainer dan saling nunggu gak bakal kelar2"): ≥6 AI terminals and several projects share 8 cores; full suites, builds, Playwright and bare `node --test` runs stacked on one `99ribu_test` database and one built server (parallel runs timed out each other, company-wide state such as the payment policy leaked between tests, a rebuild or server restart under a running suite broke it). The existing `check-tests.ts` advisory DB lock only covered runs through that script; `focus` only records intent.
