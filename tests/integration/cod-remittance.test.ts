@@ -7,6 +7,7 @@ import {handleCodRemittances} from '../../src/modules/finance/cod-remittance-rou
 import {handleManualFulfillment} from '../../src/modules/fulfillment/manual-routes.ts';
 import {actor,enroll} from '../contract/access-fixture.ts';
 import {closeFulfillmentActor,fulfillmentFixture} from './fulfillment-fixture.ts';
+import {withCommercialTerms} from './payment-fixture.ts';
 
 type Fixture=Awaited<ReturnType<typeof fulfillmentFixture>>;
 async function shipManually(f:Fixture,parcel:Fixture['parcels'][number],resi:string){
@@ -67,6 +68,39 @@ test('an exact Mengantar COD statement posts one receipt per parcel and one bala
   const again=await post(finance,f,{...body,id:randomUUID(),reauthentication_proof:'unused'});assert.equal(again.payload.code,'STATEMENT_ALREADY_RECORDED');
   const audit=await sql`select details from app.audit_event where subject_id=${id} and action='finance.cod_remittance'`;assert.equal(audit.length,1);
  }finally{for(const user of users)await closeFulfillmentActor(f.identity,user).catch(()=>{});await f.close();}
+});
+
+// DEC-029: with cod_fee_bearer 'store' the buyer pays no COD fee, so the parcel's COD due is goods + shipping only and the
+// carrier's COD fee deducted at remittance is the store's cost: booked as carrier expense, cash = statement net, balanced.
+test('store-borne COD fee: the buyer is charged none and the carrier COD fee deducted at remittance is booked as store expense',async()=>{
+ let terms:Awaited<ReturnType<typeof withCommercialTerms>>|undefined;
+ // prepare returns the policy handle, so a setup failure after it restores the shared payment policy too.
+ const f=await fulfillmentFixture('cod',{prepare:async payment=>{terms=await withCommercialTerms(payment,{cod_fee_bps:333,cod_fee_bearer:'store'});return terms;}}),sql=f.identity.sql,users:Awaited<ReturnType<typeof actor>>[]=[];
+ try{
+  const [order]=await sql`select payment_charge_amount,cod_fee_bps,buyer_total from app.commerce_order where id=${f.order.id}`;
+  assert.deepEqual([Number(order.payment_charge_amount),order.cod_fee_bps],[0,0],'store-borne COD: no buyer COD fee frozen on the order');
+  const stamp=String(Date.now()).slice(-8);
+  await shipManually(f,f.parcels[0],`JP${stamp}31`);await shipManually(f,f.parcels[1],`JP${stamp}32`);
+  const dues=await sql`select id,cod_due from app.order_shipment where order_id=${f.order.id} order by id`;
+  const lines=dues.map(d=>({shipment_id:d.id,amount:Number(d.cod_due)})),gross=lines.reduce((n,l)=>n+l.amount,0);
+  assert.equal(gross,Number(order.buyer_total),'the parcels collect exactly the buyer total, which carries no COD fee');
+  const codFee=Math.ceil(gross*333/10000),shipping=8000,id=randomUUID();
+  const finance=await financeUser(f);users.push(finance);
+  const body={id,reference:`MGT-${stamp}-S`,statement_at:new Date().toISOString(),lines,shipping_deduction:shipping,cod_fee_deduction:codFee,other_deduction:0,net_amount:gross-shipping-codFee,evidence:'Laporan saldo COD dashboard Mengantar',reason:'Penarikan saldo COD'};
+  const recorded=await post(finance,f,{...body,reauthentication_proof:await proof(finance,f,id)});
+  assert.equal(recorded.status,201,JSON.stringify(recorded.payload));assert.deepEqual(recorded.payload.flags,[]);
+  const operation=await settle(f,id);
+  const [settlement]=await sql`select status,cash_transaction_id,fee_transaction_id from app.provider_settlement where operation_id=${operation}`;
+  assert.equal(settlement.status,'matched',JSON.stringify(settlement));
+  const postings=await sql`select account,side,sum(amount)::bigint amount from app.finance_posting where transaction_id in (${settlement.cash_transaction_id},${settlement.fee_transaction_id}) group by account,side order by account,side`;
+  const posted=postings.map(p=>`${p.account}:${p.side}:${Number(p.amount)}`);
+  assert.ok(posted.includes(`carrier_expense:debit:${shipping+codFee}`),posted.join(' '));assert.ok(posted.includes(`company_cash:debit:${gross-shipping-codFee}`),posted.join(' '));
+  // Balanced over exactly the settlement's own postings (non-vacuous: postings must exist).
+  const [balance]=await sql`select count(*)::int n,sum(case when side='debit' then amount else -amount end)::bigint net from app.finance_posting where transaction_id in (${settlement.cash_transaction_id},${settlement.fee_transaction_id})`;
+  assert.ok(balance.n>0,'the settlement posted entries');assert.notEqual(balance.net,null);assert.equal(Number(balance.net),0);
+  const receipts=await sql`select amount,payment_charge from app.economic_receipt where order_id=${f.order.id} order by shipment_id`;
+  assert.deepEqual(receipts.map(r=>[Number(r.amount),Number(r.payment_charge)]),lines.map(l=>[l.amount,0]),'receipts carry no buyer COD fee');
+ }finally{for(const user of users)await closeFulfillmentActor(f.identity,user).catch(()=>{});try{await terms?.restore();}finally{await f.close();}}
 });
 
 test('statements refuse unbalanced totals, future dates, unshipped, simulator-booked, non-COD and already remitted parcels; a short parcel is flagged recovery money',async()=>{

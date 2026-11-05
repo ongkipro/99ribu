@@ -4,10 +4,11 @@ import test from 'node:test';
 import {runOneJob} from '../../src/jobs/worker.ts';
 import {handleAccess} from '../../src/modules/access/routes.ts';
 import {advanceFixtureClock,readFixtureClock} from '../../src/modules/local/fixtures.ts';
-import {type AutolarisClient,autolarisAdviceAdapter,simulateAutolarisSettlement,simulateAutolarisStatus} from '../../src/modules/payments/autolaris.ts';
+import {type AutolarisClient,autolarisAdviceAdapter,persistAutolarisIdentity,simulateAutolarisSettlement,simulateAutolarisStatus} from '../../src/modules/payments/autolaris.ts';
 import {handleAutolarisPayments} from '../../src/modules/finance/autolaris-routes.ts';
 import {actor,cleanup,enroll} from '../contract/access-fixture.ts';
-import {createAttempt} from '../../src/modules/payments/attempts.ts';
+import {advanceAttempt,createAttempt} from '../../src/modules/payments/attempts.ts';
+import {enqueueJob} from '../../src/jobs/outbox.ts';
 import {autolarisBuyerFee} from '../../src/modules/payments/methods.ts';
 import {paymentAdapter} from '../../src/modules/payments/worker.ts';
 import {paymentFixture} from './payment-fixture.ts';
@@ -96,6 +97,41 @@ test('AutoLaris fee borne by the buyer: priced from the policy, frozen on the at
   assert.equal(shown,'PAYMENT_ATTEMPT_ACTIVE','until the failed attempt is closed by its event, no second one starts');
   // A forged fee is refused by the database guard.
   await assert.rejects(sql.begin(async tx=>{await tx`update app.payment_attempt set payment_fee_amount=1 where id=${high.id}`;}),/Payment head requires exact immutable event/);
+ }finally{await policy.restore();await f.close();}
+});
+
+test('buyer-borne AutoLaris fee guards: a forged fee and a fee over Rp1.000.000 are refused at insert; a bill paid after expiry is a late-payment recovery at the order value',async()=>{
+ const f=await paymentFixture(),sql=f.identity.sql,policy=await terms(f);
+ try{
+  await policy.write({payment_fee_bearer:'buyer',autolaris_fees:TABLE});
+  // Bypass createAttempt's pricing: the same writes with a fee the policy did not price are refused by the database.
+  const forge=(orderId:string,fee:number)=>sql.begin(async tx=>{
+   const [o]=await tx`select buyer_total,payment_charge_amount,expires_at,app.reservation_clock(clock_namespace) now from app.commerce_order where id=${orderId}`;
+   const id=randomUUID(),job=await enqueueJob(tx,'payment.create',`payment-create:${id}`,{attemptId:id});
+   const [a]=await tx`insert into app.payment_attempt (id,order_id,method_id,key,request_hash,creation_job_id,expected_amount,payment_fee_amount,created_at,expires_at)
+    values (${id},${orderId},'autolaris',${randomUUID()},${'0'.repeat(64)},${job},${Number(o.buyer_total)+Number(o.payment_charge_amount)},${fee},${new Date(o.now).toISOString()},${o.expires_at}) returning *`;
+   await advanceAttempt(tx,a as never,{status:'pending',source_type:'request',source_id:job,occurred_at:new Date(o.now).toISOString()});
+   await persistAutolarisIdentity(tx,a as never,'VABCA');
+  });
+  const forged=await f.order(1,'prepaid','autolaris');
+  await assert.rejects(forge(forged.order.id,TABLE.VABCA.amount+1),/freezes the policy payment fee/,'a fee other than the policy price is refused');
+  await assert.rejects(forge(forged.order.id,1_000_001),/payment_attempt_fee_check/,'the stored fee ceiling is Rp1.000.000');
+  assert.equal((await sql`select count(*)::int n from app.payment_attempt where order_id=${forged.order.id}`)[0].n,0);
+  // Late payment: the bill (order value + fee) is paid after the order expired.
+  const late=await f.order(1,'prepaid','autolaris'),due=Number(late.order.amount_due),va=await attempt(f,late.order.id,'VABCA');
+  assert.equal(va.fee,TABLE.VABCA.amount);
+  await run(f,va.job,{'payment.create':paymentAdapter(sql,'test')});
+  const clock=await readFixtureClock('test',f.namespace);await advanceFixtureClock('test',f.namespace,1860,clock.version);
+  await simulateAutolarisStatus(sql,'test',va.id,'paid');
+  const [poll]=await sql`select id from app.outbox_job where kind='payment.autolaris.advice' and payload->>'attemptId'=${va.id} and status='pending' order by (payload->>'poll')::int desc limit 1`;
+  await run(f,String(poll.id),{'payment.autolaris.advice':autolarisAdviceAdapter(sql,'test')});
+  for(const event of await sql`select callback_job_id from app.payment_provider_event where attempt_id=${va.id}`){const [cb]=await sql`select status from app.outbox_job where id=${event.callback_job_id}`;if(cb.status==='pending')await run(f,String(event.callback_job_id),{});}
+  const results=await sql`select r.outcome,r.reason from app.payment_event_result r join app.payment_provider_event e on e.id=r.event_id where e.attempt_id=${va.id} and r.outcome in ('confirmed','recovery')`;
+  const [times]=await sql`select a.created_at,a.expires_at,t.paid_at,t.status,app.reservation_clock(o.clock_namespace) now from app.payment_attempt a join app.commerce_order o on o.id=a.order_id join app.autolaris_payment l on l.attempt_id=a.id join app.local_autolaris_transaction t on t.trx_id=l.trx_id and t.environment=l.environment where a.id=${va.id}`;
+  assert.deepEqual(results.map(r=>[r.outcome,r.reason]),[['recovery','late_payment']],JSON.stringify(times));
+  const [order]=await sql`select status,payment_status from app.commerce_order where id=${late.order.id}`;assert.deepEqual([order.status,order.payment_status],['cancelled','expired']);
+  const receipts=await sql`select amount,payment_charge from app.economic_receipt where order_id=${late.order.id}`;
+  assert.deepEqual(receipts.map(r=>[Number(r.amount),Number(r.payment_charge)]),[[due,0]],'the recovery receipt is the order value; the buyer fee is not booked as buyer revenue');
  }finally{await policy.restore();await f.close();}
 });
 

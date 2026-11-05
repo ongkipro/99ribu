@@ -4,6 +4,7 @@ import {capability,commerceActor,prefix} from '../../src/modules/checkout/access
 import {createCart} from '../../src/modules/checkout/carts.ts';
 import {expireOwnedOrderJob} from '../../src/modules/checkout/expiry.ts';
 import {advanceFixtureClock,readFixtureClock} from '../../src/modules/local/fixtures.ts';
+import {handleAccess} from '../../src/modules/access/routes.ts';
 import {handlePayments} from '../../src/modules/payments/routes.ts';
 import {checkoutFixture,CommerceClient} from './checkout-fixture.ts';
 
@@ -33,4 +34,25 @@ export async function paymentFixture(){
   }}finally{await f.close();}
  };
  return {...f,order,call,close};
+}
+
+type PaymentFixture=Awaited<ReturnType<typeof paymentFixture>>;
+async function ownerPolicyProof(f:PaymentFixture){
+ const req=f.owner.browser.request('/api/v1/me/reauthentication-proofs',{password:f.owner.password,action:'payment_policy.version',subject_id:'company-payment'});req.headers.set('idempotency-key',randomUUID());
+ const response=await handleAccess(req,f.identity);assert.equal(response.status,201);return (await response.json()).proof as string;
+}
+// Append a payment-policy version through the real owner flow; returns set/restore.
+export async function withCommercialTerms(f:PaymentFixture,values:Record<string,unknown>){
+ const read=async()=>(await (await f.owner.browser.access('/admin/policy-versions?kind=payment')).json()) as {latest_version:number;current:{values:Record<string,unknown>}|null};
+ const write=async(next:Record<string,unknown>,reason:string)=>{const history=await read();
+  const req=f.owner.browser.request('/api/v1/admin/policy-versions',{kind:'payment',warehouse_id:null,expected_version:history.latest_version,effective_at:null,values:next,reason,reauthentication_proof:await ownerPolicyProof(f)});
+  req.headers.set('idempotency-key',randomUUID());const response=await handleAccess(req,f.identity);assert.equal(response.status,201,JSON.stringify(await response.clone().json()));};
+ // Fixture business clocks stand still: move past each new version's wall-clock effective time.
+ const settle=async()=>{const clock=await readFixtureClock('test',f.namespace),[wall]=await f.identity.sql`select clock_timestamp() now`;
+  await advanceFixtureClock('test',f.namespace,Math.max(1,Math.ceil((new Date(wall.now).getTime()-Date.parse(clock.now))/1000)+5),clock.version);};
+ const original=(await read()).current?.values??{cod_fee_bps:0,manual_bank_accounts:[]};
+ await write({cod_fee_bps:0,manual_bank_accounts:[],...values},'SYNTHETIC S92 payment terms');
+ // A failure after the write must not leave the shared policy changed.
+ try{await settle();}catch(error){await write(original,'SYNTHETIC S92 restore previous payment terms');throw error;}
+ return {set:async(more:Record<string,unknown>)=>{await write({cod_fee_bps:0,manual_bank_accounts:[],...more},'SYNTHETIC S92 payment terms change');await settle();},restore:()=>write(original,'SYNTHETIC S92 restore previous payment terms')};
 }

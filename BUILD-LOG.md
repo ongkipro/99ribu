@@ -1,5 +1,14 @@
 # Build log — Serba 99ribu
 
+## 2026-11-06 — Money-path test gaps closed: store-borne COD at remittance; S172 fee guards and late payment
+
+- `cod-remittance.test.ts`: with `cod_fee_bearer: 'store'` (333 bps) the order freezes no buyer COD fee, the parcels collect exactly `buyer_total`, and a Mengantar statement deducting shipping + the carrier COD fee posts `carrier_expense` debit = both deductions and `company_cash` = statement net, balanced; receipts carry `payment_charge` 0. (STATUS item "before switching COD to store-borne in production".)
+- `payment-fees.test.ts` (S172 gaps): writes that bypass `createAttempt` pricing are refused by the database — a buyer fee other than the policy price (`guard_autolaris_payment`: "freezes the policy payment fee") and a fee above Rp1.000.000 (`payment_attempt_fee_check`); a VA bill paid after the 30-minute window is `recovery`/`late_payment`, the order is cancelled/expired and the one receipt is the order value with no fee.
+- `withCommercialTerms` moved unchanged from `payment-methods.test.ts` to `payment-fixture.ts` and shared.
+- Review fixes (GPT-6.1 Sol round 1 REQUEST_CHANGES, 2 medium): the store-borne balance check now sums exactly the settlement's cash and fee transaction postings and requires them to exist (it could pass vacuously); `fulfillmentFixture` calls a `prepare()`-returned `restore()` before closing on a setup failure, and `withCommercialTerms` restores the original policy if its clock step fails after the write. Round 2 APPROVE, no findings (`/data/tmp/99ribu-reviews/payment-tests-r1-review.md`, `-r2-review.md`).
+- Checks (ledger `RUN-20261105T224045Z-41eff5b6`): lint PASS; `npm run typecheck` PASS; `cod-remittance`, `payment-fees`, `payment-methods`, `price-ceiling` (also uses `fulfillmentFixture` `prepare`) serially with the built server: 29/29 PASS (109 s). The first serial run had one failure in the new test: its query took the first provider event (an intermediate `ignored/pending_notification`); it now selects the settlement outcome. No product code changed.
+- Note: these files write company-wide payment policy; run them serially (`--test-concurrency=1` or the runner's selectors). A parallel `node --test` of several of them produced `VERSION_CONFLICT` and cross-test policy interference.
+
 ## 2026-11-06 — S120: signed-in guest-order link is enumeration-safe (R4)
 
 - Before: `POST /api/v1/me/guest-order-link-challenges` answered 404 for an unknown order and 403 `ORDER_CONTACT_MISMATCH` for a wrong contact (an order/contact oracle for any signed-in buyer).

@@ -15,7 +15,7 @@ import {createAttempt,projectAttempt} from '../../src/modules/payments/attempts.
 import {paymentAdapter} from '../../src/modules/payments/worker.ts';
 import {actor,enroll} from '../contract/access-fixture.ts';
 import {closeFulfillmentActor} from './fulfillment-fixture.ts';
-import {paymentFixture} from './payment-fixture.ts';
+import {paymentFixture,withCommercialTerms} from './payment-fixture.ts';
 import {installFulfillmentCalendars} from './fulfillment-fixture.ts';
 import {handleFulfillment} from '../../src/modules/fulfillment/routes.ts';
 import {shippingAdapter} from '../../src/modules/fulfillment/worker.ts';
@@ -53,19 +53,6 @@ const ACCOUNTS=[{bank_name:'Bank SINTETIS',account_number:'1234567890',account_h
 async function issue(f:Fixture,user:{password:string;browser:{request:(p:string,b?:Record<string,unknown>)=>Request}},action:string,subject:string){
  const req=user.browser.request('/api/v1/me/reauthentication-proofs',{password:user.password,action,subject_id:subject});req.headers.set('idempotency-key',randomUUID());
  const response=await handleAccess(req,f.identity);assert.equal(response.status,201);return (await response.json()).proof as string;
-}
-// Append a payment-policy version through the real owner flow; returns set/restore.
-async function withCommercialTerms(f:Fixture,values:Record<string,unknown>){
- const read=async()=>(await (await f.owner.browser.access('/admin/policy-versions?kind=payment')).json()) as {latest_version:number;current:{values:Record<string,unknown>}|null};
- const write=async(next:Record<string,unknown>,reason:string)=>{const history=await read();
-  const req=f.owner.browser.request('/api/v1/admin/policy-versions',{kind:'payment',warehouse_id:null,expected_version:history.latest_version,effective_at:null,values:next,reason,reauthentication_proof:await issue(f,f.owner,'payment_policy.version','company-payment')});
-  req.headers.set('idempotency-key',randomUUID());const response=await handleAccess(req,f.identity);assert.equal(response.status,201,JSON.stringify(await response.clone().json()));};
- // Fixture business clocks stand still: move past each new version's wall-clock effective time.
- const settle=async()=>{const clock=await readFixtureClock('test',f.namespace),[wall]=await f.identity.sql`select clock_timestamp() now`;
-  await advanceFixtureClock('test',f.namespace,Math.max(1,Math.ceil((new Date(wall.now).getTime()-Date.parse(clock.now))/1000)+5),clock.version);};
- const original=(await read()).current?.values??{cod_fee_bps:0,manual_bank_accounts:[]};
- await write({cod_fee_bps:0,manual_bank_accounts:[],...values},'SYNTHETIC S92 payment terms');await settle();
- return {set:async(more:Record<string,unknown>)=>{await write({cod_fee_bps:0,manual_bank_accounts:[],...more},'SYNTHETIC S92 payment terms change');await settle();},restore:()=>write(original,'SYNTHETIC S92 restore previous payment terms')};
 }
 async function run(f:Fixture,jobId:string){assert.equal(await runOneJob(f.identity.sql,{'payment.create':paymentAdapter(f.identity.sql,'test')},jobId),true);const [job]=await f.identity.sql`select status,last_error from app.outbox_job where id=${jobId}`;assert.equal(job.status,'completed',job.last_error??'');}
 

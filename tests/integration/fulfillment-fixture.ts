@@ -45,9 +45,10 @@ export async function installFulfillmentCalendars(identity:LocalAuth,owner:Await
 }
 // prepare: runs on the payment fixture before the order is placed (e.g. DEC-025 reprice and republish an offer).
 export async function fulfillmentFixture(method:'cod'|'prepaid'='cod',{calendars=true,prepare}:{calendars?:boolean;prepare?:(f:Awaited<ReturnType<typeof paymentFixture>>)=>Promise<unknown>}={}){
- const f=await paymentFixture();let campaign:Awaited<ReturnType<typeof ownShippingCampaign>>|undefined;
+ const f=await paymentFixture();let campaign:Awaited<ReturnType<typeof ownShippingCampaign>>|undefined,prepared:{restore?:()=>Promise<unknown>}|undefined;
  try{
-  await prepare?.(f);
+  // A prepare() that changes shared state may return {restore}; it runs if setup fails before the caller gets the fixture.
+  prepared=await prepare?.(f) as {restore?:()=>Promise<unknown>}|undefined;
   campaign=await ownShippingCampaign(f,[method]);if(calendars)await installFulfillmentCalendars(f.identity,f.owner,f.namespace);
   const {client,order}=await f.order(4,method),sql=f.identity.sql;
   const run=async(jobId:string)=>{assert.equal(await runOneJob(sql,{'shipping.create':shippingAdapter(sql,'test'),'payment.create':paymentAdapter(sql,'test')},jobId),true);const [job]=await sql`select status,last_error from app.outbox_job where id=${jobId}`;assert.equal(job.status,'completed',`Owned fulfillment job: ${job.last_error??'no error'}`);};
@@ -70,5 +71,5 @@ export async function fulfillmentFixture(method:'cod'|'prepaid'='cod',{calendars
    }finally{try{await closeFulfillmentActor(f.identity,f.owner);await deactivateFixtureWarehouses(f.identity,f.namespace);}finally{await sql.end();}}
   };
   return {...f,placeOrder:f.order,client,order,parcels,run,fulfillmentCall:call,book,close};
- }catch(error){try{await campaign?.close();}finally{await f.close();}throw error;}
+ }catch(error){try{await campaign?.close();}finally{try{await prepared?.restore?.();}finally{await f.close();}}throw error;}
 }
