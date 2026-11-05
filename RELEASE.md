@@ -67,6 +67,12 @@ Every external adapter in 99ribu is a local sink or simulation today (for exampl
 
 Not covered by this list because it needs a decision first: per-courier COD fee, remittance days and volumetric divisor (read from the Mengantar documentation, never constants), and the legal and tax wording that needs an accountant or a lawyer.
 
+## Deployed 2026-11-05 (`287bfed`, owner-approved: "ya lanjutkan dan review,audit juga sempurnakan")
+
+- Change: `src/proxy.ts` refuses Next's internal Server Action redirect render (non-public Host) with 421, so every storefront action `redirect()` ("Beli sekarang", post-order, payment, receipt, reorder) loads its target as a full page (BUILD-LOG top entry). No migration.
+- Backup before push: off-host `20261105T075914Z` (225 tables, 131,646 rows, 2,861 files). Coolify deployed web/worker `20261105T080149` (both healthy). Cloudflare cache purged (token `CLOUDFLARE_99RIBU_API_TOKEN`).
+- Live check (390 px, no order placed; leaves one guest cart line): PDP "Beli sekarang" → action response 200 with `x-action-redirect: /checkout;push` and no content-type → document `GET /checkout` 200 → checkout form shown, no "Sesi belanja perlu diperiksa"; web log has no `failed to get redirect response` or error line.
+
 ## Deployed 2026-11-05 (`e0ebea7`, owner-approved: "jika sudah review dan deploy")
 
 - Scope: S177 stage 2A (shipping vouchers, staff role `marketing`, proposal/approval, `/admin/pemasaran/voucher`, checkout voucher field), checkout preselects the first enabled non-COD payment method, AutoLaris store email, 571 reviewed descriptions kept in the dataset (`972f156`, already applied in production earlier), docs `df7f066`. Two separate-agent reviews: nothing blocking.

@@ -20,7 +20,7 @@ Previous-Claim: `READY_FOR_LOCAL_ACCEPTANCE` / "100% local production readiness"
 5. **Before switching COD to store-borne in production:** integration check that the store's COD cost is booked at remittance.
 6. **`.env.example`, Mengantar booking/tracking (S94/S98), province exclusion (S170), wave 4 leftovers:** unchanged from 2026-11-04.
 
-Next action: S177 stage 2B store voucher (written design first). The production Server Action redirect fix (`src/proxy.ts`, BUILD-LOG top entry; "Beli sekarang" and every storefront action redirect) is being deployed 2026-11-05; checks: `npm run check` (unit 324/324), browser `T-33` 37/37 and `T-31` 37/37, independent review no blocking finding. S177 stage 2A **deployed** 2026-11-05 (`e0ebea7`, RELEASE "Deployed 2026-11-05 (`e0ebea7`"). Production carries the refreshed area catalogue and all 79 warehouses are mapped.
+Next action: S177 stage 2B store voucher (written design first). The production Server Action redirect fix (`src/proxy.ts`, BUILD-LOG top entry; "Beli sekarang" and every storefront action redirect) is **deployed** 2026-11-05 (`287bfed`, RELEASE top "Deployed" entry, live PASS); checks: `npm run check` (unit 324/324), browser `T-33` 37/37 and `T-31` 37/37, independent review no blocking finding. S177 stage 2A **deployed** 2026-11-05 (`e0ebea7`, RELEASE "Deployed 2026-11-05 (`e0ebea7`"). Production carries the refreshed area catalogue and all 79 warehouses are mapped.
 
 ## Previous — 2026-11-04
 
