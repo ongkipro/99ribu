@@ -1,5 +1,11 @@
 # Build log — Serba 99ribu
 
+## 2026-11-05 (local) — Full integration rerun for S177 2B (pre-deploy)
+
+- `--case=all-current` on this shared host (load 4–8 from another project's Playwright) reported 35 failures, mostly `timed out after 30000ms`; the run was stopped and every failing file rerun alone: `admin-kpis` 6/6, `admin-list-sort` 1/1, `autolaris-stand-in` 6/6, `backup-restore` 4/4, `berlapak-import` 5/5, `buyer-account` 2/2, `buyer-account-wave` 2/2, `buyer-profile` 1/1, `catalog-feed` 1/1, `catalog-http` 1/1, `catalog-import` 11/11, `cod-http` 1/1, `cod-remittance` 3/3, `finance-workbench` 5/5, `cod-candidate` 1/1, `cod-checkout-candidate` 1/1, `cod-contract` 1/1, `catalog-master` 4/4, `advertising-diagnostics` 1/1, `fulfillment-lifecycle` 5/5.
+- Real assertion failures, both stale tests (the order had no store voucher; the shared test DB now has a 3.33 %/2.5 % COD payment policy): `exception-cod-basis.test.ts` (expected basis without the unit `payment_charge`) and `exception-collection.test.ts` (expected collected sum = `buyer_total` without the COD fee) — fixed in `ad068be`; 5/5 and 4/4.
+- Still open, pre-existing (identical on the pre-2B code with a real DB socket): S99 booking queue exceeds its own 10-minute limit on a loaded host (MFA cause fixed); "carrier-simulator COD with no payment policy" assumes no payment policy at the namespace's business time, which the shared test DB no longer guarantees.
+
 ## 2026-11-05 (local) — S177 stage 2B finished locally: admin form, margin preview, floor exception, R4 fixes
 
 - Admin (`components/admin/shipping-promotions-client.tsx`): voucher form "Voucher untuk" (Ongkir / Harga produk), percentage store voucher needs cap ≥ % × minimum, list shows the kind; approval dialog shows `margin_preview` (`promotions/configuration.ts` `marginPreview`: per live offer, smallest order meeting the minimum, per-unit discount vs `publication_offer.estimated_contribution` and the publication floor). Only `finance.costs.read` holders (owner) get it (IAM spec 07); others see a note; the approval audit stores the preview.
