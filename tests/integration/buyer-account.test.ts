@@ -243,8 +243,25 @@ test("S46-S48 integration: buyer profile mononym & no-email support, address boo
 				contact: "+6281999999999",
 			},
 		);
-		assert.equal(mismatchLink.status, 403);
-		assert.equal(mismatchLink.payload.code, "ORDER_CONTACT_MISMATCH");
+		// S120: a wrong contact and an unknown order answer exactly like a match (201, same shape); their
+		// decoy challenges link nothing and fail verification like a wrong code.
+		assert.equal(mismatchLink.status, 201, JSON.stringify(mismatchLink.payload));
+		const unknownLink = await callBuyer("/api/v1/me/guest-order-link-challenges", {
+			order_id: randomUUID(),
+			contact: quoteDoc.phone,
+		});
+		assert.equal(unknownLink.status, 201, JSON.stringify(unknownLink.payload));
+		for (const decoy of [mismatchLink, unknownLink]) {
+			assert.deepEqual(Object.keys(decoy.payload).sort(), ["challenge_id", "expires_at"]);
+			const decoyId = decoy.payload.challenge_id as string;
+			const guess = await callBuyer(`/api/v1/me/guest-order-link-challenges/${decoyId}/verifications`, {
+				code: await challengeVerificationCode(identity, decoyId),
+			});
+			assert.equal(guess.status, 403);
+			assert.equal(guess.payload.code, "INVALID_CHALLENGE_CODE");
+			const [row] = await identity.sql`select order_id, status from app.buyer_identity_challenge where id = ${decoyId}`;
+			assert.deepEqual([row.order_id, row.status], [null, "pending"], "a decoy names no order");
+		}
 
 		const linkChallenge = await callBuyer(
 			"/api/v1/me/guest-order-link-challenges",

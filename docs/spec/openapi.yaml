@@ -10931,7 +10931,9 @@ paths:
         account and guest-order ownership without exposing unmatched order data. Frozen exact order scope, no historical
         account/contact merge or implicit chat linking. Enforce actor/object scope on every read, mutation, job
         and download. Browser writes require CSRF/origin protection; sensitive responses are no-store. Bound rate/body/cursor
-        limits; unknown/out-of-scope IDs reveal no private data.
+        limits; unknown/out-of-scope IDs reveal no private data. S120 - enumeration-safe like guest order access; a matched,
+        mismatched or unknown order gets the same 201 {challenge_id, expires_at}; a mismatch or an absent order never causes
+        403/404 here, and its decoy challenge fails verification exactly like a wrong code. 403 remains for access/CSRF failures.
       tags:
       - Identity
       security:

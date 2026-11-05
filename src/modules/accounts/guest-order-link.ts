@@ -1,11 +1,11 @@
-import { randomUUID } from "node:crypto";
+import { randomBytes, randomUUID } from "node:crypto";
 import type { LocalAuth } from "../access/auth.ts";
 import { privateJson, readBody } from "../access/http.ts";
 import { AccessError, type Principal } from "../access/policy.ts";
 import { LIMITS, rateLimit } from "../access/rate-limit.ts";
 import { id, invalid, object, text } from "../catalog/validation.ts";
 import { intentHash, mutationKey } from "../checkout/carts.ts";
-import { challengeVerificationCode, challengeDigest, reserveChallengeAttempt, ensureBuyerProfile, checkIdempotency, saveIdempotency, normalizeContactReference, assertOrderContactMatches } from "./shared.ts";
+import { challengeVerificationCode, challengeDigest, reserveChallengeAttempt, ensureBuyerProfile, checkIdempotency, saveIdempotency, normalizeContactReference, findOrderContactMatch } from "./shared.ts";
 
 export async function handleGuestOrderLinkRoutes(
 	request: Request,
@@ -50,10 +50,15 @@ export async function handleGuestOrderLinkRoutes(
 				}>(tx, principal.id, "buyer.guest_order_link.challenge", key, hash);
 				if (prior) return prior;
 				await ensureBuyerProfile(tx, principal, false);
-				await assertOrderContactMatches(tx, orderId, contact);
+				// S120: enumeration-safe like the public guest-order-access path. An unknown order or a contact that does
+				// not match gets the same 201 with a decoy challenge (no order, digest of a random code nobody receives),
+				// which then fails verification exactly like a real challenge given a wrong code.
+				const order = await findOrderContactMatch(tx, { id: orderId }, contact);
 				const challengeId = randomUUID();
+				// Same work either way (both values are always computed); only a match digests the deliverable code.
 				const code = await challengeVerificationCode(identity, challengeId);
-				const codeHash = await challengeDigest(identity, challengeId, code);
+				const decoy = randomBytes(32).toString("base64url");
+				const codeHash = await challengeDigest(identity, challengeId, order ? code : decoy);
 				const [inserted] = await tx<{ id: string; expires_at: string }[]>`
 					insert into app.buyer_identity_challenge (
 						id,
@@ -72,7 +77,7 @@ export async function handleGuestOrderLinkRoutes(
 						'guest_order_link',
 						${contact.channel},
 						${contact.value},
-						${orderId},
+						${order?.id ?? null},
 						${codeHash},
 						'pending',
 						clock_timestamp() + interval '15 minutes'
@@ -121,7 +126,8 @@ export async function handleGuestOrderLinkRoutes(
 			from app.buyer_identity_challenge
 			where id = ${challengeId} and user_id = ${principal.id} and kind = 'guest_order_link'
 		`;
-		if (!challengeRow?.order_id) {
+		// A decoy (order_id null) is answered like a pending challenge with a wrong code; only a missing row is 404.
+		if (!challengeRow) {
 			throw new AccessError(404, "NOT_FOUND");
 		}
 		const expectedDigest = await challengeDigest(identity, challengeId, code);
@@ -169,6 +175,8 @@ export async function handleGuestOrderLinkRoutes(
 			if (locked?.status !== "pending") {
 				throw new AccessError(409, "CHALLENGE_ALREADY_USED");
 			}
+			// Unreachable for a decoy (its digest matches no code); kept so a decoy can never link anything.
+			if (!locked.order_id) throw new AccessError(403, "INVALID_CHALLENGE_CODE");
 			const [verified] = await tx<{ verified_at: string }[]>`
 				update app.buyer_identity_challenge
 				set status = 'verified', verified_at = clock_timestamp()

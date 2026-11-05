@@ -1,5 +1,15 @@
 # Build log — Serba 99ribu
 
+## 2026-11-06 — S120: signed-in guest-order link is enumeration-safe (R4)
+
+- Before: `POST /api/v1/me/guest-order-link-challenges` answered 404 for an unknown order and 403 `ORDER_CONTACT_MISMATCH` for a wrong contact (an order/contact oracle for any signed-in buyer).
+- Now (`src/modules/accounts/guest-order-link.ts`): matched, mismatched and unknown orders all get `201 {challenge_id, expires_at}`; a mismatch stores a decoy `buyer_identity_challenge` (order NULL, digest of a random value; the OTP is derived either way so both paths do the same HMAC work). Verifying a decoy behaves like a wrong code (403 `INVALID_CHALLENGE_CODE`, attempts counted, expiry after 5); only a missing challenge is 404; a decoy can never link (defensive 403). The unused `assertOrderContactMatches` is removed; OpenAPI describes the uniform answer.
+- Tests: `buyer-account.test.ts` (mismatch and unknown order → 201, same shape, decoy verify 403, decoy row has no order), `scenarios-14.test.ts` (shared-device cross link → 201, verify refused).
+- Checks (ledger `RUN-20261105T205555Z-e3312d98`, executed): biome lint PASS; `npm run typecheck` PASS; `npm test` PASS; OpenAPI YAML parse PASS; build + `buyer-account`, `scenarios-14`, `account-orders`, `buyer-account-wave`, `localhost-readiness` serially PASS; integration `--case=all-current` PASS (225 files, 0 failed, 0 empty, 2389 s; the runner's pass count was not captured).
+- First full run on this change: 648 passed / 51 failed / 33 empty — 28 failures were my OpenAPI edit (a `S120:` colon broke the YAML every wire-parity probe parses; fixed) and 23 were `PLAYWRIGHT_CHROMIUM_EXECUTABLE=/snap/bin/chromium`, which no longer exists after the 2026-11-06 maintenance (use `/usr/bin/google-chrome`).
+- Review: GPT-6.1 Sol via `pi -p` (read-only), round 1 APPROVE with two Lows (HMAC asymmetry, OpenAPI wording), both fixed; round 2 APPROVE, no findings. Outputs `/data/tmp/99ribu-reviews/S120-r1-review.md`, `S120-r2-review.md`.
+- Test DB after two full runs: `99ribu_test` 107 MB (21 MB fresh; Step 1 trigger is ~300 MB).
+
 ## 2026-11-06 — Step 0: fresh `99ribu_test` (owner-approved) and the S85 drill
 
 - Target confirmed before the drop (`99ribu_test` only, 0 connections); `99ribu_local` and production untouched. Under `heavy-run --lock 99ribu-env`: `DROP DATABASE "99ribu_test" WITH (FORCE)`, the bootstrap `CREATE`/`REVOKE`/`GRANT`/`REVOKE CREATE ON SCHEMA public` statements, `ALTER DATABASE "99ribu_test" SET synchronous_commit = off` (per database; `pg_db_role_setting` shows it only on `99ribu_test`), `npm run db:migrate -- test` (57 newly applied, 5 s).

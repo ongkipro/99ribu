@@ -499,24 +499,3 @@ export function orderContactMatches(
 		})
 		.includes(contact.value);
 }
-
-export async function assertOrderContactMatches(
-	tx: TransactionSql,
-	orderId: string,
-	contact: { channel: "phone" | "email"; value: string },
-) {
-	const [row] = await tx<OrderContactRow[]>`
-		select
-			o.id,
-			o.owner_guest_id,
-			q.document->'contact'->>'phone' as contact_phone,
-			q.document->'address'->>'phone' as address_phone,
-			q.document->'contact'->>'email' as contact_email
-		from app.commerce_order o
-		join app.checkout_quote q on q.id = o.quote_id
-		where o.id = ${orderId}
-	`;
-	if (!row) throw new AccessError(404, "NOT_FOUND");
-	if (!orderContactMatches(row, contact)) throw new AccessError(403, "ORDER_CONTACT_MISMATCH");
-	return row;
-}

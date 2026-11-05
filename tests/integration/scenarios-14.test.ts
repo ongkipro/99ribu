@@ -1198,8 +1198,15 @@ test("S62.3c: canonical ads consent/timeout, support escalation, and shared-devi
 					contact: "+6281999999999",
 				},
 			);
-			assert.equal(crossLink.status, 403);
-			assert.equal(crossLink.payload.code, "ORDER_CONTACT_MISMATCH");
+			// S120: the unproven contact gets the uniform decoy answer; nothing links without the order's own code.
+			assert.equal(crossLink.status, 201);
+			const crossVerify = await callAccount(
+				buyerB,
+				`/api/v1/me/guest-order-link-challenges/${crossLink.payload.challenge_id}/verifications`,
+				{ code: "000000" },
+			);
+			assert.equal(crossVerify.status, 403);
+			assert.equal(crossVerify.payload.code, "INVALID_CHALLENGE_CODE");
 
 			observedScenarios["shared-device-and-guest-link"] = {
 				ownerSlice: "S46",
