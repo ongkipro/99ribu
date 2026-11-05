@@ -222,7 +222,7 @@ if (import.meta.main) {
       : selector === "--case=finance-workbench"
       ? [mode === "integration" ? "tests/integration/finance-workbench.test.ts" : "tests/browser/admin-finance.test.ts"]
       : selector === "--case=vouchers"
-      ? [mode === "integration" ? "tests/integration/voucher.test.ts" : "tests/browser/storefront-checkout.test.ts"]
+      ? (mode === "integration" ? ["tests/integration/voucher.test.ts","tests/integration/store-voucher.test.ts"] : ["tests/browser/storefront-checkout.test.ts"])
       : selector === "--case=settings-hub"
       ? [mode === "integration" ? "tests/integration/settings-hub.test.ts" : "tests/browser/settings-hub.test.ts"]
       : selector === "--case=seed-commerce"

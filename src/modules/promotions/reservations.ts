@@ -14,7 +14,7 @@ export async function readPromotionReservation(sql:Sql|TransactionSql,reservatio
   if(!header) throw new AccessError(404,'NOT_FOUND');
   const allocations=await sql<{promotion_id:string;version_id:string;amount:string}[]>`select promotion_id,version_id,amount from app.promotion_allocation where reservation_id=${header.id} order by promotion_id`;
   const shipments=await sql<{promotion_id:string;shipment_id:string;amount:string}[]>`select promotion_id,shipment_id,amount from app.promotion_shipment_allocation where reservation_id=${header.id} order by promotion_id,shipment_id`;
-  const lines=await sql<{promotion_id:string;line_id:string;amount:string}[]>`select promotion_id,line_id,amount from app.promotion_line_allocation where reservation_id=${header.id} order by promotion_id,line_id`;
+  const lines=await sql<{promotion_id:string;line_id:string;amount:string}[]>`select promotion_id,line_id,amount from app.promotion_line_allocation where reservation_id=${header.id} order by promotion_id,line_id collate "C"`;
   return {id:header.id,status:header.status,merchandise_amount:Number(header.merchandise_amount),shipping_amount:Number(header.shipping_amount),subsidy_amount:Number(header.subsidy_amount),discount_amount:Number(header.discount_amount),expires_at:new Date(header.expires_at).toISOString(),
     // Same shape as the quote document's promotions[]: a shipping benefit lists parcels; a store voucher has no parcels and lists cart lines.
     allocations:allocations.map((a)=>{const mine=lines.filter((l)=>l.promotion_id===a.promotion_id);

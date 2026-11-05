@@ -4,7 +4,7 @@ import type {LocalAuth} from '../access/auth.ts';
 import {AccessError} from '../access/policy.ts';
 import {lockRateActor} from '../affiliates/rates.ts';
 import {array,id,integer,invalid,object,text} from '../catalog/validation.ts';
-import {allocate,compare,safeMoney,type Rule,type Shipment} from '../promotions/allocation.ts';
+import {allocate,allocateMerchandise,compare,merchandiseBenefit,safeMoney,type Rule,type Shipment} from '../promotions/allocation.ts';
 import {identifier,voucherCode} from '../promotions/configuration.ts';
 import {normalizePhone} from '../shipping/address.ts';
 import {normalizeAddress,type NormalizedAddress} from '../shipping/destinations.ts';
@@ -15,13 +15,13 @@ import {authorizeCart,digest,mac,type CartRow,type CommerceActor} from './access
 import {channelEnabled,codFee,paymentTerms,PAYMENT_CHANNELS,paymentChannel,type PaymentChannel} from '../payments/methods.ts';
 import {assertCartOpen,cartClock,cartLines,expectedCartVersion,intentHash,mutationKey,priorOperation,recordOperation} from './carts.ts';
 
-export type PromotionAllocation=ReturnType<typeof allocate>[number];
+export type PromotionAllocation=ReturnType<typeof allocate>[number]&{lines?:{line_id:string;amount:number}[]};
 // S177: the code the buyer typed and what the quote made of it. Applied = its promotion is in `promotions` and replaces
 // the automatic ones (no stacking); refused = a stable reason the checkout shows, and the automatic promotions stay.
 export type VoucherReason='NOT_FOUND'|'NOT_STARTED'|'EXPIRED'|'EXHAUSTED'|'PER_BUYER_LIMIT'|'MIN_SUBTOTAL'|'METHOD_NOT_ELIGIBLE'|'DESTINATION_NOT_ELIGIBLE'|'SHIPPING_METHOD_NOT_ELIGIBLE'|'STACKING_CONFLICT';
-export type QuoteVoucher={code:string;status:'applied';promotion_id:string;amount:number}|{code:string;status:'refused';reason:VoucherReason;minimum_merchandise?:number;payment_methods?:string[]};
+export type QuoteVoucher={code:string;status:'applied';promotion_id:string;amount:number;target?:'shipping'|'merchandise'}|{code:string;status:'refused';reason:VoucherReason;minimum_merchandise?:number;payment_methods?:string[]};
 export type QuoteDocument={plans:ShippingPlan[];selected_plan:ShippingPlan;address:NormalizedAddress;contact:{phone:string;email:string|null};customer_key:string;promotions:PromotionAllocation[];voucher?:QuoteVoucher;financial_sources:Awaited<ReturnType<typeof checkShippingBenefit>>['sources'];affiliate_id?:string};
-export type QuoteRow={id:string;cart_id:string;cart_revision:number;parent_id:string|null;operation_id:string;document:QuoteDocument;payment_method:'prepaid'|'cod';merchandise_amount:string;shipping_amount:string;subsidy_amount:string;buyer_total:string;created_at:string;expires_at:string;payment_channel:PaymentChannel|null;payment_charge_amount:string;cod_fee_bps:number|null};
+export type QuoteRow={id:string;cart_id:string;cart_revision:number;parent_id:string|null;operation_id:string;document:QuoteDocument;payment_method:'prepaid'|'cod';merchandise_amount:string;shipping_amount:string;subsidy_amount:string;buyer_total:string;created_at:string;expires_at:string;payment_channel:PaymentChannel|null;payment_charge_amount:string;cod_fee_bps:number|null;merchandise_discount:string};
 export function normalizeContact(value:unknown){
  const b=object(value,['phone','email']);let email:string|null=null;
  if(b.email!==undefined&&b.email!==null){email=text(b.email,254).normalize('NFC').toLowerCase();if(!isValidEmail(email)) throw invalid();}
@@ -41,22 +41,43 @@ export function promotionShipments(plan:ShippingPlan,address?:RegionAddress):Shi
  return plan.packages.map(p=>{const option=p.options.find(o=>o.id===p.selected_option_id);if(!option) throw new AccessError(409,'SHIPPING_OPTION_UNAVAILABLE');return {shipment_id:p.id,origin_warehouse_id:p.warehouse_id,shipping_fee:p.shipping_amount,service_id:option.service_id,region_ids:regions};});
 }
 export function parcelBenefits(plan:ShippingPlan,promotions:readonly PromotionAllocation[]){return plan.packages.map(p=>({shipment_id:p.id,amount:promotions.reduce((n,a)=>n+(a.shipments.find(s=>s.shipment_id===p.id)?.amount??0),0)}));}
-type RuleRow=Rule&{starts_at:string;ends_at:string;budget:string;reserved_amount:string;committed_amount:string;reserved_uses:number;committed_uses:number;per_buyer_limit:number};
+// S177 stage 2B: a store voucher's line amounts split to units in unit_index order (floor each, +1 to the first
+// `amount mod quantity`), numbered per line across parcels in package order exactly like submitOrder; a parcel's
+// discount is the sum of its units. The seal trigger recomputes the same.
+export function merchandiseShares(plan:ShippingPlan,promotions:readonly PromotionAllocation[]){
+ const perLine=new Map<string,number>();for(const a of promotions)for(const l of a.lines??[])perLine.set(l.line_id,(perLine.get(l.line_id)??0)+l.amount);
+ const quantity=new Map(plan.lines.map(l=>[l.line_id,l.quantity])),counts=new Map<string,number>();
+ return plan.packages.map(p=>{const units=p.lines.flatMap(l=>Array.from({length:l.quantity},()=>{const index=(counts.get(l.line_id)??0)+1;counts.set(l.line_id,index);
+   const total=perLine.get(l.line_id)??0,q=quantity.get(l.line_id)??1;return {line_id:l.line_id,unit_index:index,amount:Math.floor(total/q)+(index<=total%q?1:0)};}));
+  return {shipment_id:p.id,amount:units.reduce((n,u)=>n+u.amount,0),units};});
+}
+export const shippingSubsidy=(promotions:readonly PromotionAllocation[])=>promotions.filter(a=>!a.lines?.length).reduce((n,a)=>n+a.amount,0);
+export const merchandiseDiscount=(promotions:readonly PromotionAllocation[])=>promotions.filter(a=>a.lines?.length).reduce((n,a)=>n+a.amount,0);
+async function planPrices(tx:TransactionSql,plan:ShippingPlan){
+ const rows=await tx<{line_id:string;price:number}[]>`select wanted.line_id,v.price from jsonb_to_recordset(${JSON.stringify(plan.lines.map(l=>({line_id:l.line_id,product_id:l.product_id,product_revision:l.product_revision,offer_id:l.offer_id})))}::jsonb)
+  as wanted(line_id text,product_id uuid,product_revision int,offer_id uuid) join app.offer_revision v on v.product_id=wanted.product_id and v.revision=wanted.product_revision and v.offer_id=wanted.offer_id`;
+ if(rows.length!==plan.lines.length) throw new AccessError(409,'PROMOTION_REVIEW_REQUIRED');
+ return plan.lines.map(l=>({line_id:l.line_id,quantity:l.quantity,unit_price:Number(rows.find(r=>r.line_id===l.line_id)?.price)}));
+}
+type RuleRow=Rule&{target?:string;starts_at:string;ends_at:string;budget:string;reserved_amount:string;committed_amount:string;reserved_uses:number;committed_uses:number;per_buyer_limit:number};
 const funded=(rule:RuleRow,amount:number)=>BigInt(rule.reserved_amount)+BigInt(rule.committed_amount)+BigInt(amount)<=BigInt(rule.budget);
 export async function previewPromotions(tx:TransactionSql,plan:ShippingPlan,customerKey:string,now:string,address?:RegionAddress,code?:string|null):Promise<{promotions:PromotionAllocation[];voucher?:QuoteVoucher}>{
  const automatic=await automaticPromotions(tx,plan,customerKey,now,address);
  if(!code) return {promotions:automatic};
  const voucher=await evaluateVoucher(tx,plan,customerKey,now,code,address);
  if(voucher.status==='refused') return {promotions:automatic,voucher};
+ // S177 decision 11: a store voucher stacks with the automatic shipping promotions (one code per order).
+ if(voucher.allocation.lines?.length) return {promotions:[...automatic,voucher.allocation].sort((a,b)=>compare(a.promotion_id,b.promotion_id)),
+  voucher:{code,status:'applied',promotion_id:voucher.allocation.promotion_id,amount:voucher.allocation.amount,target:'merchandise'}};
  const auto=automatic.reduce((n,a)=>n+a.amount,0);
  // One benefit per order: the voucher replaces the automatic promotions only when it saves the buyer more.
  if(voucher.allocation.amount<=auto) return {promotions:automatic,voucher:{code,status:'refused',reason:'STACKING_CONFLICT'}};
- return {promotions:[voucher.allocation],voucher:{code,status:'applied',promotion_id:voucher.allocation.promotion_id,amount:voucher.allocation.amount}};
+ return {promotions:[voucher.allocation],voucher:{code,status:'applied',promotion_id:voucher.allocation.promotion_id,amount:voucher.allocation.amount,target:'shipping'}};
 }
 // The voucher alone (exclusive by decision 4), checked in the order a buyer can act on: unknown/inactive answer
 // NOT_FOUND alike (no code probing), then period, payment method, minimum, own use, courier/area, budget.
 async function evaluateVoucher(tx:TransactionSql,plan:ShippingPlan,customerKey:string,now:string,code:string,address?:RegionAddress):Promise<{status:'applied';allocation:PromotionAllocation}|Extract<QuoteVoucher,{status:'refused'}>>{
- const [rule]=await tx<(RuleRow&{active:boolean;payment_methods:string[];minimum_merchandise:string})[]>`
+ const [rule]=await tx<(RuleRow&{active:boolean;payment_methods:string[];minimum_merchandise:string;target:string})[]>`
   select v.*,p.reserved_amount,p.committed_amount,coalesce(b.reserved_uses,0)::int reserved_uses,coalesce(b.committed_uses,0)::int committed_uses
   from app.promotion p join app.promotion_version v on v.promotion_id=p.id and v.revision=p.configuration_revision
   left join app.promotion_buyer_usage b on b.promotion_id=p.id and b.customer_key=${customerKey} where p.code=${code}`;
@@ -68,6 +89,15 @@ async function evaluateVoucher(tx:TransactionSql,plan:ShippingPlan,customerKey:s
  if(BigInt(plan.merchandise_total)<BigInt(rule.minimum_merchandise)) return refuse('MIN_SUBTOTAL',{minimum_merchandise:Number(rule.minimum_merchandise)});
  if(rule.reserved_uses+rule.committed_uses>=rule.per_buyer_limit) return refuse('PER_BUYER_LIMIT');
  const shipments=promotionShipments(plan,address);
+ if(rule.target==='merchandise'){
+  // Store voucher: order-level filters (every parcel's courier and the destination must match), then the line split.
+  if(rule.service_ids.length&&!shipments.every(s=>rule.service_ids.includes(s.service_id))) return refuse('SHIPPING_METHOD_NOT_ELIGIBLE');
+  if(rule.region_ids.length&&!shipments.every(s=>s.region_ids.some(r=>rule.region_ids.includes(r)))) return refuse('DESTINATION_NOT_ELIGIBLE');
+  const priced=await planPrices(tx,plan),amount=merchandiseBenefit(rule,priced);
+  if(!amount) return refuse('MIN_SUBTOTAL',{minimum_merchandise:Number(rule.minimum_merchandise)});
+  if(!funded(rule,amount)) return refuse('EXHAUSTED');
+  return {status:'applied',allocation:{promotion_id:rule.promotion_id,version_id:rule.id,amount,shipments:[],lines:allocateMerchandise(amount,priced).filter(l=>l.amount>0).map(({line_id,amount})=>({line_id,amount}))}};
+ }
  if(rule.service_ids.length&&!shipments.some(s=>rule.service_ids.includes(s.service_id))) return refuse('SHIPPING_METHOD_NOT_ELIGIBLE');
  if(rule.region_ids.length&&!shipments.some(s=>s.region_ids.some(r=>rule.region_ids.includes(r)))) return refuse('DESTINATION_NOT_ELIGIBLE');
  const [allocation]=allocate([{...rule,stacking:'exclusive'}],shipments);
@@ -94,15 +124,16 @@ async function automaticPromotions(tx:TransactionSql,plan:ShippingPlan,customerK
  return allocations.sort((a,b)=>compare(a.promotion_id,b.promotion_id));
 }
 export function projectPackages(plan:ShippingPlan,promotions:readonly PromotionAllocation[],codFeeBps:number|null=null){
- const benefits=parcelBenefits(plan,promotions);
- return plan.packages.map(p=>{const subsidy=benefits.find(a=>a.shipment_id===p.id)?.amount??0,fee=plan.payment_method==='cod'?codFee(p.merchandise_amount+p.shipping_amount-subsidy,codFeeBps??0):0;return {id:p.id,origin_city:p.origin_city,lines:p.lines.map(l=>({cart_line_id:l.line_id,variant_id:plan.lines.find(v=>v.line_id===l.line_id)?.offer_id,quantity:l.quantity})),
+ const benefits=parcelBenefits(plan,promotions),discounts=merchandiseShares(plan,promotions);
+ return plan.packages.map(p=>{const subsidy=benefits.find(a=>a.shipment_id===p.id)?.amount??0,discount=discounts.find(a=>a.shipment_id===p.id)?.amount??0,
+  fee=plan.payment_method==='cod'?codFee(p.merchandise_amount-discount+p.shipping_amount-subsidy,codFeeBps??0):0;return {id:p.id,origin_city:p.origin_city,lines:p.lines.map(l=>({cart_line_id:l.line_id,variant_id:plan.lines.find(v=>v.line_id===l.line_id)?.offer_id,quantity:l.quantity})),
   options:p.options.map(o=>({id:o.id,courier_name:o.courier_name,service_name:o.service_name,shipping_amount:o.shipping_amount,supports_cod:o.supports_cod,source:o.source,expires_at:o.expires_at})),
-  selected_option_id:p.selected_option_id,merchandise_amount:p.merchandise_amount,shipping_amount:p.shipping_amount,subsidy_amount:subsidy,buyer_shipping_amount:p.shipping_amount-subsidy,
-  ...(plan.payment_method==='cod'?{cod_fee_amount:fee,cod_collect_amount:p.merchandise_amount+p.shipping_amount-subsidy+fee}:{})};});
+  selected_option_id:p.selected_option_id,merchandise_amount:p.merchandise_amount,merchandise_discount_amount:discount,shipping_amount:p.shipping_amount,subsidy_amount:subsidy,buyer_shipping_amount:p.shipping_amount-subsidy,
+  ...(plan.payment_method==='cod'?{cod_fee_amount:fee,cod_collect_amount:p.merchandise_amount-discount+p.shipping_amount-subsidy+fee}:{})};});
 }
 export function projectQuote(row:QuoteRow){const d=row.document,channel=row.payment_channel??(row.payment_method==='cod'?'cod':'local-prepaid'),charge=Number(row.payment_charge_amount??0);
  return {id:row.id,cart_id:row.cart_id,cart_version:row.cart_revision,expires_at:new Date(row.expires_at).toISOString(),payment_method:row.payment_method,payment_channel:channel,currency:'IDR',
-  merchandise_total:Number(row.merchandise_amount),shipping_total:Number(row.shipping_amount),subsidy_total:Number(row.subsidy_amount),buyer_total:Number(row.buyer_total),
+  merchandise_total:Number(row.merchandise_amount),merchandise_discount_total:Number(row.merchandise_discount??0),shipping_total:Number(row.shipping_amount),subsidy_total:Number(row.subsidy_amount),buyer_total:Number(row.buyer_total),
   cod_fee_bps:row.cod_fee_bps??null,cod_fee_total:row.payment_method==='cod'?charge:0,amount_due:Number(row.buyer_total)+charge,
   available_payment_methods:[{id:channel==='cod'?'local-cod':channel,label:PAYMENT_CHANNELS[channel].label,kind:row.payment_method,action_kind:'none'}],
   packages:projectPackages(d.selected_plan,d.promotions,row.cod_fee_bps??null),selected_allocation_id:d.selected_plan.id,allocation_options:d.plans.map(p=>({id:p.id,shipping_total:p.shipping_total,package_count:p.packages.length,origins:[...new Set(p.packages.map(g=>g.origin_city))]})),address:d.address,contact:d.contact,source:d.selected_plan.source,voucher:d.voucher??null};
@@ -121,15 +152,15 @@ async function persistQuote(tx:TransactionSql,actor:CommerceActor,key:string,has
  const expires=new Date(Math.min(Date.parse(plan.expires_at),Date.parse(cart.expires_at),parent?Date.parse(parent.expires_at):Infinity)).toISOString();
  if(Date.parse(expires)<=now.getTime()) throw new AccessError(409,'QUOTE_EXPIRED');
  if(Buffer.byteLength(JSON.stringify(document))>1048576) throw new AccessError(422,'QUOTE_REVIEW_REQUIRED');
- const subsidy=document.promotions.reduce((n,a)=>n+a.amount,0);integer(subsidy,0,Number.MAX_SAFE_INTEGER);
- const buyerTotal=safeMoney(BigInt(plan.merchandise_total)+BigInt(plan.shipping_total)-BigInt(subsidy));
+ const subsidy=shippingSubsidy(document.promotions),discount=merchandiseDiscount(document.promotions);integer(subsidy,0,Number.MAX_SAFE_INTEGER);integer(discount,0,plan.merchandise_total-1);
+ const buyerTotal=safeMoney(BigInt(plan.merchandise_total)-BigInt(discount)+BigInt(plan.shipping_total)-BigInt(subsidy));
  // DEC-009/DEC-008: freeze the buyer COD fee rate in force; manual transfer needs configured accounts.
  const terms=await paymentTerms(tx,now);
  if(channel==='manual-bank'&&!terms.manual_bank_accounts.length)throw new AccessError(409,'MANUAL_BANK_UNAVAILABLE');
  if(!channelEnabled(terms,channel))throw new AccessError(422,'PAYMENT_CHANNEL_UNAVAILABLE');
  const bps=plan.payment_method==='cod'?terms.buyer_cod_fee_bps:null,charge=plan.payment_method==='cod'?projectPackages(plan,document.promotions,bps).reduce((n,p)=>n+(p.cod_fee_amount??0),0):0;
- const operationId=randomUUID();const [quote]=await tx<QuoteRow[]>`insert into app.checkout_quote (cart_id,cart_revision,parent_id,operation_id,document,payment_method,merchandise_amount,shipping_amount,subsidy_amount,buyer_total,created_at,expires_at,payment_channel,payment_charge_amount,cod_fee_bps)
-  values (${cart.id},${cart.revision},${parent?.id??null},${operationId},${JSON.stringify(document)}::jsonb,${plan.payment_method},${plan.merchandise_total},${plan.shipping_total},${subsidy},${buyerTotal},${now.toISOString()},${expires},${channel},${charge},${bps}) returning *`;
+ const operationId=randomUUID();const [quote]=await tx<QuoteRow[]>`insert into app.checkout_quote (cart_id,cart_revision,parent_id,operation_id,document,payment_method,merchandise_amount,shipping_amount,subsidy_amount,buyer_total,created_at,expires_at,payment_channel,payment_charge_amount,cod_fee_bps,merchandise_discount)
+  values (${cart.id},${cart.revision},${parent?.id??null},${operationId},${JSON.stringify(document)}::jsonb,${plan.payment_method},${plan.merchandise_total},${plan.shipping_total},${subsidy},${buyerTotal},${now.toISOString()},${expires},${channel},${charge},${bps},${discount}) returning *`;
  await tx`update app.cart set active_quote_id=${quote.id} where id=${cart.id}`;
  const response=projectQuote(quote);await recordOperation(tx,actor,key,parent?'quote.select':'quote.create',hash,quote.id,response,operationId);return response;
 }
