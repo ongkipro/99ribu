@@ -1,5 +1,11 @@
 # Build log — Serba 99ribu
 
+## 2026-11-05 (local) — PDP "Beli sekarang" opens checkout with a full page load
+
+- Symptom (production live check after `e0ebea7`, pre-existing; code unchanged since `c197392`): PDP "Beli sekarang" landed on "Sesi belanja perlu diperiksa"; a reload of `/checkout`, or "Tambah ke keranjang" → "Lanjut ke checkout", worked. Local did not reproduce. Cause narrowed to the `/checkout` render inside the add action's `redirect()` in production (a fresh load with the same cookies works); not root-caused inside Next.
+- Fix: `src/app/(storefront)/keranjang/actions.ts:changeCart` returns `navigate:'/checkout'` when the form carries `via=js` (rendered after hydration by `cart-forms.tsx`, also set on the guest-bootstrap replay); the client calls `window.location.assign`. Without JavaScript the 303 `redirect('/checkout')` stays (browser fetches afresh). `CartMutationState.navigate`.
+- Checks: unit 322/322; browser `T-33` 37/37 (new `storefront-dock.test.ts` case: Beli sekarang → usable checkout), `PR-17` 30/30; local probes: JS → `/checkout` form; no-JS → checkout on the second press (guest bootstrap, as designed).
+
 ## 2026-11-05 (local) — S177 stage 2A: shipping vouchers, marketing proposals, owner/admin approval
 
 - Research: `docs/spec/vouchers/market-research-2026-11.md` (Shopee/TikTok Shop | Tokopedia seller docs); decisions recorded in `docs/spec/vouchers/S177.md`.

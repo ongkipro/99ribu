@@ -296,3 +296,22 @@ test("phone product page: the search header gives way to a back / share / cart /
 		await wide.close();
 	}
 });
+
+// Production 2026-11-05: rendering /checkout inside the add action's redirect showed "Sesi belanja perlu diperiksa";
+// with JavaScript the add now returns `navigate` and the client loads /checkout as a full page.
+test("Beli sekarang saves the line and opens a usable checkout page (full page load)", async () => {
+	const { page, errors, close } = await phone();
+	try {
+		await page.goto(`${origin}/`);
+		const product = await page.evaluate(() => document.querySelector('a[href^="/produk/"]')?.getAttribute("href"));
+		assert.ok(product, "the storefront has a published product");
+		await page.goto(`${origin}${product}`);
+		await page.locator(".purchase-actions").getByRole("button", { name: "Beli sekarang" }).or(page.getByRole("button", { name: "Beli sekarang" })).first().click();
+		await page.waitForURL(`${origin}/checkout`);
+		await page.getByLabel("Nama lengkap", { exact: true }).waitFor();
+		assert.equal(await page.getByText("Sesi belanja perlu diperiksa", { exact: true }).count(), 0);
+		assert.deepEqual(errors, []);
+	} finally {
+		await close();
+	}
+});

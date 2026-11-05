@@ -20,7 +20,7 @@ Previous-Claim: `READY_FOR_LOCAL_ACCEPTANCE` / "100% local production readiness"
 5. **Before switching COD to store-borne in production:** integration check that the store's COD cost is booked at remittance.
 6. **`.env.example`, Mengantar booking/tracking (S94/S98), province exclusion (S170), wave 4 leftovers:** unchanged from 2026-11-04.
 
-Next action: deploy S177 stage 2A (owner 2026-11-05 "jika sudah review dan deploy"; off-host backup first, migration 0050), then stage 2B store voucher. Production carries the refreshed area catalogue and all 79 warehouses are mapped.
+Next action: deploy the PDP "Beli sekarang" fix (committed locally, BUILD-LOG top entry; needs the owner's word), then S177 stage 2B store voucher. S177 stage 2A **deployed** 2026-11-05 (`e0ebea7`, RELEASE "Deployed 2026-11-05 (`e0ebea7`"). Production carries the refreshed area catalogue and all 79 warehouses are mapped.
 
 ## Previous — 2026-11-04
 
