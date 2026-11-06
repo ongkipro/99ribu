@@ -3,6 +3,12 @@ import { readdirSync } from "node:fs";
 import { resolve } from "node:path";
 import { connectDatabase } from "../src/db/client.ts";
 
+// postgres.js flags a connection as "ending" once max_lifetime (30-60 min) has passed. A connection still reserved for
+// the run lock is then never closed after release(), and a plain sql.end() waits for it forever: runs longer than
+// that printed their result and then hung. The wait is bounded; after 5 s the pool is destroyed (the session lock goes
+// with the session). Nothing runs after this call.
+export const endDatabase = (sql: { end(options?: { timeout?: number }): Promise<void> }) => sql.end({ timeout: 5 });
+
 export async function checkFiles(files: readonly string[]) {
   if (files.length === 0) throw new Error("No test files selected.");
   const observed = new Map(files.map((file) => [resolve(file), 0]));
@@ -318,6 +324,6 @@ if (import.meta.main) {
         }
         finally { lock.release(); }
       }
-    } finally { await connection.sql.end(); }
+    } finally { await endDatabase(connection.sql); }
   }
 }
