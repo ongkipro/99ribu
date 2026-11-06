@@ -1,5 +1,10 @@
 # Build log — Serba 99ribu
 
+## 2026-11-06 — S132 follow-up: affiliate rate "superseded" state proven (tests only, R0–R2)
+
+- `tests/integration/admin-affiliates.test.ts` (new section 7, affiliate B, real `handleAffiliateRates` commands with owner proofs): v1 900 bps and v2 1100 bps both take effect (the rate guard forbids backdating, so v1 elapses once v2 is accepted), v3 1500 bps is scheduled +7 days. The detail read lists v3 `scheduled`, v2 `effective`, v1 `superseded` with exactly one `effective`; `rate_version` 3, `rate_source` override, `effective_rate_bps` 1100 and `effective_commission_idr` equal `offerCommissionIdr(1100, 99000)`; the list row shows 1100; the money-path selector `readEffectiveAffiliateRate` picks v2's id. No sleeps, clock edits or trigger changes. Traced first: the handler and the selector both order by `effective_at desc, revision desc`, and the DB guard makes `effective_at` monotonic by revision, so no production defect surfaced.
+- Checks: lint, `tsc --noEmit`, `npm run test:file -- tests/integration/admin-affiliates.test.ts` 3/3. Negative control: `state = "superseded"` changed to `"effective"` in `src/modules/affiliates/admin.ts` fails the new assertion (v1 reported `effective`); source restored byte for byte (`cmp`, clean `git diff`), test green again 3/3 on the restored source.
+
 ## 2026-11-06 — S131 follow-up: finance workbench negatives (tests only, R0–R2)
 
 - `tests/integration/finance-workbench.test.ts`: verify on an `unknown` payout is refused (409 `ACTIVE_CLAIM_HOLDER_REQUIRED`, status stays `unknown`); evidence-slot replay with the same key returns the same slot and registers no second one; a reconciliation match replay leaves one match and one journal; a refund reconcile replay records one operation; an `unknown` refund is absent from `?status=succeeded`. B18 no longer assumes this test's refunds are the globally newest: a helper walks every page (no repeated row, newer refund first). Checks: lint, typecheck, `npm run test:file -- tests/integration/finance-workbench.test.ts` 5/5.

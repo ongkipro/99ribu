@@ -17,7 +17,10 @@ import {
 	parseAdminAffiliatesQuery,
 } from "../../src/modules/affiliates/admin.ts";
 import { handleAffiliateProfile } from "../../src/modules/affiliates/profile.ts";
-import { offerCommissionIdr } from "../../src/modules/affiliates/rates.ts";
+import {
+	offerCommissionIdr,
+	readEffectiveAffiliateRate,
+} from "../../src/modules/affiliates/rates.ts";
 import {
 	handleAdminAffiliates,
 	handleAffiliateRates,
@@ -725,6 +728,89 @@ test("S132 admin affiliates read & rate versions: owner/finance read, non-permit
 		assert.equal(afterDetail.rate_versions[1].version, 1);
 		assert.equal(afterDetail.rate_versions[1].state, "effective");
 		assert.equal(afterDetail.rate_versions[1].basis_points, 1250);
+
+		// 7. Superseded state on a clean affiliate (B): v1 and v2 both took effect (each is a real
+		// owner command with its own proof; the rate guard forbids backdating, so the older
+		// version elapses as soon as v2 is accepted) and v3 is scheduled a week ahead.
+		const appendRate = async (
+			basisPoints: number,
+			expectedVersion: number,
+			effectiveAt: string | null,
+			reason: string,
+		) => {
+			const proof = await issueOwnerProof(enrolledB.id);
+			const req = rateOwner.browser.request(
+				`/api/v1/admin/affiliates/${enrolledB.id}/rates`,
+				{
+					basis_points: basisPoints,
+					effective_at: effectiveAt,
+					expected_version: expectedVersion,
+					reason,
+					reauthentication_proof: proof,
+				},
+			);
+			req.headers.set("idempotency-key", randomUUID());
+			const res = await handleAffiliateRates(req, identity);
+			assert.equal(res.status, 201);
+			return (await res.json()) as { id: string; version: number };
+		};
+		const bV1 = await appendRate(900, 0, null, "Tarif awal B");
+		const bV2 = await appendRate(1100, 1, null, "Tarif pengganti B");
+		const bV3 = await appendRate(
+			1500,
+			2,
+			new Date(Date.now() + 7 * 86_400_000).toISOString(),
+			"Tarif terjadwal B",
+		);
+		assert.deepEqual([bV1.version, bV2.version, bV3.version], [1, 2, 3]);
+
+		const bRes = await observeRead(
+			finance.browser.request(`/api/v1/admin/affiliates/${enrolledB.id}`),
+		);
+		assert.equal(bRes.status, 200);
+		const bDetail = bRes.payload as AdminAffiliateDetail;
+		assert.deepEqual(
+			bDetail.rate_versions.map((v) => [v.version, v.state, v.basis_points]),
+			[
+				[3, "scheduled", 1500],
+				[2, "effective", 1100],
+				[1, "superseded", 900],
+			],
+		);
+		assert.equal(
+			bDetail.rate_versions.filter((v) => v.state === "effective").length,
+			1,
+			"exactly one effective version",
+		);
+		// The head, the displayed commission and the money-path selector all follow the effective version.
+		assert.equal(bDetail.rate_version, 3);
+		assert.equal(bDetail.rate_source, "override");
+		assert.equal(bDetail.effective_rate_bps, 1100);
+		assert.equal(
+			bDetail.effective_commission_idr,
+			offerCommissionIdr(1100, 99000),
+		);
+		const [{ now: dbNow }] = await sql<{ now: string }[]>`
+			select date_trunc('milliseconds', clock_timestamp())::text as now`;
+		const selected = await sql.begin((tx: TransactionSql) =>
+			readEffectiveAffiliateRate(
+				tx,
+				enrolledB.id,
+				new Date(dbNow).toISOString(),
+			),
+		);
+		assert.equal(selected.rate_version_id, bV2.id);
+		assert.equal(selected.basis_points, 1100);
+		const listed = (
+			(
+				await observeRead(
+					finance.browser.request(
+						`/api/v1/admin/affiliates?code=${encodeURIComponent(`S132-${marker}-B`)}`,
+					),
+				)
+			).payload as AdminAffiliatePage
+		).data.find((row) => row.id === enrolledB.id);
+		assert.equal(listed?.effective_rate_bps, 1100);
 
 		validateExchanges(samples, "admin-affiliates");
 	} finally {
