@@ -314,8 +314,13 @@ test("customer chat: one start request per double click, keyboard-reachable uplo
 			reached = (await page.evaluate(() => document.activeElement?.textContent?.trim())) === "Unggah gambar";
 		}
 		assert.ok(reached, "Unggah gambar is reachable with Tab");
+		// The button is disabled while an earlier chat action is still busy (slow under load): wait until it is
+		// usable, then Enter on it opens the picker.
+		const upload = page.getByRole("button", { name: "Unggah gambar", exact: true });
+		await expect(upload).toBeEnabled();
+		// locator.press focuses the current element and sends Enter in one step (a re-render can replace the button).
 		const chooser = page.waitForEvent("filechooser");
-		await page.keyboard.press("Enter");
+		await upload.press("Enter");
 		await chooser;
 
 		await page.getByRole("button", { name: "Tandai dibaca" }).click();

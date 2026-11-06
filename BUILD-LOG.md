@@ -1,5 +1,13 @@
 # Build log — Serba 99ribu
 
+## 2026-11-06 — S122 (b) flakes root-caused, (d) checked
+
+- Customer chat (`admin-ui-controls`): the upload button is `disabled` while any chat action is busy, and a re-render can replace it; under load Enter landed before it was usable or on a replaced node, so no `filechooser`. The test waits until the button is enabled and presses Enter on the located button (`locator.press`); Tab-reachability is still asserted first. 5/5 alone with the LOCAL worker (was 2/3).
+- Competing checkout drafts (`storefront-checkout`): the awaited `POST /checkout` can be another Server Action under load, so the second tab sometimes opened before the draft was saved. The second tab now reloads until the saved value shows (15 s bound; it can only pass on the exact value). 3/3 with the worker.
+- (d) Local COD orders with `payment_status=confirmed`, `status=pending`: 32 today, all synthetic (19 in fixture namespaces, 13 wall-clock with recipients "SYNTHETIC COD Recipient"/"SYNTHETIC Settlement Buyer"), and every one has `cod_due` — the original worry (orders without `cod_due`) no longer applies.
+- Seen once more at host load 10–12 (other projects' builds): `storefront-checkout` "implicit Enter" missed the contact-step heading within the 5 s expect timeout; passed on rerun (37/37). Not changed; it is load, not a race in the test.
+- (a) Test DB growth: covered by the README "Rebuilding the local databases" procedure and the 2026-11-06 Step 0 (fresh `99ribu_test`, trigger ~300 MB). (c) done earlier. (e) the admin "Lows" list stays open (needs renders and a design review).
+
 ## 2026-11-06 — S178: browser suite back to green (and S121 accepted)
 
 - The 8 failures that failed with and without the LOCAL worker were tests behind the accepted 2026-11-05 checkout, not product regressions:
