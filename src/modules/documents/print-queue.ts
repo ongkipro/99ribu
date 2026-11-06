@@ -213,7 +213,7 @@ export async function readPrintCenterWorkspace(
 		const principal = await getPrincipal(request, identity);
 		assertLabelReadPermission(principal);
 		return await identity.sql.begin(async (tx) => {
-			await ensureDefaultTemplates(tx, principal.id);
+			await ensureDefaultTemplates(tx);
 			const tplIds = await tx<{ id: string }[]>`
 				select id from app.shipping_label_template order by created_at desc
 			`;

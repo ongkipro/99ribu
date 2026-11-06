@@ -22,7 +22,7 @@ STATUS holds only now, next and what waits for the owner (DEC-030). History: [`d
 
 ## Next (local, no owner input)
 
-- Small follow-ups (BUILD-LOG 2026-10-28 notes): S130 a finance user's first label-template read creates the defaults under their name (needs a system actor or a migration, R3); `label-handler.ts` split — R0–R2 unless a step touches money. S131 negatives and the S132 superseded rate state done 2026-11-06.
+- Small follow-ups (BUILD-LOG 2026-10-28 notes): `label-handler.ts` split — R0–R2 unless a step touches money. Done 2026-11-06: S131 negatives and the S132 superseded rate state (tests only); S180, default label templates attributed to `system` (R3): ledger run `RUN-20261106T071110Z-fd914be3` PASS, GPT-6.1 Sol APPROVE round 2, evidence in BUILD-LOG "S180" and TASKS S180.
 - Parked by DEC-030 until needed: S114 refactors (import-cycle ratchet holds the structure), S122(e) admin Lows (one design pass), S125 closed.
 
 ## How to work here
