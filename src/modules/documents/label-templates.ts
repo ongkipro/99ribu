@@ -8,10 +8,12 @@ import type {
 	ShippingLabelTemplateResponse,
 } from "./label-shared.ts";
 
-export async function ensureDefaultTemplates(
-	tx: TransactionSql,
-	actorId: string,
-) {
+// Built-in templates are system bootstrap data, created by whichever read comes first. Their version 1
+// is attributed to 'system' (the same convention as the ad-destination bootstrap), never to that reader.
+// Real template changes keep their owner actor and proof (label-handler.ts).
+const SYSTEM_ACTOR = "system";
+
+export async function ensureDefaultTemplates(tx: TransactionSql) {
 	const defaults: Array<{
 		code: string;
 		format: ShippingLabelFormat;
@@ -70,7 +72,7 @@ export async function ensureDefaultTemplates(
 						'v1',
 						'',
 						'',
-						${actorId},
+						${SYSTEM_ACTOR},
 						'Default 99ribu shipping label template'
 					)
 					on conflict (template_id, revision) do nothing

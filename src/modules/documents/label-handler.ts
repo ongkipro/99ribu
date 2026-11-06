@@ -77,7 +77,7 @@ export async function handleShippingLabels(
 				assertTemplateReadPermission(principal);
 				const paging = parsePagination(url);
 				const list = await identity.sql.begin(async (tx) => {
-					await ensureDefaultTemplates(tx, principal.id);
+					await ensureDefaultTemplates(tx);
 					let rows: { id: string; created_at: string }[];
 					if (paging.cursor) {
 						const [anchor] = await tx<{ created_at: string }[]>`
@@ -518,7 +518,6 @@ export async function handleShippingLabels(
 					assertWarehouseScope(principal, shipment.warehouse_id);
 					const generated = await generateOrReuseLabelForShipment(
 						tx,
-						principal,
 						shipment,
 						format,
 						templateId,
@@ -1006,7 +1005,6 @@ export async function handleShippingLabels(
 					try {
 						const res = await generateOrReuseLabelForShipment(
 							tx,
-							principal,
 							shipment,
 							format,
 							templateId,

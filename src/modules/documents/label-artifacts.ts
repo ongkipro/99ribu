@@ -1,7 +1,7 @@
 import { createHash, randomUUID } from "node:crypto";
 import type { TransactionSql } from "postgres";
 import { savePrivateArtifact } from "../../storage/private.ts";
-import { AccessError, type Principal } from "../access/policy.ts";
+import { AccessError } from "../access/policy.ts";
 import { maskReceiptPhone } from "../orders/receipt.ts";
 import type {
 	ResolvedShipment,
@@ -149,7 +149,6 @@ export async function revalidateShipmentArtifacts(
 
 export async function generateOrReuseLabelForShipment(
 	tx: TransactionSql,
-	principal: Principal,
 	shipment: ResolvedShipment,
 	format: ShippingLabelFormat,
 	templateId?: string | null,
@@ -165,7 +164,7 @@ export async function generateOrReuseLabelForShipment(
 		throw new AccessError(409, "WAYBILL_REQUIRED");
 	}
 
-	await ensureDefaultTemplates(tx, principal.id);
+	await ensureDefaultTemplates(tx);
 	const [templateRow] = templateId
 		? await tx<
 				{
