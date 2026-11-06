@@ -24,13 +24,15 @@ Next action: S177 stage 2B is **deployed** 2026-11-05 (`732a0dd`, perf fix `6f53
 
 **Session 2026-11-06 — result and resume point (read first).** Branch `dec-025-min-contribution`, pushed to `origin/dec-025-min-contribution` (not `main`; a push to `main` deploys). Done and pushed: Docker build path proven (`b1a2d71`); fresh `99ribu_test` + S85 drill 6/6; S120 enumeration-safe guest-order link (`5317936`); money-path tests: store-borne COD at remittance, S172 forged fee / cap / late payment (`30cc3b9`); S121 LOCAL worker leaves fixture-namespace jobs to their suites (`c145327`); S178 browser suite matches the 2026-11-05 checkout (`e6379f5`). Gates: integration `all-current` PASS (225 files), browser `all-current` 201/201 with the LOCAL worker, `--case=local-providers` 5/5. Every code commit reviewed by GPT-6.1 Sol (`/data/tmp/99ribu-reviews/`). `99ribu_test` 120 MB now (Step 1 trigger ~300 MB). Browser runs: `PLAYWRIGHT_CHROMIUM_EXECUTABLE=/usr/bin/google-chrome`; helper scripts `/data/tmp/99ribu/{suite,browser-with-worker,browser-provider-mode}.sh`.
 
-Open for the owner (2026-11-06):
-1. Merge/deploy: 9 commits on this branch are not on `main` (`815737c`, `dca87c2`, `75a9a26`, `b1a2d71`, `5317936`, `3883f4f` (ledger chore), `30cc3b9`, `c145327`, `e6379f5`). Only S120 changes production behaviour (signed-in guest-order link answers uniformly); the rest is docs, tests, test runner and the local worker loop. No migration. Needs "merge ke main"/"deploy".
-2. Voucher live check: create the first voucher in production (Pemasaran → Voucher → Voucher untuk: Harga produk).
-3. Fee preview gap (money path): today the order page can show a fee that changes if the payment policy switches before the buyer submits. Option A keep (policy switches are rare owner actions; the attempt freezes the actual fee); option B refuse the attempt when its fee differs from the shown preview and show the new total (like the checkout's "total changed" notice). Recommendation: A for now.
-4. Large items waiting for a go: S125 guest orders in the buyer account (migration, privacy/IAM, design gate; after S120, now unblocked); S114 backend structure tidy (L, several R4 money-path steps).
+Deployed 2026-11-06: `39e7adc` (S120 and the session's tests/tooling; RELEASE top entry; backup `20261106T034606Z`; live PASS). After it, on the branch only (tests/docs, no deploy needed): `ac9126b` release record, `b29f784` S122 flakes, `e213787` S114 import-cycle ratchet.
 
-Next local work without owner input: S122 leftovers (flakes: customer-chat `filechooser`, competing checkout drafts under full load; admin "Lows" (e) need a design review with renders), S130/S131/S132 small follow-ups, `label-handler.ts` split.
+Open for the owner (2026-11-06, after "jalankan keseluruhan"):
+1. Voucher live check: no production staff account exists in `secrets-env` (only Cloudflare/Coolify keys). Either add one (`secrets-env` key names, e.g. `NINETYNINE_PROD_MARKETING_EMAIL`/`_PASSWORD`) and give the TOTP code when asked, or create the dummy voucher yourself (Pemasaran → Voucher, Rp1.000, kuota 1, 1 hari); I then check checkout without placing an order and switch it off.
+2. S125 conflicts with the 2026-11-05 checkout: DEC-016 matches guest orders to accounts by the checkout **contact email**, but checkout asks no email any more, and DEC-016 forbids auto-matching by phone. Options: (A) claims only through the WhatsApp/CS path and the order-access cookie (no automatic match); (B) match by WhatsApp number after a WhatsApp OTP (needs a DEC-016 change and a provider); (C) bring back an optional email field. Recommendation: A.
+3. Fee preview gap: recommendation A (keep) unless you say otherwise.
+4. S114 remainder (break 6 import cycles incl. a 21-file money-path one, kernel move across 186 files): starts when `cart-fly-to-cart` is merged or closed (it has uncommitted docs edits), to avoid a repo-wide merge conflict.
+
+Next local work without owner input: S122(e) admin "Lows" (needs renders + design review), S130/S131/S132 small follow-ups, `label-handler.ts` split.
 
 **CHECKPOINT 2026-11-06 (machine maintenance; session may be force-closed).**
 - Current task: S177 (vouchers) closed out; side task "multi-terminal coordination" done. Production runs `6f53743` (S177 2A+2B, migrations 0050–0056, backup `20261105T142937Z`).
