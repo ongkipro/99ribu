@@ -487,6 +487,14 @@ test("S131 B16 reconciliation: role/permission matrix, list/detail/source/match 
 		);
 		assert.equal(replayed.status, 201);
 		assert.deepEqual(replayed.payload, matched.payload);
+		const [matchRows] = await sql<{ matches: number; journals: number }[]>`
+      select count(*)::int as matches, count(distinct transaction_id)::int as journals
+      from app.settlement_match where settlement_id=${f.head.id}`;
+		assert.deepEqual(
+			matchRows,
+			{ matches: 1, journals: 1 },
+			"the replay creates no second match or journal",
+		);
 
 		// Stale expected_version is refused with 409 VERSION_CONFLICT.
 		const staleProof = await issueProof(finRW, f.head.id);
@@ -771,10 +779,28 @@ test("S131 B17 affiliate payouts: role matrix, claim -> evidence -> verify -> re
 				size_bytes: PNG.byteLength,
 			},
 		);
-		evReq.headers.set("idempotency-key", randomUUID());
+		const evKey = randomUUID();
+		evReq.headers.set("idempotency-key", evKey);
 		const evRes = await handlePayouts(evReq, identity);
 		assert.equal(evRes.status, 200);
 		const slot = await evRes.json();
+
+		// Replaying the slot request returns the same slot and registers no second one.
+		const evReplayReq = finance.browser.request(
+			`/api/v1/admin/payouts/${payout1.id}/evidence-uploads`,
+			{
+				file_name: "bukti-s131.png",
+				media_type: "image/png",
+				size_bytes: PNG.byteLength,
+			},
+		);
+		evReplayReq.headers.set("idempotency-key", evKey);
+		const evReplayRes = await handlePayouts(evReplayReq, identity);
+		assert.equal(evReplayRes.status, 200);
+		assert.deepEqual(await evReplayRes.json(), slot);
+		const [slotCount] = await sql<{ n: number }[]>`
+      select count(*)::int as n from app.affiliate_payout_evidence where payout_id=${payout1.id}`;
+		assert.equal(slotCount.n, 1);
 
 		const putReq = new Request(slot.upload_url, {
 			method: "PUT",
@@ -854,6 +880,32 @@ test("S131 B17 affiliate payouts: role matrix, claim -> evidence -> verify -> re
 			409,
 			"unknown payout cannot be claimed for a second transfer",
 		);
+		const verifyUnknownReq = finance.browser.request(
+			`/api/v1/admin/payouts/${payout2.id}/manual-transfer-verifications`,
+			{
+				expected_version: unknownPayout.version,
+				transfer_claim_id: randomUUID(),
+				bank_transfer_reference: `REF-S131-${randomUUID().slice(0, 8)}`,
+				evidence_id: randomUUID(),
+				transferred_at: new Date().toISOString(),
+				reason: "SYNTHETIC S131 verify on an unknown payout",
+				reauthentication_proof: await proofFor(
+					finance,
+					"payout.verify",
+					payout2.id,
+				),
+			},
+		);
+		verifyUnknownReq.headers.set("idempotency-key", randomUUID());
+		const verifyUnknownRes = await handlePayouts(verifyUnknownReq, identity);
+		assert.equal(verifyUnknownRes.status, 409, "unknown payout cannot be verified as paid");
+		assert.equal(
+			(await verifyUnknownRes.json()).code,
+			"ACTIVE_CLAIM_HOLDER_REQUIRED",
+		);
+		const [payout2After] = await sql<{ status: string }[]>`
+      select status from app.affiliate_payout where id=${payout2.id}`;
+		assert.equal(payout2After.status, "unknown");
 		const [journalCount2] = await sql<{ n: number }[]>`
       select count(*)::int as n from app.finance_transaction
       where source='affiliate.payout' and effect_reference=${payout2.id}`;
@@ -903,6 +955,25 @@ test("S131 B18 refunds: new GET /api/v1/admin/refunds keyset paging, status filt
 			payload,
 		});
 		return payload;
+	};
+	// The refund list is global; other suites' refunds may be newer, so walk
+	// every page instead of assuming this test's refunds sit on the first one.
+	const refundIdsFor = async (who: StaffActor, query: string) => {
+		const ids: string[] = [];
+		let cursor: string | null = null;
+		for (let page = 0; page < 200; page++) {
+			const params = new URLSearchParams(query);
+			params.set("limit", "100");
+			if (cursor) params.set("cursor", cursor);
+			const payload = await observeList(
+				who.browser.request(`/api/v1/admin/refunds?${params}`),
+				200,
+			);
+			ids.push(...payload.data.map((r: { id: string }) => r.id));
+			cursor = payload.pagination.next_cursor;
+			if (!cursor) return ids;
+		}
+		throw new Error(`refund list ${query} did not end within 200 pages`);
 	};
 	const callReturns = async (
 		who: StaffActor,
@@ -1050,17 +1121,25 @@ test("S131 B18 refunds: new GET /api/v1/admin/refunds keyset paging, status filt
 			200,
 		);
 		assert.equal(page1.data.length, 1);
-		assert.equal(page1.data[0].id, refundB.id, "newest refund first");
-		assert.equal(page1.pagination.next_cursor, refundB.id);
+		assert.equal(page1.pagination.next_cursor, page1.data[0].id);
 
 		const page2 = await observeList(
 			finRO.browser.request(
-				`/api/v1/admin/refunds?limit=1&cursor=${encodeURIComponent(page1.pagination.next_cursor)}`,
+				`/api/v1/admin/refunds?limit=1&cursor=${encodeURIComponent(refundB.id)}`,
 			),
 			200,
 		);
 		assert.equal(page2.data.length, 1);
-		assert.equal(page2.data[0].id, refundA.id, "second page returns older refund without repeat");
+		assert.notEqual(page2.data[0].id, refundB.id, "the cursor row is not repeated");
+
+		// The whole list holds each refund once, newest first, with no row repeated across pages.
+		const allIds = await refundIdsFor(finRO, "");
+		assert.equal(new Set(allIds).size, allIds.length, "no refund repeated across pages");
+		assert.ok(
+			allIds.indexOf(refundB.id) >= 0 &&
+				allIds.indexOf(refundB.id) < allIds.indexOf(refundA.id),
+			"refundB (newer) precedes refundA",
+		);
 
 		// No bank account or buyer contact field in the list projection; audit row recorded.
 		for (const row of [...page1.data, ...page2.data]) {
@@ -1124,21 +1203,17 @@ test("S131 B18 refunds: new GET /api/v1/admin/refunds keyset paging, status filt
 		assert.equal(detailUnknown.status, 200);
 		assert.equal(detailUnknown.payload.status, "unknown");
 
-		const listUnknown = await observeList(
-			finRO.browser.request("/api/v1/admin/refunds?status=unknown&limit=20"),
-			200,
-		);
 		assert.ok(
-			listUnknown.data.some((r: { id: string }) => r.id === refundA.id),
+			(await refundIdsFor(finRO, "status=unknown")).includes(refundA.id),
 			"refundA appears under status=unknown",
 		);
-		const listQueued = await observeList(
-			finRO.browser.request("/api/v1/admin/refunds?status=queued&limit=20"),
-			200,
+		assert.ok(
+			!(await refundIdsFor(finRO, "status=queued")).includes(refundA.id),
+			"refundA does not appear under status=queued while its job is unknown",
 		);
 		assert.ok(
-			!listQueued.data.some((r: { id: string }) => r.id === refundA.id),
-			"refundA does not appear under status=queued while its job is unknown",
+			!(await refundIdsFor(finRO, "status=succeeded")).includes(refundA.id),
+			"an unknown refund is never listed as succeeded",
 		);
 
 		// Retry is refused while refundA outcome is unknown; zero duplicate obligations or cash postings.
@@ -1181,6 +1256,10 @@ test("S131 B18 refunds: new GET /api/v1/admin/refunds keyset paging, status filt
 		);
 		assert.equal(replayed.status, 202);
 		assert.deepEqual(replayed.payload, reconciled.payload);
+		const [recOps] = await sql<{ n: number }[]>`
+      select count(*)::int as n from app.return_operation
+      where key=${recKey} and action='refund.reconcile'`;
+		assert.equal(recOps.n, 1, "the replay records no second reconcile operation");
 
 		const normalAdapter = { "refund.create": refundAdapter(sql, "test") };
 		for (const jobId of await reconcileRefundNow(sql, refundA.id)) {
@@ -1192,14 +1271,8 @@ test("S131 B18 refunds: new GET /api/v1/admin/refunds keyset paging, status filt
 		);
 		assert.equal(await runOneJob(sql, normalAdapter, callback), true);
 
-		const listSucceeded = await observeList(
-			f.owner.browser.request(
-				"/api/v1/admin/refunds?status=succeeded&limit=20",
-			),
-			200,
-		);
 		assert.ok(
-			listSucceeded.data.some((r: { id: string }) => r.id === refundA.id),
+			(await refundIdsFor(f.owner, "status=succeeded")).includes(refundA.id),
 			"refundA appears under status=succeeded after convergence",
 		);
 		const [cashTxCount] = await sql<{ n: number }[]>`

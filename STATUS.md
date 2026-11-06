@@ -22,7 +22,7 @@ STATUS holds only now, next and what waits for the owner (DEC-030). History: [`d
 
 ## Next (local, no owner input)
 
-- Small follow-ups S130/S131/S132 (BUILD-LOG 2026-10-28 notes), `label-handler.ts` split — R0–R2 unless a step touches money.
+- Small follow-ups (BUILD-LOG 2026-10-28 notes): S130 a finance user's first label-template read creates the defaults under their name (needs a system actor or a migration, R3); S132 "superseded" rate-state case; `label-handler.ts` split — R0–R2 unless a step touches money. S131 negatives done 2026-11-06.
 - Parked by DEC-030 until needed: S114 refactors (import-cycle ratchet holds the structure), S122(e) admin Lows (one design pass), S125 closed.
 
 ## How to work here

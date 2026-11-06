@@ -1,5 +1,9 @@
 # Build log — Serba 99ribu
 
+## 2026-11-06 — S131 follow-up: finance workbench negatives (tests only, R0–R2)
+
+- `tests/integration/finance-workbench.test.ts`: verify on an `unknown` payout is refused (409 `ACTIVE_CLAIM_HOLDER_REQUIRED`, status stays `unknown`); evidence-slot replay with the same key returns the same slot and registers no second one; a reconciliation match replay leaves one match and one journal; a refund reconcile replay records one operation; an `unknown` refund is absent from `?status=succeeded`. B18 no longer assumes this test's refunds are the globally newest: a helper walks every page (no repeated row, newer refund first). Checks: lint, typecheck, `npm run test:file -- tests/integration/finance-workbench.test.ts` 5/5.
+
 ## 2026-11-06 — S179 checkout: faster A-Z kecamatan search, every Mengantar courier, rate badges (R3, local)
 
 - Search (`area-search.ts`, `checkout-address.tsx`, `destinations.ts`): within a relevance level (exact, starts with, contains, …) kecamatan are A-Z then by city ("suk": Sukabumi/Bandar Lampung, Sukabumi/Sukabumi, Sukadana, Sukau, Sukra, Sukun, then Pasukan); the client searches from 3 letters or digits (hint "Ketik minimal 3 huruf …"; the 2-letter kecamatan GU and KI are found with their city), debounces 150 ms and reuses answers already seen on the page; the server's 5-minute catalogue cache answers from the last good copy while it refreshes. Production measurement before: 1.22 s for the first query after the cache expired, ~0.2 s warm.
