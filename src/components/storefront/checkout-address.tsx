@@ -69,6 +69,8 @@ export function CheckoutAddress({draft,query,destinations,errors,firstError,look
  const [districts,setDistricts]=useState<DestinationDistrict[]>([]),[status,setStatus]=useState({text:'',visible:false});
  const [picked,setPicked]=useState<Destination[]|null>(null),[loading,setLoading]=useState(false),[filter,setFilter]=useState<string|null>(null);
  const searched=useRef(query),kelurahan=useRef<HTMLInputElement>(null),focusKelurahan=useRef(false),pick=useRef<AbortController|null>(null);
+ // Answers already seen this page view: deleting or retyping letters shows them at once, without a request.
+ const answered=useRef(new Map<string,DestinationDistrict[]>());
  // The server lists one kecamatan's kelurahan (the chosen area's, or the no-JavaScript lookup's best match); never several.
  const serverAreas=new Set(destinations.map(districtOf)).size===1?destinations:[];
  // biome-ignore lint/correctness/useExhaustiveDependencies: serverAreas is derived from destinations.
@@ -80,17 +82,19 @@ export function CheckoutAddress({draft,query,destinations,errors,firstError,look
   // Search only text the buyer typed: not the label of a pick or of a restored area (text typed before hydration counts).
   if(query===searched.current)return;
   const q=query.trim();
-  if(q.replace(/[^\p{L}\p{N}]/gu,'').length<2){setDistricts([]);setStatus({text:'',visible:false});return;}
+  // Three letters or digits before searching (owner 2026-11-06): fewer, more useful requests while typing.
+  if(q.replace(/[^\p{L}\p{N}]/gu,'').length<3){setDistricts([]);setStatus({text:'',visible:false});return;}
+  const show=(items:DestinationDistrict[])=>{setDistricts(items);setStatus(items.length?{text:`${items.length} kecamatan ditemukan. Gunakan panah atas dan bawah untuk memilih.`,visible:false}:{text:'Kecamatan tidak ditemukan. Periksa ejaan atau coba nama kecamatan lain.',visible:true});};
+  const seen=answered.current.get(q.toLowerCase());if(seen){show(seen);return;}
   const controller=new AbortController(),timer=setTimeout(async()=>{
    setStatus({text:'Mencari kecamatan…',visible:false});
    try{
     const response=await fetch(`/api/v1/destinations?q=${encodeURIComponent(q)}&group=district&limit=8`,{signal:controller.signal,headers:{accept:'application/json'}});
     if(!response.ok)throw new Error(String(response.status));
     const items=(await response.json() as {items:DestinationDistrict[]}).items;if(controller.signal.aborted)return;
-    setDistricts(items);
-    setStatus(items.length?{text:`${items.length} kecamatan ditemukan. Gunakan panah atas dan bawah untuk memilih.`,visible:false}:{text:'Kecamatan tidak ditemukan. Periksa ejaan atau coba nama kecamatan lain.',visible:true});
+    answered.current.set(q.toLowerCase(),items);show(items);
    }catch{if(!controller.signal.aborted){setDistricts([]);setStatus({text:'Daftar kecamatan belum dapat dimuat. Coba ketik lagi.',visible:true});}}
-  },250);
+  },150);
   return ()=>{clearTimeout(timer);controller.abort();};
  },[query]);
  useEffect(()=>{if(focusKelurahan.current&&!loading){focusKelurahan.current=false;kelurahan.current?.focus();}},[loading]);
@@ -133,7 +137,7 @@ export function CheckoutAddress({draft,query,destinations,errors,firstError,look
     onText={value=>{setQuery(value);if(picked||draft.destination_id||serverAreas.length){setPicked([]);setFilter(null);setField('destination_id','');}}}
     onPick={option=>void chooseDistrict(option.id)}/>
    <noscript><button className="button secondary checkout-lookup" type="submit" name="navigate" value="lookup">Cari kecamatan</button></noscript>
-   <p id="checkout-query-hint" className="checkout-hint">Ketik kecamatan, kelurahan, atau kode pos.</p>
+   <p id="checkout-query-hint" className="checkout-hint">Ketik minimal 3 huruf kecamatan, kelurahan, atau kode pos.</p>
    <p className={status.visible?'checkout-hint':'sr-only'} role="status">{status.text}</p>
    {lookupMessage&&<p className="checkout-hint" role="status">{lookupMessage}</p>}
    {errors.query&&<p id="checkout-query-error" className="checkout-field-error"><Icon name="alert"/>{errors.query}</p>}

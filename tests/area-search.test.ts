@@ -61,8 +61,19 @@ test("rankDistricts also finds a kecamatan by kelurahan or postal code, after na
 	assert.deepEqual(names("50132"), ["SEMARANG TENGAH"]);
 	assert.deepEqual(names("koto baru"), ["KOTO BARU"]);
 	// "kota" is filler for filtering, but the whole phrase still ranks the city Kotabaru above the "Koto Baru" kecamatan.
-	// "baru" is also inside the city "Pekanbaru", so Tampan matches by word too; Kotabaru still leads.
-	assert.deepEqual(names("kota baru"), ["PULAU LAUT UTARA", "TAMPAN", "KOTO BARU"]);
+	// "baru" is also inside the city "Pekanbaru", so Tampan matches by word too; Kotabaru still leads, and the two
+	// equal-relevance matches follow A-Z (Koto Baru, Tampan).
+	assert.deepEqual(names("kota baru"), ["PULAU LAUT UTARA", "KOTO BARU", "TAMPAN"]);
+});
+
+test("rankDistricts orders by relevance, then A-Z within a relevance level (owner 2026-11-06)", () => {
+	const row = (id: string, district: string, city: string) => ({ id, province: "JAWA BARAT", city, district, subdistrict: `${district} KEL`, postal_code: "40000" });
+	const sample = groupDistricts([row("a1", "SUKAU", "LAMPUNG BARAT"), row("a2", "SUKRA", "INDRAMAYU"), row("a3", "SUKUN", "MALANG"), row("a4", "SUKABUMI", "SUKABUMI"), row("a5", "SUKADANA", "CIAMIS"), row("a6", "PASUKAN", "GARUT"), row("a7", "SUKABUMI", "BANDAR LAMPUNG")]);
+	const order = (query: string) => rankDistricts(sample, query, 20).map((e) => `${e.district}/${e.city}`);
+	// Starts-with names A-Z (same name: by city), then names that only contain the text.
+	assert.deepEqual(order("suk"), ["SUKABUMI/BANDAR LAMPUNG", "SUKABUMI/SUKABUMI", "SUKADANA/CIAMIS", "SUKAU/LAMPUNG BARAT", "SUKRA/INDRAMAYU", "SUKUN/MALANG", "PASUKAN/GARUT"]);
+	// An exact name still comes first.
+	assert.deepEqual(order("sukun")[0], "SUKUN/MALANG");
 });
 
 test("rankDistricts needs two letters, honours the limit and never matches across names", () => {

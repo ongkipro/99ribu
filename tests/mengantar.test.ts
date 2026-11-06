@@ -25,19 +25,25 @@ const observed = {
 	},
 };
 
-test("Mengantar estimate: bills `price`, drops cargo/unsupported/unknown couriers, offers COD only on an explicit unsupported_cod:false", () => {
+test("Mengantar estimate: offers every quoted courier (cargo and unnamed keys too), drops unsupported or unpriced ones, offers COD only on an explicit unsupported_cod:false", () => {
 	const rates = parseEstimate(observed, key);
 	assert.deepEqual(rates.map((r) => [r.service_id, r.shipping_amount, r.supports_cod]), [
-		["JNE", 11000, false], ["SiCepat", 8500, true], ["SAP", 9000, false], ["JT", 14000, false],
+		["JNE", 11000, false], ["JNECargo", 70000, false], ["SiCepat", 8500, true], ["SapCargo", 42500, false], ["SAP", 9000, false], ["JT", 14000, false], ["lion", 17980, false], ["unknownCourier", 5000, false],
 	]);
+	// spx (origin unsupported), anteraja (unsupported) and pos (price 0) stay out; the digit-string price counts.
+	assert.deepEqual(rates.map((r) => r.courier_name), ["JNE", "JNE Cargo", "SiCepat", "SAP Cargo", "SAP Express", "J&T Express", "Lion Parcel", "Unknown Courier"]);
+	assert.equal(rates[1].service_name, "Kargo", "cargo services are labelled");
+	assert.deepEqual(parseEstimate({ success: true, data: { "<b>x</b>": { price: 9000 }, JNE: { price: "9.000" } } }, key), [], "odd keys and formatted strings are refused");
+	const inherited = parseEstimate({ success: true, data: JSON.parse('{"__proto__":{"price":7000},"constructor":{"price":8000},"toString":{"price":9000}}') }, key);
+	assert.deepEqual(inherited.map((r) => [r.service_id, typeof r.courier_name, r.courier_name]), [["__proto__", "string", "__proto__"], ["constructor", "string", "Constructor"], ["toString", "string", "To String"]], "prototype names never read Object.prototype");
 	const jne = rates[0];
 	assert.equal(jne.service_name, "Reguler, 2-3 hari");
 	assert.equal(jne.source, "mengantar");
 	assert.equal(jne.version, MENGANTAR_RATE_VERSION);
 	assert.match(jne.id, /^mg_[0-9a-f]{64}$/);
 	assert.notEqual(parseEstimate(observed, { ...key, grams: 2000 })[0].id, jne.id, "the id binds the weight");
-	assert.equal(rates[1].service_name, "Reguler", "no ETA without estimate_delivery");
-	assert.equal(rates[3].service_name, "Reguler", "\"-\" is no ETA");
+	assert.equal(rates[2].service_name, "Reguler", "no ETA without estimate_delivery");
+	assert.equal(rates[5].service_name, "Reguler", "\"-\" is no ETA");
 	for (const [raw, shown] of [["1 - 2 Hari", "1-2"], ["1-2 Day", "1-2"], ["4 HARI", "4"], ["2 - 2 days", "2"]]) {
 		assert.equal(parseEstimate({ success: true, data: { JNE: { price: 9000, estimate_delivery: raw } } }, key)[0].service_name, `Reguler, ${shown} hari`, raw);
 	}

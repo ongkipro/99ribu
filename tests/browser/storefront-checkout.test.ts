@@ -215,7 +215,7 @@ test('missing kecamatan focuses the kecamatan field, its list paints above later
   // under the old parent, 2026-11-05); picking it chooses that kelurahan.
   await combo.fill('00001');const byCode=f.page.getByRole('listbox',{name:'Kecamatan'}).getByRole('option');await expect(byCode).toHaveCount(1);
   await expect(byCode.first()).toContainText('Kecamatan Contoh A, Malang, Jawa Timur');await expect(byCode.first()).toContainText('Kelurahan Kelurahan Contoh A · 00001');
-  await expect(f.page.locator('#checkout-query-hint')).toHaveText('Ketik kecamatan, kelurahan, atau kode pos.');
+  await expect(f.page.locator('#checkout-query-hint')).toHaveText('Ketik minimal 3 huruf kecamatan, kelurahan, atau kode pos.');
   await byCode.first().click();await expectOrderStep(f.page);
   await f.page.getByRole('button',{name:'Ubah kirim ke',exact:true}).click();await expectContactStep(f.page);
   const street=f.page.getByLabel('Alamat lengkap',{exact:true});await street.click();await street.press('End');await street.pressSequentially(' blok C',{delay:40});await f.page.waitForTimeout(1500);

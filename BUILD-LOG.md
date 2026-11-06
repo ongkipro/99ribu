@@ -1,5 +1,14 @@
 # Build log — Serba 99ribu
 
+## 2026-11-06 — S179 checkout: faster A-Z kecamatan search, every Mengantar courier, rate badges (R3, local)
+
+- Search (`area-search.ts`, `checkout-address.tsx`, `destinations.ts`): within a relevance level (exact, starts with, contains, …) kecamatan are A-Z then by city ("suk": Sukabumi/Bandar Lampung, Sukabumi/Sukabumi, Sukadana, Sukau, Sukra, Sukun, then Pasukan); the client searches from 3 letters or digits (hint "Ketik minimal 3 huruf …"; the 2-letter kecamatan GU and KI are found with their city), debounces 150 ms and reuses answers already seen on the page; the server's 5-minute catalogue cache answers from the last good copy while it refreshes. Production measurement before: 1.22 s for the first query after the cache expired, ~0.2 s warm.
+- Couriers (`mengantar.ts`): every key Mengantar quotes with a whole-rupiah price is offered (before: a fixed list of 10 hid JNE Cargo, SAP Cargo and any new key, and Lion Parcel because its price arrives as a digit string); own-key name lookup (`__proto__`/`constructor` cannot read the prototype); cargo services read "Kargo"; unsupported routes, origin-unsupported SPX and price 0 still drop; COD only on explicit `unsupported_cod:false`.
+- Rate list (`rate-badges.ts`, `checkout-forms.tsx`, `03-checkout.css`): "Termurah" on the first (cheapest) option and "Tercepat" only when every option has an ETA and one is strictly quickest.
+- Checks (ledger run, executed): lint, typecheck, `npm test` 331/331 (new `rate-badges`, updated `area-search`, `mengantar` incl. prototype keys), build + `destination-lookup`, `storefront-checkout-{contract,runtime,payment,draft}` 13/13, browser `storefront-checkout` + `storefront-floating-labels` 38/38 with the LOCAL worker, `--case=local-providers` 5/5. Renders `.local/test-renders/s26/3TmCI0y8K7KuyPASUbJvy/shipping-{390,1440}.png` (badge next to the courier name, no overflow).
+- Review GPT-6.1 Sol: round 1 REQUEST_CHANGES (prototype keys — High; "Tercepat" against unknown ETAs — Medium), both fixed with tests; round 2 APPROVE. `/data/tmp/99ribu-reviews/checkout-area-couriers*-review.md`.
+- Not deployed (needs the owner's "deploy"). After a deploy, warm the catalogue once: `curl 'https://99ribu.com/api/v1/destinations?q=tebet&group=district&limit=8'`.
+
 ## 2026-11-06 — DEC-030 lighter delivery (owner "jalankan rekomendasimu")
 
 - Process tiers (R3/R4 full path; R0–R2 lint + typecheck + affected tests + one BUILD-LOG line), full suites before deploy, STATUS slimmed to now/next/owner (202 → 33 lines; old text in `docs/history/STATUS-20261106-pre-slim.md`), S125 closed, fee preview kept, S114 refactors and S122(e) parked. AGENTS.md "Process tiers"; DEC-016 superseded in part. Docs only (`docs:check` ok).

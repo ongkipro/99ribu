@@ -66,17 +66,19 @@ const toDistrict=(entry:DistrictEntry&{match:AreaMatch|null}):DestinationDistric
 // grouped read of app.shipping_area every 5 minutes, a few MB)
 // because a per-keystroke normalising scan of ~80k rows costs 200-300 ms; rows added meanwhile appear on the next
 // refresh. Upgrade path: a generated compact-name column with a trigram index.
-let catalogue:{at:number;entries:Promise<DistrictEntry[]>}|null=null;
+let catalogue:{at:number;entries:Promise<DistrictEntry[]>}|null=null,lastGood:DistrictEntry[]|null=null;
 const CATALOGUE_TTL=300_000;
+// Stale-while-revalidate (2026-11-06): after the first load no buyer waits for the ~1 s grouped read again; an expired
+// copy answers while the refresh runs, and a failed refresh keeps the last good copy.
 function catalogueDistricts(sql:Db){
- if(catalogue&&Date.now()-catalogue.at<CATALOGUE_TTL) return catalogue.entries;
+ if(catalogue&&Date.now()-catalogue.at<CATALOGUE_TTL) return lastGood?Promise.resolve(lastGood):catalogue.entries;
  const entries=sql<{id:string;province:string;city:string;district:string;postal_codes:string[];areas:number;ids:string[];subdistricts:string[];codes:string[]}[]>`select min(id) as id,province,city,district,
   array_agg(distinct postal_code order by postal_code) as postal_codes,count(*)::int as areas,
   array_agg(id order by subdistrict,id) as ids,array_agg(subdistrict order by subdistrict,id) as subdistricts,array_agg(postal_code order by subdistrict,id) as codes
   from app.shipping_area group by province,city,district`.then(rows=>rows.map(({ids,subdistricts,codes,...row})=>districtEntry({...row,members:ids.map((id,i)=>({id,subdistrict:subdistricts[i],postal_code:codes[i]}))})));
  const current={at:Date.now(),entries};catalogue=current;
- entries.catch(()=>{if(catalogue===current)catalogue=null;});
- return entries;
+ entries.then(value=>{lastGood=value;},()=>{if(catalogue===current)catalogue=null;});
+ return lastGood?Promise.resolve(lastGood):entries;
 }
 export async function searchDistricts(sql:Db,query:string,limit=8):Promise<DestinationDistrict[]>{
  const search=clean(query,100);integer(limit,1,20);

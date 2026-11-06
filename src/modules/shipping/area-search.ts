@@ -69,7 +69,8 @@ function memberMatch(entry:DistrictEntry,whole:string,words:string[]):AreaMatch|
 // When a kecamatan name matches (0-2), word-scattered matches (6-7) are dropped ("semarang tengah" must not list every
 // kecamatan of Semarang in Jawa Tengah); kelurahan and postal-code matches stay, after the names. Word matches that
 // needed a kelurahan (7) only show when nothing better matched.
-// Ties: shorter kecamatan name, then alphabetical.
+// Ties: alphabetical by kecamatan, then city (owner 2026-11-06: "suk" lists Sukabumi, Sukadana, … in A–Z order, so the
+// buyer reads down an alphabet instead of hunting for the shortest names first).
 export function rankDistricts(entries:readonly DistrictEntry[],query:string,limit:number){
  const {whole,words}=searchTerms(query);
  if(whole.length<2||!words.length)return [];
@@ -89,5 +90,5 @@ export function rankDistricts(entries:readonly DistrictEntry[],query:string,limi
   scored.push({entry,rank,match:rank===6?null:match});
  }
  const best=Math.min(...scored.map(s=>s.rank)),cutoff=best<=2?5:best<=6?6:7;
- return scored.filter(s=>s.rank<=cutoff).sort((a,b)=>a.rank-b.rank||a.entry.name.length-b.entry.name.length||a.entry.district.localeCompare(b.entry.district)||a.entry.city.localeCompare(b.entry.city)||a.entry.id.localeCompare(b.entry.id)).slice(0,limit).map(s=>({...s.entry,match:s.match}));
+ return scored.filter(s=>s.rank<=cutoff).sort((a,b)=>a.rank-b.rank||a.entry.district.localeCompare(b.entry.district)||a.entry.city.localeCompare(b.entry.city)||a.entry.id.localeCompare(b.entry.id)).slice(0,limit).map(s=>({...s.entry,match:s.match}));
 }

@@ -494,6 +494,22 @@
 }
 :where(.checkout-choices strong) {
 	font-weight: 500;
+	/* Room for the rate badges next to the courier name: "Termurah" (cheapest) and "Tercepat" (fastest). */
+	display: flex;
+	flex-wrap: wrap;
+	align-items: center;
+	gap: 4px 8px;
+}
+.checkout-rate-badge {
+	font-style: normal;
+	font-size: 0.75rem;
+	font-weight: 600;
+	line-height: 1.4;
+	padding: 1px 8px;
+	border-radius: 999px;
+	color: var(--purple);
+	border: 1px solid var(--purple);
+	background: var(--surface);
 }
 .checkout-parcels {
 	display: grid;
