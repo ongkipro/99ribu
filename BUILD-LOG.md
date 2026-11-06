@@ -1,5 +1,9 @@
 # Build log — Serba 99ribu
 
+## 2026-11-06 — DEC-030 lighter delivery (owner "jalankan rekomendasimu")
+
+- Process tiers (R3/R4 full path; R0–R2 lint + typecheck + affected tests + one BUILD-LOG line), full suites before deploy, STATUS slimmed to now/next/owner (202 → 33 lines; old text in `docs/history/STATUS-20261106-pre-slim.md`), S125 closed, fee preview kept, S114 refactors and S122(e) parked. AGENTS.md "Process tiers"; DEC-016 superseded in part. Docs only (`docs:check` ok).
+
 ## 2026-11-06 — S114 step: import-cycle ratchet (guard only, no refactor)
 
 - `tests/import-cycles.test.ts` (in `npm test`): finds relative-import cycles in `src/**/*.ts(x)` with TypeScript's `ts.preProcessFile` (static, side-effect, re-export, type-only, dynamic) and Tarjan components; the result must equal the frozen `KNOWN` list exactly. Today there are **6** cycles (TASKS said 3): access kernel (6 files incl. `checkout/access.ts`), shipping contribution/quotes, affiliates/commissions/payouts (4), returns (3), storefront checkout/draft, and a 21-file money-path cycle (checkout exceptions, orders, finance settlements, fulfillment).
