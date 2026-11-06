@@ -10,7 +10,11 @@ import {actor,cleanup,enroll} from '../contract/access-fixture.ts';
 import {validateExchanges,type Exchange} from '../contract/openapi-probe.ts';
 import {grantedChoices,deniedChoices} from './advertising-fixture.ts';
 
-test('built Chromium first-party signals retain HttpOnly purpose and narrow order scope; reload and duplicate payment never create another Purchase',async()=>{
+// Real Chrome, ~10 HTTP steps and a spawned worker take ~30 s even on an idle host, which equals the campaign runner's
+// 30 s per-test limit; an explicit budget (3x, like the S85 DRILL) replaces the accidental one. Assertions are unchanged.
+const BROWSER_FLOW={timeout:90_000};
+
+test('built Chromium first-party signals retain HttpOnly purpose and narrow order scope; reload and duplicate payment never create another Purchase',BROWSER_FLOW,async()=>{
  const identity=createLocalAuth('local'),owner=await actor(identity,'owner',[]);await enroll(owner.browser,owner.password);
  const seeded=await seedCommerce(owner.browser.request('/api/v1/admin/products'),identity,'local',`signal-${randomUUID().slice(0,8)}`),buyer=await actor(identity,'buyer',[]),samples:Exchange[]=[];
  const browser=await chromium.launch({executablePath:process.env.PLAYWRIGHT_CHROMIUM_EXECUTABLE});
