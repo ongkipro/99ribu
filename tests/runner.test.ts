@@ -52,12 +52,20 @@ test("unknown or widened acceptance selections fail before executing any cases",
 });
 
 test("all-current selects every direct integration/browser test file and never a historical candidate", async () => {
-  const { currentFiles } = await import("../scripts/check-tests.ts");
-  const { readdirSync } = await import("node:fs");
+  const { currentFiles, OWN_SERVER_FILES, ownServerFiles } = await import("../scripts/check-tests.ts");
+  const { readdirSync, existsSync } = await import("node:fs");
+  // Pinned: adding a file here is a deliberate, reviewed change to what all-current covers.
+  assert.deepEqual(OWN_SERVER_FILES, { "tests/browser/local-providers-states.test.ts": "--case=local-providers" });
   for (const mode of ["integration", "browser"] as const) {
-    const expected = readdirSync(`tests/${mode}`).filter((name) => name.endsWith(".test.ts")).map((name) => `tests/${mode}/${name}`).sort();
-    assert.ok(expected.length > 0);
+    const all = readdirSync(`tests/${mode}`).filter((name) => name.endsWith(".test.ts")).map((name) => `tests/${mode}/${name}`).sort();
+    assert.ok(all.length > 0);
+    const expected = mode === "browser" ? all.filter((file) => file !== "tests/browser/local-providers-states.test.ts") : all;
     assert.deepEqual(currentFiles(mode), expected);
+  }
+  // Every excluded file exists and its own case selects it (the case's list is built from the same map).
+  for (const [file, selector] of Object.entries(OWN_SERVER_FILES)) {
+    assert.ok(existsSync(file), file);
+    assert.ok(ownServerFiles(selector).includes(file), `${file} stays in ${selector}`);
   }
   const historical = readdirSync("tests/historical").filter((name) => name.endsWith(".test.ts"));
   assert.equal(historical.length, 14);

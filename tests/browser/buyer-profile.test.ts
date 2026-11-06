@@ -351,10 +351,10 @@ test("checkout starts from the profile's main address", {
 				"Penerima Profil",
 			);
 			await expect(page.locator("#checkout-phone")).toHaveValue("081234560020");
-			await expect(page.locator("#checkout-email")).toHaveValue(buyer.email);
-			await expect(page.locator("#checkout-destination_id")).toHaveValue(
-				"test-malang",
-			);
+			// Checkout asks no email since 2026-11-05 (owner); the field must not come back.
+			await expect(page.locator("#checkout-email")).toHaveCount(0);
+			// The visible field is the kelurahan combobox (2026-11-05); the prefilled area id is the hidden value.
+			await expect(page.locator("input[type=hidden][name=destination_id]")).toHaveValue("test-malang");
 			await expect(page.locator("#checkout-address_line")).toHaveValue(
 				"Jl. Prefill No. 7",
 			);

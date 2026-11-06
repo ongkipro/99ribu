@@ -74,7 +74,8 @@ async function start(width:number){
  const created=await identity.sql.begin(tx=>createCart(tx,request,identity,principal,body,{clock_namespace:namespace}));carts.push(created.cart.id);
  assert.equal((await client.call('/api/v1/carts',body,{key})).response.status,201);
  const browser=await chromium.launch({executablePath:process.env.PLAYWRIGHT_CHROMIUM_EXECUTABLE});
- const context=await browser.newContext({viewport:{width,height:900},reducedMotion:'reduce'}),page=await context.newPage();page.setDefaultTimeout(15000);
+ // Phone widths run as a touch device: the checkout keeps 14 px controls for a mouse and 16 px under (pointer: coarse).
+ const context=await browser.newContext({viewport:{width,height:900},reducedMotion:'reduce',...(width<=430?{hasTouch:true,isMobile:true}:{})}),page=await context.newPage();page.setDefaultTimeout(15000);
  const errors:string[]=[];page.on('pageerror',()=>errors.push('Uncaught page error'));
  page.on('request',r=>assert.equal(new URL(r.url()).origin,origin,'the browser never calls a provider'));
  await context.addCookies([...client.cookies.values()].map(c=>({name:c.name,value:c.value,domain:'127.0.0.1',path:c.path,httpOnly:true,sameSite:'Lax' as const,secure:false})));
@@ -84,8 +85,8 @@ async function capture(page:Page,name:string){
  await mkdir(output,{recursive:true});await page.evaluate(()=>document.fonts.ready);
  const text=await page.locator('body').innerText();assert.doesNotMatch(text,/SHIPPING_|NO_SUPPORTED|COD_UNAVAILABLE|127\.0\.0\.1:18790|undefined|NaN/,'no provider code, URL or raw value on screen');
  const overflow=await page.evaluate(()=>document.documentElement.scrollWidth>document.documentElement.clientWidth);assert.equal(overflow,false,`${name}: no horizontal overflow`);
- const small=await page.evaluate(()=>[...document.querySelectorAll('input:not([type=hidden]):not([type=radio]):not([type=checkbox]),select,textarea')].filter(e=>(e as HTMLElement).offsetParent&&Number.parseFloat(getComputedStyle(e).fontSize)<16).map(e=>`${e.tagName.toLowerCase()}${e.id?`#${e.id}`:''}${e.getAttribute('name')?`[name=${e.getAttribute('name')}]`:''}${e.getAttribute('data-testid')?`[${e.getAttribute('data-testid')}]`:''} ${getComputedStyle(e).fontSize}`));
- assert.deepEqual(small,[],`${name}: every text control is at least 16 px (no mobile zoom)`);
+ const small=await page.evaluate(()=>[...document.querySelectorAll('input:not([type=hidden]):not([type=radio]):not([type=checkbox]),select,textarea')].filter(e=>(e as HTMLElement).offsetParent&&Number.parseFloat(getComputedStyle(e).fontSize)<(matchMedia('(pointer: coarse)').matches?16:14)).map(e=>`${e.tagName.toLowerCase()}${e.id?`#${e.id}`:''}${e.getAttribute('name')?`[name=${e.getAttribute('name')}]`:''}${e.getAttribute('data-testid')?`[${e.getAttribute('data-testid')}]`:''} ${getComputedStyle(e).fontSize}`));
+ assert.deepEqual(small,[],`${name}: text controls are at least 16 px on touch (no iOS zoom) and 14 px with a mouse`);
  await writeFile(`${output}/${name}.png`,await page.screenshot({fullPage:true}));
 }
 // Couriers load by themselves once the address is complete (owner 2026-11-05). Without JavaScript "Cek ongkir" asks for

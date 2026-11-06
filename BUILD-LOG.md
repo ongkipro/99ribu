@@ -1,5 +1,16 @@
 # Build log — Serba 99ribu
 
+## 2026-11-06 — S178: browser suite back to green (and S121 accepted)
+
+- The 8 failures that failed with and without the LOCAL worker were tests behind the accepted 2026-11-05 checkout, not product regressions:
+  - `buyer-profile`: checkout asks no email → asserts `#checkout-email` is absent; the prefilled area is the hidden `destination_id` (the visible field is the kelurahan combobox).
+  - `consignment-payments` S92 ×2: the quote step's visible heading is "Metode pengiriman"; the order summary is `.checkout-summary > details` / `:scope > summary` (the note and voucher disclosures inside it are `<details>` too).
+  - `local-providers-states` S168 ×3: the checkout deliberately uses 14 px controls for a mouse and 16 px under `(pointer: coarse)` (no iOS zoom); phone widths now run as touch (`hasTouch`+`isMobile`) and the floor is 16 px on touch, 14 px otherwise. S176 ×2 and S168 need the provider-mode server (`LOCAL_PROVIDER_ORIGIN=http://127.0.0.1:18790 npm start`), so the plain-server `all-current` could never pass them.
+- Runner: `scripts/check-tests.ts` `OWN_SERVER_FILES` names the browser files that need their own server (`local-providers-states` → `--case=local-providers`); `all-current` leaves out only those; `tests/runner.test.ts` asserts `all-current` = every file minus that map and that each excluded file stays in its case.
+- Checks (ledger S178 run): lint, `npm test` PASS; browser `--case=local-providers` on the provider-mode server 5/5; browser `all-current` with the server **and the LOCAL worker**: 198/3 (stale locators) → 200/1 (`storefront-checkout` competing drafts, then 31/31 three times alone: load flake) → **201/201, 42 files, 1125 s**. This is also S121's acceptance.
+- Flakes seen under full load, each passing alone: customer chat `filechooser` wait (1 of 3), competing checkout drafts (1 full run). Kept in S122(b).
+- Review (GPT-6.1 Sol via `pi -p`): four high/medium-thinking attempts on the full packet timed out (provider stalls on long reasoning; short prompts answered in seconds), so the review ran at low thinking in short form. Finding: the runner test derived its expectation from the same exception map (coverage could erode) and checked reachability by source text. Fixed: the map is pinned in `runner.test.ts`, the browser expectation is explicit, and `--case=local-providers` builds its browser list with `ownServerFiles()` from the map. Round 2 APPROVE. Touch emulation, email/area and summary locators: OK. Outputs `/data/tmp/99ribu-reviews/S178-r1-review.md`, `S178-r2-review.md`.
+
 ## 2026-11-06 — S121: the LOCAL worker leaves fixture-namespace jobs to their suites
 
 - Cause: browser suites seed orders, reservations and payment attempts in fixture namespaces (business clock) in `99ribu_local`; a running LOCAL worker expired them on the synced clock or claimed their leased jobs first (seen: `storefront-order-receipt` — the worker took the suite's `payment.create`, so the suite's fault-injecting adapter never ran).

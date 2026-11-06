@@ -40,8 +40,16 @@ export async function checkFiles(files: readonly string[]) {
 
 // Full current regression: every file directly under tests/<mode>/. Historical pre-0020..0023 rollback
 // candidates live in tests/historical/ and are reachable only through their refusing S29/S30/S31 selectors.
+// Browser files that need a differently started server cannot share the plain all-current server; each stays in
+// its own case (S178): local-providers-states needs `LOCAL_PROVIDER_ORIGIN=http://127.0.0.1:18790 npm start`.
+export const OWN_SERVER_FILES: Readonly<Record<string, string>> = { "tests/browser/local-providers-states.test.ts": "--case=local-providers" };
+// The browser files a case owns because they need their own server: the case lists them from this map, so an
+// excluded file is always reachable through its case.
+export function ownServerFiles(selector: string) {
+  return Object.keys(OWN_SERVER_FILES).filter((file) => OWN_SERVER_FILES[file] === selector);
+}
 export function currentFiles(mode: "integration" | "browser") {
-  return readdirSync(`tests/${mode}`).filter((name) => name.endsWith(".test.ts")).sort().map((name) => `tests/${mode}/${name}`);
+  return readdirSync(`tests/${mode}`).filter((name) => name.endsWith(".test.ts")).sort().map((name) => `tests/${mode}/${name}`).filter((file) => !(file in OWN_SERVER_FILES));
 }
 
 if (import.meta.main) {
@@ -69,7 +77,7 @@ if (import.meta.main) {
       : selector === "--case=payment-fees"
       ? mode === "integration" ? ["tests/integration/payment-fees.test.ts"] : ["tests/browser/payment-fees.test.ts"]
       : selector === "--case=local-providers"
-      ? mode === "integration" ? ["tests/integration/local-providers.test.ts","tests/integration/shipping-stand-in.test.ts","tests/integration/shipping-stand-in-behaviour.test.ts","tests/integration/autolaris-stand-in.test.ts"] : ["tests/browser/local-providers-states.test.ts"]
+      ? mode === "integration" ? ["tests/integration/local-providers.test.ts","tests/integration/shipping-stand-in.test.ts","tests/integration/shipping-stand-in-behaviour.test.ts","tests/integration/autolaris-stand-in.test.ts"] : ownServerFiles("--case=local-providers")
       : selector === "--case=T-32"
       ? mode === "integration" ? ["tests/integration/storefront-order-receipt.test.ts"] : ["tests/browser/storefront-order-receipt.test.ts"]
       : selector === "--case=T-31"

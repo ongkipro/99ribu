@@ -166,7 +166,7 @@ async function fillContact(page: Page, method: RegExp) {
 	// Couriers load by themselves once the address is complete (owner 2026-11-05).
 	// Single-page checkout: the quote opens the order step (review box, shipping choices, order button) directly.
 	await expect(page.locator("dl.checkout-review-box")).toBeVisible();
-	await expect(page.getByRole("heading", { name: "Pengiriman", exact: true })).toBeVisible();
+	await expect(page.getByRole("heading", { name: "Metode pengiriman", exact: true })).toBeVisible();
 	await expect(page.getByRole("button", { name: "Buat pesanan", exact: true })).toBeVisible();
 }
 const parcelsOf = (orderId: string) =>
@@ -509,8 +509,9 @@ test("S92 built browser: manual bank checkout adds the unique code and a 24 h de
 		await fillContact(page, /^Transfer bank/);
 		await expect(page.getByText("Transfer bank", { exact: true }).first()).toBeVisible();
 		// The note lives in the order summary, collapsed on narrow screens: open it like a buyer would.
-		const summary = page.locator(".checkout-summary details");
-		if (!(await summary.evaluate((node) => (node as HTMLDetailsElement).open))) await summary.locator("summary").click();
+		// Direct child only: the note and voucher disclosures inside the summary are <details> too (2026-11-05).
+		const summary = page.locator(".checkout-summary > details");
+		if (!(await summary.evaluate((node) => (node as HTMLDetailsElement).open))) await summary.locator(":scope > summary").click();
 		await expect(page.getByText("Kode unik 1–999 rupiah ditambahkan ke total saat pesanan dibuat untuk mencocokkan transfer.").first()).toBeVisible();
 		await captureBoth(page, "s92-checkout-transfer-review", true);
 		await page.getByRole("button", { name: /^Buat pesanan/ }).click();
@@ -657,8 +658,9 @@ test("S92 built browser: COD checkout discloses the frozen 3.33% fee line and th
 		const fee = Math.ceil((Number(quote.buyer_total) * 333) / 10000);
 		assert.equal(Number(quote.payment_charge_amount), fee, "per-parcel ceil(base × 333 / 10000)");
 		// The fee line lives in the order summary, collapsed on narrow screens: open it like a buyer would.
-		const summary = page.locator(".checkout-summary details");
-		if (!(await summary.evaluate((node) => (node as HTMLDetailsElement).open))) await summary.locator("summary").click();
+		// Direct child only: the note and voucher disclosures inside the summary are <details> too (2026-11-05).
+		const summary = page.locator(".checkout-summary > details");
+		if (!(await summary.evaluate((node) => (node as HTMLDetailsElement).open))) await summary.locator(":scope > summary").click();
 		const line = page.locator(".checkout-charges > div").filter({ has: page.getByText("Biaya COD (3,33%)", { exact: true }) });
 		await expect(line.filter({ visible: true }).first()).toContainText(rupiah(fee));
 		await expect(page.locator(".checkout-charges .checkout-total").filter({ visible: true }).first()).toContainText(rupiah(Number(quote.buyer_total) + fee));
