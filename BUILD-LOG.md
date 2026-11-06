@@ -1,5 +1,12 @@
 # Build log — Serba 99ribu
 
+## 2026-11-06 — S114 step: import-cycle ratchet (guard only, no refactor)
+
+- `tests/import-cycles.test.ts` (in `npm test`): finds relative-import cycles in `src/**/*.ts(x)` with TypeScript's `ts.preProcessFile` (static, side-effect, re-export, type-only, dynamic) and Tarjan components; the result must equal the frozen `KNOWN` list exactly. Today there are **6** cycles (TASKS said 3): access kernel (6 files incl. `checkout/access.ts`), shipping contribution/quotes, affiliates/commissions/payouts (4), returns (3), storefront checkout/draft, and a 21-file money-path cycle (checkout exceptions, orders, finance settlements, fulfillment).
+- Proven both ways: passes on the tree; fails on an injected two-file cycle (also one hidden behind comment-like strings) and on a `.js` self-import.
+- Review GPT-6.1 Sol: round 1 REQUEST_CHANGES (comments, `.js`/`index.tsx`, size-only money cycle, self-imports), round 2 REQUEST_CHANGES (regex not string-aware, shrinking passed silently), round 3 APPROVE. `/data/tmp/99ribu-reviews/S114-guard*-review.md`.
+- Not done (S114 remainder, each needs full suites): breaking the cycles (the 21-file one is R4 money path), the shared-kernel move (186 importing files), single idempotency/409/HMAC helpers, simulator commands out of the worker loop. The repo-wide codemods wait until no other branch is open (`cart-fly-to-cart` has uncommitted work).
+
 ## 2026-11-06 — S122 (b) flakes root-caused, (d) checked
 
 - Customer chat (`admin-ui-controls`): the upload button is `disabled` while any chat action is busy, and a re-render can replace it; under load Enter landed before it was usable or on a replaced node, so no `filechooser`. The test waits until the button is enabled and presses Enter on the located button (`locator.press`); Tab-reachability is still asserted first. 5/5 alone with the LOCAL worker (was 2/3).
