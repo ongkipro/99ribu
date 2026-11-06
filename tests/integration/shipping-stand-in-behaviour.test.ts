@@ -32,12 +32,12 @@ const code=(name:string)=>(error:unknown)=>{assert.equal((error as {code?:string
 
 test('S165 real courier keys become whole-rupiah rates with stable ids; flags hide couriers and COD',async()=>{
  const s=await standIn(()=>({body:body({JNE:row(12000),SiCepat:row(10500,{unsupported_cod:undefined}),JT:row(11000,{unsupported_cod:true}),iDexpress:row(9000,{unsupported:true}),
-  spx:row(9800,{unsupportedOriginSpx:true}),anteraja:row(10000,{coverage_cod:false}),lion:row(0),pos:row(9999.5),SAP:row(-1),SAPLite:row('8000'),Paxel:row(15000)})}));
+  spx:row(9800,{unsupportedOriginSpx:true}),anteraja:row(10000,{coverage_cod:false}),lion:row(0),pos:row(9999.5),SAP:row(-1),SAPLite:row('8000'),Paxel:row(15000),Frac:row('7500.5'),'J&T':row(9000)})}));
  try{await mode(s.origin,async()=>{
   const destination=hex();
   const first=await estimateRates(mengantarRateAdapter,request(destination));
-  assert.deepEqual(first.map(r=>[r.service_id,r.shipping_amount,r.supports_cod]).sort(),[['JNE',12000,true],['JT',11000,false],['SiCepat',10500,false],['anteraja',10000,false]],
-   'unsupported/unsupportedOriginSpx hidden; COD only on explicit unsupported_cod:false with coverage; zero, fractional, negative, string prices and unknown keys dropped');
+  assert.deepEqual(first.map(r=>[r.service_id,r.shipping_amount,r.supports_cod]).sort(),[['JNE',12000,true],['JT',11000,false],['Paxel',15000,true],['SAPLite',8000,true],['SiCepat',10500,false],['anteraja',10000,false]],
+   'unsupported/unsupportedOriginSpx hidden; COD only on explicit unsupported_cod:false with coverage; zero, fractional, negative and fractional-string prices and keys outside [A-Za-z0-9_-] dropped; a whole-rupiah string price and a new key are offered (S179)');
   assert.ok(first.every(r=>r.version===STAND_IN_RATE_VERSION&&r.source==='mengantar'));
   resetMengantarRates();
   const again=await estimateRates(mengantarRateAdapter,request(destination));

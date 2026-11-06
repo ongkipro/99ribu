@@ -22,7 +22,7 @@ async function standIn(reply:Reply){
  const port=(server.address() as {port:number}).port;
  return {origin:`http://127.0.0.1:${port}`,seen,close:()=>new Promise<void>(resolve=>{server.closeAllConnections();server.close(()=>resolve());})};
 }
-// Recorded stand-in shape: J&T, Anteraja, IDexpress and Paxel are not real Mengantar keys and stay hidden (S162 M2).
+// Recorded stand-in shape. Since S179 every quoted key with a whole-rupiah price is offered; only J&T (a key with `&`) is dropped.
 const recorded={success:true,data:{JNE:{price:12000,estimate_delivery:'3-4',unsupported:false,unsupported_cod:false,codFee:0},SiCepat:{price:10500,estimate_delivery:'3-4',unsupported:false,unsupported_cod:false,codFee:0},
  'J&T':{price:11000,estimate_delivery:'3-4',unsupported:false,unsupported_cod:false,codFee:0},SAP:{price:11500,estimate_delivery:'3-4',unsupported:false,unsupported_cod:false,codFee:0},
  Anteraja:{price:10000,estimate_delivery:'3-4',unsupported:false,unsupported_cod:false,codFee:0},Paxel:{price:15000,estimate_delivery:'3-4',unsupported:false,unsupported_cod:true,codFee:0},
@@ -69,7 +69,7 @@ test('S164 provider mode: catalogue destinations, stand-in rates through the pro
    const plans=await f.identity.sql.begin(tx=>buildShippingPlans(tx,{lines,payment_method:'prepaid',destination_id:destination},{clock_namespace:f.namespace}));
    assert.equal(plans[0].source,'mengantar');
    const options=plans[0].packages[0].options;
-   assert.deepEqual(options.map(o=>o.service_id).sort(),['JNE','SAP','SiCepat','lion'],'only real Mengantar keys are offered');
+   assert.deepEqual(options.map(o=>o.service_id).sort(),['Anteraja','JNE','Paxel','SAP','SiCepat','lion'],'every quoted courier with a whole-rupiah price is offered (S179); the J&T key is not a valid courier key and stays hidden');
    assert.ok(options.every(o=>Number.isSafeInteger(o.shipping_amount)&&o.shipping_amount>0),'whole-rupiah prices');
    assert.ok(server.seen.length>0&&server.seen.every(u=>u.startsWith('/api/public/local/order/estimate?')&&u.includes(`origin_id=${origin}`)&&u.includes(`destination_id=${destination}`)&&u.includes('courier=all')),'literal key local, warehouse origin, courier=all');
    assert.ok(server.seen.every(u=>!u.includes('COD_AMOUNT')),'99ribu never sends COD_AMOUNT');

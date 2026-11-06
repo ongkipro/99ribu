@@ -22,7 +22,8 @@ import {paymentFixture} from './payment-fixture.ts';
 const ADSBOOKCMS=join(homedir(),'Projects/adsbookcms');
 let child:ChildProcess|undefined,origin='';
 const hex=()=>randomBytes(12).toString('hex');
-const REAL_KEYS=new Set(['JNE','SiCepat','SAP','SAPLite','iDexpress','JT','lion','anteraja','spx','pos']);
+// Courier keys the real stand-in serves (S179 offers every quoted key; before it only the first ten were kept). A fixture id must never appear.
+const REAL_KEYS=new Set(['JNE','SiCepat','SAP','SAPLite','iDexpress','IDexpress','JT','lion','anteraja','Anteraja','spx','pos','Paxel']);
 
 async function freePort(){return new Promise<number>((resolve,reject)=>{const s=createServer();s.once('error',reject);s.listen(0,'127.0.0.1',()=>{const {port}=s.address() as {port:number};s.close(()=>resolve(port));});});}
 test.before(async()=>{

@@ -40,7 +40,7 @@ test('S95 production: Mengantar areas are the destinations, the warehouse area i
    const plans=await f.identity.sql.begin(tx=>buildShippingPlans(tx,{lines,payment_method:'prepaid',destination_id:destination},{clock_namespace:f.namespace,adapter}));
    assert.ok(seen.length&&seen.every(id=>id===origin),'every estimate uses the warehouse area');
    assert.deepEqual([plans[0].source,plans[0].destination_version,plans[0].shipping_total],['mengantar',version,8500]);
-   assert.deepEqual(plans[0].packages[0].options.map(o=>[o.service_id,o.shipping_amount]),[['SiCepat',8500],['SAP',9000],['JNE',11000]]);
+   assert.deepEqual(plans[0].packages[0].options.map(o=>[o.service_id,o.shipping_amount]),[['SiCepat',8500],['SAP',9000],['JNE',11000],['JNECargo',70000]],'every quoted courier is offered (S179); the unsupported anteraja row stays hidden');
    const cod=await f.identity.sql.begin(tx=>buildShippingPlans(tx,{lines,payment_method:'cod',destination_id:destination},{clock_namespace:f.namespace,adapter}));
    assert.deepEqual(cod[0].packages[0].options.map(o=>o.service_id),['SiCepat'],'no-COD and unknown-COD couriers are hidden from a COD plan');
    // Moving the warehouse clears its area: no origin, no live rate, no route.
