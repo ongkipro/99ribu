@@ -129,7 +129,10 @@ export async function sweepExpiredGuestContexts(sql: Sql) {
     }
   }
 }
-export async function runOneJob(sql: Sql, adapters: Readonly<Record<string, JobAdapter>> = {},onlyJobId?:string) {
+// S121: the long-running LOCAL worker leaves clock-driven jobs of fixture namespaces (test and demo fixtures; real
+// storefront orders have no clock_namespace) to the suites that own them, so a running worker cannot expire a suite's
+// reservations or orders on its synced business clock. Callers that run jobs explicitly keep the default (false).
+export async function runOneJob(sql: Sql, adapters: Readonly<Record<string, JobAdapter>> = {},onlyJobId?:string,{skipFixtureNamespaces=false}:{skipFixtureNamespaces?:boolean}={}) {
   readRuntimeConfig(process.env);
   if(onlyJobId!==undefined) id(onlyJobId);
   await expireLeases(sql,onlyJobId);
@@ -139,6 +142,12 @@ export async function runOneJob(sql: Sql, adapters: Readonly<Record<string, JobA
   const fulfillmentDue=installed.installed?sql`(o.kind='fulfillment.deadline' and o.last_error is null and exists (
     select 1 from app.fulfillment_deadline d join app.fulfillment f on f.id=d.fulfillment_id join app.order_shipment s on s.id=f.shipment_id join app.commerce_order r on r.id=s.order_id join app.local_fixture_namespace n on n.name=r.clock_namespace
     where d.id::text=o.payload->>'deadlineId' and (case when o.payload->>'kind'='packing' then d.packing_due_at else d.handover_due_at end)<=n.clock))`:sql`false`;
+  const fixtureOwned=skipFixtureNamespaces?sql`and not (
+    (o.kind='inventory.reservation.expire' and exists (select 1 from app.stock_reservation r where r.id::text=o.payload->>'reservationId' and r.clock_namespace is not null))
+    or (o.kind='promotion.reservation.expire' and exists (select 1 from app.promotion_reservation r where r.id::text=o.payload->>'reservationId' and r.clock_namespace is not null))
+    or (o.kind='checkout.order.expire' and exists (select 1 from app.commerce_order r where r.id::text=o.payload->>'orderId' and r.clock_namespace is not null))
+    or (o.kind='commission.mature' and exists (select 1 from app.commission_entry ce join app.commerce_order r on r.id=ce.order_id where ce.id::text=o.payload->>'commissionEntryId' and r.clock_namespace is not null))
+    or ${installed.installed?sql`(o.kind='fulfillment.deadline' and exists (select 1 from app.fulfillment_deadline d join app.fulfillment f on f.id=d.fulfillment_id join app.order_shipment s on s.id=f.shipment_id join app.commerce_order r on r.id=s.order_id where d.id::text=o.payload->>'deadlineId' and r.clock_namespace is not null))`:sql`false`})`:sql``;
   const processed = await sql.begin(async (tx) => {
     const [job] = await tx<DatabaseJob[]>`select o.id,o.kind,o.payload,o.attempts,o.max_attempts from app.outbox_job o
       where o.status='pending' and (${onlyJobId??null}::uuid is null or o.id=${onlyJobId??null}::uuid) and o.kind in ${tx(SELECTED_KINDS)} and (
@@ -153,11 +162,11 @@ export async function runOneJob(sql: Sql, adapters: Readonly<Record<string, JobA
           where r.id::text=o.payload->>'orderId' and r.status='pending' and r.expires_at<=n.clock)) or ${fulfillmentDue}
         or (o.kind='commission.mature' and o.last_error is null and exists (
           select 1 from app.commission_entry ce join app.commerce_order r on r.id=ce.order_id
-          where ce.id::text=o.payload->>'commissionEntryId' and ce.available_at<=app.reservation_clock(r.clock_namespace))))
+          where ce.id::text=o.payload->>'commissionEntryId' and ce.available_at<=app.reservation_clock(r.clock_namespace)))) ${fixtureOwned}
       order by o.run_at,o.created_at,o.id for update of o skip locked limit 1`;
     if (!job) return false;
     await processDatabaseJob(tx, job);
     return true;
   });
-  return processed || runLeasedJob(sql, adapters,undefined,onlyJobId);
+  return processed || runLeasedJob(sql, adapters,undefined,onlyJobId,skipFixtureNamespaces);
 }

@@ -156,7 +156,8 @@ try {
   const heartbeat=process.env.WORKER_HEARTBEAT_FILE;let beat=0;
   do {
     if(heartbeat&&Date.now()-beat>=10000){beat=Date.now();await writeFile(heartbeat,`${beat}\n`);}
-    const processed = await runOneJob(sql,adapters,onlyJobId);
+    // S121: on the local database, fixture namespaces' clock-driven jobs belong to the suites and fixtures that own them.
+    const processed = await runOneJob(sql,adapters,onlyJobId,{skipFixtureNamespaces:target==='local'&&onlyJobId===undefined});
     if (mode === "--once") break;
     if (!processed && !stop.signal.aborted) {
       await setTimeout(500, undefined, { signal: stop.signal }).catch((error) => {

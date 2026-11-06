@@ -28,7 +28,18 @@ export async function expireLeases(sql: Sql,onlyJobId?:string) {
     where status='processing' and lease_until<=now() and (${onlyJobId??null}::uuid is null or id=${onlyJobId??null}::uuid) returning id,status`;
 }
 
-export async function claimJob(sql: Sql, kind: string, reconciliation = false,onlyJobId?:string): Promise<Claim | null> {
+// S121: leased adapter jobs whose order belongs to a fixture namespace (real storefront orders have none); the LOCAL
+// worker loop leaves them to the suite or fixture that owns them. shipping.cancel.create and advertising.dispatch are
+// not mapped (no direct order link) and stay eligible.
+function fixtureOwnedLeasedJob(sql: Sql) {
+  return sql`(
+    (kind in ('payment.create','payment.autolaris.advice') and exists (select 1 from app.payment_attempt a join app.commerce_order r on r.id=a.order_id where a.id::text=payload->>'attemptId' and r.clock_namespace is not null))
+    or (kind='refund.create' and exists (select 1 from app.refund x join app.commerce_order r on r.id=x.order_id where x.id::text=payload->>'refundId' and r.clock_namespace is not null))
+    or (kind='recovery.refund.create' and exists (select 1 from app.recovery_refund x join app.commerce_order r on r.id=x.order_id where x.id::text=payload->>'refundId' and r.clock_namespace is not null))
+    or (kind='shipping.create' and exists (select 1 from app.shipment_booking b join app.fulfillment f on f.id=b.fulfillment_id join app.order_shipment s on s.id=f.shipment_id join app.commerce_order r on r.id=s.order_id where b.id::text=payload->>'bookingId' and r.clock_namespace is not null))
+    or (kind='replacement.shipping.create' and exists (select 1 from app.replacement_booking b join app.order_shipment s on s.id=b.shipment_id join app.commerce_order r on r.id=s.order_id where b.id::text=payload->>'bookingId' and r.clock_namespace is not null)))`;
+}
+export async function claimJob(sql: Sql, kind: string, reconciliation = false,onlyJobId?:string,skipFixtureNamespaces=false): Promise<Claim | null> {
   readRuntimeConfig(process.env);
   if(onlyJobId!==undefined) id(onlyJobId);
   if (!/^[a-z][a-z0-9_.-]{1,63}$/.test(kind) || kind === "local.notification") throw new Error("Invalid leased job kind.");
@@ -36,6 +47,7 @@ export async function claimJob(sql: Sql, kind: string, reconciliation = false,on
   const [job] = await sql`with due as (
     select id from app.outbox_job where kind=${kind} and status=${reconciliation ? "unknown" : "pending"}
     and run_at<=now() and (${reconciliation} or attempts<max_attempts) and (${onlyJobId??null}::uuid is null or id=${onlyJobId??null}::uuid)
+    ${skipFixtureNamespaces?sql`and not ${fixtureOwnedLeasedJob(sql)}`:sql``}
     order by run_at,created_at,id for update skip locked limit 1
   ) update app.outbox_job j set status='processing',lease_token=${token},lease_until=now()+interval '30 seconds',
     attempts=attempts+${reconciliation ? 0 : 1},dispatched_at=case when ${reconciliation} then dispatched_at else null end
@@ -78,11 +90,11 @@ export async function settleClaim(sql: Sql, claim: Claim, outcome: Outcome) {
   return rows.length === 1;
 }
 
-export async function runLeasedJob(sql: Sql, adapters: Readonly<Record<string, JobAdapter>>, deadlineMs = 25000,onlyJobId?:string) {
+export async function runLeasedJob(sql: Sql, adapters: Readonly<Record<string, JobAdapter>>, deadlineMs = 25000,onlyJobId?:string,skipFixtureNamespaces=false) {
   if (!Number.isSafeInteger(deadlineMs) || deadlineMs < 1 || deadlineMs > 25000) throw new Error("Invalid adapter deadline.");
   for (const [kind, adapter] of Object.entries(adapters)) {
     // Recover an unknown original identity before starting another effect of this kind.
-    const claim = await claimJob(sql, kind, true,onlyJobId) ?? await claimJob(sql, kind,false,onlyJobId);
+    const claim = await claimJob(sql, kind, true,onlyJobId,skipFixtureNamespaces) ?? await claimJob(sql, kind,false,onlyJobId,skipFixtureNamespaces);
     if (!claim) continue;
     if (!await markDispatched(sql, claim)) return true;
     const stop = new AbortController();
