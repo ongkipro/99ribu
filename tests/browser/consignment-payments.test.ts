@@ -489,7 +489,20 @@ test("S99/S100 built browser: the manual queue shows the booking facts and the b
 				await expect.poll(async () => !(await pager.count()) || (await pager.textContent()) !== "Memuat…").toBe(true);
 			}
 		}
-		await expect(link).toHaveAttribute("href", `/admin/pesanan/${(await sql`select admin_no::int as n from app.commerce_order where id = ${order.id}`)[0].n}`);
+		const detailHref = `/admin/pesanan/${(await sql`select admin_no::int as n from app.commerce_order where id = ${order.id}`)[0].n}`;
+		if (await link.count()) await expect(link).toHaveAttribute("href", detailHref);
+		else {
+			// Under all-current the local database accumulates orders that sort ahead of this one, so the queue can hold
+			// more rows than the bounded paging above reaches. The order must still be reachable: find it by its number.
+			await page.goto(`${origin}/admin/pesanan`);
+			await page.getByLabel("Cari berdasarkan").selectOption("nomor");
+			await page.getByLabel("Nomor pesanan", { exact: true }).fill(order.number);
+			await page.getByRole("button", { name: "Cari", exact: true }).click();
+			const found = page.getByTestId("order-row");
+			await expect(found).toHaveCount(1);
+			// The search result link carries `?dari=` (the way back to the search); the route itself must be exact.
+			await expect(found.getByRole("link", { name: order.number })).toHaveAttribute("href", new RegExp(`^${detailHref}(\\?|$)`));
+		}
 		assert.deepEqual(desk2.problems, []);
 	} finally {
 		await desk2.context.close();
@@ -615,7 +628,13 @@ test("S92 built browser: manual bank checkout adds the unique code and a 24 h de
 			assert.equal(new Date(confirmation.transferred_at).getTime(), transferredAt);
 			for (const job of await sql`select callback_job_id from app.payment_provider_event where attempt_id=${attempt.id}`) {
 				const [state] = await sql`select status from app.outbox_job where id=${job.callback_job_id}`;
-				if (state.status === "pending") assert.equal((await runJob(job.callback_job_id)).status, "completed");
+				// The LOCAL worker may hold the row (skip locked): retry until the job is completed instead of reading a stale state.
+				if (state.status === "pending") {
+					const until = Date.now() + 30000;
+					let status = (await runJob(job.callback_job_id)).status;
+					while (status === "pending" && Date.now() < until) { await new Promise((r) => setTimeout(r, 250)); status = (await runJob(job.callback_job_id)).status; }
+					assert.equal(status, "completed");
+				}
 			}
 			assert.equal((await sql`select payment_status from app.commerce_order where id=${order.id}`)[0].payment_status, "confirmed");
 			const [receipt] = await sql`select amount,payment_charge,merchandise_amount from app.economic_receipt where order_id=${order.id}`;

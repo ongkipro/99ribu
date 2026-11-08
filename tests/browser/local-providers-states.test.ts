@@ -95,7 +95,11 @@ async function calculate(page:Page){
  const nojs=page.getByRole('button',{name:'Cek ongkir',exact:true}),review=page.locator('dl.checkout-review-box');
  if(await nojs.isVisible()){await nojs.click();return;}
  if(await review.isVisible()||await review.waitFor({timeout:2500}).then(()=>true,()=>false))return;
- await page.getByRole('button',{name:'Buat pesanan',exact:true}).click();
+ // A courier load still running (slow host) ends on the order step, whose button has the same name: let it settle and press
+ // only the contact-step button, never the one that places the order.
+ await expect(page.locator('fieldset.checkout-controls')).not.toHaveAttribute('aria-busy','true');
+ if(await review.isVisible())return;
+ await page.locator('#checkout-form:has(#checkout-recipient_name) #checkout-primary').click();
 }
 async function fill(page:Page,method:'prepaid'|'cod',postcode:string){
  await page.getByLabel('Nama lengkap',{exact:true}).fill('Penerima Contoh');await page.getByLabel('Nomor WhatsApp',{exact:true}).fill('081200000000');

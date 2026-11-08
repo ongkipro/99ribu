@@ -466,6 +466,8 @@ test("S44-S45 browser: customer support chat on /help and staff CS workbench on 
 			await customerPage
 				.getByRole("button", { name: "Buat Percakapan Baru" })
 				.click();
+			// The harness sends nothing until the new conversation is back (no active id yet), so wait for its row.
+			await expect(customerPage.getByTestId(/^conv-row-/)).toBeVisible();
 			await customerPage
 				.getByLabel("Tulis pesan kepada CS")
 				.fill("Halo CS, apakah stok kemeja krem masih tersedia?");

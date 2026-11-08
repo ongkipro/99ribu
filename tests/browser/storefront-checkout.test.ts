@@ -88,8 +88,10 @@ async function holdTwoOriginStock(){
 // The buyer note lives in a collapsed disclosure inside the order summary (owner 2026-11-05); open both (the summary is
 // itself collapsed on phones) the way a buyer would before typing.
 async function note(page:Page){
- if(!await page.locator('.checkout-note:not(.checkout-voucher) > summary').isVisible())await page.locator('.checkout-summary > details > summary').click();
- if(!await page.locator('.checkout-note:not(.checkout-voucher)').evaluate(el=>(el as HTMLDetailsElement).open))await page.locator('.checkout-note:not(.checkout-voucher) > summary').click();
+ // On wide screens the summary opens itself after hydration; a toggle press landing just after that closes it again, so retry.
+ const toggle=page.locator('.checkout-note:not(.checkout-voucher) > summary');
+ await expect(async()=>{if(!await toggle.isVisible())await page.locator('.checkout-summary > details > summary').click();await expect(toggle).toBeVisible({timeout:1000});}).toPass({timeout:15000});
+ if(!await page.locator('.checkout-note:not(.checkout-voucher)').evaluate(el=>(el as HTMLDetailsElement).open))await toggle.click();
  return page.getByLabel('Catatan pengiriman (opsional)',{exact:true});
 }
 // Fixture kelurahan and the kecamatan that holds each (one kelurahan per kecamatan in the TEST-ONLY catalogue).
@@ -109,7 +111,11 @@ async function calculate(page:Page){
  const nojs=page.getByRole('button',{name:'Cek ongkir',exact:true}),review=page.locator('dl.checkout-review-box');
  if(await nojs.isVisible()){await nojs.click();return;}
  if(await review.isVisible()||await review.waitFor({timeout:2500}).then(()=>true,()=>false))return;
- await page.getByRole('button',{name:'Buat pesanan',exact:true}).click();
+ // A courier load still running (slow host) ends on the order step, whose button has the same name: let it settle and press
+ // only the contact-step button, never the one that places the order.
+ await expect(page.locator('fieldset.checkout-controls')).not.toHaveAttribute('aria-busy','true');
+ if(await review.isVisible())return;
+ await page.locator('#checkout-form:has(#checkout-recipient_name) #checkout-primary').click();
 }
 async function contact(page:Page,method='prepaid',{withArea=true,areaId='test-malang'}={}){
  await page.getByLabel('Nama lengkap',{exact:true}).fill('Penerima Contoh');await page.getByLabel('Nomor WhatsApp',{exact:true}).fill('081200000000');
