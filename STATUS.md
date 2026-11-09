@@ -1,9 +1,9 @@
 # Status — Serba 99ribu
 
-Updated: 2026-11-09 13:15Z
-Status: Production runs image `ee7e18b6` (2026-11-09). Branch `dec-025-min-contribution` is pushed to `main`.
+Updated: 2026-11-09 14:35Z
+Status: Production runs image `b9222b73` (2026-11-09). Branch `dec-025-min-contribution` is pushed to `main`.
 State: READY
-State-Detail: DEPLOYED `ee7e18b6` (S97 step B inactive in production: full gate PASS, healthy, purged, live 390/1440 PASS). Open: step C (open `PRODUCTION_MONEY_PATH_GATED` + `AUTOLARIS_*` in the production profile + the production channel; needs the owner and the callback table contents), VA shape, expired timezone, `reff_id` duplicate rule, S95/S94/S98 Mengantar live, `/sitemap.xml` renders in about 4 s and is not cached
+State-Detail: DEPLOYED `b9222b73` (sitemap memo; S97 step B from `ee7e18b6` stays inactive in production). Open: step C (open `PRODUCTION_MONEY_PATH_GATED` + `AUTOLARIS_*` in the production profile + the production channel; needs the owner and the callback table contents), VA shape, expired timezone, `reff_id` duplicate rule, S95/S94/S98 Mengantar live, `/sitemap.xml` is faster (median about 0.25 s) but 7 of 24 reads still took 1-3.4 s (cause not established)
 Local-Acceptance at `dcd20fa6` + uncommitted helper repair: lint/typecheck exit 0; integration `all-current` PASS at `dcd20fa6` (exit 0, 228 files, 706/0, 2026-11-06 18:59Z; source untouched since, browser test files only, not rerun); `--case=local-providers` PASS 5/5 (12:05Z); browser `all-current` (gate 5, LOCAL worker, load 2.7 at start) FAIL exit 1: 42 files, 200 passed, 1 failed, 1 empty (`support-chat` S44-S45, 12:25Z); `npm test` NOT RUN (gate stopped on the failure; last 331/331 on `4fa50e67`). Evidence `/data/tmp/99ribu/evidence-20261107/`.
 Review-Risk: R4 for money/auth/migrations; R0–R2 per DEC-030 "Process tiers".
 
