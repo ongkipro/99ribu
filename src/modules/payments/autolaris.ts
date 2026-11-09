@@ -14,7 +14,7 @@ import {openLocalOperation,readProviderEvents,registerProviderEvent,settleLocalO
 // DEC-008 / S93: AutoLaris H2H payments on a LOCAL SIMULATED contract. Shapes follow
 // the documented Create Payment / list_payment / advice envelopes (ongkipro/autolaris
 // e61b3cc). Unverified facts stay gated in S97: reff_id replay semantics, the `expired`
-// timezone, the advice status list and the callback contract. No network, no key.
+// timezone, the full advice status list and the callback contract. No network, no key. The settled advice shape is now observed (see AUTOLARIS_SETTLEMENT).
 // AutoLaris create_payment requires customer_email; checkout asks buyers no email (owner 2026-11-05), so every payment
 // carries the store's address the owner chose (2026-11-05). AutoLaris may send payment notices there.
 export const AUTOLARIS_STORE_EMAIL='ongkiardiansyah@gmail.com';
@@ -24,17 +24,24 @@ export type AutolarisClient={listPayment:(signal?:AbortSignal)=>Promise<Envelope
 // DEC-008 (1): VA BNI/Permata/BCA/Mandiri/BRI and QRIS, offered only when the account's list_payment enables them.
 export const AUTOLARIS_CHANNELS=['VABNI','VAPERMATA','VABCA','VAMANDIRI','VABRI','QRIS'] as const;
 export const ADVICE_INTERVAL_SECONDS=300,ADVICE_MAX_POLLS=24,ADVICE_FINAL_POLLS=12;
-// The only settlement status of the simulated contract. S97 must replace it with the
-// mapping AutoLaris confirms for the account; until then nothing else ever pays.
-export const SIMULATED_SETTLEMENT={rc:'00',status:'PAID'} as const;
+// S97 (2026-11-09, one live QRIS payment of Rp9.900 on the production account, recorded in BUILD-LOG): the real advice
+// answers `{rc:'02',ket:'PENDING',data:{awb:''}}` before payment and `{rc:'00',ket:'PAID',data:{awb:''}}` after it. The
+// status is `ket`; `data` carries no amount, transaction id or time. Only this exact pair settles; SUCCESS, BERHASIL and
+// shipping words such as DELIVERED never do. Observed for QRIS only; a VA payment is still unobserved.
+export const AUTOLARIS_SETTLEMENT={rc:'00',ket:'PAID'} as const;
 type Classified={classification:'pending'|'settled'|'unknown';amount:number|null;paid_at:string|null};
 
+// A settled advice carries no amount in the real contract (`amount` is null here); the caller bills the provider total that
+// create_payment returned and the adapter already matched to the requested amount. A reported `data.amount`, when present,
+// is kept so a different bill still lands in recovery as an amount mismatch.
 export function classifyAdvice(envelope:Envelope):Classified{
  const data=envelope.data&&typeof envelope.data==='object'&&!Array.isArray(envelope.data)?envelope.data as Record<string,unknown>:{};
  if(envelope.rc==='02')return {classification:'pending',amount:null,paid_at:null};
- // Generic SUCCESS/BERHASIL and shipping DELIVERED are not proof of payment.
- if(envelope.rc===SIMULATED_SETTLEMENT.rc&&data.status===SIMULATED_SETTLEMENT.status&&Number.isSafeInteger(data.amount)&&Number(data.amount)>0)
-  return {classification:'settled',amount:Number(data.amount),paid_at:typeof data.paid_at==='string'&&Number.isFinite(Date.parse(data.paid_at))?new Date(data.paid_at).toISOString():null};
+ if(envelope.rc===AUTOLARIS_SETTLEMENT.rc&&envelope.ket===AUTOLARIS_SETTLEMENT.ket){
+  const reported=data.amount===undefined?null:data.amount;
+  if(reported!==null&&(!Number.isSafeInteger(reported)||Number(reported)<=0))return {classification:'unknown',amount:null,paid_at:null};
+  return {classification:'settled',amount:reported===null?null:Number(reported),paid_at:typeof data.paid_at==='string'&&Number.isFinite(Date.parse(data.paid_at))?new Date(data.paid_at).toISOString():null};
+ }
  return {classification:'unknown',amount:null,paid_at:null};
 }
 // Exactly one non-empty instruction field; the client never guesses from the channel prefix.
@@ -95,7 +102,8 @@ function simulatedAutolaris(sql:Sql,target:'local'|'test',options:SimulatorOptio
   async advice({transaction_id}){
    const [row]=await sql`select * from app.local_autolaris_transaction where environment=${target} and trx_id=${transaction_id}`;
    if(!row)return {rc:'14',ket:'Transaksi tidak ditemukan',data:null};
-   if(row.status==='paid')return {rc:'00',ket:'PAID',data:{transaction_id:String(row.trx_id),status:'PAID',amount:Number(row.total),paid_at:new Date(row.paid_at).toISOString()}};
+   // The observed live shape (S97): no amount, id or time in `data`.
+   if(row.status==='paid')return {rc:'00',ket:'PAID',data:{awb:''}};
    if(row.status==='generic_success')return {rc:'00',ket:'SUCCESS',data:{awb:''}};
    if(row.status==='expired')return {rc:'03',ket:'EXPIRED',data:{awb:''}};
    return {rc:'02',ket:'PENDING',data:{awb:''}};
@@ -184,13 +192,16 @@ export async function dispatchAutolarisPayment(sql:Sql,target:'local'|'test',att
 export function autolarisAdviceAdapter(sql:Sql,target:'local'|'test',client:AutolarisClient=autolarisClientFor(target,sql)):JobAdapter{
  const run=async(claim:Claim,signal:AbortSignal):Promise<Outcome>=>{
   const body=object(claim.payload,['attemptId','poll']),attemptId=id(body.attemptId),poll=integer(body.poll,1,ADVICE_MAX_POLLS+ADVICE_FINAL_POLLS);
-  const [row]=await sql`select l.trx_id,l.refusal_code,p.status operation_status,a.payment_fee_amount,j.id job from app.autolaris_payment l join app.payment_attempt a on a.id=l.attempt_id join app.local_payment_operation p on p.id=l.operation_id
+  const [row]=await sql`select l.trx_id,l.refusal_code,l.provider_total,p.status operation_status,a.payment_fee_amount,j.id job from app.autolaris_payment l join app.payment_attempt a on a.id=l.attempt_id join app.local_payment_operation p on p.id=l.operation_id
    join app.outbox_job j on j.dedup_key=${`autolaris-advice:${attemptId}:${poll}`} and j.id=${claim.id} where l.attempt_id=${attemptId} and l.environment=${target}`;
   if(!row?.trx_id||row.refusal_code)return {status:'failed',code:'INVALID_PAYLOAD'};
   if(row.operation_status!=='pending')return {status:'succeeded',receipt:{stopped:'final'}};
   const envelope=await client.advice({transaction_id:String(row.trx_id)},signal),classified=classifyAdvice(envelope);
   // DEC-029: a reported bill at or below the frozen buyer fee cannot be a collection; kept as unknown for finance.
-  const seen=classified.classification==='settled'&&(classified.amount as number)-Number(row.payment_fee_amount)<1?{classification:'unknown' as const,amount:null,paid_at:null}:classified;
+  // S97: the real advice has no amount, so a settled answer bills the provider total verified at creation.
+  const billed=classified.classification==='settled'?(classified.amount??Number(row.provider_total)):null;
+  const seen=classified.classification==='settled'&&(billed===null||!Number.isSafeInteger(billed)||billed-Number(row.payment_fee_amount)<1)?{classification:'unknown' as const,amount:null,paid_at:null}
+   :classified.classification==='settled'?{...classified,amount:billed}:classified;
   const result=await sql.begin(async tx=>{
    const [attempt]=await tx`select order_id from app.payment_attempt where id=${attemptId}`;const order=await lockPaymentOrder(tx,attempt.order_id);
    await tx`select pg_advisory_xact_lock(hashtextextended(${`payment:${attemptId}`},0))`;

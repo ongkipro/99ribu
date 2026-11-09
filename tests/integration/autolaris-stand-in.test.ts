@@ -18,7 +18,7 @@ import {paymentFixture} from './payment-fixture.ts';
 type Payment={trx_id:string;reff_id:string;amount:number;admin:number;total:number;status:'pending'|'paid'};
 type Lever='lose-before'|'lose-after'|'rc07'|'rc01'|'http500'|'malformed';
 async function fake(){
- const state={feeMode:'inclusive' as 'inclusive'|'added'|'amount-off',duplicates:'dedupe' as 'dedupe'|'ignore',levers:[] as Lever[],settleShape:'stand-in' as 'stand-in'|'invented'};
+ const state={feeMode:'inclusive' as 'inclusive'|'added'|'amount-off',duplicates:'dedupe' as 'dedupe'|'ignore',levers:[] as Lever[],settleShape:'live' as 'live'|'invented'|'generic'};
  const payments=new Map<string,Payment>(),byReff=new Map<string,string>(),requests:{path:string;auth:string|undefined;body:Record<string,unknown>}[]=[];
  const read=async(r:IncomingMessage)=>{const c:Buffer[]=[];for await(const x of r)c.push(x as Buffer);const raw=Buffer.concat(c).toString('utf8');return raw?JSON.parse(raw) as Record<string,unknown>:{};};
  const server:Server=createServer(async(request,response)=>{
@@ -43,7 +43,7 @@ async function fake(){
    const p=payments.get(String(body.transaction_id));
    if(!p)return send(200,{rc:'14',ket:'TRANSAKSI TIDAK DITEMUKAN',data:{}});
    if(p.status!=='paid')return send(200,{rc:'02',ket:'PENDING',data:{awb:''}});
-   return send(200,state.settleShape==='invented'?{rc:'00',ket:'PAID',data:{awb:'',status:'PAID',amount:p.total,paid_at:new Date().toISOString()}}:{rc:'00',ket:'PAID',data:{awb:''}});
+   return send(200,state.settleShape==='generic'?{rc:'00',ket:'SUCCESS',data:{awb:''}}:state.settleShape==='invented'?{rc:'00',ket:'PAID',data:{awb:'',status:'PAID',amount:p.total,paid_at:new Date().toISOString()}}:{rc:'00',ket:'PAID',data:{awb:''}});
   }
   send(404,{error:'not found'});
  });
@@ -64,7 +64,7 @@ async function create(f:Fixture,job:string,client:AutolarisClient){
  const [state]=await f.identity.sql`select status from app.outbox_job where id=${job}`;return String(state.status);
 }
 // Leave nothing open in the shared test database (the admin open queue pages by expiry): drive an attempt to a
-// final state through the normal path, re-create if no answer was recorded, then settle via the invented shape.
+// final state through the normal path, re-create if no answer was recorded, then settle with the observed live shape.
 async function ingest(f:Fixture,attemptId:string){
  for(const event of await f.identity.sql`select callback_job_id from app.payment_provider_event where attempt_id=${attemptId}`){
   const [cb]=await f.identity.sql`select status from app.outbox_job where id=${event.callback_job_id}`;if(cb.status==='pending')await runOneJob(f.identity.sql,{},event.callback_job_id);}
@@ -75,7 +75,7 @@ async function finish(f:Fixture,s:Awaited<ReturnType<typeof fake>>,client:Autola
  s.state.levers.length=0;s.state.feeMode='inclusive';
  if(!(await row(f,a.id)).responded_at)await create(f,a.job,client);
  const trx=(await row(f,a.id)).trx_id;const p=trx?s.payments.get(String(trx)):undefined;assert.ok(p,"provider payment for the recorded trx_id");
- p.status='paid';s.state.settleShape='invented';
+ p.status='paid';s.state.settleShape='live';
  const [job]=await f.identity.sql`select id from app.outbox_job where kind='payment.autolaris.advice' and payload->>'attemptId'=${a.id} and status='pending' order by (payload->>'poll')::int desc limit 1`;assert.ok(job,"a pending advice poll");
  await f.identity.sql`update app.outbox_job set run_at=clock_timestamp() where id=${job.id}`;
  await runOneJob(f.identity.sql,{'payment.autolaris.advice':autolarisAdviceAdapter(f.identity.sql,'test',client)},job.id);
@@ -154,7 +154,7 @@ test('S166 refusals: fee on top (total != amount), rc 07 and rc 01 fail the oper
  }finally{await s.close();await f.close();}
 });
 
-test('S166 advice over HTTP: pending stays pending, the stand-in PAID shape never settles, the invented shape settles once',async()=>{
+test('S166/S97 advice over HTTP: pending stays pending, the observed live PAID shape (no amount) settles once, an unknown status never settles',async()=>{
  const f=await paymentFixture(),s=await fake();
  try{
   const {order}=await plain(()=>f.order(1,'prepaid','autolaris'));
@@ -170,10 +170,13 @@ test('S166 advice over HTTP: pending stays pending, the stand-in PAID shape neve
      const [state]=await f.identity.sql`select status from app.outbox_job where id=${event.callback_job_id}`;if(state.status==='pending')assert.equal(await runOneJob(f.identity.sql,{},event.callback_job_id),true);}
     return ((await f.identity.sql`select result from app.outbox_job where id=${job.id}`)[0].result as {observed?:string}).observed;};
    assert.equal(await poll(1),'pending');
+   // An unrecognised status never pays, even with rc 00 (SUCCESS is generic wording).
+   s.state.settleShape='generic';
    for(const p of s.payments.values())p.status='paid';
-   assert.equal(await poll(2),'unknown','rc 00 ket PAID data {awb} (the real stand-in shape) is not proof of payment');
+   assert.equal(await poll(2),'unknown','rc 00 ket SUCCESS is not proof of payment');
    assert.equal((await f.identity.sql`select payment_status from app.commerce_order where id=${order.id}`)[0].payment_status,'pending');
-   s.state.settleShape='invented';
+   // S97: the live shape `{rc:'00',ket:'PAID',data:{awb:''}}` (no amount) settles, billed from the verified create_payment total.
+   s.state.settleShape='live';
    assert.equal(await poll(3),'settled');
    assert.equal((await f.identity.sql`select payment_status from app.commerce_order where id=${order.id}`)[0].payment_status,'confirmed');
    assert.equal((await f.identity.sql`select count(*)::int n from app.economic_receipt where order_id=${order.id}`)[0].n,1,'paid exactly once');

@@ -15,9 +15,13 @@ import {paymentFixture} from './payment-fixture.ts';
 
 test('AutoLaris simulated contract: only an explicit settlement status pays; one instruction field; channels from list_payment; live gate refuses',async()=>{
  assert.equal(classifyAdvice({rc:'02',ket:'PENDING',data:{awb:''}}).classification,'pending');
- for(const ket of ['SUCCESS','BERHASIL','DELIVERED'])assert.equal(classifyAdvice({rc:'00',ket,data:{status:ket,amount:1000}}).classification,'unknown',`${ket} is not proof of payment`);
- assert.equal(classifyAdvice({rc:'00',ket:'PAID',data:{status:'PAID'}}).classification,'unknown','a settlement without an amount cannot pay');
- assert.deepEqual(classifyAdvice({rc:'00',ket:'PAID',data:{status:'PAID',amount:111000,paid_at:'2026-10-20T01:02:03.000Z'}}),{classification:'settled',amount:111000,paid_at:'2026-10-20T01:02:03.000Z'});
+ for(const ket of ['SUCCESS','BERHASIL','DELIVERED','paid','PAID '])assert.equal(classifyAdvice({rc:'00',ket,data:{status:ket,amount:1000}}).classification,'unknown',`${ket} is not proof of payment`);
+ // S97 live shape: the real advice after payment carries no amount; the pair rc 00 + ket PAID settles with a null amount (billed from create_payment).
+ assert.deepEqual(classifyAdvice({rc:'00',ket:'PAID',data:{awb:''}}),{classification:'settled',amount:null,paid_at:null});
+ assert.equal(classifyAdvice({rc:'01',ket:'PAID',data:{awb:''}}).classification,'unknown','the rc must be 00');
+ assert.equal(classifyAdvice({rc:'00',ket:'PAID',data:{amount:-5}}).classification,'unknown','a malformed reported amount cannot pay');
+ assert.equal(classifyAdvice({rc:'00',ket:'PENDING',data:{awb:''}}).classification,'unknown');
+ assert.deepEqual(classifyAdvice({rc:'00',ket:'PAID',data:{amount:111000,paid_at:'2026-10-20T01:02:03.000Z'}}),{classification:'settled',amount:111000,paid_at:'2026-10-20T01:02:03.000Z'});
  assert.equal(classifyAdvice({rc:'99',ket:'GAGAL',data:null}).classification,'unknown');
  const base={trx_id:'671647',virtual_account:'',qr:'',payment_code:'',url:'',amount:11000,admin:3000,total:11000};
  assert.equal(parseCreatePayment({rc:'00',ket:'Sukses',data:{...base,virtual_account:'8779611150001393'}}).rejected,false);
@@ -145,7 +149,7 @@ test('AutoLaris refuses a buyer-borne fee and manual confirmation needs authorit
  }finally{for(const user of users)await closeFulfillmentActor(f.identity,user).catch(()=>{});await f.close();}
 });
 
-test('AutoLaris deadline: expiry requires a fresh advice read; payment inside the window learned after the deadline still pays; pending stays bounded',async()=>{
+test('AutoLaris deadline: expiry requires a fresh advice read; a payment first seen after the deadline (no payment time in advice) goes to recovery; pending stays bounded',async()=>{
  const f=await paymentFixture(),sql=f.identity.sql;
  try{
   const paid=(await f.order(1,'prepaid','autolaris')).order,open=(await f.order(1,'prepaid','autolaris')).order;
@@ -158,7 +162,15 @@ test('AutoLaris deadline: expiry requires a fresh advice read; payment inside th
   let clock=await readFixtureClock('test',f.namespace);await advanceFixtureClock('test',f.namespace,1860,clock.version);
   assert.equal((await expire(paid.id))?.status,'payment_reconciliation','no cancellation before a read after the deadline');
   await dueAdvice(a.id);
-  assert.equal((await sql`select payment_status from app.commerce_order where id=${paid.id}`)[0].payment_status,'confirmed','paid inside the window, learned late: still paid');
+  // S97: the real advice carries no payment time, so a payment first seen after the deadline cannot be proven to be inside
+  // the window. It is never auto-confirmed: the funds are held in recovery (`late_payment`), the order stays cancelled and
+  // nothing ships. The settled advice made the operation final, so the finance route is the S33 collection exception, not manual confirmation.
+  const [late]=await sql`select e.outcome,e.reason from app.payment_event_result e join app.payment_provider_event v on v.id=e.event_id where v.attempt_id=${a.id} and e.outcome<>'ignored'`;
+  assert.deepEqual([late.outcome,late.reason],['recovery','late_payment'],'paid, learned after the deadline with no payment time: recovery, not an automatic confirmation');
+  const [after]=await sql`select payment_status,status from app.commerce_order where id=${paid.id}`;
+  assert.deepEqual([after.status,after.payment_status],['cancelled','expired'],'the late-paid order stays cancelled');
+  const [opened]=await sql`select count(*)::int n from app.commerce_exception where order_id=${paid.id}`;assert.ok(opened.n>=1,'a collection exception is opened for finance');
+  assert.equal((await sql`select count(*)::int n from app.fulfillment f join app.order_shipment s on s.id=f.shipment_id where s.order_id=${paid.id}`)[0].n,0,'no fulfillment is authorized for a late payment');
   // Unpaid: each expiry pass asks for another read while the account says pending, then cancels after the window.
   assert.equal((await expire(open.id))?.status,'payment_reconciliation');await dueAdvice(b.id);
   assert.equal((await expire(open.id))?.status,'payment_reconciliation');
