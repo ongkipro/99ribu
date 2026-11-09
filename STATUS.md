@@ -1,8 +1,8 @@
 # Status — Serba 99ribu
 
-Updated: 2026-11-09 02:50Z
-Status: Release PENDING. Production runs image `8c3773e1` (S179; read-only host check 2026-11-06; docs said `39e7adc`). Local branch `dec-025-min-contribution` at `dcd20fa6`, 7 commits ahead of `origin/main`, not pushed, plus an uncommitted test-helper repair (4 browser test files, BUILD-LOG, this file). Runtime delta from `8c3773e1`: S180 only.
-State: READY TO COMMIT (gate 5 PASS at `dcd20fa6` + test repairs: browser `all-current` 201/201, `npm test` 331/331, lint/typecheck 0; Argon review APPROVE; nothing pushed or deployed)
+Updated: 2026-11-09 10:45Z
+Status: Production runs image `b1fed655` (2026-11-09). Local branch `dec-025-min-contribution` pushed to `main`.
+State: DEPLOYED `b1fed655` (2026-11-09): gate 5 PASS, Coolify `finished`, healthy, Cloudflare purged, live 390/1440 PASS. Open: S95/S94/S98 Mengantar live, S97 AutoLaris live (owner approval per paid transaction), Coolify webhook, server image prune
 Local-Acceptance at `dcd20fa6` + uncommitted helper repair: lint/typecheck exit 0; integration `all-current` PASS at `dcd20fa6` (exit 0, 228 files, 706/0, 2026-11-06 18:59Z; source untouched since, browser test files only, not rerun); `--case=local-providers` PASS 5/5 (12:05Z); browser `all-current` (gate 5, LOCAL worker, load 2.7 at start) FAIL exit 1: 42 files, 200 passed, 1 failed, 1 empty (`support-chat` S44-S45, 12:25Z); `npm test` NOT RUN (gate stopped on the failure; last 331/331 on `4fa50e67`). Evidence `/data/tmp/99ribu/evidence-20261107/`.
 Review-Risk: R4 for money/auth/migrations; R0–R2 per DEC-030 "Process tiers".
 
