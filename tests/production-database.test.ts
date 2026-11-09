@@ -224,3 +224,31 @@ test("the production worker starts against the target with every adapter disable
   assert.equal(run.status, 0, run.stderr);
   assert.match(run.stdout, /worker_ready target=production dispatch=disabled/);
 });
+
+test("0057: the collection-case intake assertion knows the production database, every refund guard still refuses it", async () => {
+  const owner = connect("99ribu_production_owner", password.owner, "99ribu_production");
+  try {
+    const [intake] = await owner`select pg_get_functiondef('app.assert_exception_collection_case(uuid)'::regprocedure) def`;
+    assert.match(String(intake.def), /WHEN '99ribu_production' THEN 'production'/, "the intake assertion names the production database");
+    // The migration must change only this one function: every refund / recovery / replacement guard keeps the old
+    // two-database CASE and therefore has no production branch.
+    const closed = await owner`
+      select p.proname from pg_proc p join pg_namespace n on n.oid = p.pronamespace
+      where n.nspname = 'app' and p.prokind = 'f' and pg_get_functiondef(p.oid) like '%99ribu_test%'
+        and pg_get_functiondef(p.oid) not like '%99ribu_production%' order by p.proname`;
+    const names = closed.map((row) => String(row.proname));
+    for (const required of ["assert_refund", "assert_compensation_capacity", "assert_recovery_receipt", "assert_recovery_request", "guard_refund_provider_operation", "guard_recovery_provider_operation", "guard_replacement_event"]) {
+      assert.ok(names.includes(required), `${required} stays closed to production`);
+    }
+    assert.ok(!names.includes("assert_exception_collection_case"), "only the intake assertion opens");
+    // The execution tables a refund must write still refuse production at the database level.
+    const probe = (write: (tx: postgres.TransactionSql) => Promise<unknown>) => owner.begin(async (tx) => {
+      await write(tx);
+      throw Object.assign(new Error("rollback"), { code: "ROLLBACK_PROBE" });
+    });
+    const checks = await owner`select conname, pg_get_constraintdef(oid) def from pg_constraint where conname in ('local_recovery_operation_value_check','local_recovery_destination_check','local_refund_operation_value_check','local_refund_destination_value_check')`;
+    assert.equal(checks.length, 4, "the four refund execution checks exist");
+    for (const row of checks) assert.doesNotMatch(String(row.def), /'production'/, `${row.conname} refuses production`);
+    await assert.rejects(probe((tx) => tx`select 1 where false`), { code: "ROLLBACK_PROBE" });
+  } finally { await owner.end(); }
+});

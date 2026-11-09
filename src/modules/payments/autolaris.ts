@@ -5,7 +5,7 @@ import {enqueueJob} from '../../jobs/outbox.ts';
 import type {Claim,JobAdapter,Outcome} from '../../jobs/leases.ts';
 import {AccessError} from '../access/policy.ts';
 import {id,integer,invalid,object} from '../catalog/validation.ts';
-import {financeEnvironment} from '../finance/ledger.ts';
+import {moneyEnvironment} from '../finance/ledger.ts';
 import {registerSettlementEvent,settlementSourceEvent} from '../finance/settlements/local.ts';
 import {advanceAttempt,lockPaymentOrder,type AttemptRow} from './attempts.ts';
 import {liveAutolaris,originBoundFetch,readAutolarisStandInConfig} from './autolaris-live.ts';
@@ -126,7 +126,7 @@ export async function simulateAutolarisStatus(sql:Sql,target:'local'|'test',atte
 const reffId=(attemptId:string)=>`99R${attemptId.replaceAll('-','')}`;
 export async function persistAutolarisIdentity(tx:TransactionSql,attempt:{id:string;expected_amount:number|string;payment_fee_amount?:number|string},channelCode:string){
  if(!(AUTOLARIS_CHANNELS as readonly string[]).includes(channelCode))throw invalid();
- await tx`insert into app.autolaris_payment (attempt_id,environment,reff_id,channel_code,requested_amount) values (${attempt.id},${await financeEnvironment(tx)},${reffId(attempt.id)},${channelCode},${Number(attempt.expected_amount)+Number(attempt.payment_fee_amount??0)})`;
+ await tx`insert into app.autolaris_payment (attempt_id,environment,reff_id,channel_code,requested_amount) values (${attempt.id},${await moneyEnvironment(tx,'payments')},${reffId(attempt.id)},${channelCode},${Number(attempt.expected_amount)+Number(attempt.payment_fee_amount??0)})`;
 }
 function jakarta(at:Date){
  const p=Object.fromEntries(new Intl.DateTimeFormat('en-GB',{timeZone:'Asia/Jakarta',year:'numeric',month:'2-digit',day:'2-digit',hour:'2-digit',minute:'2-digit',second:'2-digit',hourCycle:'h23'}).formatToParts(at).map(x=>[x.type,x.value]));

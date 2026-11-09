@@ -5,7 +5,7 @@ import {AccessError} from '../access/policy.ts';
 import {id,integer,invalid,object,text} from '../catalog/validation.ts';
 
 export type Posting={account:'provider_receivable'|'buyer_funds_liability'|'company_cash'|'settlement_clearing'|'carrier_expense'|'provider_fee_expense'|'refund_payable'|'commission_expense'|'affiliate_payable';side:'debit'|'credit';amount:number};
-export type JournalInput={kind:'economic_receipt'|'adjustment'|'reversal'|'settlement_cash'|'settlement_fee'|'settlement_match'|'refund_obligation'|'refund_cash'|'recovery_obligation'|'recovery_cash';source:string;environment:'local'|'test';effect_reference:string;order_id:string|null;reverses_id?:string|null;reason:string;occurred_at:string;postings:Posting[]};
+export type JournalInput={kind:'economic_receipt'|'adjustment'|'reversal'|'settlement_cash'|'settlement_fee'|'settlement_match'|'refund_obligation'|'refund_cash'|'recovery_obligation'|'recovery_cash';source:string;environment:'local'|'test'|'production';effect_reference:string;order_id:string|null;reverses_id?:string|null;reason:string;occurred_at:string;postings:Posting[]};
 export function financeInstant(value:unknown){
  if(typeof value!=='string'||!/^\d{4}-\d\d-\d\dT\d\d:\d\d:\d\d\.\d{3}Z$/.test(value)||value.startsWith('0000')||!Number.isFinite(Date.parse(value))||new Date(value).toISOString()!==value) throw invalid();
  return value;
@@ -45,7 +45,7 @@ export async function readFinanceTransaction(tx:TransactionSql,transactionId:str
 // surrounding transaction; no HTTP journal-write endpoint exposes this function.
 export async function appendFinanceTransaction(tx:TransactionSql,value:JournalInput){
  const input=object(value,['kind','source','environment','effect_reference','order_id','reverses_id','reason','occurred_at','postings']);
- const source=text(input.source,100);if(!/^[a-z][a-z0-9_.-]{0,99}$/.test(source)||!['local','test'].includes(String(input.environment))||!['economic_receipt','adjustment','reversal','settlement_cash','settlement_fee','settlement_match','refund_obligation','refund_cash','recovery_obligation','recovery_cash'].includes(String(input.kind))) throw invalid();
+ const source=text(input.source,100);if(!/^[a-z][a-z0-9_.-]{0,99}$/.test(source)||!['local','test','production'].includes(String(input.environment))||!['economic_receipt','adjustment','reversal','settlement_cash','settlement_fee','settlement_match','refund_obligation','refund_cash','recovery_obligation','recovery_cash'].includes(String(input.kind))) throw invalid();
  if(!Array.isArray(input.postings)||input.postings.length<2||input.postings.length>100) throw invalid();
  const postings=input.postings.map(p=>{const line=object(p,['account','side','amount']);if(!['provider_receivable','buyer_funds_liability','company_cash','settlement_clearing','carrier_expense','provider_fee_expense','refund_payable','commission_expense','affiliate_payable'].includes(String(line.account))||!['debit','credit'].includes(String(line.side))) throw invalid();return {account:line.account as Posting['account'],side:line.side as Posting['side'],amount:integer(line.amount,1,Number.MAX_SAFE_INTEGER)};});
  const debit=postings.filter(p=>p.side==='debit').reduce((n,p)=>n+BigInt(p.amount),0n),credit=postings.filter(p=>p.side==='credit').reduce((n,p)=>n+BigInt(p.amount),0n);

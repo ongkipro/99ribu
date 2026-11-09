@@ -25,7 +25,7 @@ export async function openCollectionException(tx:TransactionSql,provider:'local.
  const order=await lockPaymentOrder(tx,source.order_id);
  if(provider!==(order.payment_method==='cod'?'local.cod':'local.payment'))throw new AccessError(409,'RECOVERY_COLLECTION_NOT_QUALIFIED');
  const units=source.receipt_id?(await receiptUnitIds(tx,String(source.receipt_id))).map(id=>({id})):[];
- const basis=await lockRecoveryCollectionBasis(tx,order.id,source.receipt_id?{kind:'purchased_units',fulfillment_item_ids:units.map(unit=>String(unit.id))}:{kind:'unallocated_collection',source_transaction_id:String(source.transaction_id)});
+ const basis=await lockRecoveryCollectionBasis(tx,order.id,source.receipt_id?{kind:'purchased_units',fulfillment_item_ids:units.map(unit=>String(unit.id))}:{kind:'unallocated_collection',source_transaction_id:String(source.transaction_id)},{intakeOnly:true});
  if(basis.sources.length!==1||basis.sources[0].source_transaction_id!==source.transaction_id||basis.sources[0].source_event_id!==selected||basis.sources[0].receipt_id!==source.receipt_id)throw new AccessError(409,'RECOVERY_COLLECTION_NOT_QUALIFIED');
  const kind=source.receipt_id?'late_collection':'unallocated_collection',sourceKind=provider==='local.payment'?'payment_event':'cod_event';
  const [previous]=await tx<ExceptionHead[]>`select * from app.commerce_exception where source_kind=${sourceKind} and source_id=${selected} for update`;

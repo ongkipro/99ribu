@@ -4,7 +4,7 @@ import {id,invalid} from '../../catalog/validation.ts';
 import {fulfillmentClock} from '../../fulfillment/core.ts';
 import {lockVerifiedReceivables} from '../../finance/settlements/receivables.ts';
 import {lockPaymentOrder} from '../../payments/attempts.ts';
-import {lockRefundCollectionBasis,type RefundCollectionUnit} from '../../returns/financial-basis.ts';
+import {type CollectionBasisOptions,collectionEnvironment,lockRefundCollectionBasis,type RefundCollectionUnit} from '../../returns/financial-basis.ts';
 
 type Selection={kind:'purchased_units';fulfillment_item_ids:string[]}|{kind:'unallocated_collection';source_transaction_id:string};
 export type RecoveryCollectionSource={source_transaction_id:string;source_event_id:string;receipt_id:string|null;original_payment_operation_id:string|null;source_amount:number;amount:number;units:RefundCollectionUnit[]};
@@ -12,9 +12,9 @@ export type RecoveryCollectionSource={source_transaction_id:string;source_event_
 // Internal source basis only. The writer must separately authorize the actor,
 // seal the current case/consent and reserve capacity across both refund paths.
 // Resolving money never authorizes stock, a transfer or a new Purchase event.
-export async function lockRecoveryCollectionBasis(tx:TransactionSql,orderId:string,selection:Selection){
+export async function lockRecoveryCollectionBasis(tx:TransactionSql,orderId:string,selection:Selection,options?:CollectionBasisOptions){
  if(selection.kind==='purchased_units'){
-  const basis=await lockRefundCollectionBasis(tx,orderId,selection.fulfillment_item_ids);
+  const basis=await lockRefundCollectionBasis(tx,orderId,selection.fulfillment_item_ids,options);
   const receiptIds=[...new Set(basis.units.map(unit=>unit.receipt_id))];
   const receipts=await tx`select id,event_id,transaction_id,amount from app.economic_receipt where id in ${tx(receiptIds)} order by transaction_id`;
   if(receipts.length!==receiptIds.length)throw new AccessError(409,'RECOVERY_COLLECTION_NOT_QUALIFIED');
@@ -27,7 +27,7 @@ export async function lockRecoveryCollectionBasis(tx:TransactionSql,orderId:stri
  if(selection.kind!=='unallocated_collection')throw invalid();
  const transactionId=id(selection.source_transaction_id),order=await lockPaymentOrder(tx,id(orderId));
  const [database]=await tx`select current_database() name`;
- const environment:'local'|'test'|null=database.name==='99ribu_test'?'test':database.name==='99ribu_local'?'local':null;
+ const environment=collectionEnvironment(database.name,options);
  if(!environment)throw invalid();
  const occurredAt=await fulfillmentClock(tx,order.clock_namespace),provider=order.payment_method==='cod'?'local.cod':'local.payment';
  const verified=(await lockVerifiedReceivables(tx,{provider,environment,occurred_at:occurredAt,clock_namespace:order.clock_namespace},[transactionId])).get(transactionId);

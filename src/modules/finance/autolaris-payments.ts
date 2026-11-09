@@ -7,7 +7,7 @@ import {id,integer,invalid,object,text} from '../catalog/validation.ts';
 import {lockPaymentOrder} from '../payments/attempts.ts';
 import {registerProviderEvent,settleLocalOperation} from '../payments/local.ts';
 import {financeAuthority} from './costs.ts';
-import {financeEnvironment,financeInstant} from './ledger.ts';
+import {financeInstant,moneyEnvironment} from './ledger.ts';
 import {nextPageCursor,readPageCursor,STAMP_FORMAT} from './page-cursor.ts';
 
 // DEC-008 (2) / S93: AutoLaris payments for finance. Advice polling is the automated
@@ -67,7 +67,7 @@ export async function confirmAutolarisPayment(request:Request,identity:LocalAuth
   // DEC-029: finance records the bill the provider shows; the collection is that bill minus the frozen buyer fee.
   const [fee]=await tx`select payment_fee_amount from app.payment_attempt where id=${selected}`;
   if(input.amount<=Number(fee?.payment_fee_amount??0))throw new AccessError(422,'AUTOLARIS_AMOUNT_BELOW_FEE');
-  await registerProviderEvent(tx,await settleLocalOperation(tx,await financeEnvironment(tx),selected,{amount:input.amount-Number(fee?.payment_fee_amount??0),occurred_at:input.paid_at}));
+  await registerProviderEvent(tx,await settleLocalOperation(tx,await moneyEnvironment(tx,'payments'),selected,{amount:input.amount-Number(fee?.payment_fee_amount??0),occurred_at:input.paid_at}));
   const response=await project(tx,selected),operationId=randomUUID();
   await tx`insert into app.access_operation (id,actor_id,action,key,request_hash,response) values (${operationId},${principal.id},'finance.autolaris_confirm',${key},${hash},${JSON.stringify(response)}::jsonb)`;
   await tx`insert into app.audit_event (actor_id,action,subject_id,outcome,reason,details) values (${principal.id},'finance.autolaris_confirm',${selected},'allowed',${input.reason},${JSON.stringify({operation_id:operationId,order_id:order.id,trx_id:String(row.trx_id),amount:input.amount,expected_amount:response.expected_amount})}::jsonb)`;

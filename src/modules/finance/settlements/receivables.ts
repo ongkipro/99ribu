@@ -6,14 +6,15 @@ import {verifyCodEvent} from '../../payments/cod-local.ts';
 import {financeInstant} from '../ledger.ts';
 import type {SettlementSourceEvent} from './local.ts';
 
-type Context=Pick<SettlementSourceEvent,'provider'|'environment'|'occurred_at'|'clock_namespace'>;
+// S181 2a-ii: the collection intake may read a production receivable; settlement events keep their local|test type.
+type Context=Omit<Pick<SettlementSourceEvent,'provider'|'environment'|'occurred_at'|'clock_namespace'>,'environment'>&{environment:'local'|'test'|'production'};
 export type VerifiedReceivable={transaction_id:string;order_id:string;receipt_id:string|null;source_basis:'qualified'|'recovery';gross_amount:number;occurred_at:string;clock_namespace:string|null};
 
 // Lock original journals in stable order before reading reversal/capacity facts.
 // A balanced internal primitive alone is not authenticated collection evidence.
 export async function lockVerifiedReceivables(tx:TransactionSql,context:Context,transactionIds:unknown){
  const ids=array(transactionIds,id,1,100).sort();if(new Set(ids).size!==ids.length)throw invalid();
- if(!['local.payment','local.cod'].includes(context.provider)||!['local','test'].includes(context.environment))throw invalid();financeInstant(context.occurred_at);
+ if(!['local.payment','local.cod'].includes(context.provider)||!['local','test','production'].includes(context.environment))throw invalid();financeInstant(context.occurred_at);
  const headers=await tx`select h.*,o.clock_namespace from app.finance_transaction h join app.commerce_order o on o.id=h.order_id where h.id in ${tx(ids)} order by h.id for update of h`;
  if(headers.length!==ids.length)throw new AccessError(409,'SETTLEMENT_RECEIVABLE_UNVERIFIED');
  const reversals=await tx`select reverses_id from app.finance_transaction where reverses_id in ${tx(ids)}`;

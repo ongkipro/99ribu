@@ -7,7 +7,7 @@ import {id,integer,invalid,object,text} from '../catalog/validation.ts';
 import {lockPaymentOrder} from '../payments/attempts.ts';
 import {registerProviderEvent,settleLocalOperation} from '../payments/local.ts';
 import {financeAuthority} from './costs.ts';
-import {financeEnvironment,financeInstant} from './ledger.ts';
+import {financeInstant,moneyEnvironment} from './ledger.ts';
 import {nextPageCursor,readPageCursor,STAMP_FORMAT} from './page-cursor.ts';
 
 // DEC-008 / S92 manual bank transfer reconciliation queue. Finance confirms a
@@ -78,7 +78,7 @@ export async function confirmManualTransfer(request:Request,identity:LocalAuth,p
   await consumeAccessProof(tx,principal,'finance.reconcile',selected,proof);
   await tx`insert into app.manual_bank_confirmation (attempt_id,operation_id,amount,bank_reference,transferred_at,evidence,actor_id,reason) values (${selected},${attempt.operation_id},${input.amount},${input.bank_reference},${input.transferred_at},${input.evidence},${principal.id},${input.reason})`;
   await tx`insert into app.manual_bank_reference (account_number,reference_key,attempt_id) values (${input.account_number},${input.bank_reference.toUpperCase()},${selected})`;
-  const event=await settleLocalOperation(tx,await financeEnvironment(tx),selected,{amount:input.amount,occurred_at:input.transferred_at});
+  const event=await settleLocalOperation(tx,await moneyEnvironment(tx,'manual_bank'),selected,{amount:input.amount,occurred_at:input.transferred_at});
   await registerProviderEvent(tx,event);
   const response=await projectTransfer(tx,selected),operationId=randomUUID();
   await tx`insert into app.access_operation (id,actor_id,action,key,request_hash,response) values (${operationId},${principal.id},'finance.manual_transfer',${key},${hash},${JSON.stringify(response)}::jsonb)`;

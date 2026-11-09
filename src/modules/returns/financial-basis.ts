@@ -12,10 +12,20 @@ export type RefundCollectionUnit={fulfillment_item_id:string;order_item_id:strin
 // lock the current case, authorize finance and seal unrefunded physical units.
 // A historical receipt can predate Purchase tracking; money does not depend on
 // consent, advertising delivery, or inventing a replacement Purchase event.
-export async function lockRefundCollectionBasis(tx:TransactionSql,orderId:string,unitIds:unknown){
+// S181 step 2a-ii (ADR-0008): `intakeOnly` is passed ONLY by the collection-exception intake (a late or mismatched
+// production payment must keep its money visible). Every refund and recovery-refund caller omits it, so on the
+// production database they still throw: refunds have no live evidence and stay closed.
+export type CollectionBasisOptions={intakeOnly?:true};
+export function collectionEnvironment(database:string,options?:CollectionBasisOptions):'local'|'test'|'production'|null{
+ if(database==='99ribu_test')return 'test';
+ if(database==='99ribu_local')return 'local';
+ if(database==='99ribu_production'&&options?.intakeOnly===true)return 'production';
+ return null;
+}
+export async function lockRefundCollectionBasis(tx:TransactionSql,orderId:string,unitIds:unknown,options?:CollectionBasisOptions){
  const selected=array(unitIds,id,1,100).sort();if(new Set(selected).size!==selected.length)throw invalid();
  const order=await lockPaymentOrder(tx,id(orderId)),[database]=await tx`select current_database() name`;
- const environment:'local'|'test'|null=database.name==='99ribu_test'?'test':database.name==='99ribu_local'?'local':null;
+ const environment=collectionEnvironment(database.name,options);
  if(!environment)throw invalid();
  const occurredAt=await fulfillmentClock(tx,order.clock_namespace),provider=order.payment_method==='cod'?'local.cod':'local.payment';
  const [exceptions]=await tx`select to_regclass('app.commerce_exception') is not null installed`;
