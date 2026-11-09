@@ -1,5 +1,11 @@
 # Build log — Serba 99ribu
 
+## 2026-11-09 — `/sitemap.xml` memoised for the catalogue TTL (R0–R2, local, not deployed)
+
+- Measured in production after `ee7e18b6`: `/sitemap.xml` 3.9-6.3 s per request, 474 URLs, 363 KB, `cf-cache-status: DYNAMIC`, one 522 right after the deploy. Cause: `sitemapEntries` re-checks every publication head serially (`salePublication` per product) on each request (`force-dynamic`).
+- Change (`src/app/sitemap.ts`): reuse the existing `storefront/memo.ts` stale-while-revalidate (`catalogTtl()`: 60 s in production, 0 in local and test), keyed by origin and the indexing switch. No new cache mechanism; the sitemap may lag a publication by up to 60 s, which crawlers do not notice.
+- Checks: lint and typecheck exit 0; `tests/memo.test.ts` 1/1; `storefront-seo` 6/6 (the sitemap test reads through at TTL 0). Not measured: the production latency after the change (needs a deploy); expected first request after a restart still about 4 s, later ones immediate.
+
 ## 2026-11-09 — S97 step B: AutoLaris advice settles on the observed live shape (R4, local, not deployed)
 
 - Evidence (live, owner-approved "ya jalankan"): with the production key from the host, `list_payment` returned 8 channels (COD, QRIS 0,7 %, VABNI/VAPERMATA/VAMANDIRI/VABRI Rp3.000, VABCA Rp6.500, OVO 3 %). One `create_payment` QRIS, Rp9.900, returned `amount 9900, admin 70, total 9970`, `qr` 270 chars; the owner paid it. `advice` before: `{rc:'02',ket:'PENDING',data:{awb:''}}`; after: `{rc:'00',ket:'PAID',data:{awb:''}}` (6 identical reads); funds seen in the AutoLaris dashboard. Raw files: `/data/tmp/99ribu/autolaris-discovery/` (mode 700; they hold a payer-facing QR, no key).
