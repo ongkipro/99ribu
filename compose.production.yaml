@@ -20,6 +20,10 @@ x-runtime: &runtime
     DATABASE_SSL: ${DATABASE_SSL:-disable}
     DATABASE_APP_PASSWORD: ${DATABASE_APP_PASSWORD:?}
     PAYMENT_ADAPTER: disabled
+    # S181 (ADR-0008): production money paths open one capability at a time. Empty by default. Like the Mengantar values,
+    # Coolify injects its variables into every service, so the value is forwarded explicitly with an empty default and
+    # the production profile rejects anything but the known names (payments, cod, manual_bank).
+    MONEY_CAPABILITIES: ${MONEY_CAPABILITIES:-}
     # S95: live Mengantar rates when Coolify sets SHIPPING_ADAPTER=mengantar with the two MENGANTAR_* values. Every
     # service gets the same three: Coolify injects its variables into every service regardless of a per-service
     # override (observed 2026-10-31: migrate refused a blanked key that Coolify had refilled), and the production

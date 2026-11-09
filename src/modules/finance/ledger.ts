@@ -1,5 +1,6 @@
 import {createHash} from 'node:crypto';
 import type {TransactionSql} from 'postgres';
+import {type MoneyCapability,readRuntimeConfig} from '../../config/runtime.ts';
 import {AccessError} from '../access/policy.ts';
 import {id,integer,invalid,object,text} from '../catalog/validation.ts';
 
@@ -12,6 +13,24 @@ export function financeInstant(value:unknown){
 // Journal environment is the connected isolated database, never caller input.
 // The schema accepts 'production' since 0035, but money paths open only with their provider gates (S82/OD-7):
 // on the production database this refuses instead of labelling a posting 'local'.
+// S181 (ADR-0008): the production money environment, per capability. It answers 'production' only when the production
+// profile lists that capability (MONEY_CAPABILITIES, default empty); on the local and test databases it behaves like
+// financeEnvironment. A capability never opens another: a database named 99ribu_production with only `payments`
+// listed still refuses `cod` and `manual_bank`, and the capabilities that have no live evidence do not exist.
+export async function moneyEnvironment(tx:TransactionSql,capability:MoneyCapability){
+ const [db]=await tx<{name:string}[]>`select current_database() name`;
+ // Fail closed on any database this code does not know by exact name: a restore, a clone or a stray `postgres`
+ // must never be treated as the local simulator environment.
+ if(db.name==='99ribu_test')return 'test' as const;
+ if(db.name==='99ribu_local')return 'local' as const;
+ if(db.name!=='99ribu_production')throw new AccessError(503,'PRODUCTION_MONEY_PATH_GATED');
+ // Production database: only a production profile that lists the capability opens it. A local-profile process (or a
+ // process with no readable profile) is refused with the same error, never a config exception.
+ if(process.env.APP_ENV!=='production')throw new AccessError(503,'PRODUCTION_MONEY_PATH_GATED');
+ const config=readRuntimeConfig(process.env);
+ if(config.profile!=='production'||!config.moneyCapabilities.includes(capability))throw new AccessError(503,'PRODUCTION_MONEY_PATH_GATED');
+ return 'production' as const;
+}
 export async function financeEnvironment(tx:TransactionSql){const [db]=await tx<{name:string}[]>`select current_database() name`;if(db.name==='99ribu_production')throw new AccessError(503,'PRODUCTION_MONEY_PATH_GATED');return db.name==='99ribu_test'?'test' as const:'local' as const;}
 export function effectReference(value:unknown){const result=text(value,200);if(!/^[A-Za-z0-9_.:-]{1,200}$/.test(result)) throw invalid();return result;}
 export async function readFinanceTransaction(tx:TransactionSql,transactionId:string){

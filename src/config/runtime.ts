@@ -106,6 +106,21 @@ export function readTurnstileConfig(env: Environment) {
   return Object.freeze({ siteKey, secret });
 }
 
+// S181 (ADR-0008): production money paths open one capability at a time. MONEY_CAPABILITIES is a comma list, empty by
+// default; an unknown name or a duplicate fails startup so a typo can never open (or silently skip) a path. Only the
+// capabilities with live evidence exist here; refunds, payouts, commissions and tracking have none and stay closed.
+export const MONEY_CAPABILITIES = ["payments", "cod", "manual_bank"] as const;
+export type MoneyCapability = (typeof MONEY_CAPABILITIES)[number];
+export function readMoneyCapabilities(env: Environment): readonly MoneyCapability[] {
+  const raw = env.MONEY_CAPABILITIES;
+  if (raw === undefined || raw.trim() === "") return Object.freeze([]);
+  const names = raw.split(",").map((name) => name.trim());
+  const known = new Set<string>(MONEY_CAPABILITIES);
+  if (names.some((name) => !known.has(name))) throw new Error(`MONEY_CAPABILITIES may list only: ${MONEY_CAPABILITIES.join(", ")}.`);
+  if (new Set(names).size !== names.length) throw new Error("MONEY_CAPABILITIES must not repeat a capability.");
+  return Object.freeze(names as MoneyCapability[]);
+}
+
 // Production profile (S82). Refuses anything the local profile would accept as a convenience: plain http,
 // loopback/tailnet origins, simulated or live adapters, extra trusted origins and local-only switches.
 export function readProductionConfig(env: Environment) {
@@ -138,6 +153,7 @@ export function readProductionConfig(env: Environment) {
   return Object.freeze({
     profile: "production" as const, origin, hostname: "0.0.0.0", port: port(env.PORT, "PORT", 3000),
     tailnetOrigin: null, providerOrigin: null, trustedOrigins: Object.freeze([origin]), clientIpHeader,
+    moneyCapabilities: readMoneyCapabilities(env),
   });
 }
 

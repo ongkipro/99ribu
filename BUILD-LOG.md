@@ -1,5 +1,13 @@
 # Build log — Serba 99ribu
 
+## 2026-11-09 — S181 step 1a: production money capability gate, inactive (R4, local, not deployed)
+
+- Scope (ADR-0008, owner-accepted: manual bank optional via Super Admin, AutoLaris QRIS+VA, COD): `MONEY_CAPABILITIES` in the production profile (comma list, default empty; unknown, repeated, mis-cased, `__proto__`, zero-width or empty-token values fail startup) and `moneyEnvironment(tx, capability)` in `finance/ledger.ts`. Capabilities that exist: `payments`, `cod`, `manual_bank`; refunds, payouts, commissions and tracking have no name and cannot be opened by configuration.
+- Behaviour: `99ribu_test` → `'test'`, `99ribu_local` → `'local'`, any other name → `PRODUCTION_MONEY_PATH_GATED` (Argon round 1, Medium: the first version treated every unknown database as local), `99ribu_production` → `'production'` only when `APP_ENV=production` and the capability is listed. The legacy `financeEnvironment` still throws on production for every path. `compose.production.yaml` forwards `MONEY_CAPABILITIES: ${MONEY_CAPABILITIES:-}` once in the shared anchor (Argon Medium: Coolify injects variables into every service).
+- No caller uses `moneyEnvironment` yet, so production behaviour is unchanged by this step.
+- Evidence: `tests/money-capability.test.ts` 11/11 (registered in `npm test`, which the first draft forgot), `npm test` 342/342, `config.test` 114/114, lint and typecheck exit 0. Five mutations each broke a test: capability check removed, unknown names accepted, `financeEnvironment` opened, compose hard-wired to `payments`, unknown database treated as local. Ledger `RUN-20261109T161030Z-270db226` PASS. Argon R4 round 1 APPROVE-WITH-FIXES (3 findings, fixed), round 2 APPROVE with no findings.
+- Not done: step 1b (move `manual-bank`, `autolaris-payments`, `cod-remittance` to `moneyEnvironment`), step 2 (`payments/local.ts:profile()` and the 88 `'local'|'test'` types, no HMAC in production, worker `adapters` in production is `{}`), step 3 (order entry `CHECKOUT_CLOSED`, `offeredChannels()`), step 4 (owner's own real order per channel).
+
 ## 2026-11-09 — ADR-0008 proposed: staged production money path for AutoLaris (docs only, R0–R2)
 
 - Read-only code review corrected two earlier statements: the schema is not the blocker (migration `0035` already allows `production` on the 8 real-flow money tables; only 11 simulator stores stay `local`/`test`), and the real gates are order entry (`CHECKOUT_CLOSED`, `checkout/orders.ts:79`), `financeEnvironment` (`PRODUCTION_MONEY_PATH_GATED`, shared by 8 modules including payouts, commissions and tracking), the AutoLaris client/profile, and `offeredChannels()`.

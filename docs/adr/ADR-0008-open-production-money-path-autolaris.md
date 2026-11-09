@@ -1,6 +1,6 @@
 # ADR-0008: Open the production money path and the AutoLaris channel (S97 step C)
 
-- **Status:** Proposed
+- **Status:** Accepted (2026-11-09, owner: "ya, bank manual (opsional - setup di super admin), qris + va autolaris, COD")
 - **Date:** 2026-11-09
 - **Author:** Engineering (pi session, model `cc/claude-sonnet-5-5`)
 - **Deciders:** Paduka Ongki (owner); R4 independent review required before any code
@@ -41,6 +41,14 @@ Choose **Option B**, delivered in five reviewed steps, each its own R4 slice or 
 5. **Observe, then widen.** Collect the first real callbacks and a VA payment as evidence; add VA only after its settled shape is observed. Each widening is a new slice.
 
 Affected modules: `config/runtime.ts`, `finance/ledger.ts` and its eight callers, `payments/autolaris.ts`, `payments/methods.ts`, `checkout/orders.ts`, `storefront/checkout-order.ts`, `compose.production.yaml`/Coolify env, tests (`config`, `autolaris-payments`, `autolaris-stand-in`, `payment-fees`, a new capability test).
+
+### Owner decisions recorded 2026-11-09 (amend the steps above)
+
+- **A. Channels.** All three production channels open, not QRIS only: **manual bank transfer** (optional, switched on in Super Admin with its account setup), **AutoLaris QRIS and VA**, and **COD**. Each channel stays an independent switch; the capability gate (step 1) still keeps refunds, payouts, commissions and tracking closed.
+- **B. Provider events.** Production settles AutoLaris only from the server's own `advice` poll and records the result as an internal, server-built event. No externally supplied event payload and no HMAC signing key are used in production; callbacks stay evidence only.
+- **Risk accepted knowingly.** Checkout has never taken an order in production (`CHECKOUT_CLOSED` since S82), so manual bank and COD have no live history either. Mitigation: per-channel switch, step 4 rehearsal on the owner's own minimal order for each channel (one QRIS, one VA, one manual bank, one COD), and nothing ships automatically.
+- **VA caveat.** The VA settled shape has not been observed. VA settles only on the same exact pair (`rc 00` + `ket PAID`); any other answer is `unknown` and the manual confirmation path remains. The VA rehearsal in step 4 is the first observation and must be recorded before VA stays on for buyers.
+- **Code facts found while scoping (2026-11-09).** `payments/local.ts:profile()` refuses any target but `local`/`test` and requires the database name `99ribu_<target>`; 88 sites type the money target as `'local'|'test'`; `manual-bank` confirmation also calls `financeEnvironment`, so manual bank cannot confirm in production today either. These are in scope of step 1-2.
 
 ## 4. Consequences
 
