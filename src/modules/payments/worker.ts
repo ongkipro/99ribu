@@ -1,20 +1,22 @@
 import type {Sql} from 'postgres';
 import type {Claim,JobAdapter} from '../../jobs/leases.ts';
+import {AccessError} from '../access/policy.ts';
 import {id,object} from '../catalog/validation.ts';
 import {advanceAttempt,lockPaymentOrder,type AttemptRow} from './attempts.ts';
 import {type AutolarisClient,autolarisClientFor,dispatchAutolarisPayment} from './autolaris.ts';
-import {createLocalOperation,ingestProviderEvent,simulateCollection} from './local.ts';
+import {createLocalOperation,ingestProviderEvent,simulateCollection,type PaymentEnvironment} from './local.ts';
 
-export function paymentAdapter(sql:Sql,target:'local'|'test',faults:ReadonlyMap<string,'before-commit'|'creation-commit-lost-ack'|'paid-commit-lost-ack'>=new Map(),autolaris?:AutolarisClient):JobAdapter{
+export function paymentAdapter(sql:Sql,target:PaymentEnvironment,faults:ReadonlyMap<string,'before-commit'|'creation-commit-lost-ack'|'paid-commit-lost-ack'>=new Map(),autolaris?:AutolarisClient):JobAdapter{
  const resolve=async(claim:Claim,reconciliation:boolean,signal?:AbortSignal)=>{
   const body=object(claim.payload,['attemptId']),attemptId=id(body.attemptId);
   const [registered]=await sql`select id,method_id from app.payment_attempt where id=${attemptId} and creation_job_id=${claim.id}`;
   if(!registered) return {status:'failed' as const,code:'INVALID_PAYLOAD' as const};
   // DEC-008 seam: AutoLaris attempts replay the persisted reff_id on reconciliation.
-  if(registered.method_id==='autolaris') return dispatchAutolarisPayment(sql,target,attemptId,autolaris??autolarisClientFor(target,sql),signal);
+  if(registered.method_id==='autolaris') return dispatchAutolarisPayment(sql,target,attemptId,autolaris??autolarisClientFor(target,sql),signal,reconciliation);
   const created=await createLocalOperation(sql,target,attemptId,reconciliation,!reconciliation&&faults.get(attemptId)==='before-commit');
   if(!reconciliation&&faults.get(attemptId)==='creation-commit-lost-ack') throw new Error('Simulated acknowledgement loss after provider intent creation');
   if(!reconciliation&&faults.get(attemptId)==='paid-commit-lost-ack'){
+   if(target==='production')throw new AccessError(503,'PRODUCTION_MONEY_PATH_GATED');// a simulator fault, never in production
    await simulateCollection(sql,target,attemptId);throw new Error('Simulated acknowledgement loss after provider collection');
   }
   await sql.begin(async tx=>{

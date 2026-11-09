@@ -14,9 +14,11 @@ const base: Record<string, string> = {
   PAYMENT_ADAPTER: "disabled", SHIPPING_ADAPTER: "disabled", ADS_ADAPTER: "disabled", NOTIFICATION_ADAPTER: "disabled", PAYOUT_ADAPTER: "disabled",
   EXTERNAL_DISPATCH: "disabled", DATABASE_HOST: "postgres-99ribu", DATABASE_APP_PASSWORD: "synthetic-sentinel-app-password", CLIENT_IP_HEADER: "x-real-ip",
 };
+// While `payments` is listed the production profile also requires the AutoLaris configuration (S181 step 2b).
+const liveAutolaris: Record<string, string> = { AUTOLARIS_API_KEY: "synthetic-sentinel-autolaris-key", AUTOLARIS_ORDER_ORIGIN_ID: "3517100", AUTOLARIS_ORDER_DESTINATION_ID: "3518010" };
 async function withEnv<T>(change: Record<string, string | undefined>, run: () => T | Promise<T>) {
   const saved = process.env;
-  process.env = { ...base, ...change } as NodeJS.ProcessEnv;
+  process.env = { ...base, ...(String(change.MONEY_CAPABILITIES ?? "").split(",").map((name) => name.trim()).includes("payments") ? liveAutolaris : {}), ...change } as NodeJS.ProcessEnv;
   for (const [key, value] of Object.entries(change)) if (value === undefined) delete process.env[key];
   try { return await run(); } finally { process.env = saved; }
 }

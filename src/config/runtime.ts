@@ -80,6 +80,12 @@ function privateNetworkHost(host: string) {
 // and out of the frozen config object (read it through productionShipping at call time).
 const MENGANTAR_ORIGIN = "https://api-public.mengantar.com";
 const MENGANTAR_NAMES = new Set(["MENGANTAR_BASE_URL", "MENGANTAR_API_KEY"]);
+// S181 step 2b (ADR-0008): the AutoLaris variables a production process may carry, and only while `payments` is listed
+// in MONEY_CAPABILITIES. The key is a server secret; the two area ids are AutoLaris' own identifiers for the
+// payment-only `submit` order. AUTOLARIS_WEBHOOK_SECRET stays refused (no callback contract, callbacks never settle),
+// and so does any other AUTOLARIS_* name, including AUTOLARIS_BASE_URL (the origin is pinned in code).
+const AUTOLARIS_NAMES = new Set(["AUTOLARIS_API_KEY", "AUTOLARIS_ORDER_ORIGIN_ID", "AUTOLARIS_ORDER_DESTINATION_ID"]);
+
 export function productionShipping(env: Environment) {
   if (env.SHIPPING_ADAPTER === "disabled") return null;
   if (env.SHIPPING_ADAPTER !== "mengantar") throw new Error("SHIPPING_ADAPTER must be disabled or mengantar.");
@@ -121,6 +127,19 @@ export function readMoneyCapabilities(env: Environment): readonly MoneyCapabilit
   return Object.freeze(names as MoneyCapability[]);
 }
 
+// The AutoLaris production configuration: the API key (a printable token, validated here and never copied into the config
+// object, so it cannot leak through a logged profile; the client reads it from the environment when it is built) and BOTH
+// area ids. All three are required together so a half-configured channel fails startup instead of failing a checkout.
+export function productionAutolaris(env: Environment) {
+  const apiKey = env.AUTOLARIS_API_KEY?.trim() ?? "";
+  if (!/^[\x21-\x7e]{8,512}$/.test(apiKey)) throw new Error("AUTOLARIS_API_KEY is required while payments is listed in MONEY_CAPABILITIES.");
+  const origin = env.AUTOLARIS_ORDER_ORIGIN_ID?.trim() ?? "", destination = env.AUTOLARIS_ORDER_DESTINATION_ID?.trim() ?? "";
+  if (!/^[1-9]\d{0,15}$/.test(origin) || !/^[1-9]\d{0,15}$/.test(destination)) {
+    throw new Error("AUTOLARIS_ORDER_ORIGIN_ID and AUTOLARIS_ORDER_DESTINATION_ID must both be positive area ids.");
+  }
+  return Object.freeze({ originId: Number(origin), destinationId: Number(destination) });
+}
+
 // Production profile (S82). Refuses anything the local profile would accept as a convenience: plain http,
 // loopback/tailnet origins, simulated or live adapters, extra trusted origins and local-only switches.
 export function readProductionConfig(env: Environment) {
@@ -138,10 +157,12 @@ export function readProductionConfig(env: Environment) {
     // No live adapter has passed its provider gate; simulated adapters would create fake effects.
     if (env[`${name}_ADAPTER`] !== "disabled") throw new Error(`${name}_ADAPTER must be disabled until its provider gate passes.`);
   }
+  const moneyCapabilities = readMoneyCapabilities(env);
+  const autolaris = moneyCapabilities.includes("payments") ? productionAutolaris(env) : null;
   const shipping = productionShipping(env);
   if (env.EXTERNAL_DISPATCH !== "disabled") throw new Error("EXTERNAL_DISPATCH must be disabled.");
   for (const [name, value] of Object.entries(env)) {
-    if (value && PROVIDER_KEY.test(name) && !(shipping && MENGANTAR_NAMES.has(name))) throw new Error("Provider configuration is gated in production.");
+    if (value && PROVIDER_KEY.test(name) && !(shipping && MENGANTAR_NAMES.has(name)) && !(autolaris && AUTOLARIS_NAMES.has(name))) throw new Error("Provider configuration is gated in production.");
   }
   if (env.DATABASE_URL || env.PGHOST || env.PGPORT || env.PGDATABASE || env.PGUSER || env.PGPASSWORD) {
     throw new Error("Use DATABASE_HOST/DATABASE_PORT and the role passwords; URL and PG* overrides are refused.");
@@ -153,7 +174,8 @@ export function readProductionConfig(env: Environment) {
   return Object.freeze({
     profile: "production" as const, origin, hostname: "0.0.0.0", port: port(env.PORT, "PORT", 3000),
     tailnetOrigin: null, providerOrigin: null, trustedOrigins: Object.freeze([origin]), clientIpHeader,
-    moneyCapabilities: readMoneyCapabilities(env),
+    moneyCapabilities,
+    autolaris,
   });
 }
 

@@ -5,7 +5,7 @@ import { readRuntimeConfig } from "../src/config/runtime.ts";
 import { runOneJob } from "../src/jobs/worker.ts";
 import type { JobAdapter } from "../src/jobs/leases.ts";
 import {paymentAdapter} from '../src/modules/payments/worker.ts';
-import {autolarisAdviceAdapter,simulateAutolarisStatus} from '../src/modules/payments/autolaris.ts';
+import {autolarisAdviceAdapter,autolarisClientFor,simulateAutolarisStatus} from '../src/modules/payments/autolaris.ts';
 import {ingestProviderEvent,simulateCollection} from '../src/modules/payments/local.ts';
 import {reconcilePaymentNow} from '../src/modules/payments/recovery.ts';
 import {id,integer,invalid} from '../src/modules/catalog/validation.ts';
@@ -69,7 +69,24 @@ const trackedFulfillmentId=trackingCommand?id(extra[0]):null;
 readRuntimeConfig(process.env);
 const { sql } = connectDatabase(target);
 const simulated=target as 'local'|'test';
-const adapters:Record<string,JobAdapter>=target==='production'?{}:{'payment.create':paymentAdapter(sql,simulated),'payment.autolaris.advice':autolarisAdviceAdapter(sql,simulated),'advertising.dispatch':advertisingAdapter(sql,simulated),'shipping.create':shippingAdapter(sql,simulated),'shipping.cancel.create':shippingCancellationAdapter(sql,simulated),'refund.create':refundAdapter(sql,simulated),'recovery.refund.create':recoveryRefundAdapter(sql,simulated),'replacement.shipping.create':replacementShippingAdapter(sql,simulated)};
+// S181 step 2b (ADR-0008): production dispatches only payment jobs, and only for the capabilities that are listed.
+// `payment.create` serves both channels (manual bank opens its operation there; AutoLaris dispatches to the provider);
+// each channel still checks ITS OWN capability when it opens or settles an operation. `payment.autolaris.advice` and the
+// live client exist only while `payments` is listed. Every other adapter stays disabled: no shipping, refund, recovery,
+// replacement, advertising or notification dispatch exists in production.
+const productionAdapters=():Record<string,JobAdapter>=>{
+ const config=readRuntimeConfig(process.env);
+ if(config.profile!=='production')return {};
+ const adapters:Record<string,JobAdapter>={};
+ const payments=config.moneyCapabilities.includes('payments'),manualBank=config.moneyCapabilities.includes('manual_bank');
+ if(payments){
+  const client=autolarisClientFor('production',sql);
+  adapters['payment.create']=paymentAdapter(sql,'production',new Map(),client);
+  adapters['payment.autolaris.advice']=autolarisAdviceAdapter(sql,'production',client);
+ }else if(manualBank)adapters['payment.create']=paymentAdapter(sql,'production');
+ return adapters;
+};
+const adapters:Record<string,JobAdapter>=target==='production'?productionAdapters():{'payment.create':paymentAdapter(sql,simulated),'payment.autolaris.advice':autolarisAdviceAdapter(sql,simulated),'advertising.dispatch':advertisingAdapter(sql,simulated),'shipping.create':shippingAdapter(sql,simulated),'shipping.cancel.create':shippingCancellationAdapter(sql,simulated),'refund.create':refundAdapter(sql,simulated),'recovery.refund.create':recoveryRefundAdapter(sql,simulated),'replacement.shipping.create':replacementShippingAdapter(sql,simulated)};
 const stop = new AbortController();
 const shutdown = () => stop.abort();
 process.once("SIGINT", shutdown); process.once("SIGTERM", shutdown);
@@ -151,7 +168,7 @@ try {
     const jobs=await reconcilePaymentNow(sql,attemptId);
     for(const job of jobs) await runOneJob(sql,adapters,job);
     console.log(`local_payment_command target=${target} mode=${mode} attempt_id=${attemptId} jobs=${jobs.length}`);
-  }else{console.log(`worker_ready target=${target} dispatch=${target==='production'?'disabled':'simulated'}`);
+  }else{console.log(`worker_ready target=${target} dispatch=${target==='production'?('payment.autolaris.advice' in adapters?'autolaris':'payment.create' in adapters?'manual_bank':'disabled'):'simulated'}`);
   // S84: the container HEALTHCHECK (scripts/healthcheck.ts) reads this file's mtime; unset locally.
   const heartbeat=process.env.WORKER_HEARTBEAT_FILE;let beat=0;
   do {

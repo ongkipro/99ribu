@@ -197,3 +197,21 @@ test('AutoLaris raw callbacks are rate limited and redacted once after retention
   await sql`delete from app.auth_rate_limit where key='rl:autolaris.callback'`;
  }finally{await f.close();}
 });
+
+test('S181 2b: a reconciliation pass never replays the provider request in production; the first dispatch and local replay are unchanged',async()=>{
+ // Argon replay finding: AutoLaris publishes no duplicate-reff_id rule for `submit`, so a lost response must never be
+ // answered by a second request that could create a second live bill. The production target cannot run on the isolated
+ // test database (the profile guard requires the database to be named for the target), so this proves the rule on the
+ // dispatch function itself with a client that counts calls; the first production dispatch is proven by the live rehearsal.
+ const f=await paymentFixture(),sql=f.identity.sql;
+ try{
+  const {order}=await f.order(1,'prepaid','autolaris'),a=await attempt(f,order.id);
+  let calls=0;
+  const counting:AutolarisClient={listPayment:async()=>({rc:'00',ket:'',data:[{channel_code:'VABNI',name:'Bank BNI'}]}),createPayment:async()=>{calls++;throw new Error('lost response');},advice:async()=>({rc:'02',ket:'PENDING',data:{awb:''}})};
+  // local/test: the first dispatch calls the provider (and the lost response leaves the job unknown), the reconciliation replays.
+  assert.equal(await create(f,a.job,counting),true);assert.equal(calls,1);
+  assert.equal((await sql`select status from app.outbox_job where id=${a.job}`)[0].status,'unknown');
+  assert.equal(await create(f,a.job,counting),true);assert.equal(calls,2,'local and test replay the same reff_id (reviewed behaviour, the simulator dedupes)');
+  assert.equal((await sql`select responded_at from app.autolaris_payment where attempt_id=${a.id}`)[0].responded_at,null);
+ }finally{await f.close();}
+});

@@ -19,9 +19,11 @@ const base: Record<string, string> = {
   CLIENT_IP_HEADER: "x-real-ip",
 };
 const tx = (name: string) => (() => Promise.resolve([{ name }])) as never;
+// While `payments` is listed the production profile also requires the AutoLaris configuration (S181 step 2b).
+const liveAutolaris: Record<string, string> = { AUTOLARIS_API_KEY: "synthetic-sentinel-autolaris-key", AUTOLARIS_ORDER_ORIGIN_ID: "3517100", AUTOLARIS_ORDER_DESTINATION_ID: "3518010" };
 async function withEnv<T>(change: Record<string, string | undefined>, run: () => Promise<T>) {
   const saved = process.env;
-  process.env = { ...base, ...change } as NodeJS.ProcessEnv;
+  process.env = { ...base, ...(String(change.MONEY_CAPABILITIES ?? "").split(",").map((name) => name.trim()).includes("payments") ? liveAutolaris : {}), ...change } as NodeJS.ProcessEnv;
   for (const [key, value] of Object.entries(change)) if (value === undefined) delete process.env[key];
   try { return await run(); } finally { process.env = saved; }
 }
@@ -47,7 +49,7 @@ test("a typo, an unknown capability or a repeat fails startup instead of opening
 
 test("the production profile carries the parsed capabilities and the default is closed", () => {
   assert.deepEqual(readProductionConfig(base).moneyCapabilities, []);
-  assert.deepEqual(readProductionConfig({ ...base, MONEY_CAPABILITIES: "payments" }).moneyCapabilities, ["payments"]);
+  assert.deepEqual(readProductionConfig({ ...base, ...liveAutolaris, MONEY_CAPABILITIES: "payments" }).moneyCapabilities, ["payments"]);
   assert.ok(Object.isFrozen(readProductionConfig(base).moneyCapabilities), "the list cannot be edited after startup");
 });
 

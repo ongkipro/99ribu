@@ -1,5 +1,6 @@
 import { readLocalConfig } from "../../config/local.ts";
 import type { AutolarisClient, Envelope } from "./autolaris.ts";
+import { buildSubmitPayload, parseSubmitResponse, type SubmitConfig } from "./autolaris-submit.ts";
 
 // S97 preparation (owner 2026-11-02: "siapkan dulu, tetap simulasi"). The HTTP client for the documented
 // AutoLaris H2H endpoints (public Postman collection, skill autolaris-h2h): base URL
@@ -33,6 +34,43 @@ export function readAutolarisLiveConfig(env: Record<string, string | undefined>)
 
 // Each call is bounded; an HTTP failure, a non-JSON body or a missing envelope throws a sanitized error
 // (never the key, never the body), so the caller's unknown-outcome path decides what happens next.
+// S181 step 2b (ADR-0008): the production client. `createPayment` keeps the shape dispatchAutolarisPayment parses
+// (a `create_payment` envelope: trx_id, one instruction field, amount, admin, total) but the wire call is the
+// payment-only `submit` order, translated at this edge so every fee rule (DEC-029) and refusal stays exactly as reviewed.
+export function liveAutolarisSubmit(config: AutolarisLiveConfig, submit: SubmitConfig, fetchImpl: typeof fetch = fetch): AutolarisClient {
+	const base = liveAutolaris(config, fetchImpl);
+	return {
+		...base,
+		createPayment: async (body, signal) => {
+			const amount = Number(body.amount);
+			const payload = buildSubmitPayload({ reff_id: body.reff_id, channel_code: body.channel_code, amount, expires_at: new Date(), description: `Pesanan ${body.customer_id}` }, submit);
+			const envelope = await submitCall(config, payload, fetchImpl, signal);
+			const parsed = parseSubmitResponse(envelope);
+			if (parsed.rejected) return { rc: parsed.rc, ket: envelope.ket, data: null };
+			const instruction = { virtual_account: "", qr: "", payment_code: "", url: "", [parsed.instruction_kind]: parsed.instruction_value };
+			// The provider bills `grand_total` and deducts its fee from it, so amount and total are both the bill.
+			return { rc: "00", ket: envelope.ket, data: { trx_id: parsed.transaction_id, ...instruction, amount: parsed.amount, admin: parsed.admin, total: parsed.total } };
+		},
+	};
+}
+
+async function submitCall(config: AutolarisLiveConfig, payload: unknown, fetchImpl: typeof fetch, signal?: AbortSignal): Promise<Envelope> {
+	const timeout = AbortSignal.timeout(TIMEOUT_MS);
+	const response = await fetchImpl(`${config.baseUrl}/api/h2h/submit`, {
+		method: "POST",
+		headers: { authorization: `Bearer ${config.apiKey}`, accept: "application/json", "content-type": "application/json" },
+		body: JSON.stringify(payload),
+		signal: signal ? AbortSignal.any([signal, timeout]) : timeout,
+		redirect: "error",
+	});
+	if (!response.ok) throw new Error(`AutoLaris /api/h2h/submit answered HTTP ${response.status}`);
+	let body: unknown;
+	try { body = await response.json(); } catch { throw new Error("AutoLaris /api/h2h/submit answered non-JSON"); }
+	const envelope = body as Partial<Envelope> | null;
+	if (!envelope || typeof envelope !== "object" || typeof envelope.rc !== "string") throw new Error("AutoLaris /api/h2h/submit answered without an rc envelope");
+	return { rc: envelope.rc, ket: typeof envelope.ket === "string" ? envelope.ket : "", data: envelope.data ?? null };
+}
+
 export function liveAutolaris(config: AutolarisLiveConfig, fetchImpl: typeof fetch = fetch): AutolarisClient {
 	const call = async (method: "GET" | "POST", path: string, body: unknown, signal?: AbortSignal): Promise<Envelope> => {
 		const timeout = AbortSignal.timeout(TIMEOUT_MS);

@@ -1,6 +1,6 @@
 import {createHash,randomInt} from 'node:crypto';
 import type {Sql,TransactionSql} from 'postgres';
-import {readLocalConfig} from '../../config/local.ts';
+import {readRuntimeConfig} from '../../config/runtime.ts';
 import {enqueueJob} from '../../jobs/outbox.ts';
 import type {Claim,JobAdapter,Outcome} from '../../jobs/leases.ts';
 import {AccessError} from '../access/policy.ts';
@@ -8,8 +8,9 @@ import {id,integer,invalid,object} from '../catalog/validation.ts';
 import {moneyEnvironment} from '../finance/ledger.ts';
 import {registerSettlementEvent,settlementSourceEvent} from '../finance/settlements/local.ts';
 import {advanceAttempt,lockPaymentOrder,type AttemptRow} from './attempts.ts';
-import {liveAutolaris,originBoundFetch,readAutolarisStandInConfig} from './autolaris-live.ts';
-import {openLocalOperation,readProviderEvents,registerProviderEvent,settleLocalOperation} from './local.ts';
+import {AUTOLARIS_DEFAULT_BASE_URL,liveAutolaris,liveAutolarisSubmit,originBoundFetch,readAutolarisStandInConfig} from './autolaris-live.ts';
+import {submitReference} from './autolaris-submit.ts';
+import {openLocalOperation,type PaymentEnvironment,readProviderEvents,registerProviderEvent,settleLocalOperation} from './local.ts';
 
 // DEC-008 / S93: AutoLaris H2H payments on a LOCAL SIMULATED contract. Shapes follow
 // the documented Create Payment / list_payment / advice envelopes (ongkipro/autolaris
@@ -70,6 +71,15 @@ export function autolarisClientFor(target:string,sql?:Sql,options?:SimulatorOpti
   if(standIn)return liveAutolaris(standIn,originBoundFetch(standIn.baseUrl));
   if(sql)return simulatedAutolaris(sql,target,options);
  }
+ // S181 step 2b (ADR-0008): production gets the live client only when the production profile lists `payments` and carries
+ // a validated AutoLaris configuration. The origin is pinned in code (AUTOLARIS_BASE_URL is refused by the profile), and
+ // the client may only reach that origin. Anything else stays gated.
+ if(target==='production'&&process.env.APP_ENV==='production'){
+  const config=readRuntimeConfig(process.env);
+  if(config.profile==='production'&&config.moneyCapabilities.includes('payments')&&config.autolaris){
+   return liveAutolarisSubmit({baseUrl:AUTOLARIS_DEFAULT_BASE_URL,apiKey:String(process.env.AUTOLARIS_API_KEY).trim()},{originId:config.autolaris.originId,destinationId:config.autolaris.destinationId},originBoundFetch(AUTOLARIS_DEFAULT_BASE_URL));
+  }
+ }
  throw new AccessError(503,'AUTOLARIS_LIVE_GATED');
 }
 
@@ -123,10 +133,13 @@ export async function simulateAutolarisStatus(sql:Sql,target:'local'|'test',atte
 }
 
 // ---- Payment creation (leased payment.create job, AutoLaris attempts).
-const reffId=(attemptId:string)=>`99R${attemptId.replaceAll('-','')}`;
+// Local and test keep the reviewed `99R<uuid>` reference. Production uses the digits-only reference AutoLaris' `submit`
+// accepts (S181 step 2b); it is fixed at creation like the rest of the identity (a trigger forbids changing reff_id).
+const reffId=(attemptId:string,environment:string)=>environment==='production'?submitReference(attemptId):`99R${attemptId.replaceAll('-','')}`;
 export async function persistAutolarisIdentity(tx:TransactionSql,attempt:{id:string;expected_amount:number|string;payment_fee_amount?:number|string},channelCode:string){
  if(!(AUTOLARIS_CHANNELS as readonly string[]).includes(channelCode))throw invalid();
- await tx`insert into app.autolaris_payment (attempt_id,environment,reff_id,channel_code,requested_amount) values (${attempt.id},${await moneyEnvironment(tx,'payments')},${reffId(attempt.id)},${channelCode},${Number(attempt.expected_amount)+Number(attempt.payment_fee_amount??0)})`;
+ const environment=await moneyEnvironment(tx,'payments');
+ await tx`insert into app.autolaris_payment (attempt_id,environment,reff_id,channel_code,requested_amount) values (${attempt.id},${environment},${reffId(attempt.id,environment)},${channelCode},${Number(attempt.expected_amount)+Number(attempt.payment_fee_amount??0)})`;
 }
 function jakarta(at:Date){
  const p=Object.fromEntries(new Intl.DateTimeFormat('en-GB',{timeZone:'Asia/Jakarta',year:'numeric',month:'2-digit',day:'2-digit',hour:'2-digit',minute:'2-digit',second:'2-digit',hourCycle:'h23'}).formatToParts(at).map(x=>[x.type,x.value]));
@@ -140,7 +153,7 @@ async function linkAndIngest(sql:Sql,attemptId:string,operationId:string){
   for(const event of await readProviderEvents(tx,attemptId))await registerProviderEvent(tx,event);
  });
 }
-async function failOperation(sql:Sql,target:'local'|'test',attemptId:string,write?:(tx:TransactionSql)=>Promise<unknown>){
+async function failOperation(sql:Sql,target:PaymentEnvironment,attemptId:string,write?:(tx:TransactionSql)=>Promise<unknown>){
  await sql.begin(async tx=>{if(write)await write(tx);const [op]=await tx`select status from app.local_payment_operation where attempt_id=${attemptId}`;if(op.status==='pending')await settleLocalOperation(tx,target,attemptId,{status:'failed'});});
 }
 export async function scheduleAdvice(tx:TransactionSql,attemptId:string,poll:number,delaySeconds=ADVICE_INTERVAL_SECONDS){
@@ -154,7 +167,21 @@ export async function requestFinalAdvice(tx:TransactionSql,attemptId:string){
  const [last]=await tx`select coalesce(max((payload->>'poll')::int),0) poll from app.outbox_job where kind='payment.autolaris.advice' and payload->>'attemptId'=${attemptId}`;
  return Number(last.poll)<ADVICE_MAX_POLLS+ADVICE_FINAL_POLLS?scheduleAdvice(tx,attemptId,Number(last.poll)+1,0):null;
 }
-export async function dispatchAutolarisPayment(sql:Sql,target:'local'|'test',attemptId:string,client:AutolarisClient,signal?:AbortSignal):Promise<Outcome>{
+// S181 step 2b (ADR-0008, Argon replay finding): AutoLaris publishes no rule for a repeated `reff_id` on `submit`. A
+// lost response (timeout, 5xx) leaves the first order possibly created at the provider with no `transaction_id` here, and
+// replaying could create a SECOND live bill for the same attempt whose payment this system could never match. So in
+// production a RECONCILIATION pass never sends the request again: it settles the attempt as `unknown` for finance to
+// verify in the AutoLaris dashboard, and only the first dispatch ever calls the provider. Local and test keep the reviewed
+// replay (the simulator and the stand-in dedupe by reff_id). Relax this only with a recorded live observation of the
+// duplicate-reference behaviour.
+// The URL the provider is told for callbacks (evidence only, never settlement). Read through the profile-neutral runtime
+// config, never the local-only reader: that reader throws under APP_ENV=production, which would stop every production
+// dispatch before the request is built (Argon S181-2b finding 1).
+export function autolarisCallbackUrl(){return `${readRuntimeConfig(process.env).origin}/api/v1/payments/autolaris/callbacks`;}
+// True when a reconciliation pass has no recorded provider reference and must not send the request again.
+export function shouldHoldUnrecorded(target:PaymentEnvironment,reconciliation:boolean,operationStatus:string,respondedAt:unknown){return !mayReplayProviderRequest(target,reconciliation)&&operationStatus==='pending'&&!respondedAt;}
+export function mayReplayProviderRequest(target:PaymentEnvironment,reconciliation:boolean){return !(target==='production'&&reconciliation);}
+export async function dispatchAutolarisPayment(sql:Sql,target:PaymentEnvironment,attemptId:string,client:AutolarisClient,signal?:AbortSignal,reconciliation=false):Promise<Outcome>{
  const opened=await sql.begin(async tx=>{
   const opened=await openLocalOperation(tx,target,attemptId);
   await tx`update app.autolaris_payment set operation_id=${opened.operation_id} where attempt_id=${attemptId} and operation_id is null`;
@@ -163,6 +190,17 @@ export async function dispatchAutolarisPayment(sql:Sql,target:'local'|'test',att
   if(!identity)throw new AccessError(409,'AUTOLARIS_IDENTITY_MISSING');return {...opened,identity};
  });
  const l=opened.identity;
+ if(shouldHoldUnrecorded(target,reconciliation,opened.status,l.responded_at)){
+  // No provider reference was recorded: do NOT replay. While the attempt is inside its window the job stays `unknown`.
+  // The buyer cannot see or pay a bill whose instruction was in the lost response, and the manual confirmation route
+  // cannot bind a provider reference it was never given (it needs a recorded trx_id), so nothing here can be confirmed:
+  // if a bill exists at AutoLaris, finance can only FIND it in the dashboard and return any money outside the system.
+  // Once the window has passed the operation closes as failed (no money was ever recorded here) and the loop stops, and
+  // checkout.order.expire is no longer held back (it only waits for a fresh advice read when a trx_id exists).
+  const [window]=await sql`select app.reservation_clock(o.clock_namespace)>=a.expires_at overdue from app.payment_attempt a join app.commerce_order o on o.id=a.order_id where a.id=${attemptId}`;
+  if(window?.overdue===true){await failOperation(sql,target,attemptId);await linkAndIngest(sql,attemptId,opened.operation_id);return {status:'succeeded',receipt:{operation_id:opened.operation_id,closed:'unrecorded_bill_window_over'}};}
+  return {status:'unknown',code:'UNKNOWN_OUTCOME'};
+ }
  if(opened.status==='pending'&&!l.responded_at){
   // The channel must be enabled by the account right now (never a hard-coded list).
   if(!enabledChannels(await client.listPayment(signal)).some(c=>c.channel_code===l.channel_code))await failOperation(sql,target,attemptId);
@@ -170,7 +208,7 @@ export async function dispatchAutolarisPayment(sql:Sql,target:'local'|'test',att
    const contact=l.contact as {phone:string;email:string|null};
    // A timeout or lost response leaves responded_at empty; the reconciliation pass replays the SAME reff_id (gated S97 assumption).
    const parsed=parseCreatePayment(await client.createPayment({reff_id:l.reff_id,channel_code:l.channel_code,customer_id:l.number,customer_name:String(l.recipient).slice(0,100),customer_phone:contact.phone,customer_email:contact.email||AUTOLARIS_STORE_EMAIL,
-    expired:jakarta(new Date(l.expires_at)),amount:String(l.requested_amount),callback_url:`${readLocalConfig(process.env).origin}/api/v1/payments/autolaris/callbacks`},signal));
+    expired:jakarta(new Date(l.expires_at)),amount:String(l.requested_amount),callback_url:autolarisCallbackUrl()},signal));
    if(parsed.rejected)await failOperation(sql,target,attemptId);
    else{
     // DEC-008 (3) / DEC-029: the provider bills exactly the requested amount (order value plus any frozen buyer fee) and deducts its fee; any other amount or total is refused.
@@ -189,7 +227,7 @@ export async function dispatchAutolarisPayment(sql:Sql,target:'local'|'test',att
 
 // ---- Advice polling (leased payment.autolaris.advice job). Read-only at the provider,
 // so an unknown outcome simply re-reads; only an explicit settlement status pays.
-export function autolarisAdviceAdapter(sql:Sql,target:'local'|'test',client:AutolarisClient=autolarisClientFor(target,sql)):JobAdapter{
+export function autolarisAdviceAdapter(sql:Sql,target:PaymentEnvironment,client:AutolarisClient=autolarisClientFor(target,sql)):JobAdapter{
  const run=async(claim:Claim,signal:AbortSignal):Promise<Outcome>=>{
   const body=object(claim.payload,['attemptId','poll']),attemptId=id(body.attemptId),poll=integer(body.poll,1,ADVICE_MAX_POLLS+ADVICE_FINAL_POLLS);
   const [row]=await sql`select l.trx_id,l.refusal_code,l.provider_total,p.status operation_status,a.payment_fee_amount,j.id job from app.autolaris_payment l join app.payment_attempt a on a.id=l.attempt_id join app.local_payment_operation p on p.id=l.operation_id

@@ -225,6 +225,35 @@ test("the production worker starts against the target with every adapter disable
   assert.match(run.stdout, /worker_ready target=production dispatch=disabled/);
 });
 
+test("S181 2b: the production worker dispatches AutoLaris payment jobs only with `payments` listed, with no outbound call at start", async () => {
+  const withCapabilities = async (MONEY_CAPABILITIES: string, extra: Record<string, string> = {}) => {
+    const saved = production;
+    production = { ...production, MONEY_CAPABILITIES, ...extra };
+    try { return await node(["scripts/worker.ts", "production", "--once"]); } finally { production = saved; }
+  };
+  const key = { AUTOLARIS_API_KEY: "synthetic-sentinel-autolaris-key", AUTOLARIS_ORDER_ORIGIN_ID: "3517100", AUTOLARIS_ORDER_DESTINATION_ID: "3518010" };
+  // payments listed with a valid configuration: the AutoLaris adapters exist (it must not call the provider to start)
+  const open = await withCapabilities("payments", key);
+  assert.equal(open.status, 0, open.stderr);
+  assert.match(open.stdout, /worker_ready target=production dispatch=autolaris/);
+  assert.ok(!open.stdout.includes("synthetic-sentinel") && !open.stderr.includes("synthetic-sentinel"), "the key is never printed");
+  // manual bank alone opens no AutoLaris adapter and, without payments, the key is refused at startup
+  const none = await withCapabilities("");
+  assert.match(none.stdout, /worker_ready target=production dispatch=disabled/);
+  const manual = await withCapabilities("manual_bank");
+  assert.equal(manual.status, 0, manual.stderr);
+  assert.match(manual.stdout, /worker_ready target=production dispatch=manual_bank/, "manual bank alone opens no AutoLaris adapter");
+  const stray = await withCapabilities("manual_bank", key);
+  assert.notEqual(stray.status, 0, "a stray AutoLaris key without `payments` is refused");
+  assert.ok(!stray.stderr.includes("synthetic-sentinel"), "the refusal never echoes the key");
+  // a half-configured channel fails startup instead of failing a buyer's checkout
+  const half = await withCapabilities("payments", { AUTOLARIS_API_KEY: key.AUTOLARIS_API_KEY });
+  assert.notEqual(half.status, 0);
+  // the simulator commands stay refused in production whatever the capabilities say
+  const command = await node(["scripts/worker.ts", "production", "--autolaris-paid", "00000000-0000-0000-0000-000000000000"]);
+  assert.notEqual(command.status, 0);
+});
+
 test("0057: the collection-case intake assertion knows the production database, every refund guard still refuses it", async () => {
   const owner = connect("99ribu_production_owner", password.owner, "99ribu_production");
   try {
