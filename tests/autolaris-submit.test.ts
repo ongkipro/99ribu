@@ -135,7 +135,7 @@ test("production accepts AutoLaris configuration only while `payments` is listed
   assert.ok(!JSON.stringify(profile).includes("synthetic-sentinel-autolaris-key"), "the key never becomes part of the config object");
   // closed by default and refused while payments is not listed: a stray key cannot sit unvalidated in the environment
   assert.equal(readProductionConfig(base).autolaris, null);
-  for (const caps of [undefined, "", "cod", "manual_bank"]) {
+  for (const caps of [undefined, "", "manual_bank"]) {
     assert.throws(() => readProductionConfig({ ...base, ...live, MONEY_CAPABILITIES: caps } as Record<string, string>), /gated in production/, String(caps));
   }
   // every part is required together
@@ -154,7 +154,8 @@ test("production accepts AutoLaris configuration only while `payments` is listed
 test("the production client exists only with the payments capability and a valid AutoLaris configuration", async () => {
   await withEnv({ MONEY_CAPABILITIES: undefined }, () => assert.throws(() => autolarisClientFor("production"), gated));
   await withEnv({ MONEY_CAPABILITIES: "manual_bank" }, () => assert.throws(() => autolarisClientFor("production"), gated));
-  await withEnv({ MONEY_CAPABILITIES: "cod" }, () => assert.throws(() => autolarisClientFor("production"), gated));
+  // `cod` cannot be listed at all (it is refused at startup), so there is no process in which it opens the client.
+  await withEnv({ MONEY_CAPABILITIES: "cod" }, () => assert.throws(() => autolarisClientFor("production"), (error: unknown) => error instanceof Error));
   await withEnv(live, () => assert.equal(typeof autolarisClientFor("production").createPayment, "function"));
   // a local-profile process never gets the production client
   const saved = process.env;

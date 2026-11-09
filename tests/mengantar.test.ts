@@ -76,16 +76,23 @@ test("the parcel policy constant equals the fixture copy", () => {
 	assert.deepEqual(PACKAGE_POLICY, shippingLocal.package_policy);
 });
 
-test("production checkout offers only manual bank transfer and COD; the simulator and AutoLaris are refused there", async () => {
+test("production checkout offers a channel only while its money capability is listed; the simulator is never offered (S181 step 3a)", async () => {
 	const { offeredChannels, paymentChannel } = await import("../src/modules/payments/methods.ts");
 	const saved = process.env;
 	process.env = { NODE_ENV: "test", APP_ENV: "production", APP_ORIGIN: "https://99ribu.com", BETTER_AUTH_URL: "https://99ribu.com", BETTER_AUTH_SECRET: randomBytes(48).toString("base64"),
 		PAYMENT_ADAPTER: "disabled", SHIPPING_ADAPTER: "disabled", ADS_ADAPTER: "disabled", NOTIFICATION_ADAPTER: "disabled", PAYOUT_ADAPTER: "disabled", EXTERNAL_DISPATCH: "disabled",
 		DATABASE_HOST: "synthetic-host", DATABASE_APP_PASSWORD: "synthetic-app-password-0123456789", CLIENT_IP_HEADER: "x-real-ip" };
 	try {
-		assert.deepEqual(offeredChannels(), ["manual-bank", "cod"]);
+		// Before S181 the list was fixed ("manual-bank","cod") while every order answered CHECKOUT_CLOSED. Now nothing is offered
+		// until a capability is listed (the default), so the list and order entry can never disagree.
+		assert.deepEqual(offeredChannels(), []);
+		for (const [method, channel] of [["prepaid", "manual-bank"], ["cod", undefined], ["prepaid", undefined], ["prepaid", "local-prepaid"], ["prepaid", "autolaris"]] as const) {
+			assert.throws(() => paymentChannel(method, channel), { code: "PAYMENT_CHANNEL_UNAVAILABLE" }, `${method}/${channel}`);
+		}
+		process.env = { ...process.env, MONEY_CAPABILITIES: "manual_bank" } as NodeJS.ProcessEnv;
+		assert.deepEqual(offeredChannels(), ["manual-bank"]);
 		assert.equal(paymentChannel("prepaid", "manual-bank"), "manual-bank");
-		assert.equal(paymentChannel("cod", undefined), "cod");
+		assert.throws(() => paymentChannel("cod", undefined), { code: "PAYMENT_CHANNEL_UNAVAILABLE" }, "cod cannot be listed yet");
 		for (const [method, channel] of [["prepaid", undefined], ["prepaid", "local-prepaid"], ["prepaid", "autolaris"]] as const) {
 			assert.throws(() => paymentChannel(method, channel), { code: "PAYMENT_CHANNEL_UNAVAILABLE" });
 		}

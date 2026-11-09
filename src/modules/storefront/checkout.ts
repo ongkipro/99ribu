@@ -174,6 +174,9 @@ export async function readCheckout(request:Request,identity:LocalAuth,dispatch:t
  let methods:string[];
  try{methods=enabledMethods(await paymentTerms(identity.sql,new Date(current.now)));}
  catch(error){return {...checkoutUnavailableView(),kind:'unavailable',code:error instanceof AccessError?error.code:'SERVICE_UNAVAILABLE'};}
+ // S181 step 3a (Argon finding 5): with no payment method open (production before any capability is listed) the form would
+ // render an empty payment box and an unactionable error. A closed checkout is its own state instead, with a clear message.
+ if(methods.length===0)return {...checkoutUnavailableView(),kind:'unavailable',code:'CHECKOUT_CLOSED'};
  const allocations=document?checkoutAllocationChoices(document,current.cart,progress?.allocation_id??quote?.selected_allocation_id??''):[];
  return {kind:'ready',cart:current.cart,quote,allocations,quoteCurrent:Boolean(quote&&quote.id===current.cart.active_quote_id&&quote.cart_version===current.cart.version&&Date.parse(quote.expires_at)>Date.parse(current.now)&&!issue),draft,progress,draftExpired,destinations:await initialDestinations(identity.sql,draft.destination_id),methods,drafts:checkoutDraftsEnabled(),images:Object.fromEntries(current.lines.flatMap(l=>l.offer?.image?[[l.line.id,{src:sameOrigin(l.offer.image.url),width:l.offer.image.width,height:l.offer.image.height}]]:[])),now:current.now,issue,code:null};
 }

@@ -1,6 +1,7 @@
 import {createHash,randomUUID} from 'node:crypto';
 import type {TransactionSql} from 'postgres';
 import {enqueueJob} from '../../jobs/outbox.ts';
+import {runtimeTarget} from '../../config/runtime.ts';
 import {AccessError} from '../access/policy.ts';
 import {id,invalid,object} from '../catalog/validation.ts';
 import {lockInventoryClock} from '../inventory/state.ts';
@@ -27,7 +28,7 @@ export async function projectAttempt(tx:TransactionSql,orderId:string,attemptId:
   // DEC-029: amount is what the buyer pays; payment_fee_amount the buyer-borne admin fee inside it (0 when the store bears it).
   :a.method_id==='autolaris'?{kind:'autolaris' as const,channel_code:String(a.channel_code),amount:Number(a.expected_amount)+Number(a.payment_fee_amount),payment_fee_amount:Number(a.payment_fee_amount),
     instruction:a.instruction_kind===null||a.refusal_code!==null?null:{kind:a.instruction_kind as 'virtual_account'|'qr'|'payment_code'|'url',value:String(a.instruction_value)},
-    display_text:a.instruction_kind===null?'Instruksi pembayaran sedang dibuat. Perbarui status sebentar lagi.':'Simulasi lokal AutoLaris. Tidak ada rekening atau pembayaran nyata; status diperiksa otomatis.'}
+    display_text:a.instruction_kind===null?'Instruksi pembayaran sedang dibuat. Perbarui status sebentar lagi.':runtimeTarget()==='production'?'Bayar sebelum batas waktu. Pembayaran dicek otomatis; Anda tidak perlu mengirim bukti.':'Simulasi lokal AutoLaris. Tidak ada rekening atau pembayaran nyata; status diperiksa otomatis.'}
   :{kind:'instructions' as const,display_text:'Simulasi lokal. Tidak ada rekening atau pembayaran nyata.'};
  return {id:a.id as string,order_id:a.order_id as string,method_id:a.method_id as string,status:status as 'pending'|'confirmed'|'unknown'|'expired'|'failed',expected_amount:Number(a.expected_amount),expires_at:new Date(a.expires_at).toISOString(),action};
 }

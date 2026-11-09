@@ -21,7 +21,7 @@ import {confirmCodOrder} from '../payments/cod.ts';
 import {buyerFulfillmentProgress,originalParcelReceiptProgress,originalWaybillProgress} from '../fulfillment/core.ts';
 import {buyerReplacementProgress} from '../returns/replacement-core.ts';
 import {buyerManualParcel} from '../fulfillment/manual.ts';
-import {allocateByWeight,channelEnabled,codFee,paymentTerms,PAYMENT_CHANNELS,type PaymentChannel} from '../payments/methods.ts';
+import {allocateByWeight,channelEnabled,codFee,offeredChannels,paymentTerms,PAYMENT_CHANNELS,productionChannelOpen,type PaymentChannel} from '../payments/methods.ts';
 
 export type OrderRow={id:string;operation_id:string;actionable_at?:string|null;number:string;cart_id:string;quote_id:string;owner_user_id:string|null;owner_guest_id:string|null;stock_reservation_id:string;promotion_reservation_id:string|null;payment_method:'prepaid'|'cod';payment_channel:PaymentChannel|null;payment_charge_amount:string;cod_fee_bps:number|null;transfer_code:number|null;payment_policy_version_id:string|null;merchandise_amount:string;shipping_amount:string;subsidy_amount:string;buyer_total:string;merchandise_discount?:string;buyer_note:string|null;revision:number;status:string;payment_status:string;clock_namespace:string|null;created_at:string;expires_at:string};
 export async function projectOrder(tx:TransactionSql,orderId:string){
@@ -75,8 +75,10 @@ export async function reservedTransferCodes(tx:TransactionSql,now:Date){
  return new Set(rows.map(r=>Number(r.transfer_code)));
 }
 export async function submitOrder(tx:TransactionSql,request:Request,identity:LocalAuth,actor:CommerceActor,value:unknown){
- // Production has no issued payment/shipping provider yet (OD-7): every order entry point stays closed.
- if(readRuntimeConfig(process.env).profile==='production')throw new AccessError(503,'CHECKOUT_CLOSED');
+ // S181 step 3a (ADR-0008): production takes an order only on a channel whose money capability is listed (the channel is
+ // checked again below, against the frozen quote, before anything is written). With MONEY_CAPABILITIES empty, which is
+ // the default, every order entry point stays closed exactly as before (OD-7).
+ if(readRuntimeConfig(process.env).profile==='production'&&offeredChannels().length===0)throw new AccessError(503,'CHECKOUT_CLOSED');
  const body=object(value,['quote_id','buyer_note']);const quoteId=id(body.quote_id);const buyerNote=body.buyer_note===undefined?null:clean(body.buyer_note,500);
  const version=expectedCartVersion(request),key=mutationKey(request),hash=await intentHash(identity,'order.create',{quoteId,buyerNote,version});
  const [before]=await tx`select document->>'affiliate_id' affiliate_id from app.checkout_quote where id=${quoteId}`;
@@ -101,6 +103,9 @@ export async function submitOrder(tx:TransactionSql,request:Request,identity:Loc
  let transferCode:number|null=null,termsVersion:string|null=null;
  // The owner's switch applies at submission too: a quote frozen before a channel was switched off cannot become an order on it.
  // Missing transfer accounts keep their own, more specific answer.
+ // Production: the quote's own channel must be open (its capability listed); a quote frozen before a capability was removed
+ // cannot become an order on it, and the simulator channel is never open.
+ if(readRuntimeConfig(process.env).profile==='production'&&!productionChannelOpen(channel))throw new AccessError(503,'CHECKOUT_CLOSED');
  const terms=await paymentTerms(tx,now);
  if(channel==='manual-bank'&&(!terms.version_id||!terms.manual_bank_accounts.length))throw new AccessError(409,'MANUAL_BANK_UNAVAILABLE');
  if(channel!=='local-prepaid'&&!channelEnabled(terms,channel))throw new AccessError(422,'PAYMENT_CHANNEL_UNAVAILABLE');

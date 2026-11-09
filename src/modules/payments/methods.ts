@@ -1,5 +1,5 @@
 import type {Sql,TransactionSql} from 'postgres';
-import {runtimeTarget} from '../../config/runtime.ts';
+import {type MoneyCapability,readRuntimeConfig,runtimeTarget} from '../../config/runtime.ts';
 import {AccessError} from '../access/policy.ts';
 import {resolvePolicy,TOGGLEABLE_CHANNELS,type AutolarisFeeRule,type BankAccount,type FeeBearer,type ToggleableChannel} from '../settings/policies.ts';
 
@@ -20,9 +20,21 @@ export const MANUAL_BANK_CONFIRMATION_GRACE_MS=12*3600000;
 // AutoLaris: before cancelling, a fresh advice read after the deadline is required; pending or
 // unknown answers keep the order for at most this window.
 export const AUTOLARIS_FINAL_ADVICE_WINDOW_MS=30*60000;
-// S95: production offers only channels with a real effect path, manual bank transfer and COD. The simulator never
-// runs there, and AutoLaris stays local until its live gate (S97) passes.
-export function offeredChannels():PaymentChannel[]{return runtimeTarget()==='production'?['manual-bank','cod']:Object.keys(PAYMENT_CHANNELS) as PaymentChannel[];}
+// S181 step 3a (ADR-0008): a production channel is open ONLY while its money capability is listed in MONEY_CAPABILITIES
+// (default empty = every channel closed). One function answers "is this channel open", and BOTH the checkout listing and
+// order entry read it, so a channel can never be offered that order entry then refuses (that was the state before: manual
+// bank and COD were listed while every order answered CHECKOUT_CLOSED). The simulator channel is never open in production.
+const CHANNEL_CAPABILITY:Readonly<Record<PaymentChannel,MoneyCapability|null>>={'local-prepaid':null,'manual-bank':'manual_bank',autolaris:'payments',cod:'cod'};
+export function productionChannelOpen(channel:PaymentChannel,env:NodeJS.ProcessEnv=process.env):boolean{
+ const capability=CHANNEL_CAPABILITY[channel];
+ if(!capability)return false;
+ const config=readRuntimeConfig(env);
+ return config.profile==='production'&&config.moneyCapabilities.includes(capability);
+}
+export function offeredChannels():PaymentChannel[]{
+ const all=Object.keys(PAYMENT_CHANNELS) as PaymentChannel[];
+ return runtimeTarget()==='production'?all.filter(channel=>productionChannelOpen(channel)):all;
+}
 export function paymentChannel(method:'prepaid'|'cod',requested:unknown):PaymentChannel{
  const channel=requested===undefined||requested===null?method==='cod'?'cod':'local-prepaid':requested;
  if(typeof channel!=='string'||!Object.hasOwn(PAYMENT_CHANNELS,channel)||PAYMENT_CHANNELS[channel as PaymentChannel].method!==method)throw new AccessError(400,'INVALID_INPUT');

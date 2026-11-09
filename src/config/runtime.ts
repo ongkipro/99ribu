@@ -116,6 +116,13 @@ export function readTurnstileConfig(env: Environment) {
 // default; an unknown name or a duplicate fails startup so a typo can never open (or silently skip) a path. Only the
 // capabilities with live evidence exist here; refunds, payouts, commissions and tracking have none and stay closed.
 export const MONEY_CAPABILITIES = ["payments", "cod", "manual_bank"] as const;
+// `cod` is a name that exists but is REFUSED at startup until its path is wired for production (Argon S181-3a High): opening
+// it would take COD orders into warehouse fulfilment while recordCodRemittance, codSourceEvent, settlementSourceEvent and
+// the parcel receipt still run only on local and test, so no COD money could ever be collected or settled. Remove this
+// refusal only together with that wiring (its own slice, with its own review).
+export const GATED_MONEY_CAPABILITIES = ["cod"] as const satisfies readonly (typeof MONEY_CAPABILITIES)[number][];
+// What an operator may actually list today: every known capability that is not gated.
+export const OPENABLE_MONEY_CAPABILITIES = MONEY_CAPABILITIES.filter((name) => !(GATED_MONEY_CAPABILITIES as readonly string[]).includes(name)) as readonly (typeof MONEY_CAPABILITIES)[number][];
 export type MoneyCapability = (typeof MONEY_CAPABILITIES)[number];
 export function readMoneyCapabilities(env: Environment): readonly MoneyCapability[] {
   const raw = env.MONEY_CAPABILITIES;
@@ -123,6 +130,7 @@ export function readMoneyCapabilities(env: Environment): readonly MoneyCapabilit
   const names = raw.split(",").map((name) => name.trim());
   const known = new Set<string>(MONEY_CAPABILITIES);
   if (names.some((name) => !known.has(name))) throw new Error(`MONEY_CAPABILITIES may list only: ${MONEY_CAPABILITIES.join(", ")}.`);
+  if (names.some((name) => (GATED_MONEY_CAPABILITIES as readonly string[]).includes(name))) throw new Error("MONEY_CAPABILITIES cod is gated until its collection and remittance path is wired for production.");
   if (new Set(names).size !== names.length) throw new Error("MONEY_CAPABILITIES must not repeat a capability.");
   return Object.freeze(names as MoneyCapability[]);
 }

@@ -3,7 +3,7 @@ import { randomBytes } from "node:crypto";
 import { readFileSync } from "node:fs";
 import { parseEnv } from "node:util";
 import test from "node:test";
-import { MONEY_CAPABILITIES, readMoneyCapabilities, readProductionConfig } from "../src/config/runtime.ts";
+import { GATED_MONEY_CAPABILITIES, MONEY_CAPABILITIES, OPENABLE_MONEY_CAPABILITIES, readMoneyCapabilities, readProductionConfig } from "../src/config/runtime.ts";
 import { AccessError } from "../src/modules/access/policy.ts";
 import { financeEnvironment, moneyEnvironment } from "../src/modules/finance/ledger.ts";
 
@@ -33,8 +33,10 @@ test("MONEY_CAPABILITIES is empty by default and only lists the capabilities tha
   assert.deepEqual(readMoneyCapabilities({}), []);
   assert.deepEqual(readMoneyCapabilities({ MONEY_CAPABILITIES: "" }), []);
   assert.deepEqual(readMoneyCapabilities({ MONEY_CAPABILITIES: "   " }), []);
-  assert.deepEqual(readMoneyCapabilities({ MONEY_CAPABILITIES: " payments , cod " }), ["payments", "cod"]);
+  assert.deepEqual(readMoneyCapabilities({ MONEY_CAPABILITIES: " payments , manual_bank " }), ["payments", "manual_bank"]);
   assert.deepEqual([...MONEY_CAPABILITIES], ["payments", "cod", "manual_bank"]);
+  assert.deepEqual([...GATED_MONEY_CAPABILITIES], ["cod"], "cod is a known name that startup refuses until its path is wired");
+  assert.deepEqual([...OPENABLE_MONEY_CAPABILITIES], ["payments", "manual_bank"]);
   for (const closed of ["refunds", "payouts", "commissions", "tracking"]) {
     assert.ok(!(MONEY_CAPABILITIES as readonly string[]).includes(closed), `${closed} has no live evidence and cannot be opened`);
   }
@@ -58,7 +60,7 @@ test("closed by default: every capability refuses the production database", asyn
 }));
 
 test("one capability opens only itself", async () => {
-  for (const open of MONEY_CAPABILITIES) {
+  for (const open of OPENABLE_MONEY_CAPABILITIES) {
     await withEnv({ MONEY_CAPABILITIES: open }, async () => {
       for (const capability of MONEY_CAPABILITIES) {
         if (capability === open) assert.equal(await moneyEnvironment(tx("99ribu_production"), capability), "production");
@@ -69,7 +71,7 @@ test("one capability opens only itself", async () => {
 });
 
 test("listing capabilities never opens the legacy finance environment used by refunds, payouts, commissions and tracking", async () => {
-  await withEnv({ MONEY_CAPABILITIES: MONEY_CAPABILITIES.join(",") }, async () => {
+  await withEnv({ MONEY_CAPABILITIES: OPENABLE_MONEY_CAPABILITIES.join(",") }, async () => {
     await assert.rejects(financeEnvironment(tx("99ribu_production")), refused);
   });
 });
@@ -84,14 +86,14 @@ test("the local and test databases are unaffected by capabilities", async () => 
 
 test("a database named like production never opens under a non-production profile", async () => {
   const saved = process.env;
-  process.env = { ...local, MONEY_CAPABILITIES: "payments,cod,manual_bank" } as unknown as NodeJS.ProcessEnv;
+  process.env = { ...local, MONEY_CAPABILITIES: "payments,manual_bank" } as unknown as NodeJS.ProcessEnv;
   try {
     await assert.rejects(moneyEnvironment(tx("99ribu_production"), "payments"), refused);
   } finally { process.env = saved; }
 });
 
 test("a database this code does not know by exact name is refused, never treated as local", async () => {
-  await withEnv({ MONEY_CAPABILITIES: MONEY_CAPABILITIES.join(",") }, async () => {
+  await withEnv({ MONEY_CAPABILITIES: OPENABLE_MONEY_CAPABILITIES.join(",") }, async () => {
     for (const name of ["99ribu_production_restore", "99ribu_prod", "99ribu_production2", "99ribu", "postgres", "99RIBU_PRODUCTION", ""]) {
       for (const capability of MONEY_CAPABILITIES) await assert.rejects(moneyEnvironment(tx(name), capability), refused, `${name}/${capability}`);
     }
@@ -113,4 +115,11 @@ test("compose forwards MONEY_CAPABILITIES with an empty default so Coolify can s
   assert.match(compose, /^\s+MONEY_CAPABILITIES: \$\{MONEY_CAPABILITIES:-\}\s*$/m);
   assert.doesNotMatch(compose, /MONEY_CAPABILITIES: ["']?(payments|cod|manual_bank)/, "no capability is hard-wired open");
   assert.equal(compose.split("\n").filter((line) => /^\s+MONEY_CAPABILITIES:/.test(line)).length, 1, "one shared environment anchor, not per-service overrides");
+});
+
+test("cod is refused at startup, alone or listed with others, and the refusal never echoes the profile", () => {
+  for (const value of ["cod", "payments,cod", "cod,manual_bank", " cod "]) {
+    assert.throws(() => readMoneyCapabilities({ MONEY_CAPABILITIES: value }), /cod is gated/, value);
+    assert.throws(() => readProductionConfig({ ...base, ...liveAutolaris, MONEY_CAPABILITIES: value }), /cod is gated/, value);
+  }
 });

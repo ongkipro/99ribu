@@ -2,6 +2,7 @@ import { createHash } from "node:crypto";
 import type { Sql, TransactionSql } from "postgres";
 import type { LocalAuth } from "../access/auth.ts";
 import { assertCurrentOwner, consumeAccessProof } from "../access/grants.ts";
+import { readRuntimeConfig } from "../../config/runtime.ts";
 import { AccessError, type Principal } from "../access/policy.ts";
 
 type Kind = "commercial" | "warehouse_calendar" | "payment";
@@ -45,12 +46,24 @@ function bankAccounts(value: unknown): value is BankAccount[] {
 // Write-time rule for a new payment version (never applied when reading stored versions, so a stored row
 // cannot become unreadable under another runtime): at least one switched-on channel must work here. The
 // production profile (APP_ENV=production) never offers the AutoLaris simulator until S97; transfer needs an account.
+// S181 step 3a (Argon finding 3): a channel is usable at write time where it can actually take an order. Outside production that
+// is the existing rule; in production a channel is usable only while its money capability is listed (the same rule
+// productionChannelOpen applies). This file cannot import payments/methods.ts (that file imports this one), so it reads the
+// production profile directly. Before this, `autolaris` was refused in production whatever was listed (the owner could not
+// save the one channel S181 opens) and `cod` was accepted although it cannot open (a saved policy with no usable channel).
+const PRODUCTION_CAPABILITY: Readonly<Record<string, "payments" | "manual_bank" | "cod">> = { autolaris: "payments", "manual-bank": "manual_bank", cod: "cod" };
+function usableHere(channel: string): boolean {
+  if (process.env.APP_ENV !== "production") return true;
+  const config = readRuntimeConfig(process.env);
+  const capability = PRODUCTION_CAPABILITY[channel];
+  return config.profile === "production" && capability !== undefined && config.moneyCapabilities.includes(capability);
+}
 export function assertUsablePaymentChannels(values: { manual_bank_accounts: unknown[]; enabled_channels?: readonly string[]; payment_fee_bearer?: FeeBearer; autolaris_fees?: Record<string, AutolarisFeeRule> }) {
   // DEC-029: a buyer-borne AutoLaris fee needs a price for every channel, or a buyer could pick an unpriced one.
   if (values.payment_fee_bearer === "buyer" && AUTOLARIS_FEE_CHANNELS.some((c) => !values.autolaris_fees?.[c])) throw new AccessError(422, "PAYMENT_FEE_TABLE_INCOMPLETE");
-  if (values.enabled_channels && !values.enabled_channels.some((c) => c === "cod" ||
+  if (values.enabled_channels && !values.enabled_channels.some((c) => usableHere(c) && (c === "cod" ||
     (c === "manual-bank" && values.manual_bank_accounts.length > 0) ||
-    (c === "autolaris" && process.env.APP_ENV !== "production"))) throw new AccessError(422, "PAYMENT_CHANNELS_UNUSABLE");
+    c === "autolaris"))) throw new AccessError(422, "PAYMENT_CHANNELS_UNUSABLE");
 }
 export function valuesFor(kind: Kind, value: unknown) {
   if (!value || typeof value !== "object" || Array.isArray(value)) throw invalid();

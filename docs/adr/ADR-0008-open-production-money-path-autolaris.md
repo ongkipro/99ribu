@@ -73,3 +73,8 @@ Affected modules: `config/runtime.ts`, `finance/ledger.ts` and its eight callers
 ### Dated note 2026-11-09 (probe evidence, owner-approved)
 
 Two unpaid QRIS `submit` probes (Rp9.900) on the production AutoLaris account: payload and digits-only reference accepted with the area ids from AutoLaris' published examples (3517100 to 3518010); `submit` bills `grand_total` with the fee inside it (so DEC-029 holds unchanged and `create_payment`, which adds the fee on top, is not used); `payment_info.expired` is Jakarta time; a REPEATED reference creates a new order, so production reconciliation never replays (money-critical, not precautionary). Open: the settled `advice` shape for `submit` and VA; the owner's own paid rehearsal (step 4) closes them.
+
+### Dated note 2026-11-10 (step 3a)
+
+`cod` is refused at startup until its collection and remittance path is wired, so the owner decision A ("three channels") is met for manual bank and AutoLaris only; COD follows as its own step. Order entry is per channel and closed by default. The rollback property claimed in section 4 ("rollback of the channel is clearing one environment variable") holds for NEW orders only: clearing a capability strands orders already placed on that channel until step 3b separates "stop new orders" from "emergency stop".
+

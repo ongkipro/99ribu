@@ -41,3 +41,37 @@ test("a channel is offered only when the runtime offers it and the owner switche
 	assert.equal(on(terms({ enabled_channels: ["cod"] }), "autolaris"), false);
 	assert.equal(on(terms({}), "autolaris"), true);
 });
+
+// S181 step 3a (Argon finding 3): in production a channel is usable at write time only while its capability is listed.
+import { randomBytes } from "node:crypto";
+async function inProduction<T>(capabilities: string | undefined, run: () => T | Promise<T>) {
+	const origin = "https://99ribu.com", saved = process.env;
+	process.env = { NODE_ENV: "test", APP_ENV: "production", APP_ORIGIN: origin, BETTER_AUTH_URL: origin, BETTER_AUTH_SECRET: randomBytes(48).toString("base64"),
+		PAYMENT_ADAPTER: "disabled", SHIPPING_ADAPTER: "disabled", ADS_ADAPTER: "disabled", NOTIFICATION_ADAPTER: "disabled", PAYOUT_ADAPTER: "disabled", EXTERNAL_DISPATCH: "disabled",
+		DATABASE_HOST: "synthetic-host", DATABASE_APP_PASSWORD: "synthetic-app-password-0123456789", CLIENT_IP_HEADER: "x-real-ip",
+		...(String(capabilities ?? "").includes("payments") ? { AUTOLARIS_API_KEY: "synthetic-sentinel-autolaris-key", AUTOLARIS_ORDER_ORIGIN_ID: "3517100", AUTOLARIS_ORDER_DESTINATION_ID: "3518010" } : {}),
+		...(capabilities === undefined ? {} : { MONEY_CAPABILITIES: capabilities }) } as NodeJS.ProcessEnv;
+	try { return await run(); } finally { process.env = saved; }
+}
+const unusable = { code: "PAYMENT_CHANNELS_UNUSABLE" };
+
+test("production: the owner can save AutoLaris only while payments is listed, and cod can never make a policy usable", async () => {
+	await inProduction("payments", () => {
+		assert.doesNotThrow(() => assertUsablePaymentChannels({ manual_bank_accounts: [], enabled_channels: ["autolaris"] }));
+		assert.doesNotThrow(() => assertUsablePaymentChannels({ manual_bank_accounts: [], enabled_channels: ["manual-bank", "autolaris"] }), "AutoLaris alone is enough");
+		assert.throws(() => assertUsablePaymentChannels({ manual_bank_accounts: [], enabled_channels: ["manual-bank"] }), unusable, "manual bank needs its capability and an account");
+	});
+	await inProduction("manual_bank", () => {
+		assert.doesNotThrow(() => assertUsablePaymentChannels({ manual_bank_accounts: [ACCOUNT], enabled_channels: ["manual-bank"] }));
+		assert.throws(() => assertUsablePaymentChannels({ manual_bank_accounts: [ACCOUNT], enabled_channels: ["autolaris"] }), unusable, "autolaris is not open");
+		assert.throws(() => assertUsablePaymentChannels({ manual_bank_accounts: [], enabled_channels: ["manual-bank"] }), unusable, "no account");
+	});
+	// Before the fix `cod` was accepted although it cannot open: a saved policy with nothing the checkout can offer.
+	for (const caps of [undefined, "", "payments", "manual_bank"]) {
+		await inProduction(caps, () => assert.throws(() => assertUsablePaymentChannels({ manual_bank_accounts: [ACCOUNT], enabled_channels: ["cod"] }), unusable, String(caps)));
+	}
+	await inProduction(undefined, () => {
+		assert.throws(() => assertUsablePaymentChannels({ manual_bank_accounts: [ACCOUNT], enabled_channels: ["manual-bank", "autolaris", "cod"] }), unusable, "nothing is open by default");
+		assert.doesNotThrow(() => assertUsablePaymentChannels({ manual_bank_accounts: [] }), "a policy that names no channels is untouched");
+	});
+});

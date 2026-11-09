@@ -537,7 +537,7 @@ test("S92 built browser: manual bank checkout adds the unique code and a 24 h de
 		assert.ok(code >= 1 && code <= 999, "unique code 1–999");
 		assert.equal(Number(order.payment_charge_amount), code, "the code is the separate buyer-paid payment component");
 		assert.equal(new Date(order.expires_at).getTime() - new Date(order.created_at).getTime(), 86400000, "24 hour payment window");
-		await expect(page.getByRole("heading", { name: "Menunggu pembayaran", exact: true })).toBeVisible();
+		await expect(page.getByRole("heading", { name: "Selesaikan pembayaran", exact: true })).toBeVisible();
 		const charges = page.locator(".checkout-charges").first();
 		await expect(charges.locator("div").filter({ hasText: "Kode unik transfer" }).first()).toContainText(rupiah(code));
 		await expect(charges.locator(".checkout-total").first()).toContainText(rupiah(due));

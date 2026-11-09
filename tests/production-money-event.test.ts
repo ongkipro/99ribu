@@ -36,7 +36,7 @@ test("a production payment event verifies under the production profile whatever 
   // Argon S181-1b2a finding 3: clearing the capabilities to roll back must not strand an event this server already signed
   // (checkout.order.expire and an in-flight payment.callback re-verify it). Creating and settling is what the capability gates.
   const e = body("production"), event = { ...e, signature: sign(e) };
-  for (const capabilities of [undefined, "", "cod", "payments", "manual_bank", "payments,cod"]) {
+  for (const capabilities of [undefined, "", "payments", "manual_bank", "payments,manual_bank"]) {
     await withEnv({ MONEY_CAPABILITIES: capabilities }, () => assert.deepEqual(verifyProviderEvent(event), event, String(capabilities)));
   }
 });
@@ -88,9 +88,9 @@ const fakeTx = (name: string, seen: string[] = []) => ((strings: TemplateStrings
 
 test("a production operation needs the capability of ITS channel, never another channel's (finding 2)", async () => {
   const cases: Array<[string, string, boolean]> = [
-    ["autolaris", "payments", true], ["autolaris", "manual_bank", false], ["autolaris", "cod", false], ["autolaris", "payments,manual_bank", true],
-    ["manual-bank", "manual_bank", true], ["manual-bank", "payments", false], ["manual-bank", "cod", false], ["manual-bank", "payments,manual_bank", true],
-    ["local-prepaid", "payments,manual_bank,cod", false], ["cod", "payments,manual_bank,cod", false], ["unknown", "payments,manual_bank,cod", false],
+    ["autolaris", "payments", true], ["autolaris", "manual_bank", false], ["autolaris", "payments,manual_bank", true],
+    ["manual-bank", "manual_bank", true], ["manual-bank", "payments", false], ["manual-bank", "payments,manual_bank", true],
+    ["local-prepaid", "payments,manual_bank", false], ["cod", "payments,manual_bank", false], ["unknown", "payments,manual_bank", false],
   ];
   for (const [method, capabilities, allowed] of cases) {
     await withEnv({ MONEY_CAPABILITIES: capabilities }, async () => {
