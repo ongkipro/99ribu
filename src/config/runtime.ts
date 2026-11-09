@@ -135,6 +135,17 @@ export function readMoneyCapabilities(env: Environment): readonly MoneyCapabilit
   return Object.freeze(names as MoneyCapability[]);
 }
 
+// S181 step 3b (ADR-0008): MONEY_DRAIN lists channels that are being CLOSED. A draining channel takes no new order (it is
+// never offered and order entry refuses it), but every order already placed on it is still served to the end: the worker
+// polls, finance confirms, an open order may still create its payment attempt. That makes "stop taking orders" safe; the
+// emergency stop (nothing served at all) stays: leave the capability out of BOTH lists. A capability may not be listed in
+// both (that is a typo, not a state), and the same gate as MONEY_CAPABILITIES applies (`cod` is refused).
+export function readMoneyDrain(env: Environment, open: readonly MoneyCapability[]): readonly MoneyCapability[] {
+  const drain = readMoneyCapabilities({ MONEY_CAPABILITIES: env.MONEY_DRAIN });
+  if (drain.some((name) => open.includes(name))) throw new Error("MONEY_DRAIN must not repeat a capability that MONEY_CAPABILITIES opens.");
+  return drain;
+}
+
 // The AutoLaris production configuration: the API key (a printable token, validated here and never copied into the config
 // object, so it cannot leak through a logged profile; the client reads it from the environment when it is built) and BOTH
 // area ids. All three are required together so a half-configured channel fails startup instead of failing a checkout.
@@ -166,7 +177,9 @@ export function readProductionConfig(env: Environment) {
     if (env[`${name}_ADAPTER`] !== "disabled") throw new Error(`${name}_ADAPTER must be disabled until its provider gate passes.`);
   }
   const moneyCapabilities = readMoneyCapabilities(env);
-  const autolaris = moneyCapabilities.includes("payments") ? productionAutolaris(env) : null;
+  const moneyDrain = readMoneyDrain(env, moneyCapabilities);
+  // AutoLaris configuration is required while `payments` is open OR draining (orders on it are still served).
+  const autolaris = moneyCapabilities.includes("payments") || moneyDrain.includes("payments") ? productionAutolaris(env) : null;
   const shipping = productionShipping(env);
   if (env.EXTERNAL_DISPATCH !== "disabled") throw new Error("EXTERNAL_DISPATCH must be disabled.");
   for (const [name, value] of Object.entries(env)) {
@@ -183,6 +196,7 @@ export function readProductionConfig(env: Environment) {
     profile: "production" as const, origin, hostname: "0.0.0.0", port: port(env.PORT, "PORT", 3000),
     tailnetOrigin: null, providerOrigin: null, trustedOrigins: Object.freeze([origin]), clientIpHeader,
     moneyCapabilities,
+    moneyDrain,
     autolaris,
   });
 }

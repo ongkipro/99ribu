@@ -78,3 +78,12 @@ Two unpaid QRIS `submit` probes (Rp9.900) on the production AutoLaris account: p
 
 `cod` is refused at startup until its collection and remittance path is wired, so the owner decision A ("three channels") is met for manual bank and AutoLaris only; COD follows as its own step. Order entry is per channel and closed by default. The rollback property claimed in section 4 ("rollback of the channel is clearing one environment variable") holds for NEW orders only: clearing a capability strands orders already placed on that channel until step 3b separates "stop new orders" from "emergency stop".
 
+### Dated note 2026-11-10 (step 3b: drain vs emergency stop)
+
+Two switches, with two different consequences, and the operator must choose the right one:
+
+- **Drain (normal way to close a channel):** move the capability from `MONEY_CAPABILITIES` to `MONEY_DRAIN`. The channel takes no new order and is no longer offered, but every order already placed on it is served to the end: the worker still polls AutoLaris advice, finance can still confirm, and a buyer of such an order may still open its payment, including a fresh AutoLaris bill after an earlier attempt on that same order failed (deliberate: the buyer ordered while the channel was open and must be able to pay that order). Remove the capability from `MONEY_DRAIN` only after every open order on it is settled or expired.
+- **Emergency stop (both lists empty, e.g. a leaked key):** nothing is served. Advice is not read, so a bill a buyer already paid at AutoLaris is NOT recognised; after the deadline and the 30-minute final window the order is cancelled and its stock released, and that money has no trace in this system. Every emergency stop therefore REQUIRES a manual reconciliation of the AutoLaris dashboard against the orders cancelled during the stop (refund or re-issue outside the system). Use it only when serving is itself unsafe.
+
+Review note: the 3b independent review (Argon) raised the emergency-stop stranding as High; its consequence is real and is documented above as the operating cost of an emergency stop. Several mechanisms in that review did not exist in the code (named functions such as `leaseNextJob`, `createPaymentProviderAdapter`, the error text "Missing job adapter", a claim that unregistered job kinds are claimed and burned); leased jobs are claimed only for registered kinds (`src/jobs/leases.ts` `runLeasedJob`), and expiry waits on attempts in `pending` or `unknown`. Those parts were rejected after checking the source.
+

@@ -182,7 +182,9 @@ export async function readCheckout(request:Request,identity:LocalAuth,dispatch:t
 }
 // S168: the shipping provider refused or did not answer in time. The quote transaction rolled back, so the outcome
 // is known (nothing was created): show a retryable error with the draft kept, not the unknown-outcome recovery.
-const KNOWN_PROVIDER_FAILURES=new Set(['SHIPPING_RATE_TIMEOUT','SHIPPING_RATE_UNAVAILABLE','SHIPPING_RATE_INVALID']);
+// A 5xx that is a DEFINITE refusal (nothing was written), so the buyer gets its own message, not "result unknown".
+// CHECKOUT_CLOSED is thrown by submitOrder before any database write (S181: the early gate and the per-quote channel check).
+const KNOWN_PROVIDER_FAILURES=new Set(['SHIPPING_RATE_TIMEOUT','SHIPPING_RATE_UNAVAILABLE','SHIPPING_RATE_INVALID','CHECKOUT_CLOSED']);
 const messages:Record<string,string>={
  INVALID_INPUT:'Periksa isian sebelum melanjutkan.',INVALID_IDEMPOTENCY_KEY:'Muat ulang checkout sebelum mencoba lagi.',
  CART_VERSION_REQUIRED:'Buka kembali keranjang untuk memeriksa isinya.',CART_VERSION_CONFLICT:'Isi keranjang berubah dari halaman lain. Periksa kembali sebelum menghitung pengiriman.',
@@ -192,6 +194,7 @@ const messages:Record<string,string>={
  SHIPPING_RATE_TIMEOUT:'Pilihan kurir belum bisa dimuat. Isian Anda tersimpan. Coba lagi sebentar lagi.',SHIPPING_RATE_UNAVAILABLE:'Pilihan kurir belum bisa dimuat. Isian Anda tersimpan. Coba lagi sebentar lagi.',SHIPPING_RATE_INVALID:'Pilihan kurir belum bisa dimuat. Isian Anda tersimpan. Coba lagi sebentar lagi.',SHIPPING_OPTION_UNAVAILABLE:'Layanan yang dipilih sudah tidak tersedia. Pilih kembali layanan pengiriman.',
  MANUAL_BANK_UNAVAILABLE:'Transfer bank belum tersedia. Pilih metode pembayaran lain.',MANUAL_BANK_BUSY:'Transfer bank sedang penuh. Pilih metode pembayaran lain atau coba lagi nanti.',MANUAL_BANK_OPEN_LIMIT:'Selesaikan transfer pesanan sebelumnya dulu, atau pilih metode pembayaran lain.',RATE_LIMITED:'Terlalu banyak percobaan. Tunggu sebentar lalu coba lagi.',
  COD_UNAVAILABLE:'COD belum tersedia untuk tujuan atau paket ini. Ubah preferensi pembayaran atau wilayah pengiriman.',NO_SUPPORTED_ROUTE:'Belum ada pengiriman untuk tujuan dan isi keranjang ini. Pilih wilayah pengiriman lain atau periksa keranjang.',ROUTE_UNCONFIGURED:'Tujuan ini belum memiliki layanan pengiriman. Pilih tujuan lain.',
+ CHECKOUT_CLOSED:'Pemesanan dengan metode ini sedang ditutup. Pesanan belum dibuat; keranjang Anda tetap tersimpan.',
  DESTINATION_UNAVAILABLE:'Tujuan pengiriman sudah tidak tersedia. Pilih kembali dari daftar.',PAYMENT_CHANNEL_UNAVAILABLE:'Metode pembayaran ini sedang tidak tersedia. Pilih metode lain.',SHIPPING_UNAVAILABLE:'Pengiriman belum dapat dihitung saat ini. Coba lagi nanti.',DESTINATION_POSTCODE_MISMATCH:'Wilayah dan kode pos perlu diperiksa kembali.',
  OFFER_UNAVAILABLE:'Pilihan produk tidak tersedia. Periksa kembali keranjang.',INSUFFICIENT_COMPLETE_STOCK:'Stok pilihan lengkap berubah. Periksa kembali keranjang.',INSUFFICIENT_STOCK:'Stok berubah sebelum pesanan tersimpan. Periksa keranjang.',PUBLICATION_REVIEW_REQUIRED:'Rincian pilihan berubah. Setujui isi terbaru dari keranjang.',
  PROMOTION_REVIEW_REQUIRED:'Promo berubah. Periksa pilihan kurir dan total.',PROMOTION_BUDGET_EXHAUSTED:'Kuota promo berubah. Periksa total sebelum melanjutkan.',FINANCIAL_REVIEW_REQUIRED:'Ongkir berubah. Periksa pilihan kurir dan total.',

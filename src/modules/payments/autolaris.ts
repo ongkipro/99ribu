@@ -76,7 +76,8 @@ export function autolarisClientFor(target:string,sql?:Sql,options?:SimulatorOpti
  // the client may only reach that origin. Anything else stays gated.
  if(target==='production'&&process.env.APP_ENV==='production'){
   const config=readRuntimeConfig(process.env);
-  if(config.profile==='production'&&config.moneyCapabilities.includes('payments')&&config.autolaris){
+  // Open OR draining: a draining channel still serves the orders placed on it (S181 step 3b).
+  if(config.profile==='production'&&(config.moneyCapabilities.includes('payments')||config.moneyDrain.includes('payments'))&&config.autolaris){
    return liveAutolarisSubmit({baseUrl:AUTOLARIS_DEFAULT_BASE_URL,apiKey:String(process.env.AUTOLARIS_API_KEY).trim()},{originId:config.autolaris.originId,destinationId:config.autolaris.destinationId},originBoundFetch(AUTOLARIS_DEFAULT_BASE_URL));
   }
  }

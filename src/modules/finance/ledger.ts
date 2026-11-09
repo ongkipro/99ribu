@@ -17,6 +17,10 @@ export function financeInstant(value:unknown){
 // profile lists that capability (MONEY_CAPABILITIES, default empty); on the local and test databases it behaves like
 // financeEnvironment. A capability never opens another: a database named 99ribu_production with only `payments`
 // listed still refuses `cod` and `manual_bank`, and the capabilities that have no live evidence do not exist.
+// S181 step 3b: an OPEN capability serves everything; a DRAINING one (MONEY_DRAIN) serves too, because every caller of this
+// function handles money tied to an order that already exists (confirming, settling, polling, opening the payment of an
+// order placed while the channel was open, including a retry after a failed attempt on that order). NEW orders are never
+// gated here: the checkout listing and order entry use productionChannelOpen, which reads only MONEY_CAPABILITIES.
 export async function moneyEnvironment(tx:TransactionSql,capability:MoneyCapability){
  const [db]=await tx<{name:string}[]>`select current_database() name`;
  // Fail closed on any database this code does not know by exact name: a restore, a clone or a stray `postgres`
@@ -28,8 +32,9 @@ export async function moneyEnvironment(tx:TransactionSql,capability:MoneyCapabil
  // process with no readable profile) is refused with the same error, never a config exception.
  if(process.env.APP_ENV!=='production')throw new AccessError(503,'PRODUCTION_MONEY_PATH_GATED');
  const config=readRuntimeConfig(process.env);
- if(config.profile!=='production'||!config.moneyCapabilities.includes(capability))throw new AccessError(503,'PRODUCTION_MONEY_PATH_GATED');
- return 'production' as const;
+ if(config.profile!=='production')throw new AccessError(503,'PRODUCTION_MONEY_PATH_GATED');
+ if(config.moneyCapabilities.includes(capability)||config.moneyDrain.includes(capability))return 'production' as const;
+ throw new AccessError(503,'PRODUCTION_MONEY_PATH_GATED');
 }
 export async function financeEnvironment(tx:TransactionSql){const [db]=await tx<{name:string}[]>`select current_database() name`;if(db.name==='99ribu_production')throw new AccessError(503,'PRODUCTION_MONEY_PATH_GATED');return db.name==='99ribu_test'?'test' as const:'local' as const;}
 export function effectReference(value:unknown){const result=text(value,200);if(!/^[A-Za-z0-9_.:-]{1,200}$/.test(result)) throw invalid();return result;}

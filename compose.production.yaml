@@ -24,6 +24,8 @@ x-runtime: &runtime
     # Coolify injects its variables into every service, so the value is forwarded explicitly with an empty default and
     # the production profile rejects anything but the known names (payments, cod, manual_bank).
     MONEY_CAPABILITIES: ${MONEY_CAPABILITIES:-}
+    # S181 step 3b: a capability being closed. It takes no new order but still serves orders already placed on it.
+    MONEY_DRAIN: ${MONEY_DRAIN:-}
     # S95: live Mengantar rates when Coolify sets SHIPPING_ADAPTER=mengantar with the two MENGANTAR_* values. Every
     # service gets the same three: Coolify injects its variables into every service regardless of a per-service
     # override (observed 2026-10-31: migrate refused a blanked key that Coolify had refilled), and the production

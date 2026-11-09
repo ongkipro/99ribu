@@ -78,7 +78,9 @@ const productionAdapters=():Record<string,JobAdapter>=>{
  const config=readRuntimeConfig(process.env);
  if(config.profile!=='production')return {};
  const adapters:Record<string,JobAdapter>={};
- const payments=config.moneyCapabilities.includes('payments'),manualBank=config.moneyCapabilities.includes('manual_bank');
+ // Open or draining (S181 step 3b): orders already placed on a draining channel are still created, polled and settled.
+ const serves=(name:'payments'|'manual_bank')=>config.moneyCapabilities.includes(name)||config.moneyDrain.includes(name);
+ const payments=serves('payments'),manualBank=serves('manual_bank');
  if(payments){
   const client=autolarisClientFor('production',sql);
   adapters['payment.create']=paymentAdapter(sql,'production',new Map(),client);
