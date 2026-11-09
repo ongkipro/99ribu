@@ -1,5 +1,10 @@
 # Build log — Serba 99ribu
 
+## 2026-11-09 — ADR-0008 proposed: staged production money path for AutoLaris (docs only, R0–R2)
+
+- Read-only code review corrected two earlier statements: the schema is not the blocker (migration `0035` already allows `production` on the 8 real-flow money tables; only 11 simulator stores stay `local`/`test`), and the real gates are order entry (`CHECKOUT_CLOSED`, `checkout/orders.ts:79`), `financeEnvironment` (`PRODUCTION_MONEY_PATH_GATED`, shared by 8 modules including payouts, commissions and tracking), the AutoLaris client/profile, and `offeredChannels()`.
+- Decision proposed (not accepted): per-capability money gate (`MONEY_CAPABILITIES`, default closed), QRIS only first, five steps each shipped inactive, owner's own minimal real order as the rehearsal, no callback-driven settlement. Index row in `DECISIONS.md`, slice S181 in `TASKS.md`. No code changed.
+
 ## 2026-11-09 — `/sitemap.xml` memoised for the catalogue TTL (R0–R2, local, not deployed)
 
 - Measured in production after `ee7e18b6`: `/sitemap.xml` 3.9-6.3 s per request, 474 URLs, 363 KB, `cf-cache-status: DYNAMIC`, one 522 right after the deploy. Cause: `sitemapEntries` re-checks every publication head serially (`salePublication` per product) on each request (`force-dynamic`).
