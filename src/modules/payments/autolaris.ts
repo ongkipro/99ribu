@@ -172,8 +172,9 @@ export async function requestFinalAdvice(tx:TransactionSql,attemptId:string){
 // replaying could create a SECOND live bill for the same attempt whose payment this system could never match. So in
 // production a RECONCILIATION pass never sends the request again: it settles the attempt as `unknown` for finance to
 // verify in the AutoLaris dashboard, and only the first dispatch ever calls the provider. Local and test keep the reviewed
-// replay (the simulator and the stand-in dedupe by reff_id). Relax this only with a recorded live observation of the
-// duplicate-reference behaviour.
+// replay (the simulator and the stand-in dedupe by reff_id). OBSERVED LIVE 2026-11-09: AutoLaris does NOT dedupe a repeated
+// `submit` reference (the same reff_id answered transaction 1121464, then 1121465, with a new QR each time), so this rule is
+// money-critical, not precautionary: a replay would create a second live bill. Never relax it for production.
 // The URL the provider is told for callbacks (evidence only, never settlement). Read through the profile-neutral runtime
 // config, never the local-only reader: that reader throws under APP_ENV=production, which would stop every production
 // dispatch before the request is built (Argon S181-2b finding 1).
@@ -206,7 +207,8 @@ export async function dispatchAutolarisPayment(sql:Sql,target:PaymentEnvironment
   if(!enabledChannels(await client.listPayment(signal)).some(c=>c.channel_code===l.channel_code))await failOperation(sql,target,attemptId);
   else{
    const contact=l.contact as {phone:string;email:string|null};
-   // A timeout or lost response leaves responded_at empty; the reconciliation pass replays the SAME reff_id (gated S97 assumption).
+   // A timeout or lost response leaves responded_at empty. Local and test replay the SAME reff_id (the simulator dedupes);
+   // production never does (see shouldHoldUnrecorded: the live provider creates a new order for a repeated reference).
    const parsed=parseCreatePayment(await client.createPayment({reff_id:l.reff_id,channel_code:l.channel_code,customer_id:l.number,customer_name:String(l.recipient).slice(0,100),customer_phone:contact.phone,customer_email:contact.email||AUTOLARIS_STORE_EMAIL,
     expired:jakarta(new Date(l.expires_at)),amount:String(l.requested_amount),callback_url:autolarisCallbackUrl()},signal));
    if(parsed.rejected)await failOperation(sql,target,attemptId);

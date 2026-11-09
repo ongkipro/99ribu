@@ -1,5 +1,14 @@
 # Build log — Serba 99ribu
 
+## 2026-11-10 — S181 probe: two unpaid AutoLaris `submit` orders (R2, no money moved)
+
+- Owner-approved ("ya jalankan"). Script outside the application, `/data/tmp/99ribu/autolaris-submit-probe/probe.mjs` (mode 700), using 99ribu's own builder and parser so the tested request is the shipped request; the key read through `secrets-env run`, never printed. QRIS Rp9.900, `reff_id 797591603927788468052432120151`, area ids 3517100 to 3518010 (AutoLaris' published examples).
+- Result: both calls `rc 00 Success`. `grand_total 9900` answered `total 9900`, `biaya_admin 70` (the fee is inside the bill: the DEC-029 contract, unlike `create_payment`). `payment_info.expired` is Jakarta time. **The same reference answered two different orders (transaction 1121464 then 1121465) with two different QR codes: AutoLaris does not deduplicate a repeated `submit` reference.** The earlier production replay hold is therefore money-critical; the stand-in and simulator dedupe, so local replay was never evidence for production.
+- Neither bill was paid; both expire on their own (about 03:40 WIB). No money moved, no database was touched.
+- Consequence found while correcting a comment (Argon Low): `submit` has no expiry field and AutoLaris chose exactly 2 hours (01:40:49 created, 03:40:48 expired), while 99ribu's payment window is 30 minutes. A QR stays payable 90 minutes after the order is cancelled; a payment in that gap is real money that goes to recovery (`late_payment`, finance exception, nothing ships). Safe, but a likely flow, not a rare one. Open owner decision: align the AutoLaris order window to the provider's 2 hours (changes stock-hold time) or keep 30 minutes and rely on recovery.
+- Still not observed, so not claimed: the settled `advice` shape for a `submit` transaction and VA; compose/Coolify delivery of the key (decision below).
+- Key delivery, recommended and not yet applied: Coolify environment (runtime only, worker and web), not `compose.production.yaml`, which is tracked in a public repository. The three AutoLaris values and `MONEY_CAPABILITIES=payments` must be set together (the production profile refuses a partial set).
+
 ## 2026-11-10 — S181 step 2b: AutoLaris production client and worker adapters, inactive (R4, local, not deployed)
 
 - Why `submit`: the account's production evidence (the AdsBookCMS client on the same AutoLaris account: "provider total = grand_total", fee deducted inside it) is for `POST /api/h2h/submit`, which is the contract DEC-029 and the `AUTOLARIS_TOTAL_MISMATCH` refusal were written for. `create_payment` was observed live on 2026-11-09 to ADD the fee on top (amount 9900, admin 70, total 9970); the same refusal would reject that, so it is not used. No fee rule changed.

@@ -69,3 +69,7 @@ Affected modules: `config/runtime.ts`, `finance/ledger.ts` and its eight callers
 - Live evidence: BUILD-LOG 2026-11-09 (`/data/tmp/99ribu/autolaris-discovery/`); reference repository note in `docs/reference/h2h-api.md`.
 - Open before step 4: whether AutoLaris sends callbacks to the sent `callback_url` (contents never moves state); the VA shape; the `expired` timezone; duplicate `reff_id` behaviour. Step 4 does not require them because settlement comes only from advice.
 - Revisit when: AutoLaris publishes a settled status list or a payment timestamp in advice; a second payment provider is added.
+
+### Dated note 2026-11-09 (probe evidence, owner-approved)
+
+Two unpaid QRIS `submit` probes (Rp9.900) on the production AutoLaris account: payload and digits-only reference accepted with the area ids from AutoLaris' published examples (3517100 to 3518010); `submit` bills `grand_total` with the fee inside it (so DEC-029 holds unchanged and `create_payment`, which adds the fee on top, is not used); `payment_info.expired` is Jakarta time; a REPEATED reference creates a new order, so production reconciliation never replays (money-critical, not precautionary). Open: the settled `advice` shape for `submit` and VA; the owner's own paid rehearsal (step 4) closes them.

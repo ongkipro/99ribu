@@ -12,11 +12,17 @@ import {AccessError} from '../access/policy.ts';
 // name, phone, email and address are NOT sent; every personal and logistics field is a fixed placeholder. The only
 // per-order facts that leave the server are the reference, the channel, the amount, and one item line.
 //
-// Unobserved until the first live submit (recorded in BUILD-LOG): that AutoLaris accepts these placeholders, and the
-// settled `advice` shape for a `submit` transaction. Both stay gated by the capability and by step 4's owner rehearsal.
-
-// The provider envelope. Declared here (structurally identical to autolaris.ts's Envelope) so this module has no import
-// of autolaris.ts: the import-cycle ratchet (S114) freezes the existing money-path cycle and this file must not join it.
+// Observed live on 2026-11-09 (two unpaid QRIS probes of Rp9.900, raw files kept under /data/tmp/99ribu/autolaris-submit-probe):
+//  - AutoLaris accepts these placeholders and the digits-only reference; the area ids 3517100 -> 3518010 (the examples in
+//    AutoLaris' own published reference) were accepted, so a payment-only order needs no account-specific area values.
+//  - `submit` bills `grand_total` with the fee INSIDE it: grand_total 9900 answered total 9900, biaya_admin 70 (the
+//    DEC-029 contract; `create_payment` adds the fee on top instead).
+//  - `payment_info.expired` is Jakarta time, and `submit` has NO expiry field: AutoLaris chose it itself, exactly 2 hours after
+//    creation in both probes (01:40:49 WIB created, 03:40:48 expired). The buyer's QR therefore outlives 99ribu's own 30-minute
+//    payment window by 90 minutes (see the consequence in dispatchAutolarisPayment).
+//  - A REPEATED reference creates a NEW order: the same reff_id answered a different transaction_id (1121464 then 1121465)
+//    and a new QR. AutoLaris does not deduplicate, which is why a production reconciliation pass never replays.
+// Still unobserved: the settled `advice` shape for a `submit` transaction (until the owner's own paid rehearsal).
 export type SubmitEnvelope={rc:string;ket:string;data:unknown};
 export type SubmitConfig={originId:number;destinationId:number};
 export type SubmitInput={reff_id:string;channel_code:string;amount:number;expires_at:Date;description:string};
@@ -26,7 +32,8 @@ const PLACEHOLDER_NAME='Pembeli 99ribu',PLACEHOLDER_PHONE='081234567890',PLACEHO
 export const SUBMIT_REFF_MAX=30;
 const CHANNELS=/^[A-Z0-9_]{2,20}$/;
 
-// The two area ids are AutoLaris' own identifiers (not Mengantar's) and differ per account, so there is no default. They are
+// The two area ids are AutoLaris' own identifiers (not Mengantar's), so there is no default; any valid ids work for a
+// payment-only order (the published examples were accepted live). They are
 // validated once, at startup, by productionAutolaris in config/runtime.ts (both required together with the API key).
 
 // AutoLaris accepts a digits-only reference of at most 30 characters for `submit`. The local reference is derived from
@@ -54,8 +61,8 @@ export function buildSubmitPayload(input:SubmitInput,config:SubmitConfig){
  };
 }
 
-// `payment_info.expired` arrives without an offset. Jakarta time is the reading used by the production client on this
-// account; it is an assumption (AutoLaris publishes no timezone), and the failure direction is safe: an unparseable value
+// `payment_info.expired` arrives without an offset and is Jakarta time (confirmed against the creation time in the 2026-11-09
+// probes, though AutoLaris still publishes no timezone). The failure direction is safe: an unparseable value
 // returns null and the instruction simply carries no expiry of its own (the order deadline still applies).
 export function parseSubmitExpiry(value:unknown):string|null{
  const m=String(value??'').trim().match(/^(\d{4})-(\d{2})-(\d{2})[ T](\d{2}):(\d{2}):(\d{2})$/);
