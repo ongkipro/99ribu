@@ -26,7 +26,7 @@ import {
 } from "../../../../modules/orders/receipt";
 import { storefrontRequest } from "../../../../modules/storefront/browser";
 import { initialCheckoutPayment } from "../../../../modules/storefront/checkout-order";
-import { rupiah } from "../../../../modules/storefront/format";
+import { paymentChannelLabel, rupiah } from "../../../../modules/storefront/format";
 
 export const dynamic = "force-dynamic";
 export const metadata = {
@@ -788,6 +788,51 @@ export default async function OrderReceiptPage({
 												Transfer tepat sesuai nominal agar mudah dicocokkan. Status
 												berubah setelah tim keuangan memeriksa mutasi rekening.
 											</p>
+										</section>
+									) : !paid &&
+										!refunded &&
+										!closed &&
+										!expired &&
+										attempt?.status === "pending" &&
+										attempt.action.kind === "autolaris" ? (
+										<section className="checkout-payment-instructions" data-testid="autolaris-receipt-instructions">
+											<h2>{paymentChannelLabel(attempt.action.channel_code)}</h2>
+											{attempt.action.instruction ? (
+												<dl className="checkout-charges receipt-instruction-meta">
+													<div>
+														<dt>Nominal pembayaran (tepat)</dt>
+														<dd>
+															<OrderReceiptCopyCode code={String(attempt.action.amount)} label="nominal" />
+														</dd>
+													</div>
+													{attempt.action.payment_fee_amount > 0 && (
+														<div>
+															<dt>Biaya admin</dt>
+															<dd>{rupiah(attempt.action.payment_fee_amount)}, sudah termasuk dalam nominal</dd>
+														</div>
+													)}
+													{attempt.action.instruction.kind === "virtual_account" ? (
+														<div className="receipt-instruction-code-block">
+															<dt>Nomor Virtual Account</dt>
+															<dd>
+																<OrderReceiptCopyCode code={attempt.action.instruction.value} label="nomor Virtual Account" />
+															</dd>
+														</div>
+													) : (
+														<div className="receipt-instruction-code-block">
+															<dt>{attempt.action.instruction.kind === "qr" ? "Kode QRIS" : "Instruksi"}</dt>
+															<dd>
+																<code>{attempt.action.instruction.value}</code>
+															</dd>
+														</div>
+													)}
+													<div>
+														<dt>Batas pembayaran</dt>
+														<dd>{formatWib(attempt.expires_at)} WIB</dd>
+													</div>
+												</dl>
+											) : null}
+											<p>{attempt.action.display_text}</p>
 										</section>
 									) : null}
 									{canPrepare && (

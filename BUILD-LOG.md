@@ -1,5 +1,10 @@
 # Build log — Serba 99ribu
 
+## 2026-11-10 — VA payment step names the bank; `/pesanan` shows the Virtual Account instruction (R2)
+
+- Payment step heading is the bank ("Virtual Account BCA", `paymentChannelLabel` in `src/modules/storefront/format.ts`), so the buyer picks the same bank in their app. `/pesanan/<id>` now shows a pending AutoLaris attempt like the manual-bank box: bank, exact amount (copy), admin fee inside it, Virtual Account number (copy), deadline. Access rules unchanged (receipt alias cookie).
+- Evidence: `tests/browser/payment-fees.test.ts` asserts the bank heading on both pages and the VA number on `/pesanan` (2/2); storefront-checkout + buyer-account 33/33; render `.local/test-renders/s172/<build>/receipt-instruction-1440.png` reviewed. The first run failed only because the test planted the checkout cookie but not the receipt alias the server action sets; the test now plants both.
+
 ## 2026-11-10 — S181 follow-up: production offers VA only until a QRIS image exists (R3)
 
 - The payment page prints the QRIS payload as text (no QR renderer installed), so QRIS is not offered in production: `QRIS_IMAGE_READY=false` and `channelOfferedHere(code,target)` decided by the money target (database), filtering the checkout list and the worker channel check; `persistAutolarisIdentity` refuses QRIS with 422 `PAYMENT_CHANNEL_UNAVAILABLE` before any write (the attempt transaction rolls back). Local/test keep QRIS. Buyer copy "Virtual Account".

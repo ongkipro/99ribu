@@ -27,3 +27,6 @@ export function wibInput(value:string|number|Date,seconds=false){
 // /media/catalog/ is only ever served by this app, so its path is used as is: relative URLs are what media.tsx resizes.
 export const sameOrigin=(url:string)=>url.startsWith('http://127.0.0.1:3099/')?url.slice('http://127.0.0.1:3099'.length)
  :/^https?:\/\/[^/]+\/media\/catalog\//.test(url)?url.replace(/^https?:\/\/[^/]+/,''):url;
+// The buyer must pick the same bank in their banking app, so the payment step names it (AutoLaris channel codes, DEC-008).
+const CHANNEL_LABELS:Record<string,string>={VABCA:'Virtual Account BCA',VABNI:'Virtual Account BNI',VABRI:'Virtual Account BRI',VAMANDIRI:'Virtual Account Mandiri',VAPERMATA:'Virtual Account Permata',QRIS:'QRIS'};
+export const paymentChannelLabel=(code:string)=>CHANNEL_LABELS[code]??'Virtual Account';

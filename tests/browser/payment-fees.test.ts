@@ -130,7 +130,9 @@ test('S172 the buyer sees the admin fee per bank before choosing, and the instru
    // The order page reads the checkout alias of the guest order capability, which the browser checkout's server action
    // would have set beside the native API cookie (checkoutIssuedCookies).
    const grant=[...client.cookies.values()].find(c=>c.name.endsWith('.order_access'));assert.ok(grant,'guest order capability issued');
-   await context.addCookies([{name:grant.name.replace(/\.order_access$/,'.checkout_access'),value:grant.value,domain:'127.0.0.1',path:`/checkout/order/${order.id}`,httpOnly:true,sameSite:'Lax',secure:false}]);
+   await context.addCookies([{name:grant.name.replace(/\.order_access$/,'.checkout_access'),value:grant.value,domain:'127.0.0.1',path:`/checkout/order/${order.id}`,httpOnly:true,sameSite:'Lax',secure:false},
+    // and the receipt alias the same server action sets for /pesanan/<id> (allOrderIssuedCookies).
+    {name:grant.name.replace(/\.order_access$/,'.receipt_access'),value:grant.value,domain:'127.0.0.1',path:`/pesanan/${order.id}`,httpOnly:true,sameSite:'Lax',secure:false}]);
    const page=await context.newPage();page.setDefaultTimeout(15000);const errors:string[]=[];page.on('pageerror',e=>errors.push(String(e)));
    try{
     await page.goto(`${origin}/checkout/order/${order.id}`);
@@ -150,7 +152,17 @@ test('S172 the buyer sees the admin fee per bank before choosing, and the instru
      const instruction=page.getByTestId('autolaris-instructions');
      await expect(instruction).toContainText(`Rp${(order.amount_due+6500).toLocaleString('id-ID')}`);
      await expect(instruction).toContainText('termasuk biaya admin Rp6.500');
+     await expect(instruction.getByRole('heading',{level:2})).toHaveText('Virtual Account BCA');
      await capture(page,`order-instruction-${width}`);
+     // The order receipt shows the same bill, bank and Virtual Account number for a buyer who comes back later.
+     const [va]=await identity.sql`select l.instruction_value from app.autolaris_payment l join app.payment_attempt a on a.id=l.attempt_id where a.order_id=${order.id} order by a.created_at desc limit 1`;
+     await page.goto(`${origin}/pesanan/${order.id}`);
+     const receipt=page.getByTestId('autolaris-receipt-instructions');
+     await expect(receipt.getByRole('heading',{level:2})).toHaveText('Virtual Account BCA');
+     await expect(receipt).toContainText(String(va.instruction_value));
+     await expect(receipt).toContainText('Rp6.500, sudah termasuk dalam nominal');
+     await expect(receipt).toContainText('Batas pembayaran');
+     await capture(page,`receipt-instruction-${width}`);
     }
     assert.deepEqual(errors,[]);
    }finally{await context.close();}
