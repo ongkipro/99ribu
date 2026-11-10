@@ -1,9 +1,9 @@
 # Status — Serba 99ribu
 
-Updated: 2026-11-10 16:00Z
-Status: Production runs `450c2070` (2026-11-10): money path built, VA only (QRIS off), AutoLaris orders 2 hours (DEC-031), payments still closed.
+Updated: 2026-11-10 21:10Z
+Status: Production runs `afcccc65` (2026-11-10): **VA payments OPEN** (MONEY_CAPABILITIES=payments, AutoLaris submit, VA only, 2-hour orders); QRIS off; COD gated.
 State: READY
-State-Detail: DEPLOYED `450c2070` (migration 0058; gate 708/201/389 executed by ledger RUN-20261110T103132Z-19e40ef0 PASS; Argon R4 APPROVE x2; backup 20261110T111924Z; live: closed checkout with a real cart). Waiting for the owner: open VA per ADR-0008 runbook (Super Admin payment policy; Coolify MONEY_CAPABILITIES=payments + AUTOLARIS_API_KEY + AUTOLARIS_ORDER_ORIGIN_ID=3517100 + AUTOLARIS_ORDER_DESTINATION_ID=3518010 together; one real VA payment by the owner). QRIS needs the QR image (npm setting blocks the dependency). COD production path not built.
+State-Detail: DEPLOYED `afcccc65` (VA hardening, ledger RUN-20261110T180522Z-7805fc26 PASS, Argon R4 APPROVE after one fixed High). Payments opened 16:35Z by Coolify env (runtime-only). Waiting for the owner: the first real VA payment (proves payment_info.va and the settled advice for submit); optional payment policy (fee bearer) in Super Admin. Next local: the deferred gateway items in STATUS "Next".
 Local-Acceptance at `dcd20fa6` + uncommitted helper repair: lint/typecheck exit 0; integration `all-current` PASS at `dcd20fa6` (exit 0, 228 files, 706/0, 2026-11-06 18:59Z; source untouched since, browser test files only, not rerun); `--case=local-providers` PASS 5/5 (12:05Z); browser `all-current` (gate 5, LOCAL worker, load 2.7 at start) FAIL exit 1: 42 files, 200 passed, 1 failed, 1 empty (`support-chat` S44-S45, 12:25Z); `npm test` NOT RUN (gate stopped on the failure; last 331/331 on `4fa50e67`). Evidence `/data/tmp/99ribu/evidence-20261107/`.
 Review-Risk: R4 for money/auth/migrations; R0–R2 per DEC-030 "Process tiers".
 
@@ -21,13 +21,14 @@ STATUS holds only now, next and what waits for the owner (DEC-030). History: [`d
 
 ## Waiting for the owner
 
-1. **Open VA payments** per the ADR-0008 runbook (2026-11-10): Super Admin payment policy, then the four Coolify variables together and redeploy, then one real VA payment by the owner before buyers are told. QRIS stays off until the QR image dependency is allowed (paste `grep -v -i -E "token|auth|password|_key" .npmrc`).
+1. **First real VA payment by the owner** (VA is open since 2026-11-10 16:35Z): cheapest product, real address, pick a bank, pay the exact amount within 2 hours, then tell the agent to verify the order, Keuangan → Pembayaran Masuk and the AutoLaris dashboard. Optional before it: Super Admin → Pengaturan → Pembayaran (fee bearer; today the store bears the AutoLaris fee). QRIS stays off until the QR image dependency is allowed (paste `grep -v -i -E "token|auth|password|_key" .npmrc`).
 2. Create the dummy voucher in production (Pemasaran → Voucher → Voucher untuk: Harga produk; Rp1.000, kuota 1, 1 hari). Then the checkout check runs without placing an order and the voucher is switched off.
 3. Scope (DEC-030 (4)): which features matter for selling now; the rest is maintained, not extended.
 4. External gates: AutoLaris VA live proof (settled `advice` for a `submit` transaction and `payment_info.va`, both only from the owner's first real VA payment); Mengantar booking/tracking contract (S94/S95/S98); Berlapak stock sync agreement (S96); email provider (S124); province exclusion (S170, deferred); production Turnstile keys; switching COD to store-borne in production (the remittance booking is tested); physical printer/scanner (T-37).
 
 ## Next (local, no owner input)
 
+0. Gateway items deferred from the 2026-11-10 AdsBookCMS comparison (`/data/tmp/99ribu-reviews/carbon-adsbook-report.clean.md`): store and show `payment_info.expired`; finance queue search (order, trx_id, reff_id) and separation of abandoned attempts; read-only on-demand advice check for finance; `list_payment` preflight (key, IP, fee drift) and a short cache; per-IP limit and source IP on the callback receiver; sparse post-deadline recovery reads; payment-page auto refresh; QR image (blocked by the npm setting).
 1. Heavy turns: Clinic HYG-011 reported acceptance (2026-11-07 18:26 local); Clinic T-027 and Gerai jobs keep priority. Start a 99ribu heavy phase only with both pool slots idle and no Clinic/Gerai job queued (`/data/tmp/99ribu/gate5.sh` waits for that).
 2. Rerun browser `all-current`, then `npm test` (`/data/tmp/99ribu/gate5.sh`, waits for an idle pool), stopping on failure. CLINIC HOLD is already removed from `browser-provider-mode.sh` (held copy in the evidence folder).
 3. Only after browser `all-current` and `npm test` PASS: commit the helper repair and docs (owner asks), fresh off-host backup, ordinary fast-forward push to `main`, both web and worker on the new image healthy, public smoke at 390/1440 without orders, Cloudflare purge, log observation, then a separate docs commit with the RELEASE entry (include the missing `8c3773e1` entry). Push and deploy need the owner's explicit "deploy".
