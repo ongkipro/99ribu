@@ -10,6 +10,7 @@ import {registerSettlementEvent,settlementSourceEvent} from '../finance/settleme
 import {advanceAttempt,lockPaymentOrder,type AttemptRow} from './attempts.ts';
 import {AUTOLARIS_DEFAULT_BASE_URL,liveAutolaris,liveAutolarisSubmit,originBoundFetch,readAutolarisStandInConfig} from './autolaris-live.ts';
 import {submitReference} from './autolaris-submit.ts';
+import {AUTOLARIS_FINAL_ADVICE_WINDOW_MS} from './methods.ts';
 import {openLocalOperation,type PaymentEnvironment,readProviderEvents,registerProviderEvent,settleLocalOperation} from './local.ts';
 
 // DEC-008 / S93: AutoLaris H2H payments on a LOCAL SIMULATED contract. Shapes follow
@@ -188,8 +189,13 @@ export async function requestFinalAdvice(tx:TransactionSql,attemptId:string){
 export function autolarisCallbackUrl(){return `${readRuntimeConfig(process.env).origin}/api/v1/payments/autolaris/callbacks`;}
 // True when a reconciliation pass has no recorded provider reference and must not send the request again.
 export function shouldHoldUnrecorded(target:PaymentEnvironment,reconciliation:boolean,operationStatus:string,respondedAt:unknown){return !mayReplayProviderRequest(target,reconciliation)&&operationStatus==='pending'&&!respondedAt;}
+// Redacted operational log: the provider endpoint and the sanitized error message (autolaris-live never puts the key or a body in
+// it), never buyer data. Lets an operator see a rejected key, a missing IP whitelist or a provider outage.
+export function logAutolarisFailure(endpoint:'list_payment'|'submit'|'advice',attemptId:string|null,error:unknown){
+ console.error(JSON.stringify({event:'autolaris.call_failed',endpoint,attempt_id:attemptId,error:error instanceof Error?error.message.slice(0,120):typeof error}));
+}
 export function mayReplayProviderRequest(target:PaymentEnvironment,reconciliation:boolean){return !(target==='production'&&reconciliation);}
-export async function dispatchAutolarisPayment(sql:Sql,target:PaymentEnvironment,attemptId:string,client:AutolarisClient,signal?:AbortSignal,reconciliation=false):Promise<Outcome>{
+export async function dispatchAutolarisPayment(sql:Sql,target:PaymentEnvironment,attemptId:string,client:AutolarisClient,signal?:AbortSignal,reconciliation=false,lastTry=false):Promise<Outcome>{
  const opened=await sql.begin(async tx=>{
   const opened=await openLocalOperation(tx,target,attemptId);
   await tx`update app.autolaris_payment set operation_id=${opened.operation_id} where attempt_id=${attemptId} and operation_id is null`;
@@ -210,22 +216,38 @@ export async function dispatchAutolarisPayment(sql:Sql,target:PaymentEnvironment
   return {status:'unknown',code:'UNKNOWN_OUTCOME'};
  }
  if(opened.status==='pending'&&!l.responded_at){
-  // The channel must be enabled by the account right now (never a hard-coded list).
-  if(!enabledChannels(await client.listPayment(signal),target).some(c=>c.channel_code===l.channel_code))await failOperation(sql,target,attemptId);
-  else{
+  // The channel must be enabled by the account right now (never a hard-coded list). This read happens BEFORE submit, so if it
+  // fails no provider order can exist: a definite no-effect result (retryable), never `unknown` (Carbon §7.2), which in
+  // production could not be replayed and would block the buyer until the deadline.
+  let channels:ReturnType<typeof enabledChannels>|undefined;
+  try{channels=enabledChannels(await client.listPayment(signal),target);}
+  catch(error){
+   logAutolarisFailure('list_payment',attemptId,error);
+   // Last try (Argon): close the attempt as failed so the buyer can pick a bank again, instead of an exhausted job over a
+   // `pending` attempt that blocks a new one until the deadline. Still no provider order: nothing was submitted.
+   if(!lastTry)return {status:'retryable',code:'TEMPORARY_UNAVAILABLE'};
+   await failOperation(sql,target,attemptId);
+  }
+  // undefined: the last try already closed the attempt above. A channel the account no longer enables fails the attempt too.
+  if(channels&&!channels.some(c=>c.channel_code===l.channel_code))await failOperation(sql,target,attemptId);
+  else if(channels){
    const contact=l.contact as {phone:string;email:string|null};
    // A timeout or lost response leaves responded_at empty. Local and test replay the SAME reff_id (the simulator dedupes);
    // production never does (see shouldHoldUnrecorded: the live provider creates a new order for a repeated reference).
-   const parsed=parseCreatePayment(await client.createPayment({reff_id:l.reff_id,channel_code:l.channel_code,customer_id:l.number,customer_name:String(l.recipient).slice(0,100),customer_phone:contact.phone,customer_email:contact.email||AUTOLARIS_STORE_EMAIL,
-    expired:jakarta(new Date(l.expires_at)),amount:String(l.requested_amount),callback_url:autolarisCallbackUrl()},signal));
-   if(parsed.rejected)await failOperation(sql,target,attemptId);
+   let submitted:Envelope;
+   try{submitted=await client.createPayment({reff_id:l.reff_id,channel_code:l.channel_code,customer_id:l.number,customer_name:String(l.recipient).slice(0,100),customer_phone:contact.phone,customer_email:contact.email||AUTOLARIS_STORE_EMAIL,
+    expired:jakarta(new Date(l.expires_at)),amount:String(l.requested_amount),callback_url:autolarisCallbackUrl()},signal);}
+   // The outcome of a thrown submit is unknown (the order may exist at the provider): logged, then rethrown so the lease marks it.
+   catch(error){logAutolarisFailure('submit',attemptId,error);throw error;}
+   const parsed=parseCreatePayment(submitted);
+   if(parsed.rejected){console.warn(JSON.stringify({event:'autolaris.submit_rejected',attempt_id:attemptId,rc:parsed.rc}));await failOperation(sql,target,attemptId);}
    else{
     // DEC-008 (3) / DEC-029: the provider bills exactly the requested amount (order value plus any frozen buyer fee) and deducts its fee; any other amount or total is refused.
     // DEC-029: a buyer-borne fee must not exceed what the provider deducts, or the store would hold buyer money it
     // cannot settle; refused before any instruction is shown (the attempt fails, the buyer may pick another channel).
     const refusal=parsed.amount!==Number(l.requested_amount)?'AUTOLARIS_AMOUNT_MISMATCH':parsed.total!==Number(l.requested_amount)?'AUTOLARIS_TOTAL_MISMATCH':parsed.admin<Number(l.payment_fee_amount)?'AUTOLARIS_FEE_MISMATCH':null;
     const record=(tx:TransactionSql)=>tx`update app.autolaris_payment set trx_id=${parsed.trx_id},instruction_kind=${parsed.instruction_kind},instruction_value=${parsed.instruction_value},provider_amount=${parsed.amount},admin_fee=${parsed.admin},provider_total=${parsed.total},refusal_code=${refusal},responded_at=clock_timestamp() where attempt_id=${attemptId} and responded_at is null`;
-    if(refusal)await failOperation(sql,target,attemptId,record);
+    if(refusal){console.warn(JSON.stringify({event:'autolaris.submit_refused',attempt_id:attemptId,code:refusal}));await failOperation(sql,target,attemptId,record);}
     else await sql.begin(async tx=>{await record(tx);await scheduleAdvice(tx,attemptId,1);});
    }
   }
@@ -239,11 +261,18 @@ export async function dispatchAutolarisPayment(sql:Sql,target:PaymentEnvironment
 export function autolarisAdviceAdapter(sql:Sql,target:PaymentEnvironment,client:AutolarisClient=autolarisClientFor(target,sql)):JobAdapter{
  const run=async(claim:Claim,signal:AbortSignal):Promise<Outcome>=>{
   const body=object(claim.payload,['attemptId','poll']),attemptId=id(body.attemptId),poll=integer(body.poll,1,ADVICE_MAX_POLLS+ADVICE_FINAL_POLLS);
-  const [row]=await sql`select l.trx_id,l.refusal_code,l.provider_total,p.status operation_status,a.payment_fee_amount,j.id job from app.autolaris_payment l join app.payment_attempt a on a.id=l.attempt_id join app.local_payment_operation p on p.id=l.operation_id
+  const [row]=await sql`select l.trx_id,l.refusal_code,l.provider_total,p.status operation_status,a.payment_fee_amount,j.id job,app.reservation_clock(o.clock_namespace)>=a.expires_at+${AUTOLARIS_FINAL_ADVICE_WINDOW_MS}*interval '1 millisecond' window_over from app.autolaris_payment l join app.payment_attempt a on a.id=l.attempt_id join app.commerce_order o on o.id=a.order_id join app.local_payment_operation p on p.id=l.operation_id
    join app.outbox_job j on j.dedup_key=${`autolaris-advice:${attemptId}:${poll}`} and j.id=${claim.id} where l.attempt_id=${attemptId} and l.environment=${target}`;
   if(!row?.trx_id||row.refusal_code)return {status:'failed',code:'INVALID_PAYLOAD'};
   if(row.operation_status!=='pending')return {status:'succeeded',receipt:{stopped:'final'}};
-  const envelope=await client.advice({transaction_id:String(row.trx_id)},signal),classified=classifyAdvice(envelope);
+  // Carbon §5.2: a throwing advice call leaves the job `unknown` and reconciliation claims ignore max_attempts, so the stop rule
+  // must sit here: past the deadline plus the final-advice window nothing is read again (finance keeps the manual path).
+  if(row.window_over)return {status:'succeeded',receipt:{stopped:'window_over'}};
+  let envelope:Envelope;
+  try{envelope=await client.advice({transaction_id:String(row.trx_id)},signal);}
+  catch(error){logAutolarisFailure('advice',attemptId,error);throw error;}
+  const classified=classifyAdvice(envelope);
+  if(classified.classification==='unknown')console.warn(JSON.stringify({event:'autolaris.advice_unrecognised',attempt_id:attemptId,rc:String(envelope.rc).slice(0,8),ket:String(envelope.ket??'').slice(0,40)}));
   // DEC-029: a reported bill at or below the frozen buyer fee cannot be a collection; kept as unknown for finance.
   // S97: the real advice has no amount, so a settled answer bills the provider total verified at creation.
   const billed=classified.classification==='settled'?(classified.amount??Number(row.provider_total)):null;

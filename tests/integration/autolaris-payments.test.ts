@@ -11,7 +11,7 @@ import {createAttempt,projectAttempt} from '../../src/modules/payments/attempts.
 import {paymentAdapter} from '../../src/modules/payments/worker.ts';
 import {actor,enroll} from '../contract/access-fixture.ts';
 import {closeFulfillmentActor} from './fulfillment-fixture.ts';
-import {ORDER_DEADLINE_SECONDS} from '../../src/modules/payments/methods.ts';
+import {AUTOLARIS_FINAL_ADVICE_WINDOW_MS,ORDER_DEADLINE_SECONDS} from '../../src/modules/payments/methods.ts';
 import {paymentFixture} from './payment-fixture.ts';
 
 test('AutoLaris simulated contract: only an explicit settlement status pays; one instruction field; channels from list_payment; live gate refuses',async()=>{
@@ -251,5 +251,62 @@ test('order deadline per channel: AutoLaris 2 hours (the life of its bill), othe
   const first=await f.order(1,'prepaid','autolaris');await f.order(1,'prepaid','autolaris',first.client);
   const third=await f.order(1,'prepaid','autolaris',first.client);assert.deepEqual([third.status,third.code],[409,'AUTOLARIS_OPEN_LIMIT']);
   assert.equal((await f.order(1,'prepaid','local-prepaid',first.client)).status,201,'other channels stay available to the same buyer');
+ }finally{await f.close();}
+});
+
+test('a list_payment failure before submit is a definite no-effect retry, never an unknown outcome that blocks the buyer',async()=>{
+ // Carbon §7.2: the channel check runs before submit; if it throws, no provider order exists, so the attempt must not be held
+ // as `unknown` (in production a reconciliation pass would never replay it and the buyer could not retry for 2 hours).
+ const f=await paymentFixture(),sql=f.identity.sql;
+ try{
+  const {order}=await f.order(1,'prepaid','autolaris'),a=await attempt(f,order.id);
+  let submits=0;
+  const down:AutolarisClient={listPayment:async()=>{throw new Error('AutoLaris /api/h2h/list_payment answered HTTP 502');},createPayment:async()=>{submits++;throw new Error('must not be called');},advice:async()=>({rc:'02',ket:'PENDING',data:{awb:''}})};
+  assert.equal(await create(f,a.job,down),true);
+  assert.equal(submits,0,'submit is never reached');
+  const [job]=await sql`select status,last_error from app.outbox_job where id=${a.job}`;
+  assert.deepEqual([job.status,job.last_error],['pending','TEMPORARY_UNAVAILABLE'],'a retryable no-effect result, not unknown');
+  // The next try with the provider back reaches submit once and records the bill.
+  const up:AutolarisClient={...sim(f)};
+  assert.equal(await create(f,a.job,up),true);
+  assert.ok((await sql`select trx_id from app.autolaris_payment where attempt_id=${a.id}`)[0].trx_id,'the retry created the bill');
+ }finally{await f.close();}
+});
+
+test('when list_payment fails on every try the attempt closes as failed, so the buyer can pick a bank again',async()=>{
+ // Argon (harden review, High): an exhausted retryable job became `failed` while the attempt stayed `pending`, which hid the
+ // retry form and made a new attempt PAYMENT_ATTEMPT_ACTIVE until the deadline.
+ const f=await paymentFixture(),sql=f.identity.sql;
+ try{
+  const {order,client}=await f.order(1,'prepaid','autolaris'),a=await attempt(f,order.id);
+  let submits=0;
+  const down:AutolarisClient={listPayment:async()=>{throw new Error('AutoLaris /api/h2h/list_payment answered HTTP 502');},createPayment:async()=>{submits++;throw new Error('must not be called');},advice:async()=>({rc:'02',ket:'PENDING',data:{awb:''}})};
+  const [{max_attempts:max}]=await sql`select max_attempts from app.outbox_job where id=${a.job}`;
+  for(let n=0;n<max;n++)assert.equal(await create(f,a.job,down),true);
+  assert.equal(submits,0);
+  assert.equal((await sql`select status from app.outbox_job where id=${a.job}`)[0].status,'completed','the last try closes the attempt itself, not an exhausted job');
+  await callbacks(f,a.id);
+  assert.equal((await sql`select status from app.payment_attempt where id=${a.id}`)[0].status,'failed','the attempt is closed, not left pending');
+  const again=await f.call(client,`/api/v1/orders/${order.id}/payment-attempts`,{method_id:'autolaris',channel_code:'VABNI'});
+  assert.equal(again.response.status,201,`a new attempt is allowed: ${JSON.stringify(again.payload)}`);
+ }finally{await f.close();}
+});
+
+test('advice polling stops by itself once the attempt is past its deadline and final window, even if the provider keeps failing',async()=>{
+ // Carbon §5.2: a throwing advice call makes the job `unknown`, and reconciliation claims ignore max_attempts; without a stop
+ // rule a dead attempt would be re-read every 30 seconds forever.
+ const f=await paymentFixture(),sql=f.identity.sql;
+ try{
+  const {order}=await f.order(1,'prepaid','autolaris'),a=await attempt(f,order.id);
+  assert.equal(await create(f,a.job,sim(f)),true);await callbacks(f,a.id);
+  let reads=0;
+  const failing:AutolarisClient={...sim(f),advice:async()=>{reads++;throw new Error('AutoLaris /api/h2h/advice answered HTTP 502');}};
+  const clock=await readFixtureClock('test',f.namespace);await advanceFixtureClock('test',f.namespace,ORDER_DEADLINE_SECONDS.autolaris+AUTOLARIS_FINAL_ADVICE_WINDOW_MS/1000+60,clock.version);
+  const [job]=await sql`select id from app.outbox_job where dedup_key=${`autolaris-advice:${a.id}:1`}`;
+  await due(f,job.id);
+  assert.equal(await runOneJob(sql,{'payment.autolaris.advice':autolarisAdviceAdapter(sql,'test',failing)},job.id),true);
+  assert.equal(reads,0,'no provider read after the window');
+  const [done]=await sql`select status,result from app.outbox_job where id=${job.id}`;
+  assert.equal(done.status,'completed');assert.equal((done.result as {stopped?:string}).stopped,'window_over');
  }finally{await f.close();}
 });

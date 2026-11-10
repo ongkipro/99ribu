@@ -12,7 +12,7 @@ export function paymentAdapter(sql:Sql,target:PaymentEnvironment,faults:Readonly
   const [registered]=await sql`select id,method_id from app.payment_attempt where id=${attemptId} and creation_job_id=${claim.id}`;
   if(!registered) return {status:'failed' as const,code:'INVALID_PAYLOAD' as const};
   // DEC-008 seam: AutoLaris attempts replay the persisted reff_id on reconciliation.
-  if(registered.method_id==='autolaris') return dispatchAutolarisPayment(sql,target,attemptId,autolaris??autolarisClientFor(target,sql),signal,reconciliation);
+  if(registered.method_id==='autolaris') return dispatchAutolarisPayment(sql,target,attemptId,autolaris??autolarisClientFor(target,sql),signal,reconciliation,!reconciliation&&claim.attempts>=claim.maxAttempts);
   const created=await createLocalOperation(sql,target,attemptId,reconciliation,!reconciliation&&faults.get(attemptId)==='before-commit');
   if(!reconciliation&&faults.get(attemptId)==='creation-commit-lost-ack') throw new Error('Simulated acknowledgement loss after provider intent creation');
   if(!reconciliation&&faults.get(attemptId)==='paid-commit-lost-ack'){

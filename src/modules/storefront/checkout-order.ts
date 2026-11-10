@@ -8,7 +8,7 @@ import {mutationKey} from '../checkout/carts.ts';
 import {handleCheckout} from '../checkout/routes.ts';
 import type {projectAttempt} from '../payments/attempts.ts';
 import {handlePayments} from '../payments/routes.ts';
-import {AUTOLARIS_CHANNELS,autolarisClientFor,enabledChannels} from '../payments/autolaris.ts';
+import {AUTOLARIS_CHANNELS,autolarisClientFor,enabledChannels,logAutolarisFailure} from '../payments/autolaris.ts';
 import {autolarisBuyerFee,paymentTerms} from '../payments/methods.ts';
 import {readBrowserCart} from './cart.ts';
 import {assertCheckoutTransport,checkoutApiRequest,type CheckoutOrder} from './checkout.ts';
@@ -55,7 +55,7 @@ export async function checkoutOrderRequest(request:Request,identity:LocalAuth,or
 export async function autolarisChannels(identity:Pick<LocalAuth,'sql'>):Promise<CheckoutPaymentChannel[]>{
  try{const [db]=await identity.sql<{name:string}[]>`select current_database() name`;const target=db.name==='99ribu_test'?'test':db.name==='99ribu_local'?'local':'production';
   return enabledChannels(await autolarisClientFor(target,identity.sql).listPayment(),target);}
- catch{return [];}
+ catch(error){logAutolarisFailure('list_payment',null,error);return [];}
 }
 export async function readCheckoutPayment(request:Request,identity:LocalAuth,orderId:string):Promise<CheckoutPaymentView>{
  try{

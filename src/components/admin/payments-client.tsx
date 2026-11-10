@@ -314,11 +314,17 @@ type Autolaris = {
 	expires_at: string;
 	latest_observation: { source: string; classification: string; ket: string | null } | null;
 };
+// Why an AutoLaris answer was refused before the buyer saw an instruction (dispatchAutolarisPayment).
+const REFUSED: Record<string, string> = {
+	AUTOLARIS_AMOUNT_MISMATCH: "Ditolak: nominal tidak sama",
+	AUTOLARIS_TOTAL_MISMATCH: "Ditolak: total tidak sama",
+	AUTOLARIS_FEE_MISMATCH: "Ditolak: biaya admin tidak sesuai tabel",
+};
 const OBSERVED: Record<string, string> = { pending: "Menunggu pembayaran", settled: "Lunas", unknown: "Status belum pasti", failed: "Gagal" };
 const OBSERVED_TONE: Record<string, "success" | "problem" | "danger"> = { settled: "success", unknown: "problem", failed: "danger" };
 const autolarisStatus = (row: Autolaris) =>
 	row.refusal_code ? (
-		<StatusBadge tone="danger">Ditolak: total tidak sama</StatusBadge>
+		<StatusBadge tone="danger">{REFUSED[row.refusal_code] ?? "Ditolak AutoLaris"}</StatusBadge>
 	) : (
 		<StatusBadge tone={OBSERVED_TONE[row.latest_observation?.classification ?? ""] ?? "open"}>
 			{row.latest_observation ? OBSERVED[row.latest_observation.classification] ?? row.latest_observation.classification : row.trx_id ? "Menunggu pembayaran" : "Instruksi dibuat"}
