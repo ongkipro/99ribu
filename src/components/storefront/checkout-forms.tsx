@@ -185,7 +185,7 @@ function AllocationChoices({choices,selected,allocation,initiallyOpen,onChange}:
 const paymentRows=[
  {id:'prepaid',label:'Pembayaran simulasi',hint:'Hanya untuk uji lokal.'},
  {id:'transfer',label:'Transfer bank',hint:'Transfer ke rekening toko, dicek manual. Bayar dalam 24 jam.'},
- {id:'va',label:'Virtual Account',hint:'Bayar lewat Virtual Account bank; dicek otomatis, tanpa bukti transfer.'},
+ {id:'va',label:'Virtual Account',hint:'Bayar lewat Virtual Account bank dalam 2 jam; dicek otomatis, tanpa bukti transfer.'},
  {id:'cod',label:'Bayar di tempat (COD)',hint:'Bayar tunai ke kurir saat paket tiba. Ada biaya COD; tidak semua kurir dan tujuan tersedia.'},
 ];
 export function CheckoutForm({initial}:{initial:CheckoutState}){

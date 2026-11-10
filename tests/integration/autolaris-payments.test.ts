@@ -11,6 +11,7 @@ import {createAttempt,projectAttempt} from '../../src/modules/payments/attempts.
 import {paymentAdapter} from '../../src/modules/payments/worker.ts';
 import {actor,enroll} from '../contract/access-fixture.ts';
 import {closeFulfillmentActor} from './fulfillment-fixture.ts';
+import {ORDER_DEADLINE_SECONDS} from '../../src/modules/payments/methods.ts';
 import {paymentFixture} from './payment-fixture.ts';
 
 test('AutoLaris simulated contract: only an explicit settlement status pays; one instruction field; channels from list_payment; live gate refuses',async()=>{
@@ -159,7 +160,7 @@ test('AutoLaris deadline: expiry requires a fresh advice read; a payment first s
   const expire=async(orderId:string)=>{const [job]=await sql`select id,kind,payload from app.outbox_job where kind='checkout.order.expire' and payload->>'orderId'=${orderId}`;return sql.begin(tx=>expireOwnedOrderJob(tx,{id:job.id,kind:job.kind,payload:job.payload}));};
   const dueAdvice=async(attemptId:string)=>{const [job]=await sql`select id from app.outbox_job where kind='payment.autolaris.advice' and payload->>'attemptId'=${attemptId} and status='pending' and run_at<=clock_timestamp() order by run_at limit 1`;
    assert.ok(job,'a final advice read is due now');assert.equal(await runOneJob(sql,{'payment.autolaris.advice':autolarisAdviceAdapter(sql,'test')},job.id),true);await callbacks(f,attemptId);};
-  let clock=await readFixtureClock('test',f.namespace);await advanceFixtureClock('test',f.namespace,1860,clock.version);
+  let clock=await readFixtureClock('test',f.namespace);await advanceFixtureClock('test',f.namespace,ORDER_DEADLINE_SECONDS.autolaris+60,clock.version);
   assert.equal((await expire(paid.id))?.status,'payment_reconciliation','no cancellation before a read after the deadline');
   await dueAdvice(a.id);
   // S97: the real advice carries no payment time, so a payment first seen after the deadline cannot be proven to be inside
@@ -174,6 +175,7 @@ test('AutoLaris deadline: expiry requires a fresh advice read; a payment first s
   // Unpaid: each expiry pass asks for another read while the account says pending, then cancels after the window.
   assert.equal((await expire(open.id))?.status,'payment_reconciliation');await dueAdvice(b.id);
   assert.equal((await expire(open.id))?.status,'payment_reconciliation');
+  // Past the final-advice window (AUTOLARIS_FINAL_ADVICE_WINDOW_MS, 30 minutes after the deadline): cancelled.
   clock=await readFixtureClock('test',f.namespace);await advanceFixtureClock('test',f.namespace,1860,clock.version);
   assert.equal((await expire(open.id))?.status,'cancelled');
  }finally{await f.close();}
@@ -213,5 +215,41 @@ test('S181 2b: a reconciliation pass never replays the provider request in produ
   assert.equal((await sql`select status from app.outbox_job where id=${a.job}`)[0].status,'unknown');
   assert.equal(await create(f,a.job,counting),true);assert.equal(calls,2,'local and test replay the same reff_id (reviewed behaviour, the simulator dedupes)');
   assert.equal((await sql`select responded_at from app.autolaris_payment where attempt_id=${a.id}`)[0].responded_at,null);
+ }finally{await f.close();}
+});
+
+// Manual bank (24 hours) needs owner-configured accounts; its deadline is covered in payment-methods.test.ts.
+test('order deadline per channel: AutoLaris 2 hours (the life of its bill), others 30 minutes; the CHECK refuses anything else',async()=>{
+ const f=await paymentFixture(),sql=f.identity.sql;
+ try{
+  const orders={autolaris:(await f.order(1,'prepaid','autolaris')).order,'local-prepaid':(await f.order(1,'prepaid')).order};
+  const expected={autolaris:7200,'local-prepaid':1800};
+  for(const [channel,order] of Object.entries(orders)){
+   const [row]=await sql`select extract(epoch from expires_at-created_at)::int seconds,payment_channel from app.commerce_order where id=${order.id}`;
+   assert.deepEqual([row.payment_channel,row.seconds],[channel,expected[channel as keyof typeof expected]],channel);
+   // The expiry job fires at the same deadline (fixture clock: run_at is relative to the database wall clock).
+   const [job]=await sql`select extract(epoch from run_at-created_at)::int seconds from app.outbox_job where kind='checkout.order.expire' and payload->>'orderId'=${order.id}`;
+   assert.ok(Math.abs(job.seconds-expected[channel as keyof typeof expected])<=5,`${channel} expiry job at the deadline (${job.seconds}s)`);
+  }
+  // The deadline is pinned in the database, not only in code: 2 hours is refused for a non-AutoLaris channel, and an
+  // AutoLaris order cannot take any other length (the attempt mirrors expires_at, so this also bounds the payment window).
+  await assert.rejects(sql`update app.commerce_order set expires_at=created_at+interval '2 hours' where id=${orders['local-prepaid'].id}`,{code:'23514'});
+  await assert.rejects(sql`update app.commerce_order set expires_at=created_at+interval '3 hours' where id=${orders.autolaris.id}`,{code:'23514'});
+  const [a]=await sql`select expires_at from app.commerce_order where id=${orders.autolaris.id}`;
+  const made=await attempt(f,orders.autolaris.id,'VABCA');
+  const [stored]=await sql`select expires_at from app.payment_attempt where id=${made.id}`;
+  assert.equal(new Date(stored.expires_at).toISOString(),new Date(a.expires_at).toISOString(),'the VA attempt carries the 2-hour order deadline');
+  // Paid at minute 90 (inside the bill's life): an on-time payment, the order is confirmed, no recovery.
+  assert.equal(await create(f,made.job,sim(f)),true);await callbacks(f,made.id);
+  const clock=await readFixtureClock('test',f.namespace);await advanceFixtureClock('test',f.namespace,5400,clock.version);
+  await simulateAutolarisStatus(sql,'test',made.id,'paid');
+  const [poll]=await sql`select (payload->>'poll')::int poll from app.outbox_job where kind='payment.autolaris.advice' and payload->>'attemptId'=${made.id} and status='pending' order by (payload->>'poll')::int limit 1`;
+  assert.ok(poll,'advice polling still runs at minute 90');
+  await advice(f,made.id,poll.poll);await callbacks(f,made.id);
+  assert.equal((await sql`select payment_status from app.commerce_order where id=${orders.autolaris.id}`)[0].payment_status,'confirmed','paid at minute 90 is on time');
+  // A 2-hour hold is capped per buyer (as manual bank): two open AutoLaris orders, the third is refused; other channels stay open.
+  const first=await f.order(1,'prepaid','autolaris');await f.order(1,'prepaid','autolaris',first.client);
+  const third=await f.order(1,'prepaid','autolaris',first.client);assert.deepEqual([third.status,third.code],[409,'AUTOLARIS_OPEN_LIMIT']);
+  assert.equal((await f.order(1,'prepaid','local-prepaid',first.client)).status,201,'other channels stay available to the same buyer');
  }finally{await f.close();}
 });

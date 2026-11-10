@@ -135,7 +135,14 @@ test('S172 the buyer sees the admin fee per bank before choosing, and the instru
     {name:grant.name.replace(/\.order_access$/,'.receipt_access'),value:grant.value,domain:'127.0.0.1',path:`/pesanan/${order.id}`,httpOnly:true,sameSite:'Lax',secure:false}]);
    const page=await context.newPage();page.setDefaultTimeout(15000);const errors:string[]=[];page.on('pageerror',e=>errors.push(String(e)));
    try{
-    await page.goto(`${origin}/checkout/order/${order.id}`);
+    if(width===390){
+     // Before any attempt, the receipt cannot choose a bank: it sends the buyer to the payment step (same capability).
+     await page.goto(`${origin}/pesanan/${order.id}`);
+     const pay=page.getByRole('link',{name:'Pilih bank dan bayar'});
+     await expect(pay).toHaveAttribute('href',`/checkout/order/${order.id}`);
+     await expect(page.getByRole('button',{name:'Siapkan instruksi pembayaran'})).toHaveCount(0);
+     await pay.click();await page.waitForURL(`${origin}/checkout/order/${order.id}`);
+    }else await page.goto(`${origin}/checkout/order/${order.id}`);
     const methods=page.getByRole('group',{name:'Bank Virtual Account atau QRIS'});
     await expect(methods).toBeVisible();
     await expect(methods.getByText('Biaya admin Rp6.500')).toBeVisible();
@@ -161,6 +168,13 @@ test('S172 the buyer sees the admin fee per bank before choosing, and the instru
      await expect(receipt.getByRole('heading',{level:2})).toHaveText('Virtual Account BCA');
      await expect(receipt).toContainText(String(va.instruction_value));
      await expect(receipt).toContainText('Rp6.500, sudah termasuk dalam nominal');
+     // The amount reads as rupiah; the copy button still copies digits only (pastes into a banking app).
+     const bill=order.amount_due+6500;
+     await expect(receipt.locator('.receipt-code-value').first()).toHaveText(`Rp${bill.toLocaleString('id-ID')}`);
+     await context.grantPermissions(['clipboard-read','clipboard-write'],{origin});
+     await receipt.getByRole('button',{name:'Salin nominal',exact:true}).click();
+     await expect(receipt.getByRole('button',{name:'Nominal disalin',exact:true})).toBeVisible();
+     assert.equal(await page.evaluate(()=>navigator.clipboard.readText()),String(bill));
      await expect(receipt).toContainText('Batas pembayaran');
      await capture(page,`receipt-instruction-${width}`);
     }

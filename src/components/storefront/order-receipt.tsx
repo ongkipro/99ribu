@@ -33,11 +33,15 @@ export function OrderReceiptObserver({orderId}:{orderId:string}){
 // Copies one payment value. The label names what is copied ("Salin nominal", "Salin nomor
 // rekening"). Success is reported only when the clipboard accepted it; otherwise (no Clipboard API on
 // an http origin, or a denied permission) the value is selected so the buyer can copy it manually.
-export function OrderReceiptCopyCode({code,label='kode'}:{code:string;label?:string}){
+function selectContents(node:HTMLElement|null){if(!node)return;const range=document.createRange();range.selectNodeContents(node);const selection=window.getSelection();selection?.removeAllRanges();selection?.addRange(range);}
+// `display` is what the buyer reads (e.g. "Rp113.500"); `code` is what is copied, digits only, so it pastes into a banking app.
+// Without a Clipboard API the box switches to `code` and selects it, so a manual copy also gets the plain value.
+export function OrderReceiptCopyCode({code,label='kode',display}:{code:string;label?:string;display?:string}){
  const [state,setState]=useState<'idle'|'copied'|'manual'>('idle'),value=useRef<HTMLElement>(null);
- const selectValue=()=>{const node=value.current;if(!node)return;const range=document.createRange();range.selectNodeContents(node);const selection=window.getSelection();selection?.removeAllRanges();selection?.addRange(range);};
- const copy=async()=>{try{if(!navigator.clipboard)throw new Error('unavailable');await navigator.clipboard.writeText(code);setState('copied');}catch{selectValue();setState('manual');}};
- return <div className="receipt-code-box"><strong ref={value} className="receipt-code-value">{code}</strong><button type="button" className="receipt-copy-btn" onClick={()=>{void copy();}}>{state==='copied'?`${label[0].toUpperCase()}${label.slice(1)} disalin`:`Salin ${label}`}</button>{state==='manual'&&<p className="receipt-copy-manual" role="status">Belum bisa menyalin otomatis. Teks sudah dipilih; salin manual dengan tekan lama atau Ctrl+C.</p>}</div>;
+ // Runs after the box shows `code`, so the selection holds the plain value.
+ useEffect(()=>{if(state==='manual')selectContents(value.current);},[state]);
+ const copy=async()=>{try{if(!navigator.clipboard)throw new Error('unavailable');await navigator.clipboard.writeText(code);setState('copied');}catch{if(state==='manual')selectContents(value.current);else setState('manual');}};
+ return <div className="receipt-code-box"><strong ref={value} className="receipt-code-value">{state==='manual'?code:display??code}</strong><button type="button" className="receipt-copy-btn" onClick={()=>{void copy();}}>{state==='copied'?`${label[0].toUpperCase()}${label.slice(1)} disalin`:`Salin ${label}`}</button>{state==='manual'&&<p className="receipt-copy-manual" role="status">Belum bisa menyalin otomatis. Teks sudah dipilih; salin manual dengan tekan lama atau Ctrl+C.</p>}</div>;
 }
 
 export function OrderReceiptSummary({subtitle,total,children}:{subtitle:string;total:string;children:React.ReactNode}){

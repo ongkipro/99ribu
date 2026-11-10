@@ -342,7 +342,7 @@ function AutolarisPayments({
 			<div className="flex items-start justify-between gap-3">
 				<div className="flex flex-col gap-1">
 					<h2 id="autolaris-heading" className="text-base font-semibold">
-						Virtual Account / QRIS (AutoLaris, simulasi lokal)
+						Virtual Account / QRIS (AutoLaris)
 					</h2>
 					<p className="max-w-prose text-sm text-muted-foreground">
 						Status dicek otomatis dari laporan AutoLaris; hanya status lunas yang tegas dianggap lunas. Biaya admin ditanggung pembeli atau platform sesuai Pengaturan → Pembayaran; bagian yang ditanggung platform dicatat sebagai biaya pembayaran saat dana diselesaikan.

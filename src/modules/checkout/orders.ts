@@ -21,7 +21,7 @@ import {confirmCodOrder} from '../payments/cod.ts';
 import {buyerFulfillmentProgress,originalParcelReceiptProgress,originalWaybillProgress} from '../fulfillment/core.ts';
 import {buyerReplacementProgress} from '../returns/replacement-core.ts';
 import {buyerManualParcel} from '../fulfillment/manual.ts';
-import {allocateByWeight,channelEnabled,codFee,offeredChannels,paymentTerms,PAYMENT_CHANNELS,productionChannelOpen,type PaymentChannel} from '../payments/methods.ts';
+import {allocateByWeight,channelEnabled,codFee,offeredChannels,paymentTerms,PAYMENT_CHANNELS,productionChannelOpen,type PaymentChannel,orderDeadlineSeconds} from '../payments/methods.ts';
 
 export type OrderRow={id:string;operation_id:string;actionable_at?:string|null;number:string;cart_id:string;quote_id:string;owner_user_id:string|null;owner_guest_id:string|null;stock_reservation_id:string;promotion_reservation_id:string|null;payment_method:'prepaid'|'cod';payment_channel:PaymentChannel|null;payment_charge_amount:string;cod_fee_bps:number|null;transfer_code:number|null;payment_policy_version_id:string|null;merchandise_amount:string;shipping_amount:string;subsidy_amount:string;buyer_total:string;merchandise_discount?:string;buyer_note:string|null;revision:number;status:string;payment_status:string;clock_namespace:string|null;created_at:string;expires_at:string};
 export async function projectOrder(tx:TransactionSql,orderId:string){
@@ -65,6 +65,8 @@ export function unitMoney(amount:number,lines:readonly {line_id:string;quantity:
 }
 // R4 (S92 finding 3): open manual-bank orders per buyer, and transfer codes kept free.
 export const MANUAL_BANK_OPEN_PER_ACTOR=2,MANUAL_BANK_CODE_RESERVE=99;
+// DEC-031: a 2-hour AutoLaris order holds stock 4x longer than before, so it is capped per buyer like manual bank.
+export const AUTOLARIS_OPEN_PER_ACTOR=2;
 // S104: a code stays reserved while its order is open and for 72 hours after the order's deadline, so a
 // late or duplicate transfer of an expired/paid order's exact amount never matches a newer order. Callers
 // hold the transfer-code advisory lock (selection is serialized); `now` is the cart's business clock.
@@ -97,9 +99,9 @@ export async function submitOrder(tx:TransactionSql,request:Request,identity:Loc
   if(document.promotions.some(a=>!current.some(v=>v.promotion_id===a.promotion_id&&v.id===a.version_id))) throw new AccessError(409,'PROMOTION_REVIEW_REQUIRED');
  }
  const now=await cartClock(tx,cart);if(Date.parse(quote.expires_at)<=now.getTime()) throw new AccessError(409,'QUOTE_EXPIRED');
- // DEC-008: manual bank transfer keeps the order and its holds for 24 hours; other channels 30 minutes.
+ // DEC-008: manual bank transfer keeps the order and its holds for 24 hours, AutoLaris 2 hours (its bill's life), others 30 minutes.
  const channel:PaymentChannel=quote.payment_channel??(plan.payment_method==='cod'?'cod':'local-prepaid');
- const expires=new Date(now.getTime()+(channel==='manual-bank'?86400000:1800000)).toISOString(),orderId=randomUUID(),operationId=randomUUID();
+ const deadlineSeconds=orderDeadlineSeconds(channel),expires=new Date(now.getTime()+deadlineSeconds*1000).toISOString(),orderId=randomUUID(),operationId=randomUUID();
  let transferCode:number|null=null,termsVersion:string|null=null;
  // The owner's switch applies at submission too: a quote frozen before a channel was switched off cannot become an order on it.
  // Missing transfer accounts keep their own, more specific answer.
@@ -109,6 +111,10 @@ export async function submitOrder(tx:TransactionSql,request:Request,identity:Loc
  const terms=await paymentTerms(tx,now);
  if(channel==='manual-bank'&&(!terms.version_id||!terms.manual_bank_accounts.length))throw new AccessError(409,'MANUAL_BANK_UNAVAILABLE');
  if(channel!=='local-prepaid'&&!channelEnabled(terms,channel))throw new AccessError(422,'PAYMENT_CHANNEL_UNAVAILABLE');
+ if(channel==='autolaris'){
+  const [mine]=await tx`select count(*)::int n from app.commerce_order where payment_channel='autolaris' and status='pending' and payment_status='pending' and (owner_user_id=${actor.kind==='user'?actor.id:null} or owner_guest_id=${actor.kind==='guest'?actor.id:null}::uuid)`;
+  if(mine.n>=AUTOLARIS_OPEN_PER_ACTOR)throw new AccessError(409,'AUTOLARIS_OPEN_LIMIT');
+ }
  if(channel==='manual-bank'){
   termsVersion=terms.version_id;
   // R4: a 24-hour hold is capped per buyer (guest context or account; the actor is locked above).
@@ -181,7 +187,7 @@ export async function submitOrder(tx:TransactionSql,request:Request,identity:Loc
  const response={order:await projectOrder(tx,order.id)};await recordOperation(tx,actor,key,'order.create',hash,order.id,response,operationId);
  await captureOrderPlacement(tx,request,identity,actor,order.id,operationId);
  const job=await enqueueJob(tx,'checkout.order.expire',`order-expire:${order.id}`,{orderId:order.id});
- if(cart.clock_namespace) await tx`update app.outbox_job set run_at=clock_timestamp()+${channel==='manual-bank'?'24 hours':'30 minutes'}::interval where id=${job}`;
+ if(cart.clock_namespace) await tx`update app.outbox_job set run_at=clock_timestamp()+${deadlineSeconds}*interval '1 second' where id=${job}`;
  else await tx`update app.outbox_job set run_at=${expires} where id=${job}`;
  return {order:{...order,revision:response.order.version,status:'pending'},response,transport:cart.transport};
 }

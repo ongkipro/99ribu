@@ -11,6 +11,7 @@ import {advanceAttempt,createAttempt} from '../../src/modules/payments/attempts.
 import {enqueueJob} from '../../src/jobs/outbox.ts';
 import {autolarisBuyerFee} from '../../src/modules/payments/methods.ts';
 import {paymentAdapter} from '../../src/modules/payments/worker.ts';
+import {ORDER_DEADLINE_SECONDS} from '../../src/modules/payments/methods.ts';
 import {paymentFixture} from './payment-fixture.ts';
 
 // DEC-029 / S172: who bears payment fees, switchable per payment-policy version and frozen per quote (COD) or per
@@ -121,7 +122,7 @@ test('buyer-borne AutoLaris fee guards: a forged fee and a fee over Rp1.000.000 
   const late=await f.order(1,'prepaid','autolaris'),due=Number(late.order.amount_due),va=await attempt(f,late.order.id,'VABCA');
   assert.equal(va.fee,TABLE.VABCA.amount);
   await run(f,va.job,{'payment.create':paymentAdapter(sql,'test')});
-  const clock=await readFixtureClock('test',f.namespace);await advanceFixtureClock('test',f.namespace,1860,clock.version);
+  const clock=await readFixtureClock('test',f.namespace);await advanceFixtureClock('test',f.namespace,ORDER_DEADLINE_SECONDS.autolaris+60,clock.version);
   await simulateAutolarisStatus(sql,'test',va.id,'paid');
   const [poll]=await sql`select id from app.outbox_job where kind='payment.autolaris.advice' and payload->>'attemptId'=${va.id} and status='pending' order by (payload->>'poll')::int desc limit 1`;
   await run(f,String(poll.id),{'payment.autolaris.advice':autolarisAdviceAdapter(sql,'test')});

@@ -20,6 +20,11 @@ export const MANUAL_BANK_CONFIRMATION_GRACE_MS=12*3600000;
 // AutoLaris: before cancelling, a fresh advice read after the deadline is required; pending or
 // unknown answers keep the order for at most this window.
 export const AUTOLARIS_FINAL_ADVICE_WINDOW_MS=30*60000;
+// Order deadline (holds included) per channel; migration 0058 pins the same values in commerce_order_deadline_check.
+// AutoLaris (owner 2026-11-10, "2 jam"): `submit` has no expiry field and AutoLaris keeps the bill payable for exactly 2 hours
+// (both 2026-11-09 probes), so the order lives as long as the bill: a buyer paying inside the bill's life is on time here too.
+export const ORDER_DEADLINE_SECONDS={'manual-bank':86400,autolaris:7200,default:1800} as const;
+export const orderDeadlineSeconds=(channel:string)=>channel==='manual-bank'?ORDER_DEADLINE_SECONDS['manual-bank']:channel==='autolaris'?ORDER_DEADLINE_SECONDS.autolaris:ORDER_DEADLINE_SECONDS.default;
 // S181 step 3a (ADR-0008): a production channel is open ONLY while its money capability is listed in MONEY_CAPABILITIES
 // (default empty = every channel closed). One function answers "is this channel open", and BOTH the checkout listing and
 // order entry read it, so a channel can never be offered that order entry then refuses (that was the state before: manual

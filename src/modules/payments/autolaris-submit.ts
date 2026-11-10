@@ -18,8 +18,8 @@ import {AccessError} from '../access/policy.ts';
 //  - `submit` bills `grand_total` with the fee INSIDE it: grand_total 9900 answered total 9900, biaya_admin 70 (the
 //    DEC-029 contract; `create_payment` adds the fee on top instead).
 //  - `payment_info.expired` is Jakarta time, and `submit` has NO expiry field: AutoLaris chose it itself, exactly 2 hours after
-//    creation in both probes (01:40:49 WIB created, 03:40:48 expired). The buyer's QR therefore outlives 99ribu's own 30-minute
-//    payment window by 90 minutes (see the consequence in dispatchAutolarisPayment).
+//    creation in both probes (01:40:49 WIB created, 03:40:48 expired). DEC-031 (2026-11-10) gives the AutoLaris order the
+//    same 2 hours (ORDER_DEADLINE_SECONDS.autolaris), so the bill and the order end together.
 //  - A REPEATED reference creates a NEW order: the same reff_id answered a different transaction_id (1121464 then 1121465)
 //    and a new QR. AutoLaris does not deduplicate, which is why a production reconciliation pass never replays.
 // Still unobserved: the settled `advice` shape for a `submit` transaction (until the owner's own paid rehearsal).

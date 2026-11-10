@@ -25,7 +25,7 @@ import {
 	readOrderReceipt,
 } from "../../../../modules/orders/receipt";
 import { storefrontRequest } from "../../../../modules/storefront/browser";
-import { initialCheckoutPayment } from "../../../../modules/storefront/checkout-order";
+import { checkoutOrderPath, initialCheckoutPayment } from "../../../../modules/storefront/checkout-order";
 import { paymentChannelLabel, rupiah } from "../../../../modules/storefront/format";
 
 export const dynamic = "force-dynamic";
@@ -761,7 +761,7 @@ export default async function OrderReceiptPage({
 												<div>
 													<dt>Nominal transfer (tepat)</dt>
 													<dd>
-														<OrderReceiptCopyCode code={String(attempt.action.amount)} label="nominal" />
+														<OrderReceiptCopyCode code={String(attempt.action.amount)} display={rupiah(attempt.action.amount)} label="nominal" />
 													</dd>
 												</div>
 												<div>
@@ -802,7 +802,7 @@ export default async function OrderReceiptPage({
 													<div>
 														<dt>Nominal pembayaran (tepat)</dt>
 														<dd>
-															<OrderReceiptCopyCode code={String(attempt.action.amount)} label="nominal" />
+															<OrderReceiptCopyCode code={String(attempt.action.amount)} display={rupiah(attempt.action.amount)} label="nominal" />
 														</dd>
 													</div>
 													{attempt.action.payment_fee_amount > 0 && (
@@ -835,11 +835,19 @@ export default async function OrderReceiptPage({
 											<p>{attempt.action.display_text}</p>
 										</section>
 									) : null}
-									{canPrepare && (
+									{canPrepare && order.payment_channel === "autolaris" ? (
+										// The receipt form cannot carry a channel choice (bank); the payment step has it, under
+										// the same capability cookies issued at checkout.
+										<p className="checkout-next-step">
+											<Link className="button" href={checkoutOrderPath(order.id)}>
+												Pilih bank dan bayar
+											</Link>
+										</p>
+									) : canPrepare ? (
 										<OrderReceiptPaymentForm
 											initial={initialCheckoutPayment(order.id)}
 										/>
-									)}
+									) : null}
 								</div>
 							)}
 							{!cod && !paid && !refunded && (closed || expired) && (

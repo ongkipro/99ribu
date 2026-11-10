@@ -562,6 +562,8 @@ test("S92 built browser: manual bank checkout adds the unique code and a 24 h de
 		await receipt.goto(`${origin}/pesanan/${order.id}`);
 		const receiptInstructions = receipt.getByTestId("bank-transfer-instructions");
 		await expect(receiptInstructions.getByRole("heading", { name: "Transfer bank" })).toBeVisible();
+		// The amount reads as rupiah; copying (and the manual-copy fallback below) still yields digits only.
+		await expect(receiptInstructions.locator(".receipt-code-value").first()).toHaveText(rupiah(due));
 		await page.context().grantPermissions(["clipboard-read", "clipboard-write"], { origin });
 		await receiptInstructions.getByRole("button", { name: "Salin nominal", exact: true }).click();
 		await expect(receiptInstructions.getByRole("button", { name: "Nominal disalin", exact: true })).toBeVisible();
