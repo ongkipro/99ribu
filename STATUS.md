@@ -1,9 +1,9 @@
 # Status — Serba 99ribu
 
-Updated: 2026-11-09 22:55Z
-Status: Production runs image `b3ec6ec0` (2026-11-09): S181 money path deployed, closed by default (no channel offered).
+Updated: 2026-11-10 16:00Z
+Status: Production runs `450c2070` (2026-11-10): money path built, VA only (QRIS off), AutoLaris orders 2 hours (DEC-031), payments still closed.
 State: READY
-State-Detail: DEPLOYED `b3ec6ec0` (S181 1a-3b; migration 0057; full gate 707/201/387; backup 20261109T201346Z; live: closed checkout shown with a real cart). Waiting for the owner: (1) open payments in Super Admin + Coolify (MONEY_CAPABILITIES=payments + AutoLaris key + two area ids, together) and place one paid real order; (2) the npm setting that blocks the QR dependency (QRIS stays off until the QR image exists). Open engineering: COD production path, /pesanan AutoLaris instructions, manual-bank first real order
+State-Detail: DEPLOYED `450c2070` (migration 0058; gate 708/201/389 executed by ledger RUN-20261110T103132Z-19e40ef0 PASS; Argon R4 APPROVE x2; backup 20261110T111924Z; live: closed checkout with a real cart). Waiting for the owner: open VA per ADR-0008 runbook (Super Admin payment policy; Coolify MONEY_CAPABILITIES=payments + AUTOLARIS_API_KEY + AUTOLARIS_ORDER_ORIGIN_ID=3517100 + AUTOLARIS_ORDER_DESTINATION_ID=3518010 together; one real VA payment by the owner). QRIS needs the QR image (npm setting blocks the dependency). COD production path not built.
 Local-Acceptance at `dcd20fa6` + uncommitted helper repair: lint/typecheck exit 0; integration `all-current` PASS at `dcd20fa6` (exit 0, 228 files, 706/0, 2026-11-06 18:59Z; source untouched since, browser test files only, not rerun); `--case=local-providers` PASS 5/5 (12:05Z); browser `all-current` (gate 5, LOCAL worker, load 2.7 at start) FAIL exit 1: 42 files, 200 passed, 1 failed, 1 empty (`support-chat` S44-S45, 12:25Z); `npm test` NOT RUN (gate stopped on the failure; last 331/331 on `4fa50e67`). Evidence `/data/tmp/99ribu/evidence-20261107/`.
 Review-Risk: R4 for money/auth/migrations; R0–R2 per DEC-030 "Process tiers".
 
@@ -16,14 +16,15 @@ STATUS holds only now, next and what waits for the owner (DEC-030). History: [`d
 - **Gate 4 failures resolved as test-helper races (2026-11-07, tests only, R0–R2, BUILD-LOG top entry).** `storefront-checkout` "unavailable COD…": `calculate()` clicked the order-step button after a slow quote and placed an order (forced 4 s hold reproduces it; control with no click: 0 orders). `floating labels … 1440px`: `note()` toggled the summary closed after hydration opened it (forced sequence reproduces it). Both unmodified files passed alone at low load (38/38). Repaired `calculate()` in storefront-checkout, storefront-floating-labels, local-providers-states and `note()` in the first two; affected files 38/38, local-providers 5/5. Failing log kept: `evidence-20261107/gate4-browser.FAIL.log`.
 - **Gate 5 failure resolved as a test race (2026-11-07, tests only).** `support-chat.test.ts:473`: the test pressed "Kirim Pesan" before its harness had the new conversation id, so no message POST was sent (proven with a 1.5 s hold; BUILD-LOG). Fix: wait for the conversation row. `support-chat` alone 1/1; lint/typecheck exit 0. Failing log kept: `evidence-20261107/gate5-browser.FAIL.log`.
 - **Campaign history at the final source line (kept).** #1 exit 143, 4 failures (S95/S164/S165/S169, tests behind S179's courier list; fixed in `b70b2d92`). #2 `ok:true` 704/0 but exit 143: the runner hung after its summary (postgres.js `max_lifetime` on the reserved lock connection; fixed in `3177b134`, `runner-shutdown` 2/2). #3 exit 1: `advertising-http` Chromium 30 s limit (the test needs 24–30 s; 90 s budget in `dcd20fa6`) and S85 TOTP drill 180 s limit (63 s alone at low load, so load-related). #4 integration PASS, browser FAIL as above. Earlier results (browser 201/201, providers 5/5 on the pre-S179 source) are history, not evidence for `dcd20fa6`.
-- Test DB `99ribu_test` 214 MB on 2026-11-07. Reopen the tmpfs test cluster plan (archive, "Test infrastructure") if it passes ~300 MB or the S85 drill exceeds 180 s when run alone.
+- Test DB `99ribu_test` rebuilt 2026-11-10 (was 506 MB; S85 back to 78 s; dump in `/data/backups/99ribu-test-rebuild/`). Reopen the tmpfs test cluster plan (archive, "Test infrastructure") if it passes ~300 MB again or the S85 drill exceeds 180 s when run alone.
 - Not checked live: a store voucher (none exists in production yet) and the signed-in guest-order link flow.
 
 ## Waiting for the owner
 
-1. Create the dummy voucher in production (Pemasaran → Voucher → Voucher untuk: Harga produk; Rp1.000, kuota 1, 1 hari). Then the checkout check runs without placing an order and the voucher is switched off.
-2. Scope (DEC-030 (4)): which features matter for selling now; the rest is maintained, not extended.
-3. External gates, unchanged: AutoLaris live (S97: API key, egress IP, settled advice shape); Mengantar booking/tracking contract (S94/S95/S98); Berlapak stock sync agreement (S96); email provider (S124); province exclusion (S170, deferred); production Turnstile keys; switching COD to store-borne in production (the remittance booking is tested); physical printer/scanner (T-37).
+1. **Open VA payments** per the ADR-0008 runbook (2026-11-10): Super Admin payment policy, then the four Coolify variables together and redeploy, then one real VA payment by the owner before buyers are told. QRIS stays off until the QR image dependency is allowed (paste `grep -v -i -E "token|auth|password|_key" .npmrc`).
+2. Create the dummy voucher in production (Pemasaran → Voucher → Voucher untuk: Harga produk; Rp1.000, kuota 1, 1 hari). Then the checkout check runs without placing an order and the voucher is switched off.
+3. Scope (DEC-030 (4)): which features matter for selling now; the rest is maintained, not extended.
+4. External gates: AutoLaris VA live proof (settled `advice` for a `submit` transaction and `payment_info.va`, both only from the owner's first real VA payment); Mengantar booking/tracking contract (S94/S95/S98); Berlapak stock sync agreement (S96); email provider (S124); province exclusion (S170, deferred); production Turnstile keys; switching COD to store-borne in production (the remittance booking is tested); physical printer/scanner (T-37).
 
 ## Next (local, no owner input)
 
