@@ -9,7 +9,7 @@ import {resolvePolicy,TOGGLEABLE_CHANNELS,type AutolarisFeeRule,type BankAccount
 export const PAYMENT_CHANNELS={
  'local-prepaid':{method:'prepaid',adapter:'local',label:'Pembayaran simulasi'},
  'manual-bank':{method:'prepaid',adapter:'manual_bank',label:'Transfer bank'},
- autolaris:{method:'prepaid',adapter:'autolaris',label:'Virtual Account / QRIS'},
+ autolaris:{method:'prepaid',adapter:'autolaris',label:'Virtual Account'},
  cod:{method:'cod',adapter:'cod',label:'Bayar di tempat (COD)'},
 } as const;
 export type PaymentChannel=keyof typeof PAYMENT_CHANNELS;

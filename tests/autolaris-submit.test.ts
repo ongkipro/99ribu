@@ -230,3 +230,31 @@ test("the hold rule covers every combination: only production reconciliation, pe
   // The first dispatch in production always reaches the provider.
   assert.equal(shouldHoldUnrecorded("production", false, "pending", null), false);
 });
+
+test("production offers VA only until the payment page can show a scannable QRIS image; local and test keep QRIS", async () => {
+  const { channelOfferedHere, enabledChannels, QRIS_IMAGE_READY } = await import("../src/modules/payments/autolaris.ts");
+  assert.equal(QRIS_IMAGE_READY, false, "flip only together with a rendered QR image on the payment page");
+  const list = { rc: "00", ket: "Sukses", data: ["QRIS", "VABNI", "VABCA", "VAMANDIRI", "VABRI", "VAPERMATA", "OVO", "COD"].map((code) => ({ channel_code: code, name: code })) };
+  assert.equal(channelOfferedHere("QRIS", "production"), false);
+  assert.equal(channelOfferedHere("QRIS", "anything-unknown"), false, "an unknown target fails closed");
+  assert.deepEqual(enabledChannels(list, "production").map((c) => c.channel_code), ["VABNI", "VABCA", "VAMANDIRI", "VABRI", "VAPERMATA"]);
+  for (const target of ["local", "test"]) {
+    assert.equal(channelOfferedHere("QRIS", target), true, `${target} keeps the simulated QRIS`);
+    assert.deepEqual(enabledChannels(list, target).map((c) => c.channel_code), ["QRIS", "VABNI", "VABCA", "VAMANDIRI", "VABRI", "VAPERMATA"]);
+  }
+});
+
+test("a QRIS attempt is refused on the production database before any row or provider call, even if a client posts it directly", async () => {
+  const { persistAutolarisIdentity } = await import("../src/modules/payments/autolaris.ts");
+  await withEnv(live, async () => {
+    const writes: string[] = [];
+    const tx = ((strings: TemplateStringsArray) => {
+      const text = strings.join("?");
+      if (/current_database/.test(text)) return Promise.resolve([{ name: "99ribu_production" }]);
+      writes.push(text); return Promise.resolve([]);
+    }) as never;
+    await assert.rejects(persistAutolarisIdentity(tx, { id: "0b8e7c5a-1d3f-4a62-9c1e-5f2a7d9b3e44", expected_amount: 9900 }, "QRIS"),
+      (error: unknown) => error instanceof AccessError && error.status === 422 && error.code === "PAYMENT_CHANNEL_UNAVAILABLE");
+    assert.deepEqual(writes, [], "nothing is written for a refused channel");
+  });
+});

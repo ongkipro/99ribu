@@ -55,10 +55,15 @@ export function parseCreatePayment(envelope:Envelope){
  const money=(v:unknown)=>{const n=typeof v==='string'&&/^\d{1,16}$/.test(v)?Number(v):v;if(!Number.isSafeInteger(n)||Number(n)<0)throw new Error('AutoLaris response malformed');return Number(n);};
  return {rejected:false as const,trx_id:trx,instruction_kind:filled[0],instruction_value:d[filled[0]] as string,amount:money(d.amount),admin:money(d.admin),total:money(d.total)};
 }
-export function enabledChannels(envelope:Envelope){
+// QRIS needs a scannable image on the payment page; until a QR renderer is installed the page can only print the payload as
+// text, which a phone cannot scan. So production offers VA only and refuses a QRIS attempt (local and test keep QRIS).
+export const QRIS_IMAGE_READY=false;
+// Decided by the money target (the database: local/test/production), like every other money decision, never by the process profile.
+export function channelOfferedHere(code:string,target:string){return QRIS_IMAGE_READY||code!=='QRIS'||target==='local'||target==='test';}
+export function enabledChannels(envelope:Envelope,target:string){
  if(envelope.rc!=='00'||!Array.isArray(envelope.data))throw new AccessError(503,'AUTOLARIS_CHANNELS_UNAVAILABLE');
  return envelope.data.flatMap(row=>{const r=row as Record<string,unknown>;const code=String(r?.channel_code??'');
-  return (AUTOLARIS_CHANNELS as readonly string[]).includes(code)?[{channel_code:code,name:String(r.name??code).slice(0,60)}]:[];});
+  return (AUTOLARIS_CHANNELS as readonly string[]).includes(code)&&channelOfferedHere(code,target)?[{channel_code:code,name:String(r.name??code).slice(0,60)}]:[];});
 }
 
 // Live AutoLaris is gated (S97: static egress IP whitelist, server-secret key,
@@ -140,6 +145,7 @@ const reffId=(attemptId:string,environment:string)=>environment==='production'?s
 export async function persistAutolarisIdentity(tx:TransactionSql,attempt:{id:string;expected_amount:number|string;payment_fee_amount?:number|string},channelCode:string){
  if(!(AUTOLARIS_CHANNELS as readonly string[]).includes(channelCode))throw invalid();
  const environment=await moneyEnvironment(tx,'payments');
+ if(!channelOfferedHere(channelCode,environment))throw new AccessError(422,'PAYMENT_CHANNEL_UNAVAILABLE');
  await tx`insert into app.autolaris_payment (attempt_id,environment,reff_id,channel_code,requested_amount) values (${attempt.id},${environment},${reffId(attempt.id,environment)},${channelCode},${Number(attempt.expected_amount)+Number(attempt.payment_fee_amount??0)})`;
 }
 function jakarta(at:Date){
@@ -205,7 +211,7 @@ export async function dispatchAutolarisPayment(sql:Sql,target:PaymentEnvironment
  }
  if(opened.status==='pending'&&!l.responded_at){
   // The channel must be enabled by the account right now (never a hard-coded list).
-  if(!enabledChannels(await client.listPayment(signal)).some(c=>c.channel_code===l.channel_code))await failOperation(sql,target,attemptId);
+  if(!enabledChannels(await client.listPayment(signal),target).some(c=>c.channel_code===l.channel_code))await failOperation(sql,target,attemptId);
   else{
    const contact=l.contact as {phone:string;email:string|null};
    // A timeout or lost response leaves responded_at empty. Local and test replay the SAME reff_id (the simulator dedupes);

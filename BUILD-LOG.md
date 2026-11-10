@@ -1,5 +1,11 @@
 # Build log — Serba 99ribu
 
+## 2026-11-10 — S181 follow-up: production offers VA only until a QRIS image exists (R3)
+
+- The payment page prints the QRIS payload as text (no QR renderer installed), so QRIS is not offered in production: `QRIS_IMAGE_READY=false` and `channelOfferedHere(code,target)` decided by the money target (database), filtering the checkout list and the worker channel check; `persistAutolarisIdentity` refuses QRIS with 422 `PAYMENT_CHANNEL_UNAVAILABLE` before any write (the attempt transaction rolls back). Local/test keep QRIS. Buyer copy "Virtual Account".
+- A first version keyed on the process profile and broke `tests/config.test.ts` (local database under a production-like env) only in the full `npm test`; fixed by keying on the database like every other money decision.
+- Evidence: npm test 389/389; integration autolaris-payments, autolaris-stand-in, payment-fees, payment-methods, storefront-checkout-payment, local-providers 32/32; browser storefront-checkout, payment-fees, consignment-payments 37/37; three mutations each fail `tests/autolaris-submit.test.ts`. Argon APPROVE, no findings (`/data/tmp/99ribu-reviews/s181-qris-off-argon.md`).
+
 ## 2026-11-10 — S181 step 3b: drain a money channel without stranding open orders (R4, local, not deployed)
 
 - `MONEY_DRAIN` (parsed like `MONEY_CAPABILITIES`; `cod`, unknown names and a capability in both lists fail startup; forwarded once in compose). A draining channel is never offered and takes no new order (the new-order checks `productionChannelOpen`, `offeredChannels`, `usableHere`, `submitOrder` read only `MONEY_CAPABILITIES`), but every order already placed on it is served: the worker keeps `payment.create` and `payment.autolaris.advice`, the live client stays available, finance confirmation works, and a buyer of such an order may still open its payment, including a fresh bill after a failed attempt on that order (deliberate). `moneyEnvironment` serves open or draining capabilities; an unused permissive `serving` flag was removed after review.

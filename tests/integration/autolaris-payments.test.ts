@@ -28,7 +28,7 @@ test('AutoLaris simulated contract: only an explicit settlement status pays; one
  assert.throws(()=>parseCreatePayment({rc:'00',ket:'Sukses',data:base}),/malformed/,'no instruction field');
  assert.throws(()=>parseCreatePayment({rc:'00',ket:'Sukses',data:{...base,virtual_account:'877',qr:'000201'}}),/malformed/,'two instruction fields');
  assert.equal(parseCreatePayment({rc:'14',ket:'Gagal',data:null}).rejected,true);
- assert.deepEqual(enabledChannels({rc:'00',ket:'Sukses',data:[{channel_code:'COD',name:'COD'},{channel_code:'QRIS',name:'QRIS'},{channel_code:'OVO',name:'OVO'},{channel_code:'VABNI',name:'Bank BNI'}]}).map(c=>c.channel_code),['QRIS','VABNI']);
+ assert.deepEqual(enabledChannels({rc:'00',ket:'Sukses',data:[{channel_code:'COD',name:'COD'},{channel_code:'QRIS',name:'QRIS'},{channel_code:'OVO',name:'OVO'},{channel_code:'VABNI',name:'Bank BNI'}]},'test').map(c=>c.channel_code),['QRIS','VABNI']);
  for(const target of ['production','live','local'])assert.throws(()=>autolarisClientFor(target),{code:'AUTOLARIS_LIVE_GATED'});
 });
 

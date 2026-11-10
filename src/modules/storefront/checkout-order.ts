@@ -54,7 +54,7 @@ export async function checkoutOrderRequest(request:Request,identity:LocalAuth,or
 // which stays AUTOLARIS_LIVE_GATED until S97, so no AutoLaris channel is offered there.
 export async function autolarisChannels(identity:Pick<LocalAuth,'sql'>):Promise<CheckoutPaymentChannel[]>{
  try{const [db]=await identity.sql<{name:string}[]>`select current_database() name`;const target=db.name==='99ribu_test'?'test':db.name==='99ribu_local'?'local':'production';
-  return enabledChannels(await autolarisClientFor(target,identity.sql).listPayment());}
+  return enabledChannels(await autolarisClientFor(target,identity.sql).listPayment(),target);}
  catch{return [];}
 }
 export async function readCheckoutPayment(request:Request,identity:LocalAuth,orderId:string):Promise<CheckoutPaymentView>{
@@ -94,7 +94,7 @@ export async function prepareCheckoutPayment(request:Request,identity:LocalAuth,
   const [channel]=await identity.sql`select coalesce(payment_channel,'local-prepaid') method_id from app.commerce_order where id=${id(input.order)}`;
   // A COD order has no prepaid attempt; the native writer answers PAYMENT_NOT_AVAILABLE.
   const method=channel?.method_id==='cod'?'local-prepaid':channel?.method_id??'local-prepaid';
-  if(method==='autolaris'&&!input.channel_code)return {...initial,phase:'error',message:'Pilih bank Virtual Account atau QRIS terlebih dahulu.',code:'INVALID_INPUT',blocked:false};
+  if(method==='autolaris'&&!input.channel_code)return {...initial,phase:'error',message:'Pilih bank Virtual Account terlebih dahulu.',code:'INVALID_INPUT',blocked:false};
   const response=await handlePayments(checkoutApiRequest(scoped,`/api/v1/orders/${id(input.order)}/payment-attempts`,'POST',method==='autolaris'?{method_id:method,channel_code:input.channel_code}:{method_id:method},input.key),identity),data=await response.json();
   if(!response.ok)throw new AccessError(response.status,data.code);
   return {...initial,phase:'success',message:'Instruksi pembayaran tersimpan. Periksa status dari halaman ini.'};
