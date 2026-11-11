@@ -1,5 +1,11 @@
 # Build log — Serba 99ribu
 
+## 2026-11-10 — ARCHITECTURE.md regenerated for production (R0, docs only)
+
+- `ARCHITECTURE.md` described 2026-10-29 (migrations to 0049, nothing deployed, AutoLaris simulated). Regenerated at `afcccc65`: deployed production profile and image, live AutoLaris `submit` (VA only) and live Mengantar rates in the system map, new section "Production money path (ADR-0008)" (capability gates, `submit` contract and failure handling, deadlines and per-buyer limits, what is not built), production worker adapters, retention entry `support_challenge.guest_order_access`, proxy matcher, `payments` module row, migrations/ADR/scripts/area counts. Removed: the per-slice historical appendix (moved unchanged to `docs/history/ARCHITECTURE-slice-notes-20261110.md`), the stale per-department catalog table (v3 counts), volatile test counts, the resolved Known-differences row 12. Known differences 5 rewritten (production accepts exactly three `AUTOLARIS_*` names) and 7 marked "Matters now": production has no AutoLaris settlement entry, so `provider_receivable` stays open and the fee is unbooked until it is built (needs the provider's payout shape first).
+- Input: a Gemini Carbon audit (`/data/tmp/99ribu-reviews/carbon-arch-report.clean.md`). Every claim was checked against the code before use; several were wrong (a `postgres` service and Caddy in `compose.production.yaml`, `MONEY_DRAIN=1`, `manual_bank` refused at startup, a `payment.autolaris.list_payment` job, host `backend.autolaris.com`, 125 route files) and were not used.
+- Check: `npm run docs:check` ok (62 Markdown files).
+
 ## 2026-11-10 — VA path hardening after a gateway comparison with AdsBookCMS (R4)
 
 - Gemini Carbon compared AdsBookCMS's AutoLaris gateway with 99ribu (report `/data/tmp/99ribu-reviews/carbon-adsbook-report.clean.md`). Each claim was checked against the code before acting; the two High defects were reproduced by failing tests first.
