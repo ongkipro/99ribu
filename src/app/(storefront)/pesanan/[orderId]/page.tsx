@@ -1,3 +1,4 @@
+import { PaymentStatusRefresh } from "../../../../components/storefront/payment-status-refresh";
 import Link from "next/link";
 import { redirect } from "next/navigation";
 import { CheckoutFrame } from "../../../../components/storefront/checkout-frame";
@@ -567,6 +568,9 @@ export default async function OrderReceiptPage({
 	return (
 		<CheckoutFrame back="catalog">
 			{shouldObserve && <OrderReceiptObserver orderId={order.id} />}
+			<PaymentStatusRefresh
+				active={awaitingPrepaid && !attemptUnavailable && (attempt?.status === "pending" || attempt?.status === "unknown")}
+			/>
 			<div className="receipt-shell">
 				<header className="receipt-header">
 					<p className="checkout-order-reference">

@@ -4,6 +4,7 @@ import {CheckoutFrame} from '../../../../../components/storefront/checkout-frame
 import {CheckoutHelp} from '../../../../../components/storefront/checkout-help';
 import {CheckoutPaymentForm} from '../../../../../components/storefront/checkout-forms';
 import {Icon} from '../../../../../components/storefront/ui/icon';
+import {PaymentStatusRefresh} from '../../../../../components/storefront/payment-status-refresh';
 import {paymentChannelLabel,rupiah} from '../../../../../modules/storefront/format';
 import {getLocalAuth} from '../../../../../modules/access/auth';
 import {id} from '../../../../../modules/catalog/validation';
@@ -30,5 +31,6 @@ export default async function CheckoutPayment({params}:{params:Promise<{orderId:
    {/* lazy: no browser test forces list_payment to fail (needs a failing stand-in); add one if this branch grows. */}{canPrepare&&(order.payment_channel==='autolaris'&&!view.channels.length?<p role="alert" className="checkout-field-error" data-testid="autolaris-channels-unavailable">Daftar bank Virtual Account belum dapat dimuat. Muat ulang halaman ini sebentar lagi; pesanan dan stok tetap dicadangkan sampai batas pembayaran.</p>:<CheckoutPaymentForm initial={initialCheckoutPayment(order.id)} channels={view.channels}/>)}</>}
   {!cod&&!paid&&(closed||expired)&&<div className="checkout-next-step"><p>Pilih produk dari katalog untuk memulai pesanan baru.</p><Link className="button" href="/cari">Lihat produk</Link></div>}
   {thanks?<div className="checkout-next-step"><p>Kami akan memproses pesanan Anda. Simpan nomor pesanan untuk melacak statusnya.</p><Link className="button" href="/cari">Lanjut belanja</Link></div>:<><a className="button secondary checkout-status-refresh" href={path}>Perbarui status</a><p className="checkout-hint">Muat ulang halaman untuk membaca status terbaru, bukan mengirim pesanan baru.</p></>}
+ <PaymentStatusRefresh active={!cod&&!paid&&!closed&&!expired&&!view.attemptUnavailable&&(attempt?.status==='pending'||attempt?.status==='unknown')}/>
  <CheckoutHelp context="payment"/></section></CheckoutFrame>;
 }

@@ -74,7 +74,10 @@ export async function readCheckoutPayment(request:Request,identity:LocalAuth,ord
   // DEC-008: AutoLaris channels come from the account's list_payment (simulated locally), never a fixed list.
   // DEC-029: price each channel with the policy in force now (the attempt freezes the same rule); an unpriced channel
   // is not offered while the buyer bears the fee.
-  const terms=order.payment_channel==='autolaris'?await paymentTerms(identity.sql,new Date(clock.now)):null;
+  // The bank list is needed only when the buyer can choose a bank (no attempt yet, or the last one failed/expired); otherwise the
+  // page must not call the provider (it re-renders every 10 s while a payment is pending, PaymentStatusRefresh).
+  const choosing=!attemptUnavailable&&(!attempt||attempt.status==='failed'||attempt.status==='expired');
+  const terms=order.payment_channel==='autolaris'&&choosing?await paymentTerms(identity.sql,new Date(clock.now)):null;
   const channels=terms?(await autolarisChannels(identity)).flatMap(c=>{const fee=autolarisBuyerFee(terms,c.channel_code,Number(order.amount_due));return fee===null?[]:[{...c,fee}];}):[];
   return {kind:'ready',order,attempt,attemptUnavailable,now:clock.now,channels};
  }catch(error){return {kind:error instanceof AccessError&&error.status<500?'denied':'unavailable',order:null,attempt:null,attemptUnavailable:true,now:null,code:error instanceof AccessError?error.code:'SERVICE_UNAVAILABLE',channels:[]};}

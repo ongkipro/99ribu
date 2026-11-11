@@ -155,9 +155,9 @@ test('S172 the buyer sees the admin fee per bank before choosing, and the instru
      assert.deepEqual([Number(attempt.expected_amount),Number(attempt.payment_fee_amount)],[order.amount_due,6500]);
      await identity.sql`update app.outbox_job set run_at=clock_timestamp() where id=${attempt.creation_job_id}`;
      assert.equal(await runOneJob(identity.sql,{'payment.create':paymentAdapter(identity.sql,'local')},String(attempt.creation_job_id)),true);
-     await page.reload();
+     // No reload: the payment step re-reads itself while the instruction is being created (PaymentStatusRefresh, 10 s).
      const instruction=page.getByTestId('autolaris-instructions');
-     await expect(instruction).toContainText(`Rp${(order.amount_due+6500).toLocaleString('id-ID')}`);
+     await expect(instruction).toContainText(`Rp${(order.amount_due+6500).toLocaleString('id-ID')}`,{timeout:25000});
      await expect(instruction).toContainText('termasuk biaya admin Rp6.500');
      await expect(instruction.getByRole('heading',{level:2})).toHaveText('Virtual Account BCA');
      await capture(page,`order-instruction-${width}`);

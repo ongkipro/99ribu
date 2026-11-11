@@ -3,14 +3,14 @@ import {type MoneyCapability,readRuntimeConfig,runtimeTarget} from '../../config
 import {AccessError} from '../access/policy.ts';
 import {resolvePolicy,TOGGLEABLE_CHANNELS,type AutolarisFeeRule,type BankAccount,type FeeBearer,type ToggleableChannel} from '../settings/policies.ts';
 
-// DEC-008 payment adapter seam. Order and ledger code depend on the channel, never
-// on a provider: each channel names its method, the adapter that creates its
-// payment intent, and its buyer-visible label. AutoLaris (S93) runs on a local simulated contract.
+// DEC-008: order and ledger code depend on the channel, never on a provider. Each channel names its payment method and
+// its buyer-visible label; the provider work is chosen by `payments/worker.ts:paymentAdapter` (AutoLaris dispatch, else the
+// local operation that manual bank and the simulator settle).
 export const PAYMENT_CHANNELS={
- 'local-prepaid':{method:'prepaid',adapter:'local',label:'Pembayaran simulasi'},
- 'manual-bank':{method:'prepaid',adapter:'manual_bank',label:'Transfer bank'},
- autolaris:{method:'prepaid',adapter:'autolaris',label:'Virtual Account'},
- cod:{method:'cod',adapter:'cod',label:'Bayar di tempat (COD)'},
+ 'local-prepaid':{method:'prepaid',label:'Pembayaran simulasi'},
+ 'manual-bank':{method:'prepaid',label:'Transfer bank'},
+ autolaris:{method:'prepaid',label:'Virtual Account'},
+ cod:{method:'cod',label:'Bayar di tempat (COD)'},
 } as const;
 export type PaymentChannel=keyof typeof PAYMENT_CHANNELS;
 // Spec 11 (R4): the buyer deadline is judged by transfer/payment time, not by when we learn of it.
