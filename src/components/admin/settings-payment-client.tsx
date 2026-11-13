@@ -70,7 +70,7 @@ const feeText = (rule: FeeRule | undefined) =>
 			? `Rp${rule.amount.toLocaleString("id-ID")}`
 			: `${bpsToPercent(rule.bps)}%`;
 const bearerText = (bearer: Bearer | undefined, fallback: Bearer) =>
-	(bearer ?? fallback) === "buyer" ? "Pembeli" : "Platform";
+	(bearer ?? fallback) === "buyer" ? "Pembeli" : "Penjual";
 
 export type PaymentPolicyValues = {
 	cod_fee_bps: number;
@@ -79,6 +79,7 @@ export type PaymentPolicyValues = {
 	payment_fee_bearer?: Bearer;
 	cod_fee_bearer?: Bearer;
 	autolaris_fees?: Record<string, FeeRule>;
+	autolaris_turnover_bps?: number;
 };
 
 export type PaymentPolicyVersion = {
@@ -326,6 +327,7 @@ export function SettingsPaymentClient({ canWrite }: { canWrite: boolean }) {
 												([code, label]) =>
 													`${label} ${feeText(current.values.autolaris_fees?.[code])}`,
 											).join(" · ")}
+											{` · potongan omset ${bpsToPercent(current.values.autolaris_turnover_bps ?? 0)}%`}
 										</span>
 									)}
 								</dd>
@@ -509,6 +511,10 @@ function PaymentPolicyDialog({
 	const [codBearer, setCodBearer] = useState<Bearer>(
 		current?.cod_fee_bearer ?? "buyer",
 	);
+	// DEC-032: AutoLaris's cut of the paid amount on every channel; a new table starts at the owner's 1%.
+	const [turnover, setTurnover] = useState(() =>
+		bpsToPercent(current?.autolaris_turnover_bps ?? (current?.autolaris_fees ? 0 : 100)),
+	);
 	const [fees, setFees] = useState<Record<string, string>>(() =>
 		Object.fromEntries(
 			FEE_CHANNELS.map(([code]) => {
@@ -572,6 +578,12 @@ function PaymentPolicyDialog({
 			}
 		}
 
+		const turnoverBps = percentToBps(turnover.trim());
+		if (turnoverBps === null || turnoverBps > 2000) {
+			intent.setError("Potongan omset AutoLaris diisi persen 0–20, contoh 1.");
+			return;
+		}
+
 		let effectiveAt: string | null = null;
 		if (when === "later") {
 			effectiveAt = at ? wibInputToIso(at) : null;
@@ -599,6 +611,7 @@ function PaymentPolicyDialog({
 					payment_fee_bearer: paymentBearer,
 					cod_fee_bearer: codBearer,
 					autolaris_fees: feeTable,
+					autolaris_turnover_bps: turnoverBps,
 				},
 				reason: reason.trim(),
 			}),
@@ -667,19 +680,19 @@ function PaymentPolicyDialog({
 				data-testid="payment-fee-bearer-switch"
 			>
 				<legend className="mb-1 text-sm font-medium">
-					Biaya admin Virtual Account / QRIS ditanggung
+					Biaya admin Virtual Account / QRIS dibayar oleh
 				</legend>
 				{(
 					[
 						[
-							"store",
-							"Platform",
-							"Pembeli membayar total pesanan; biaya admin dipotong dari dana yang platform terima.",
-						],
-						[
 							"buyer",
 							"Pembeli",
-							"Biaya admin ditambahkan ke tagihan VA/QRIS; platform menerima total pesanan.",
+							"Biaya admin (tarif per transaksi + potongan omset AutoLaris) ditambahkan ke tagihan; penjual menerima total pesanan utuh.",
+						],
+						[
+							"store",
+							"Penjual",
+							"Pembeli membayar total pesanan saja; biaya admin dipotong dari dana yang diterima penjual.",
 						],
 					] as const
 				).map(([value, label, detail]) => (
@@ -724,10 +737,24 @@ function PaymentPolicyDialog({
 						</FormField>
 					))}
 					<p className="col-span-full text-xs text-muted-foreground">
-						Tarif akun AutoLaris. Dipakai menghitung tagihan pembeli bila biaya
-						ditanggung pembeli; pesanan yang sudah ada tidak berubah.
+						Tarif akun AutoLaris per transaksi. Bila ditanggung pembeli, tagihan dihitung
+						agar platform tetap menerima total pesanan setelah tarif ini dan potongan omset;
+						pesanan yang sudah ada tidak berubah.
 					</p>
 				</div>
+				<FormField
+					id="terms-fee-turnover"
+					label="Potongan omset AutoLaris (%)"
+					hint="Dipotong AutoLaris dari total yang dibayar pembeli, di semua metode. Contoh 1."
+				>
+					<Input
+						id="terms-fee-turnover"
+						className="max-w-32"
+						inputMode="decimal"
+						value={turnover}
+						onChange={(e) => setTurnover(e.target.value)}
+					/>
+				</FormField>
 			</fieldset>
 
 			<fieldset
@@ -746,8 +773,8 @@ function PaymentPolicyDialog({
 						],
 						[
 							"store",
-							"Platform",
-							"Pembeli tidak membayar biaya COD; potongan kurir tetap tercatat saat setoran COD.",
+							"Penjual",
+							"Pembeli tidak membayar biaya COD; potongan kurir dibayar penjual dan tercatat saat setoran COD.",
 						],
 					] as const
 				).map(([value, label, detail]) => (

@@ -101,6 +101,33 @@ test('AutoLaris fee borne by the buyer: priced from the policy, frozen on the at
  }finally{await policy.restore();await f.close();}
 });
 
+test('DEC-032 formula B: the channel fee plus a 1% turnover cut is priced the same in SQL and TypeScript, accepted by the provider check, and the store keeps the order value at settlement',async()=>{
+ const f=await paymentFixture(),sql=f.identity.sql,policy=await terms(f);
+ try{
+  const B={payment_fee_bearer:'buyer' as const,autolaris_fees:TABLE as never,autolaris_turnover_bps:100};
+  await policy.write({payment_fee_bearer:'buyer',autolaris_fees:TABLE,autolaris_turnover_bps:100});
+  const [wall]=await sql`select app.reservation_clock(${f.namespace}) now`;
+  for(const channel of ['VABNI','VABCA','QRIS'])for(const due of [1,99,9900,107000,198000]){
+   const [row]=await sql`select app.autolaris_buyer_fee(${channel},${due},${wall.now}) fee`;
+   assert.equal(Number(row.fee),autolarisBuyerFee(B,channel,due),`SQL and TypeScript agree (${channel}, ${due})`);
+  }
+  // The simulator reports only the channel fee in `admin` (Rp3.000), as the live answer does: the provider check accepts the
+  // turnover part on top of it; the attempt is billed, paid and received at the order value.
+  const one=await f.order(1,'prepaid','autolaris'),due=Number(one.order.amount_due),va=await attempt(f,one.order.id,'VABNI');
+  const fee=autolarisBuyerFee(B,'VABNI',due) as number;
+  assert.deepEqual([va.fee,va.action.amount],[fee,due+fee]);assert.ok(fee>3000,'the buyer fee includes the 1% part');
+  await pay(f,va);
+  const [l]=await sql`select refusal_code,admin_fee,provider_total from app.autolaris_payment where attempt_id=${va.id}`;
+  assert.deepEqual([l.refusal_code,Number(l.admin_fee),Number(l.provider_total)],[null,3000,due+fee],'not refused; the provider reports only its channel fee');
+  assert.equal((await sql`select payment_status from app.commerce_order where id=${one.order.id}`)[0].payment_status,'confirmed');
+  assert.equal(Number((await sql`select amount from app.economic_receipt where order_id=${one.order.id}`)[0].amount),due,'the receipt is the order value');
+  // Settlement takes the channel fee and 1% of the bill; the buyer fee covered both (formula B), so the store books no fee.
+  const settled=await simulateAutolarisSettlement(sql,'test',va.id);await run(f,String(settled.job),{});
+  const [st]=await sql`select gross_amount,provider_fee from app.local_settlement_statement where id=${settled.event.statement_id}`;
+  assert.deepEqual([Number(st.gross_amount),Number(st.provider_fee)],[due,0],'gross is the order value; nothing is left for the store to bear');
+ }finally{await policy.restore();await f.close();}
+});
+
 test('buyer-borne AutoLaris fee guards: a forged fee and a fee over Rp1.000.000 are refused at insert; a bill paid after expiry is a late-payment recovery at the order value',async()=>{
  const f=await paymentFixture(),sql=f.identity.sql,policy=await terms(f);
  try{

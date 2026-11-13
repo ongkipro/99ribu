@@ -194,12 +194,19 @@ export function shouldHoldUnrecorded(target:PaymentEnvironment,reconciliation:bo
 export function logAutolarisFailure(endpoint:'list_payment'|'submit'|'advice',attemptId:string|null,error:unknown){
  console.error(JSON.stringify({event:'autolaris.call_failed',endpoint,attempt_id:attemptId,error:error instanceof Error?error.message.slice(0,120):typeof error}));
 }
+// DEC-032: the buyer fee is covered when it is at most the transaction's channel fee (`biaya_admin`) plus the account's turnover
+// cut of the bill (rounded up, as the provider rounds), which AutoLaris takes later at settlement. Turnover 0 = the DEC-029 check.
+export function buyerFeeCovered(buyerFee:number,providerAdmin:number,bps:number,bill:number){return buyerFee<=providerAdmin+Math.ceil(bill*bps/10000);}
 export function mayReplayProviderRequest(target:PaymentEnvironment,reconciliation:boolean){return !(target==='production'&&reconciliation);}
 export async function dispatchAutolarisPayment(sql:Sql,target:PaymentEnvironment,attemptId:string,client:AutolarisClient,signal?:AbortSignal,reconciliation=false,lastTry=false):Promise<Outcome>{
  const opened=await sql.begin(async tx=>{
   const opened=await openLocalOperation(tx,target,attemptId);
   await tx`update app.autolaris_payment set operation_id=${opened.operation_id} where attempt_id=${attemptId} and operation_id is null`;
-  const [identity]=await tx`select l.*,a.payment_fee_amount,o.number,o.expires_at,q.document->'contact' contact,q.document->'address'->>'recipient_name' recipient from app.autolaris_payment l join app.payment_attempt a on a.id=l.attempt_id
+  // DEC-032: the turnover cut (basis points) of the payment version that priced this attempt (the version current at its creation,
+  // as app.autolaris_buyer_fee reads); 0 for a store-borne fee or a version without it.
+  const [identity]=await tx`select l.*,a.payment_fee_amount,o.number,o.expires_at,q.document->'contact' contact,q.document->'address'->>'recipient_name' recipient,
+   case when a.payment_fee_amount>0 then coalesce((select (v.values->>'autolaris_turnover_bps')::int from app.policy_version v where v.id=app.current_payment_policy_version(a.created_at)),0) else 0 end turnover_bps
+   from app.autolaris_payment l join app.payment_attempt a on a.id=l.attempt_id
    join app.commerce_order o on o.id=a.order_id join app.checkout_quote q on q.id=o.quote_id where l.attempt_id=${attemptId}`;
   if(!identity)throw new AccessError(409,'AUTOLARIS_IDENTITY_MISSING');return {...opened,identity};
  });
@@ -243,9 +250,10 @@ export async function dispatchAutolarisPayment(sql:Sql,target:PaymentEnvironment
    if(parsed.rejected){console.warn(JSON.stringify({event:'autolaris.submit_rejected',attempt_id:attemptId,rc:parsed.rc}));await failOperation(sql,target,attemptId);}
    else{
     // DEC-008 (3) / DEC-029: the provider bills exactly the requested amount (order value plus any frozen buyer fee) and deducts its fee; any other amount or total is refused.
-    // DEC-029: a buyer-borne fee must not exceed what the provider deducts, or the store would hold buyer money it
-    // cannot settle; refused before any instruction is shown (the attempt fails, the buyer may pick another channel).
-    const refusal=parsed.amount!==Number(l.requested_amount)?'AUTOLARIS_AMOUNT_MISMATCH':parsed.total!==Number(l.requested_amount)?'AUTOLARIS_TOTAL_MISMATCH':parsed.admin<Number(l.payment_fee_amount)?'AUTOLARIS_FEE_MISMATCH':null;
+    // DEC-029/DEC-032: a buyer-borne fee must not exceed what the provider deducts, or the store would hold buyer money it
+    // cannot settle; refused before any instruction is shown (the attempt fails, the buyer may pick another channel). The
+    // transaction answer carries only the channel fee (`biaya_admin`); the percentage cut is taken later, so it is added here.
+    const refusal=parsed.amount!==Number(l.requested_amount)?'AUTOLARIS_AMOUNT_MISMATCH':parsed.total!==Number(l.requested_amount)?'AUTOLARIS_TOTAL_MISMATCH':!buyerFeeCovered(Number(l.payment_fee_amount),parsed.admin,Number(l.turnover_bps),parsed.total)?'AUTOLARIS_FEE_MISMATCH':null;
     const record=(tx:TransactionSql)=>tx`update app.autolaris_payment set trx_id=${parsed.trx_id},instruction_kind=${parsed.instruction_kind},instruction_value=${parsed.instruction_value},provider_amount=${parsed.amount},admin_fee=${parsed.admin},provider_total=${parsed.total},refusal_code=${refusal},responded_at=clock_timestamp() where attempt_id=${attemptId} and responded_at is null`;
     if(refusal){console.warn(JSON.stringify({event:'autolaris.submit_refused',attempt_id:attemptId,code:refusal}));await failOperation(sql,target,attemptId,record);}
     else await sql.begin(async tx=>{await record(tx);await scheduleAdvice(tx,attemptId,1);});
@@ -301,13 +309,17 @@ export function autolarisAdviceAdapter(sql:Sql,target:PaymentEnvironment,client:
 // through the existing S30 settlement journals (never buyer revenue, Purchase or commission).
 export async function simulateAutolarisSettlement(sql:Sql,target:'local'|'test',attemptId:string){
  return sql.begin(async tx=>{
-  const [row]=await tx`select l.trx_id,l.provider_total,l.admin_fee,a.payment_fee_amount,r.transaction_id,o.clock_namespace from app.autolaris_payment l join app.payment_attempt a on a.id=l.attempt_id join app.commerce_order o on o.id=a.order_id
+  const [row]=await tx`select l.trx_id,l.provider_total,l.admin_fee,a.payment_fee_amount,r.transaction_id,o.clock_namespace,
+   case when a.payment_fee_amount>0 then coalesce((select (v.values->>'autolaris_turnover_bps')::int from app.policy_version v where v.id=app.current_payment_policy_version(a.created_at)),0) else 0 end turnover_bps
+   from app.autolaris_payment l join app.payment_attempt a on a.id=l.attempt_id join app.commerce_order o on o.id=a.order_id
    join app.economic_receipt r on r.id=a.receipt_id where l.attempt_id=${id(attemptId)} and l.environment=${target}`;
   if(!row)throw new AccessError(409,'AUTOLARIS_SETTLEMENT_UNAVAILABLE');
   // DEC-029: the buyer-paid fee is a pass-through: the statement's gross is the receipt (bill minus that fee) and the
   // store's cost is only what the provider deducts beyond it. A buyer fee above the provider fee would mean the store
   // charged the buyer more than the bank took: refused for finance review, never booked silently.
-  const buyerFee=Number(row.payment_fee_amount),gross=Number(row.provider_total)-buyerFee,fee=Number(row.admin_fee)-buyerFee;
+  // DEC-032: AutoLaris's percentage cut of the bill is deducted at settlement on top of the transaction's channel fee.
+  const turnover=Math.ceil(Number(row.provider_total)*Number(row.turnover_bps)/10000);
+  const buyerFee=Number(row.payment_fee_amount),gross=Number(row.provider_total)-buyerFee,fee=Number(row.admin_fee)+turnover-buyerFee;
   if(fee<0)throw new AccessError(409,'AUTOLARIS_FEE_VARIANCE');
   const event=await settlementSourceEvent(tx,target,{provider:'local.payment',reference:`autolaris:${row.trx_id}`,direction:'credit',net_amount:gross-fee,clock_namespace:row.clock_namespace,
    statement:{gross_amount:gross,carrier_fee:0,provider_fee:fee,allocation_claims:[{receivable_transaction_id:String(row.transaction_id),gross_amount:gross,reopens_allocation_id:null}],reverses_reference:null}});

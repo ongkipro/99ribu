@@ -78,10 +78,12 @@ export function valuesFor(kind: Kind, value: unknown) {
   }
   if (kind === "payment") {
     // DEC-009 buyer COD fee rate (basis points) and DEC-008 manual transfer accounts.
-    if (Object.keys(data).some((key) => !["cod_fee_bps", "manual_bank_accounts", "enabled_channels", "payment_fee_bearer", "cod_fee_bearer", "autolaris_fees"].includes(key)) ||
+    if (Object.keys(data).some((key) => !["cod_fee_bps", "manual_bank_accounts", "enabled_channels", "payment_fee_bearer", "cod_fee_bearer", "autolaris_fees", "autolaris_turnover_bps"].includes(key)) ||
       ("payment_fee_bearer" in data && !["buyer", "store"].includes(data.payment_fee_bearer as string)) ||
       ("cod_fee_bearer" in data && !["buyer", "store"].includes(data.cod_fee_bearer as string)) ||
       ("autolaris_fees" in data && !feeRules(data.autolaris_fees)) ||
+      // DEC-032: AutoLaris's cut of the paid amount, taken at settlement on every channel (basis points, 0–20%).
+      ("autolaris_turnover_bps" in data && !(Number.isSafeInteger(data.autolaris_turnover_bps) && Number(data.autolaris_turnover_bps) >= 0 && Number(data.autolaris_turnover_bps) <= 2000)) ||
       !Number.isSafeInteger(data.cod_fee_bps) || Number(data.cod_fee_bps) < 0 || Number(data.cod_fee_bps) > 2000 ||
       ("manual_bank_accounts" in data && !(Array.isArray(data.manual_bank_accounts) && (data.manual_bank_accounts.length === 0 || bankAccounts(data.manual_bank_accounts))))) throw invalid();
     // Owner switches for the buyer-facing channels (absent in older versions = all on). At least one stays on.
@@ -92,6 +94,7 @@ export function valuesFor(kind: Kind, value: unknown) {
       ...(enabled === undefined ? {} : { enabled_channels: TOGGLEABLE_CHANNELS.filter((c) => (enabled as string[]).includes(c)) }),
       ...(data.payment_fee_bearer === undefined ? {} : { payment_fee_bearer: data.payment_fee_bearer as FeeBearer }),
       ...(data.cod_fee_bearer === undefined ? {} : { cod_fee_bearer: data.cod_fee_bearer as FeeBearer }),
+      ...(data.autolaris_turnover_bps === undefined ? {} : { autolaris_turnover_bps: Number(data.autolaris_turnover_bps) }),
       ...(data.autolaris_fees === undefined ? {} : { autolaris_fees: Object.fromEntries(AUTOLARIS_FEE_CHANNELS.flatMap((c) => {
         const rule = (data.autolaris_fees as Record<string, AutolarisFeeRule>)[c];
         return rule ? [[c, rule.kind === "fixed" ? { kind: "fixed" as const, amount: rule.amount } : { kind: "bps" as const, bps: rule.bps }]] : [];

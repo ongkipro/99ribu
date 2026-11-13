@@ -414,6 +414,13 @@
       "when": 1794306855638,
       "tag": "0058_autolaris_order_deadline_2h",
       "breakpoints": true
+    },
+    {
+      "idx": 59,
+      "version": "7",
+      "when": 1794450317125,
+      "tag": "0059_autolaris_fee_formula_b",
+      "breakpoints": true
     }
   ]
 }

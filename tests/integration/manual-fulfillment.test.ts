@@ -95,6 +95,10 @@ test('manual COD parcel: queue by path, resi entry ships once, buyer sees courie
   // Tracking seam: simulated adapter; superseded resi poll stops; monotonic statuses.
   const [first,second]=await sql`select mt.id,j.id job_id from app.manual_tracking mt join app.outbox_job j on j.dedup_key='fulfillment-tracking:'||mt.id::text where mt.fulfillment_id=${manual.id} order by mt.version`;
   const runPoll=async(jobId:string)=>{await sql`update app.outbox_job set run_at=clock_timestamp() where id=${jobId} and status='pending'`;assert.equal(await runOneJob(sql,{},jobId),true);return (await sql`select status,result,last_error from app.outbox_job where id=${jobId}`)[0];};
+  // A fixture parcel's poll belongs to its suite: the long-running LOCAL worker loop does not claim it (S91/S100 race).
+  await sql`update app.outbox_job set run_at=clock_timestamp() where id=${first.job_id} and status='pending'`;
+  assert.equal(await runOneJob(sql,{},first.job_id,{skipFixtureNamespaces:true}),false,'the LOCAL worker loop skips a fixture parcel poll');
+  assert.equal((await sql`select status from app.outbox_job where id=${first.job_id}`)[0].status,'pending');
   assert.deepEqual((await runPoll(first.job_id)).result,{status:'superseded'});
   await simulateTrackingObservation(sql,'test',{courier:'sicepat',tracking_number:resiB,provider_status:'IN_TRANSIT'});
   await simulateTrackingObservation(sql,'test',{courier:'sicepat',tracking_number:resiB,provider_status:'WEIRD_STATUS'});

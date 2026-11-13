@@ -75,7 +75,9 @@ test('S172 owner switches who bears the VA/QRIS and COD fees; the new version ca
    await expect(dialog.getByTestId('payment-fee-table')).toBeVisible();
    // The form starts with the owner's rates (QRIS 0,7%, VA BCA Rp6.500, other VA Rp3.000).
    await expect(dialog.getByLabel('VA BCA (Rp)')).toHaveValue('6500');await expect(dialog.getByLabel('VA BRI (Rp)')).toHaveValue('3000');await expect(dialog.getByLabel('QRIS (%)')).toHaveValue('0,7');
-   await dialog.getByTestId('cod-fee-bearer-switch').getByLabel(/^Platform/).check();
+   // DEC-032: the account-wide turnover cut (1% of the paid amount) is one field; an older saved table reads back 0.
+   const turnover=dialog.getByLabel('Potongan omset AutoLaris (%)');await expect(turnover).toBeVisible();await turnover.fill('1');
+   await dialog.getByTestId('cod-fee-bearer-switch').getByLabel(/^Penjual/).check();
    await capture(view.page,`settings-page-${width}`);
    await writeFile(`${output}/settings-dialog-${width}.png`,await dialog.screenshot());
    await dialog.getByTestId('payment-reason').fill('SYNTHETIC S172 fee bearer');await dialog.getByTestId('payment-password').fill(owner.password);
@@ -85,10 +87,11 @@ test('S172 owner switches who bears the VA/QRIS and COD fees; the new version ca
    assert.equal(values.payment_fee_bearer,'buyer');assert.equal(values.cod_fee_bearer,'store');
    assert.deepEqual(Object.keys(values.autolaris_fees as object).sort(),['QRIS','VABCA','VABNI','VABRI','VAMANDIRI','VAPERMATA']);
    assert.deepEqual((values.autolaris_fees as Record<string,unknown>).QRIS,{kind:'bps',bps:70});
+   assert.equal(values.autolaris_turnover_bps,100,'the 1% turnover cut is saved beside the channel table');
    // With the platform bearing the fee the table is still saved, so a later switch keeps the rates.
    await view.page.getByTestId('payment-policy-new').click();
    const again=view.page.getByRole('dialog');
-   await again.getByTestId('payment-fee-bearer-switch').getByLabel(/^Platform/).check();
+   await again.getByTestId('payment-fee-bearer-switch').getByLabel(/^Penjual/).check();
    await again.getByTestId('payment-reason').fill('SYNTHETIC S172 platform bears the fee');await again.getByTestId('payment-password').fill(owner.password);
    await again.getByRole('button',{name:'Simpan ketentuan'}).click();
    await expect.poll(()=>posted.length).toBe(2);

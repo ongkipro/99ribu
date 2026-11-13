@@ -65,18 +65,21 @@ export function allocateByWeight(total:number,rows:readonly {id:string;weight:nu
 // DEC-029: payment_fee_bearer (AutoLaris VA/QRIS admin fee; default store) and cod_fee_bearer (COD service fee; default
 // buyer). cod_fee_bps stays the rate; buyer_cod_fee_bps is what a COD quote freezes for the buyer (0 when the store bears it).
 export type PaymentTerms={version_id:string|null;cod_fee_bps:number;buyer_cod_fee_bps:number;manual_bank_accounts:BankAccount[];enabled_channels:readonly ToggleableChannel[];
- payment_fee_bearer:FeeBearer;cod_fee_bearer:FeeBearer;autolaris_fees:Readonly<Record<string,AutolarisFeeRule>>};
-// The buyer-borne AutoLaris fee for one channel and amount due (app.autolaris_buyer_fee in migration 0046 is the same
-// rule and guards it). Fixed: the table amount. Basis points: the largest X - due with X - ceil(X x bps / 10000) <= due,
-// so the buyer never pays more than the provider deducts. 0 when the store bears the fee; null for an unpriced channel.
-export function autolarisBuyerFee(terms:Pick<PaymentTerms,'payment_fee_bearer'|'autolaris_fees'>,channel:string,due:number):number|null{
+ payment_fee_bearer:FeeBearer;cod_fee_bearer:FeeBearer;autolaris_fees:Readonly<Record<string,AutolarisFeeRule>>;autolaris_turnover_bps:number};
+// The buyer-borne AutoLaris fee for one channel and amount due (app.autolaris_buyer_fee, migration 0059, is the same rule in SQL).
+// The channel rule is the transaction fee AutoLaris reports as `biaya_admin` (`fixed` rupiah for a VA, `bps` of the bill for
+// QRIS); `turnover_bps` (DEC-032, account-wide, default 0) is AutoLaris's further cut of the bill taken at settlement. Formula B:
+// the smallest bill that leaves the store at least `due` after both: bill - channel - ceil(bill*turnover/10000) >= due, with
+// channel = fixed, or ceil(bill*bps/10000). With turnover 0 a fixed rule is exactly DEC-029; a bps rule may be Rp1 lower at a rounding
+// step (DEC-029 took the largest such bill). null = the channel has no price.
+export function autolarisBuyerFee(terms:Pick<PaymentTerms,'payment_fee_bearer'|'autolaris_fees'>&{autolaris_turnover_bps?:number},channel:string,due:number):number|null{
  if(terms.payment_fee_bearer!=='buyer')return 0;
  const rule=Object.hasOwn(terms.autolaris_fees,channel)?terms.autolaris_fees[channel]:undefined;if(!rule)return null;
- if(rule.kind==='fixed')return rule.amount;
- const d=BigInt(due),bps=BigInt(rule.bps),deducted=(x:bigint)=>x-(x*bps+9999n)/10000n;
- let x=d*10000n/(10000n-bps);
- while(deducted(x)>d)x--;
- while(deducted(x+1n)<=d)x++;
+ const d=BigInt(due),turnover=BigInt(terms.autolaris_turnover_bps??0),fixed=BigInt(rule.kind==='fixed'?rule.amount:0),bps=BigInt(rule.kind==='bps'?rule.bps:0);
+ const cut=(x:bigint,p:bigint)=>(x*p+9999n)/10000n,kept=(x:bigint)=>x-fixed-cut(x,bps)-cut(x,turnover);
+ let x=(d+fixed)*10000n/(10000n-bps-turnover);
+ while(kept(x)>=d)x--;
+ while(kept(x)<d)x++;
  return Number(x-d);
 }
 // A channel the buyer may pick: offered by this runtime and switched on in the payment policy. The local
@@ -91,9 +94,9 @@ export function channelEnabled(terms:PaymentTerms,channel:PaymentChannel,offered
 // means no buyer COD fee and no manual transfer channel.
 export async function paymentTerms(tx:Sql|TransactionSql,at:Date):Promise<PaymentTerms>{
  try{
-  const policy=await resolvePolicy(tx,'payment',null,at),values=policy.values as {cod_fee_bps?:number;manual_bank_accounts?:BankAccount[];enabled_channels?:ToggleableChannel[];payment_fee_bearer?:FeeBearer;cod_fee_bearer?:FeeBearer;autolaris_fees?:Record<string,AutolarisFeeRule>};
+  const policy=await resolvePolicy(tx,'payment',null,at),values=policy.values as {cod_fee_bps?:number;manual_bank_accounts?:BankAccount[];enabled_channels?:ToggleableChannel[];payment_fee_bearer?:FeeBearer;cod_fee_bearer?:FeeBearer;autolaris_fees?:Record<string,AutolarisFeeRule>;autolaris_turnover_bps?:number};
   const codBearer=values.cod_fee_bearer??'buyer';
   return {version_id:policy.id,cod_fee_bps:values.cod_fee_bps??0,buyer_cod_fee_bps:codBearer==='store'?0:values.cod_fee_bps??0,manual_bank_accounts:values.manual_bank_accounts??[],enabled_channels:values.enabled_channels??TOGGLEABLE_CHANNELS,
-   payment_fee_bearer:values.payment_fee_bearer??'store',cod_fee_bearer:codBearer,autolaris_fees:values.autolaris_fees??{}};
- }catch(error){if(error instanceof AccessError&&error.code==='POLICY_UNCONFIGURED')return {version_id:null,cod_fee_bps:0,buyer_cod_fee_bps:0,manual_bank_accounts:[],enabled_channels:TOGGLEABLE_CHANNELS,payment_fee_bearer:'store',cod_fee_bearer:'buyer',autolaris_fees:{}};throw error;}
+   payment_fee_bearer:values.payment_fee_bearer??'store',cod_fee_bearer:codBearer,autolaris_fees:values.autolaris_fees??{},autolaris_turnover_bps:values.autolaris_turnover_bps??0};
+ }catch(error){if(error instanceof AccessError&&error.code==='POLICY_UNCONFIGURED')return {version_id:null,cod_fee_bps:0,buyer_cod_fee_bps:0,manual_bank_accounts:[],enabled_channels:TOGGLEABLE_CHANNELS,payment_fee_bearer:'store',cod_fee_bearer:'buyer',autolaris_fees:{},autolaris_turnover_bps:0};throw error;}
 }

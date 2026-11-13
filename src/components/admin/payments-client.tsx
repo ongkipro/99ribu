@@ -351,7 +351,7 @@ function AutolarisPayments({
 						Virtual Account / QRIS (AutoLaris)
 					</h2>
 					<p className="max-w-prose text-sm text-muted-foreground">
-						Status dicek otomatis dari laporan AutoLaris; hanya status lunas yang tegas dianggap lunas. Biaya admin ditanggung pembeli atau platform sesuai Pengaturan → Pembayaran; bagian yang ditanggung platform dicatat sebagai biaya pembayaran saat dana diselesaikan.
+						Status dicek otomatis dari laporan AutoLaris; hanya status lunas yang tegas dianggap lunas. Biaya admin dibayar pembeli atau penjual sesuai Pengaturan → Pembayaran; bagian yang ditanggung penjual dicatat sebagai biaya pembayaran saat dana diselesaikan.
 					</p>
 				</div>
 				<Button variant="outline" className="shrink-0" onClick={() => void list.reload()}>
@@ -401,7 +401,7 @@ function AutolarisPayments({
 					// Kanal and Status give way md–xl (shown in the stacked card and from xl).
 					{ id: "channel", header: "Kanal", className: "md:max-xl:hidden", cell: (row) => channelLabel(row.channel_code) },
 					{ id: "amount", header: "Tagihan pembeli", stack: "aside", className: "text-right tabular-nums", cell: (row) => rupiah(row.requested_amount) },
-					{ id: "fee", header: "Biaya admin", className: "text-right tabular-nums", cell: (row) => (row.admin_fee === null ? "—" : `${rupiah(row.admin_fee)} · ${row.payment_fee_amount > 0 ? "dibayar pembeli" : "ditanggung platform"}`) },
+					{ id: "fee", header: "Biaya admin", className: "text-right tabular-nums", cell: (row) => (row.admin_fee === null ? "—" : `${rupiah(row.admin_fee)} · ${row.payment_fee_amount > 0 ? "dibayar pembeli" : "ditanggung penjual"}`) },
 					{ id: "status", header: "Status", stack: "status", className: "md:max-xl:hidden", cell: autolarisStatus },
 					{
 						id: "actions",
