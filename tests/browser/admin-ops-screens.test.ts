@@ -65,16 +65,17 @@ test.after(async () => {
 });
 
 test("Stok Gudang: search, reasoned movement on the row version, conflict copy, history; phone dialog is a bottom sheet", { timeout: 120000 }, async () => {
-	const [row] = await sql`select b.id,b.revision,s.sku,s.name from app.inventory_balance b join app.stock_item s on s.id=b.stock_item_id
+	// One balance row per screen: the list is opened on the row's own warehouse (a SKU may hold rows in several, DEC-033).
+	const [row] = await sql`select b.id,b.revision,b.warehouse_id,s.sku,s.name from app.inventory_balance b join app.stock_item s on s.id=b.stock_item_id
 		join app.warehouse w on w.id=b.warehouse_id where w.active and b.on_hand>0 and b.lot_id is null
-		and (select count(*) from app.inventory_balance x where x.stock_item_id=b.stock_item_id)=1 order by b.id limit 1`;
+		order by b.id limit 1`;
 	assert.ok(row, "the local catalog stock is loaded (npm run catalog:initial-stock -- local)");
 	const owner = await staff("owner");
 	const { page, errors, close } = await open(owner);
 	try {
 		let answer = { status: 201, body: { id: "00000000-0000-4000-8000-000000000001" } as unknown };
 		const posts = await mockMutations(page, () => answer);
-		await page.goto(`${origin}/admin/produk/inventori`);
+		await page.goto(`${origin}/admin/produk/inventori?gudang=${row.warehouse_id}`);
 		await expect(page.getByRole("heading", { name: "Stok Gudang" })).toBeVisible();
 		await page.getByLabel("Cari barang").fill(row.sku);
 		const item = page.getByTestId(`inventory-row-${row.sku}`);
@@ -110,7 +111,7 @@ test("Stok Gudang: search, reasoned movement on the row version, conflict copy, 
 	}
 	const phone = await open(owner, { width: 390, height: 844 }, true);
 	try {
-		await phone.page.goto(`${origin}/admin/produk/inventori?`);
+		await phone.page.goto(`${origin}/admin/produk/inventori?gudang=${row.warehouse_id}`);
 		await phone.page.getByLabel("Cari barang").fill(row.sku);
 		await phone.page.getByTestId(`inventory-move-${row.sku}`).click();
 		const dialog = phone.page.getByRole("dialog");

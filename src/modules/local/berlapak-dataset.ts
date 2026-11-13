@@ -3,7 +3,6 @@ import {existsSync,mkdirSync,readdirSync,readFileSync,unlinkSync,writeFileSync} 
 import {join} from 'node:path';
 import type {Sql,TransactionSql} from 'postgres';
 import {catalogMediaName} from '../../storage/catalog-media.ts';
-import {readLocalConfig} from '../../config/local.ts';
 import {readRuntimeConfig} from '../../config/runtime.ts';
 import type {LocalAuth} from '../access/auth.ts';
 import {assertOrigin} from '../access/http.ts';
@@ -26,6 +25,11 @@ const IMAGE_LIMIT=5_000_000,PHOTO=/^[0-9a-f]{64}\.webp$/;
 const byKey=(a:string,b:string)=>{const x=/^\d+$/.test(a),y=/^\d+$/.test(b);return x&&y?Number(a)-Number(b):x!==y?(x?-1:1):a<b?-1:a>b?1:0;};
 // One-way, stable mapping key: the supplier's warehouse id never leaves the host snapshot.
 export const originKey=(sourceWarehouseId:string)=>createHash('sha256').update(`99ribu:berlapak-warehouse:${sourceWarehouseId}`).digest('hex').slice(0,32);
+// DEC-033 (owner 2026-11-12): every product is collected in one 99ribu warehouse in Surabaya and ships from there. The dataset
+// names that one warehouse for every offer (location from the Mengantar area catalogue, kecamatan Genteng; the street address and
+// pickup contact are the owner's to edit in Admin -> Gudang). Supplier origin warehouses stay in the database only as history.
+export const COMPANY_WAREHOUSE:OriginWarehouse={key:createHash('sha256').update('99ribu:company-warehouse:surabaya').digest('hex').slice(0,32),
+  name:'Gudang 99ribu, Surabaya',province:'Jawa Timur',city:'Surabaya',district:'Genteng'};
 
 // Marketplace-style departments (owner decision 2026-10-23, supersedes the snapshot departments):
 // every product is classified by what it is, not by the supplier's category. Names follow
@@ -809,7 +813,8 @@ export function buildBerlapakDataset(sourceDir:string,options:{minimumPerCategor
     if(n===undefined){n=1;while(used.has(n)) n++;used.add(n);taken.set(place,used);}
     return {place,n,warehouse:{key:p.key,name:nameOf(p,n),province:p.province,city:p.city,district:p.district}};
   });
-  const warehouses:OriginWarehouse[]=numbered.sort((a,b)=>byKey(a.place,b.place)||a.n-b.n).map((w)=>w.warehouse);
+  // DEC-033: one company warehouse; the supplier origins above stay derived (their keys still identify the stock's source).
+  void numbered;const warehouses:OriginWarehouse[]=[COMPANY_WAREHOUSE];
   const catalog:CatalogDocument={format:CATALOG_FORMAT,source:'berlapak',source_snapshot:source.snapshot,price_ceiling_idr:99000,
     categories:DEPARTMENTS.filter((d)=>counts.has(d.slug)).map((d)=>({slug:d.slug,name:d.name,google_product_category:d.google})).sort((a,b)=>byKey(a.slug,b.slug)),warehouses,
     stock_items:[...source.stocks].sort((a,b)=>a.rank-b.rank||byKey(a.key,b.key)).map((s)=>({sku:stockSku(s.key),name:s.name})),
@@ -826,7 +831,7 @@ export function buildBerlapakDataset(sourceDir:string,options:{minimumPerCategor
       // instead; its own photo is never replaced by another variant's.
       const definitions=offers.map((offer)=>{const side=cube(offer.grams),image=offer.image?photo(offer.image.rank,offer.image.file):null;return {
         sku:`B99_${offer.key}_OFFER`,label:offer.label,price_idr:offer.price,kind:offer.kind,image:image&&gallery.some((p)=>p.sha256===image)?image:null,
-        warehouse:originKey(offer.warehouse),weight_grams:offer.grams,length_mm:side,width_mm:side,height_mm:side,
+        warehouse:COMPANY_WAREHOUSE.key,weight_grams:offer.grams,length_mm:side,width_mm:side,height_mm:side,
         contents:offer.parts.map((p)=>({stock_item:stockSku(p.stock),quantity:p.quantity})).sort((a,b)=>byKey(a.stock_item,b.stock_item))};});
       return {key:o.key,name:titles.get(o.key) as string,description:describe(o),category:slug(o.key),
         ...(()=>{const d=departments.get(o.key) as {slug:Department;google:number};
@@ -1001,7 +1006,8 @@ export const summarizeTransition=({moves:_moves,open:_open,...summary}:Awaited<R
 // converges (nothing left to move) and resumes a transfer interrupted between its steps. Offers are
 // rebound afterwards by `catalog:import` (new catalog revision + guarded republish).
 export async function applyOriginTransition(request:Request,identity:LocalAuth,catalog:CatalogDocument,signal?:AbortSignal){
-  signal?.throwIfAborted();const config=readLocalConfig(process.env);assertOrigin(request);
+  // DEC-033: also runs on production (owner's own MFA session, scripts/catalog.ts asOwner) to move stock into the company warehouse.
+  signal?.throwIfAborted();const config=readRuntimeConfig(process.env);assertOrigin(request);
   const principal=await getPrincipal(request,identity);await identity.sql.begin((tx)=>lockOwner(tx,principal));
   const reserved=await identity.sql.reserve();
   try{
@@ -1013,11 +1019,11 @@ export async function applyOriginTransition(request:Request,identity:LocalAuth,c
       if(before.warehouses.conflicts.length) throw new CatalogDatasetError(`Origin warehouses differ from the dataset: ${before.warehouses.conflicts.join(', ')}.`);
       let audited=false;const audit=async()=>{if(audited) return;audited=true;await identity.sql.begin(async(tx)=>{await lockOwner(tx,principal);
         await tx`insert into app.audit_event (actor_id,action,subject_id,outcome,reason,details) values (${principal.id},'catalog.origin_transition','catalog:berlapak','allowed',
-          'DEC-006: move catalog stock to its origin warehouses through warehouse transfers',${JSON.stringify(summarizeTransition(before))}::jsonb)`;});};
+          'DEC-033: move catalog stock into its catalog warehouse through warehouse transfers',${JSON.stringify(summarizeTransition(before))}::jsonb)`;});};
       const {ids,created}=await ensureOriginWarehouses(identity,principal,catalog.warehouses,audit);
       const command=(step:string)=>{const next=new Request(`${config.origin}/api/v1/admin/inventory/transfers`,{method:'POST',headers:request.headers});
         next.headers.set('idempotency-key',createHash('sha256').update(`catalog-origin-transition:${step}`).digest('hex'));return next;};
-      const reason='DEC-006 local transition: catalog stock moves to its origin warehouse';
+      const reason='DEC-033: catalog stock moves into the company warehouse';
       type Transfer={id:string;status:string;version:number;allocations:{source_balance_id:string;quantity:number;received_quantity:number}[]};
       const finish=async(transfer:Transfer)=>{
         let current=transfer;

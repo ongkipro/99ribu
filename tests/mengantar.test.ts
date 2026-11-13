@@ -133,3 +133,40 @@ test("Mengantar adapter: one fetch per route for 5 minutes, every cached price k
 		await assert.rejects(mengantarRateAdapter.estimate(request("b".repeat(24)), signal), /budget/);
 	} finally { process.env = saved; resetMengantarRates(); }
 });
+
+// Live answer 2026-11-12 (GET /order/estimate, Surabaya Genteng -> Surabaya Airlangga, 0,3 kg), prices and ETA as returned.
+const surabaya = {
+	success: true,
+	data: {
+		JNE: { price: 9000, estimate_delivery: "2 - 3 days" }, JNECargo: { price: 40000, estimate_delivery: "2 - 3 days" },
+		JT: { price: 6000, estimate_delivery: "-", unsupported_cod: false }, SAP: { price: 7000, estimate_delivery: "1 - 2 days", unsupported_cod: false },
+		SAPLite: { price: 10000, estimate_delivery: "1 - 2 days", unsupported_cod: false }, SapCargo: { price: 22500, estimate_delivery: "1 - 2 days" },
+		SiCepat: { price: 6000, estimate_delivery: "1 - 2 Days" }, SiCepatCargo: { price: 30000, estimate_delivery: "1 - 2 Days" },
+		anteraja: { price: 7300, estimate_delivery: "1-2 Day", unsupported_cod: false }, iDexpress: { price: 5200, estimate_delivery: "-", unsupported_cod: false },
+		iDexpressCargo: { price: 30000, estimate_delivery: "-", unsupported_cod: false }, iDlite: { price: 5200, estimate_delivery: "-", unsupported_cod: false },
+		lion: { price: 8680, estimate_delivery: "1 - 2 Hari", unsupported_cod: false }, pos: { price: 8000, estimate_delivery: "4 HARI", unsupported_cod: false },
+		spx: { price: 5700, estimate_delivery: "2 - 1 days", unsupported_cod: false },
+	},
+};
+
+test("DEC-034 every courier key Mengantar answers has a proper name; a reversed day range reads low-high", async () => {
+	const { COURIERS } = await import("../src/modules/shipping/mengantar.ts");
+	const rates = parseEstimate(surabaya, { ...key, grams: 300 });
+	for (const courier of Object.keys(surabaya.data)) assert.ok(Object.hasOwn(COURIERS, courier), `${courier} has a buyer-facing name`);
+	const name = (id: string) => rates.find((r) => r.service_id === id);
+	assert.deepEqual([name("iDlite")?.courier_name, name("iDexpressCargo")?.courier_name, name("SiCepatCargo")?.courier_name], ["ID Lite", "ID Express Cargo", "SiCepat Cargo"]);
+	assert.equal(name("spx")?.service_name, "Reguler, 1-2 hari", "\"2 - 1 days\" is shown as 1-2");
+	assert.equal(name("JT")?.service_name, "Reguler", "no ETA from the provider: none shown");
+	assert.equal(name("iDexpressCargo")?.service_name, "Kargo");
+});
+
+test("DEC-034 cargo services are offered only from 5 kg chargeable weight", async () => {
+	const { offeredForWeight, CARGO_MIN_GRAMS } = await import("../src/modules/shipping/mengantar.ts");
+	assert.equal(CARGO_MIN_GRAMS, 5000);
+	const rates = parseEstimate(surabaya, { ...key, grams: 300 });
+	for (const [grams, cargo] of [[300, 0], [4999, 0], [5000, 4], [6000, 4]] as const) {
+		const offered = offeredForWeight(rates, grams);
+		assert.equal(offered.filter((r) => /cargo/i.test(r.service_id)).length, cargo, `${grams} g`);
+		assert.equal(offered.length, rates.length - 4 + cargo, "only cargo is removed");
+	}
+});

@@ -15,7 +15,7 @@ import { resolve } from "node:path";
 // explicit, operator-uploaded BERLAPAK_DATA_DIR. `verify` is read-only and prints the counts the release checks.
 // In the image run `node scripts/catalog.ts …` (the npm scripts read .env.example, which the image does not carry).
 const [command, ...args] = process.argv.slice(2);
-const usage = "Use: catalog dataset [out-dir] | catalog fetch-images | catalog import local|test|production [dataset-dir] | catalog initial-stock local|test|production [dataset-dir] | catalog rehome local|test [--apply] | catalog withdraw local|test|production [--apply] | catalog verify local|test|production.";
+const usage = "Use: catalog dataset [out-dir] | catalog fetch-images | catalog import local|test|production [dataset-dir] | catalog initial-stock local|test|production [dataset-dir] | catalog rehome local|test|production [--apply] | catalog withdraw local|test|production [--apply] | catalog verify local|test|production.";
 type Target = "local" | "test" | "production";
 const targets = ["local", "test", "production"];
 const rawDirectory = (target?: string) => {
@@ -76,19 +76,19 @@ try {
     const summary = await asOwner(args[0] as Target, "catalog-stock", (request, identity, signal) =>
       loadInitialStock(request, identity, { sourceDir, datasetDir: args[1] ? resolve(args[1]) : undefined, signal, scope: args[1] ? undefined : inLocalScope }).catch(visible));
     console.log(JSON.stringify(summary));
-  } else if (command === "rehome" && ["local", "test"].includes(args[0]) && (args.length === 1 || (args.length === 2 && args[1] === "--apply"))) {
+  } else if (command === "rehome" && targets.includes(args[0]) && (args.length === 1 || (args.length === 2 && args[1] === "--apply"))) {
     const { inLocalScope, readCatalogDocument } = await import("../src/modules/catalog/dataset.ts");
     const { applyOriginTransition, defaultDatasetDir, planOriginTransition, summarizeTransition } = await import("../src/modules/local/berlapak-dataset.ts");
     const catalog = (() => { try { return inLocalScope(readCatalogDocument(defaultDatasetDir)); } catch (error) { return visible(error); } })();
-    const target = args[0] as "local" | "test";
+    const target = args[0] as Target;
     if (args[1] !== "--apply") {
       const { connectDatabase } = await import("../src/db/client.ts");
-      const { sql } = connectDatabase(target);
+      const { sql } = connectDatabase(target, "app");
       try { console.log(JSON.stringify({ mode: "dry-run", target, ...summarizeTransition(await sql.begin("read only", (tx) => planOriginTransition(tx, catalog))) })); }
       finally { await sql.end(); }
     } else {
-      const { withSeedOwner } = await import("../src/modules/local/seed-runtime.ts");
-      console.log(JSON.stringify({ target, ...(await withSeedOwner(target, "catalog-rehome", (request, identity, signal) => applyOriginTransition(request, identity, catalog, signal).catch(visible))) }));
+      // DEC-033: production acts as the operator's own MFA-verified owner, like import and initial-stock.
+      console.log(JSON.stringify({ target, ...(await asOwner(target, "catalog-rehome", (request, identity, signal) => applyOriginTransition(request, identity, catalog, signal).catch(visible))) }));
     }
   } else if (command === "withdraw" && targets.includes(args[0]) && (args.length === 1 || (args.length === 2 && args[1] === "--apply"))) {
     const { inLocalScope, readCatalogDocument, summarizeCandidates, withdrawCandidates, withdrawalCandidates } = await import("../src/modules/catalog/dataset.ts");

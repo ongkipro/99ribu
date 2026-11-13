@@ -17,7 +17,7 @@ import {createMovement} from '../../src/modules/inventory/positions.ts';
 import {handleInventory} from '../../src/modules/inventory/routes.ts';
 import {DEFAULT_OFFER_ASSUMPTIONS,readBerlapakSource} from '../../src/modules/local/berlapak.ts';
 import {stockSku,variantKey} from '../../src/modules/local/berlapak-identities.ts';
-import {applyOriginTransition,type BerlapakDataset,buildBerlapakDataset,cardTitle,cardTitles,classifyName,loadInitialStock,originKey,planOriginTransition,summarizeTransition,withoutVariants,writeBerlapakDataset} from '../../src/modules/local/berlapak-dataset.ts';
+import {applyOriginTransition,type BerlapakDataset,buildBerlapakDataset,COMPANY_WAREHOUSE,cardTitle,cardTitles,classifyName,loadInitialStock,originKey,planOriginTransition,summarizeTransition,withoutVariants,writeBerlapakDataset} from '../../src/modules/local/berlapak-dataset.ts';
 import {withdrawTestPublications} from '../../src/modules/local/seed-runtime.ts';
 import {catalogQuery,listProducts,publicProduct} from '../../src/modules/storefront/catalog.ts';
 import {buildShippingPlans} from '../../src/modules/shipping/quotes.ts';
@@ -78,7 +78,13 @@ function writeDataset(dir:string,catalog:CatalogDocument,photos:Map<string,{byte
 // The fixture snapshot is three products in one department, below the production minimum of 8, and
 // holds none of the reviewed category override keys.
 const SMALL={minimumPerCategory:1,requireOverrides:false};
-const unique=(catalog:CatalogDocument,run:string):CatalogDocument=>JSON.parse(JSON.stringify(catalog).replaceAll('"B99_',`"B99${run}_`).replaceAll('"rumah-tangga"',`"rumah-tangga-${run.toLowerCase()}"`));
+// DEC-033: every dataset now names the one fixed company warehouse, so a run also gets its own warehouse key and name
+// (teardown deactivates the run's origin; a later run must not meet that inactive row).
+const unique=(catalog:CatalogDocument,run:string):CatalogDocument=>{
+  const key=createHash('sha256').update(`test-origin:${run}`).digest('hex').slice(0,32);
+  return JSON.parse(JSON.stringify(catalog).replaceAll('"B99_',`"B99${run}_`).replaceAll('"rumah-tangga"',`"rumah-tangga-${run.toLowerCase()}"`)
+    .replaceAll(`"${COMPANY_WAREHOUSE.key}"`,`"${key}"`).replaceAll(`"${COMPANY_WAREHOUSE.name}"`,`"Gudang ${run}, Surabaya"`));
+};
 
 test('generator: deterministic sanitized dataset; malformed datasets are refused before any write',()=>{
   const rawDir=snapshot();const out=mkdtempSync(join(tmpdir(),'catalog-out-'));
@@ -313,8 +319,8 @@ test('catalog import: catalog-only rows, served photos, idempotent rerun, guarde
 
 test('deploy command: refuses a malformed dataset, imports as a removed temporary owner and reruns without changes',async()=>{
   const identity=createLocalAuth('test');const sql=identity.sql;const rawDir=snapshot();const run=randomUUID().slice(0,8).toUpperCase();
-  const dir=mkdtempSync(join(tmpdir(),'catalog-cli-'));const built=buildBerlapakDataset(rawDir,SMALL);writeDataset(dir,unique(built.catalog,run),built.photos);
-  const key=built.catalog.warehouses[0].key;
+  const dir=mkdtempSync(join(tmpdir(),'catalog-cli-'));const built=buildBerlapakDataset(rawDir,SMALL);const catalog=unique(built.catalog,run);writeDataset(dir,catalog,built.photos);
+  const key=catalog.warehouses[0].key;
   const cli=(...args:string[])=>spawnSync(process.execPath,['--env-file=.env.example','scripts/catalog.ts','import','test',...args],{encoding:'utf8',timeout:60000});
   try{
     const bad=mkdtempSync(join(tmpdir(),'catalog-cli-bad-'));writeFileSync(join(bad,'catalog.json'),'{');
@@ -326,7 +332,7 @@ test('deploy command: refuses a malformed dataset, imports as a removed temporar
     // The origin warehouse is created once with its generic name and kecamatan-level location, audited.
     assert.deepEqual(summary.warehouses,{created:1,existing:0});
     const [created]=await sql`select id,name,province,city,district from app.warehouse where origin_key=${key}`;
-    assert.deepEqual({name:created.name,province:created.province,city:created.city,district:created.district},{name:'Gudang Serpong, Tangerang Selatan',province:'Banten',city:'Tangerang Selatan',district:'Serpong'});
+    assert.deepEqual({name:created.name,province:created.province,city:created.city,district:created.district},{name:`Gudang ${run}, Surabaya`,province:'Jawa Timur',city:'Surabaya',district:'Genteng'});
     assert.equal((await sql`select count(*)::int n from app.audit_event where action='catalog.warehouse.create' and subject_id=${created.id}`)[0].n,1);
     assert.equal(await operators(),before,'temporary operator removed');
     const [audit]=await sql`select a.actor_id,u.id as user_id from app.audit_event a left join app.auth_user u on u.id::text=a.actor_id where a.action='catalog.import' and a.details->>'catalog_sha256'=${summary.catalog_sha256}`;
@@ -438,10 +444,10 @@ test('operator commands: initial-stock refuses a missing snapshot; withdraw dry-
   assert.equal(cli('rehome','test','--now').status,1);assert.equal(cli('import','test',randomUUID(),'extra').status,1);
 });
 
-test('DEC-006 generator: per-offer origin keys, generic kecamatan names, no supplier warehouse identity; inconsistent bindings refused',()=>{
+test('DEC-033 generator: every offer ships from the one company warehouse in Surabaya; no supplier warehouse identity; inconsistent bindings refused',()=>{
   const second=SOURCE_WAREHOUSE(),third=SOURCE_WAREHOUSE();
-  // Two supplier warehouses in the same kecamatan (Serpong) and one in Ciputat, all named by the supplier.
-  // BND-02 mixes two supplier warehouses: an offer ships from one warehouse, so it never enters the catalog.
+  // Supplier warehouses in two kecamatan, all named by the supplier. BND-02 still mixes two supplier warehouses and is skipped
+  // (its parts were never one shipment at the source).
   const rawDir=snapshot(()=>[raw(5,{name:'Ember Plastik Lipat',hpp:20000,qty:1,place:{id:second,district:'SERPONG'}}),raw(6,{name:'Gayung Mandi Bulat',hpp:15000,qty:2,place:{id:third,district:'CIPUTAT'}})],
     [{code:'BND-02',ranks:[4,6]}]);
   try{
@@ -449,17 +455,16 @@ test('DEC-006 generator: per-offer origin keys, generic kecamatan names, no supp
     assert.equal(first.skipped['bundle-mixed-warehouse'],1);assert.ok(!first.catalog.products.some((p)=>p.key==='BND-02'));
     const raws=JSON.parse(readFileSync(join(rawDir,'data-json','products-up-to-49k-ready-stock.json'),'utf8')).products as {rank:number;warehouse_and_shipping:{warehouse_id:string}}[];
     const sourceOf=(rank:number)=>(raws.find((r)=>r.rank===rank) as {warehouse_and_shipping:{warehouse_id:string}}).warehouse_and_shipping.warehouse_id;
-    for(const product of first.catalog.products) for(const offer of product.offers) assert.equal(offer.warehouse,originKey(sourceOf(Number(offer.contents[0].stock_item.slice(4)))));
-    const serpong=[sourceOf(1),second].map(originKey).sort();
-    assert.deepEqual(first.catalog.warehouses.map((w)=>[w.name,w.key]),[['Gudang Ciputat, Tangerang Selatan',originKey(third)],['Gudang Serpong, Tangerang Selatan',serpong[0]],['Gudang Serpong 2, Tangerang Selatan',serpong[1]]]);
-    assert.deepEqual(first.catalog.warehouses.map((w)=>[w.province,w.city]),Array(3).fill(['Banten','Tangerang Selatan']));
-    for(const banned of ['rahasia',sourceOf(1),second,third]) assert.ok(!first.text.toLowerCase().includes(banned),`dataset leaks ${banned}`);
+    assert.deepEqual(first.catalog.warehouses,[COMPANY_WAREHOUSE],'one warehouse: Gudang 99ribu, Surabaya');
+    assert.deepEqual([COMPANY_WAREHOUSE.name,COMPANY_WAREHOUSE.province,COMPANY_WAREHOUSE.city,COMPANY_WAREHOUSE.district],['Gudang 99ribu, Surabaya','Jawa Timur','Surabaya','Genteng']);
+    for(const product of first.catalog.products) for(const offer of product.offers) assert.equal(offer.warehouse,COMPANY_WAREHOUSE.key);
+    for(const banned of ['rahasia',sourceOf(1),second,third,originKey(second),originKey(third)]) assert.ok(!first.text.toLowerCase().includes(banned),`dataset leaks ${banned}`);
     const refuse=(mutate:(c:CatalogDocument)=>void,pattern:RegExp)=>{const c=JSON.parse(first.text) as CatalogDocument;mutate(c);assert.throws(()=>parseCatalog(c),(e)=>e instanceof CatalogDatasetError&&pattern.test(e.message));};
-    // Bundle BND-01 shares stock item B99_4 with unit offer 4: moving one of them alone splits the item.
-    refuse((c)=>{(c.products.find((p)=>p.key==='4') as CatalogDocument['products'][number]).offers[0].warehouse=originKey(third);},/bound to two origin warehouses/);
+    // A second warehouse in a hand-edited dataset still has to hold whole stock items.
+    refuse((c)=>{c.warehouses.push({key:'e'.repeat(32),name:'Gudang Lain, Kota',province:'Jawa Timur',city:'Kota',district:'Lain'});(c.products.find((p)=>p.key==='4') as CatalogDocument['products'][number]).offers[0].warehouse='e'.repeat(32);},/bound to two origin warehouses/);
     refuse((c)=>{c.products[0].offers[0].warehouse='f'.repeat(32);},/unknown origin warehouse/);
     refuse((c)=>{c.warehouses.push({...c.warehouses[0],key:'e'.repeat(32),name:'Gudang Lain, Kota'});},/Every catalog warehouse/);
-    refuse((c)=>{c.warehouses[1].name=c.warehouses[0].name;},/Duplicate warehouse name/);
+    refuse((c)=>{c.warehouses.push({...c.warehouses[0],key:'e'.repeat(32)});},/Duplicate warehouse name/);
     refuse((c)=>{(c.warehouses[0] as Record<string,unknown>).address_id='5fc64914f8f44b34aa4ce853';},/warehouses/);
   }finally{rmSync(rawDir,{recursive:true,force:true});}
 });

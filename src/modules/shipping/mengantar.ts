@@ -20,7 +20,14 @@ const CACHE_MS=300_000,PRICE_MS=600_000,LIMIT=1000,FETCH_TIMEOUT_MS=5000,FETCHES
 let budget={start:0,count:0};
 // Buyer-visible names of Mengantar courier keys (rate service_id). Every courier Mengantar quotes is offered (owner
 // 2026-11-06: "aktifkan semua"); a key not named here shows as a readable form of the key.
-export const COURIERS:Record<string,string>={JNE:'JNE',JNECargo:'JNE Cargo',SiCepat:'SiCepat',SAP:'SAP Express',SAPLite:'SAP Express Lite',SapCargo:'SAP Cargo',iDexpress:'ID Express',JT:'J&T Express',JTCargo:'J&T Cargo',lion:'Lion Parcel',anteraja:'Anteraja',spx:'SPX Express',pos:'POS Indonesia',ninja:'Ninja Xpress'};
+// Keys as Mengantar answers them (observed live 2026-11-12, Surabaya -> Surabaya, 0,3 and 6 kg): JNE, JNECargo, JT, SAP, SAPLite,
+// SapCargo, SiCepat, SiCepatCargo, anteraja, iDexpress, iDexpressCargo, iDlite (light parcels only), lion, pos, spx.
+export const COURIERS:Record<string,string>={JNE:'JNE',JNECargo:'JNE Cargo',SiCepat:'SiCepat',SiCepatCargo:'SiCepat Cargo',SAP:'SAP Express',SAPLite:'SAP Express Lite',SapCargo:'SAP Cargo',
+ iDexpress:'ID Express',iDexpressCargo:'ID Express Cargo',iDlite:'ID Lite',JT:'J&T Express',JTCargo:'J&T Cargo',lion:'Lion Parcel',anteraja:'Anteraja',spx:'SPX Express',pos:'POS Indonesia',ninja:'Ninja Xpress'};
+// Cargo services quote a minimum chargeable weight and suit heavy parcels; below this they only lengthen the list.
+export const CARGO_MIN_GRAMS=5000;
+export const isCargo=(courier:string)=>/cargo/i.test(courier);
+export function offeredForWeight<T extends {service_id:string}>(rates:readonly T[],grams:number){return rates.filter(rate=>grams>=CARGO_MIN_GRAMS||!isCargo(rate.service_id));}
 // Own keys only: a provider key such as `__proto__` or `constructor` must never read Object.prototype.
 const courierName=(key:string)=>Object.hasOwn(COURIERS,key)?COURIERS[key]:key.replace(/([a-z])([A-Z])/g,'$1 $2').replace(/^./,c=>c.toUpperCase());
 type Entry={at:number;rates:Promise<Omit<Rate,'expires_at'>[]>};
@@ -40,9 +47,11 @@ export function parseEstimate(body:unknown,key:{origin:string;destination:string
   if(!Number.isSafeInteger(price)||price<=0) return [];
   // estimate_delivery observed 2026-10-31: "1 - 2 days", "2 - 3 Days", "1 - 2 Hari", "1-2 Day", "4 HARI", "-" (none).
   const days=typeof row.estimate_delivery==='string'?/^(\d{1,2})(?:\s*-\s*(\d{1,2}))?\s*(?:days?|hari)?$/i.exec(row.estimate_delivery.trim()):null;
-  const eta=days?(days[2]&&days[2]!==days[1]?`${days[1]}-${days[2]}`:days[1]):null;
+  // Ranges come reversed for some couriers (spx "2 - 1 days", observed 2026-11-12): shown low-high.
+  const [low,high]=days?[Number(days[1]),Number(days[2]??days[1])].sort((a,b)=>a-b):[0,0];
+  const eta=days?(high!==low?`${low}-${high}`:String(low)):null;
   return [{id:`mg_${createHash('sha256').update(JSON.stringify([version,key.origin,key.destination,courier,key.grams,price])).digest('hex')}`,
-   service_id:courier,courier_name:courierName(courier),service_name:`${/cargo/i.test(courier)?'Kargo':'Reguler'}${eta?`, ${eta} hari`:''}`,shipping_amount:price,
+   service_id:courier,courier_name:courierName(courier),service_name:`${isCargo(courier)?'Kargo':'Reguler'}${eta?`, ${eta} hari`:''}`,shipping_amount:price,
    supports_cod:row.unsupported_cod===false&&row.coverage_cod!==false,source:'mengantar' as const,version}];
  });
 }
@@ -74,5 +83,6 @@ export const mengantarRateAdapter:RateAdapter={source:'mengantar',get version(){
  }
  // A price is never offered for longer than ten minutes after Mengantar gave it.
  const expires=new Date(Math.min(Date.parse(request.now)+PRICE_MS,entry.at+PRICE_MS)).toISOString();
- return (await entry.rates).map(rate=>({...rate,expires_at:expires}));
+ // DEC-034: cargo is offered only for a parcel of CARGO_MIN_GRAMS or more (chargeable weight).
+ return offeredForWeight(await entry.rates,grams).map(rate=>({...rate,expires_at:expires}));
 }};

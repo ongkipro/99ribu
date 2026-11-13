@@ -9,3 +9,11 @@ export function rateBadges(options:readonly {id:string;service_name:string}[]){
  if(days.every(Number.isFinite)&&quick.length===1)badges.set(quick[0].id,[...(badges.get(quick[0].id)??[]),'Tercepat']);
  return badges;
 }
+
+// DEC-034: the cheapest SHOWN_COURIERS options (they arrive cheapest first) stay visible, plus the selected one wherever it
+// ranks; the rest go behind "Lihat kurir lain". Order is kept, so the radio group reads the same either way.
+export const SHOWN_COURIERS=5;
+export function splitCouriers<T extends {id:string}>(options:readonly T[],selected:string|undefined,limit=SHOWN_COURIERS){
+ const shown=options.filter((o,i)=>i<limit||o.id===selected);
+ return {shown,more:options.filter(o=>!shown.includes(o))};
+}

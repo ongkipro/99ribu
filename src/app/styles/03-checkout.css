@@ -475,6 +475,31 @@
 .checkout-choices label:has(input:checked) {
 	border-color: var(--purple);
 }
+/* DEC-034: couriers beyond the first five sit one native disclosure away, in the same radio group. */
+.checkout-more-couriers {
+	display: grid;
+	gap: 8px;
+}
+.checkout-more-couriers > summary {
+	min-height: 44px;
+	display: flex;
+	align-items: center;
+	padding: 0 12px;
+	border: 1px dashed var(--line);
+	border-radius: 8px;
+	color: var(--purple);
+	font-weight: 500;
+	cursor: pointer;
+	list-style: none;
+}
+.checkout-more-couriers > summary::-webkit-details-marker {
+	display: none;
+}
+.checkout-more-couriers > summary:focus-visible {
+	outline: 2px solid var(--purple);
+	outline-offset: 2px;
+}
+
 .checkout-choices input {
 	flex: none;
 	font: inherit;

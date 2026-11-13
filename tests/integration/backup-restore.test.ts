@@ -77,7 +77,9 @@ after(async () => {
 });
 
 // A drill dumps and restores the shared test database, which outgrows the runner's 30 s default.
-const DRILL = { timeout: 180_000 };
+// A drill dumps and restores the whole shared 99ribu_test database, which grows with every suite run
+// (2026-11-13: 414 MB, ~110 s for restore alone), so 180 s no longer covers create + drill on a quiet machine.
+const DRILL = { timeout: 420_000 };
 
 test("S85 backup set holds database, globals, media/artifacts and the escrowed auth secret with a checksum manifest; the drill restores it into a disposable database and verifies counts, ledger, photos and staff TOTP", DRILL, async () => {
   const before = await restoreDatabases();

@@ -889,7 +889,9 @@ export default async function OrderReceiptPage({
 							aria-labelledby="receipt-parcels-heading"
 						>
 							<h2 id="receipt-parcels-heading">
-								Pengiriman per paket ({order.shipments.length} paket)
+								{order.shipments.length > 1
+									? `Pengiriman per paket (${order.shipments.length} paket)`
+									: "Pengiriman"}
 							</h2>
 							{order.fulfillment_notices &&
 								order.fulfillment_notices.length > 0 && (
@@ -974,7 +976,7 @@ export default async function OrderReceiptPage({
 										>
 											<div className="receipt-parcel-head">
 												<h3>
-													Paket {index + 1}
+													{order.shipments.length > 1 ? `Paket ${index + 1}` : "Paket"}
 													<span className="receipt-parcel-sep"> · </span>
 													<span className="receipt-parcel-origin">
 														dari {parcel.origin_city}

@@ -67,6 +67,25 @@ Every external adapter in 99ribu is a local sink or simulation today (for exampl
 
 Not covered by this list because it needs a decision first: per-courier COD fee, remittance days and volumetric divisor (read from the Mengantar documentation, never constants), and the legal and tax wording that needs an accountant or a lawyer.
 
+## Runbook: DEC-033 one company warehouse in production (owner, after the deploy that carries it)
+
+Order matters; every step is idempotent and audited. Run in the web container (`docker exec -it -w /app <web> ...`); `catalog`
+steps ask for the owner's email, password and current code.
+
+1. Off-host backup set (the deploy that carries 0059 already needs one).
+2. `node scripts/catalog.ts rehome production` (dry run: warehouse to create, units to move, reserved units that stay) then
+   `--apply` - creates `Gudang 99ribu, Surabaya` and moves every available unit into it by audited transfers. Reserved units
+   (open orders) stay and ship from their origin. Rehome runs BEFORE import: publishing an offer needs complete stock in its
+   default warehouse, so rebinding first would leave every product unpublishable until the stock arrives.
+3. `node scripts/mengantar-areas.ts resolve-warehouses production` then `--apply` - sets the new warehouse's Mengantar area
+   (Genteng); without it the warehouse has no live rates.
+4. `node scripts/catalog.ts import production` - rebinds every importer-owned offer to the company warehouse and republishes
+   (offers last edited by staff are reported as `preserved` and keep their warehouse: rebind them in Admin -> Produk).
+5. Admin -> Produk -> Gudang -> Gudang 99ribu, Surabaya: pickup profile (street address, PIC name and phone) and
+   "Terapkan kalender default" (fulfillment deadlines need a calendar), staff warehouse access for warehouse staff.
+6. Check: checkout with one product shows "Dikirim dari Surabaya" and Mengantar couriers; `rehome production` dry run shows 0 to move.
+   The supplier warehouses keep history; deactivate them later only when they hold no stock and no open order.
+
 ## Deployed 2026-11-11 (`b97af0fc` incl. `988b77c7`; owner "kalo sudah selesai comit push deploy")
 
 - Change: the payment step and `/pesanan` refresh themselves every 10 s (visible tab only, at most 30 times) while a prepaid attempt is pending or unknown, so the VA number and a confirmed payment appear without a manual reload; the payment step calls `list_payment` only when the buyer can choose a bank (a pending refresh makes no AutoLaris call); the unused `PAYMENT_CHANNELS.adapter` field removed. Docs: `ARCHITECTURE.md` regenerated for production (money path, deployed topology, live providers), slice notes moved to `docs/history/`.
