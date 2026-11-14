@@ -49,7 +49,7 @@ export default async function FinanceReconciliationPage({
 		<AdminPage testId="reconciliation-screen">
 			<PageHeader
 				title="Rekonsiliasi Keuangan"
-				description="Pencairan pembayaran prabayar dan setoran COD Mengantar. Cocokkan piutang pesanan, lepas kecocokan yang keliru, atau eskalasi mutasi yang memerlukan tinjauan."
+				description="Cocokkan pencairan pembayaran dan setoran COD dengan piutang pesanan."
 			/>
 			<ReconciliationListClient
 				access={access}

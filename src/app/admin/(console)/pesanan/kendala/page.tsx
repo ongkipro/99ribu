@@ -7,7 +7,7 @@ import { readStaffAccess } from "../../staff-roles";
 
 export const dynamic = "force-dynamic";
 export const metadata = {
-	title: "Masalah Pengiriman · Admin 99ribu",
+	title: "Kendala Pengiriman · Admin 99ribu",
 	robots: { index: false, follow: false },
 };
 
@@ -21,7 +21,7 @@ export default async function ExceptionsPage({
 	const access = returnAccess(roles, permissions);
 	if (!access.read)
 		return (
-			<AccessDenied title="Masalah Pengiriman" heading="Akses kasus pengiriman diperlukan">
+			<AccessDenied title="Kendala Pengiriman" heading="Akses kasus pengiriman diperlukan">
 				Halaman ini untuk Super Admin, Layanan Pelanggan, staf gudang (kasus di gudangnya) dan staf
 				keuangan dengan izin baca refund. Verifikasi dua langkah harus aktif.
 			</AccessDenied>
@@ -31,8 +31,8 @@ export default async function ExceptionsPage({
 	return (
 		<AdminPage testId="exceptions-screen">
 			<PageHeader
-				title="Masalah Pengiriman"
-				description="Selisih stok, pembayaran terlambat, COD ditolak dan paket gagal antar. Putuskan penanganan, catat barang kembali, lalu ajukan refund dari pembayaran asal."
+				title="Kendala Pengiriman"
+				description="Selisih stok, pembayaran terlambat, COD ditolak dan paket gagal antar yang perlu diputuskan."
 			/>
 			<ExceptionListClient access={access} initialStatus={status} initialKind={kind} />
 		</AdminPage>

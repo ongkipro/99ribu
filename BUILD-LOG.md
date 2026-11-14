@@ -1,5 +1,12 @@
 # Build log — Serba 99ribu
 
+## 2026-11-14 — Admin page polish, second pass (R1, display only)
+
+- Laporan Keuangan: the average order value card reads "Rata-rata per pesanan" (was the raw key `average_order_value`); card definitions clamp to three lines with the full text as the title, so the card row stays aligned.
+- Kendala Pengiriman: the page title matches its sidebar row (was "Masalah Pengiriman").
+- One-sentence descriptions: Kendala Pengiriman, Pengembalian Dana, Rekonsiliasi, Banner Beranda.
+- Evidence: browser `admin-exceptions`, `admin-finance`, `admin-banners`, `admin-nav` 26/26 on the built web; renders of 12 sidebar pages at 1440 with no page errors.
+
 ## 2026-11-14 — Admin page polish, first pass (R1, display only)
 
 - Pengiriman Manual: no Berlapak wording left (page description, resi dialog) and the "Referensi pembelian Berlapak" field is gone from the resi dialog (DEC-035; stored references stay in history, the API field is unchanged); "Aturan antrean" starts closed so the queue is the first thing on screen.

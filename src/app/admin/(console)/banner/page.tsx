@@ -23,11 +23,7 @@ export default async function BannersPage() {
 		<AdminPage testId="banners-page">
 			<PageHeader
 				title="Banner Beranda"
-				description={
-					<>
-						Kartu &ldquo;Temukan pilihan&rdquo; di beranda. Banner tampil saat aktif dan dalam jadwal (WIB), urut sesuai daftar.
-					</>
-				}
+				description="Kartu “Temukan pilihan” di beranda toko, tampil sesuai jadwal (WIB) dan urutan daftar."
 			/>
 			<BannersClient />
 		</AdminPage>

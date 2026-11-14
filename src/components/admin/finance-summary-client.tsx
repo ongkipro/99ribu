@@ -45,6 +45,7 @@ const DASHBOARD_METRIC_LABELS: Record<string, string> = {
 	estimated_contribution: "Estimasi kontribusi margin",
 	realized_contribution: "Kontribusi margin terealisasi",
 	net_merchandise_revenue: "Pendapatan bersih barang",
+	average_order_value: "Rata-rata per pesanan",
 };
 
 const BASIS_LABELS: Record<string, string> = {
@@ -338,7 +339,7 @@ export function FinanceSummaryClient() {
 												)}
 												{formatDashboardMoney(m)}
 											</p>
-											<p className="text-xs text-muted-foreground">
+											<p className="line-clamp-3 text-xs text-muted-foreground" title={known ? m.definition : undefined}>
 												{known
 													? m.definition
 													: "Sumber biaya belum tercatat semua, jadi nilai tidak dihitung."}

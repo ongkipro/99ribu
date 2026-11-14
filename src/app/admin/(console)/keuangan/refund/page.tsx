@@ -40,7 +40,7 @@ export default async function FinanceRefundsPage({
 		<AdminPage testId="refunds-screen">
 			<PageHeader
 				title="Pengembalian Dana"
-				description="Kewajiban pengembalian dana dari klaim retur yang disetujui. Rekonsiliasi hasil pengiriman dana yang tertahan atau coba ulang kegagalan yang terbukti tanpa dana keluar."
+				description="Pengembalian dana dari retur yang disetujui; selesaikan yang tertahan atau gagal."
 			/>
 			<RefundsListClient
 				access={access}
