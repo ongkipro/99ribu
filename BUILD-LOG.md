@@ -1,5 +1,10 @@
 # Build log — Serba 99ribu
 
+## 2026-11-14 — "Perlu tindakan" rows meet the size contract; all owner pages pass (R1, display only)
+
+- `dashboard/needs-action.tsx`: each row stays a keyboard button with `aria-pressed` and the same test ids, but is styled as a list row instead of a shadcn Button (a multi-line row is not a 32/36/40 px button).
+- Evidence: signed-in `admin-geometry` against `design/admin-contract.json` over all 23 owner sidebar pages x 390/1366/1536: 0 failures after this change (the run before it: 2, both these rows); browser `admin-workspaces` 1/1; owner home renders 1440/390 with no page errors; unit 394/394.
+
 ## 2026-11-14 — Admin page polish, second pass (R1, display only)
 
 - Laporan Keuangan: the average order value card reads "Rata-rata per pesanan" (was the raw key `average_order_value`); card definitions clamp to three lines with the full text as the title, so the card row stays aligned.

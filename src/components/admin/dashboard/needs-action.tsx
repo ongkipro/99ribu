@@ -2,7 +2,6 @@
 
 import { AlarmClock, ChevronRight, Clock } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
-import { Button } from "@/components/ui/button";
 import { formatWait } from "./format";
 import { type NeedsActionMetric, needsActionRows } from "./needs-action-model";
 
@@ -40,12 +39,12 @@ export function NeedsAction<T extends NeedsActionMetric>({
 						const waited = age?.age_seconds ?? null;
 						return (
 							<li key={item.key} data-testid={`needs-action-${item.key}`} className="flex flex-wrap items-stretch gap-2">
-								<Button
+								{/* A list row that opens its queue: styled as a row, not as a button (admin size contract). */}
+								<button
 									type="button"
-									variant="outline"
 									aria-pressed={activeKey === item.key}
 									data-testid={`needs-action-open-${item.key}`}
-									className="h-auto min-h-11 min-w-0 flex-1 basis-60 justify-between gap-3 py-2 text-left whitespace-normal"
+									className={`${"flex min-h-11 min-w-0 cursor-pointer items-center rounded-lg border bg-card px-4 py-2 text-left outline-none transition-colors hover:bg-muted focus-visible:ring-2 focus-visible:ring-ring aria-pressed:border-primary aria-pressed:bg-secondary"} flex-1 basis-60 justify-between gap-3`}
 									onClick={() => onOpen(m)}
 								>
 									<span className="flex min-w-0 flex-col items-start gap-1">
@@ -69,19 +68,18 @@ export function NeedsAction<T extends NeedsActionMetric>({
 										<span className="text-xs font-normal text-muted-foreground">{item.unit}{m.basis === "event_period" ? " · dalam periode terpilih" : ""}</span>
 										<ChevronRight aria-hidden="true" className="size-4 text-muted-foreground" />
 									</span>
-								</Button>
+								</button>
 								{overdue && (
-									<Button
+									<button
 										type="button"
-										variant="outline"
 										aria-pressed={activeKey === overdue.key}
 										data-testid={`needs-action-overdue-${item.key}`}
-										className="h-auto min-h-11 gap-1.5 whitespace-normal"
+										className={`${"flex min-h-11 min-w-0 cursor-pointer items-center rounded-lg border bg-card px-4 py-2 text-left outline-none transition-colors hover:bg-muted focus-visible:ring-2 focus-visible:ring-ring aria-pressed:border-primary aria-pressed:bg-secondary"} gap-1.5 text-sm font-medium`}
 										onClick={() => onOpen(overdue)}
 									>
-										<AlarmClock data-icon="inline-start" aria-hidden="true" className="text-destructive" />
+										<AlarmClock aria-hidden="true" className="size-4 shrink-0 text-destructive" />
 										{overdue.count} lewat batas
-									</Button>
+									</button>
 								)}
 							</li>
 						);
