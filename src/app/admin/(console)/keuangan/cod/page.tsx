@@ -25,12 +25,7 @@ export default async function CodSettlementsPage() {
 		<AdminPage>
 			<PageHeader
 				title="Setoran COD Mengantar"
-				description={
-					<>
-						Catat laporan saldo COD dari dasbor Mengantar. Penerimaan per paket dan
-						dana masuk dicocokkan otomatis; selisih ditandai untuk ditinjau.
-					</>
-				}
+				description="Catat laporan saldo COD dari dasbor Mengantar; selisih ditandai untuk ditinjau."
 			/>
 			<CodSettlementsClient canWrite={access.reconcileWrite} />
 		</AdminPage>

@@ -322,7 +322,7 @@ export function InventoryClient({ canTransfer, canReceiveNew }: { canTransfer: b
 							cell: (row) => (
 								<div className="flex flex-col items-end gap-1 max-md:w-full max-md:items-stretch">
 								<div className="flex justify-end gap-2 max-md:w-full">
-									<Button size="sm" data-testid={`inventory-move-${row.sku}`} onClick={() => setDialog({ kind: "movement", row })}>
+									<Button size="sm" variant="outline" data-testid={`inventory-move-${row.sku}`} onClick={() => setDialog({ kind: "movement", row })}>
 										Catat stok
 									</Button>
 									<Button size="sm" variant="outline" onClick={() => setDialog({ kind: "history", row })}>

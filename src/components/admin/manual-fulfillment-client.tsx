@@ -17,7 +17,6 @@ import { FilterSheet, nativeSelectClass, segmentedItemClass, segmentedListClass 
 import { Disclosure } from "./page-blocks";
 import { WarehouseCalendarPanel } from "./warehouse-calendar-panel";
 import { DEADLINE_GROUPS, Deadline, deadlineGroup, StatusBadge, type StatusTone, useNow } from "./status";
-import { useIsMobile } from "@/components/ui/use-mobile";
 import { adminPath } from "@/modules/access/admin-paths";
 
 // DEC-007: every resi comes from 99ribu's own Mengantar account. Operators book
@@ -348,7 +347,6 @@ export function ManualFulfillmentClient({
 	const [notice, setNotice] = useState<Notice | null>(null);
 	const noticeRef = useRef<HTMLDivElement>(null);
 	const now = useNow();
-	const isMobile = useIsMobile();
 
 	const page = useCallback(
 		(cursor: string | null) => {
@@ -439,7 +437,7 @@ export function ManualFulfillmentClient({
 			{/* Settings, not daily work: collapsed above the queue (never after a long list). */}
 			{canManageProfiles && <PickupProfiles warehouses={warehouses} />}
 			{canManageCalendars && <WarehouseCalendarPanel />}
-			<Disclosure key={isMobile ? "phone" : "wide"} id="manual-rules-heading" title="Aturan antrean" open={!isMobile}>
+			<Disclosure id="manual-rules-heading" title="Aturan antrean" open={false}>
 				<p className="max-w-prose text-sm text-muted-foreground">
 					Pesanan lunas (prabayar) dan COD terkonfirmasi dari gudang mode
 					manual, urut batas resi terdekat lalu pesanan terlama. Pesan kurir
@@ -606,7 +604,7 @@ export function ManualFulfillmentClient({
 							className: "text-right",
 							cell: (row) =>
 								queue === "to_book" ? (
-									<Button size="sm" onClick={() => setDialog({ kind: "ship", row })}>
+									<Button size="sm" variant="outline" onClick={() => setDialog({ kind: "ship", row })}>
 										Catat resi
 									</Button>
 								) : (
@@ -672,7 +670,6 @@ function ActionDialog({
 			"",
 	);
 	const [resi, setResi] = useState("");
-	const [reference, setReference] = useState("");
 	const [reason, setReason] = useState("");
 	const [status, setStatus] = useState("delivered");
 	const [occurred, setOccurred] = useState("");
@@ -709,7 +706,6 @@ function ActionDialog({
 							expected_version: row.version,
 							courier,
 							tracking_number: resi,
-							...(reference.trim() ? { purchase_reference: reference.trim() } : {}),
 							...(reason.trim() ? { reason: reason.trim() } : {}),
 						},
 						key.current,
@@ -764,13 +760,13 @@ function ActionDialog({
 			: quoted.code
 				? `Pilihan pembeli: ${quoted.courier_name} · ${quoted.service_name}. Ganti hanya bila layanan itu tidak tersedia di Mengantar.`
 				: `Pilihan pembeli: ${quoted.courier_name} · ${quoted.service_name}. Pilih kurir yang dipesan di Mengantar.`;
-	const dirty = !!(resi.trim() || reference.trim() || reason.trim() || occurred || evidence.trim());
+	const dirty = !!(resi.trim() || reason.trim() || occurred || evidence.trim());
 	return (
 		<FormDialog
 			title={titles[kind]}
 			description={
 				kind === "ship"
-					? "Pastikan pengiriman sudah dipesan di dasbor Mengantar 99ribu dengan penjemputan di gudang penjual. Menyimpan resi menandai paket dikirim dan stok berkurang."
+					? "Pastikan pengiriman sudah dipesan di dasbor Mengantar 99ribu. Menyimpan resi menandai paket dikirim dan stok berkurang."
 					: kind === "correct"
 						? "Resi lama tetap tersimpan di riwayat audit. Pembeli melihat resi terbaru."
 						: "Gunakan bila pembaruan otomatis dari kurir tidak tersedia. Status hanya bisa maju dan tercatat di audit."
@@ -831,22 +827,6 @@ function ActionDialog({
 								/>
 							</Field>
 						</>
-					)}
-					{kind === "ship" && (
-						<Field
-							id="manual-reference"
-							label="Referensi pembelian Berlapak (opsional)"
-							error={errors.reference}
-						>
-							<Input
-								id="manual-reference"
-								value={reference}
-								maxLength={80}
-								onChange={(e) => setReference(e.target.value)}
-								aria-invalid={errors.reference ? true : undefined}
-								aria-describedby={describe("manual-reference")}
-							/>
-						</Field>
 					)}
 					{kind === "status" && (
 						<>

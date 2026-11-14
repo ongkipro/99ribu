@@ -25,12 +25,7 @@ export default async function ManualFulfillmentPage() {
 		<AdminPage>
 			<PageHeader
 				title="Pengiriman Manual"
-				description={
-					<>
-						Pesan kurir di dashboard Mengantar 99ribu dengan penjemputan di gudang
-						seller Berlapak, lalu catat kurir dan resi agar pembeli bisa melacak paketnya.
-					</>
-				}
+				description="Pesan kurir di dashboard Mengantar 99ribu, lalu catat kurir dan resi agar pembeli bisa melacak paketnya."
 			/>
 			<ManualFulfillmentClient
 				canManageProfiles={roles.some((r) => ["owner", "ecommerce_admin"].includes(r))}

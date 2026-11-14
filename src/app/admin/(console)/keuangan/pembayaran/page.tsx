@@ -26,12 +26,7 @@ export default async function PaymentsPage() {
 		<AdminPage>
 			<PageHeader
 				title="Pembayaran Masuk"
-				description={
-					<>
-						Konfirmasi transfer bank manual dari mutasi rekening dan pantau Virtual Account / QRIS AutoLaris. Nominal yang
-						berbeda dicatat dan masuk tinjauan, tidak dianggap lunas.
-					</>
-				}
+				description="Konfirmasi transfer bank dari mutasi rekening dan pantau pembayaran Virtual Account."
 			/>
 			<PaymentsClient
 				canWrite={access.reconcileWrite}

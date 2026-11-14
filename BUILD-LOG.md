@@ -1,5 +1,12 @@
 # Build log — Serba 99ribu
 
+## 2026-11-14 — Admin page polish, first pass (R1, display only)
+
+- Pengiriman Manual: no Berlapak wording left (page description, resi dialog) and the "Referensi pembelian Berlapak" field is gone from the resi dialog (DEC-035; stored references stay in history, the API field is unchanged); "Aturan antrean" starts closed so the queue is the first thing on screen.
+- One primary action per screen: per-row actions (Catat resi, Konfirmasi transfer, Catat stok, Kirim/Terima transfer) are outline buttons; filled purple stays for the page action (Tambah produk, Terima barang baru, Buat voucher).
+- Page descriptions cut to one task sentence: Pesanan, Pembayaran Masuk, Setoran COD, Laporan Keuangan, Voucher, Promo Ongkir.
+- Evidence: browser `consignment-payments`, `admin-ops-screens`, `payment-fees` 10/10 (built before the description edits; no test reads those texts); unit 394/394; lint and typecheck clean.
+
 ## 2026-11-14 — Local demo sales for the owner dashboard (R1, local fixture only)
 
 - `src/modules/local/demo-sales.ts`, `npm run fixture -- demo-sales local [days]`: ordinary orders spread over the past days so the owner dashboard, trend and lists read like a running store. One fixture namespace per day with its own business clock; orders placed at their minute of the day, prepaid paid at once, then the day's parcels shipped by manual resi, in transit, delivered (COD collected) or refused, and some returned (four reasons), each later in business time but never after now. Real handlers only; real catalog offers with stock moved into the day's fixture warehouse by audited transfers. Limits kept rather than bypassed: no order before the first publication of the sold offers (4 Nov), and a warehouse calendar cannot take effect in the past, so backdated parcels open as "calendar needs configuration" (manual shipment accepts that state). Reauthentication proofs wait out the 5-a-minute limit.

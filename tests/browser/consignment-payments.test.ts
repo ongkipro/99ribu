@@ -258,7 +258,7 @@ test.after(async () => {
 	if (failures.length) throw new AggregateError(failures, "Owned S91/S92 browser cleanup failed");
 }, LONG);
 
-test("S91 built browser: scoped warehouse staff records a Berlapak reference and a manual resi through the real dialog; the buyer order page shows courier, resi and tracking status", LONG, async () => {
+test("S91 built browser: scoped warehouse staff records a manual resi through the real dialog (no purchase reference field since DEC-035); the buyer order page shows courier, resi and tracking status", LONG, async () => {
 	await syncClock();
 	const { client, cart } = await guestCart(curated.products.shirt, 4);
 	const quote = await client.call("/api/v1/checkout/quotes", { cart_id: cart, address: ADDRESS, contact: { phone: `+62812${String(Math.floor(Math.random() * 1e8)).padStart(8, "0")}`, email: null }, payment_method: "cod" }, { version: 1 });
@@ -271,7 +271,7 @@ test("S91 built browser: scoped warehouse staff records a Berlapak reference and
 	assert.equal(parcels.length, 2, "four shirts split across the two owned origin warehouses");
 	const mine = parcels.find((p) => p.warehouse_id === malang), other = parcels.find((p) => p.warehouse_id !== malang);
 	assert.ok(mine && other, "one parcel per warehouse");
-	const resi = `JP${stamp()}`, reference = "BL-INV/2026/0042";
+	const resi = `JP${stamp()}`;
 
 	const desk = await asStaff(staff);
 	try {
@@ -302,7 +302,7 @@ test("S91 built browser: scoped warehouse staff records a Berlapak reference and
 		assert.equal((await sql`select count(*)::int n from app.manual_tracking where fulfillment_id=${mine.id}`)[0].n, 0, "an invalid resi persists nothing");
 		// Typed with spaces and lower case; the server normalizes it.
 		await dialog.getByLabel("Nomor resi", { exact: true }).fill(resi.toLowerCase().replace(/(.{4})/g, "$1 ").trim());
-		await dialog.getByLabel("Referensi pembelian Berlapak (opsional)").fill(reference);
+		await expect(dialog.getByLabel("Referensi pembelian Berlapak (opsional)")).toHaveCount(0);
 		await captureBoth(page, "s91-fulfillment-dialog");
 		await dialog.getByRole("button", { name: "Simpan" }).click();
 		await expect(page.getByRole("status").filter({ hasText: `Resi ${resi} tercatat; paket ${order.number} berstatus dikirim.` })).toBeVisible();
@@ -317,7 +317,7 @@ test("S91 built browser: scoped warehouse staff records a Berlapak reference and
 		assert.equal(row.status, "handed_over");
 		assert.equal(row.manual.courier, "jne");
 		assert.equal(row.manual.tracking_number, resi);
-		assert.equal(row.manual.purchase_reference?.reference, reference);
+		assert.equal(row.manual.purchase_reference, null, "no purchase reference is recorded from the dialog (DEC-035)");
 		const [components] = await sql`select sum(a.quantity)::int expected from app.fulfillment_component_allocation a join app.fulfillment_item i on i.id=a.fulfillment_item_id where i.shipment_id=${mine.shipment_id}`;
 		const [consumed] = await sql`select sum(m.quantity)::int actual,count(distinct e.id)::int events from app.stock_movement m join app.fulfillment_event e on m.source_ref='handover:'||e.id::text where e.fulfillment_id=${mine.id} and m.kind='consume'`;
 		assert.equal(consumed.actual, components.expected);
@@ -356,7 +356,6 @@ test("S91 built browser: scoped warehouse staff records a Berlapak reference and
 		await expect(tracking.getByTestId("parcel-tracking-status")).toHaveText("Status kurir: Dalam perjalanan");
 		await expect(page.locator(".receipt-carrier").filter({ hasText: "JNE" })).toHaveCount(1);
 		await expect(page.getByText("Biaya COD (3,33%)", { exact: true }).first()).toBeAttached();
-		assert.ok(!(await page.content()).includes(reference), "the Berlapak purchase reference stays internal");
 		await captureBoth(page, "s91-buyer-order", true);
 		assert.deepEqual(buyer.problems, []);
 	} finally {

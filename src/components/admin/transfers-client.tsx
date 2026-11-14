@@ -182,7 +182,7 @@ export function TransfersClient({ owner }: { owner: boolean }) {
 								<div className="flex justify-end gap-2 max-md:w-full">
 									{row.status === "requested" && inScope(row.from_warehouse_id) && (
 										<>
-											<Button size="sm" data-testid={`transfer-dispatch-${row.sku}`} onClick={() => setDialog({ action: "dispatch", row })}>
+											<Button size="sm" variant="outline" data-testid={`transfer-dispatch-${row.sku}`} onClick={() => setDialog({ action: "dispatch", row })}>
 												Kirim
 											</Button>
 											<Button size="sm" variant="outline" onClick={() => setDialog({ action: "cancel", row })}>
@@ -191,7 +191,7 @@ export function TransfersClient({ owner }: { owner: boolean }) {
 										</>
 									)}
 									{(row.status === "dispatched" || row.status === "exception") && inScope(row.to_warehouse_id) && (
-										<Button size="sm" data-testid={`transfer-receive-${row.sku}`} onClick={() => setDialog({ action: "receive", row })}>
+										<Button size="sm" variant="outline" data-testid={`transfer-receive-${row.sku}`} onClick={() => setDialog({ action: "receive", row })}>
 											Terima
 										</Button>
 									)}

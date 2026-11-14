@@ -291,8 +291,8 @@ export function ShippingPromotionsClient({
 				title={voucher ? "Voucher" : "Promo Ongkir"}
 				description={
 					voucher
-						? "Kode potongan ongkir yang diketik pembeli saat checkout. Satu voucher per pesanan; bila ada promo ongkir otomatis, pembeli mendapat potongan yang lebih besar. Setiap perubahan disimpan sebagai versi baru dengan alasan."
-						: "Subsidi ongkir yang dipotong saat pembeli membayar pesanan. Setiap perubahan disimpan sebagai versi baru dengan alasan; pesanan yang sudah dibuat tetap memakai promo saat itu."
+						? "Kode potongan yang diketik pembeli saat checkout. Satu voucher per pesanan; perubahan tidak mengubah pesanan yang sudah dibuat."
+						: "Potongan ongkir otomatis saat checkout; perubahan tidak mengubah pesanan yang sudah dibuat."
 				}
 				actions={
 					<Button data-testid="promotion-create" onClick={() => setDialog({ kind: "create" })}>

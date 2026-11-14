@@ -179,7 +179,7 @@ export function PaymentsClient({
 							className: "text-right",
 							cell: (row) =>
 								!row.confirmation && (
-									<Button size="sm" disabled={!canWrite} aria-describedby={canWrite ? undefined : READ_ONLY_ID} onClick={() => setSelected(row)}>
+									<Button size="sm" variant="outline" disabled={!canWrite} aria-describedby={canWrite ? undefined : READ_ONLY_ID} onClick={() => setSelected(row)}>
 										Konfirmasi transfer
 									</Button>
 								),

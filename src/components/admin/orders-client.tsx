@@ -234,13 +234,9 @@ export function OrderSearchClient({
 			<PageHeader
 				title="Pesanan"
 				description={
-					<>
-						Cari pesanan dengan nomor pesanan, nomor resi atau akhiran nomor HP, lalu
-						buka detail pembayaran, pengiriman dan riwayatnya.{" "}
-						{companyWide
-							? "Super Admin melihat pesanan semua gudang."
-							: "Anda hanya melihat pesanan yang semua paketnya berasal dari gudang yang ditugaskan ke akun Anda."}
-					</>
+					companyWide
+						? "Cari dengan nomor pesanan, nomor resi atau akhiran nomor HP."
+						: "Cari dengan nomor pesanan, nomor resi atau akhiran nomor HP. Hanya pesanan dari gudang Anda."
 				}
 			/>
 			<search aria-label="Cari pesanan">
