@@ -22,11 +22,11 @@ STATUS holds only now, next and what waits for the owner (DEC-030). History: [`d
 3. **First real VA payment** (proves `payment_info.va`, the settled advice for submit, and shows the payout shape needed for the production settlement entry, ARCHITECTURE Known differences 7).
 4. Local database rebuild (owner approval; README "Rebuilding the local databases"): drops the synthetic test rows so the admin shows only the catalog and `demo-sales` orders.
 5. QRIS image: paste `grep -v -i -E "token|auth|password|_key" .npmrc` so `uqr` can be installed.
-6. External gates unchanged: Mengantar booking/tracking contract (S94/S95/S98); Berlapak stock sync (S96); email provider (S124).
+6. External gates unchanged: Mengantar booking/tracking contract (S94/S95/S98); email provider (S124).
 
 ## Next (local, no owner input)
 
-1. Admin console polish is done on branch `admin-console` (8 commits on top of `b61fb701`, not pushed): sidebar tree by job, shared primitives, owner sales overview, local demo sales, two page passes; all 23 owner sidebar pages pass the size contract at 390/1366/1536. Deploy only on the owner's "deploy" (display and read-only reporting, no migration).
+1. Admin console polish is done on branch `admin-console` (9 commits after `72408208`, not pushed): sidebar tree by job, shared primitives, owner sales overview, local demo sales, two page passes; all 23 owner sidebar pages pass the size contract at 390/1366/1536. Deploy only on the owner's "deploy" (display and read-only reporting, no migration).
 2. Test hygiene: synthetic owned checkout campaign left active by interrupted runs (S65/S67 `source_not_eligible`); `tests/browser/sign-in.test.ts` "staff signs in through /portal" intermittent.
 3. Gateway items deferred from the AdsBookCMS comparison (`/data/tmp/99ribu-reviews/carbon-adsbook-report.clean.md`).
 
