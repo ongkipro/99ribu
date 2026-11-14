@@ -1,5 +1,10 @@
 # Build log — Serba 99ribu
 
+## 2026-11-14 — Admin sidebar as a tree grouped by job (R1, display only)
+
+- Owner: "sidebar bukan dropdown, model sidebar tree". `nav-links.tsx` renders section labels and every child always visible under a guide line; the expand/collapse buttons are gone (the tablet rail still shows parent icons). The owner tree (`admin-nav.ts`) is grouped by job: Penjualan, Katalog & Stok, Pemasaran, Keuangan, Sistem; Pembayaran Masuk, Setoran COD, Pengembalian Dana and Pengiriman Manual are now one click away for the owner. Maintained-only pages (Cetak Label, Transfer Stok, Afiliasi, Komisi Afiliasi, Segmen Pembeli) moved to a "Fitur lain" group on Pengaturan (`MAINTAINED_CARDS`). The Pantauan hub and the Persetujuan/Analitik/Pantauan placeholders are removed. Access is unchanged: every row still passes `PAGE_RULES` and every page and API re-checks.
+- Evidence: unit 393/393 (nav model, route map), browser `admin-nav.test.ts` 6/6 (tree with no buttons, one active row, settings groups), renders 1440/1366/390 with no page errors.
+
 ## 2026-11-14 — DEC-035: no Berlapak link; docs brought up to date (R0, docs only)
 
 - Owner: products enter by manual upload (later CLI/MCP); the imported Berlapak products stay published as manually managed content; no sync. DECISIONS DEC-035; PRD PR-2 (one company warehouse, manual catalog) and PR-5 (AutoLaris instead of Virgo, buyer-paid fee formula B); ADR-0008 opening step 1 names formula B and the turnover field; TASKS S182/S183 rows, S96 closed; ARCHITECTURE system map, external table, catalog pipeline (frozen) and the manual fulfillment flow.

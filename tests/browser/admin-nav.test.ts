@@ -39,16 +39,11 @@ async function open(user: User | null, viewport = { width: 1440, height: 1000 },
 	page.on("request", (request) => assert.equal(new URL(request.url()).origin, origin, "No external browser request"));
 	return { page, errors, close: () => context.close() };
 }
-/** [row label, child labels][] as rendered in the operator navigation, every group opened. */
+/** [row label, child labels][] as rendered in the operator navigation (a tree: every child is always visible). */
 async function navRows(page: Page) {
 	const nav = page.getByRole("navigation", { name: "Navigasi Operator" }).first();
 	await expect(nav).toBeVisible();
-	// An opened group's toggle turns into "Tutup …", so positional handles shift; open the first closed one until none is left.
-	const closed = nav.getByRole("button", { name: /^Buka / });
-	for (let left = await closed.count(); left > 0; left = await closed.count()) {
-		await closed.first().click();
-		await expect(closed).toHaveCount(left - 1);
-	}
+	assert.equal(await nav.getByRole("button").count(), 0, "the sidebar tree has no expand/collapse buttons");
 	return nav.locator("li[data-nav-row]").evaluateAll((rows) =>
 		rows.map((row) => [
 			row.getAttribute("data-nav-row") ?? "",
@@ -60,14 +55,25 @@ const overflow = (page: Page) => page.evaluate(() => document.documentElement.sc
 
 // Plan §4.1 per lens; the same rules as the page guards hide what a grant does not open (unit-tested
 // in tests/admin-nav-model.test.ts). Unbuilt pages (Persetujuan, Analitik, ...) never show; Tambah Produk and Halaman Toko exist since bf56d8d.
-const SETTINGS = ["Staf & Peran", "Kebijakan Komersial", "Pembayaran & COD", "Tarif Afiliasi", "Gudang", "Integrasi Iklan", "Log Audit", "Kesehatan Sistem"];
 const EXPECTED: [string, Role[], string[], [string, string[]][]][] = [
 	["owner", ["owner"], [], [
 		["Beranda", []],
-		["Pantauan", ["Pesanan", "Produk", "Stok", "Kendala Pengiriman", "Retur"]],
-		["Keuangan", ["Laporan Keuangan", "Rekonsiliasi", "Komisi Afiliasi"]],
-		["Pemasaran", ["Voucher"]],
-		["Pengaturan", SETTINGS],
+		["Pesanan", ["Pengiriman Manual", "Kendala Pengiriman", "Retur"]],
+		["Obrolan", []],
+		["Pelanggan", []],
+		["Produk", ["Tambah Produk", "Kategori", "SKU & HPP"]],
+		["Stok Gudang", []],
+		["Gudang", []],
+		["Voucher", []],
+		["Promo Ongkir", []],
+		["Banner Beranda", []],
+		["Halaman Toko", []],
+		["Laporan Keuangan", []],
+		["Pembayaran Masuk", []],
+		["Setoran COD", []],
+		["Pengembalian Dana", []],
+		["Rekonsiliasi", []],
+		["Pengaturan", []],
 	]],
 	["ecommerce_admin", ["ecommerce_admin"], ["orders.history.read"], [
 		["Beranda", []],
@@ -161,9 +167,9 @@ test("S-V1 exactly one active row and the account menu (Profil, Keamanan, Lihat 
 		const nav = page.getByRole("navigation", { name: "Navigasi Operator" });
 		await expect(nav.locator('[data-slot="nav-link"][data-active]')).toHaveText(["Retur"]);
 		await expect(nav.getByRole("link", { name: "Retur" })).toHaveAttribute("aria-current", "page");
-		// The Pantauan group is open because its active child is inside; the other groups stay closed.
-		await expect(nav.getByRole("button", { name: "Tutup Pantauan" })).toHaveAttribute("aria-expanded", "true");
-		await expect(nav.getByRole("button", { name: "Buka Pengaturan" })).toHaveAttribute("aria-expanded", "false");
+		// Tree: every section is shown, with its label; no row hides its children.
+		await expect(nav.getByText("Katalog & Stok", { exact: true })).toBeVisible();
+		await expect(nav.getByRole("link", { name: "Tambah Produk" })).toBeVisible();
 		await expect(page.getByTestId("admin-session-bar")).toHaveCount(0);
 
 		const account = page.getByTestId("admin-account");
@@ -196,6 +202,10 @@ test("S-V1 settings index lists only the cards the role opens", async () => {
 		try {
 			await page.goto(`${origin}/admin/pengaturan`);
 			await expect(page.getByRole("list", { name: "Daftar pengaturan" }).locator("li .font-semibold")).toHaveText([...cards]);
+			// Maintained-only pages (DEC-035) are a second group, shown only to roles they open for.
+			await expect(page.getByRole("list", { name: "Fitur lain" }).locator("li .font-semibold")).toHaveText(
+				user === owner ? ["Cetak Label", "Transfer Stok", "Afiliasi", "Komisi Afiliasi", "Segmen Pembeli"] : [],
+			);
 		} finally {
 			await close();
 		}

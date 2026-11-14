@@ -28,28 +28,31 @@ const shape = (sections: NavSection[]): Shape =>
 		s.items.map((i): Shape[number] => (i.children ? [i.label, i.href, i.children.map((c) => c.label)] : [i.label, i.href])),
 	);
 
-const SETTINGS_ALL = [
-	"Staf & Peran",
-	"Kebijakan Komersial",
-	"Pembayaran & COD",
-	"Tarif Afiliasi",
-	"Gudang",
-	"Integrasi Iklan",
-	"Log Audit",
-	"Kesehatan Sistem",
-];
 
 test("S-V1 nav per role lens: exactly the plan §4.1 items each principal's grants open", () => {
 	const cases: [string, Parameters<typeof navFor>, Shape][] = [
 		[
-			"owner (Pantauan opens its hub; katalog/stok/kendala pages still use transition links until S-O1)",
+			// Owner tree (2026-11-14): job sections, every page one click away; maintained-only pages sit on Pengaturan.
+			"owner",
 			["owner", ["owner"], []],
 			[
 				["Beranda", "/admin"],
-				["Pantauan", "/admin/pantauan", ["Pesanan", "Produk", "Stok", "Kendala Pengiriman", "Retur"]],
-				["Keuangan", "/admin/keuangan", ["Laporan Keuangan", "Rekonsiliasi", "Komisi Afiliasi"]],
-				["Pemasaran", "/admin/pemasaran", ["Voucher"]],
-				["Pengaturan", "/admin/pengaturan", SETTINGS_ALL],
+				["Pesanan", "/admin/pesanan", ["Pengiriman Manual", "Kendala Pengiriman", "Retur"]],
+				["Obrolan", "/admin/obrolan"],
+				["Pelanggan", "/admin/pelanggan"],
+				["Produk", "/admin/produk", ["Tambah Produk", "Kategori", "SKU & HPP"]],
+				["Stok Gudang", "/admin/produk/inventori"],
+				["Gudang", "/admin/produk/gudang"],
+				["Voucher", "/admin/pemasaran/voucher"],
+				["Promo Ongkir", "/admin/promo/ongkir"],
+				["Banner Beranda", "/admin/banner"],
+				["Halaman Toko", "/admin/halaman"],
+				["Laporan Keuangan", "/admin/keuangan"],
+				["Pembayaran Masuk", "/admin/keuangan/pembayaran"],
+				["Setoran COD", "/admin/keuangan/cod"],
+				["Pengembalian Dana", "/admin/keuangan/refund"],
+				["Rekonsiliasi", "/admin/keuangan/rekonsiliasi"],
+				["Pengaturan", "/admin/pengaturan"],
 			],
 		],
 		[
@@ -198,7 +201,7 @@ test("S-V1 exactly one active row: longest path, query views, child over parent,
 	assert.equal(at(owner, "/admin/produk/gudang/3"), "/admin/produk/gudang");
 	// Finance: the Keuangan row and its first child share a link; only the child is highlighted.
 	assert.deepEqual(highlightedRows(finance, at(finance, "/admin/keuangan/pembayaran")), ["Keuangan > Pembayaran Masuk"]);
-	assert.deepEqual(highlightedRows(owner, at(owner, "/admin/pesanan/7")), ["Pantauan > Pesanan"]);
+	assert.deepEqual(highlightedRows(owner, at(owner, "/admin/pesanan/7")), ["Pesanan"]);
 	assert.deepEqual(highlightedRows(ecommerce, at(ecommerce, "/admin/pesanan?tab=perlu_dikirim")), ["Pesanan"]);
 	// A query parent falls back to its path: the owner's warehouse lens lights Pesanan on other tabs and details.
 	const warehouseLens = navFor("warehouse", ["owner"], []);

@@ -4,9 +4,9 @@
 // every page and API re-checks on the server. No "use client": unit tests and server pages import it.
 import {
 	Activity,
+	Banknote,
+	Boxes,
 	ChartColumn,
-	ClipboardCheck,
-	Eye,
 	FileText,
 	House,
 	Landmark,
@@ -23,6 +23,7 @@ import {
 	Store,
 	Ticket,
 	TicketPercent,
+	Undo2,
 	UserCog,
 	UsersRound,
 	Wallet,
@@ -76,11 +77,6 @@ export type ConsoleLens = CanonicalWorkspace | "marketing";
  * onto nothing is not shown (tokophi IA rule). The slice that builds a page deletes its line here.
  */
 export const UNBUILT_PAGES: ReadonlySet<string> = new Set([
-	"/admin/persetujuan", // S-A0
-	"/admin/pantauan/katalog", // S-O1
-	"/admin/pantauan/stok", // S-O1
-	"/admin/pantauan/kendala", // S-O1
-	"/admin/analitik", // S-A1
 	"/admin/media", // S-C1
 ]);
 
@@ -90,58 +86,93 @@ const HOME: NavItem = { label: "Beranda", href: "/admin", icon: House };
 export const NAV_BY_LENS: Record<ConsoleLens, NavSection[]> = {
 	// Monitor, approver, governor (not an operator). Until S-O1 merges, "Pantauan" keeps the existing
 	// operational pages as transition links (plan §4.1 "Transition (for S-V1)").
+	// Owner tree (2026-11-14, DEC-035 scope): sections by job, every page one click away, no collapsed groups.
+	// Maintained-only features (affiliates, ad integrations, label printing, buyer segments, stock transfers) are
+	// not rows here; they stay reachable from the Pengaturan and Pemasaran hubs.
 	owner: [
+		{ items: [HOME] },
 		{
+			label: "Penjualan",
 			items: [
-				HOME,
-				{ label: "Persetujuan", href: "/admin/persetujuan", icon: ClipboardCheck },
 				{
-					label: "Pantauan",
-					href: "/admin/pantauan",
-					icon: Eye,
+					label: "Pesanan",
+					href: "/admin/pesanan",
+					icon: ReceiptText,
 					children: [
-						{ label: "Pesanan", href: "/admin/pesanan" },
-						{ label: "Katalog", href: "/admin/pantauan/katalog" },
-						{ label: "Produk", href: "/admin/produk", until: "/admin/pantauan/katalog" },
-						{ label: "Stok", href: "/admin/pantauan/stok" },
-						{ label: "Stok", href: "/admin/produk/inventori", until: "/admin/pantauan/stok" },
-						{ label: "Kendala & Retur", href: "/admin/pantauan/kendala" },
-						{ label: "Kendala Pengiriman", href: "/admin/pesanan/kendala", until: "/admin/pantauan/kendala" },
-						{ label: "Retur", href: "/admin/pesanan/retur", until: "/admin/pantauan/kendala" },
+						{ label: "Pengiriman Manual", href: "/admin/pesanan/kirim" },
+						{ label: "Kendala Pengiriman", href: "/admin/pesanan/kendala" },
+						{ label: "Retur", href: "/admin/pesanan/retur" },
 					],
 				},
 				{
-					label: "Keuangan",
+					label: "Obrolan",
+					href: "/admin/obrolan",
+					icon: MessageSquare,
+					badge: "support_unassigned",
+				},
+				{ label: "Pelanggan", href: "/admin/pelanggan", icon: UsersRound },
+			],
+		},
+		{
+			label: "Katalog & Stok",
+			items: [
+				{
+					label: "Produk",
+					href: "/admin/produk",
+					icon: Package,
+					children: [
+						{ label: "Tambah Produk", href: "/admin/produk/baru" },
+						{ label: "Kategori", href: "/admin/produk/kategori" },
+						{ label: "SKU & HPP", href: "/admin/produk/sku" },
+					],
+				},
+				{ label: "Stok Gudang", href: "/admin/produk/inventori", icon: Boxes },
+				{ label: "Gudang", href: "/admin/produk/gudang", icon: Warehouse },
+			],
+		},
+		{
+			label: "Pemasaran",
+			items: [
+				{ label: "Voucher", href: "/admin/pemasaran/voucher", icon: Ticket },
+				{
+					label: "Promo Ongkir",
+					href: "/admin/promo/ongkir",
+					icon: TicketPercent,
+				},
+				{ label: "Banner Beranda", href: "/admin/banner", icon: Store },
+				{ label: "Halaman Toko", href: "/admin/halaman", icon: FileText },
+			],
+		},
+		{
+			label: "Keuangan",
+			items: [
+				{
+					label: "Laporan Keuangan",
 					href: "/admin/keuangan",
-					icon: Wallet,
-					children: [
-						{ label: "Laporan Keuangan", href: "/admin/keuangan" },
-						{ label: "Rekonsiliasi", href: "/admin/keuangan/rekonsiliasi" },
-						{ label: "Komisi Afiliasi", href: "/admin/keuangan/komisi" },
-					],
-				},
-				{ label: "Analitik", href: "/admin/analitik", icon: ChartColumn },
-				{
-					label: "Pemasaran",
-					href: "/admin/pemasaran",
-					icon: Megaphone,
-					children: [{ label: "Voucher", href: "/admin/pemasaran/voucher" }],
+					icon: ChartColumn,
 				},
 				{
-					label: "Pengaturan",
-					href: "/admin/pengaturan",
-					icon: Settings,
-					children: [
-						{ label: "Staf & Peran", href: "/admin/pengaturan/staf" },
-						{ label: "Kebijakan Komersial", href: "/admin/pengaturan/komersial" },
-						{ label: "Pembayaran & COD", href: "/admin/pengaturan/pembayaran" },
-						{ label: "Tarif Afiliasi", href: "/admin/afiliasi" },
-						{ label: "Gudang", href: "/admin/produk/gudang" },
-						{ label: "Integrasi Iklan", href: "/admin/pemasaran/iklan" },
-						{ label: "Log Audit", href: "/admin/pengaturan/audit" },
-						{ label: "Kesehatan Sistem", href: "/admin/pengaturan/sistem" },
-					],
+					label: "Pembayaran Masuk",
+					href: "/admin/keuangan/pembayaran",
+					icon: Banknote,
 				},
+				{ label: "Setoran COD", href: "/admin/keuangan/cod", icon: Landmark },
+				{
+					label: "Pengembalian Dana",
+					href: "/admin/keuangan/refund",
+					icon: Undo2,
+				},
+				{
+					label: "Rekonsiliasi",
+					href: "/admin/keuangan/rekonsiliasi",
+					icon: Scale,
+				},
+			],
+		},
+		{
+			label: "Sistem",
+			items: [
+				{ label: "Pengaturan", href: "/admin/pengaturan", icon: Settings },
 			],
 		},
 	],
@@ -170,7 +201,10 @@ export const NAV_BY_LENS: Record<ConsoleLens, NavSection[]> = {
 						{ label: "SKU & HPP", href: "/admin/produk/sku" },
 						{ label: "Kategori", href: "/admin/produk/kategori" },
 						{ label: "Inventori", href: "/admin/produk/inventori" },
-						{ label: "Transfer Stok", href: "/admin/produk/inventori/transfer" },
+						{
+							label: "Transfer Stok",
+							href: "/admin/produk/inventori/transfer",
+						},
 					],
 				},
 				{
@@ -211,7 +245,12 @@ export const NAV_BY_LENS: Record<ConsoleLens, NavSection[]> = {
 					label: "Produk",
 					href: "/admin/produk/inventori",
 					icon: Package,
-					children: [{ label: "Transfer Stok", href: "/admin/produk/inventori/transfer" }],
+					children: [
+						{
+							label: "Transfer Stok",
+							href: "/admin/produk/inventori/transfer",
+						},
+					],
 				},
 			],
 		},
@@ -220,7 +259,12 @@ export const NAV_BY_LENS: Record<ConsoleLens, NavSection[]> = {
 		{
 			items: [
 				HOME,
-				{ label: "Obrolan", href: "/admin/obrolan", icon: MessageSquare, badge: "support_unassigned" },
+				{
+					label: "Obrolan",
+					href: "/admin/obrolan",
+					icon: MessageSquare,
+					badge: "support_unassigned",
+				},
 				{
 					label: "Pesanan",
 					href: "/admin/pesanan",
@@ -275,41 +319,169 @@ export const NAV_BY_LENS: Record<ConsoleLens, NavSection[]> = {
 };
 
 /** Settings cards of `/admin/pengaturan` (plan §4.5), in order. */
-export type HubCard = { href: string; label: string; description: string; icon: LucideIcon };
+export type HubCard = {
+	href: string;
+	label: string;
+	description: string;
+	icon: LucideIcon;
+};
 
 /** Pemasaran hub (`/admin/pemasaran`): one card per marketing page; each shows only when its own guard opens it. */
 export const MARKETING_CARDS: HubCard[] = [
-	{ href: "/admin/pemasaran/voucher", label: "Voucher", icon: Ticket, description: "Kode potongan ongkir yang diketik pembeli saat checkout. Usulan Marketing berjalan setelah disetujui." },
-	{ href: "/admin/promo/ongkir", label: "Promo Ongkir", icon: TicketPercent, description: "Subsidi ongkir yang dipotong saat pembeli membayar. Setiap perubahan disimpan sebagai versi baru." },
-	{ href: "/admin/banner", label: "Banner Beranda", icon: Store, description: "Gambar, teks dan tujuan kartu di beranda toko, dengan jadwal tayang dalam WIB." },
-	{ href: "/admin/pelanggan/segmen", label: "Segmen Pembeli", icon: UsersRound, description: "Jumlah pembeli per bulan lahir, kategori favorit dan persetujuan promo. Hanya angka." },
-	{ href: "/admin/afiliasi", label: "Afiliasi", icon: Wallet, description: "Mitra afiliasi, tarif komisi dan pesanan yang teratribusi ke tiap mitra." },
-	{ href: "/admin/pemasaran/iklan", label: "Integrasi Iklan", icon: Megaphone, description: "Tujuan iklan Meta, Google dan TikTok serta diagnostik sinyal konversi." },
+	{
+		href: "/admin/pemasaran/voucher",
+		label: "Voucher",
+		icon: Ticket,
+		description:
+			"Kode potongan ongkir yang diketik pembeli saat checkout. Usulan Marketing berjalan setelah disetujui.",
+	},
+	{
+		href: "/admin/promo/ongkir",
+		label: "Promo Ongkir",
+		icon: TicketPercent,
+		description:
+			"Subsidi ongkir yang dipotong saat pembeli membayar. Setiap perubahan disimpan sebagai versi baru.",
+	},
+	{
+		href: "/admin/banner",
+		label: "Banner Beranda",
+		icon: Store,
+		description:
+			"Gambar, teks dan tujuan kartu di beranda toko, dengan jadwal tayang dalam WIB.",
+	},
+	{
+		href: "/admin/pelanggan/segmen",
+		label: "Segmen Pembeli",
+		icon: UsersRound,
+		description:
+			"Jumlah pembeli per bulan lahir, kategori favorit dan persetujuan promo. Hanya angka.",
+	},
+	{
+		href: "/admin/afiliasi",
+		label: "Afiliasi",
+		icon: Wallet,
+		description:
+			"Mitra afiliasi, tarif komisi dan pesanan yang teratribusi ke tiap mitra.",
+	},
+	{
+		href: "/admin/pemasaran/iklan",
+		label: "Integrasi Iklan",
+		icon: Megaphone,
+		description:
+			"Tujuan iklan Meta, Google dan TikTok serta diagnostik sinyal konversi.",
+	},
 ];
 
-/** Pantauan hub (`/admin/pantauan`): owner's read-first entry to the operational pages (plan §4.1, S-O1). */
-export const MONITOR_CARDS: HubCard[] = [
-	{ href: "/admin/pesanan", label: "Pesanan", icon: ReceiptText, description: "Semua pesanan beserta status pembayaran dan pengiriman." },
-	{ href: "/admin/produk", label: "Katalog Produk", icon: Package, description: "Semua produk, termasuk draf dan yang ditarik dari toko, dengan status kelengkapan." },
-	{ href: "/admin/produk/inventori", label: "Stok Gudang", icon: Warehouse, description: "Saldo fisik per gudang dan barang, dengan pergerakan stok yang tercatat." },
-	{ href: "/admin/pesanan/kendala", label: "Kendala Pengiriman", icon: Activity, description: "Kendala pengiriman yang perlu ditangani." },
-	{ href: "/admin/pesanan/retur", label: "Retur", icon: ClipboardCheck, description: "Permintaan retur dan penggantian beserta keputusannya." },
+export const SETTINGS_CARDS: {
+	href: string;
+	label: string;
+	description: string;
+	icon: LucideIcon;
+}[] = [
+	{
+		href: "/admin/pengaturan/staf",
+		label: "Staf & Peran",
+		icon: UserCog,
+		description:
+			"Daftar staf, peran, izin tambahan, cakupan gudang dan reset MFA.",
+	},
+	{
+		href: "/admin/pengaturan/komersial",
+		label: "Kebijakan Komersial",
+		icon: Scale,
+		description: "Batas kontribusi minimum dan nilai bawaan, berversi.",
+	},
+	{
+		href: "/admin/pengaturan/pembayaran",
+		label: "Pembayaran & COD",
+		icon: Landmark,
+		description: "Biaya COD dan rekening transfer manual, berversi.",
+	},
+	{
+		href: "/admin/produk/gudang",
+		label: "Gudang",
+		icon: Warehouse,
+		description: "Daftar gudang, profil penjemputan dan kalender pengiriman.",
+	},
+	{
+		href: "/admin/halaman",
+		label: "Halaman Toko",
+		icon: FileText,
+		description: "Tentang kami, kontak, syarat dan kebijakan privasi di toko.",
+	},
+	{
+		href: "/admin/pengaturan/label",
+		label: "Template Label",
+		icon: Printer,
+		description: "Template label pengiriman yang dipakai pusat cetak.",
+	},
+	{
+		href: "/admin/pengaturan/balasan-cs",
+		label: "Balasan CS",
+		icon: MessagesSquare,
+		description: "Balasan tersimpan dan tag percakapan pelanggan.",
+	},
+	{
+		href: "/admin/pemasaran/iklan",
+		label: "Integrasi Iklan",
+		icon: Megaphone,
+		description: "Tujuan iklan Meta, Google dan TikTok serta diagnostiknya.",
+	},
+	{
+		href: "/admin/pengaturan/audit",
+		label: "Log Audit",
+		icon: ScrollText,
+		description: "Jejak tindakan staf yang tidak bisa diubah.",
+	},
+	{
+		href: "/admin/pengaturan/sistem",
+		label: "Kesehatan Sistem",
+		icon: Activity,
+		description: "Antrean outbox dan kondisi worker.",
+	},
 ];
 
-export const SETTINGS_CARDS: { href: string; label: string; description: string; icon: LucideIcon }[] = [
-	{ href: "/admin/pengaturan/staf", label: "Staf & Peran", icon: UserCog, description: "Daftar staf, peran, izin tambahan, cakupan gudang dan reset MFA." },
-	{ href: "/admin/pengaturan/komersial", label: "Kebijakan Komersial", icon: Scale, description: "Batas kontribusi minimum dan nilai bawaan, berversi." },
-	{ href: "/admin/pengaturan/pembayaran", label: "Pembayaran & COD", icon: Landmark, description: "Biaya COD dan rekening transfer manual, berversi." },
-	{ href: "/admin/produk/gudang", label: "Gudang", icon: Warehouse, description: "Daftar gudang, profil penjemputan dan kalender pengiriman." },
-	{ href: "/admin/halaman", label: "Halaman Toko", icon: FileText, description: "Tentang kami, kontak, syarat dan kebijakan privasi di toko." },
-	{ href: "/admin/pengaturan/label", label: "Template Label", icon: Printer, description: "Template label pengiriman yang dipakai pusat cetak." },
-	{ href: "/admin/pengaturan/balasan-cs", label: "Balasan CS", icon: MessagesSquare, description: "Balasan tersimpan dan tag percakapan pelanggan." },
-	{ href: "/admin/pemasaran/iklan", label: "Integrasi Iklan", icon: Megaphone, description: "Tujuan iklan Meta, Google dan TikTok serta diagnostiknya." },
-	{ href: "/admin/pengaturan/audit", label: "Log Audit", icon: ScrollText, description: "Jejak tindakan staf yang tidak bisa diubah." },
-	{ href: "/admin/pengaturan/sistem", label: "Kesehatan Sistem", icon: Activity, description: "Antrean outbox dan kondisi worker." },
+/**
+ * Pengaturan, second group (DEC-035 scope, 2026-11-14): pages that still work but are not developed further.
+ * Off the owner sidebar so the tree holds only the daily work; each card shows only when its guard opens.
+ */
+export const MAINTAINED_CARDS: HubCard[] = [
+	{
+		href: "/admin/pesanan/cetak-label",
+		label: "Cetak Label",
+		icon: Printer,
+		description: "Pusat cetak label pengiriman dari sistem.",
+	},
+	{
+		href: "/admin/produk/inventori/transfer",
+		label: "Transfer Stok",
+		icon: Boxes,
+		description: "Pemindahan stok antargudang.",
+	},
+	{
+		href: "/admin/afiliasi",
+		label: "Afiliasi",
+		icon: Wallet,
+		description: "Mitra afiliasi dan tarif komisi.",
+	},
+	{
+		href: "/admin/keuangan/komisi",
+		label: "Komisi Afiliasi",
+		icon: Wallet,
+		description: "Pencairan komisi afiliasi.",
+	},
+	{
+		href: "/admin/pelanggan/segmen",
+		label: "Segmen Pembeli",
+		icon: UsersRound,
+		description: "Jumlah pembeli per bulan lahir dan kategori favorit.",
+	},
 ];
 
-type Rule = (roles: readonly string[], permissions: readonly string[]) => boolean;
+type Rule = (
+	roles: readonly string[],
+	permissions: readonly string[],
+) => boolean;
 const any =
 	(...wanted: string[]): Rule =>
 	(roles) =>
@@ -334,7 +506,8 @@ const PAGE_RULES: Record<string, Rule> = {
 	"/admin/produk": (r, p) => catalogAccess(r, p).read,
 	// SKU & HPP: catalog editors, and for non-owners only with the cost read grant (plan §4.1).
 	"/admin/produk/sku": (r, p) =>
-		catalogAccess(r, p).edit && (r.includes("owner") || p.includes("finance.costs.read")),
+		catalogAccess(r, p).edit &&
+		(r.includes("owner") || p.includes("finance.costs.read")),
 	"/admin/produk/kategori": (r, p) => catalogAccess(r, p).edit,
 	"/admin/produk/baru": (r, p) => catalogAccess(r, p).edit,
 	"/admin/produk/inventori": (r, p) => consoleAccess(r, p).inventory,
@@ -360,26 +533,35 @@ const PAGE_RULES: Record<string, Rule> = {
 	"/admin/pengaturan/pembayaran": any("owner", "finance"),
 	"/admin/pengaturan/komersial": any("owner", "finance"),
 	"/admin/pengaturan/label": (r, p) =>
-		any("owner", "ecommerce_admin", "warehouse", "finance")(r, p) || p.includes("shipping.labels.read"),
+		any("owner", "ecommerce_admin", "warehouse", "finance")(r, p) ||
+		p.includes("shipping.labels.read"),
 	"/admin/pengaturan/balasan-cs": (r, p) => consoleAccess(r, p).support,
 	"/admin/pemasaran/iklan": any("owner"),
 };
 // The settings index opens when at least one of its cards does.
 PAGE_RULES["/admin/pengaturan"] = (r, p) =>
-	SETTINGS_CARDS.some((card) => PAGE_RULES[card.href]?.(r, p) ?? false);
+	[...SETTINGS_CARDS, ...MAINTAINED_CARDS].some(
+		(card) => PAGE_RULES[card.href]?.(r, p) ?? false,
+	);
 // The hubs carry a nav row only in the owner and marketing lenses (plan §4.1, S177); other roles reach the same
 // pages from their own rows.
 PAGE_RULES["/admin/pemasaran"] = any("owner", "marketing");
-PAGE_RULES["/admin/pantauan"] = any("owner");
 /** Every list page with a nav rule (the nav-model test checks which of them each role reaches). */
 export const GUARDED_PAGES: readonly string[] = Object.keys(PAGE_RULES);
 
 const pathOf = (href: string) => href.split("?")[0];
 
 /** True when the page is built and the principal's roles and grants open it. */
-export function canOpen(href: string, roles: readonly string[], permissions: readonly string[]) {
+export function canOpen(
+	href: string,
+	roles: readonly string[],
+	permissions: readonly string[],
+) {
 	const path = pathOf(href);
-	return !UNBUILT_PAGES.has(path) && (PAGE_RULES[path]?.(roles, permissions) ?? false);
+	return (
+		!UNBUILT_PAGES.has(path) &&
+		(PAGE_RULES[path]?.(roles, permissions) ?? false)
+	);
 }
 
 /**
@@ -399,7 +581,8 @@ export function navFor(
 		const items: NavItem[] = [];
 		for (const item of section.items) {
 			const children = (item.children ?? []).filter(
-				(child) => (!child.until || UNBUILT_PAGES.has(child.until)) && open(child.href),
+				(child) =>
+					(!child.until || UNBUILT_PAGES.has(child.until)) && open(child.href),
 			);
 			const own = open(item.href);
 			if (!own && children.length === 0) continue;
@@ -411,9 +594,15 @@ export function navFor(
 		}
 		if (items.length > 0) sections.push({ ...section, items });
 	}
-	const hasSettings = sections.some((s) => s.items.some((i) => pathOf(i.href) === "/admin/pengaturan"));
+	const hasSettings = sections.some((s) =>
+		s.items.some((i) => pathOf(i.href) === "/admin/pengaturan"),
+	);
 	if (!hasSettings && open("/admin/pengaturan"))
-		sections.push({ items: [{ label: "Pengaturan", href: "/admin/pengaturan", icon: Settings }] });
+		sections.push({
+			items: [
+				{ label: "Pengaturan", href: "/admin/pengaturan", icon: Settings },
+			],
+		});
 	return sections;
 }
 
@@ -425,9 +614,15 @@ export function navFor(
  * so other tabs and the detail pages still light their group (warehouse Pesanan, `?workspace=`
  * Beranda). Beranda matches only itself and the full work-queue page.
  */
-export function activeHref(sections: NavSection[], pathname: string, search: URLSearchParams): string | null {
+export function activeHref(
+	sections: NavSection[],
+	pathname: string,
+	search: URLSearchParams,
+): string | null {
 	// Children before their parent: on an equal score the first candidate keeps the highlight.
-	const candidates = sections.flatMap((s) => s.items.flatMap((i) => [...(i.children ?? []).map((c) => c.href), i.href]));
+	const candidates = sections.flatMap((s) =>
+		s.items.flatMap((i) => [...(i.children ?? []).map((c) => c.href), i.href]),
+	);
 	let best: string | null = null;
 	let bestScore = -1;
 	let fallback: string | null = null;
@@ -465,7 +660,9 @@ export function highlightedRows(sections: NavSection[], active: string | null) {
 	return sections.flatMap((s) =>
 		s.items.flatMap((i) => [
 			...(parentActive(i, active) ? [i.label] : []),
-			...(i.children ?? []).filter((c) => c.href === active).map((c) => `${i.label} > ${c.label}`),
+			...(i.children ?? [])
+				.filter((c) => c.href === active)
+				.map((c) => `${i.label} > ${c.label}`),
 		]),
 	);
 }
