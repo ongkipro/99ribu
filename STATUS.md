@@ -1,9 +1,9 @@
 # Status — Serba 99ribu
 
 Updated: 2026-11-14 02:40Z
-Status: Production runs `3ea839a4` (2026-11-14): VA payments open (AutoLaris submit, VA only, 2-hour orders); buyer-pays fee formula B (DEC-032, migration 0059); one company warehouse in Surabaya in the dataset (DEC-033) and a tidier courier list (DEC-034); QRIS off; COD gated.
+Status: Production runs `e99f8880` (2026-11-14, admin console polish on top of `3ea839a4`): VA payments open (AutoLaris submit, VA only, 2-hour orders); buyer-pays fee formula B (DEC-032, migration 0059); one company warehouse in Surabaya in the dataset (DEC-033) and a tidier courier list (DEC-034); QRIS off; COD gated.
 State: READY
-State-Detail: DEPLOYED `3ea839a4` (ledgers RUN-20261112T022334Z-ecbf4ecd and RUN-20261113T074300Z-12931b46 PASS; integration 712/712, browser 201/201; Argon APPROVE). Production data still ships from the old origin warehouses until the owner runs the DEC-033 runbook (rehome -> resolve-warehouses -> import), and the buyer pays the AutoLaris fee only after the owner sets the payment policy.
+State-Detail: DEPLOYED `e99f8880` (admin console: sidebar tree, owner sales overview, page polish, Staf & Peran save fix; browser 201/201, size contract 0 failures). Before it: `3ea839a4` (ledgers RUN-20261112T022334Z-ecbf4ecd and RUN-20261113T074300Z-12931b46 PASS; integration 712/712, browser 201/201; Argon APPROVE). Production data still ships from the old origin warehouses until the owner runs the DEC-033 runbook (rehome -> resolve-warehouses -> import), and the buyer pays the AutoLaris fee only after the owner sets the payment policy.
 Review-Risk: R4 for money/auth/migrations; R0–R2 per DEC-030 "Process tiers".
 
 STATUS holds only now, next and what waits for the owner (DEC-030). History: [`docs/history/STATUS-20261114-pre-deploy-3ea839a4.md`](docs/history/STATUS-20261114-pre-deploy-3ea839a4.md) (state before this deploy), older archives in `docs/history/`. Evidence: BUILD-LOG; releases: RELEASE.
@@ -26,7 +26,7 @@ STATUS holds only now, next and what waits for the owner (DEC-030). History: [`d
 
 ## Next (local, no owner input)
 
-1. Admin console polish is done on branch `admin-console` (9 commits after `72408208`, not pushed): sidebar tree by job, shared primitives, owner sales overview, local demo sales, two page passes; all 23 owner sidebar pages pass the size contract at 390/1366/1536. Deploy only on the owner's "deploy" (display and read-only reporting, no migration).
+1. Admin console polish deployed (`e99f8880`). Not yet checked signed in on production: the owner opens /admin once (sidebar tree, Beranda sales block, Pengiriman Manual, Pembayaran Masuk).
 2. Test hygiene: synthetic owned checkout campaign left active by interrupted runs (S65/S67 `source_not_eligible`); `tests/browser/sign-in.test.ts` "staff signs in through /portal" intermittent.
 3. Gateway items deferred from the AdsBookCMS comparison (`/data/tmp/99ribu-reviews/carbon-adsbook-report.clean.md`).
 
