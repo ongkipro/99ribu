@@ -140,7 +140,10 @@ function RolesDialog({
 		if (problem) return setError(problem);
 		if (!reason.trim()) return setError("Isi alasan perubahan.");
 		if (!password) return setError("Isi kata sandi Anda.");
-		if (warehouses.state.kind !== "ready") return setError("Daftar gudang belum dimuat.");
+		// Only a scope the operator edits needs the full list; stepping down an owner or a role without warehouses
+		// sends the current scope (the API re-checks it), so a long list never blocks the save.
+		const needsList = roles.includes("warehouse") || roles.includes("ecommerce_admin");
+		if (needsList && warehouses.state.kind !== "ready") return setError("Daftar gudang belum dimuat.");
 		setPending(true);
 		setError(null);
 		const proof = await issueProof(password, "staff_roles.replace", member.user_id);

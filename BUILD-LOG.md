@@ -1,5 +1,11 @@
 # Build log — Serba 99ribu
 
+## 2026-11-14 — Staf & Peran: saving no longer waits for the whole warehouse list (R2, access UI)
+
+- Root cause of the intermittent S137 browser failure (2 of 3 runs alone): the roles dialog refused to save ("Daftar gudang belum dimuat") until every active warehouse had loaded, 100 per page; with 2,275 active warehouses in the local database that took over 20 requests, so an owner stepping down could click save before it finished and nothing was sent (trace: 20 warehouse page loads, no role-grant call). Past 30 pages the save could never happen.
+- Fix (`staff-roles-client.tsx`): the full list is required only when the chosen roles use a warehouse scope (Gudang, Admin E-Commerce); otherwise the current scope is sent as is and the API re-checks it (`grants.ts`). No access rule changes.
+- Evidence: `admin-staff-roles.test.ts` alone 3/3 after the fix (was 1/3).
+
 ## 2026-11-14 — "Perlu tindakan" rows meet the size contract; all owner pages pass (R1, display only)
 
 - `dashboard/needs-action.tsx`: each row stays a keyboard button with `aria-pressed` and the same test ids, but is styled as a list row instead of a shadcn Button (a multi-line row is not a 32/36/40 px button).
