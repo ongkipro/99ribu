@@ -44,7 +44,7 @@ export function PageHeader({
 	actions?: ReactNode;
 }) {
 	return (
-		<header className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between sm:gap-4">
+		<div data-slot="page-header" className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between sm:gap-4">
 			<div className="flex min-w-0 flex-1 flex-col gap-1">
 				{back && (
 					<Button asChild variant="ghost" size="sm" className="-ml-2 self-start">
@@ -67,7 +67,7 @@ export function PageHeader({
 			{actions && (
 				<div className="flex shrink-0 flex-wrap items-center gap-2 max-sm:*:flex-1">{actions}</div>
 			)}
-		</header>
+		</div>
 	);
 }
 

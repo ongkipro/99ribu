@@ -339,7 +339,7 @@ export function DataTable<T>({
 					: c.stack === "aside"
 						? "max-md:col-start-2 max-md:row-start-1 max-md:items-center max-md:justify-end max-md:self-start max-md:text-right max-md:font-semibold pointer-coarse:max-md:min-h-11"
 						: c.stack === "meta"
-							? "max-md:order-1 max-md:col-span-2 max-md:min-h-0 max-md:justify-start max-md:py-0 max-md:text-left max-md:text-xs max-md:text-muted-foreground"
+							? "max-md:order-1 max-md:col-span-2 max-md:min-h-0 max-md:justify-start max-md:py-0 max-md:text-left max-md:text-sm max-md:text-muted-foreground"
 							: c.stack === "status"
 								? "max-md:order-2 max-md:col-span-2 max-md:justify-start max-md:text-left"
 								: c.stack === "plain"
@@ -429,7 +429,7 @@ export function DataTable<T>({
 					<div
 						aria-hidden="true"
 						className={cn(
-							"pointer-events-none absolute inset-y-0 right-0 z-20 w-10 rounded-r-md bg-linear-to-l from-card to-transparent",
+							"pointer-events-none absolute inset-y-0 right-0 z-20 w-px bg-border",
 							stack && "max-md:hidden",
 						)}
 					/>
@@ -487,7 +487,7 @@ export function DataTable<T>({
 											<TableCell
 												{...role("cell")}
 												colSpan={span}
-												className={cn("bg-muted py-1.5 text-xs font-semibold text-muted-foreground", stack && "max-md:block max-md:px-3")}
+												className={cn("bg-muted py-1.5 text-sm font-semibold text-muted-foreground", stack && "max-md:block max-md:px-3")}
 											>
 												{label}
 											</TableCell>
@@ -577,7 +577,7 @@ export function DataTable<T>({
 								const label = groupStart(index);
 								return (
 									<Fragment key={rowKey(row)}>
-										{label && <li className="bg-muted px-3 py-1.5 text-xs font-semibold text-muted-foreground">{label}</li>}
+										{label && <li className="bg-muted px-3 py-1.5 text-sm font-semibold text-muted-foreground">{label}</li>}
 										<li
 											data-testid={cardTestId?.(row)}
 											data-state={selected.has(rowKey(row)) || rowKey(row) === activeKey ? "selected" : undefined}

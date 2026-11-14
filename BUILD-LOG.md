@@ -1,5 +1,10 @@
 # Build log — Serba 99ribu
 
+## 2026-11-14 — Admin shared primitives meet the size contract (R1, display only)
+
+- `PageHeader` and the customer lookup title are a `div[data-slot=page-header]`, not a second `<header>` (the topbar is the page banner, contract `header-height` 64). Native selects read 16 px on phones (no iOS zoom) and use the card surface. The table scroll cue is a hairline, not a gradient. Hub cards show the icon without a coloured tile. Table cells keep 14 px: stacked phone meta, group rows and the stock, voucher and promo note columns. The voucher budget column reads "Anggaran terpakai" like Promo Ongkir, so its head stays 40 px.
+- Evidence: signed-in `admin-geometry` measure against `design/admin-contract.json` over 9 routes x 390/1366/1536: 0 failures (was 11 on 12 routes; the dashboard's "Perlu tindakan" row buttons are left for the dashboard slice). Browser admin-nav, admin-ui-controls, admin-banners, admin-ops-screens, admin-vouchers, admin-workspaces: 23/23.
+
 ## 2026-11-14 — Admin sidebar as a tree grouped by job (R1, display only)
 
 - Owner: "sidebar bukan dropdown, model sidebar tree". `nav-links.tsx` renders section labels and every child always visible under a guide line; the expand/collapse buttons are gone (the tablet rail still shows parent icons). The owner tree (`admin-nav.ts`) is grouped by job: Penjualan, Katalog & Stok, Pemasaran, Keuangan, Sistem; Pembayaran Masuk, Setoran COD, Pengembalian Dana and Pengiriman Manual are now one click away for the owner. Maintained-only pages (Cetak Label, Transfer Stok, Afiliasi, Komisi Afiliasi, Segmen Pembeli) moved to a "Fitur lain" group on Pengaturan (`MAINTAINED_CARDS`). The Pantauan hub and the Persetujuan/Analitik/Pantauan placeholders are removed. Access is unchanged: every row still passes `PAGE_RULES` and every page and API re-checks.

@@ -338,7 +338,7 @@ function AccountCard({
 			data-testid="customer-account"
 			className="flex flex-col gap-4 rounded-lg border bg-card p-4"
 		>
-			<header className="flex min-w-0 flex-col gap-3">
+			<div data-slot="page-header" className="flex min-w-0 flex-col gap-3">
 				<h2 className="text-base font-semibold break-words">
 					{account.display_name}
 				</h2>
@@ -360,7 +360,7 @@ function AccountCard({
 						<dd className="text-sm tabular-nums">{formatWib(account.created_at)}</dd>
 					</div>
 				</dl>
-			</header>
+			</div>
 			<OrdersTable account={account} access={access} />
 			<TicketsTable account={account} />
 		</article>

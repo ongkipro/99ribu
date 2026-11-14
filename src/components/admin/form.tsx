@@ -32,7 +32,7 @@ import { useIsMobile } from "@/components/ui/use-mobile";
 
 /** Native select styled like the shadcn Input (keeps native keyboard and mobile pickers). */
 export const nativeSelectClass =
-	"h-9 rounded-md border border-input bg-background px-3 text-sm font-medium shadow-xs outline-none focus-visible:border-ring focus-visible:ring-[3px] focus-visible:ring-ring/50";
+	"h-9 rounded-md border border-input bg-card px-3 text-base font-medium shadow-xs outline-none focus-visible:border-ring focus-visible:ring-[3px] focus-visible:ring-ring/50 md:text-sm";
 
 export function FormField({
 	id,

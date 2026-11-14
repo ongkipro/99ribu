@@ -301,7 +301,7 @@ export function InventoryClient({ canTransfer, canReceiveNew }: { canTransfer: b
 							header: "Lot",
 							stack: "status",
 							className: "md:hidden",
-							cellClassName: "whitespace-normal text-xs",
+							cellClassName: "whitespace-normal text-sm",
 							cell: (row) =>
 								(
 									<span className="flex flex-wrap items-center gap-x-2 gap-y-1 tabular-nums">

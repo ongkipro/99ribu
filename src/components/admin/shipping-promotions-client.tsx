@@ -149,8 +149,7 @@ export function ShippingPromotionsClient({
 	};
 	const budget: DataTableColumn<Promotion> = {
 		id: "budget",
-		// The voucher header wraps so the column stays as wide as its amounts.
-		header: voucher ? <span className="inline-block whitespace-normal">Kuota anggaran terpakai</span> : "Anggaran terpakai",
+		header: "Anggaran terpakai",
 		stack: "aside",
 		className: "text-right tabular-nums",
 		cell: (p) => (
@@ -280,7 +279,7 @@ export function ShippingPromotionsClient({
 					id: "rules",
 					header: "Berlaku untuk",
 					hideBelow: "7xl",
-					cellClassName: "whitespace-normal text-xs md:max-w-60",
+					cellClassName: "whitespace-normal md:max-w-60",
 					cell: (p) =>
 						`${p.payment_methods.map((m) => METHODS[m] ?? m).join(" dan ")} · ${label(regions, p.region_ids, "semua wilayah")} · ${label(services, p.service_ids, "semua layanan")}${p.minimum_merchandise ? ` · min. belanja ${rupiah(p.minimum_merchandise)}` : ""}`,
 				},
@@ -904,7 +903,7 @@ function HistoryDialog({ noun, label, row, onClose }: { noun: string; label: str
 						},
 						{ id: "budget", header: "Anggaran", stack: "aside", className: "text-right tabular-nums", cell: (p) => rupiah(p.budget) },
 						{ id: "when", header: "Dicatat", stack: "meta", kind: "datetime", cell: (p) => wibDateTime(p.recorded_at) },
-						{ id: "benefit", header: "Potongan", cellClassName: "whitespace-normal text-xs", cell: benefit },
+						{ id: "benefit", header: "Potongan", cellClassName: "whitespace-normal", cell: benefit },
 					]}
 				/>
 			</DialogContent>
