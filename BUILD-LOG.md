@@ -1,5 +1,10 @@
 # Build log — Serba 99ribu
 
+## 2026-11-14 — Local demo sales for the owner dashboard (R1, local fixture only)
+
+- `src/modules/local/demo-sales.ts`, `npm run fixture -- demo-sales local [days]`: ordinary orders spread over the past days so the owner dashboard, trend and lists read like a running store. One fixture namespace per day with its own business clock; orders placed at their minute of the day, prepaid paid at once, then the day's parcels shipped by manual resi, in transit, delivered (COD collected) or refused, and some returned (four reasons), each later in business time but never after now. Real handlers only; real catalog offers with stock moved into the day's fixture warehouse by audited transfers. Limits kept rather than bypassed: no order before the first publication of the sold offers (4 Nov), and a warehouse calendar cannot take effect in the past, so backdated parcels open as "calendar needs configuration" (manual shipment accepts that state). Reauthentication proofs wait out the 5-a-minute limit.
+- Evidence: run on `99ribu_local` 6–14 Nov (62 orders; owner home renders with no page errors); resumed after an interrupted run without duplicates; unit `demo-sales-plan` (deterministic plan, open work only on recent days).
+
 ## 2026-11-14 — Owner home opens with a sales overview (R2, read-only reporting)
 
 - `GET /api/v1/admin/dashboard` (owner workspace only) carries `sales`: orders, units, gross merchandise, shipping and discount of the orders placed in the period that are not cancelled or draft (the `average_order_value` population, company-wide), the order mix by status and by payment status, the five best sellers by merchandise and the return reasons of cases opened in the period. OpenAPI `DashboardSnapshot.sales` added; other workspaces get `null`.
