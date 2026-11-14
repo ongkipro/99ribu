@@ -33,12 +33,12 @@ Requirement lifecycle Accepted means owner-approved business behavior, not imple
 - Status: Accepted
 - Owner: Paduka Ongki
 - Source: CTX-1
-- Statement: The system shall manage inventory per physical SKU/component and company warehouse, including reservation, transfer, damage and return quarantine; derive sellable offer availability from complete component quantities without duplicate bundle stock counters.
+- Statement: The system shall manage inventory per physical SKU/component and company warehouse (one company warehouse, `Gudang 99ribu, Surabaya`, DEC-033; products are uploaded and stocked manually, no supplier sync, DEC-035), including reservation, transfer, damage and return quarantine; derive sellable offer availability from complete component quantities without duplicate bundle stock counters.
 - Acceptance: Given two different offers sharing the last physical component unit in one warehouse, When two buyers concurrently reserve them, Then only one complete reservation succeeds and stock never becomes negative.
 - Constraints: None
 - Evidence: Implementation and local acceptance evidence is tracked in root [STATUS.md](../../STATUS.md); external gates remain open.
 - Changed at: 2026-10-15
-- Change history: Initial planning declaration; amended 2026-10-15 by the latest owner instruction for offer composition, physical stock, waybill milestone or manual payout as applicable.
+- Change history: Initial planning declaration; amended 2026-10-15 by the latest owner instruction for offer composition, physical stock, waybill milestone or manual payout as applicable; amended 2026-11-14 for DEC-033 (one company warehouse) and DEC-035 (manual catalog and stock, no Berlapak sync).
 
 ### PR-3 — Shipping allocation
 - Status: Accepted
@@ -66,12 +66,12 @@ Requirement lifecycle Accepted means owner-approved business behavior, not imple
 - Status: Accepted
 - Owner: Paduka Ongki
 - Source: CTX-3
-- Statement: The system shall accept Virgo prepaid or supported Mengantar COD, with payment attempts and collection amounts distinct from shipping status.
+- Statement: The system shall accept AutoLaris prepaid (Virtual Account; QRIS once a scannable image exists; ADR-0008) or supported Mengantar COD, with payment attempts and collection amounts distinct from shipping status. When the payment policy names the buyer as fee bearer, the buyer pays the AutoLaris admin fee: the channel fee plus the account-wide turnover cut, grossed up so the store keeps the order total (DEC-032).
 - Acceptance: Given a split COD order, When shipment collection amounts are generated, Then their sum equals the buyer total and each amount belongs only to its shipment.
 - Constraints: None
 - Evidence: Implementation and local acceptance evidence is tracked in root [STATUS.md](../../STATUS.md); external gates remain open.
-- Changed at: 2026-10-15
-- Change history: Initial planning declaration from owner discussion.
+- Changed at: 2026-11-14
+- Change history: Initial planning declaration from owner discussion; amended 2026-11-14: Virgo replaced by AutoLaris (ADR-0008), buyer-paid fee formula B (DEC-032).
 
 ### PR-6 — Packing and handover deadlines
 - Status: Accepted

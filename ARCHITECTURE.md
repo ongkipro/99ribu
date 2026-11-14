@@ -63,7 +63,7 @@ flowchart LR
 
   DB[("PostgreSQL 18.6, schema app<br/>99ribu_local and 99ribu_test<br/>Unix socket only")]
   Files[["Private storage<br/>.local/artifacts<br/>.local/catalog-media"]]
-  Dataset[["Committed dataset<br/>data/catalog/berlapak"]]
+  Dataset[["Committed dataset<br/>data/catalog/berlapak<br/>frozen since DEC-035"]]
 
   subgraph External["External systems (solid = live in production, dashed = simulated or gated)"]
     Mengantar["Mengantar<br/>rates, booking, tracking, COD remittance"]
@@ -71,7 +71,7 @@ flowchart LR
     Bank["Company bank account<br/>manual transfer"]
     Ads["Meta, Google, TikTok<br/>conversion APIs"]
     Mail["Email and notifications"]
-    Raw["Berlapak raw snapshot<br/>BERLAPAK_DATA_DIR"]
+    Raw["Berlapak raw snapshot<br/>BERLAPAK_DATA_DIR<br/>no longer used, DEC-035"]
     Offhost["Off-host backup store<br/>file:// or S3-compatible"]
     Prod["Production host<br/>Vultr + Coolify, https://99ribu.com<br/>image: migrate, web, worker"]
   end
@@ -84,14 +84,15 @@ flowchart LR
   Store --> Modules
   API --> Modules
   Operator --> Worker
-  Operator --> Dataset
+  Staff -- "manual product upload, Admin -> Produk (DEC-035)" --> API
+  Operator -. "legacy dataset import, frozen" .-> Dataset
   Tests -. "fixtures in 99ribu_test; browser suites also seed 99ribu_local, teardown withdraws them" .-> DB
   Worker --> Modules
   Modules --> DB
   Modules --> Files
   Modules --> Sims
   Sims --> DB
-  Dataset --> Modules
+  Dataset -. "imported once; offers now managed in Admin" .-> Modules
   Raw -. "catalog:dataset, host only" .-> Dataset
   Raw -. "catalog:initial-stock reads at run time" .-> Modules
   Modules -. "provider mode: order/estimate, list_payment, create_payment, advice" .-> StandIn
@@ -117,7 +118,7 @@ flowchart LR
 | Manual bank transfer | Real flow; confirmation is a finance action with evidence | Closed in production: needs `manual_bank` in `MONEY_CAPABILITIES` and accounts in the `payment` policy |
 | Ads (Meta CAPI, Google Data Manager, TikTok Events API) | `advertising/worker.ts:advertisingAdapter` writing `local_ad_sink` | Consent/destination activation; `EXTERNAL_DISPATCH=disabled` |
 | Email / notifications | `integrations/local.ts:dispatchLocal` writing `local_delivery`; Better Auth only accepts `*.test` / `*.invalid` | OD-8 email provider gate |
-| Berlapak data | Committed sanitized dataset; raw snapshot read only by host commands | DEC-005; raw snapshot never served or committed |
+| Berlapak data | Committed sanitized dataset, imported once; raw snapshot read only by host commands | Frozen by DEC-035 (2026-11-14): no sync, no further imports; the imported products stay published and are managed manually in Admin like any product. S96 closed. |
 | Backup store (S85) | `src/ops/backup.ts` + `scripts/backup.ts` (`file:///dir` locally; `s3://` against any S3-compatible endpoint; restore drill on disposable databases) | Live: `99ribu-backup.service` on the production host writes off-host sets to Vultr Object Storage (owner-run before a deploy with a migration; RELEASE.md records each set) |
 | Production host | `Dockerfile` + `compose.production.yaml` (`migrate` one-shot, then `web` and `worker`); the production worker runs only payment adapters, and only for listed capabilities (`scripts/worker.ts:productionAdapters`) | Deployed (Vultr `99ribu-prod`, Coolify, Cloudflare in front); every deploy and its backup in `RELEASE.md` |
 
@@ -397,7 +398,7 @@ What is open in production is decided per capability by two environment lists re
 
 **Not built for production yet.** The AutoLaris settlement statement (the provider's payout to the store and the fee it deducts) is only produced by the host simulator `simulateAutolarisSettlement`: `settlements/local.ts:settlementSourceEvent` accepts only `local`/`test`, so in production a paid VA order posts the receipt (Dr `provider_receivable`, Cr `buyer_funds_liability`) but nothing records AutoLaris's payout or its deducted fee: `provider_receivable` stays open and the fee is not booked as `provider_fee_expense` (Known differences 7). Reconcile against the AutoLaris dashboard until a production settlement entry exists. QRIS needs a QR image. COD in production needs its collection and remittance path.
 
-### Consignment fulfillment (manual Mengantar booking)
+### Manual fulfillment (manual Mengantar booking; formerly consignment, DEC-035)
 
 Every warehouse is in `manual_dashboard` mode today: `fulfillment/manual.ts:fulfillmentMode` returns `mengantar_api` only for a complete pickup profile with `MENGANTAR_API_BOOKING_ENABLED`, which is hard-coded `false`.
 
@@ -414,9 +415,9 @@ sequenceDiagram
   Note over FUL,DB: payment confirmed or COD confirmed: initializeFulfillments creates fulfillment ready plus deadline
   O->>UI: open queue Perlu dipesan kurir
   UI->>FUL: GET /admin/manual-shipments?queue=to_book
-  O->>O: buy goods from the Berlapak seller and book in 99ribu Mengantar dashboard
+  O->>O: pick the goods from the store warehouse and book in 99ribu Mengantar dashboard
   opt record purchase reference
-    UI->>FUL: POST /admin/fulfillments/id/berlapak-references
+    UI->>FUL: POST /admin/fulfillments/id/berlapak-references (legacy field, DEC-035)
     FUL->>DB: fulfillment_purchase_reference (versioned)
   end
   O->>UI: enter courier plus resi
@@ -471,6 +472,8 @@ sequenceDiagram
 ```
 
 ## Catalog pipeline
+
+**Since DEC-035 (2026-11-14) this pipeline is frozen.** New products are uploaded manually in Admin -> Produk -> Tambah Produk (a CLI/MCP upload path is planned, not built). The products the pipeline imported stay published and are edited in Admin; their stock is what the store records and nothing syncs them with Berlapak. The DEC-033 production rehome/import runbook is not run. The diagram below documents how the existing catalog was produced.
 
 ```mermaid
 flowchart TD

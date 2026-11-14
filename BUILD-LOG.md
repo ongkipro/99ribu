@@ -1,5 +1,10 @@
 # Build log — Serba 99ribu
 
+## 2026-11-14 — DEC-035: no Berlapak link; docs brought up to date (R0, docs only)
+
+- Owner: products enter by manual upload (later CLI/MCP); the imported Berlapak products stay published as manually managed content; no sync. DECISIONS DEC-035; PRD PR-2 (one company warehouse, manual catalog) and PR-5 (AutoLaris instead of Virgo, buyer-paid fee formula B); ADR-0008 opening step 1 names formula B and the turnover field; TASKS S182/S183 rows, S96 closed; ARCHITECTURE system map, external table, catalog pipeline (frozen) and the manual fulfillment flow.
+- The DEC-033 production rehome/import runbook is withdrawn: moving Berlapak supplier counts into Surabaya would record stock the store does not hold.
+
 ## 2026-11-12 — DEC-033 one company warehouse; DEC-034 tidier courier choice (R4, data + checkout)
 
 - DEC-033: the catalog dataset lists one warehouse, `Gudang 99ribu, Surabaya` (Jawa Timur / Surabaya / Genteng), and every offer (571 products, 1,626 offers) defaults to it; the generator (`berlapak-dataset.ts:COMPANY_WAREHOUSE`) writes the same, the committed `catalog.json` was rewritten directly with its manifest digest (the raw snapshot currently fails an unrelated stale category override, so a full regeneration is not possible today). `catalog rehome` now runs on production as the owner's own MFA session (like `import`) and moves every available unit into the dataset's warehouse by audited transfers; reserved/quarantined units stay. Supplier warehouses stay as history.

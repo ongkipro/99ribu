@@ -69,6 +69,8 @@ Not covered by this list because it needs a decision first: per-courier COD fee,
 
 ## Runbook: DEC-033 one company warehouse in production (owner, after the deploy that carries it)
 
+**Withdrawn 2026-11-14 (DEC-035): do not run.** The imported products stay at their origin warehouses and are managed manually; moving Berlapak supplier counts into Surabaya would record stock the store does not hold. Kept as a record of the tooling.
+
 Order matters; every step is idempotent and audited. Run in the web container (`docker exec -it -w /app <web> ...`); `catalog`
 steps ask for the owner's email, password and current code.
 
@@ -93,7 +95,7 @@ steps ask for the owner's email, password and current code.
 - Backup before push (owner-run): off-host set **`20261114T021634Z`** (226 tables, 131,729 rows, 2,861 files); also `20261113T203138Z`.
 - Deploy: `main` `4abfc734..3ea839a4` fast-forward, Coolify finished, migrate container exited and web/worker started, `running:healthy`; Cloudflare purge success.
 - Live (no order placed): a real product with a Surabaya (Genteng) address and Virtual Account at 390/1440: five couriers from Rp8.500 (SiCepat, Anteraja, SAP, JNE, SPX) plus "Lihat 3 kurir lain", one parcel "Dikirim dari Depok" (stock still at its old origin until the runbook), 0 page errors.
-- Not yet active in production data: the DEC-033 runbook (above) and the DEC-032 payment policy (bearer Pembeli, turnover 1%); both are owner steps. Until then the fee rule is unchanged for buyers.
+- Not yet active in production data: the DEC-032 payment policy (bearer Pembeli, turnover 1%), an owner step. The DEC-033 runbook is withdrawn (DEC-035). Until then the fee rule is unchanged for buyers.
 - Rollback: redeploy `b97af0fc`. Migration 0059 replaces `app.autolaris_buyer_fee` (formula B); with no `autolaris_turnover_bps` in the payment policy a VA `fixed` rule yields the same fee as before, so the old code runs against it while the owner has not set the turnover. Once a non-zero turnover is saved, reverting needs a forward migration restoring the 0046 body (see the migration header).
 
 ## Deployed 2026-11-11 (`b97af0fc` incl. `988b77c7`; owner "kalo sudah selesai comit push deploy")

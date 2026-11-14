@@ -12,11 +12,12 @@ STATUS holds only now, next and what waits for the owner (DEC-030). History: [`d
 
 - Live check 2026-11-14 (no order placed): checkout with a real product and a Surabaya address at 390/1440 shows five couriers from Rp8.500 and "Lihat 3 kurir lain", one parcel "Dikirim dari Depok" (the product still sits at its old origin), Virtual Account selectable, 0 page errors.
 - Test DB `99ribu_test` has grown again (414 MB, ~36k synthetic users); the S85 drill alone needs ~3–7 min, so its test timeout is 420 s. Rebuild it (README "Rebuilding the local databases") before the next long gate campaign.
+- DEC-035 (2026-11-14): no Berlapak link; the imported products stay published and are managed in Admin; new products by manual upload (CLI/MCP later).
 - Leftover restore database `99ribu_restore_55255f…` (354 MB) from an interrupted drill in the local cluster; dropping it waits for the owner's go-ahead.
 
 ## Waiting for the owner
 
-1. **DEC-033 production runbook** (in RELEASE "Deployed 2026-11-14"): rehome production (dry run, then `--apply`), `mengantar-areas resolve-warehouses production --apply`, `catalog import production`, then the Surabaya warehouse's pickup profile and "Terapkan kalender default" in admin.
+1. **Warehouse profile (DEC-033/035):** Admin -> Produk -> Gudang -> Gudang 99ribu, Surabaya is created on the first manual upload or by staff; fill the pickup profile and "Terapkan kalender default" before stock ships from it. The DEC-033 rehome/import runbook is withdrawn (DEC-035).
 2. **Payment policy (DEC-032):** Super Admin → Pembayaran: "Biaya admin dibayar oleh: Pembeli", "Potongan omset AutoLaris (%)": 1.
 3. **First real VA payment** (proves `payment_info.va`, the settled advice for submit, and shows the payout shape needed for the production settlement entry, ARCHITECTURE Known differences 7).
 4. QRIS image: paste `grep -v -i -E "token|auth|password|_key" .npmrc` so `uqr` can be installed.
