@@ -801,6 +801,58 @@ export async function getDashboardSnapshot(
 						: null,
 				}
 			: null;
+	// Owner sales overview (2026-11-14): gross merchandise of placed orders, the order mix by status, the best
+	// sellers and the return reasons in the same period. Orders count as in average_order_value (not cancelled,
+	// not draft); company-wide like the money cards. Names come from the frozen order snapshot.
+	const sales =
+		!countsOnly && workspace === "owner" && allowedKeys.includes("average_order_value")
+			? await (async () => {
+					const [totals] = await sql<{ orders: number; units: number; gross: string; shipping: string; discount: string }[]>`
+            select count(distinct o.id)::int as orders,
+                   coalesce(sum(i.quantity), 0)::int as units,
+                   coalesce(sum(i.quantity * i.unit_price), 0)::text as gross,
+                   (select coalesce(sum(x.shipping_amount), 0) from app.commerce_order x
+                     where x.created_at >= ${from}::timestamptz and x.created_at <= ${to}::timestamptz
+                       and x.status not in ('preparing', 'cancelled'))::text as shipping,
+                   (select coalesce(sum(x.merchandise_discount), 0) from app.commerce_order x
+                     where x.created_at >= ${from}::timestamptz and x.created_at <= ${to}::timestamptz
+                       and x.status not in ('preparing', 'cancelled'))::text as discount
+            from app.commerce_order o join app.order_item i on i.order_id = o.id
+            where o.created_at >= ${from}::timestamptz and o.created_at <= ${to}::timestamptz
+              and o.status not in ('preparing', 'cancelled')`;
+					const byStatus = await sql<{ key: string; count: number }[]>`
+            select o.status as key, count(*)::int as count from app.commerce_order o
+            where o.created_at >= ${from}::timestamptz and o.created_at <= ${to}::timestamptz and o.status <> 'preparing'
+            group by 1 order by 2 desc`;
+					const byPayment = await sql<{ key: string; count: number }[]>`
+            select o.payment_status as key, count(*)::int as count from app.commerce_order o
+            where o.created_at >= ${from}::timestamptz and o.created_at <= ${to}::timestamptz and o.status <> 'preparing'
+            group by 1 order by 2 desc`;
+					const top = await sql<{ admin_no: number | null; name: string; units: number; amount: string }[]>`
+            select p.admin_no, max(i.snapshot->>'name') as name, sum(i.quantity)::int as units,
+                   sum(i.quantity * i.unit_price)::text as amount
+            from app.order_item i join app.commerce_order o on o.id = i.order_id join app.product p on p.id = i.product_id
+            where o.created_at >= ${from}::timestamptz and o.created_at <= ${to}::timestamptz
+              and o.status not in ('preparing', 'cancelled')
+            group by p.id, p.admin_no order by sum(i.quantity * i.unit_price) desc, p.admin_no limit 5`;
+					const reasons = await sql<{ key: string; count: number }[]>`
+            select ri.reason as key, count(*)::int as count
+            from app.return_item ri join app.return_case rc on rc.id = ri.case_id
+            where rc.created_at >= ${from}::timestamptz and rc.created_at <= ${to}::timestamptz
+            group by 1 order by 2 desc`;
+					return {
+						orders: totals.orders,
+						units: totals.units,
+						gross_merchandise: Number(totals.gross),
+						shipping: Number(totals.shipping),
+						discount: Number(totals.discount),
+						by_status: byStatus,
+						by_payment_status: byPayment,
+						top_products: top.map((t) => ({ admin_no: t.admin_no, name: t.name, units: t.units, amount: Number(t.amount) })),
+						return_reasons: reasons,
+					};
+				})()
+			: null;
 	const codAgeing =
 		!countsOnly && workspace === "finance" && allowedKeys.includes("cod_receivable")
 			? await (async () => {
@@ -836,6 +888,7 @@ export async function getDashboardSnapshot(
 		comparison_period: previous,
 		series,
 		cod_ageing: codAgeing,
+		sales,
 		metrics,
 	};
 }

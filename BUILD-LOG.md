@@ -1,5 +1,12 @@
 # Build log — Serba 99ribu
 
+## 2026-11-14 — Owner home opens with a sales overview (R2, read-only reporting)
+
+- `GET /api/v1/admin/dashboard` (owner workspace only) carries `sales`: orders, units, gross merchandise, shipping and discount of the orders placed in the period that are not cancelled or draft (the `average_order_value` population, company-wide), the order mix by status and by payment status, the five best sellers by merchandise and the return reasons of cases opened in the period. OpenAPI `DashboardSnapshot.sales` added; other workspaces get `null`.
+- Owner home (`dashboard/sales-overview.tsx`): one headline row (gross merchandise with units, orders, average per order, net revenue, return rate; deltas when "Bandingkan" is on), the revenue/orders trend, then three ranked lists (order status with payment status, best sellers linking to the product, return reasons with the share of units sold), each linking to its page. "Perlu tindakan", the work queues and the finance block follow unchanged.
+- Contract test housekeeping: `openapi-parity` path/operation/schema counts were stale since 2026-11-06 (now 221/263/382); the S177 decisions description no longer trips the "proposed" status guard.
+- Evidence: integration `dashboard-wave` (sales equals the average order population, owner-only), `admin-reporting`, `admin-kpis` 11/11; contract `openapi-parity` 4/4; browser `admin-workspaces` 1/1; renders 1440/390 with no page errors; unit 393/393.
+
 ## 2026-11-14 — Admin shared primitives meet the size contract (R1, display only)
 
 - `PageHeader` and the customer lookup title are a `div[data-slot=page-header]`, not a second `<header>` (the topbar is the page banner, contract `header-height` 64). Native selects read 16 px on phones (no iOS zoom) and use the card surface. The table scroll cue is a hairline, not a gradient. Hub cards show the icon without a coloured tile. Table cells keep 14 px: stacked phone meta, group rows and the stock, voucher and promo note columns. The voucher budget column reads "Anggaran terpakai" like Promo Ongkir, so its head stays 40 px.

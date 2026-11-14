@@ -9,6 +9,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { LOWER_IS_BETTER } from "@/modules/reporting/metric-math";
 import { DeltaChip } from "./dashboard/delta-chip";
 import { formatRate, formatWait } from "./dashboard/format";
+import { type SalesBlock, SalesOverview } from "./dashboard/sales-overview";
 import { NeedsAction } from "./dashboard/needs-action";
 import type { CodAgeingData, Comparison, DashboardSeries } from "./dashboard/types";
 import { Alert, AlertDescription } from "@/components/ui/alert";
@@ -112,6 +113,7 @@ interface DashboardSnapshot {
 	comparison_period?: { from: string; to: string } | null;
 	series?: DashboardSeries | null;
 	cod_ageing?: CodAgeingData | null;
+	sales?: SalesBlock | null;
 	metrics: DashboardMetric[];
 }
 
@@ -1046,8 +1048,11 @@ export function AdminWorkspacesClient({
 	// The payment-method bar reuses the card's own breakdown (one data source).
 	const paymentBreakdown =
 		metrics.find((m) => m.key === "orders_by_payment_method" && m.complete)?.breakdown ?? null;
+	// The owner overview carries the revenue trend; the charts disclosure keeps the other charts.
+	const sales = workspace === "owner" && dashState === "ready" ? (dashboard?.sales ?? null) : null;
 	const chartCount =
-		(dashboard?.series ? 1 : 0) + (dashboard?.cod_ageing ? 1 : 0) + (paymentBreakdown?.length ? 1 : 0);
+		(dashboard?.series && !sales ? 1 : 0) + (dashboard?.cod_ageing ? 1 : 0) + (paymentBreakdown?.length ? 1 : 0);
+	const metricOf = (key: string) => metrics.find((m) => m.key === key && m.complete) ?? null;
 	// A count metric's number is the exact row total of its filtered drilldown.
 	// A rate's number is its numerator's rows; the average order value lists the orders it divides by.
 	const queueTotal =
@@ -1425,6 +1430,51 @@ export function AdminWorkspacesClient({
 						<span className="sr-only">Tutup pesan</span>
 					</Button>
 				</Alert>
+			)}
+
+			{/* Owner overview: what was sold in the period, before the work queues (owner 2026-11-14). */}
+			{view === "dashboard" && sales && (
+				<SalesOverview
+					sales={sales}
+					periodLabel={WINDOW_LABELS[windowRange]}
+					headlines={[
+						{
+							key: "gross_merchandise",
+							label: "Nilai barang terjual",
+							value: rupiah(sales.gross_merchandise),
+							note: `${sales.units.toLocaleString("id-ID")} barang`,
+						},
+						{
+							key: "orders",
+							label: "Pesanan",
+							value: sales.orders.toLocaleString("id-ID"),
+							comparison: metricOf("orders_by_payment_method")?.comparison ?? null,
+						},
+						{
+							key: "average_order_value",
+							label: "Rata-rata per pesanan",
+							value: metricOf("average_order_value")?.amount != null ? rupiah(metricOf("average_order_value")?.amount ?? 0) : "—",
+							comparison: metricOf("average_order_value")?.comparison ?? null,
+						},
+						{
+							key: "net_merchandise_revenue",
+							label: "Pendapatan bersih",
+							value: metricOf("net_merchandise_revenue")?.amount != null ? rupiah(metricOf("net_merchandise_revenue")?.amount ?? 0) : "Belum lengkap",
+							note: "dibayar, dikurangi refund",
+							comparison: metricOf("net_merchandise_revenue")?.comparison ?? null,
+						},
+						{
+							key: "return_rate",
+							label: "Rasio retur",
+							value: formatRate(metricOf("return_rate")?.rate ?? null),
+							note: metricOf("return_rate")?.denominator ? `dari ${metricOf("return_rate")?.denominator} pesanan diterima` : undefined,
+							comparison: metricOf("return_rate")?.comparison ?? null,
+							lowerIsBetter: true,
+						},
+					]}
+				>
+					{dashboard?.series && <RevenueTrendChart series={dashboard.series} />}
+				</SalesOverview>
 			)}
 
 			{/* Perlu tindakan: the work that waits, by deadline risk (DEC-027 (3)); same metrics and tokens as the cards */}
@@ -1912,7 +1962,7 @@ export function AdminWorkspacesClient({
 					title={`Grafik · ${chartCount}`}
 					description={`${WINDOW_LABELS[windowRange]} · waktu WIB · setiap grafik punya tabel`}
 				>
-					{dashboard?.series && <RevenueTrendChart series={dashboard.series} />}
+					{dashboard?.series && !sales && <RevenueTrendChart series={dashboard.series} />}
 					{dashboard?.cod_ageing && <CodAgeingChart ageing={dashboard.cod_ageing} />}
 					{paymentBreakdown?.length ? <PaymentMethodChart breakdown={paymentBreakdown} /> : null}
 				</Disclosure>

@@ -14739,7 +14739,7 @@ paths:
       operationId: decideShippingPromotionProposal
       summary: decideShippingPromotionProposal
       description: S177. Owner or ecommerce_admin (current cookie/MFA) approves or rejects a marketing proposal. Approve appends the
-        proposed terms as the active version; reject appends them inactive and no longer proposed. Expected version, reason,
+        submitted terms as the active version; reject appends them inactive and clears the pending-approval flag. Expected version, reason,
         audit (promotion.approve / promotion.reject) and actor-scoped idempotent retry.
       tags:
       - Promotions
@@ -28170,6 +28170,116 @@ components:
           - edges_are_display_choice
           - total
           - buckets
+          additionalProperties: false
+        sales:
+          type:
+          - object
+          - 'null'
+          description: Owner workspace only. Orders placed in the period that are not cancelled or draft (the
+            average_order_value population), company-wide; merchandise is quantity x frozen unit price. Return reasons
+            count return items of cases opened in the period. Null for every other workspace.
+          properties:
+            orders:
+              type: integer
+              minimum: 0
+            units:
+              type: integer
+              minimum: 0
+            gross_merchandise:
+              type: integer
+              minimum: 0
+            shipping:
+              type: integer
+              minimum: 0
+            discount:
+              type: integer
+              minimum: 0
+            by_status:
+                type: array
+                maxItems: 20
+                items:
+                  type: object
+                  properties:
+                    key:
+                      type: string
+                      minLength: 1
+                      maxLength: 40
+                    count:
+                      type: integer
+                      minimum: 0
+                  required:
+                  - key
+                  - count
+                  additionalProperties: false
+            by_payment_status:
+                type: array
+                maxItems: 20
+                items:
+                  type: object
+                  properties:
+                    key:
+                      type: string
+                      minLength: 1
+                      maxLength: 40
+                    count:
+                      type: integer
+                      minimum: 0
+                  required:
+                  - key
+                  - count
+                  additionalProperties: false
+            top_products:
+              type: array
+              maxItems: 5
+              items:
+                type: object
+                properties:
+                  admin_no:
+                    type:
+                    - integer
+                    - 'null'
+                  name:
+                    type: string
+                    maxLength: 300
+                  units:
+                    type: integer
+                    minimum: 0
+                  amount:
+                    type: integer
+                    minimum: 0
+                required:
+                - admin_no
+                - name
+                - units
+                - amount
+                additionalProperties: false
+            return_reasons:
+                type: array
+                maxItems: 20
+                items:
+                  type: object
+                  properties:
+                    key:
+                      type: string
+                      minLength: 1
+                      maxLength: 40
+                    count:
+                      type: integer
+                      minimum: 0
+                  required:
+                  - key
+                  - count
+                  additionalProperties: false
+          required:
+          - orders
+          - units
+          - gross_merchandise
+          - shipping
+          - discount
+          - by_status
+          - by_payment_status
+          - top_products
+          - return_reasons
           additionalProperties: false
       required:
       - workspace

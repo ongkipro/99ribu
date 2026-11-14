@@ -24,7 +24,8 @@ type Metric={key:string;kind:string;count:number|null;amount:number|null;complet
  denominator:number|null;rate:number|null;age_seconds:number|null;stale_count:number|null;comparison:Comparison|null;basis:string};
 type Snapshot={workspace:string;from:string;to:string;as_of:string;comparison_period:{from:string;to:string}|null;metrics:Metric[];
  series:{bucket:string;points:{start:string;revenue:number;orders:number}[];previous:{start:string;revenue:number;orders:number}[]|null}|null;
- cod_ageing:{total:number;buckets:{amount:number;parcels:number}[]}|null};
+ cod_ageing:{total:number;buckets:{amount:number;parcels:number}[]}|null;
+ sales:{orders:number;units:number;gross_merchandise:number;by_status:{key:string;count:number}[];top_products:{amount:number}[]}|null};
 
 async function dashboard(identity:Identity,user:User,params:Record<string,string>):Promise<Snapshot>{
  const response=await handleReporting(user.browser.request(`/api/v1/admin/dashboard?${new URLSearchParams(params)}`),identity);
@@ -171,6 +172,12 @@ test('the five DEC-027 metrics equal independent queries and their drilldown row
   assert.ok(owner.series);assert.equal(Math.max(0,owner.series.points.reduce((n,p)=>n+p.revenue,0)),Number(revenue.amount),'the revenue series adds up to the revenue card');
   assert.equal(owner.series.points.reduce((n,p)=>n+p.orders,0),orders,'the series orders equal the average order denominator');
   assert.equal(owner.series.previous,null,'no previous series without compare');
+  // Owner sales block: the same population as the average order value; finance gets none.
+  assert.ok(owner.sales);assert.equal(owner.sales.orders,orders,'sales orders equal the average order denominator');
+  assert.equal(owner.sales.gross_merchandise,Number(merch),'gross merchandise equals the average order numerator');
+  assert.equal(owner.sales.by_status.filter(r=>r.key!=='cancelled').reduce((n,r)=>n+r.count,0),orders,'status mix without cancelled equals the orders');
+  assert.ok(owner.sales.top_products.length<=5&&owner.sales.top_products.every((t,i,a)=>i===0||a[i-1].amount>=t.amount),'best sellers by amount, at most five');
+  assert.equal(finance.sales,null,'the sales block is owner-only');
  }finally{
   try{
    for(const user of users)await closeFulfillmentActor(f.identity,user).catch(()=>{});
