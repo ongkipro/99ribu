@@ -90,16 +90,16 @@ async function capture(page:Page,name:string){
  await writeFile(`${output}/${name}.png`,await page.screenshot({fullPage:true}));
 }
 // Couriers load by themselves once the address is complete (owner 2026-11-05). Without JavaScript "Cek ongkir" asks for
-// them; with JavaScript an incomplete or rejected address is checked by pressing "Buat pesanan" in the contact step.
+// them; with JavaScript an incomplete or rejected address is checked by pressing "Buat pesanan" before any courier shows.
 async function calculate(page:Page){
- const nojs=page.getByRole('button',{name:'Cek ongkir',exact:true}),review=page.locator('dl.checkout-review-box');
+ const nojs=page.getByRole('button',{name:'Cek ongkir',exact:true}),couriers=page.locator('.checkout-parcels');
  if(await nojs.isVisible()){await nojs.click();return;}
- if(await review.isVisible()||await review.waitFor({timeout:2500}).then(()=>true,()=>false))return;
- // A courier load still running (slow host) ends on the order step, whose button has the same name: let it settle and press
- // only the contact-step button, never the one that places the order.
+ if(await couriers.isVisible()||await couriers.waitFor({timeout:2500}).then(()=>true,()=>false))return;
+ // A courier load still running (slow host) ends with couriers shown, where the same button places the order: let it
+ // settle and press only while no courier is shown.
  await expect(page.locator('fieldset.checkout-controls')).not.toHaveAttribute('aria-busy','true');
- if(await review.isVisible())return;
- await page.locator('#checkout-form:has(#checkout-recipient_name) #checkout-primary').click();
+ if(await couriers.isVisible())return;
+ await page.locator('#checkout-form:not(:has(.checkout-parcels)) #checkout-primary').click();
 }
 async function fill(page:Page,method:'prepaid'|'cod',postcode:string){
  await page.getByLabel('Nama lengkap',{exact:true}).fill('Penerima Contoh');await page.getByLabel('Nomor WhatsApp',{exact:true}).fill('081200000000');
@@ -124,8 +124,8 @@ for(const [index,width] of [390,768,1440].entries()){
   // Couriers listed with prices; COD only where the provider allows it.
   {mode='ok';const before=estimates;const f=await start(width);try{
    await f.page.goto(`${origin}/checkout`);await fill(f.page,'prepaid',postcodes[index*4]);await calculate(f.page);
-   await expect(f.page.locator('dl.checkout-review-box')).toBeVisible();
-   const shipping=f.page.locator('section',{has:f.page.getByRole('heading',{name:'Metode pengiriman',exact:true})});
+   await expect(f.page.locator('.checkout-parcels')).toBeVisible();
+   const shipping=f.page.locator('section',{has:f.page.getByRole('heading',{name:'Pengiriman',exact:true})});
    await expect(shipping.getByText('SiCepat',{exact:false}).first()).toBeVisible();await expect(shipping.getByText('JNE',{exact:false}).first()).toBeVisible();
    assert.equal(await shipping.getByText('J&T',{exact:false}).count(),0,'a stand-in key that is not a real Mengantar key is hidden');
    assert.ok(estimates>before,'the quote used the provider');

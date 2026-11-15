@@ -164,9 +164,10 @@ async function fillContact(page: Page, method: RegExp) {
 	await page.getByLabel("Alamat lengkap", { exact: true }).fill("Jalan Contoh 12\nRT 01");
 	await page.getByRole("radio", { name: method }).check();
 	// Couriers load by themselves once the address is complete (owner 2026-11-05).
-	// Single-page checkout: the quote opens the order step (review box, shipping choices, order button) directly.
-	await expect(page.locator("dl.checkout-review-box")).toBeVisible();
-	await expect(page.getByRole("heading", { name: "Metode pengiriman", exact: true })).toBeVisible();
+	// One open page (owner 2026-11-08): the couriers appear under the address, next to the still editable fields.
+	await expect(page.locator(".checkout-parcels")).toBeVisible();
+	await expect(page.locator("dl.checkout-review-box")).toHaveCount(0);
+	await expect(page.getByRole("heading", { name: "Pengiriman", exact: true })).toBeVisible();
 	await expect(page.getByRole("button", { name: "Buat pesanan", exact: true })).toBeVisible();
 }
 const parcelsOf = (orderId: string) =>

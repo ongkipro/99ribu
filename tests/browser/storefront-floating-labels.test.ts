@@ -80,16 +80,16 @@ async function note(page:Page){
  return page.getByLabel('Catatan pengiriman (opsional)',{exact:true});
 }
 // Couriers load by themselves once the address is complete (owner 2026-11-05). Without JavaScript "Cek ongkir" asks for
-// them; with JavaScript an incomplete or rejected address is checked by pressing "Buat pesanan" in the contact step.
+// them; with JavaScript an incomplete or rejected address is checked by pressing "Buat pesanan" before any courier shows.
 async function calculate(page:Page){
- const nojs=page.getByRole('button',{name:'Cek ongkir',exact:true}),review=page.locator('dl.checkout-review-box');
+ const nojs=page.getByRole('button',{name:'Cek ongkir',exact:true}),couriers=page.locator('.checkout-parcels');
  if(await nojs.isVisible()){await nojs.click();return;}
- if(await review.isVisible()||await review.waitFor({timeout:2500}).then(()=>true,()=>false))return;
- // A courier load still running (slow host) ends on the order step, whose button has the same name: let it settle and press
- // only the contact-step button, never the one that places the order.
+ if(await couriers.isVisible()||await couriers.waitFor({timeout:2500}).then(()=>true,()=>false))return;
+ // A courier load still running (slow host) ends with couriers shown, where the same button places the order: let it
+ // settle and press only while no courier is shown.
  await expect(page.locator('fieldset.checkout-controls')).not.toHaveAttribute('aria-busy','true');
- if(await review.isVisible())return;
- await page.locator('#checkout-form:has(#checkout-recipient_name) #checkout-primary').click();
+ if(await couriers.isVisible())return;
+ await page.locator('#checkout-form:not(:has(.checkout-parcels)) #checkout-primary').click();
 }
 type Kind='input'|'select'|'textarea';
 // Every text control the checkout contact step shows: its label (the accessible name), id, kind and a value to type.

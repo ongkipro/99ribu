@@ -6,6 +6,7 @@ import test from 'node:test';
 import {chromium,expect,type Page} from '@playwright/test';
 import {createLocalAuth} from '../../src/modules/access/auth.ts';
 import {rupiah} from '../../src/modules/storefront/format.ts';
+import {serviceLine} from '../../src/components/storefront/rate-badges.ts';
 import {runOneJob} from '../../src/jobs/worker.ts';
 import {paymentAdapter} from '../../src/modules/payments/worker.ts';
 import {ingestProviderEvent,simulateCollection} from '../../src/modules/payments/local.ts';
@@ -106,16 +107,17 @@ async function area(page:Page,id:string){
  await page.getByRole('option',{name:new RegExp(district)}).click();await expect(page.locator('input[type=hidden][name=destination_id]')).toHaveValue(id);
 }
 // Couriers load by themselves once the address is complete (owner 2026-11-05). Without JavaScript "Cek ongkir" asks for
-// them; with JavaScript an incomplete or rejected address is checked by pressing "Buat pesanan" in the contact step.
+// them; with JavaScript an incomplete or rejected address is checked by pressing "Buat pesanan" before any courier shows.
+const courierList=(page:Page)=>page.locator('.checkout-parcels');
 async function calculate(page:Page){
- const nojs=page.getByRole('button',{name:'Cek ongkir',exact:true}),review=page.locator('dl.checkout-review-box');
+ const nojs=page.getByRole('button',{name:'Cek ongkir',exact:true});
  if(await nojs.isVisible()){await nojs.click();return;}
- if(await review.isVisible()||await review.waitFor({timeout:2500}).then(()=>true,()=>false))return;
- // A courier load still running (slow host) ends on the order step, whose button has the same name: let it settle and press
- // only the contact-step button, never the one that places the order.
+ if(await courierList(page).isVisible()||await courierList(page).waitFor({timeout:2500}).then(()=>true,()=>false))return;
+ // A courier load still running (slow host) ends with couriers shown, where the same button places the order: let it
+ // settle and press only while no courier is shown.
  await expect(page.locator('fieldset.checkout-controls')).not.toHaveAttribute('aria-busy','true');
- if(await review.isVisible())return;
- await page.locator('#checkout-form:has(#checkout-recipient_name) #checkout-primary').click();
+ if(await courierList(page).isVisible())return;
+ await page.locator('#checkout-form:not(:has(.checkout-parcels)) #checkout-primary').click();
 }
 async function contact(page:Page,method='prepaid',{withArea=true,areaId='test-malang'}={}){
  await page.getByLabel('Nama lengkap',{exact:true}).fill('Penerima Contoh');await page.getByLabel('Nomor WhatsApp',{exact:true}).fill('081200000000');
@@ -126,16 +128,19 @@ async function contact(page:Page,method='prepaid',{withArea=true,areaId='test-ma
  // The street last, focus left in it: couriers load at the next decisive step (leaving the field) or on "Buat pesanan".
  await page.getByLabel('Alamat lengkap',{exact:true}).fill('Jalan Contoh 12\nRT 01');
 }
-// Single-page checkout: before a quote the page shows Pengiriman (contact and address), a Metode pengiriman placeholder and Pembayaran;
-// once couriers load (by themselves with JavaScript, "Cek ongkir" without) it shows the review box, editable shipping choices and the order button together.
+// One open page (owner 2026-11-08): Kontak & alamat, Pengiriman and Pembayaran are always shown and editable. Before a
+// quote Pengiriman holds a placeholder; once couriers load (by themselves with JavaScript, "Cek ongkir" without) it lists
+// them under the address, with the total and the order button. There is never a locked review box.
 async function expectContactStep(page:Page){
- await expect(page.getByRole('heading',{name:'Pengiriman',exact:true})).toBeVisible();await expect(page.getByRole('heading',{name:'Metode pengiriman',exact:true})).toBeVisible();
- await expect(page.locator('dl.checkout-review-box')).toHaveCount(0);await expect(page.locator('#checkout-primary')).toBeVisible();
+ await expect(page.getByRole('heading',{name:'Kontak & alamat',exact:true})).toBeVisible();await expect(page.getByRole('heading',{name:'Pengiriman',exact:true})).toBeVisible();
+ await expect(courierList(page)).toHaveCount(0);await expect(page.locator('#checkout-primary')).toBeVisible();await expect(page.getByRole('button',{name:/^Ubah/})).toHaveCount(0);
 }
 async function expectOrderStep(page:Page){
- await expect(page.locator('dl.checkout-review-box')).toBeVisible();await expect(page.getByRole('heading',{name:'Metode pengiriman',exact:true})).toBeVisible();
- await expect(page.locator('#checkout-primary')).toHaveAccessibleName('Buat pesanan');await expect(page.getByLabel('Nama lengkap',{exact:true})).toHaveCount(0);
- for(const name of ['Ubah kontak','Ubah kirim ke','Ubah pembayaran'])await expect(page.getByRole('button',{name,exact:true})).toBeVisible();
+ await expect(courierList(page)).toBeVisible();await expect(page.getByRole('heading',{name:'Pengiriman',exact:true})).toBeVisible();
+ await expect(page.locator('#checkout-primary')).toHaveAccessibleName('Buat pesanan');await expect(page.locator('#checkout-primary')).toBeEnabled();
+ // Contact, address and payment stay editable next to the couriers; no review box, no "Ubah".
+ await expect(page.getByLabel('Nama lengkap',{exact:true})).toBeEditable();await expect(page.getByRole('combobox',{name:'Kecamatan tujuan',exact:true})).toBeEditable();
+ await expect(page.locator('dl.checkout-review-box')).toHaveCount(0);await expect(page.getByRole('button',{name:/^Ubah/})).toHaveCount(0);await expect(page.locator('.checkout-total-change')).toHaveCount(0);
 }
 async function activeQuote(page:Page){
  const current=await page.request.get(`${origin}/api/v1/carts/current`);assert.equal(current.status(),200);const cart=await current.json();
@@ -203,8 +208,9 @@ test('competing checkout drafts preserve local input and a revoked autosave clea
 
 // Review findings 2026-11-05: (4) a submit with no kecamatan focuses the kecamatan field (the kelurahan field is still
 // disabled); (3) the kecamatan list paints above the fields under it; (1) couriers load at a decisive step, never while
-// the buyer types, and "Ubah" does not bounce back to the couriers.
-test('missing kecamatan focuses the kecamatan field, its list paints above later fields, and editing after "Ubah" stays put',{timeout:90000},async()=>{
+// the buyer types. Owner 2026-11-08: the fields stay editable next to the couriers; a changed street is quoted again when
+// the buyer leaves the field, keeping focus where it went.
+test('missing kecamatan focuses the kecamatan field, its list paints above later fields, and editing next to the couriers stays put',{timeout:90000},async()=>{
  const product=curated.products['shirt-cream'];assert.ok(product.publication_id);
  const f=await start(390,true,[{variant_id:product.offer_id,quantity:1,expected_publication_id:product.publication_id}]);try{
   await f.page.goto(`${origin}/checkout`);await f.page.waitForLoadState('networkidle');
@@ -222,12 +228,14 @@ test('missing kecamatan focuses the kecamatan field, its list paints above later
   await combo.fill('00001');const byCode=f.page.getByRole('listbox',{name:'Kecamatan'}).getByRole('option');await expect(byCode).toHaveCount(1);
   await expect(byCode.first()).toContainText('Kecamatan Contoh A, Malang, Jawa Timur');await expect(byCode.first()).toContainText('Kelurahan Kelurahan Contoh A · 00001');
   await expect(f.page.locator('#checkout-query-hint')).toHaveText('Ketik minimal 3 huruf kecamatan, kelurahan, atau kode pos.');
-  await byCode.first().click();await expectOrderStep(f.page);
-  await f.page.getByRole('button',{name:'Ubah kirim ke',exact:true}).click();await expectContactStep(f.page);
+  await byCode.first().click();await expectOrderStep(f.page);const first=(await activeQuote(f.page)).quote;
   const street=f.page.getByLabel('Alamat lengkap',{exact:true});await street.click();await street.press('End');await street.pressSequentially(' blok C',{delay:40});await f.page.waitForTimeout(1500);
-  await expectContactStep(f.page);await expect(street).toBeFocused();await expect(street).toHaveValue('Jalan Contoh 12 blok C');
-  await f.page.locator('input[name=payment_method][value=prepaid]').focus();await expectOrderStep(f.page);
-  await expect(f.page.locator('.checkout-review-row').nth(1)).toContainText('Jalan Contoh 12 blok C');
+  // Typing never requests anything: same quote, focus and text kept; the couriers stay listed but the order button asks
+  // for the new quote first (it carries the address).
+  await expect(street).toBeFocused();await expect(street).toHaveValue('Jalan Contoh 12 blok C');assert.equal((await activeQuote(f.page)).quote.id,first.id);await expect(courierList(f.page)).toBeVisible();
+  const payment=f.page.locator('input[name=payment_method][value=prepaid]');await payment.focus();
+  await expect.poll(async()=>(await activeQuote(f.page)).quote.address.address_line).toBe('Jalan Contoh 12 blok C');await expectOrderStep(f.page);await expect(payment).toBeFocused();
+  assert.equal(await orderCount(f.cart.id),0,'a re-quote after an edit never places an order');
   assert.deepEqual(f.errors,[]);
  }finally{await close(f);}
 });
@@ -263,12 +271,12 @@ for(const javaScriptEnabled of [true,false])test(`shipping radio Enter retains i
   const quoteCount=async()=>(await identity.sql`select count(*)::int n from app.checkout_quote where cart_id=${f.cart.id}`)[0].n;
   const issuedQuote=(await activeQuote(f.page)).quote;
   const group=f.page.getByRole('group',{name:'Layanan pengiriman',exact:true}).first(),alternative=group.locator('input:not(:checked)').first(),chosen=await alternative.inputValue();
-  // Each option names the courier, then the service, with the price right-aligned.
+  // Each option is one compact row: the courier, a muted "service · ETA" line, the price right-aligned.
   const option=group.locator('label').filter({has:f.page.locator(`input[value="${chosen}"]`)}),issuedOption=issuedQuote.packages[0].options.find((o:{id:string})=>o.id===chosen);assert.ok(issuedOption);
-  await expect(option.locator('span>strong')).toHaveText(issuedOption.courier_name);await expect(option.locator('span>span')).toHaveText(issuedOption.service_name);await expect(option.locator('.checkout-choice-price')).toHaveText(rupiah(issuedOption.shipping_amount));
+  await expect(option.locator('span>strong')).toHaveText(issuedOption.courier_name);await expect(option.locator('.checkout-rate-text>small')).toHaveText(serviceLine(issuedOption.service_name));await expect(option.locator('.checkout-choice-price')).toHaveText(rupiah(issuedOption.shipping_amount));
   await alternative.check();
   if(javaScriptEnabled){
-   // With JavaScript a changed courier applies at once (a 'shipping' intent) and the page stays on the order step.
+   // With JavaScript a changed courier applies at once (a 'shipping' intent); the couriers stay where they are.
    await expect.poll(async()=>(await activeQuote(f.page)).quote.packages[0].selected_option_id).toBe(chosen);
    await expect(f.page.locator('#checkout-primary')).toHaveAccessibleName('Buat pesanan');await expect(f.page.locator('.checkout-due strong')).toHaveText(rupiah((await activeQuote(f.page)).quote.buyer_total));
   }else await expect(f.page.locator('#checkout-primary')).toHaveAccessibleName('Perbarui pengiriman',{timeout:1000}); // no JS: the next press applies the choice, it never orders
@@ -276,14 +284,14 @@ for(const javaScriptEnabled of [true,false])test(`shipping radio Enter retains i
   await alternative.press('Enter');
   // Enter submits the hidden 'stay' button: same step, the checked courier kept. Without JavaScript it is not applied yet, so
   // the button offers the update (never an order); with JavaScript it was applied on change.
-  await expect(f.page.locator('input[name=key]')).not.toHaveValue(key);if(javaScriptEnabled)await expectOrderStep(f.page);else{await expect(f.page.locator('dl.checkout-review-box')).toBeVisible();await expect(f.page.locator('#checkout-primary')).toHaveAccessibleName('Perbarui pengiriman');}
+  await expect(f.page.locator('input[name=key]')).not.toHaveValue(key);if(javaScriptEnabled)await expectOrderStep(f.page);else{await expect(courierList(f.page)).toBeVisible();await expect(f.page.locator('#checkout-primary')).toHaveAccessibleName('Perbarui pengiriman');}
   await expect(group.locator('input:checked')).toHaveValue(chosen);await expect(f.page.locator('input[name=quote]')).toHaveValue(quote);
   assert.equal(await orderCount(f.cart.id),0,'Enter on a courier never places an order');
   const plans=f.page.getByRole('group',{name:'Pembagian paket',exact:true});
   await expect(plans.locator('details')).not.toHaveAttribute('open','');
   await plans.locator('details>summary').click();const plan=plans.locator('input:not(:checked)').first(),allocation=await plan.inputValue();
   await plan.check();
-  if(javaScriptEnabled){await expect.poll(async()=>(await activeQuote(f.page)).quote.selected_allocation_id).toBe(allocation);await expect(stepNotice(f.page)).toHaveText('Pembagian paket diperbarui. Periksa total lalu buat pesanan.');}
+  if(javaScriptEnabled){await expect.poll(async()=>(await activeQuote(f.page)).quote.selected_allocation_id).toBe(allocation);await expect(stepNotice(f.page)).toHaveCount(0);await expect(f.page.locator('.checkout-total-change')).toHaveCount(0);}
   const nextQuote=await f.page.locator('input[name=quote]').inputValue(),nextKey=await f.page.locator('input[name=key]').inputValue();
   await plans.locator('input:checked').press('Enter');
   await expect(f.page.locator('input[name=key]')).not.toHaveValue(nextKey);
@@ -298,7 +306,7 @@ for(const javaScriptEnabled of [true,false])test(`shipping radio Enter retains i
   await plans.locator(`input[value="${issuedQuote.selected_allocation_id}"]`).check();
   if(javaScriptEnabled){
    await expect.poll(async()=>(await activeQuote(f.page)).quote.selected_allocation_id).toBe(issuedQuote.selected_allocation_id);
-   await expect(stepNotice(f.page)).toHaveText('Pembagian paket diperbarui. Periksa total lalu buat pesanan.');
+   await expect(stepNotice(f.page)).toHaveCount(0);await expect(f.page.locator('.checkout-total-change')).toHaveCount(0);
   }else{
    // No JavaScript: "Perbarui pengiriman" applies the issued split; no order yet.
    await f.page.locator('#checkout-primary').click();await expect(f.page.locator('#checkout-primary')).toHaveAccessibleName('Buat pesanan');
@@ -336,9 +344,8 @@ for(const width of [390,768,1024,1440])test(`guest checkout contact/shipping/rev
   await expect(f.page.locator('#checkout-help')).toHaveCount(0);await expect(f.page.getByText('Harga setiap pilihan maksimal',{exact:false})).toHaveCount(0);await expect(f.page.locator('.checkout-footer').getByRole('link',{name:/Privasi/})).toBeVisible();
   await expect(f.page.getByLabel('Catatan pengiriman (opsional)',{exact:true})).toHaveValue('Titip di penerima\nHubungi saat tiba');await capture(f.page,`review-${width}`);
   const [quote]=await identity.sql`select buyer_total,buyer_total+payment_charge_amount as amount_due from app.checkout_quote where cart_id=${f.cart.id} order by created_at desc limit 1`;
-  // The review box restates what the quote was computed for; the order button and total row carry the quote's total.
-  const review=f.page.locator('dl.checkout-review-box');await expect(review.locator('dt')).toHaveText(['Kontak','Kirim ke','Pembayaran']);
-  await expect(review).toContainText('Penerima Contoh');await expect(review).toContainText('Jalan Contoh 12');await expect(review).toContainText(width===768?'Bayar di tempat (COD)':'Pembayaran simulasi');
+  // The fields the quote was computed for stay on the page, editable; the order button and total row carry the quote's total.
+  await expect(f.page.getByLabel('Nama lengkap',{exact:true})).toHaveValue('Penerima Contoh');await expect(f.page.locator('#checkout-destination-selected')).toContainText('Jalan Contoh 12');await expect(f.page.locator(`input[name=payment_method][value=${width===768?'cod':'prepaid'}]`)).toBeChecked();
   await expect(f.page.getByRole('button',{name:/^Buat pesanan/})).toHaveAccessibleName('Buat pesanan');await expect(f.page.locator('.checkout-due strong')).toHaveText(rupiah(Number(quote.amount_due??quote.buyer_total)));await expect(f.page.locator('.checkout-due strong')).toHaveText(rupiah(Number(quote.amount_due??quote.buyer_total)));
   await expect(f.page.locator('.checkout-summary summary>strong')).toHaveText(rupiah(Number(quote.amount_due??quote.buyer_total)));assert.equal(await orderCount(f.cart.id),0);
   await f.page.getByRole('button',{name:/^Buat pesanan/}).click();await f.page.waitForURL(/\/checkout\/order\/[0-9a-f-]+$/);await expect(f.page.getByRole('heading',{name:width===768?'Terima kasih, pesanan Anda tersimpan':'Selesaikan pembayaran',exact:true})).toBeVisible();
@@ -361,8 +368,8 @@ test('checkout native forms work without JavaScript and retain fields through re
  const f=await start(390,false),navigations:string[]=[];f.page.on('request',r=>{if(r.isNavigationRequest())navigations.push(r.method());});try{
   await f.page.goto(`${origin}/checkout`);await contact(f.page);await f.page.locator('select#checkout-destination_id').selectOption('');await calculate(f.page);await expect(f.page.locator('#checkout-destination-error')).toBeVisible();await expect(f.page.getByLabel('Kelurahan / desa',{exact:true})).toBeFocused();await area(f.page,'test-malang');
   await calculate(f.page);await expectOrderStep(f.page);
-  await expect(f.page.getByRole('button',{name:'Ubah kontak',exact:true})).toBeVisible();await expect(f.page.getByRole('button',{name:'Ubah pembayaran',exact:true})).toBeVisible();await f.page.getByRole('button',{name:'Ubah kirim ke',exact:true}).click();await expectContactStep(f.page);await expect(f.page.getByLabel('Alamat lengkap',{exact:true})).toHaveValue('Jalan Contoh 12\nRT 01');await expect(f.page.locator('[name=email]')).toHaveCount(0);await capture(f.page,'contact-nojs-390');
-  await calculate(f.page);await expectOrderStep(f.page);
+  // Without JavaScript the fields stay next to the couriers as well, with their values; no email field.
+  await expect(f.page.getByLabel('Alamat lengkap',{exact:true})).toHaveValue('Jalan Contoh 12\nRT 01');await expect(f.page.locator('[name=email]')).toHaveCount(0);await capture(f.page,'contact-nojs-390');
   await f.page.getByRole('button',{name:/^Buat pesanan/}).click();await f.page.waitForURL(/\/checkout\/order\/[0-9a-f-]+$/);await expect(f.page.getByRole('heading',{name:'Selesaikan pembayaran',exact:true})).toBeVisible();await capture(f.page,'payment-nojs-390');await f.page.getByRole('button',{name:'Siapkan instruksi pembayaran',exact:true}).click();await expect(f.page.getByRole('heading',{name:'Instruksi pembayaran',exact:true})).toBeVisible();assert.equal(navigations.at(-1),'GET','Native payment success redirects to a read-only document');await f.page.reload();assert.equal(navigations.at(-1),'GET');
   const orders=await identity.sql`select id from app.commerce_order where cart_id=${f.cart.id}`;assert.equal(orders.length,1);assert.deepEqual(f.errors,[]);
  }finally{await close(f);}
@@ -393,7 +400,7 @@ test('discarded committed order reply requires explicit exact retry and returns 
   await f.page.route('**/checkout',async(route,request)=>{
    if(request.method()==='POST'&&request.headers()['next-action']){actionId??=request.headers()['next-action'];if(request.headers()['next-action']===actionId)submissions++;}if(!discarded&&request.method()==='POST'&&request.headers()['next-action']===actionId){await route.fetch({maxRedirects:0});discarded=true;arrive();await held;await route.abort('failed');}else await route.continue();
   });
-  await f.page.getByRole('button',{name:/^Buat pesanan/}).click();await committedReady;const pending=f.page.getByRole('button',{name:'Menyimpan pesanan…',exact:true});await expect(pending).toBeDisabled();for(const name of ['Ubah kontak','Ubah kirim ke','Ubah pembayaran'])await expect(f.page.getByRole('button',{name,exact:true})).toBeDisabled();await expect(f.page.getByRole('group',{name:'Layanan pengiriman',exact:true}).first().locator('input').first()).toBeDisabled();await pending.evaluate(el=>(el as HTMLButtonElement).click());assert.equal(submissions,1,'A second activation while pending cannot submit another order request');await capture(f.page,'review-pending-390');release();await expect(f.page.getByRole('button',{name:'Periksa hasil tindakan',exact:true})).toBeVisible();assert.equal(discarded,true);
+  await f.page.getByRole('button',{name:/^Buat pesanan/}).click();await committedReady;const pending=f.page.getByRole('button',{name:'Menyimpan pesanan…',exact:true});await expect(pending).toBeDisabled();for(const label of ['Nama lengkap','Nomor WhatsApp','Alamat lengkap'])await expect(f.page.getByLabel(label,{exact:true})).toBeDisabled();await expect(f.page.getByRole('group',{name:'Layanan pengiriman',exact:true}).first().locator('input').first()).toBeDisabled();await pending.evaluate(el=>(el as HTMLButtonElement).click());assert.equal(submissions,1,'A second activation while pending cannot submit another order request');await capture(f.page,'review-pending-390');release();await expect(f.page.getByRole('button',{name:'Periksa hasil tindakan',exact:true})).toBeVisible();assert.equal(discarded,true);
   const committed=await identity.sql`select id,buyer_total from app.commerce_order where cart_id=${f.cart.id}`;assert.equal(committed.length,1);await expect(f.page.getByRole('heading',{name:'Hasil tindakan belum diketahui',exact:true})).toBeVisible();await expect(f.page.locator('.checkout-summary > details > summary')).toContainText('Rp');await expect(f.page.getByRole('heading',{name:'Bantuan checkout',exact:true})).toBeVisible();await expect(f.page.locator('#checkout-help').getByText('Bagaimana jika hasil pembuatan pesanan belum diketahui?',{exact:true})).toBeVisible();await expect(f.page.locator('#checkout-help').getByText('Mengapa akses perlu diperiksa?',{exact:true})).toHaveCount(0);await capture(f.page,'order-unknown-390');
   // Reconnecting/reading this state has not made a second request or payment.
   assert.equal((await identity.sql`select count(*)::int n from app.payment_attempt where order_id=${committed[0].id}`)[0].n,0);
@@ -573,7 +580,7 @@ test('arrow keys on the package split apply each split and keep keyboard focus o
   const issued=await plans.locator('input:checked').inputValue();
   await plans.locator('input:checked').press('ArrowDown');
   await expect.poll(async()=>(await activeQuote(f.page)).quote.selected_allocation_id).not.toBe(issued);const applied=(await activeQuote(f.page)).quote.selected_allocation_id;
-  await expect(stepNotice(f.page)).toHaveText('Pembagian paket diperbarui. Periksa total lalu buat pesanan.');await expect(plans.locator('input:checked')).toHaveValue(applied);
+  await expect(stepNotice(f.page)).toHaveCount(0);await expect(f.page.locator('.checkout-total-change')).toHaveCount(0);await expect(plans.locator('input:checked')).toHaveValue(applied);
   await expect(plans.locator('input:checked'),'keyboard focus stays on the checked split after the automatic recalculation').toBeFocused();
   assert.equal(await orderCount(f.cart.id),0);assert.deepEqual(f.errors,[]);
  }finally{await close(f);}
@@ -593,11 +600,12 @@ test('native multi-parcel radio choices submit independently without JavaScript'
   await expect(f.page.locator('#checkout-primary')).toHaveAccessibleName('Perbarui pengiriman');await expect(f.page.locator('.checkout-due')).toBeHidden();
   const oldTotal=await f.page.locator('.checkout-summary summary>strong').innerText();await capture(f.page,'shipping-two-origins-nojs-390');
   // First press: the server applies both couriers instead of ordering.
-  await f.page.locator('#checkout-primary').click();await expect(stepNotice(f.page)).toHaveText('Pengiriman diperbarui. Periksa total lalu buat pesanan.');await expectOrderStep(f.page);
-  assert.equal(await orderCount(f.cart.id),0,'changed couriers on "Buat pesanan" must not place an order');
+  await f.page.locator('#checkout-primary').click();await expect.poll(async()=>(await activeQuote(f.page)).quote.packages.map((parcel:{selected_option_id:string})=>parcel.selected_option_id)).toEqual(selected);await expectOrderStep(f.page);
+  await expect(stepNotice(f.page)).toHaveCount(0);assert.equal(await orderCount(f.cart.id),0,'changed couriers on "Buat pesanan" must not place an order');
   const {quote:couriers}=await activeQuote(f.page);assert.equal(couriers.selected_allocation_id,issued.selected_allocation_id);assert.deepEqual(couriers.packages.map((parcel:{selected_option_id:string})=>parcel.selected_option_id),selected);assert.equal(couriers.buyer_total,couriers.merchandise_total+couriers.shipping_total-couriers.subsidy_total);
   for(let i=0;i<2;i++)await expect(groups.nth(i).locator('input:checked')).toHaveValue(selected[i]);
-  if(couriers.buyer_total!==issued.buyer_total){await expect(f.page.locator('.checkout-total-change')).toContainText('Total berubah dari');assert.ok((await f.page.locator('.checkout-total-change').innerText()).includes(oldTotal));}
+  // The buyer chose these couriers: the new total shows without a "Total berubah" notice (owner 2026-11-08).
+  assert.notEqual(oldTotal,'');await expect(f.page.locator('.checkout-total-change')).toHaveCount(0);
   await expect(f.page.locator('#checkout-primary')).toHaveAccessibleName('Buat pesanan');await expect(f.page.locator('.checkout-due strong')).toHaveText(rupiah(couriers.buyer_total));await expect(f.page.locator('.checkout-due strong')).toHaveText(rupiah(couriers.buyer_total));
   await capture(f.page,'review-two-origins-nojs-390');
   // Split: the order press with another split applies it first, then the page must offer ordering that split.
@@ -608,7 +616,7 @@ test('native multi-parcel radio choices submit independently without JavaScript'
   await expect.poll(async()=>(await activeQuote(f.page)).quote.selected_allocation_id).toBe(allocation);assert.equal(await orderCount(f.cart.id),0,'a changed split on "Buat pesanan" must not place an order');
   await expect(plans.locator('input[data-issued-selected=true]')).toHaveValue(allocation);
   await expect(plans.locator('input:checked'),'after the server applied the split, the page must not re-check the previous split as a pending choice').toHaveValue(allocation);
-  await expect(stepNotice(f.page)).toHaveText('Pembagian paket diperbarui. Periksa total lalu buat pesanan.');await expectOrderStep(f.page);
+  await expect(stepNotice(f.page)).toHaveCount(0);await expect(f.page.locator('.checkout-total-change')).toHaveCount(0);await expectOrderStep(f.page);
   const {quote}=await activeQuote(f.page);await expect(f.page.locator('#checkout-primary')).toHaveAccessibleName('Buat pesanan');await expect(f.page.locator('.checkout-due strong')).toHaveText(rupiah(quote.buyer_total));
   // The next press with an unchanged selection places exactly one order at the shown total.
   await f.page.locator('#checkout-primary').click();await f.page.waitForURL(/\/checkout\/order\/[0-9a-f-]+$/);
@@ -633,7 +641,7 @@ for(const method of ['prepaid','cod'])test(`two physical origins retain complete
    // With JavaScript a picked split is applied at once (keyboard focus is covered by its own test).
    const moved=await plans.locator('input:not(:checked)').first().inputValue();await plans.locator(`input[value="${moved}"]`).check();
    await expect.poll(async()=>(await activeQuote(f.page)).quote.selected_allocation_id).toBe(moved);
-   await expect(stepNotice(f.page)).toHaveText('Pembagian paket diperbarui. Periksa total lalu buat pesanan.');await expectOrderStep(f.page);
+   await expect(stepNotice(f.page)).toHaveCount(0);await expect(f.page.locator('.checkout-total-change')).toHaveCount(0);await expectOrderStep(f.page);
    await expect(plans.locator('input:checked')).toHaveValue(moved);await expect(plans.locator('input[data-issued-selected=true]')).toHaveValue(moved);
    assert.equal(await orderCount(f.cart.id),0);await capture(f.page,'allocation-changed-390');
    // Back to the two-origin split the quote first issued.
@@ -648,7 +656,8 @@ for(const method of ['prepaid','cod'])test(`two physical origins retain complete
    // With JavaScript the courier applies at once; the order button only ever offers the recalculated total.
    await expect.poll(async()=>(await activeQuote(f.page)).quote.packages.find((p:{id:string})=>p.id===packageId)?.selected_option_id).toBe(chosen);
    const after=(await activeQuote(f.page)).quote;await expect(f.page.locator('#checkout-primary')).toHaveAccessibleName('Buat pesanan');await expect(f.page.locator('.checkout-due strong')).toHaveText(rupiah(after.buyer_total));
-   if(after.buyer_total!==before.buyer_total)await expect(f.page.locator('.checkout-total-change')).toContainText(`Total berubah dari ${rupiah(before.buyer_total)} menjadi ${rupiah(after.buyer_total)}`);
+   // The buyer's own courier choice: no "Total berubah" notice, whatever the difference (owner 2026-11-08).
+   assert.ok(after.buyer_total>=0&&before.buyer_total>=0);await expect(f.page.locator('.checkout-total-change')).toHaveCount(0);
    await capture(f.page,'shipping-service-changed-390');
    await f.page.reload();await expectOrderStep(f.page);await expect(services.first().locator('input:checked')).toHaveValue(chosen);
    for(const [index,parcel] of after.packages.entries())await expect(f.page.locator('.checkout-parcel').nth(index)).toContainText(rupiah(parcel.buyer_shipping_amount));
@@ -679,6 +688,49 @@ for(const method of ['prepaid','cod'])test(`two physical origins retain complete
  }finally{if(held)await identity.sql.begin(async tx=>{await releaseReservation(tx,held,'Owned two-origin browser precondition finished',owner.id);await tx`delete from app.outbox_job where kind='inventory.reservation.expire' and dedup_key=${`inventory-expire:${held}`} and payload->>'reservationId'=${held} and status='ready'`;});}
 });
 
+
+// Owner 2026-11-08 (production report): no lock after the address, couriers under the address, a picked courier moves
+// ongkir and total at once with no "Total berubah" warning, the order carries exactly the shown total, and a changed
+// kecamatan never leaves a stale total that can be ordered. Renders go to RENDERS/s26/<build>/one-page-*.
+for(const width of [390,1440])test(`one open checkout page: a pricier courier changes the total at once and the order carries it at ${width}px`,{timeout:120000},async()=>{
+ const product=curated.products['shirt-cream'];assert.ok(product.publication_id);
+ const f=await start(width,true,[{variant_id:product.offer_id,quantity:1,expected_publication_id:product.publication_id}]);try{
+  await f.page.goto(`${origin}/checkout`);await expectContactStep(f.page);await contact(f.page);await calculate(f.page);await expectOrderStep(f.page);
+  await capture(f.page,`one-page-couriers-${width}`);
+  const issued=(await activeQuote(f.page)).quote,parcel=issued.packages[0];
+  // Compact parcel card: origin, one muted line of what it carries, then the courier rows.
+  await expect(f.page.locator('.checkout-parcel > legend')).toHaveText(`Dikirim dari ${parcel.origin_city}`);await expect(f.page.locator('.checkout-parcel-items')).toContainText(`1× ${(await activeQuote(f.page)).cart.lines[0].name}`);
+  const pricier=[...parcel.options].sort((a:{shipping_amount:number},b:{shipping_amount:number})=>b.shipping_amount-a.shipping_amount)[0];assert.ok(pricier.shipping_amount>parcel.shipping_amount,'the fixture offers a pricier courier');
+  const expected=issued.amount_due+(pricier.shipping_amount-parcel.shipping_amount);
+  // Hold the server's answer so the instant total is observed before it arrives.
+  let release!:()=>void;const held=new Promise<void>(r=>release=r);let holding=true;
+  await f.page.route('**/checkout',async route=>{if(holding&&route.request().method()==='POST'&&route.request().headers()['next-action']&&/name="[^"]*kind"\r\n\r\nshipping\r\n/.test(route.request().postDataBuffer()?.toString('utf8')??'')){await held;}await route.continue();});
+  const radio=f.page.locator(`input[name="shipping_option:${parcel.id}"][value="${pricier.id}"]`);await radio.check();
+  await expect(f.page.locator('.checkout-due strong')).toHaveText(rupiah(expected));await expect(f.page.locator('.checkout-summary summary>strong')).toHaveText(rupiah(expected));
+  await expect(f.page.locator('#checkout-primary')).toBeDisabled();await expect(f.page.locator('#checkout-primary')).toHaveAccessibleName('Memperbarui ongkir…');
+  await expect(f.page.locator('.checkout-total-change')).toHaveCount(0);holding=false;release();
+  await expect.poll(async()=>(await activeQuote(f.page)).quote.packages[0].selected_option_id).toBe(pricier.id);
+  await expect(f.page.locator('#checkout-primary')).toBeEnabled();await expect(f.page.locator('#checkout-primary')).toHaveAccessibleName('Buat pesanan');await expect(radio).toBeChecked();await expect(radio).toBeFocused();
+  const confirmed=(await activeQuote(f.page)).quote;assert.equal(confirmed.amount_due,expected,'the instant total equals the server total');
+  await expect(f.page.locator('.checkout-due strong')).toHaveText(rupiah(confirmed.amount_due));await expect(f.page.locator('.checkout-total-change')).toHaveCount(0);await expect(f.page.getByText('Total berubah',{exact:false})).toHaveCount(0);
+  await capture(f.page,`one-page-pricier-${width}`);
+  if(width===390){
+   // Another kecamatan: the old couriers and total give way at once and the order button cannot place the stale quote.
+   const combo=f.page.getByRole('combobox',{name:'Kecamatan tujuan',exact:true});await combo.fill(FIXTURE_DISTRICT['test-pontianak']);
+   await expect(courierList(f.page)).toHaveCount(0);await expect(f.page.locator('.checkout-due')).toHaveCount(0);
+   await expect(f.page.locator('#checkout-primary')).not.toHaveAccessibleName('Buat pesanan');
+   await f.page.getByRole('option',{name:new RegExp(FIXTURE_DISTRICT['test-pontianak'])}).click();
+   await expect.poll(async()=>(await activeQuote(f.page)).quote.address.destination_id).toBe('test-pontianak');await expectOrderStep(f.page);
+   const renewed=(await activeQuote(f.page)).quote;assert.notEqual(renewed.id,confirmed.id);await expect(f.page.locator('.checkout-due strong')).toHaveText(rupiah(renewed.amount_due));await expect(f.page.locator('.checkout-total-change')).toHaveCount(0);
+   await f.page.getByRole('button',{name:/^Buat pesanan/}).click();await f.page.waitForURL(/\/checkout\/order\/[0-9a-f-]+$/);
+   const [order]=await identity.sql`select buyer_total from app.commerce_order where cart_id=${f.cart.id}`;assert.equal(Number(order.buyer_total),renewed.buyer_total);
+  }else{
+   await f.page.getByRole('button',{name:/^Buat pesanan/}).click();await f.page.waitForURL(/\/checkout\/order\/[0-9a-f-]+$/);
+   const [order]=await identity.sql`select buyer_total from app.commerce_order where cart_id=${f.cart.id}`;assert.equal(Number(order.buyer_total),confirmed.buyer_total,'the order total equals the chosen courier total');
+  }
+  assert.equal(await orderCount(f.cart.id),1);assert.deepEqual(f.errors,[]);
+ }finally{await close(f);}
+});
 
 test('empty checkout and unavailable private order expose task recovery without private details',async()=>{
  const f=await start(390,true,[]);try{
