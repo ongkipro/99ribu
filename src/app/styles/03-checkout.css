@@ -1596,9 +1596,11 @@
 	padding: 10px 14px;
 	gap: 12px;
 }
-.checkout-rate-text {
-	flex: 1 1 9rem;
-	min-width: 0;
+/* The courier text takes the free space without pushing the price onto its own line (the shared "label > span" basis
+   is its full width); only a row narrower than about 9rem of text (large text sizes) puts the price under it. */
+.checkout-rates label > .checkout-rate-text {
+	flex: 1 1 0;
+	min-width: min(9rem, 100%);
 	display: grid;
 	gap: 2px;
 }
