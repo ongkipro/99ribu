@@ -1,5 +1,11 @@
 # Build log — Serba 99ribu
 
+## 2026-11-15 — Local database rebuilt clean; demo-sales respects when terms start (R1, local only)
+
+- Owner "jalankan juga": `99ribu_local` rebuilt per README (backup `.local/backups/99ribu_local-pre-rebuild-20261115T062751Z.dump`, 40.5 MB, `pg_restore --list` verified): migrations 0000-0059, commercial and payment terms, catalog import, the dummy logins. `catalog initial-stock` refused: the raw snapshot on disk (2026-11-10) is newer than the committed dataset (2026-10-31), and the archived 31 Oct list no longer resolves every stock item. Instead the stock, component HPP and offer assumptions of the old local database were carried over through the same services (receive movement, cost versions) into `Gudang 99ribu, Surabaya`: 1,274 items, 2,718,673 units, 1,626 HPP, 1,626 assumptions; a second import published 453 products (118 have no stock). No synthetic fixture rows remain.
+- `demo-sales` now starts at the latest of the sold offers' publication and the payment/commercial terms' start, so a fresh database gets no order before its terms exist (never backdated past them).
+- Worktrees `99ribu-single-wh` and `99ribu-cart-fly` removed (their content is on `main`; uncommitted diffs saved as patches in `/data/backups/worktrees/99ribu/`).
+
 ## 2026-11-14 — Staf & Peran: saving no longer waits for the whole warehouse list (R2, access UI)
 
 - Root cause of the intermittent S137 browser failure (2 of 3 runs alone): the roles dialog refused to save ("Daftar gudang belum dimuat") until every active warehouse had loaded, 100 per page; with 2,275 active warehouses in the local database that took over 20 requests, so an owner stepping down could click save before it finished and nothing was sent (trace: 20 warehouse page loads, no role-grant call). Past 30 pages the save could never happen.

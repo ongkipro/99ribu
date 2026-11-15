@@ -78,15 +78,17 @@ export async function runDemoSales(days=10){
 
 class SalesRun{
  readonly sql:LocalAuth['sql'];readonly identity:LocalAuth;private sessions=new Map<string,Staff>();private offers:Offer[]=[];
- private adapters:Record<string,JobAdapter>;private principal!:Principal;
+ private adapters:Record<string,JobAdapter>;private principal!:Principal;private earliestMs=0;
  constructor(identity:LocalAuth){this.identity=identity;this.sql=identity.sql;this.adapters={'payment.create':paymentAdapter(identity.sql,'local')};}
 
  async run(days:number){
   const [db]=await this.sql`select current_database() name`;if(db.name!=='99ribu_local')throw new Error('Demo sales run on 99ribu_local only.');
   this.offers=await this.selectOffers();
   this.principal=await getPrincipal((await this.session('owner')).browser.request('/api/v1/me'),this.identity);
-  const [first]=await this.sql`select min(v.created_at) at from app.publication_version v where v.id in ${this.sql(this.offers.map(o=>o.publication_id))}`;
-  const earliest=wibDay(new Date(new Date(first.at).getTime()+86400000));
+  // The first moment an order is valid: every sold offer published and the payment and commercial terms in force.
+  const [first]=await this.sql`select greatest((select max(v.created_at) from app.publication_version v where v.id in ${this.sql(this.offers.map(o=>o.publication_id))}),
+    (select max(h.at) from (select min(v.effective_at) at from app.policy_version v join app.policy_head h on h.id=v.head_id where h.kind in ('payment','commercial') and h.warehouse_id is null group by h.kind) h)) at`;
+  this.earliestMs=new Date(first.at).getTime()+60000;const earliest=wibDay(new Date(this.earliestMs));
   const summary:{day:string;orders:number;skipped?:string}[]=[];
   for(let age=days-1;age>=0;age--){
    const day=wibDay(new Date(Date.now()-age*86400000));
@@ -101,7 +103,7 @@ class SalesRun{
   const plan=planDay(day,age);
   // Resumable: an order already placed for a plan index is not placed again (an interrupted day continues).
   const placedIndexes=new Set((await this.sql`select (details->>'index')::int i from app.audit_event where actor_id=${`local-demo-sales:${ns}`} and action=${AUDIT}`).map(r=>Number(r.i)));
-  if(plan.every(o=>placedIndexes.has(o.index)))return {day,orders:plan.length,skipped:'already filled'};
+  if(plan.every(o=>placedIndexes.has(o.index)))return {day,orders:placedIndexes.size,skipped:'already filled'};
   await seedLocal('local',ns);
   const warehouse=String((await this.sql`select warehouse_id from app.local_fixture_warehouse where namespace=${ns} and fixture_id='fixture-malang'`)[0].warehouse_id);
   await this.calendar(ns,warehouse,day);
@@ -113,7 +115,7 @@ class SalesRun{
   // never past the real now, so recent days keep their open work and nothing is dated in the future.
   const latest=Date.now()-5*60000;
   const timed=picked.map(o=>({...o,at:Date.parse(`${day}T${String(o.hour).padStart(2,'0')}:${String(Number(digits(`${ns}:${o.index}:m`,4))%60).padStart(2,'0')}:00+07:00`)}))
-   .filter(o=>o.at<latest).sort((a,b)=>a.at-b.at||a.index-b.index);
+   .filter(o=>o.at<latest&&o.at>=this.earliestMs).sort((a,b)=>a.at-b.at||a.index-b.index);
   const orders:{o:(typeof timed)[number];orderId:string;buyer:Buyer}[]=[];
   for(const o of timed){
    await this.setClock(ns,new Date(o.at).toISOString());
