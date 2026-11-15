@@ -295,7 +295,12 @@ export async function mutateCheckout(request:Request,identity:LocalAuth,intent:C
    // An order press that only applies a changed selection uses its own derived key: the press's key stays free for the
    // order, and a retried press after a lost reply replays this selection (the stale quote id diverts again) instead of ordering.
    const reply=await call(`/api/v1/checkout/quotes/${intent.quote}/selection`,'POST',{...(intent.allocation_id?{allocation_id:intent.allocation_id}:{}),packages},changedSelection?`${intent.key}-sel`:intent.key,intent.version);
-   const state=await acceptedQuote(reply.data as CheckoutQuote);return {state:{...state,phase:'success',step:'review',intent:{...state.intent,kind:'order',draft:intent.draft},message:allocationChanged?'Pembagian paket diperbarui. Periksa total lalu buat pesanan.':changedSelection?'Pengiriman diperbarui. Periksa total lalu buat pesanan.':'',...(state.view.quote?.amount_due!==quote.amount_due?{previousTotal:quote.amount_due}:{})},cookies,order:null};
+   // The buyer's own courier or split choice changes the total without a notice (the page already shows the chosen price).
+   // Only a promotion outcome that moved with it (voucher refused or re-priced, product discount) is called out.
+   const state=await acceptedQuote(reply.data as CheckoutQuote),after=state.view.quote;
+   const promotion=(q:CheckoutQuote)=>JSON.stringify([q.merchandise_discount_total,q.voucher?.status??null,q.voucher?.status==='applied'?q.voucher.amount:null]);
+   const promotionChanged=Boolean(after&&promotion(after)!==promotion(quote));
+   return {state:{...state,phase:'success',step:'review',intent:{...state.intent,kind:'order',draft:intent.draft},message:'',...(promotionChanged&&after?.amount_due!==quote.amount_due?{previousTotal:quote.amount_due}:{})},cookies,order:null};
   }
   const reply=await call('/api/v1/orders','POST',{quote_id:intent.quote,...(wire.buyer_note?{buyer_note:wire.buyer_note}:{})},intent.key,intent.version);cookies.push(...reply.cookies);
   const order=reply.data.order as CheckoutOrder;
@@ -306,6 +311,9 @@ export async function mutateCheckout(request:Request,identity:LocalAuth,intent:C
   const code=error instanceof AccessError?error.code:'SERVICE_UNAVAILABLE',blocked=error instanceof AccessError&&[401,403].includes(error.status),unknown=!intent.navigate&&(!(error instanceof AccessError)||error.status>=500&&!KNOWN_PROVIDER_FAILURES.has(error.code));
   let state:CheckoutState;try{state=await fresh();}catch{state=initialCheckoutState(checkoutUnavailableView());}
   const lostScope=blocked||state.view.kind==='denied'||state.view.kind==='none'||!unknown&&Boolean(state.view.cart&&state.view.cart.id!==intent.cart);
+  // A refused courier or split change leaves the quote as it was: the page shows it again with its own choice and the
+  // reason, instead of sending the buyer back to request couriers.
+  if(!unknown&&!lostScope&&intent.kind==='shipping'&&state.view.quote?.id===intent.quote&&state.view.quoteCurrent)return {state:{...state,phase:'error',step:'review',intent:{...state.intent,key:randomUUID(),kind:'order',draft:intent.draft,query:intent.query,packages:[],allocation_id:state.view.quote.selected_allocation_id,navigate:'',voucher:intent.voucher},errors:{},message:messages[code]??'Pilihan kurir belum diterapkan. Coba lagi.',code,blocked:false},cookies,order:null};
   const safeIntent=lostScope?initialCheckoutIntent():unknown?intent:{...intent,key:randomUUID(),kind:'quote' as const,version:state.view.cart?.id===intent.cart?String(state.view.cart.version):intent.version,quote:state.view.quote?.id??'',packages:[],navigate:''};
   const errors:CheckoutState['errors']=lostScope||unknown?{}:navigate==='lookup'&&code==='INVALID_INPUT'?{query:'Periksa nama kecamatan yang dicari.'}:['COD_UNAVAILABLE','MANUAL_BANK_UNAVAILABLE','MANUAL_BANK_BUSY','MANUAL_BANK_OPEN_LIMIT','AUTOLARIS_OPEN_LIMIT','PAYMENT_CHANNEL_UNAVAILABLE'].includes(code)?{payment_method:messages[code]}:code==='NO_SUPPORTED_ROUTE'?{destination_id:messages[code]}:{};
   return {state:{...state,phase:unknown?'unknown':'error',step:unknown?intent.kind==='quote'?'contact':'review':'contact',intent:safeIntent,view:lostScope?{...checkoutUnavailableView(),kind:'denied',code}:state.view.cart&&state.view.cart.id!==intent.cart?checkoutUnavailableView():state.view,errors,message:lostScope?'Sesi atau keranjang berubah. Hasil tindakan hanya dapat diperiksa melalui akses yang sah.':unknown?'Hasil tindakan belum diketahui. Ulangi tindakan yang sama untuk memeriksa hasilnya.':messages[code]??'Perubahan belum diterapkan. Periksa kembali pilihan dan coba lagi.',code,blocked:lostScope},cookies,order:null};
