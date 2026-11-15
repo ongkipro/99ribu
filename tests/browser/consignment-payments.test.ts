@@ -518,6 +518,9 @@ test("S92 built browser: manual bank checkout adds the unique code and a 24 h de
 		await page.goto(`${origin}/checkout`);
 		// The payment row names the method, and its hint discloses the manual check and the 24 h deadline.
 		await expect(page.getByRole("radio", { name: /^Transfer bank/ })).toBeVisible();
+		// Like Shopify, only the chosen method opens its note.
+		await expect(page.getByText("Transfer ke rekening toko, dicek manual. Bayar dalam 24 jam.", { exact: true })).toBeHidden();
+		await page.getByRole("radio", { name: /^Transfer bank/ }).check();
 		await expect(page.getByText("Transfer ke rekening toko, dicek manual. Bayar dalam 24 jam.", { exact: true })).toBeVisible();
 		await fillContact(page, /^Transfer bank/);
 		await expect(page.getByText("Transfer bank", { exact: true }).first()).toBeVisible();

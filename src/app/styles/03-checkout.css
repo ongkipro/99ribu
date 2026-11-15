@@ -932,6 +932,10 @@
 	color: var(--store-muted);
 	font-size: 0.875rem;
 }
+/* Shopify-style payment list: every method shows its name; only the chosen one opens its note. */
+.checkout-methods label:not(:has(input:checked)) :where(small) {
+	display: none;
+}
 .checkout-choice-price {
 	flex: none;
 	margin-left: auto;

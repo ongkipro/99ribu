@@ -141,6 +141,8 @@ async function expectOrderStep(page:Page){
  // Contact, address and payment stay editable next to the couriers; no review box, no "Ubah".
  await expect(page.getByLabel('Nama lengkap',{exact:true})).toBeEditable();await expect(page.getByRole('combobox',{name:'Kecamatan tujuan',exact:true})).toBeEditable();
  await expect(page.locator('dl.checkout-review-box')).toHaveCount(0);await expect(page.getByRole('button',{name:/^Ubah/})).toHaveCount(0);await expect(page.locator('.checkout-total-change')).toHaveCount(0);
+ // Shopify-style payment list: only the chosen method opens its note.
+ const methods=page.locator('.checkout-methods label');for(let i=0;i<await methods.count();i++){const method=methods.nth(i),note=method.locator('small');if(await note.count())await (await method.locator('input').isChecked()?expect(note):expect(note).not).toBeVisible();}
 }
 async function activeQuote(page:Page){
  const current=await page.request.get(`${origin}/api/v1/carts/current`);assert.equal(current.status(),200);const cart=await current.json();
@@ -701,6 +703,8 @@ for(const width of [390,1440])test(`one open checkout page: a pricier courier ch
  const f=await start(width,true,[{variant_id:product.offer_id,quantity:1,expected_publication_id:product.publication_id}]);try{
   await f.page.goto(`${origin}/checkout`);await expectContactStep(f.page);await contact(f.page);await calculate(f.page);await expectOrderStep(f.page);
   await capture(f.page,`one-page-couriers-${width}`);
+  // One parcel without subsidy or COD: its price is the Total row; no repeated "Ongkir" line under the couriers.
+  await expect(f.page.locator('.checkout-parcel .checkout-charges')).toHaveCount(0);
   const issued=(await activeQuote(f.page)).quote,parcel=issued.packages[0];
   // Compact parcel card: origin, one muted line of what it carries, then the courier rows.
   await expect(f.page.locator('.checkout-parcel > legend')).toHaveText(`Dikirim dari ${parcel.origin_city}`);await expect(f.page.locator('.checkout-parcel-items')).toContainText(`1× ${(await activeQuote(f.page)).cart.lines[0].name}`);

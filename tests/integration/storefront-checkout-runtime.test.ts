@@ -155,3 +155,41 @@ test('a no-JavaScript order press with a changed courier never places the order,
  const placed=await mutateCheckout(f.client.request('/checkout',{}),f.identity,{...repeated.state.intent,packages:changed});
  assert.ok(placed.order);assert.equal(await orders(),1);assert.equal(placed.order.buyer_total,repeated.state.view.quote?.buyer_total);
 });
+
+test('a courier change the server first refuses is retried against the current quote, keeps the buyer\'s courier, and never places an order',async t=>{
+ const f=await checkoutFixture();let cartId:string|null=null;
+ t.after(async()=>{
+  const failures:unknown[]=[];
+  try{await f.client.auth('/sign-out',{});}catch(error){failures.push(error);}
+  try{await f.close();}catch(error){failures.push(error);}
+  if(failures.length)throw new AggregateError(failures,'Owned checkout scenario cleanup failed; original test failure remains separate');
+ });
+ const input={lines:[f.line('fixture-offer-shirt',2)]},key=randomUUID();
+ assert.equal((await f.client.call('/api/v1/carts',input,{key})).response.status,401);
+ const request=f.client.request('/api/v1/carts',input,{key}),actor=await commerceActor(request,f.identity);assert.ok(actor?.kind==='guest');
+ cartId=(await f.identity.sql.begin(tx=>createCart(tx,request,f.identity,actor,input,{clock_namespace:f.namespace}))).cart.id;
+ assert.equal((await f.client.call('/api/v1/carts',input,{key})).response.status,201);
+ const draft={recipient_name:f.address.recipient_name,phone:f.contact().phone,email:'',destination_id:f.address.destination_id,address_line:'SYNTHETIC street',buyer_note:'',payment_method:'prepaid'};
+ const quoted=await mutateCheckout(f.client.request('/checkout',{}),f.identity,initialCheckoutIntent({cart:cartId,version:'1',draft}));
+ const quote=quoted.state.view.quote;assert.ok(quote);
+ const wanted=quote.packages.map(p=>({package_id:p.id,shipping_option_id:p.options.find(o=>o.id!==p.selected_option_id)?.id??p.selected_option_id}));
+ assert.ok(wanted.some((c,i)=>c.shipping_option_id!==quote.packages[i].selected_option_id),'fixture offers an alternative courier');
+ const orders=async()=>(await f.identity.sql`select count(*)::int n from app.commerce_order where cart_id=${cartId}`)[0].n;
+ // The first selection call is refused the way an expired rate is (409 SHIPPING_OPTION_UNAVAILABLE); the retry goes through.
+ const seen:string[]=[];let refused=false;
+ const shipping=await mutateCheckout(f.client.request('/checkout',{}),f.identity,{...quoted.state.intent,kind:'shipping',packages:wanted},async(req,identity)=>{
+  const path=new URL(req.url).pathname;
+  if(path.endsWith('/selection')&&req.method==='POST'){seen.push(req.headers.get('idempotency-key')??'');if(!refused){refused=true;return Response.json({code:'SHIPPING_OPTION_UNAVAILABLE'},{status:409});}}
+  return handleCheckout(req,identity);
+ });
+ assert.equal(seen.length,2,'one refused call and one retry');assert.ok(seen[1].endsWith('-rec'),'the retry has its own idempotency key');assert.notEqual(seen[0],seen[1]);
+ assert.equal(shipping.state.phase,'success','a recovered change is not an error');assert.equal(shipping.state.message,'','no message when the courier could be kept');assert.equal(shipping.order,null);
+ assert.deepEqual(shipping.state.view.quote?.packages.map(p=>({package_id:p.id,shipping_option_id:p.selected_option_id})),wanted,'the buyer\'s courier was applied');
+ assert.equal(await orders(),0,'a recovered courier change never places an order');
+ // A courier that is really gone is not recovered: the quote stays as it was and the message names the outcome.
+ const gone=await mutateCheckout(f.client.request('/checkout',{}),f.identity,{...shipping.state.intent,kind:'shipping',packages:quote.packages.map(p=>({package_id:p.id,shipping_option_id:'mg_does_not_exist'}))},async(req,identity)=>{
+  if(new URL(req.url).pathname.endsWith('/selection')&&req.method==='POST')return Response.json({code:'SHIPPING_OPTION_UNAVAILABLE'},{status:409});
+  return handleCheckout(req,identity);
+ });
+ assert.equal(await orders(),0);assert.equal(gone.order,null);
+});
