@@ -1,19 +1,19 @@
 # Status — Serba 99ribu
 
-Updated: 2026-11-14 02:40Z
-Status: Production runs `f52a5f9e` (2026-11-15: storefront names Virtual Account only; admin console polish from `e99f8880`): VA payments open (AutoLaris submit, VA only, 2-hour orders); buyer-pays fee formula B (DEC-032, migration 0059); one company warehouse in Surabaya in the dataset (DEC-033) and a tidier courier list (DEC-034); QRIS off; COD gated.
+Updated: 2026-11-15 15:50Z
+Status: Production runs `e7b2987a` (2026-11-15: one-page checkout, a chosen courier changes the total without a warning; storefront names Virtual Account only; admin console polish from `e99f8880`): VA payments open (AutoLaris submit, VA only, 2-hour orders); buyer-pays fee formula B (DEC-032, migration 0059); one company warehouse in Surabaya in the dataset (DEC-033) and a tidier courier list (DEC-034); QRIS off; COD gated.
 State: READY
-State-Detail: DEPLOYED `f52a5f9e` (storefront payment copy, repository cleanup; browser 201/201). Before it: `e99f8880` (admin console: sidebar tree, owner sales overview, page polish, Staf & Peran save fix; browser 201/201, size contract 0 failures). Before it: `3ea839a4` (ledgers RUN-20261112T022334Z-ecbf4ecd and RUN-20261113T074300Z-12931b46 PASS; integration 712/712, browser 201/201; Argon APPROVE). Production data still ships from the old origin warehouses until the owner runs the DEC-033 runbook (rehome -> resolve-warehouses -> import), and the buyer pays the AutoLaris fee only after the owner sets the payment policy.
+State-Detail: DEPLOYED `e7b2987a` (one-page checkout; integration 712/712, browser 203/203, live smoke PASS without an order). Before it: `f52a5f9e` (storefront payment copy, repository cleanup; browser 201/201). Before it: `e99f8880` (admin console: sidebar tree, owner sales overview, page polish, Staf & Peran save fix; browser 201/201, size contract 0 failures). Before it: `3ea839a4` (ledgers RUN-20261112T022334Z-ecbf4ecd and RUN-20261113T074300Z-12931b46 PASS; integration 712/712, browser 201/201; Argon APPROVE). Production data still ships from the old origin warehouses until the owner runs the DEC-033 runbook (rehome -> resolve-warehouses -> import), and the buyer pays the AutoLaris fee only after the owner sets the payment policy.
 Review-Risk: R4 for money/auth/migrations; R0–R2 per DEC-030 "Process tiers".
 
 STATUS holds only now, next and what waits for the owner (DEC-030). History: [`docs/history/STATUS-20261114-pre-deploy-3ea839a4.md`](docs/history/STATUS-20261114-pre-deploy-3ea839a4.md) (state before this deploy), older archives in `docs/history/`. Evidence: BUILD-LOG; releases: RELEASE.
 
 ## Now
 
-- Live check 2026-11-14 (no order placed): checkout with a real product and a Surabaya address at 390/1440 shows five couriers from Rp8.500 and "Lihat 3 kurir lain", one parcel "Dikirim dari Depok" (the product still sits at its old origin), Virtual Account selectable, 0 page errors.
-- Test DB `99ribu_test` has grown again (414 MB, ~36k synthetic users); the S85 drill alone needs ~3–7 min, so its test timeout is 420 s. Rebuild it (README "Rebuilding the local databases") before the next long gate campaign.
+- Live check 2026-11-15 after `e7b2987a` (no order placed): checkout with a real product and a Surabaya address at 390/1440 is one open page; five couriers from Rp8.500 and "Lihat 4 kurir lain" under "Dikirim dari Depok" (the product still sits at its old origin); picking SPX Express Rp16.100 changes the total from Rp107.500 to Rp115.100 at once, the server confirms it, and no "Total berubah" appears; 0 page errors.
+- Coolify did not build after the push again (also 2026-11-09); the deployment was started with `POST /api/v1/deploy?uuid=h4oeqkykdl6e7aepf8hjsoy8`. After every push, check that a build started.
 - DEC-035 (2026-11-14): no Berlapak link; the imported products stay published and are managed in Admin; new products by manual upload (CLI/MCP later).
-- Leftover restore database `99ribu_restore_55255f…` (354 MB) from an interrupted drill in the local cluster; dropping it waits for the owner's go-ahead.
+- Local databases after the 2026-11-15 rebuild: `99ribu_local` 70 MB, `99ribu_test` 104 MB; rebuild the test database (README "Rebuilding the local databases") when it passes ~300 MB or the S85 drill slows.
 
 ## Waiting for the owner
 
