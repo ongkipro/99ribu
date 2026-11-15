@@ -148,6 +148,9 @@ async function activeQuote(page:Page){
 }
 const orderCount=async(cart:string)=>(await identity.sql`select count(*)::int n from app.commerce_order where cart_id=${cart}`)[0].n as number;
 const stepNotice=(page:Page)=>page.locator('.checkout-fields>p.checkout-step-notice');
+// The buyer's own courier or split change carries no notice any more: wait until the page shows the server's current quote
+// and the order button is usable again.
+async function settled(page:Page){const {quote}=await activeQuote(page);await expect(page.locator('input[name=quote]')).toHaveValue(quote.id);await expect(page.locator('#checkout-primary')).toBeEnabled();}
 
 for(const javaScriptEnabled of [true,false])test(`checkout draft survives cart exit and review reload with JavaScript ${javaScriptEnabled?'enabled':'disabled'}`,async()=>{
  const f=await start(390,javaScriptEnabled);try{
@@ -291,7 +294,7 @@ for(const javaScriptEnabled of [true,false])test(`shipping radio Enter retains i
   await expect(plans.locator('details')).not.toHaveAttribute('open','');
   await plans.locator('details>summary').click();const plan=plans.locator('input:not(:checked)').first(),allocation=await plan.inputValue();
   await plan.check();
-  if(javaScriptEnabled){await expect.poll(async()=>(await activeQuote(f.page)).quote.selected_allocation_id).toBe(allocation);await expect(stepNotice(f.page)).toHaveCount(0);await expect(f.page.locator('.checkout-total-change')).toHaveCount(0);}
+  if(javaScriptEnabled){await expect.poll(async()=>(await activeQuote(f.page)).quote.selected_allocation_id).toBe(allocation);await settled(f.page);await expect(stepNotice(f.page)).toHaveCount(0);await expect(f.page.locator('.checkout-total-change')).toHaveCount(0);}
   const nextQuote=await f.page.locator('input[name=quote]').inputValue(),nextKey=await f.page.locator('input[name=key]').inputValue();
   await plans.locator('input:checked').press('Enter');
   await expect(f.page.locator('input[name=key]')).not.toHaveValue(nextKey);
@@ -306,7 +309,7 @@ for(const javaScriptEnabled of [true,false])test(`shipping radio Enter retains i
   await plans.locator(`input[value="${issuedQuote.selected_allocation_id}"]`).check();
   if(javaScriptEnabled){
    await expect.poll(async()=>(await activeQuote(f.page)).quote.selected_allocation_id).toBe(issuedQuote.selected_allocation_id);
-   await expect(stepNotice(f.page)).toHaveCount(0);await expect(f.page.locator('.checkout-total-change')).toHaveCount(0);
+   await settled(f.page);await expect(stepNotice(f.page)).toHaveCount(0);await expect(f.page.locator('.checkout-total-change')).toHaveCount(0);
   }else{
    // No JavaScript: "Perbarui pengiriman" applies the issued split; no order yet.
    await f.page.locator('#checkout-primary').click();await expect(f.page.locator('#checkout-primary')).toHaveAccessibleName('Buat pesanan');
@@ -580,7 +583,7 @@ test('arrow keys on the package split apply each split and keep keyboard focus o
   const issued=await plans.locator('input:checked').inputValue();
   await plans.locator('input:checked').press('ArrowDown');
   await expect.poll(async()=>(await activeQuote(f.page)).quote.selected_allocation_id).not.toBe(issued);const applied=(await activeQuote(f.page)).quote.selected_allocation_id;
-  await expect(stepNotice(f.page)).toHaveCount(0);await expect(f.page.locator('.checkout-total-change')).toHaveCount(0);await expect(plans.locator('input:checked')).toHaveValue(applied);
+  await settled(f.page);await expect(stepNotice(f.page)).toHaveCount(0);await expect(f.page.locator('.checkout-total-change')).toHaveCount(0);await expect(plans.locator('input:checked')).toHaveValue(applied);
   await expect(plans.locator('input:checked'),'keyboard focus stays on the checked split after the automatic recalculation').toBeFocused();
   assert.equal(await orderCount(f.cart.id),0);assert.deepEqual(f.errors,[]);
  }finally{await close(f);}
@@ -616,7 +619,7 @@ test('native multi-parcel radio choices submit independently without JavaScript'
   await expect.poll(async()=>(await activeQuote(f.page)).quote.selected_allocation_id).toBe(allocation);assert.equal(await orderCount(f.cart.id),0,'a changed split on "Buat pesanan" must not place an order');
   await expect(plans.locator('input[data-issued-selected=true]')).toHaveValue(allocation);
   await expect(plans.locator('input:checked'),'after the server applied the split, the page must not re-check the previous split as a pending choice').toHaveValue(allocation);
-  await expect(stepNotice(f.page)).toHaveCount(0);await expect(f.page.locator('.checkout-total-change')).toHaveCount(0);await expectOrderStep(f.page);
+  await settled(f.page);await expect(stepNotice(f.page)).toHaveCount(0);await expect(f.page.locator('.checkout-total-change')).toHaveCount(0);await expectOrderStep(f.page);
   const {quote}=await activeQuote(f.page);await expect(f.page.locator('#checkout-primary')).toHaveAccessibleName('Buat pesanan');await expect(f.page.locator('.checkout-due strong')).toHaveText(rupiah(quote.buyer_total));
   // The next press with an unchanged selection places exactly one order at the shown total.
   await f.page.locator('#checkout-primary').click();await f.page.waitForURL(/\/checkout\/order\/[0-9a-f-]+$/);
@@ -641,7 +644,7 @@ for(const method of ['prepaid','cod'])test(`two physical origins retain complete
    // With JavaScript a picked split is applied at once (keyboard focus is covered by its own test).
    const moved=await plans.locator('input:not(:checked)').first().inputValue();await plans.locator(`input[value="${moved}"]`).check();
    await expect.poll(async()=>(await activeQuote(f.page)).quote.selected_allocation_id).toBe(moved);
-   await expect(stepNotice(f.page)).toHaveCount(0);await expect(f.page.locator('.checkout-total-change')).toHaveCount(0);await expectOrderStep(f.page);
+   await settled(f.page);await expect(stepNotice(f.page)).toHaveCount(0);await expect(f.page.locator('.checkout-total-change')).toHaveCount(0);await expectOrderStep(f.page);
    await expect(plans.locator('input:checked')).toHaveValue(moved);await expect(plans.locator('input[data-issued-selected=true]')).toHaveValue(moved);
    assert.equal(await orderCount(f.cart.id),0);await capture(f.page,'allocation-changed-390');
    // Back to the two-origin split the quote first issued.
@@ -718,7 +721,8 @@ for(const width of [390,1440])test(`one open checkout page: a pricier courier ch
    // Another kecamatan: the old couriers and total give way at once and the order button cannot place the stale quote.
    const combo=f.page.getByRole('combobox',{name:'Kecamatan tujuan',exact:true});await combo.fill(FIXTURE_DISTRICT['test-pontianak']);
    await expect(courierList(f.page)).toHaveCount(0);await expect(f.page.locator('.checkout-due')).toHaveCount(0);
-   await expect(f.page.locator('#checkout-primary')).not.toHaveAccessibleName('Buat pesanan');
+   // The next press can only ask for a new quote, never order the old one.
+   await expect(f.page.locator('input[name=kind]')).toHaveValue('quote');await expect(f.page.locator('input[name=package_id]')).toHaveCount(0);
    await f.page.getByRole('option',{name:new RegExp(FIXTURE_DISTRICT['test-pontianak'])}).click();
    await expect.poll(async()=>(await activeQuote(f.page)).quote.address.destination_id).toBe('test-pontianak');await expectOrderStep(f.page);
    const renewed=(await activeQuote(f.page)).quote;assert.notEqual(renewed.id,confirmed.id);await expect(f.page.locator('.checkout-due strong')).toHaveText(rupiah(renewed.amount_due));await expect(f.page.locator('.checkout-total-change')).toHaveCount(0);
