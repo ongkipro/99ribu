@@ -12,6 +12,8 @@ import {ProductDescription} from '../../../../components/storefront/ui/product-d
 import {OfferPicker} from '../../../../components/storefront/offer-picker';
 import {CartForm,CartMutations} from '../../../../components/storefront/cart-forms';
 import {getLocalAuth} from '../../../../modules/access/auth';
+import {offeredChannels} from '../../../../modules/payments/methods';
+import {paymentPromise} from '../../../../modules/storefront/checkout';
 import {catalogQuery,matchingVariant,publicProduct,publicCategory,resolveProductSegment,type PublicCategory} from '../../../../modules/storefront/catalog';
 import {publicList} from '../../../../modules/storefront/memo';
 import {initialCartIntent,initialCartMutation} from '../../../../modules/storefront/cart';
@@ -58,6 +60,7 @@ function RelatedPending({category}:{category:PublicCategory}){
 
 export default async function Product({params,searchParams}:Props){
  const {target,product,category}=await load((await params).slug),query=await searchParams;
+ const payment=paymentPromise();
  // A legacy /produk/<title>-<uuid> (resolved by its trailing id) answers one 308 to the current slug, keeping the query.
  if(target.kind==='legacy'){const keep=new URLSearchParams();for(const [key,value] of Object.entries(query))for(const v of [value].flat())if(typeof v==='string')keep.append(key,v);const search=keep.toString();permanentRedirect(`${productPath(target.public_slug)}${search?`?${search}`:''}`);}
  // Next 16.4 renders an in-page notFound() as an empty error shell that only JavaScript fills, so missing resources redirect to the server-rendered /404 page (status 404).
@@ -96,7 +99,7 @@ export default async function Product({params,searchParams}:Props){
    <details className="product-policy" open><summary>Pengiriman dan pembayaran<Icon name="chevron"/></summary><ul className="policy-rows">
     <li><Icon name="truck"/><span>Ongkir dihitung dari alamat dan paket, lalu ditampilkan sebelum konfirmasi.</span></li>
     <li><Icon name="clock"/><span>Hari libur tidak dihitung sebagai hari proses pengiriman.</span></li>
-    <li><Icon name="wallet"/><span>Bayar transfer bank atau COD. Ketersediaan COD dicek saat checkout dan ada biaya COD.</span></li>
+    {payment&&<li><Icon name="wallet"/><span>{payment}{offeredChannels().includes('cod')?' Ketersediaan COD dicek saat checkout dan ada biaya COD.':''}</span></li>}
    </ul></details>
    <details className="product-policy"><summary>Pengembalian<Icon name="chevron"/></summary><p>Barang salah, rusak, cacat, tidak lengkap, kedaluwarsa atau tidak sesuai deskripsi dapat diajukan paling lambat 7 hari sejak paket diterima.</p><Link className="detail-help" href="/syarat">Syarat dan ketentuan</Link></details>
   </div>

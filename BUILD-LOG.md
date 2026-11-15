@@ -1,5 +1,10 @@
 # Build log — Serba 99ribu
 
+## 2026-11-15 — Storefront names only the payment methods the checkout accepts (R1, launch blocker)
+
+- Launch audit (production, read-only): the home hero and every product page promised "Bayar transfer bank atau COD" while production opens Virtual Account only (`MONEY_CAPABILITIES=payments`). `storefront/checkout.ts:paymentPromise` builds the sentence from the runtime's open channels (`offeredChannels`), the same source the checkout and order entry read; production now reads "Bayar Virtual Account." and the COD note shows only while COD is open. Unit `payment-promise` (exact set and order, nothing when none is open).
+- Evidence: local build renders the local runtime's set (VA, transfer bank, COD); browser `storefront-pdp`, `storefront`, `storefront-continuity` 10/10; unit 395/395; lint clean.
+
 ## 2026-11-15 — Repository cleanup: archived design evidence, removed S08 prototypes (R0)
 
 - Archived, then removed from the repository: `docs/spec/design/renders/` (2,621 files, 428 MB), `design/reviews/` (2,135 files, 117 MB), `design/review-slices/` (76), `docs/spec/design/refs/` and `docs/spec/design/reviews/` (112). Archive: `/data/backups/99ribu-design-evidence-20261115/` (`design-evidence.tar.gz`, `design-refs-reviews.tar.gz`, sha256 file, source commit `6e3d38bd`); spec 10 and 17 point there. Tracked tree 1.1 GB -> 448 MB.

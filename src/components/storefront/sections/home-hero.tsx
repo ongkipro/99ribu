@@ -10,7 +10,7 @@ import {HeroVideo,type HeroVideoSource} from './hero-video';
 // priority (no preload): on phones the heading text is the LCP element and must not wait for them. The first
 // four load eagerly: on desktop one of them is the LCP image, and lazy loading delayed it ~0.8 s (Lighthouse 2026-11-04).
 export type HeroPhoto={src:string;width:number;height:number};
-export function HomeHero({photos,signedIn,video}:{photos:HeroPhoto[];signedIn:boolean;video?:HeroVideoSource}){
+export function HomeHero({photos,signedIn,video,payment}:{photos:HeroPhoto[];signedIn:boolean;video?:HeroVideoSource;payment:string|null}){
  return <section className="home-hero" aria-labelledby="offer-heading">
   <div className="hero-media" aria-hidden="true">
    {video?<HeroVideo {...video}/>:photos.slice(0,8).map((photo,index)=><span key={photo.src} className="hero-photo" data-slot={index}>
@@ -19,7 +19,7 @@ export function HomeHero({photos,signedIn,video}:{photos:HeroPhoto[];signedIn:bo
   </div>
   <div className="hero-copy">
    <h1 id="offer-heading">Maksimal<br/><span className="hero-price">Rp99.000</span></h1>
-   <p>Harga setiap produk tidak lebih dari Rp99.000.<br/>Bayar transfer bank atau COD.</p>
+   <p>Harga setiap produk tidak lebih dari Rp99.000.{payment&&<><br/>{payment}</>}</p>
    <div className="hero-actions">
     {signedIn?<Link className="hero-primary" href="/cari">Lihat produk</Link>:<Link className="hero-primary" href="/masuk">Masuk</Link>}
     <Link className="hero-secondary" href="/bantuan"><span><Icon name="arrow"/>Bantuan belanja</span></Link>

@@ -32,6 +32,14 @@ const lengths:Record<string,number>={kind:10,key:200,cart:36,version:10,quote:36
 // Form method → payment channel. Only offered channels are listed or accepted (production: transfer and COD).
 const DRAFT_METHODS={prepaid:'local-prepaid',transfer:'manual-bank',va:'autolaris',cod:'cod'} as const;
 export const offeredMethods=()=>Object.entries(DRAFT_METHODS).filter(([,channel])=>offeredChannels().includes(channel)).map(([method])=>method);
+// The storefront's payment promise (home hero, product page): only the channels this runtime opens (production:
+// MONEY_CAPABILITIES), so a page never promises a method the checkout refuses. A channel the owner's policy switches off
+// is still named here until the next deploy; the checkout lists the exact set.
+export function paymentPromise(channels:readonly string[]=offeredChannels()){
+ const names=[channels.includes('autolaris')&&'Virtual Account',channels.includes('manual-bank')&&'transfer bank',channels.includes('cod')&&'COD'].filter((n):n is string=>Boolean(n));
+ if(!names.length)return null;
+ return `Bayar ${names.length===1?names[0]:`${names.slice(0,-1).join(', ')} atau ${names.at(-1)}`}.`;
+}
 // What the checkout lists: the runtime's channels the owner's payment policy has switched on (the quote re-checks).
 export const enabledMethods=(terms:PaymentTerms)=>Object.entries(DRAFT_METHODS).filter(([,channel])=>channelEnabled(terms,channel)).map(([method])=>method);
 // The first offered method is preselected (owner 2026-11-05, like Shopify): couriers then load as soon as the address is

@@ -16,6 +16,7 @@ import {storefrontRequest} from '../../modules/storefront/browser';
 import {departmentPhotos,heroPhotos as curatedHero,homeSafe} from '../../modules/storefront/department-photos';
 import {getPrincipal} from '../../modules/access/policy';
 import {getLocalAuth} from '../../modules/access/auth';
+import {paymentPromise} from '../../modules/storefront/checkout';
 import {catalogQuery,featuredDepartments,listProducts} from '../../modules/storefront/catalog';
 import {JsonLd} from '../../components/storefront/json-ld';
 import {catalogTtl,memo} from '../../modules/storefront/memo';
@@ -77,7 +78,7 @@ async function homeData(){
 export default async function Home(){
  const {heroPhotos,groups,highlights,shelves,banners,latest,more}=await memo('home',catalogTtl(),homeData);
  let signedIn=false;try{await getPrincipal(await storefrontRequest('GET','/'),getLocalAuth());signedIn=true;}catch{}
- return <Shell><JsonLd data={jsonLdGraph(organizationJsonLd(siteConfig()),websiteJsonLd(siteConfig()))}/><main id="main" className="wrap home-main"><HomeHero photos={heroPhotos} signedIn={signedIn}/>
+ return <Shell><JsonLd data={jsonLdGraph(organizationJsonLd(siteConfig()),websiteJsonLd(siteConfig()))}/><main id="main" className="wrap home-main"><HomeHero photos={heroPhotos} signedIn={signedIn} payment={paymentPromise()}/>
   {groups.length>0&&<section className="home-shelf" aria-labelledby="categories-heading"><h2 id="categories-heading" className="shelf-heading"><Link href="/kategori">Kategori<Icon name="forward"/></Link></h2><CategoryGrid tiles={groups.map(({department,tint,tile})=>({department,tint,photo:tile}))}/></section>}
   {highlights.length>0&&<section className="home-shelf" aria-labelledby="highlights-heading"><h2 id="highlights-heading" className="sr-only">Sorotan kategori</h2><CategoryHighlights highlights={highlights}/></section>}
   {shelves.length>0&&<section className="home-shelf home-switcher" aria-labelledby="switcher-heading"><h2 id="switcher-heading" className="sr-only">Belanja per kategori</h2>
