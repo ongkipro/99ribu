@@ -293,7 +293,7 @@ function CheckoutController({initial,capture,retry}:{initial:CheckoutState;captu
   // buyer has moved on into the kecamatan or kelurahan field to change it.
   // The timer is cancelled when the kind or busy state changes, and re-checks the kind itself before submitting: with a
   // current quote the same button places the order, which must only ever be the buyer's own press.
-  const key=courierKey(draft),timer=setTimeout(()=>{const active=document.activeElement;if(typing(active)||!viaPick.current&&active?.getAttribute('role')==='combobox'||!form.current||submitKind.current!=='quote'||form.current.querySelector('fieldset[disabled]'))return;autoTried.current=key;refocus.current=focusTarget(active);form.current.requestSubmit();},300);
+  const key=courierKey(draft),timer=setTimeout(()=>{const active=document.activeElement;if(typing(active)||!viaPick.current&&active?.getAttribute('role')==='combobox'||!form.current||submitKind.current!=='quote'||form.current.querySelector('fieldset.checkout-controls[disabled]'))return;autoTried.current=key;refocus.current=focusTarget(active);form.current.requestSubmit();},300);
   return()=>clearTimeout(timer);
  },[nudge,kind,busy]);
  // With JavaScript a changed courier or split is applied at once, like Shopify's shipping step; once per choice. The
@@ -314,7 +314,12 @@ function CheckoutController({initial,capture,retry}:{initial:CheckoutState;captu
   {state.message&&review&&state.phase!=='error'&&!selectionPending&&!detailsChanged&&!draftConflict&&<p className="checkout-hint checkout-step-notice" data-phase={state.phase} role="status">{state.message}</p>}
   {state.previousTotal!==undefined&&quote&&state.previousTotal!==quote.amount_due&&state.phase==='success'&&review&&!selectionPending&&!draftConflict&&<div role="status" className="checkout-caution checkout-total-change"><Icon name="alert"/><p>Total berubah dari {rupiah(state.previousTotal)} menjadi {rupiah(quote.amount_due)}. Periksa rincian paket.</p></div>}
   {draftConflict?<div className="checkout-caution checkout-conflict" role="alert"><Icon name="alert"/><div><p>Draf berubah di halaman lain. Muat ulang untuk memeriksanya.</p><p>Isian di halaman ini belum menggantikan draf tersimpan. Muat ulang akan membuka draf tersimpan.</p><a className="button secondary" href="/checkout">Muat ulang draf tersimpan</a><a href="/keranjang">Kembali ke keranjang tanpa menyimpan isian ini</a></div></div>:null}
-  <form id="checkout-form" ref={form} action={action} noValidate onChange={draftSave.changed} onBlur={event=>{if(typing(event.target)&&['recipient_name','phone','address_line'].includes((event.target as unknown as HTMLInputElement).name)){viaPick.current=false;setNudge(n=>n+1);}}} onSubmit={event=>{const data=draftSave.submit(event);if(data){capture(data,state);requested.current=data.get('kind')==='quote'||data.has('voucher_apply')||data.has('voucher_remove')?'quote':null;}}}>
+  <form id="checkout-form" ref={form} action={action} noValidate onChange={draftSave.changed} onBlur={event=>{if(typing(event.target)&&['recipient_name','phone','address_line'].includes((event.target as unknown as HTMLInputElement).name)){viaPick.current=false;setNudge(n=>n+1);}}} onKeyDown={event=>{
+   // Enter in the name or phone field after an edit asks for the new quote at once, like leaving the field: the couriers
+   // stay listed. The implicit default button would only re-read the step and drop them.
+   const field=event.target;if(event.key!=='Enter'||!issued||kind!=='quote'||busy||!(field instanceof HTMLInputElement)||!['recipient_name','phone'].includes(field.name))return;
+   event.preventDefault();autoTried.current=courierKey(draft);refocus.current=focusTarget(field);form.current?.requestSubmit();
+  }} onSubmit={event=>{const data=draftSave.submit(event);if(data){capture(data,state);requested.current=data.get('kind')==='quote'||data.has('voucher_apply')||data.has('voucher_remove')?'quote':null;}}}>
    <IntentFields intent={submitIntent} omit={omit}/><fieldset className="checkout-controls" disabled={busy} aria-busy={busy} data-live={enhanced||undefined}><legend className="sr-only">Kontak, alamat, pengiriman dan pembayaran</legend>
     <section className="checkout-section" aria-labelledby="checkout-contact-heading"><h2 id="checkout-contact-heading">Kontak &amp; alamat</h2>
      <p className="checkout-hint">Semua kolom wajib kecuali yang bertanda opsional.</p>

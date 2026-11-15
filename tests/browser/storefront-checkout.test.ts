@@ -696,7 +696,8 @@ for(const method of ['prepaid','cod'])test(`two physical origins retain complete
 // ongkir and total at once with no "Total berubah" warning, the order carries exactly the shown total, and a changed
 // kecamatan never leaves a stale total that can be ordered. Renders go to RENDERS/s26/<build>/one-page-*.
 for(const width of [390,1440])test(`one open checkout page: a pricier courier changes the total at once and the order carries it at ${width}px`,{timeout:120000},async()=>{
- const product=curated.products['shirt-cream'];assert.ok(product.publication_id);
+ // Earlier tests leave pending COD orders holding the fixture shirts; the cream pair stays available.
+ const product=curated.products['cream-pair'];assert.ok(product.publication_id);
  const f=await start(width,true,[{variant_id:product.offer_id,quantity:1,expected_publication_id:product.publication_id}]);try{
   await f.page.goto(`${origin}/checkout`);await expectContactStep(f.page);await contact(f.page);await calculate(f.page);await expectOrderStep(f.page);
   await capture(f.page,`one-page-couriers-${width}`);
@@ -729,6 +730,11 @@ for(const width of [390,1440])test(`one open checkout page: a pricier courier ch
    await f.page.getByRole('button',{name:/^Buat pesanan/}).click();await f.page.waitForURL(/\/checkout\/order\/[0-9a-f-]+$/);
    const [order]=await identity.sql`select buyer_total from app.commerce_order where cart_id=${f.cart.id}`;assert.equal(Number(order.buyer_total),renewed.buyer_total);
   }else{
+   // Enter in the name field after an edit asks for the new quote at once; the couriers stay and the chosen courier is
+   // applied to the new quote again before the order button returns.
+   const name=f.page.getByLabel('Nama lengkap',{exact:true});await name.fill('Penerima Contoh Dua');await name.press('Enter');
+   await expect.poll(async()=>(await activeQuote(f.page)).quote.id).not.toBe(confirmed.id);await expect(courierList(f.page)).toBeVisible();await expect(name).toBeFocused();
+   await expect.poll(async()=>(await activeQuote(f.page)).quote.packages[0].selected_option_id).toBe(pricier.id);await expectOrderStep(f.page);assert.equal(await orderCount(f.cart.id),0);
    await f.page.getByRole('button',{name:/^Buat pesanan/}).click();await f.page.waitForURL(/\/checkout\/order\/[0-9a-f-]+$/);
    const [order]=await identity.sql`select buyer_total from app.commerce_order where cart_id=${f.cart.id}`;assert.equal(Number(order.buyer_total),confirmed.buyer_total,'the order total equals the chosen courier total');
   }
