@@ -28,7 +28,6 @@
     "test:file": "scripts/heavy.sh test-file node --env-file=.env.example --test",
     "health": "node --env-file=.env.example scripts/check-health.ts",
     "backup": "node --env-file=.env.example scripts/backup.ts",
-    "test:prototype": "biome lint public/prototypes docs/spec/design/prototypes --error-on-warnings && node --test docs/spec/design/prototypes/prototype.test.mjs",
     "fixture": "node --env-file=.env.example scripts/seed.ts",
     "catalog:dataset": "node --env-file=.env.example scripts/catalog.ts dataset",
     "catalog:import": "node --env-file=.env.example scripts/catalog.ts import",

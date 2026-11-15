@@ -1,5 +1,13 @@
 # Build log — Serba 99ribu
 
+## 2026-11-15 — Repository cleanup: archived design evidence, removed S08 prototypes (R0)
+
+- Archived, then removed from the repository: `docs/spec/design/renders/` (2,621 files, 428 MB), `design/reviews/` (2,135 files, 117 MB), `design/review-slices/` (76), `docs/spec/design/refs/` and `docs/spec/design/reviews/` (112). Archive: `/data/backups/99ribu-design-evidence-20261115/` (`design-evidence.tar.gz`, `design-refs-reviews.tar.gz`, sha256 file, source commit `6e3d38bd`); spec 10 and 17 point there. Tracked tree 1.1 GB -> 448 MB.
+- Removed the S08 responsive prototypes (`public/prototypes/`, `docs/spec/design/prototypes/`, `npm run test:prototype`): superseded by the built storefront; production already answered 404 for `/prototypes/` (the rewrite stays as a guard). The Lucide ISC license moved to `public/LICENSE-lucide-icons.txt`, its pin record to `docs/spec/design/third-party-assets.json`. The S27 review record moved to `docs/history/`.
+- Test renders always go to the ignored `.local/test-renders` (`tests/render-root.ts`).
+- Kept on purpose: `.delivery/runs` (the ledger's R3/R4 evidence, AGENTS.md), `data/catalog/berlapak/photos` (served catalog photos), `docs/spec/design/references` (cited by spec 10).
+- Evidence: `docs:check` ok (62 files), typecheck, lint, unit 394/394.
+
 ## 2026-11-15 — Local database rebuilt clean; demo-sales respects when terms start (R1, local only)
 
 - Owner "jalankan juga": `99ribu_local` rebuilt per README (backup `.local/backups/99ribu_local-pre-rebuild-20261115T062751Z.dump`, 40.5 MB, `pg_restore --list` verified): migrations 0000-0059, commercial and payment terms, catalog import, the dummy logins. `catalog initial-stock` refused: the raw snapshot on disk (2026-11-10) is newer than the committed dataset (2026-10-31), and the archived 31 Oct list no longer resolves every stock item. Instead the stock, component HPP and offer assumptions of the old local database were carried over through the same services (receive movement, cost versions) into `Gudang 99ribu, Surabaya`: 1,274 items, 2,718,673 units, 1,626 HPP, 1,626 assumptions; a second import published 453 products (118 have no stock). No synthetic fixture rows remain.

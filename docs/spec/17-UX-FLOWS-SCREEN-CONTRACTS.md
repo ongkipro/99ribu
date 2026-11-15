@@ -892,7 +892,7 @@ Buyer order page: a manually booked parcel shows the actual courier name, the re
 
 Owner request 2026-10-25: complete the admin console (menu, every menu's page, settings, profile and the rest), refine the UI/UX, document first and then develop, and keep a development log. This section is the single inventory for that work. It extends the Screen Inventory, the Permission and Visibility Matrix, the Super Admin/History/Finance/Settings contracts, the Indonesia Admin Workspaces section and the CS inbox contract above; it does not replace them. Roles and permissions stay owned by [07-IAM-RBAC-ABAC.md](07-IAM-RBAC-ABAC.md); wire contracts by [openapi.yaml](openapi.yaml) (operationIds below are cited from it; paths are relative to `/api/v1`); actual implementation by [ARCHITECTURE.md](../../ARCHITECTURE.md#admin-console-architecture-s113); slices by [TASKS.md](../../TASKS.md). Status: proposal; nothing in this section is implemented by this change.
 
-Evidence base (read 2026-10-25 on `main` at `0ac607d`): routes `src/app/admin/(console)/**`, shell `src/components/admin/admin-shell.tsx`, gates `src/components/admin/console-access.ts`, `catalog-model.ts:catalogAccess`, `order-model.ts:canReadOrders`, renders [`design/renders/admin-mobile/`](design/renders/admin-mobile/) (76 PNGs, 390/768/1440).
+Evidence base (read 2026-10-25 on `main` at `0ac607d`): routes `src/app/admin/(console)/**`, shell `src/components/admin/admin-shell.tsx`, gates `src/components/admin/console-access.ts`, `catalog-model.ts:catalogAccess`, `order-model.ts:canReadOrders`, renders `design/renders/admin-mobile/` (archived 2026-11-15 to `/data/backups/99ribu-design-evidence-20261115/`) (76 PNGs, 390/768/1440).
 
 ### Roles and the "client operator" gap
 

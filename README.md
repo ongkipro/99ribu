@@ -333,22 +333,12 @@ Run from this worktree with migrations applied to local and test. Use the exact 
 | `npm run worker -- --track-parcel <FULFILLMENT_ID> <PROVIDER_STATUS>` | Local worker profile | S91: simulated courier feed reports `PICKED_UP`/`IN_TRANSIT`/`FAILED`/`DELIVERED` for a manual parcel's current resi and runs its due tracking poll (refused outside local/test) |
 | `npm run test:integration -- --case=PR-1` | Isolated test DB migrated | S14 catalog plus S80 `catalog-import` (generator determinism/sanitization, malformed-dataset refusal, idempotent rerun, guarded publication, revisions, preserved staff edits, photo serving), S81 initial stock/HPP, guarded publication, publication withdrawal, test-run teardown and read-only withdraw dry run, and S90 origin warehouses (per-offer origin keys, generic kecamatan names, origin binding, initial stock into origins, `rehome` dry run/apply/convergence and rebinding import) |
 
-Browser and storefront suites rewrite their captures under `docs/spec/design/renders/<slice>/` on every run: a dirty render directory after a run is expected, and refreshed renders are committed only with the change they evidence. The S27 design-review baseline (`design/review.md`, `design/review-slices/`) is separate and must stay byte-identical. The browser executable above is host-specific; use a verified installed path or omit the variable for Playwright-managed Chromium. Missing browser/server is a failure. Keep the auth rate-limit window between repeated browser runs. On suite failure, run its registered native `test:database`, `test:storage`, `test:auth`, `test:worker`, `test:smoke` or `test:auth:http` command to isolate the cause; the aggregate prints bounded test names/counts, not captured child output that may contain private fixtures.
+Browser and storefront suites write their captures to the ignored `.local/test-renders/<slice>/`. The committed render, review-slice and design-review folders (`docs/spec/design/renders/`, `design/reviews/`, `design/review-slices/`, 510 MB) were archived on 2026-11-15 to `/data/backups/99ribu-design-evidence-20261115/` (tarball, sha256, source commit) and removed from the repository; the S27 review record is `docs/history/design-review-s27-20261021.md`.
 
 `/api/health` reports only current web-to-database/schema availability. It checks access to identity and outbox tables without reading user rows. It does not attest worker liveness, commerce functionality or remote availability. The root `/` renders the storefront home page (`200`). See [OBSERVABILITY.md](OBSERVABILITY.md) for failure and recovery commands. Browser cookie proof is not rendered storefront acceptance.
 
 
-## Responsive composition prototypes (S08)
-
-With the built loopback web running, open <http://127.0.0.1:3099/prototypes/index.html>. The screen selector exposes home/search, product, checkout, order/return, affiliate, warehouse and chat compositions. Every screen is labeled as prototype data. These static fixtures make no domain/API calls and create no orders, messages, transfers or auth sessions; the actual root storefront remains unimplemented. CSP denies outbound connections/form submissions. Keep this review surface out of a future live release unless explicitly retained.
-
-```bash
-PLAYWRIGHT_CHROMIUM_EXECUTABLE=/usr/bin/google-chrome npm run test:prototype
-```
-
-The command runs pinned Biome plus 36 Node/Playwright checks. It captures nine screens at 390/768/1440 and exercises query/filter/Back, modal keyboard focus, checkout validation/stale-quote input retention, split COD review, pending payment return, unsent chat draft, warehouse filtered-zero and 320px/200% text. Captures live under `docs/spec/design/renders/s08/`; the selected composition and critique remain in the canonical design document. A missing browser/server fails. Real OS virtual keyboard/IME, Safari/native WebView and full commerce behavior require their later evidence.
-
-Inter 4.1 is self-hosted with its OFL license. Functional inline Lucide SVGs are pinned to the recorded source commit with the ISC license; `public/prototypes/assets.json` owns source and hash details. Product photo slots are explicitly labeled pending owner-content assets. No emoji/emoticon icons or invented product photographs are used. Independent visual review and the design gate must pass before S08 is accepted; screenshots and green tests alone do not supply that approval.
+Inter 4.1 is self-hosted with its OFL license (`public/fonts/inter-4.1/LICENSE.txt`). Functional inline Lucide SVGs are pinned to the recorded source commit with the ISC license (`public/LICENSE-lucide-icons.txt`); `docs/spec/design/third-party-assets.json` owns source and hash details. The S08 responsive prototypes were removed on 2026-11-15 (superseded by the built storefront; production already answered 404 for `/prototypes/`).
 
 
 ## Staff access and MFA (S09)

@@ -2,6 +2,8 @@
 
 ## Document Control
 
+> Render and review paths below (`docs/spec/design/renders/…`, `design/reviews/…`, `docs/spec/design/refs/…`, `docs/spec/design/reviews/…`) point to evidence archived on 2026-11-15 to `/data/backups/99ribu-design-evidence-20261115/` (`design-evidence.tar.gz`, `design-refs-reviews.tar.gz`; same relative paths inside); they are no longer in the repository.
+
 | Field | Value |
 |---|---|
 | Owner | Design owner |
