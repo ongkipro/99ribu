@@ -809,7 +809,8 @@
 	> .checkout-total-change {
 	display: none;
 }
-.checkout-controls:not([data-live]):has(
+/* The parcels sit inside the shipping section; without JavaScript a pending split hides them until it is applied. */
+.checkout-controls:has(
 		.checkout-allocation input[data-issued-selected="false"]:checked
 	)
 	.checkout-parcels {

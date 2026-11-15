@@ -253,7 +253,7 @@ function CheckoutController({initial,capture,retry}:{initial:CheckoutState;captu
   // Couriers that arrive while the buyer is in a field leave focus there; only a focus lost to the busy form moves to them.
   else if(state.step!==lastStep.current&&!refocus.current&&(!document.activeElement||document.activeElement===document.body)){heading.current?.focus();heading.current?.scrollIntoView({block:'start'});}
   lastStep.current=state.step;
-  // The server has answered for this draft (quoted or refused it): no automatic retry until it changes.
+  // The server has answered for this draft (quoted, refused, or re-read it): no automatic retry until it changes.
   autoTried.current=courierKey(state.intent.draft);
  },[state,capture,draftSave.changed]);
  const setField=(name:keyof CheckoutDraft,value:string)=>setDraft(current=>({...current,[name]:value}));
