@@ -32,3 +32,10 @@ test("DEC-034 courier list: the five cheapest stay visible with the selected one
 	assert.deepEqual(splitCouriers(options.slice(0, 4), "r0").more, [], "a short list has nothing to hide");
 	assert.deepEqual(splitCouriers(options, undefined).shown.length, 5);
 });
+
+test("serviceLine shows the service and its ETA on one muted line", async () => {
+	const { serviceLine } = await import("../src/components/storefront/rate-badges.ts");
+	assert.equal(serviceLine("Reguler, 2-3 hari"), "Reguler · 2–3 hari");
+	assert.equal(serviceLine("Kargo, 4 hari"), "Kargo · 4 hari");
+	assert.equal(serviceLine("Reguler"), "Reguler");
+});

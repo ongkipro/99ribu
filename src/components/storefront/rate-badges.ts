@@ -17,3 +17,7 @@ export function splitCouriers<T extends {id:string}>(options:readonly T[],select
  const shown=options.filter((o,i)=>i<limit||o.id===selected);
  return {shown,more:options.filter(o=>!shown.includes(o))};
 }
+
+// The muted second line of a courier row: the service and its ETA. The Mengantar adapter writes "Reguler, 2-3 hari",
+// shown as "Reguler · 2–3 hari"; a name without an ETA stays as it is.
+export const serviceLine=(name:string)=>name.replace(/,\s*(\d+)(?:-(\d+))? hari$/,(_match,from:string,to:string|undefined)=>` · ${to?`${from}–${to}`:from} hari`);

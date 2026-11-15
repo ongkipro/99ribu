@@ -1,6 +1,6 @@
 'use client';
 
-import {rateBadges,splitCouriers} from './rate-badges.ts';
+import {rateBadges,serviceLine,splitCouriers} from './rate-badges.ts';
 import {Component,startTransition,useActionState,useCallback,useEffect,useLayoutEffect,useRef,useState} from 'react';
 import Link from 'next/link';
 import {changeCheckout,observeCheckoutEntry,preparePayment,recoverPaymentAccess,saveCheckoutDraft} from '../../app/(storefront)/checkout/actions';
@@ -11,7 +11,6 @@ import {rupiah} from '../../modules/storefront/format';
 import {Icon} from './ui/icon';
 import {CatalogImage} from './ui/media';
 import {filterContact} from './ui/contact-fields';
-import {displayPhone} from '../../modules/storefront/contact';
 import {CheckoutAddress} from './checkout-address';
 import {CheckoutVoucher,VoucherDiscountRow} from './checkout-voucher';
 import {VOUCHERS_ENABLED,type VoucherState} from '../../modules/storefront/vouchers';
@@ -44,6 +43,9 @@ const labels:Record<Exclude<keyof CheckoutDraft,'email'>,string>={recipient_name
 const courierKey=(d:CheckoutDraft)=>JSON.stringify([d.recipient_name,d.phone,d.address_line,d.destination_id,d.payment_method]);
 const typing=(el:EventTarget|Element|null)=>el instanceof HTMLTextAreaElement||el instanceof HTMLInputElement&&['text','tel','search'].includes(el.type)&&el.getAttribute('role')!=='combobox';
 const FIELD_ORDER=['recipient_name','phone','address_line','query','destination_id','payment_method','buyer_note'];
+// Where keyboard focus returns once an automatic request (the form is disabled meanwhile) has its answer: the checked radio
+// of the group the buyer used, or the field they were in.
+const focusTarget=(el:Element|null)=>el instanceof HTMLInputElement&&el.type==='radio'?el.name.startsWith('shipping_option:')?'input[name^="shipping_option:"]:checked':`input[name="${el.name}"]:checked`:el?.id?`#${el.id}`:'';
 const firstInvalid=(errors:CheckoutState['errors'])=>FIELD_ORDER.find(name=>name in errors)??Object.keys(errors)[0];
 function useDraftSave(form:React.RefObject<HTMLFormElement|null>,state:CheckoutState,busy:boolean){
  const [feedback,setFeedback]=useState(''),[failed,setFailed]=useState(false),[denied,setDenied]=useState(false),[conflict,setConflict]=useState(state.draftConflict),metadata=useRef({writer:state.intent.draft_writer,sequence:Number(state.intent.draft_sequence),revision:Number(state.intent.draft_revision)});
@@ -99,9 +101,6 @@ function DraftField({name,value,error,onChange,focusFirst=false,hint,form}:{name
  const props={id:fieldId,name,value,form,placeholder:' ',onChange:(event:React.ChangeEvent<HTMLInputElement|HTMLTextAreaElement>)=>onChange(name,name==='phone'?filterContact(event as React.ChangeEvent<HTMLInputElement>):event.currentTarget.value),required:!optional,autoFocus:focusFirst,'aria-invalid':error?true as const:undefined,'aria-describedby':described||undefined};
  return <div className="checkout-field"><div className="checkout-float">{multiline?<textarea {...props} rows={3} maxLength={500} autoComplete={name==='address_line'?'shipping street-address':'off'}/>:<input {...props} type={name==='phone'?'tel':'text'} inputMode={name==='phone'?'numeric':'text'} pattern={name==='phone'?'0[0-9]{8,13}':undefined} maxLength={name==='recipient_name'?200:30} autoComplete={name==='recipient_name'?'shipping name':'shipping tel'}/>}<label htmlFor={fieldId}>{labels[name]}</label></div>{hint&&<p id={hintId} className="checkout-hint">{hint}</p>}{error&&<p id={errorId} className="checkout-field-error"><Icon name="alert"/>{error}</p>}</div>;
 }
-function Contents({contents}:{contents:NonNullable<CheckoutState['view']['cart']>['lines'][number]['contents']}){
- return <ul className="checkout-contents">{contents.map(c=><li key={c.stock_item_id}>{c.quantity} × {c.name}</li>)}</ul>;
-}
 // DEC-009 label follows the frozen rate, e.g. 333 bps -> "3,33%".
 export function codFeePercent(bps:number|null){return `${((bps??0)/100).toLocaleString('id-ID',{minimumFractionDigits:2,maximumFractionDigits:2})}%`;}
 function QuoteCharges({quote,voucher={kind:'idle'}}:{quote:CheckoutQuote;voucher?:VoucherState}){
@@ -144,11 +143,21 @@ function MobileTotal({state}:{state:CheckoutState}){
 function UnknownOrder({state,message='Balasan belum diterima. Periksa hasil dengan permintaan yang sama.',children}:{state:CheckoutState|null;message?:string;children:React.ReactNode}){
  return <><h1 className="checkout-title">Hasil tindakan belum diketahui</h1><div className="checkout-layout">{state&&<Summary state={state} dirty recovery/>}<section className="checkout-fields checkout-recovery"><div className="checkout-caution" role="alert"><Icon name="alert"/><p>{message}</p></div>{children}<CheckoutHelp context="order"/></section></div></>;
 }
-function Parcels({state,editable,choices={},onChange}:{state:CheckoutState;editable:boolean;choices?:Record<string,string>;onChange?:(parcel:string,service:string)=>void}){
+// One compact parcel card (owner 2026-11-08, after tokophi): the origin, one muted line naming what it carries (a
+// bundle's contents compactly after it), then one row per courier: radio, courier with badge and "service · ETA",
+// price on the right. Prices shown here may be the instant estimate of a pick the server has not confirmed yet.
+function parcelItems(parcel:CheckoutQuote['packages'][number],cart:NonNullable<CheckoutState['view']['cart']>){
+ return parcel.lines.flatMap(part=>{const line=cart.lines.find(l=>l.id===part.cart_line_id);if(!line)return [];
+  const bundle=line.contents.length>1||line.contents.some(c=>c.quantity>1);
+  return [{id:part.cart_line_id,text:`${part.quantity}× ${line.name} (${line.variant_label})${bundle?` · isi: ${line.contents.map(c=>`${c.quantity}× ${c.name}`).join(', ')}`:''}`}];
+ });
+}
+function Parcels({state,issued,editable,choices={},onChange}:{state:CheckoutState;issued?:CheckoutQuote;editable:boolean;choices?:Record<string,string>;onChange?:(parcel:string,service:string)=>void}){
  const quote=state.view.quote,cart=state.view.cart;if(!quote||!cart)return null;
- return <div className="checkout-parcels">{quote.packages.map((parcel,index)=>{const selected=choices[parcel.id]??state.intent.packages.find(p=>p.package_id===parcel.id)?.shipping_option_id??parcel.selected_option_id;return <fieldset className="checkout-parcel" key={parcel.id}><legend>{quote.packages.length>1?`Paket ${index+1} · dari ${parcel.origin_city}`:`Dikirim dari ${parcel.origin_city}`}</legend><ul>{parcel.lines.map(part=>{const line=cart.lines.find(l=>l.id===part.cart_line_id);return line?<li key={part.cart_line_id}><strong>{line.name}</strong><span>{line.variant_label} · {part.quantity} pilihan lengkap</span><p className="checkout-content-label">Isi per pilihan</p><Contents contents={line.contents}/></li>:null;})}</ul>{editable?<><input type="hidden" name="package_id" value={parcel.id}/><fieldset className="checkout-choices"><legend>Layanan pengiriman</legend>{(badges=>{
+ const issuedOption=(parcel:string)=>(issued??quote).packages.find(p=>p.id===parcel)?.selected_option_id;
+ return <div className="checkout-parcels">{quote.packages.map((parcel,index)=>{const selected=choices[parcel.id]??state.intent.packages.find(p=>p.package_id===parcel.id)?.shipping_option_id??parcel.selected_option_id,items=parcelItems(parcel,cart);return <fieldset className="checkout-parcel" key={parcel.id}><legend>{quote.packages.length>1?`Paket ${index+1} · dari ${parcel.origin_city}`:`Dikirim dari ${parcel.origin_city}`}</legend><p className="checkout-parcel-items" title={items.map(i=>i.text).join('; ')}>{items.map((item,i)=><span key={item.id}>{i>0&&'; '}<span className="checkout-contents">{item.text}</span></span>)}</p>{editable?<><input type="hidden" name="package_id" value={parcel.id}/><fieldset className="checkout-choices checkout-rates"><legend className="sr-only">Layanan pengiriman</legend>{(badges=>{
   // DEC-034 (splitCouriers): five cheapest plus the selected one; the rest one native disclosure away, same radio group.
-  const option=(o:typeof parcel.options[number])=><label key={o.id}><input type="radio" name={`shipping_option:${parcel.id}`} value={o.id} checked={selected===o.id} data-issued-selected={o.id===parcel.selected_option_id} onChange={event=>onChange?.(parcel.id,event.currentTarget.value)}/><span><strong>{o.courier_name}{badges.get(o.id)?.map(b=><em key={b} className="checkout-rate-badge">{b}</em>)}</strong><span>{o.service_name}</span></span><b className="checkout-choice-price">{rupiah(o.shipping_amount)}</b></label>;
+  const option=(o:typeof parcel.options[number])=><label key={o.id}><input type="radio" name={`shipping_option:${parcel.id}`} value={o.id} checked={selected===o.id} data-issued-selected={o.id===issuedOption(parcel.id)} onChange={event=>onChange?.(parcel.id,event.currentTarget.value)}/><span className="checkout-rate-text"><strong>{o.courier_name}{badges.get(o.id)?.map(b=><em key={b} className="checkout-rate-badge">{b}</em>)}</strong><small>{serviceLine(o.service_name)}</small></span><b className="checkout-choice-price">{rupiah(o.shipping_amount)}</b></label>;
   const {shown,more}=splitCouriers(parcel.options,selected);
   return <>{shown.map(option)}{more.length>0&&<details className="checkout-more-couriers"><summary>Lihat {more.length} kurir lain</summary>{more.map(option)}</details>}</>;
  })(rateBadges(parcel.options))}</fieldset></>:<p>{parcel.options.find(o=>o.id===parcel.selected_option_id)?.courier_name} · {parcel.options.find(o=>o.id===parcel.selected_option_id)?.service_name}</p>}{quote.source==='TEST-ONLY'&&<p className="checkout-hint">Estimasi waktu belum tersedia pada layanan simulasi ini.</p>}{editable&&<p className="checkout-hint checkout-parcel-pending">Biaya paket menunggu perhitungan baru.</p>}<dl className="checkout-charges">{parcel.subsidy_amount>0&&<><div><dt>Tarif paket</dt><dd>{rupiah(parcel.shipping_amount)}</dd></div><div><dt>Subsidi paket</dt><dd>−{rupiah(parcel.subsidy_amount)}</dd></div></>}<div><dt>Ongkir</dt><dd>{rupiah(parcel.buyer_shipping_amount)}</dd></div>{parcel.cod_collect_amount!==undefined&&<div className="checkout-total"><dt>COD paket ini</dt><dd>{rupiah(parcel.cod_collect_amount)}</dd></div>}</dl></fieldset>;})}</div>;
@@ -193,15 +202,32 @@ const paymentRows=[
  {id:'va',label:'Virtual Account',hint:'Bayar lewat Virtual Account bank dalam 2 jam; dicek otomatis, tanpa bukti transfer.'},
  {id:'cod',label:'Bayar di tempat (COD)',hint:'Bayar tunai ke kurir saat paket tiba. Ada biaya COD; tidak semua kurir dan tujuan tersedia.'},
 ];
+// Instant courier price (owner 2026-11-08): a picked courier shows its price, ongkir and total at once while the server
+// applies the choice; the server's reply replaces this estimate and is the only total an order can carry (the order
+// button stays disabled until it arrives). Subsidy is capped at the new rate and the COD fee follows the frozen rate.
+export function previewQuote(quote:CheckoutQuote,choices:Record<string,string>):CheckoutQuote{
+ let changed=false;
+ const packages=quote.packages.map(p=>{
+  const option=p.options.find(o=>o.id===choices[p.id]);if(!option||option.id===p.selected_option_id)return p;changed=true;
+  const subsidy=Math.min(p.subsidy_amount,option.shipping_amount),buyerShipping=option.shipping_amount-subsidy;
+  if(p.cod_collect_amount===undefined)return {...p,selected_option_id:option.id,shipping_amount:option.shipping_amount,subsidy_amount:subsidy,buyer_shipping_amount:buyerShipping};
+  const base=p.merchandise_amount-p.merchandise_discount_amount+buyerShipping,fee=Math.ceil(base*(quote.cod_fee_bps??0)/10000);
+  return {...p,selected_option_id:option.id,shipping_amount:option.shipping_amount,subsidy_amount:subsidy,buyer_shipping_amount:buyerShipping,cod_fee_amount:fee,cod_collect_amount:base+fee};
+ });
+ if(!changed)return quote;
+ const shipping=packages.reduce((n,p)=>n+p.shipping_amount,0),subsidy=packages.reduce((n,p)=>n+p.subsidy_amount,0),fee=quote.payment_method==='cod'?packages.reduce((n,p)=>n+(p.cod_fee_amount??0),0):quote.cod_fee_total;
+ const buyer=quote.merchandise_total-quote.merchandise_discount_total+shipping-subsidy;
+ return {...quote,packages,shipping_total:shipping,subsidy_total:subsidy,buyer_total:buyer,cod_fee_total:fee,amount_due:quote.amount_due+(buyer-quote.buyer_total)+(fee-quote.cod_fee_total)};
+}
 export function CheckoutForm({initial}:{initial:CheckoutState}){
  return <CheckoutBoundary heading href="/checkout">{(capture,retry)=><CheckoutController initial={initial} capture={capture} retry={retry}/>}</CheckoutBoundary>;
 }
 function CheckoutController({initial,capture,retry}:{initial:CheckoutState;capture:(data:FormData|null,snapshot?:CheckoutState)=>void;retry:FormData|null}){
  const [state,action,pending]=useActionState(changeCheckout,initial,'/checkout');
- const [draft,setDraft]=useState(state.intent.draft),[query,setQuery]=useState(state.intent.query),[allocation,setAllocation]=useState(state.intent.allocation_id),[services,setServices]=useState<Record<string,string>>({}),[dirty,setDirty]=useState(false),[recovering,setRecovering]=useState(Boolean(retry));
+ const [draft,setDraft]=useState(state.intent.draft),[query,setQuery]=useState(state.intent.query),[allocation,setAllocation]=useState(state.intent.allocation_id),[services,setServices]=useState<Record<string,string>>({}),[recovering,setRecovering]=useState(Boolean(retry));
  const synchronized=useRef<CheckoutState|null>(null),initialKey=useRef(initial.intent.key),replayed=useRef(false),form=useRef<HTMLFormElement>(null),heading=useRef<HTMLHeadingElement>(null),lastStep=useRef(state.step);
  const draftSave=useDraftSave(form,state,pending||recovering);
- const [enhanced,setEnhanced]=useState(false),[nudge,setNudge]=useState(0),autoTried=useRef(''),viaPick=useRef(false);useEffect(()=>setEnhanced(true),[]);
+ const [enhanced,setEnhanced]=useState(false),[nudge,setNudge]=useState(0),autoTried=useRef(''),viaPick=useRef(false),carried=useRef<Record<string,string>>({}),requested=useRef<'quote'|null>(null),applied=useRef(''),refocus=useRef(''),submitKind=useRef<CheckoutIntent['kind']>('quote');useEffect(()=>setEnhanced(true),[]);
  const entryCart=initial.view.cart?.id,entryVersion=initial.view.cart?.version,entryReady=initial.view.kind==='ready'&&!initial.view.issue;
  useEffect(()=>{if(entryReady&&entryCart&&entryVersion)void observeCheckoutEntry(entryCart,entryVersion).catch(()=>{});},[entryCart,entryVersion,entryReady]);
  useEffect(()=>{if(retry&&!replayed.current){replayed.current=true;startTransition(()=>action(retry));}},[retry,action]);
@@ -212,89 +238,107 @@ function CheckoutController({initial,capture,retry}:{initial:CheckoutState;captu
    const data=new FormData(form.current),typed={...state.intent.draft},fields=Object.keys(labels) as (keyof typeof labels)[];
    for(const name of fields){const value=data.get(name);if(typeof value==='string')typed[name]=value;}
    const query=data.get('query'),typedQuery=typeof query==='string'?query:state.intent.query;
-   if(fields.some(name=>typed[name]!==state.intent.draft[name])||typedQuery!==state.intent.query){setDraft(typed);setQuery(typedQuery);setDirty(fields.some(name=>name!=='buyer_note'&&typed[name]!==state.intent.draft[name]));draftSave.changed();}
-  }else{setDraft({...state.intent.draft});setQuery(state.intent.query);setAllocation(state.intent.allocation_id);setServices({});setDirty(false);}
+   if(fields.some(name=>typed[name]!==state.intent.draft[name])||typedQuery!==state.intent.query){setDraft(typed);setQuery(typedQuery);draftSave.changed();}
+  }else{
+   setDraft({...state.intent.draft});setQuery(state.intent.query);setAllocation(state.intent.allocation_id);
+   // A new quote for the same parcels (a corrected street or name, a voucher) keeps the couriers the buyer chose: they are
+   // applied again like a fresh pick. Option ids name the route, so a new kelurahan never matches an old choice.
+   const next=requested.current==='quote'&&state.step==='review'&&state.phase==='success'?state.view.quote:null;
+   setServices(next?Object.fromEntries(next.packages.flatMap(p=>{const id=carried.current[p.id];return id&&id!==p.selected_option_id&&p.options.some(o=>o.id===id)?[[p.id,id]]:[];})):{});
+  }
+  requested.current=null;applied.current='';
+  if(state.step==='review'&&state.view.quote)carried.current=Object.fromEntries(state.view.quote.packages.map(p=>[p.id,p.selected_option_id]));
   if(state.phase!=='idle'||state.intent.key!==initialKey.current){setRecovering(false);if(state.phase!=='unknown')capture(null);}
-  if(state.phase==='error'&&Object.keys(state.errors).length){const name=firstInvalid(state.errors),found=document.getElementById(`checkout-${name}`),target=found instanceof HTMLInputElement&&found.disabled?document.getElementById('checkout-query'):found;(target instanceof HTMLFieldSetElement?target.querySelector<HTMLElement>('input'):target)?.focus();}
-  else if(state.step!==lastStep.current){heading.current?.focus();heading.current?.scrollIntoView({block:'start'});}
+  if(state.phase==='error'&&Object.keys(state.errors).length){refocus.current='';const name=firstInvalid(state.errors),found=document.getElementById(`checkout-${name}`),target=found instanceof HTMLInputElement&&found.disabled?document.getElementById('checkout-query'):found;(target instanceof HTMLFieldSetElement?target.querySelector<HTMLElement>('input'):target)?.focus();}
+  // Couriers that arrive while the buyer is in a field leave focus there; only a focus lost to the busy form moves to them.
+  else if(state.step!==lastStep.current&&!refocus.current&&(!document.activeElement||document.activeElement===document.body)){heading.current?.focus();heading.current?.scrollIntoView({block:'start'});}
   lastStep.current=state.step;
-  // The server has answered for this draft (quoted, refused, or reopened it via "Ubah"): no automatic retry until it changes.
+  // The server has answered for this draft (quoted or refused it): no automatic retry until it changes.
   autoTried.current=courierKey(state.intent.draft);
  },[state,capture,draftSave.changed]);
- const setField=(name:keyof CheckoutDraft,value:string)=>{setDraft(current=>({...current,[name]:value}));if(name!=='buyer_note')setDirty(true);};
+ const setField=(name:keyof CheckoutDraft,value:string)=>setDraft(current=>({...current,[name]:value}));
  const busy=pending||recovering,unknown=state.phase==='unknown',cart=state.view.cart,quote=state.view.quote;
  const intent={...state.intent,draft,query,allocation_id:allocation};
- const contact=state.step==='contact',review=!contact,firstError=firstInvalid(state.errors);
- // Single page (owner 2026-10-31, Shopify-like): once a quote exists, couriers and the package split stay editable next to
- // the order button; a changed choice is applied (and the total refreshed) before an order can be placed.
+ const complete=Boolean(draft.recipient_name.trim()&&/^0\d{8,13}$/.test(draft.phone.replace(/\D/g,''))&&draft.address_line.trim()&&draft.destination_id&&draft.payment_method);
+ const firstError=firstInvalid(state.errors),issued=state.step==='review'?quote:null;
+ // One open page (owner 2026-11-08, Shopify / tokophi): contact, address and payment stay editable; couriers appear under
+ // the address once a quote exists. A changed kelurahan or payment method changes the price: the quote's couriers and
+ // total give way to "Menghitung ongkir…" until the new quote arrives. A changed name, phone or street keeps the price,
+ // but the next press asks for a new quote (it carries the address) before an order can be placed.
+ const priceChanged=Boolean(issued&&(draft.destination_id!==state.intent.draft.destination_id||draft.payment_method!==state.intent.draft.payment_method));
+ const detailsChanged=Boolean(issued&&courierKey(draft)!==courierKey(state.intent.draft));
+ const review=Boolean(issued&&!priceChanged);
+ // A changed courier or split is applied by the server before an order can be placed.
  const allocationChanged=Boolean(review&&quote&&allocation&&allocation!==quote.selected_allocation_id),servicePending=Boolean(review&&quote?.packages.some(p=>(services[p.id]??state.intent.packages.find(choice=>choice.package_id===p.id)?.shipping_option_id??p.selected_option_id)!==p.selected_option_id)),selectionPending=allocationChanged||servicePending,draftConflict=state.draftConflict||draftSave.conflict;
- const kind=contact?'quote' as const:selectionPending?'shipping' as const:'order' as const;
- const omit=contact?['recipient_name','phone','email','destination_id','address_line','buyer_note','payment_method','query']:['allocation_id','packages','buyer_note','email'];
- const pendingLabel=contact?'Memuat pilihan kurir…':kind==='shipping'?'Memperbarui pengiriman…':'Menyimpan pesanan…';
- const method=quote?.payment_channel==='manual-bank'?'Transfer bank':quote?.payment_channel==='autolaris'?'Virtual Account':quote?.payment_method==='cod'?'Bayar di tempat (COD)':quote?.available_payment_methods.find(m=>m.kind===quote.payment_method)?.label??'';
- const submitIntent={...intent,kind};
+ const kind=!review||detailsChanged?'quote' as const:selectionPending?'shipping' as const:'order' as const;
+ submitKind.current=kind;
+ // Visible fields post the draft; the quote's couriers and split post from their radios only when they apply or order.
+ const omit=['recipient_name','phone','email','destination_id','address_line','buyer_note','payment_method','query',...(kind==='quote'?[]:['allocation_id','packages'])];
+ const pendingLabel=kind==='quote'?'Menghitung ongkir…':kind==='shipping'?'Memperbarui ongkir…':'Menyimpan pesanan…';
+ const shown=review&&quote?previewQuote(quote,Object.fromEntries(quote.packages.map(p=>[p.id,services[p.id]??state.intent.packages.find(choice=>choice.package_id===p.id)?.shipping_option_id??p.selected_option_id]))):null;
+ const shownState:CheckoutState=priceChanged?{...state,view:{...state.view,quote:null}}:shown?{...state,view:{...state.view,quote:shown}}:state;
+ // A refused courier or split change keeps the quote: its reason stands in the shipping section, the radios show the
+ // quote's own choice again.
+ const shippingError=Boolean(review&&state.phase==='error'&&state.message&&!Object.keys(state.errors).length);
+ // A complete address whose quote is about to be requested: the shipping section says so instead of the stale couriers.
+ const loading=Boolean(enhanced&&complete&&priceChanged&&!draftConflict&&autoTried.current!==courierKey(draft));
+ const submitIntent={...intent,kind,...(kind==='quote'?{packages:[]}:{})};
  // Couriers load by themselves at the decisive steps (owner 2026-11-05, like Shopee/Tokopedia/Shopify): a kelurahan
  // picked, the payment method changed, or leaving the name, phone or street field, once the address is complete. Never while the buyer is
  // typing in a text field, and once per draft the server has not answered for yet.
- const complete=Boolean(draft.recipient_name.trim()&&/^0\d{8,13}$/.test(draft.phone.replace(/\D/g,''))&&draft.address_line.trim()&&draft.destination_id&&draft.payment_method);
  // biome-ignore lint/correctness/useExhaustiveDependencies: runs per decisive step (nudge) or step/busy change, reading the draft of that render.
  useEffect(()=>{
-  if(!nudge||!contact||!enhanced||busy||draftConflict||state.phase==='unknown'||!complete||autoTried.current===courierKey(draft))return;
+  if(!nudge||kind!=='quote'||!enhanced||busy||draftConflict||state.phase==='unknown'||!complete||autoTried.current===courierKey(draft))return;
   // A pick (kelurahan, payment) may fire with focus still in its combobox; leaving a text field must not fire while the
   // buyer has moved on into the kecamatan or kelurahan field to change it.
-  // The timer is cancelled when the step or busy state changes, and re-checks the step itself before submitting: on the
-  // order step the same button places the order, which must only ever be the buyer's own press.
-  const key=courierKey(draft),timer=setTimeout(()=>{const active=document.activeElement;if(typing(active)||!viaPick.current&&active?.getAttribute('role')==='combobox'||!form.current||form.current.querySelector('dl.checkout-review-box')||form.current.querySelector('fieldset[disabled]'))return;autoTried.current=key;form.current.requestSubmit(document.getElementById('checkout-primary') as HTMLButtonElement|null);},300);
+  // The timer is cancelled when the kind or busy state changes, and re-checks the kind itself before submitting: with a
+  // current quote the same button places the order, which must only ever be the buyer's own press.
+  const key=courierKey(draft),timer=setTimeout(()=>{const active=document.activeElement;if(typing(active)||!viaPick.current&&active?.getAttribute('role')==='combobox'||!form.current||submitKind.current!=='quote'||form.current.querySelector('fieldset[disabled]'))return;autoTried.current=key;refocus.current=focusTarget(active);form.current.requestSubmit();},300);
   return()=>clearTimeout(timer);
- },[nudge,contact,busy]);
- // With JavaScript a changed courier or split is applied at once, like Shopify's shipping step; once per choice.
- const applied=useRef(''),refocus=useRef(''),touched=useRef(false);
+ },[nudge,kind,busy]);
+ // With JavaScript a changed courier or split is applied at once, like Shopify's shipping step; once per choice. The
+ // order button stays disabled ("Memperbarui ongkir…") until the server's total replaces the instant one.
  // The applied reply re-renders the choices; keyboard focus returns to the checked radio of the group the buyer used.
  // biome-ignore lint/correctness/useExhaustiveDependencies: runs on each new server reply (state), not on values read here.
- useLayoutEffect(()=>{const name=refocus.current;if(!name||busy)return;refocus.current='';const group=name.startsWith('shipping_option:')?'input[name^="shipping_option:"]':`input[name="${name}"]`;form.current?.querySelector<HTMLInputElement>(`${group}:checked`)?.focus({preventScroll:true});},[state,busy]);const selectionKey=review&&quote?JSON.stringify([quote.id,allocation,services]):'';
- useEffect(()=>{if(!touched.current||!selectionPending||busy||draftConflict||applied.current===selectionKey)return;applied.current=selectionKey;touched.current=false;refocus.current=(document.activeElement as HTMLInputElement|null)?.name??'';form.current?.requestSubmit(document.getElementById('checkout-primary') as HTMLButtonElement|null);},[selectionPending,busy,draftConflict,selectionKey]);
+ useLayoutEffect(()=>{const target=refocus.current;if(!target||busy)return;refocus.current='';form.current?.querySelector<HTMLElement>(target)?.focus({preventScroll:true});},[state,busy]);const selectionKey=review&&quote?JSON.stringify([quote.id,allocation,services]):'';
+ useEffect(()=>{if(!enhanced||kind!=='shipping'||busy||draftConflict||applied.current===selectionKey)return;applied.current=selectionKey;refocus.current=focusTarget(document.activeElement);form.current?.requestSubmit();},[enhanced,kind,busy,draftConflict,selectionKey]);
  if(draftSave.denied||state.blocked||state.view.kind==='denied'||state.view.kind==='none')return <section className="checkout-recovery" role="alert"><h1>Sesi belanja perlu diperiksa</h1><p>{state.message||'Buka kembali keranjang melalui sesi belanja Anda.'}</p><Link className="button" href="/keranjang">Periksa keranjang</Link><CheckoutHelp context="recovery"/></section>;
  if(unknown)return <UnknownOrder state={state} message={state.message}><form id="checkout-form" action={action} onSubmit={event=>capture(submittedData(event),state)}><IntentFields intent={state.intent}/><button type="submit" className="button" disabled={busy}>{busy?'Memeriksa…':'Periksa hasil tindakan'}</button></form></UnknownOrder>;
  if(state.view.issue==='submitted'&&cart?.submitted_order_id)return <section className="checkout-recovery"><h1>Pesanan sudah tersimpan</h1><p>Periksa pesanan yang tersimpan sebelum melanjutkan.</p><Link className="button" href={`/checkout/order/${cart.submitted_order_id}`}>Periksa pesanan</Link><CheckoutHelp context="payment"/></section>;
  if(state.view.issue==='expired'||state.view.issue==='cart')return <section className="checkout-recovery" role="alert"><h1>Keranjang perlu diperiksa</h1><p>{state.view.issue==='expired'?'Keranjang ini kedaluwarsa. Pilih produk dari keranjang untuk memulai lagi.':'Stok atau rincian pilihan berubah. Periksa isi terbaru dari keranjang.'}</p><Link className="button" href="/keranjang">Kembali ke keranjang</Link><CheckoutHelp context="cart"/></section>;
- const reviewRow=(label:string,children:React.ReactNode)=><div className="checkout-review-row"><dt>{label}</dt><dd>{children}</dd><dd><button className="checkout-text-button" type="submit" name="navigate" value="contact">Ubah<span className="sr-only"> {label.toLowerCase()}</span></button></dd></div>;
  return <><h1 className="checkout-title sr-only">Checkout</h1><div className="checkout-layout">{/* Implicit submission (Enter in a field) uses the first submit button of the form in tree order; the summary's voucher
-   buttons come before the form, so this hidden copy of the primary action keeps Enter doing what it did before (S177 review). */}<button type="submit" form="checkout-form" hidden tabIndex={-1} aria-hidden="true" disabled={draftConflict||review&&!quote}/><Summary state={state} voucher={voucherState(state)} dirty={dirty||selectionPending} noteError={Boolean(state.errors.buyer_note)} note={<NoteDisclosure value={draft.buyer_note} error={state.errors.buyer_note} onChange={(name,value)=>{setField(name,value);draftSave.changed();}}/>}/><div className="checkout-fields">
+   buttons come before the form, so this hidden copy of the primary action keeps Enter doing what it did before (S177 review). */}<button type="submit" form="checkout-form" hidden tabIndex={-1} aria-hidden="true" disabled={draftConflict}/><Summary state={shownState} voucher={voucherState(state)} dirty={detailsChanged} noteError={Boolean(state.errors.buyer_note)} note={<NoteDisclosure value={draft.buyer_note} error={state.errors.buyer_note} onChange={(name,value)=>{setField(name,value);draftSave.changed();}}/>}/><div className="checkout-fields">
   {/* Field errors stand under their fields and the first invalid field takes focus (owner 2026-11-05: no summary list);
       this alert is only for errors no field owns (provider, quote, stock, session). */}
-  {state.message&&state.phase==='error'&&!draftConflict&&!Object.keys(state.errors).length&&<div className="checkout-feedback checkout-error" role="alert"><Icon name="alert"/><div><p>{state.message}</p></div></div>}
-  {state.message&&review&&state.phase!=='error'&&!selectionPending&&!draftConflict&&<p className="checkout-hint checkout-step-notice" data-phase={state.phase} role="status">{state.message}</p>}
-  {state.previousTotal!==undefined&&quote&&state.previousTotal!==quote.amount_due&&state.phase==='success'&&!selectionPending&&!draftConflict&&<div role="status" className="checkout-caution checkout-total-change"><Icon name="alert"/><p>Total berubah dari {rupiah(state.previousTotal)} menjadi {rupiah(quote.amount_due)}. Periksa rincian paket.</p></div>}
+  {state.message&&state.phase==='error'&&!draftConflict&&!Object.keys(state.errors).length&&!shippingError&&<div className="checkout-feedback checkout-error" role="alert"><Icon name="alert"/><div><p>{state.message}</p></div></div>}
+  {state.message&&review&&state.phase!=='error'&&!selectionPending&&!detailsChanged&&!draftConflict&&<p className="checkout-hint checkout-step-notice" data-phase={state.phase} role="status">{state.message}</p>}
+  {state.previousTotal!==undefined&&quote&&state.previousTotal!==quote.amount_due&&state.phase==='success'&&review&&!selectionPending&&!draftConflict&&<div role="status" className="checkout-caution checkout-total-change"><Icon name="alert"/><p>Total berubah dari {rupiah(state.previousTotal)} menjadi {rupiah(quote.amount_due)}. Periksa rincian paket.</p></div>}
   {draftConflict?<div className="checkout-caution checkout-conflict" role="alert"><Icon name="alert"/><div><p>Draf berubah di halaman lain. Muat ulang untuk memeriksanya.</p><p>Isian di halaman ini belum menggantikan draf tersimpan. Muat ulang akan membuka draf tersimpan.</p><a className="button secondary" href="/checkout">Muat ulang draf tersimpan</a><a href="/keranjang">Kembali ke keranjang tanpa menyimpan isian ini</a></div></div>:null}
-  <form id="checkout-form" ref={form} action={action} noValidate onChange={draftSave.changed} onBlur={event=>{if(typing(event.target)&&['recipient_name','phone','address_line'].includes((event.target as unknown as HTMLInputElement).name)){viaPick.current=false;setNudge(n=>n+1);}}} onSubmit={event=>{const data=draftSave.submit(event);if(data)capture(data,state);}}>
-   <IntentFields intent={submitIntent} omit={omit}/><fieldset className="checkout-controls" disabled={busy} aria-busy={busy}><legend className="sr-only">{contact?'Kontak, alamat dan pembayaran':'Pengiriman dan pesanan'}</legend>
-    {contact?<>
-     <section className="checkout-section" aria-labelledby="checkout-step"><h2 id="checkout-step" tabIndex={-1} ref={heading}>Pengiriman</h2>
-      <p className="checkout-hint">Semua kolom wajib kecuali yang bertanda opsional.</p>
-      <div className="checkout-pair"><DraftField name="recipient_name" value={draft.recipient_name} error={state.errors.recipient_name} focusFirst={firstError==='recipient_name'} onChange={setField}/><DraftField name="phone" value={draft.phone} error={state.errors.phone} focusFirst={firstError==='phone'} onChange={setField} hint="Contoh: 0812 3456 7890"/></div>
-      <DraftField name="address_line" value={draft.address_line} error={state.errors.address_line} focusFirst={firstError==='address_line'} onChange={setField} hint="Nama jalan, no. rumah, RT/RW, dan patokan terdekat."/>
-      <CheckoutAddress draft={draft} query={query} destinations={state.view.destinations} errors={state.errors} firstError={firstError} lookupMessage={state.phase==='idle'?state.message:''} setQuery={setQuery} setField={setField} onPicked={()=>{draftSave.changed();viaPick.current=true;setNudge(n=>n+1);}} enhanced={enhanced}/>
-     </section>
-     <section className="checkout-section" aria-labelledby="checkout-shipping-heading"><h2 id="checkout-shipping-heading" className="checkout-subheading">Metode pengiriman</h2>{busy?<p className="checkout-placeholder" role="status">Memuat pilihan kurir…</p>:PROVIDER_RETRY.includes(state.code??'')?<div className="checkout-placeholder"><p>Pilihan kurir belum bisa dimuat.</p><button className="checkout-text-button" type="submit">Coba lagi</button></div>:<p className="checkout-placeholder">Isi alamat pengiriman untuk melihat pilihan kurir.</p>}</section>
-     <section className="checkout-section" aria-labelledby="checkout-payment-heading"><h2 id="checkout-payment-heading">Pembayaran</h2>
-      <fieldset id="checkout-payment_method" className="checkout-methods checkout-rows" aria-invalid={Boolean(state.errors.payment_method)||undefined} aria-describedby={state.errors.payment_method?'checkout-method-error':'checkout-method-hint'}><legend className="sr-only">Metode pembayaran</legend>{paymentRows.filter(m=>state.view.methods.includes(m.id)).map((m,index)=><label key={m.id}>{/* biome-ignore lint/a11y/noAutofocus: native POST validation focuses only the first invalid field. */}
-       <input autoFocus={firstError==='payment_method'&&index===0} type="radio" name="payment_method" value={m.id} checked={draft.payment_method===m.id} onChange={event=>{setField('payment_method',event.currentTarget.value);viaPick.current=true;setNudge(n=>n+1);}} required/><span><strong>{m.label}</strong><small>{m.hint}</small></span></label>)}</fieldset>
-      <p id="checkout-method-hint" className="checkout-hint">Metode pembayaran ikut menentukan kurir yang tersedia.</p>{state.errors.payment_method&&<p id="checkout-method-error" className="checkout-field-error">{state.errors.payment_method}</p>}
-     </section>
-    </>:quote?<>
-     <h2 id="checkout-step" className="sr-only" tabIndex={-1} ref={heading}>Pilih kurir, lalu buat pesanan</h2>
-     <dl className="checkout-review-box">
-      {reviewRow('Kontak',displayPhone(quote.contact.phone))}
-      {reviewRow('Kirim ke',<><strong>{quote.address.recipient_name}</strong><span>{quote.address.address_line}, {[quote.address.subdistrict,quote.address.district,quote.address.city,quote.address.province].filter(Boolean).join(', ')} {quote.address.postal_code}</span></>)}
-      {reviewRow('Pembayaran',<>{method}{quote.payment_method==='cod'&&<small>Bayar sesuai nominal setiap paket saat diterima.</small>}</>)}
-     </dl>
-     <section className="checkout-section" aria-labelledby="checkout-shipping-heading"><h2 id="checkout-shipping-heading" className="checkout-subheading">Metode pengiriman</h2>
-      {quote.allocation_options.length>1?<AllocationChoices key={quote.id} choices={state.view.allocations} selected={quote.selected_allocation_id} allocation={allocation} initiallyOpen={state.intent.allocation_id!==quote.selected_allocation_id} onChange={id=>{touched.current=true;setAllocation(id);}}/>:<input type="hidden" name="allocation_id" value={allocation||quote.selected_allocation_id}/>}
-      {allocationChanged?<p className="checkout-hint" role="status">Pembagian paket dihitung ulang…</p>:<Parcels key={`${quote.id}:${state.intent.key}`} state={state} editable choices={services} onChange={(parcel,service)=>{touched.current=true;setServices(current=>({...current,[parcel]:service}));}}/>}
-     </section>
-     <div className="checkout-due"><span>{quote.payment_method==='cod'?'Total COD':'Total'}</span><strong>{selectionPending?'Menghitung…':rupiah(quote.amount_due)}</strong></div>
-    </>:<p role="alert">Perhitungan belum tersedia. Ubah alamat untuk menghitung ulang.</p>}
-    <div className="checkout-actions">{contact&&cart&&<MobileTotal state={state}/>}<button id="checkout-primary" className="button" type="submit" disabled={draftConflict||review&&!quote}>{busy?pendingLabel:contact?enhanced?'Buat pesanan':'Cek ongkir':kind==='shipping'?'Perbarui pengiriman':quote?<><span className="checkout-order-label">Buat pesanan</span><span className="checkout-update-label">Perbarui pengiriman</span></>:'Periksa perhitungan'}</button>{busy&&<span className="sr-only" role="status">{pendingLabel}</span>}
+  <form id="checkout-form" ref={form} action={action} noValidate onChange={draftSave.changed} onBlur={event=>{if(typing(event.target)&&['recipient_name','phone','address_line'].includes((event.target as unknown as HTMLInputElement).name)){viaPick.current=false;setNudge(n=>n+1);}}} onSubmit={event=>{const data=draftSave.submit(event);if(data){capture(data,state);requested.current=data.get('kind')==='quote'||data.has('voucher_apply')||data.has('voucher_remove')?'quote':null;}}}>
+   <IntentFields intent={submitIntent} omit={omit}/><fieldset className="checkout-controls" disabled={busy} aria-busy={busy} data-live={enhanced||undefined}><legend className="sr-only">Kontak, alamat, pengiriman dan pembayaran</legend>
+    <section className="checkout-section" aria-labelledby="checkout-contact-heading"><h2 id="checkout-contact-heading">Kontak &amp; alamat</h2>
+     <p className="checkout-hint">Semua kolom wajib kecuali yang bertanda opsional.</p>
+     <div className="checkout-pair"><DraftField name="recipient_name" value={draft.recipient_name} error={state.errors.recipient_name} focusFirst={firstError==='recipient_name'} onChange={setField}/><DraftField name="phone" value={draft.phone} error={state.errors.phone} focusFirst={firstError==='phone'} onChange={setField} hint="Contoh: 0812 3456 7890"/></div>
+     <DraftField name="address_line" value={draft.address_line} error={state.errors.address_line} focusFirst={firstError==='address_line'} onChange={setField} hint="Nama jalan, no. rumah, RT/RW, dan patokan terdekat."/>
+     <CheckoutAddress draft={draft} query={query} destinations={state.view.destinations} errors={state.errors} firstError={firstError} lookupMessage={state.phase==='idle'?state.message:''} setQuery={setQuery} setField={setField} onPicked={()=>{draftSave.changed();viaPick.current=true;setNudge(n=>n+1);}} enhanced={enhanced}/>
+    </section>
+    <section className="checkout-section" aria-labelledby="checkout-shipping-heading"><h2 id="checkout-shipping-heading" tabIndex={-1} ref={heading}>Pengiriman</h2>
+     {review&&quote&&shown?<>
+      {shippingError&&<p className="checkout-field-error checkout-shipping-error" role="alert"><Icon name="alert"/>{state.message}</p>}
+      {/* While a changed name, phone or street waits for its new quote the couriers stay visible but do not post. */}
+      <fieldset className="checkout-shipping-choices" disabled={kind==='quote'}><legend className="sr-only">Kurir dan pembagian paket</legend>
+       {quote.allocation_options.length>1?<AllocationChoices key={quote.id} choices={state.view.allocations} selected={quote.selected_allocation_id} allocation={allocation} initiallyOpen={state.intent.allocation_id!==quote.selected_allocation_id} onChange={setAllocation}/>:<input type="hidden" name="allocation_id" value={allocation||quote.selected_allocation_id}/>}
+       {allocationChanged?<p className="checkout-placeholder" role="status">Pembagian paket dihitung ulang…</p>:<Parcels key={`${quote.id}:${state.intent.key}`} state={{...state,view:{...state.view,quote:shown}}} issued={quote} editable choices={services} onChange={(parcel,service)=>setServices(current=>({...current,[parcel]:service}))}/>}
+      </fieldset>
+     </>:busy||loading?<p className="checkout-placeholder" role="status">Menghitung ongkir…</p>:PROVIDER_RETRY.includes(state.code??'')?<div className="checkout-placeholder"><p>Pilihan kurir belum bisa dimuat.</p><button className="checkout-text-button" type="submit">Coba lagi</button></div>:<p className="checkout-placeholder">Isi alamat pengiriman untuk melihat pilihan kurir.</p>}
+    </section>
+    <section className="checkout-section" aria-labelledby="checkout-payment-heading"><h2 id="checkout-payment-heading">Pembayaran</h2>
+     <fieldset id="checkout-payment_method" className="checkout-methods checkout-rows" aria-invalid={Boolean(state.errors.payment_method)||undefined} aria-describedby={state.errors.payment_method?'checkout-method-error':'checkout-method-hint'}><legend className="sr-only">Metode pembayaran</legend>{paymentRows.filter(m=>state.view.methods.includes(m.id)).map((m,index)=><label key={m.id}>{/* biome-ignore lint/a11y/noAutofocus: native POST validation focuses only the first invalid field. */}
+      <input autoFocus={firstError==='payment_method'&&index===0} type="radio" name="payment_method" value={m.id} checked={draft.payment_method===m.id} onChange={event=>{setField('payment_method',event.currentTarget.value);viaPick.current=true;setNudge(n=>n+1);}} required/><span><strong>{m.label}</strong><small>{m.hint}</small></span></label>)}</fieldset>
+     <p id="checkout-method-hint" className="checkout-hint">Metode pembayaran ikut menentukan kurir yang tersedia.</p>{state.errors.payment_method&&<p id="checkout-method-error" className="checkout-field-error">{state.errors.payment_method}</p>}
+    </section>
+    {review&&shown&&<div className="checkout-due" aria-live="polite"><span>{shown.payment_method==='cod'?'Total COD':'Total'}</span><strong>{rupiah(shown.amount_due)}</strong></div>}
+    <div className="checkout-actions">{!review&&cart&&<MobileTotal state={shownState}/>}<button id="checkout-primary" className="button" type="submit" disabled={draftConflict||enhanced&&kind==='shipping'}>{busy?pendingLabel:kind==='quote'?enhanced?'Buat pesanan':'Cek ongkir':kind==='shipping'?enhanced?'Memperbarui ongkir…':'Perbarui pengiriman':<><span className="checkout-order-label">Buat pesanan</span><span className="checkout-update-label">Perbarui pengiriman</span></>}</button>{busy&&<span className="sr-only" role="status">{pendingLabel}</span>}
 </div>
    </fieldset>
    {/* Draft saving is silent (owner 2026-11-05); only a failed save is announced, to screen readers. */}
